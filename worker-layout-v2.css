@@ -177,25 +177,46 @@ body.worker-feature-tab-active #workerPageNav {
   display: flex !important;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   flex-shrink: 0;
   z-index: 20;
-  margin: 0 0 8px;
-  padding: 10px 12px;
-  border-radius: var(--w-layout-radius);
+  margin: 0 0 4px;
+  padding: 5px 8px;
+  min-height: 0;
+  border-radius: calc(var(--w-layout-radius) - 2px);
   border: 1px solid var(--corp-border);
   background: color-mix(in srgb, var(--corp-surface, #fff) 92%, transparent);
   backdrop-filter: blur(10px);
   box-shadow: var(--ui-shadow-sm);
 }
 
+body.worker-feature-tab-active #workerPageBackButton {
+  min-height: 32px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+}
+
 body.worker-feature-tab-active #workerPageLabel {
   margin: 0;
-  font-size: 0.95rem;
+  font-size: 0.84rem;
   font-weight: 700;
   color: var(--corp-text);
   text-align: center;
   flex: 1;
+}
+
+body.worker-feature-tab-active #leaveRequestCard > .section-head.compact-head,
+body.worker-feature-tab-active #documentsCard > .section-head.compact-head {
+  display: none;
+}
+
+body.worker-feature-tab-active #timesheetCard .section-head.compact-head.section-head-inline > div:first-child {
+  display: none;
+}
+
+body.worker-feature-tab-active #timesheetCard .section-head.compact-head.section-head-inline {
+  margin-bottom: 4px;
+  justify-content: flex-end;
 }
 
 body.worker-feature-tab-active #leaveRequestCard:not(.hidden),
@@ -211,7 +232,7 @@ body.worker-page-focus #deploymentPlanCard:not(.hidden) {
   flex: 1;
   min-height: 0;
   margin: 0;
-  padding: var(--w-layout-pad);
+  padding: 8px 10px 10px;
   border-radius: var(--w-layout-radius);
   border: 1px solid var(--corp-border);
   background: var(--corp-surface);
@@ -443,6 +464,21 @@ html[data-theme="dark"] #chatCard .worker-chat-compose {
   line-height: 1.35;
 }
 
+.worker-chat-delete-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  opacity: 0.55;
+  padding: 0 2px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.worker-chat-delete-btn:hover,
+.worker-chat-delete-btn:focus-visible {
+  opacity: 1;
+}
+
 #chatCard .worker-chat-compose-attach {
   display: inline-flex;
   align-items: center;
@@ -535,7 +571,7 @@ body.worker-feature-tab-active .timesheet-list,
 body.worker-feature-tab-active .documents-list {
   display: grid;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 6px;
 }
 
 body.worker-feature-tab-active .leave-request-item,

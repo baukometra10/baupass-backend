@@ -86,7 +86,7 @@
   <meta name="format-detection" content="telephone=no" />
   <link rel="icon" type="image/png" sizes="192x192" href="data:," id="workerAppFavicon" />
   <link rel="apple-touch-icon" sizes="192x192" href="data:," id="workerAppTouchIcon" />
-  <link rel="manifest" href="./emp-app-manifest.json?v=20260629f" />
+  <link rel="manifest" href="./emp-app-manifest.json?v=20260630a" />
   <title>Mitarbeiter-App</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
@@ -94,15 +94,15 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Syne:wght@500;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./worker-theme.css?v=20260629f" />
-  <link rel="stylesheet" href="./worker.css?v=20260629f" />
+  <link rel="stylesheet" href="./worker-theme.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker.css?v=20260630a" />
   <link rel="stylesheet" href="./ai-voice-ui.css?v=20260601voice13" />
-  <link rel="stylesheet" href="./worker-polish.css?v=20260629f" />
-  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260629f" />
-  <link rel="stylesheet" href="./worker-login.css?v=20260629f" />
-  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260629f" />
-  <link rel="stylesheet" href="./worker-readability.css?v=20260629f" />
-  <script src="./tenant-brand-icon.js?v=20260629f"></script>
+  <link rel="stylesheet" href="./worker-polish.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker-layout-v2.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker-login.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260630a" />
+  <link rel="stylesheet" href="./worker-readability.css?v=20260630a" />
+  <script src="./tenant-brand-icon.js?v=20260630a"></script>
   <style id="workerChatShellFix">
     /* Chat-Layout direkt im HTML — greift auch bei altem CSS-Cache */
     #chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}
@@ -1331,11 +1331,11 @@
         <a id="homeInfoSite" class="home-info-value site-inline-link" href="#" target="_blank" rel="noopener noreferrer" aria-disabled="true">-</a>
       </div>
       <div class="home-info-item">
-        <span class="home-info-label">Firma</span>
-        <span id="homeInfoCompany" class="home-info-value">Baufirma</span>
+        <span class="home-info-label" data-i18n="fieldCompany">Firma</span>
+        <span id="homeInfoCompany" class="home-info-value">—</span>
       </div>
       <div class="home-info-item">
-        <span class="home-info-label" data-i18n="fieldValidUntil">Gültig bis</span>
+        <span class="home-info-label" data-i18n="fieldValidUntil">Ausweis gültig bis</span>
         <span id="homeInfoValidUntil" class="home-info-value">-</span>
       </div>
     </div>
@@ -1472,7 +1472,7 @@
       window.__workerApplyInlineLang = applyLang;
     })();
   </script>
-  <script src="./tenant-brand-icon.js?v=20260629f"></script>
+  <script src="./tenant-brand-icon.js?v=20260630a"></script>
   <script>
     (function bootstrapWorkerFavicon() {
       if (!window.TenantBrandIcon) return;

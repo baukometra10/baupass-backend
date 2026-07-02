@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260629f";
+const WORKER_BUILD_TAG = "20260630a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1027,7 +1027,9 @@ async function fetchServerNotifications() {
     const data = await fetchJson(`${API_BASE}/notifications`, {
       headers: { Authorization: `Bearer ${workerToken}` },
     });
-    return Array.isArray(data?.notifications) ? data.notifications : [];
+    return Array.isArray(data?.notifications)
+      ? data.notifications.filter((row) => String(row?.type || "").toLowerCase() !== "worker_chat_admin")
+      : [];
   } catch (err) {
     console.warn("[notifications] server fetch failed:", err?.message || err);
     return [];
@@ -2106,6 +2108,109 @@ function getWorkerPassStage() {
   return elements.badgeCard?.querySelector(".pass-stage") || null;
 }
 
+function syncHomeCompactInfo(payload) {
+  if (!payload) return;
+  const worker = payload.worker || {};
+  const company = payload.company || {};
+  const brandTitle = resolveWorkerCardBrandTitle({
+    portalDisplayName: company.portalDisplayName || company.portal_display_name,
+    companyName: company.name || "",
+  });
+  const homeInfoStatus = document.getElementById("homeInfoStatus");
+  const homeInfoSite = document.getElementById("homeInfoSite");
+  const homeInfoCompany = document.getElementById("homeInfoCompany");
+  const homeInfoValidUntil = document.getElementById("homeInfoValidUntil");
+  const statusText = elements.workerStatus?.textContent || worker.status || "Aktiv";
+  if (homeInfoStatus) {
+    homeInfoStatus.textContent = statusText;
+  }
+  if (homeInfoSite) {
+    const siteText = elements.workerSite?.textContent || worker.site || "-";
+    homeInfoSite.textContent = siteText;
+    if (elements.workerSite instanceof HTMLAnchorElement) {
+      homeInfoSite.href = elements.workerSite.getAttribute("href") || "#";
+      if (elements.workerSite.getAttribute("aria-disabled") === "true") {
+        homeInfoSite.setAttribute("aria-disabled", "true");
+      } else {
+        homeInfoSite.removeAttribute("aria-disabled");
+      }
+    }
+  }
+  if (homeInfoCompany) {
+    homeInfoCompany.textContent = brandTitle || t("companyFallback");
+  }
+  if (homeInfoValidUntil) {
+    const validText = elements.workerValidUntil?.textContent || formatDate(worker.validUntil) || "-";
+    homeInfoValidUntil.textContent = validText;
+  }
+}
+
+function updateWorkHoursBannerVisibility(tabName = currentActiveTab) {
+  const banner = document.getElementById("workerWorkHoursBanner");
+  if (!banner || !lastSiteAccessCfg?.siteApp) {
+    return;
+  }
+  banner.classList.toggle("hidden", tabName !== "home");
+}
+
+function bindWorkerFeatureTabActions() {
+  if (document.body.dataset.featureTabActionsBound === "1") {
+    return;
+  }
+  document.body.dataset.featureTabActionsBound = "1";
+  document.addEventListener("click", (event) => {
+    const backBtn = event.target instanceof Element ? event.target.closest("#workerPageBackButton") : null;
+    if (backBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      switchToTab("home");
+      return;
+    }
+    const leaveToggle = event.target instanceof Element ? event.target.closest("#leaveRequestToggleBtn") : null;
+    if (leaveToggle) {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleLeaveRequestForm();
+    }
+  });
+}
+
+function bindWorkerChatMessageActions() {
+  const host = elements.workerChatMessages || document.getElementById("workerChatMessages");
+  if (!host || host.dataset.chatActionsBound === "1") {
+    return;
+  }
+  host.dataset.chatActionsBound = "1";
+  host.addEventListener("click", (event) => {
+    const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
+    if (!deleteBtn) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
+    if (messageId) {
+      void deleteWorkerChatMessage(messageId);
+    }
+  });
+}
+
+async function deleteWorkerChatMessage(messageId) {
+  if (!workerToken || !messageId) {
+    return;
+  }
+  try {
+    await fetchJson(`${API_BASE}/chat/messages/${encodeURIComponent(messageId)}`, {
+      method: "DELETE",
+      headers: buildWorkerAuthHeaders(),
+    });
+    await loadWorkerChat();
+    showWorkerNotice(t("workerChatDeleted"));
+  } catch (error) {
+    showWorkerNotice(formatWorkerApiError(error));
+  }
+}
+
 /** Dashboard-Karte vs. QR-Pass vs. Hub-Bereiche (Urlaub/Zeiten/Docs) sichtbar schalten. */
 function updateWorkerShellForTab(tabName) {
   const cardInstall = document.body.classList.contains("worker-card-install");
@@ -2185,6 +2290,7 @@ function updateWorkerShellForTab(tabName) {
       hubPanel.style.setProperty("display", "none", "important");
     }
   }
+  updateWorkHoursBannerVisibility(tabName);
 }
 
 function showOnlyWorkerFeaturePanel(panelId) {
@@ -3385,12 +3491,12 @@ function bindEvents() {
 
   bindWorkerChatComposeEvents();
 
+  bindWorkerFeatureTabActions();
+
   if (elements.workerPageBackButton) {
     elements.workerPageBackButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      document.body.classList.remove("worker-page-focus", "worker-feature-tab-active");
-      applyWorkerPageView("");
       switchToTab("home");
     });
   }
@@ -4660,6 +4766,7 @@ function renderWorker(payload) {
   if (!isWorkerCardInstallEntry()) {
     syncWorkerDataToDashboard(lastWorkerPayload);
   }
+  syncHomeCompactInfo(lastWorkerPayload);
   
   // Keep the UX stable after login: no forced fullscreen showcase.
   
@@ -8146,9 +8253,16 @@ async function prefillCompanyAdminEmails() {
 }
 
 function toggleLeaveRequestForm() {
-  if (!elements.leaveRequestFormWrapper || !elements.leaveRequestToggleBtn) return;
-  const isHidden = elements.leaveRequestFormWrapper.classList.toggle("hidden");
-  elements.leaveRequestToggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestTitle");
+  syncWorkerChatComposeRefs();
+  const formWrapper = document.getElementById("leaveRequestFormWrapper");
+  const toggleBtn = document.getElementById("leaveRequestToggleBtn");
+  if (!formWrapper || !toggleBtn) {
+    return;
+  }
+  elements.leaveRequestFormWrapper = formWrapper;
+  elements.leaveRequestToggleBtn = toggleBtn;
+  const isHidden = formWrapper.classList.toggle("hidden");
+  toggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestHideFormBtn");
 }
 
 async function addWorkerPassToWallet(platform) {
@@ -9697,6 +9811,10 @@ function renderWorkerChatMessages(messages) {
       const time = formatChatTimestamp(msg.createdAt || msg.created_at);
       const readLabel = workerChatReadLabel(msg, side);
       const read = msg.readByRecipient === true || msg.read_by_recipient === true;
+      const messageId = String(msg.id || "");
+      const deleteHtml = side === "mine" && messageId && !read
+        ? `<button type="button" class="worker-chat-delete-btn" data-chat-delete-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("workerChatDelete"))}">🗑</button>`
+        : "";
       const readHtml = readLabel
         ? `<span class="worker-chat-read${read ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
         : "";
@@ -9709,12 +9827,14 @@ function renderWorkerChatMessages(messages) {
             <div class="worker-chat-meta">
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
               ${readHtml}
+              ${deleteHtml}
             </div>
           </div>
         </div>
       `;
     })
     .join("");
+  bindWorkerChatMessageActions();
   elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
 }
 
@@ -10435,6 +10555,7 @@ function initWorkerAppShell() {
   refreshTopBarElements();
   bindTopBarActions();
   enforceUiVisibilityGuard();
+  bindWorkerFeatureTabActions();
   initBottomTabNavigation();
 }
 

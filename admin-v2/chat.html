@@ -67,6 +67,16 @@
       flex-wrap: wrap;
       margin-top: 0.35rem;
     }
+    .chat-delete-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      opacity: 0.55;
+      padding: 0 0.2rem;
+      font-size: 0.85rem;
+      line-height: 1;
+    }
+    .chat-delete-btn:hover { opacity: 1; }
   </style>
 </head>
 <body>
@@ -117,6 +127,14 @@
     let currentThreadId = "";
     let currentWorkerId = "";
     let chatPollTimer = null;
+    function getAdminUser() {
+      try {
+        return JSON.parse(wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}");
+      } catch {
+        return {};
+      }
+    }
+    const adminUserId = String(getAdminUser().id || "");
     const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
     const api = async (path, options = {}) => {
       const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
@@ -221,6 +239,14 @@
       }
       return "";
     }
+    function canDeleteAdminMessage(msg) {
+      const sender = String(msg.senderType || "");
+      const senderUserId = String(msg.senderUserId || msg.sender_user_id || "");
+      return sender === "admin" && !msg.readByRecipient && messageIdPresent(msg) && senderUserId === adminUserId;
+    }
+    function messageIdPresent(msg) {
+      return Boolean(String(msg.id || "").trim());
+    }
     function renderChatBubble(msg) {
       const who = msg.senderType === "worker" ? "Mitarbeiter" : "Firma";
       const time = formatChatTimestamp(msg.createdAt);
@@ -241,7 +267,18 @@
           }).join("<br>")}</div>`
         : "";
       const body = escapeHtml(msg.body || "");
-      return `<div class="bubble ${msg.senderType === "admin" ? "admin" : ""}"><strong>${who}</strong><br><span>${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}</div></div>`;
+      const messageId = escapeHtml(String(msg.id || ""));
+      const deleteBtn = canDeleteAdminMessage(msg)
+        ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="Nachricht löschen">🗑</button>`
+        : "";
+      return `<div class="bubble ${msg.senderType === "admin" ? "admin" : ""}"><strong>${who}</strong><br><span>${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}${deleteBtn}</div></div>`;
+    }
+    async function deleteAdminChatMessage(messageId) {
+      if (!messageId || !currentWorkerId) return;
+      await api(`/api/chat/messages/${encodeURIComponent(messageId)}?company_id=${encodeURIComponent(companyId)}&worker_id=${encodeURIComponent(currentWorkerId)}`, {
+        method: "DELETE",
+      });
+      await loadMessages(currentThreadId, currentWorkerId);
     }
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
@@ -322,6 +359,15 @@
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
     document.getElementById("messageList").addEventListener("click", (event) => {
+      const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
+      if (deleteBtn) {
+        const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
+        if (!messageId) return;
+        deleteAdminChatMessage(messageId).catch((error) => {
+          document.getElementById("threadMeta").textContent = error.message || String(error);
+        });
+        return;
+      }
       const btn = event.target instanceof Element ? event.target.closest("[data-attachment-id]") : null;
       if (!btn) return;
       const attachmentId = btn.getAttribute("data-attachment-id") || "";

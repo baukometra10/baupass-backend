@@ -505,6 +505,57 @@ class ChatService:
             )
         self.db.commit()
 
+    def delete_message(
+        self,
+        message_id: str,
+        company_id: str,
+        *,
+        actor_type: str,
+        actor_worker_id: str | None = None,
+        actor_user_id: str | None = None,
+    ) -> None:
+        row = self.db.execute(
+            """
+            SELECT id, thread_id, sender_type, sender_worker_id, sender_user_id, created_at
+            FROM chat_messages
+            WHERE id = ? AND company_id = ?
+            """,
+            (message_id, company_id),
+        ).fetchone()
+        if not row:
+            raise ValueError("message_not_found")
+        sender_type = str(row["sender_type"] or "")
+        if actor_type == "worker":
+            if sender_type != "worker" or str(row["sender_worker_id"] or "") != str(actor_worker_id or ""):
+                raise ValueError("forbidden")
+        elif actor_type == "admin":
+            if sender_type != "admin" or str(row["sender_user_id"] or "") != str(actor_user_id or ""):
+                raise ValueError("forbidden")
+        else:
+            raise ValueError("forbidden")
+
+        thread_row = self.db.execute(
+            """
+            SELECT last_worker_read_at, last_admin_read_at
+            FROM chat_threads
+            WHERE id = ? AND company_id = ?
+            """,
+            (str(row["thread_id"]), company_id),
+        ).fetchone()
+        created = str(row["created_at"] or "")
+        if sender_type == "worker":
+            admin_read = str(thread_row["last_admin_read_at"] or "") if thread_row else ""
+            if admin_read and created and admin_read >= created:
+                raise ValueError("message_already_read")
+        else:
+            worker_read = str(thread_row["last_worker_read_at"] or "") if thread_row else ""
+            if worker_read and created and worker_read >= created:
+                raise ValueError("message_already_read")
+
+        self.db.execute("DELETE FROM chat_attachments WHERE message_id = ?", (message_id,))
+        self.db.execute("DELETE FROM chat_messages WHERE id = ? AND company_id = ?", (message_id, company_id))
+        self.db.commit()
+
     def _notify_company_side(self, company_id: str, worker_id: str, body: str) -> None:
         try:
             self.db.execute(

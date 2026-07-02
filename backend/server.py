@@ -15054,6 +15054,7 @@ def notifications_get():
         SELECT id, type, title, message, action_url, read_at, created_at
         FROM notifications
         WHERE worker_id = ?
+          AND type NOT IN ('worker_chat_admin')
         ORDER BY created_at DESC
         LIMIT 50
         """,
