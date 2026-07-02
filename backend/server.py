@@ -26129,6 +26129,24 @@ def worker_submit_leave_request():
         f"Antrag von {worker['first_name']} {worker['last_name']}: {req_type} {start_date}–{end_date}",
         target_type="worker", target_id=worker["id"], company_id=worker["company_id"]
     )
+    try:
+        from backend.app.platform.events.bus import publish_event
+
+        publish_event(
+            "leave_request.created",
+            company_id,
+            {
+                "leaveId": req_id,
+                "workerId": worker["id"],
+                "type": req_type,
+                "startDate": start_date,
+                "endDate": end_date,
+                "status": "ausstehend",
+            },
+            actor_id=str(worker["id"]),
+        )
+    except Exception:
+        app.logger.debug("leave_request.created publish skipped for %s", req_id, exc_info=True)
 
     type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiger Antrag"}
     req_type_label = type_labels.get(req_type, req_type)

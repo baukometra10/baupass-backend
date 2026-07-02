@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702l";
+const WORKER_BUILD_TAG = "20260702m";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -367,9 +367,6 @@ function getOrCreateWorkerDeviceFingerprint() {
 }
 
 function buildWorkerDevicePayload() {
-  if (!window.FlutterWorkerBridge && !window.workpassNativeDevice) {
-    return null;
-  }
   return {
     fingerprint: getOrCreateWorkerDeviceFingerprint(),
     name: isIosDevice() ? "iPhone" : (isStandaloneDisplay() ? "Installed PWA" : "Mobile Web"),
@@ -395,8 +392,7 @@ function buildWorkerAuthHeaders(extraHeaders = {}) {
   if (auth && !headers.Authorization) {
     headers.Authorization = `Bearer ${auth}`;
   }
-  const sendDeviceHeader = Boolean(window.FlutterWorkerBridge || window.workpassNativeDevice);
-  const deviceId = sendDeviceHeader ? String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim() : "";
+  const deviceId = String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim();
   if (deviceId && !headers["X-Device-Id"]) {
     headers["X-Device-Id"] = deviceId;
   }
@@ -7860,6 +7856,12 @@ function formatWorkerApiError(error) {
   if (code === "chat_load_failed" || code === "chat_thread_failed") {
     return t("workerChatUnavailable");
   }
+  if (code === "missing_device_id" || code === "device_not_bound" || code === "device_not_active") {
+    return "Gerätefreigabe fehlt – bitte einmal abmelden und erneut mit Badge-ID und PIN anmelden.";
+  }
+  if (code === "worker_company_missing") {
+    return "Ihr Mitarbeiterprofil ist keiner Firma zugeordnet. Bitte den Administrator kontaktieren.";
+  }
   if (code === "attachment_upload_failed" || code === "attachment_payload_required") {
     return t("workerChatDocumentSubmitFailed");
   }
@@ -8277,9 +8279,27 @@ function arrayBufferToBase64(buffer) {
 // ── FEATURE 3: LEAVE REQUESTS ──
 // ═════════════════════════════════════════════════════════════════════
 
+function syncLeaveRequestDomRefs() {
+  elements.leaveRequestForm = document.querySelector("#leaveRequestForm") || elements.leaveRequestForm;
+  elements.leaveRequestType = document.querySelector("#leaveRequestType") || elements.leaveRequestType;
+  elements.leaveRequestStart = document.querySelector("#leaveRequestStart") || elements.leaveRequestStart;
+  elements.leaveRequestEnd = document.querySelector("#leaveRequestEnd") || elements.leaveRequestEnd;
+  elements.leaveRequestNote = document.querySelector("#leaveRequestNote") || elements.leaveRequestNote;
+  elements.leaveRequestBossEmail = document.querySelector("#leaveRequestBossEmail") || elements.leaveRequestBossEmail;
+  elements.leaveRequestList = document.querySelector("#leaveRequestList") || elements.leaveRequestList;
+}
+
 async function submitLeaveRequest() {
   refreshWorkerApiBase();
-  if (!workerToken || !elements.leaveRequestForm) return;
+  syncLeaveRequestDomRefs();
+  if (!workerToken) {
+    showWorkerNotice("Bitte zuerst mit Badge-ID und PIN anmelden.");
+    return;
+  }
+  if (!elements.leaveRequestForm) {
+    showWorkerNotice("Urlaubsformular nicht gefunden – bitte Seite neu laden.");
+    return;
+  }
   if (offlineWorkerSessionActive) {
     showWorkerNotice(t("leaveRequiresOnlineLogin"));
     return;
@@ -8294,13 +8314,10 @@ async function submitLeaveRequest() {
   const end = elements.leaveRequestEnd?.value || "";
   const note = elements.leaveRequestNote?.value || "";
   const recipientEmail = (elements.leaveRequestBossEmail?.value || "").trim();
+  const submitBtn = elements.leaveRequestForm.querySelector('button[type="submit"]');
   
   if (!start || !end) {
     showWorkerNotice(t("enterAccessCode")); // Reuse: please enter dates
-    return;
-  }
-  if (start > end) {
-    showWorkerNotice(t("leaveDateRangeInvalid"));
     return;
   }
   if (start > end) {
@@ -8315,6 +8332,10 @@ async function submitLeaveRequest() {
     || lastWorkerPayload?.company?.id
     || "",
   ).trim();
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Wird gesendet …";
+  }
   try {
     console.info("[WorkPass leave] submit", leaveSubmitUrl, {
       type,
@@ -8323,13 +8344,13 @@ async function submitLeaveRequest() {
       apiBase: API_BASE,
       workerCompanyId,
       workerId: lastWorkerPayload?.worker?.id || "",
+      deviceId: String(wpGet(WORKER_DEVICE_ID_KEY) || "").trim(),
     });
     const result = await fetchJson(leaveSubmitUrl, {
       method: "POST",
-      headers: {
+      headers: buildWorkerAuthHeaders({
         "Content-Type": "application/json",
-        Authorization: `Bearer ${workerToken}`
-      },
+      }),
       body: JSON.stringify({
         type,
         start_date: start,
@@ -8368,10 +8389,16 @@ async function submitLeaveRequest() {
     await loadLeaveRequests();
     void refreshWorkerLeaveStatsQuiet();
   } catch (error) {
+    console.error("[WorkPass leave] submit failed", error);
     if (isWorkerSessionAuthError(error?.code)) {
       return;
     }
     showWorkerNotice(`Fehler: ${formatWorkerApiError(error)}`);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = t("leaveRequestSubmitBtn");
+    }
   }
 }
 
