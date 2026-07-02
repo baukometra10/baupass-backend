@@ -11,6 +11,9 @@
 | [`backend/app/domains/README.md`](../backend/app/domains/README.md) | Domain-Blueprints, Registrierung, Migrations-Regeln |
 | [`docs/HANDOVER-PLATFORM-AR.md`](HANDOVER-PLATFORM-AR.md) | Betrieb ohne Code (Railway, Kameras, Health) |
 | [`docs/engineering/server-decomposition-roadmap.md`](engineering/server-decomposition-roadmap.md) | Auslagerung aus `server.py` |
+| [`docs/postgres-cutover-runbook.md`](postgres-cutover-runbook.md) | SQLite → PostgreSQL Cutover |
+| [`docs/postgres-staging-checklist-AR.md`](postgres-staging-checklist-AR.md) | Staging Go/No-Go vor PG-Produktion |
+| [`docs/openapi/README.md`](openapi/README.md) | OpenAPI v1 — `GET /api/v1/openapi.json` |
 
 ## 2. Architektur (Kurz)
 
@@ -62,9 +65,17 @@ Details: [`docs/SECURITY-MODEL-AR.md`](SECURITY-MODEL-AR.md)
 - Migrations: append-only, `MigrationRunner` beim Boot
 - Indizes für Mandant + Zeitstempel sind vorhanden (Workers, Access, Chat, Kameras, …)
 
-Cutover: [`docs/postgres-cutover-runbook.md`](postgres-cutover-runbook.md)
+Cutover: [`docs/postgres-cutover-runbook.md`](postgres-cutover-runbook.md)  
+Staging checklist: [`docs/postgres-staging-checklist-AR.md`](postgres-staging-checklist-AR.md)  
+Verify script: `deploy/postgres-staging-verify.ps1`
 
-## 6. Was ein Team als Nächstes tun sollte
+## 6. API reference
+
+- Live OpenAPI: `GET /api/v1/openapi.json`
+- Docs: [`docs/openapi/README.md`](openapi/README.md)
+- Extend [`backend/app/api/openapi_spec.py`](../backend/app/api/openapi_spec.py) when adding routes
+
+## 7. Was ein Team als Nächstes tun sollte
 
 1. Handler-Logik aus `server.py` in Domain-`service.py` verschieben (siehe Roadmap)
 2. PostgreSQL in Staging testen, bevor Multi-Region
