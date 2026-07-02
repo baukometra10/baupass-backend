@@ -1000,7 +1000,7 @@ const UI_TRANSLATIONS = {
     camerasLiveH4: "Live-Snapshot",
     camerasLiveGridH4: "Live-Übersicht",
     camerasLiveGridHint: "Alle registrierten Kameras nebeneinander — Snapshots alle 10 s.",
-    camerasLiveGridEmpty: "Noch keine Kameras — Massen-Import oder Einzelkamera unten nutzen.",
+    camerasLiveGridEmpty: "Noch keine Kameras — Massen-Import oder Einzelkamera in den Tabs oben nutzen.",
     cameraWaitingSnapshot: "Warte auf Snapshot…",
     cameraExpandHint: "Klicken für Vollbild",
     camerasLiveHint: "Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).",
@@ -1016,6 +1016,7 @@ const UI_TRANSLATIONS = {
     cameraSelectLive: "Live anzeigen",
     cameraDeleteConfirm: "Kamera wirklich löschen?",
     cameraSummary: "{online}/{total} Kameras online",
+    camerasTabLive: "Live",
     camerasTabBulk: "Massen-Import",
     camerasTabSingle: "Einzelne Kamera",
     camerasTabBridge: "Bridge einrichten",
@@ -4037,7 +4038,7 @@ const UI_TRANSLATIONS = {
     camerasLiveH4: "لقطة مباشرة",
     camerasLiveGridH4: "عرض مباشر",
     camerasLiveGridHint: "كل الكameras المسجّلة جنباً إلى جنب — تحديث كل 10 ثوانٍ.",
-    camerasLiveGridEmpty: "لا كameras بعد — استخدم الاستيراد الجماعي أو كamera واحدة أدناه.",
+    camerasLiveGridEmpty: "لا كameras بعد — استخدم الاستيراد الجماعي أو كamera واحدة من التبويبات أعلاه.",
     cameraWaitingSnapshot: "بانتظار اللقطة…",
     cameraExpandHint: "انقر للعرض الكامل",
     camerasLiveHint: "آخر صورة من وكيل RTSP (تحديث كل 10 ثوانٍ).",
@@ -4053,6 +4054,7 @@ const UI_TRANSLATIONS = {
     cameraSelectLive: "عرض مباشر",
     cameraDeleteConfirm: "حذف الكamera؟",
     cameraSummary: "{online}/{total} كameras متصلة",
+    camerasTabLive: "مباشر",
     camerasTabBulk: "استيراد جماعي",
     camerasTabSingle: "كamera واحدة",
     camerasTabBridge: "إعداد الجسر",
@@ -21141,6 +21143,7 @@ function showLoginGreeting() {
 
 // ── Camera Management ────────────────────────────────────────────────────────
 let _cameraLiveTimer = null;
+let _cameraActiveTab = null;
 const _cameraBlobUrls = new Map();
 state.siteCameras = state.siteCameras || [];
 
@@ -21289,6 +21292,44 @@ function renderSiteCameras(summary) {
     });
   });
   void refreshAllCameraLiveViews();
+  syncCameraTabAfterRender(cameras.length);
+}
+
+function _cameraPaneId(tabName) {
+  if (tabName === "live") return "cameraTabLive";
+  return `cameraTab${tabName.charAt(0).toUpperCase()}${tabName.slice(1)}`;
+}
+
+function resolveDefaultCameraTab() {
+  return (state.siteCameras || []).length > 0 ? "live" : "bulk";
+}
+
+function syncCameraTabAfterRender(cameraCount) {
+  if (!_cameraActiveTab) {
+    switchCameraSetupTab(cameraCount > 0 ? "live" : "bulk");
+    return;
+  }
+  if (cameraCount === 0 && _cameraActiveTab === "live") {
+    switchCameraSetupTab("bulk");
+  }
+}
+
+function switchCameraSetupTab(tabName) {
+  const tabs = ["live", "bulk", "single", "bridge"];
+  const next = tabs.includes(tabName) ? tabName : resolveDefaultCameraTab();
+  _cameraActiveTab = next;
+  tabs.forEach((name) => {
+    const pane = document.getElementById(_cameraPaneId(name));
+    if (pane) pane.classList.toggle("hidden", name !== next);
+  });
+  document.querySelectorAll(".camera-setup-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-camera-tab") === next);
+  });
+  if (next === "live") {
+    void refreshAllCameraLiveViews();
+    document.getElementById("cameraLiveGrid")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  if (next === "bridge") void loadCameraBridgeSetup();
 }
 
 async function refreshCameraTileSnapshot(cameraId) {
@@ -21439,18 +21480,6 @@ async function refreshCamerasPanel() {
   await Promise.all([loadSiteCameras(), loadCameraEvents(), loadCameraBridgeSetup()]);
 }
 
-function switchCameraSetupTab(tabName) {
-  const tabs = ["bulk", "single", "bridge"];
-  tabs.forEach((name) => {
-    const pane = document.getElementById(`cameraTab${name.charAt(0).toUpperCase()}${name.slice(1)}`);
-    if (pane) pane.classList.toggle("hidden", name !== tabName);
-  });
-  document.querySelectorAll(".camera-setup-tab").forEach((btn) => {
-    btn.classList.toggle("active", btn.getAttribute("data-camera-tab") === tabName);
-  });
-  if (tabName === "bridge") void loadCameraBridgeSetup();
-}
-
 function buildCameraAgentConfigJson(setup, cameras) {
   return {
     apiUrl: setup?.apiUrl || API_BASE || window.location.origin,
@@ -21565,7 +21594,7 @@ async function importCamerasBulk() {
     showToast(resultEl?.textContent || "OK", failed ? "warning" : "success");
     await loadSiteCameras();
     void loadCameraBridgeSetup();
-    document.getElementById("cameraLiveGrid")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    switchCameraSetupTab("live");
   } catch (err) {
     if (resultEl) resultEl.textContent = String(err?.message || err);
     showToast(String(err?.message || err), "error");
@@ -21679,6 +21708,7 @@ if (camerasRefreshBtn) {
         form.reset();
         await loadSiteCameras();
         void loadCameraBridgeSetup();
+        switchCameraSetupTab("live");
         showToast(uiT("btnCameraRegister") || "OK");
       } catch (err) {
         showToast(String(err?.message || err), "error");
