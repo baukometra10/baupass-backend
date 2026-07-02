@@ -19111,6 +19111,7 @@ function startDashboardPoll() {
       renderStats();
       renderDashboardPorterLivePanel();
       void refreshDashboardDeploymentDeclines();
+      void loadLeaveRequests(null, { silent: true });
     } catch (_) { /* silent */ }
   }, 60_000);
 }
@@ -19190,6 +19191,8 @@ function setView(viewName) {
 
   if (targetView === "leave") {
     void loadLeaveRequests();
+  } else {
+    stopLeaveRequestsPoll();
   }
 
   document.querySelector(".content")?.classList.toggle("has-embed-view", Boolean(ENTERPRISE_EMBED_META[targetView]));
@@ -37504,6 +37507,39 @@ if (loadCustomBrandAltButton) {
 
 let activeLeaveRequestPreviewId = "";
 let leaveRequestPreviewObjectUrl = "";
+let leaveRequestsPollTimer = null;
+
+function buildLeaveRequestsApiQuery(filterStatus = null) {
+  const params = new URLSearchParams();
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  const companyId = String(getEffectiveUiCompanyId() || "").trim();
+  if (companyId && (role === "company-admin" || role === "turnstile" || isSuperadminCompanyPreviewMode())) {
+    params.set("company_id", companyId);
+  }
+  if (filterStatus) {
+    params.set("status", filterStatus);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+function stopLeaveRequestsPoll() {
+  if (leaveRequestsPollTimer) {
+    window.clearInterval(leaveRequestsPollTimer);
+    leaveRequestsPollTimer = null;
+  }
+}
+
+function startLeaveRequestsPoll(filterStatus = null) {
+  stopLeaveRequestsPoll();
+  leaveRequestsPollTimer = window.setInterval(() => {
+    if (getCurrentViewName() !== "leave") {
+      stopLeaveRequestsPoll();
+      return;
+    }
+    void loadLeaveRequests(filterStatus, { silent: true });
+  }, 20_000);
+}
 
 function updateLeavePendingBadge(count) {
   const pendingBadge = document.getElementById("leavePendingBadge");
@@ -37595,16 +37631,16 @@ async function exportLeaveCsv() {
  * Load and display leave requests list
  * Fetches all pending/approved/rejected leave requests from backend
  */
-async function loadLeaveRequests(filterStatus = null) {
+async function loadLeaveRequests(filterStatus = null, options = {}) {
+  const silent = Boolean(options.silent);
   try {
     const sessionToken = loadStoredSessionToken();
     if (!sessionToken) {
-      showAlert("alertSessionExpired");
+      if (!silent) showAlert("alertSessionExpired");
       return;
     }
 
-    const companyId = String(getEffectiveUiCompanyId() || "").trim();
-    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+    const query = buildLeaveRequestsApiQuery(filterStatus);
     const response = await fetch(`${API_BASE}/api/leave-requests${query}`, {
       method: "GET",
       headers: {
@@ -37614,17 +37650,23 @@ async function loadLeaveRequests(filterStatus = null) {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        showAlert("alertSessionExpired");
-      } else {
-        showAlert("alertActionFailed", { error: `HTTP ${response.status}` });
+      if (!silent) {
+        if (response.status === 401) {
+          showAlert("alertSessionExpired");
+        } else {
+          showAlert("alertActionFailed", { error: `HTTP ${response.status}` });
+        }
       }
       return;
     }
 
-    const requests = await response.json();
+    const payload = await response.json();
+    const requests = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : []);
     updateLeavePendingBadge(requests.filter((req) => req.status === "ausstehend").length);
     renderLeaveRequestsTable(requests, filterStatus);
+    if (getCurrentViewName() === "leave") {
+      startLeaveRequestsPoll(filterStatus);
+    }
     const params = new URLSearchParams(window.location.search);
     const previewId = String(params.get("leave_id") || "").trim();
     if (previewId) {
@@ -37635,7 +37677,9 @@ async function loadLeaveRequests(filterStatus = null) {
       void openLeaveRequestPreview(previewId, meta);
     }
   } catch (error) {
-    showAlert("alertActionFailed", { error: String(error) });
+    if (!silent) {
+      showAlert("alertActionFailed", { error: String(error) });
+    }
   }
 }
 
@@ -37703,7 +37747,8 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
 function createLeaveRequestsPanel() {
   const panel = document.createElement("div");
   panel.id = "leaveRequestsTable";
-  document.body.appendChild(panel);
+  const host = document.querySelector('[data-view="leave"] .panel') || document.querySelector('[data-view="leave"]') || document.body;
+  host.appendChild(panel);
   return panel;
 }
 

@@ -1171,6 +1171,36 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="032",
+        name="leave_requests_table",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS leave_requests (
+                id TEXT PRIMARY KEY,
+                worker_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                type TEXT NOT NULL DEFAULT 'urlaub',
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                days_count INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'ausstehend',
+                reviewed_by_user_id TEXT,
+                reviewed_at TEXT,
+                review_note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                email_forwarded_to TEXT NOT NULL DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_leave_requests_worker ON leave_requests(worker_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_leave_requests_company_status ON leave_requests(company_id, status);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_leave_requests_company_status;
+            DROP INDEX IF EXISTS idx_leave_requests_worker;
+            DROP TABLE IF EXISTS leave_requests;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

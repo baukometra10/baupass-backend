@@ -8265,7 +8265,10 @@ async function submitLeaveRequest() {
         recipient_email: recipientEmail
       })
     });
-    lastSubmittedLeaveRequestId = String(result?.id || "");
+    if (!result?.id) {
+      throw new Error("leave_request_not_persisted");
+    }
+    lastSubmittedLeaveRequestId = String(result.id);
     
     showWorkerNotice(t("leaveRequestSubmitted"));
     if (elements.sendToBossPanel) {

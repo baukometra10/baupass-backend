@@ -26068,6 +26068,8 @@ def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
 def worker_get_leave_requests():
     worker = g.worker
     db = get_db()
+    _ensure_leave_requests_table(db)
+    db.commit()
     plan_value = get_company_plan(db, worker["company_id"])
     if not company_has_feature(plan_value, "leave_management"):
         return feature_not_available_response("leave_management", plan_value)
@@ -26082,7 +26084,18 @@ def worker_get_leave_requests():
 def worker_submit_leave_request():
     worker = g.worker
     db = get_db()
-    plan_value = get_company_plan(db, worker["company_id"])
+    _ensure_leave_requests_table(db)
+    worker_row = db.execute(
+        "SELECT id, company_id, first_name, last_name, badge_id FROM workers WHERE id = ? AND deleted_at IS NULL",
+        (worker["id"],),
+    ).fetchone()
+    if not worker_row:
+        return jsonify({"error": "worker_not_available"}), 403
+    worker = row_to_dict(worker_row)
+    company_id = str(worker.get("company_id") or "").strip()
+    if not company_id:
+        return jsonify({"error": "worker_company_missing", "message": "Mitarbeiter ist keiner Firma zugeordnet."}), 400
+    plan_value = get_company_plan(db, company_id)
     if not company_has_feature(plan_value, "leave_management"):
         return feature_not_available_response("leave_management", plan_value)
     data = request.get_json(silent=True) or {}
@@ -26106,7 +26119,7 @@ def worker_submit_leave_request():
     db.execute(
         "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, days_count, created_at)"
         " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?, ?)",
-        (req_id, worker["id"], worker["company_id"], req_type, start_date, end_date, note, days_count, now_iso())
+        (req_id, worker["id"], company_id, req_type, start_date, end_date, note, days_count, now_iso())
     )
     db.commit()
     log_audit(
@@ -26263,41 +26276,74 @@ def worker_submit_leave_request():
     }), 201
 
 
-def _resolve_leave_admin_company_scope(user):
-    """Resolve tenant company filter for admin leave list/review APIs."""
-    role = str(user.get("role") or "").strip().lower()
-    if role == "superadmin":
-        scoped = (
-            str(request.args.get("company_id") or "").strip()
-            or str(getattr(g, "preview_company_id", None) or user.get("preview_company_id") or "").strip()
+def _ensure_leave_requests_table(db):
+    """Ensure leave_requests exists (PostgreSQL bootstrap may omit non-core tables)."""
+    db.execute(
+        """
+        CREATE TABLE IF NOT EXISTS leave_requests (
+            id TEXT PRIMARY KEY,
+            worker_id TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            type TEXT NOT NULL DEFAULT 'urlaub',
+            start_date TEXT NOT NULL,
+            end_date TEXT NOT NULL,
+            days_count INTEGER NOT NULL DEFAULT 0,
+            note TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'ausstehend',
+            reviewed_by_user_id TEXT,
+            reviewed_at TEXT,
+            review_note TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            email_forwarded_to TEXT NOT NULL DEFAULT ''
         )
-        return scoped or None
-    return str(user.get("company_id") or "").strip() or None
+        """
+    )
 
 
-@app.route("/api/leave-requests")
+def _resolve_leave_admin_company_scope(user, db=None):
+    """Resolve tenant company filter for admin leave list/review APIs."""
+    from backend.app.domains.shared import company_id_from_user
+
+    role = str(user.get("role") or "").strip().lower()
+    scoped = str(company_id_from_user(allow_query=True) or "").strip()
+    if not scoped and role == "company-admin":
+        scoped = str(user.get("company_id") or "").strip()
+    if scoped:
+        return scoped
+    if role == "superadmin":
+        return None
+    if db is not None:
+        tenant = resolve_public_tenant_company(db, host=get_request_host())
+        if tenant and tenant.get("id"):
+            return str(tenant["id"]).strip()
+    return None
+
+
+@app.route("/api/leave-requests", methods=["GET"])
 @require_auth
 def get_leave_requests():
     user = g.current_user
     if user["role"] not in ("superadmin", "company-admin", "turnstile"):
         return jsonify({"error": "forbidden"}), 403
     db = get_db()
-    company_id = _resolve_leave_admin_company_scope(user)
+    _ensure_leave_requests_table(db)
+    db.commit()
+    company_id = _resolve_leave_admin_company_scope(user, db)
     status_filter = request.args.get("status", "").strip()
     query = """
         SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
                lr.note, lr.status, lr.reviewed_by_user_id, lr.reviewed_at, lr.review_note,
                lr.created_at, lr.email_forwarded_to, lr.days_count,
                w.first_name, w.last_name, w.badge_id,
-               (w.first_name || ' ' || w.last_name) AS worker_name
+               trim(coalesce(w.first_name, '') || ' ' || coalesce(w.last_name, '')) AS worker_name
         FROM leave_requests lr
-        JOIN workers w ON w.id = lr.worker_id
+        LEFT JOIN workers w ON w.id = lr.worker_id
         WHERE 1=1
     """
     params = []
     if company_id:
-        query += " AND lr.company_id = ?"
-        params.append(company_id)
+        query += " AND (lr.company_id = ? OR w.company_id = ?)"
+        params.extend([company_id, company_id])
     if status_filter:
         query += " AND lr.status = ?"
         params.append(status_filter)
@@ -26322,8 +26368,13 @@ def review_leave_request(req_id):
     if not req_row:
         return jsonify({"error": "not_found"}), 404
     if user["role"] != "superadmin":
-        scoped_company_id = _resolve_leave_admin_company_scope(user)
-        if not scoped_company_id or str(req_row["company_id"]) != scoped_company_id:
+        scoped_company_id = _resolve_leave_admin_company_scope(user, db)
+        if not scoped_company_id:
+            return jsonify({"error": "forbidden"}), 403
+        worker_row = db.execute("SELECT company_id FROM workers WHERE id = ?", (req_row["worker_id"],)).fetchone()
+        worker_company_id = str(worker_row["company_id"] if worker_row else "").strip()
+        req_company_id = str(req_row["company_id"] or "").strip()
+        if scoped_company_id not in {req_company_id, worker_company_id}:
             return jsonify({"error": "forbidden"}), 403
     db.execute(
         "UPDATE leave_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_note = ? WHERE id = ?",
