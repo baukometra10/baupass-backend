@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702m";
+const WORKER_BUILD_TAG = "20260702n";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3545,6 +3545,10 @@ function bindEvents() {
         }
         if (targetId === "chatCard") {
           void openWorkerChatScreen();
+          return;
+        }
+        if (targetId === "leaveRequestCard") {
+          switchToTab("vacation");
           return;
         }
         applyWorkerPageView(targetId);
@@ -7370,13 +7374,24 @@ async function pollSitePresence(cfg) {
   if (!locationPayload) {
     return;
   }
+  const accuracy = Number(locationPayload.accuracy);
+  if (Number.isFinite(accuracy) && accuracy > WORKER_GEO_MAX_ACCURACY_METERS) {
+    updateSiteGpsStatusBar({
+      cfg,
+      preview: {
+        onSite: false,
+        error: "worker_geolocation_inaccurate",
+        accuracyMeters: accuracy,
+      },
+    });
+    return;
+  }
   try {
     const presence = await fetchJson(`${API_BASE}/site-presence`, {
       method: "POST",
-      headers: {
+      headers: buildWorkerAuthHeaders({
         "Content-Type": "application/json",
-        Authorization: `Bearer ${workerToken}`,
-      },
+      }),
       body: JSON.stringify({ location: locationPayload }),
     });
     updateSiteGpsStatusBar({
@@ -7460,14 +7475,20 @@ async function pollSitePresence(cfg) {
       return;
     }
     if (error.code === "worker_geolocation_inaccurate") {
-      showWorkerNotice(error.message || t("geolocationInaccurate"));
+      updateSiteGpsStatusBar({
+        cfg,
+        preview: { onSite: false, error: "worker_geolocation_inaccurate" },
+      });
+      return;
+    }
+    if (error.code === "worker_geolocation_required") {
       return;
     }
     if (error.code === "site_location_unavailable") {
       showWorkerNotice(t("siteGpsNotConfigured"));
       return;
     }
-    console.warn("[site-presence]", error);
+    workerDebug("[site-presence]", error);
   }
 }
 
@@ -8659,7 +8680,7 @@ async function loadLeaveRequests() {
     const requests = Array.isArray(res) ? res : res.requests || [];
     console.info("[WorkPass leave] loaded", requests.length, "requests");
     if (requests.length === 0) {
-      elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}</p>`;
+      elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}<br><small>Tippe „+ Neuer Antrag“, wähle Datum und sende ab. Nach Erfolg erscheint hier die Antrags-ID.</small></p>`;
     } else {
       const sortedRequests = [...requests].sort((a, b) => {
         const aDate = String(a.start_date || a.created_at || "");
