@@ -26069,6 +26069,7 @@ def worker_get_leave_requests():
     worker = g.worker
     db = get_db()
     _ensure_leave_requests_table(db)
+    _backfill_leave_request_company_ids(db)
     db.commit()
     plan_value = get_company_plan(db, worker["company_id"])
     if not company_has_feature(plan_value, "leave_management"):
@@ -26085,6 +26086,7 @@ def worker_submit_leave_request():
     worker = g.worker
     db = get_db()
     _ensure_leave_requests_table(db)
+    _backfill_leave_request_company_ids(db)
     worker_row = db.execute(
         "SELECT id, company_id, first_name, last_name, badge_id FROM workers WHERE id = ? AND deleted_at IS NULL",
         (worker["id"],),
@@ -26277,6 +26279,24 @@ def worker_submit_leave_request():
     }), 201
 
 
+def _backfill_leave_request_company_ids(db):
+    db.execute(
+        """
+        UPDATE leave_requests
+        SET company_id = (
+            SELECT w.company_id FROM workers w
+            WHERE w.id = leave_requests.worker_id AND w.deleted_at IS NULL
+            LIMIT 1
+        )
+        WHERE COALESCE(TRIM(company_id), '') = ''
+          AND EXISTS (
+            SELECT 1 FROM workers w
+            WHERE w.id = leave_requests.worker_id AND w.deleted_at IS NULL
+          )
+        """
+    )
+
+
 def _ensure_leave_requests_table(db):
     """Ensure leave_requests exists (PostgreSQL bootstrap may omit non-core tables)."""
     db.execute(
@@ -26328,6 +26348,7 @@ def get_leave_requests():
         return jsonify({"error": "forbidden"}), 403
     db = get_db()
     _ensure_leave_requests_table(db)
+    _backfill_leave_request_company_ids(db)
     db.commit()
     company_id = _resolve_leave_admin_company_scope(user, db)
     status_filter = request.args.get("status", "").strip()

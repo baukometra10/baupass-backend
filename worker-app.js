@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702h";
+const WORKER_BUILD_TAG = "20260702i";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3585,6 +3585,7 @@ function bindEvents() {
     elements.workerPageBackButton.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      closeWorkerDeploymentPlanScreen();
       switchToTab("home");
     });
   }
@@ -5070,6 +5071,8 @@ async function refreshWorkerLeaveStatsQuiet() {
   const launchHash = (window.location.hash || "").toLowerCase();
   if (!isVisitor && (launchHash === "#einsatzplan" || launchHash === "#deployment")) {
     void openWorkerDeploymentPlanScreen();
+  } else if (!isVisitor && (launchHash === "#urlaub" || launchHash === "#leave")) {
+    switchToTab("vacation");
   } else {
     switchToTab(currentActiveTab || "home");
   }
@@ -8330,6 +8333,10 @@ async function submitLeaveRequest() {
     toggleLeaveRequestForm();
     if (currentActiveTab !== "vacation") {
       switchToTab("vacation");
+    } else {
+      ensureWorkerFeatureHubVisible();
+      showOnlyWorkerFeaturePanel("leaveRequestCard");
+      updateWorkerShellForTab("vacation");
     }
     await loadLeaveRequests();
     void refreshWorkerLeaveStatsQuiet();
@@ -8590,11 +8597,13 @@ async function loadLeaveRequests() {
   if (!workerToken || !elements.leaveRequestList) return;
   
   try {
+    console.info("[WorkPass leave] load list", `${API_BASE}/leave-requests`);
     const res = await fetchJson(`${API_BASE}/leave-requests`, {
       headers: { Authorization: `Bearer ${workerToken}` }
     });
     
     const requests = Array.isArray(res) ? res : res.requests || [];
+    console.info("[WorkPass leave] loaded", requests.length, "requests");
     if (requests.length === 0) {
       elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}</p>`;
     } else {
@@ -9165,20 +9174,17 @@ function initBottomTabNavigation() {
   const syncFromHash = () => {
     const hash = (window.location.hash || "").toLowerCase();
     if (hash === "#einsatzplan" || hash === "#deployment") {
-      switchToTab("home");
       void openWorkerDeploymentPlanScreen();
       return;
     }
     const targetTab = hashToTab[hash] || "home";
-    if (targetTab === "deployment") {
-      switchToTab("home");
-      void openWorkerDeploymentPlanScreen();
-      return;
-    }
     switchToTab(targetTab);
   };
 
   window.addEventListener("hashchange", syncFromHash);
+  if (document.body.classList.contains("worker-loaded")) {
+    syncFromHash();
+  }
 }
 
 // Sync worker data to dashboard featured card
@@ -9507,6 +9513,92 @@ async function postDeploymentDayResponse(date, action, reason = "") {
   });
 }
 
+function mountWorkerPortalModals() {
+  if (mountWorkerPortalModals._done) {
+    return;
+  }
+  mountWorkerPortalModals._done = true;
+  ["deploymentDeclineModal", "deploymentDayDetailModal"].forEach((modalId) => {
+    const modal = document.getElementById(modalId);
+    if (modal && modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+  });
+}
+
+function closeWorkerDeploymentPlanScreen() {
+  document.body.classList.remove("worker-deployment-open");
+  closeDeploymentDayDetailModal();
+  closeDeploymentDeclineModal();
+  activeWorkerPageTarget = "";
+  applyWorkerPageView("");
+  if (currentActiveTab === "home") {
+    const dashboardEl = document.getElementById("workerDashboard");
+    if (dashboardEl) {
+      dashboardEl.classList.remove("hidden");
+      dashboardEl.style.removeProperty("display");
+    }
+  }
+  updateWorkerShellForTab(currentActiveTab || "home");
+}
+
+function handleDeploymentPlanPointer(event) {
+  if (!document.body.classList.contains("worker-loaded")) {
+    return;
+  }
+  const declineBtn = event.target.closest("[data-dep-decline]");
+  const undoBtn = event.target.closest("[data-dep-undo]");
+  if (declineBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    const iso = declineBtn.getAttribute("data-dep-decline") || "";
+    openDeploymentDeclineModal(findDeploymentPlanDay(iso));
+    return;
+  }
+  if (undoBtn) {
+    event.preventDefault();
+    event.stopPropagation();
+    const iso = undoBtn.getAttribute("data-dep-undo") || "";
+    if (!iso) return;
+    void (async () => {
+      try {
+        await postDeploymentDayResponse(iso, "undo");
+        showWorkerNotice(t("deploymentPlanUndoDone"));
+        closeDeploymentDayDetailModal();
+        await loadDeploymentPlan();
+        void refreshHomeDeploymentTeaser().catch(() => {});
+      } catch (error) {
+        showWorkerNotice(formatWorkerApiError(error));
+      }
+    })();
+    return;
+  }
+  const dayCell = event.target.closest("#deploymentPlanList [data-dep-date]");
+  if (!dayCell) {
+    return;
+  }
+  event.preventDefault();
+  const iso = dayCell.getAttribute("data-dep-date") || "";
+  if (iso) {
+    openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
+  }
+}
+
+function handleDeploymentPlanKeydown(event) {
+  if (event.key !== "Enter" && event.key !== " ") {
+    return;
+  }
+  const dayCell = event.target.closest("#deploymentPlanList [data-dep-date]");
+  if (!dayCell) {
+    return;
+  }
+  event.preventDefault();
+  const iso = dayCell.getAttribute("data-dep-date") || "";
+  if (iso) {
+    openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
+  }
+}
+
 function ensureWorkerDeploymentShellVisible() {
   ensureWorkerFeatureHubVisible();
   if (elements.badgeCard) {
@@ -9752,53 +9844,14 @@ function renderDeploymentPlanDayRow(day) {
 }
 
 function bindDeploymentPlanInteractions() {
-  const list = elements.deploymentPlanList;
-  if (!list || bindDeploymentPlanInteractions._done) return;
+  mountWorkerPortalModals();
+  if (bindDeploymentPlanInteractions._done) {
+    return;
+  }
   bindDeploymentPlanInteractions._done = true;
 
-  list.addEventListener("click", (event) => {
-    const declineBtn = event.target.closest("[data-dep-decline]");
-    const undoBtn = event.target.closest("[data-dep-undo]");
-    if (declineBtn) {
-      const iso = declineBtn.getAttribute("data-dep-decline") || "";
-      openDeploymentDeclineModal(findDeploymentPlanDay(iso));
-      return;
-    }
-    if (undoBtn) {
-      const iso = undoBtn.getAttribute("data-dep-undo") || "";
-      if (!iso) return;
-      void (async () => {
-        try {
-          await postDeploymentDayResponse(iso, "undo");
-          showWorkerNotice(t("deploymentPlanUndoDone"));
-          closeDeploymentDayDetailModal();
-          await loadDeploymentPlan();
-          void refreshHomeDeploymentTeaser().catch(() => {});
-        } catch (error) {
-          showWorkerNotice(formatWorkerApiError(error));
-        }
-      })();
-      return;
-    }
-    const dayCell = event.target.closest("[data-dep-date]");
-    if (dayCell) {
-      const iso = dayCell.getAttribute("data-dep-date") || "";
-      if (iso) {
-        openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
-      }
-    }
-  });
-
-  list.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    const dayCell = event.target.closest("[data-dep-date]");
-    if (!dayCell) return;
-    event.preventDefault();
-    const iso = dayCell.getAttribute("data-dep-date") || "";
-    if (iso) {
-      openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
-    }
-  });
+  document.addEventListener("click", handleDeploymentPlanPointer);
+  document.addEventListener("keydown", handleDeploymentPlanKeydown);
 
   document.getElementById("deploymentDayDetailClose")?.addEventListener("click", closeDeploymentDayDetailModal);
   document.getElementById("deploymentDayDetailModal")?.addEventListener("click", (event) => {
@@ -9916,11 +9969,21 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
     showWorkerNotice(planFeatureBlockedMessage("deployment_plan"));
     return;
   }
+  mountWorkerPortalModals();
   const now = new Date();
   deploymentPlanViewYear = year || deploymentPlanViewYear || now.getFullYear();
   deploymentPlanViewMonth = month || deploymentPlanViewMonth || now.getMonth() + 1;
-  document.body.classList.add("worker-feature-tab-active", "worker-page-focus");
+  activeWorkerPageTarget = "deploymentPlanCard";
+  document.body.classList.add("worker-feature-tab-active", "worker-page-focus", "worker-deployment-open");
+  if (currentActiveTab === "home") {
+    const dashboardEl = document.getElementById("workerDashboard");
+    if (dashboardEl) {
+      dashboardEl.classList.add("hidden");
+      dashboardEl.style.setProperty("display", "none", "important");
+    }
+  }
   ensureWorkerDeploymentShellVisible();
+  updateWorkerShellForTab(currentActiveTab || "home");
   showOnlyWorkerFeaturePanel("deploymentPlanCard");
   applyWorkerPageView("deploymentPlanCard");
   if (elements.workerPageNav) {
@@ -10976,6 +11039,7 @@ function stopVisitorCountdownTimer() {
 // after DOMContentLoaded (webview/service-worker cache edge cases).
 function initWorkerAppShell() {
   refreshWorkerApiBase();
+  mountWorkerPortalModals();
   console.info("[WorkPass worker] API base", API_BASE);
   ensureWorkerChatShellStyles();
   ensureWorkerChatNavDom();

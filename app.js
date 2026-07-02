@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702g";
+window.__BAUPASS_UI_BUILD = "20260702i";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -22893,6 +22893,9 @@ async function setSuperadminPreviewCompany(companyId, { refresh = true } = {}) {
   syncSuperadminCompanyPickerUi();
   if (refresh) {
     refreshAll();
+    if (getCurrentViewName() === "leave") {
+      void loadLeaveRequests();
+    }
   } else {
     broadcastSessionToEmbeds();
     reloadActiveEnterpriseEmbed();
