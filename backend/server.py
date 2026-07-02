@@ -26309,7 +26309,7 @@ def review_leave_request(req_id):
     req_row = db.execute("SELECT * FROM leave_requests WHERE id = ?", (req_id,)).fetchone()
     if not req_row:
         return jsonify({"error": "not_found"}), 404
-    if user["role"] != "superadmin" and req_row["company_id"] != user.get("company_id"):
+    if user["role"] != "superadmin" and str(req_row["company_id"]) != str(user.get("company_id") or ""):
         return jsonify({"error": "forbidden"}), 403
     db.execute(
         "UPDATE leave_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_note = ? WHERE id = ?",
@@ -26323,6 +26323,15 @@ def review_leave_request(req_id):
         company_id=req_row["company_id"], actor=user
     )
 
+    type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Antrag"}
+    req_type_label = type_labels.get(req_row["type"], req_row["type"])
+    status_labels_de = {
+        "genehmigt": "genehmigt ✓",
+        "abgelehnt": "abgelehnt ✗",
+        "ausstehend": "ausstehend",
+    }
+    status_label_de = status_labels_de.get(new_status, new_status)
+
     push_delivery = {"delivered": False, "pushSent": 0}
     try:
         from backend.app.platform.push.automation import push_leave_decision
@@ -26331,11 +26340,6 @@ def review_leave_request(req_id):
             db, req_row, new_status, review_note=review_note
         )
     except Exception:
-        status_label_de = {"genehmigt": "genehmigt ✓", "abgelehnt": "abgelehnt ✗", "ausstehend": "ausstehend"}.get(
-            new_status, new_status
-        )
-        type_labels = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Antrag"}
-        req_type_label = type_labels.get(req_row["type"], req_row["type"])
         push_title = f"Antrag {status_label_de}"
         push_body = f"{req_type_label} {req_row['start_date']}–{req_row['end_date']}"
         if review_note:
@@ -26345,10 +26349,11 @@ def review_leave_request(req_id):
 
     # E-Mail-Benachrichtigung an Mitarbeiter (falls contact_email gesetzt)
     if new_status in ("genehmigt", "abgelehnt"):
-        html_note = f'<p style="color:#555;margin:12px 0 0;"><strong>Bemerkung:</strong> {review_note}</p>' if review_note else ""
-        status_color = "#1a7a3a" if new_status == "genehmigt" else "#c53d2f"
-        status_icon = "✓" if new_status == "genehmigt" else "✗"
-        html_mail = f"""<!DOCTYPE html>
+        try:
+            html_note = f'<p style="color:#555;margin:12px 0 0;"><strong>Bemerkung:</strong> {review_note}</p>' if review_note else ""
+            status_color = "#1a7a3a" if new_status == "genehmigt" else "#c53d2f"
+            status_icon = "✓" if new_status == "genehmigt" else "✗"
+            html_mail = f"""<!DOCTYPE html>
 <html lang="de"><head><meta charset="UTF-8"></head>
 <body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;margin:0;padding:32px 0;">
 <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
@@ -26363,10 +26368,12 @@ def review_leave_request(req_id):
     <p style="margin-top:24px;color:#888;font-size:13px;">Bei Fragen wenden Sie sich an Ihren Administrator.</p>
   </td></tr>
 </table></td></tr></table></body></html>"""
-        text_mail = f"Ihr {req_type_label} ({req_row['start_date']}–{req_row['end_date']}) wurde {status_label_de}.\n" + (f"Bemerkung: {review_note}" if review_note else "")
-        _send_email_to_worker(db, req_row["worker_id"], f"Antrag {status_label_de}: {req_type_label}", text_mail, html_mail)
+            text_mail = f"Ihr {req_type_label} ({req_row['start_date']}–{req_row['end_date']}) wurde {status_label_de}.\n" + (f"Bemerkung: {review_note}" if review_note else "")
+            _send_email_to_worker(db, req_row["worker_id"], f"Antrag {status_label_de}: {req_type_label}", text_mail, html_mail)
+        except Exception:
+            pass
 
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "pushDelivery": push_delivery})
 
 
 @require_auth

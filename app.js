@@ -37515,8 +37515,10 @@ async function approveLeaveRequest(requestId) {
 async function rejectLeaveRequest(requestId) {
   const modal = document.getElementById("leaveRejectModal");
   const noteEl = document.getElementById("leaveRejectNote");
-  if (!modal || !noteEl) {
-    showAlert("alertActionFailed", { error: "Reject-Modal fehlt" });
+  const confirmBtn = document.getElementById("leaveRejectConfirmBtn");
+  const cancelBtn = document.getElementById("leaveRejectCancelBtn");
+  if (!modal || !noteEl || !confirmBtn || !cancelBtn) {
+    showToast(uiT("alertActionFailed").replace("{error}", "Reject-Modal fehlt"), "error");
     return;
   }
 
@@ -37524,58 +37526,58 @@ async function rejectLeaveRequest(requestId) {
   modal.classList.remove("hidden");
   noteEl.focus();
 
-  const cleanup = () => {
-    modal.classList.add("hidden");
-    const confirmBtn = document.getElementById("leaveRejectConfirmBtn");
-    const cancelBtn = document.getElementById("leaveRejectCancelBtn");
-    if (confirmBtn) {
-      const cloned = confirmBtn.cloneNode(true);
-      confirmBtn.replaceWith(cloned);
-    }
-    if (cancelBtn) {
-      const cloned = cancelBtn.cloneNode(true);
-      cancelBtn.replaceWith(cloned);
-    }
-  };
+  return new Promise((resolve) => {
+    const cleanup = () => {
+      cancelBtn.removeEventListener("click", onCancel);
+      confirmBtn.removeEventListener("click", onConfirm);
+    };
 
-  const cancelBtn = document.getElementById("leaveRejectCancelBtn");
-  const confirmBtn = document.getElementById("leaveRejectConfirmBtn");
-  if (cancelBtn) {
-    cancelBtn.addEventListener("click", cleanup, { once: true });
-  }
-  if (!confirmBtn) {
-    cleanup();
-    return;
-  }
+    const onCancel = () => {
+      modal.classList.add("hidden");
+      cleanup();
+      resolve(false);
+    };
 
-  confirmBtn.addEventListener("click", async () => {
-    const reason = (noteEl.value || "").trim();
-    if (!reason) {
-      showAlert("alertApprovalRejectReasonRequired");
-      return;
-    }
-
-    cleanup();
-
-    try {
-      await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
-        method: "PUT",
-        body: {
-          status: "abgelehnt",
-          review_note: reason,
-        },
-      });
-
-      showToast(uiT("toastLeaveRejected"), "info");
-      loadLeaveRequests();
-    } catch (error) {
-      if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
-        showSupportReadOnlyAlert();
+    const onConfirm = async () => {
+      const reason = (noteEl.value || "").trim();
+      if (!reason) {
+        showToast(uiT("alertApprovalRejectReasonRequired"), "error");
         return;
       }
-      showAlert("alertActionFailed", { error: String(error) });
-    }
-  }, { once: true });
+
+      confirmBtn.disabled = true;
+      confirmBtn.dataset.busy = "1";
+      try {
+        await apiRequest(`${API_BASE}/api/leave-requests/${encodeURIComponent(requestId)}`, {
+          method: "PUT",
+          body: {
+            status: "abgelehnt",
+            review_note: reason,
+          },
+        });
+        modal.classList.add("hidden");
+        noteEl.value = "";
+        showToast(uiT("toastLeaveRejected"), "success");
+        await loadLeaveRequests();
+        resolve(true);
+      } catch (error) {
+        if (String(error?.code || error?.message || error).includes("support_session_read_only")) {
+          showSupportReadOnlyAlert();
+        } else {
+          const code = String(error?.message || error?.code || error || "unknown");
+          showToast(uiT("alertActionFailed").replace("{error}", code), "error", 4200);
+        }
+        resolve(false);
+      } finally {
+        confirmBtn.disabled = false;
+        delete confirmBtn.dataset.busy;
+        cleanup();
+      }
+    };
+
+    cancelBtn.addEventListener("click", onCancel, { once: true });
+    confirmBtn.addEventListener("click", onConfirm, { once: true });
+  });
 }
 
 globalThis.openLeaveRequestPreview = openLeaveRequestPreview;
