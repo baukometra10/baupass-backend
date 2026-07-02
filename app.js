@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702j";
+window.__BAUPASS_UI_BUILD = "20260702k";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37555,11 +37555,16 @@ function getLeaveAdminScopeHint() {
   return "Firmenfilter: keine Firma zugeordnet — bitte Firma in der Firmenansicht wählen.";
 }
 
-function buildLeaveRequestsApiQuery(filterStatus = null) {
+function buildLeaveRequestsApiQuery(filterStatus = null, options = {}) {
   const params = new URLSearchParams();
   const role = String(getCurrentUser()?.role || "").toLowerCase();
   const companyId = String(getEffectiveUiCompanyId() || "").trim();
-  if (companyId && (role === "company-admin" || role === "turnstile" || isSuperadminCompanyPreviewMode())) {
+  const includeAllCompanies = Boolean(options.includeAllCompanies);
+  if (
+    companyId
+    && !includeAllCompanies
+    && (role === "company-admin" || role === "turnstile" || isSuperadminCompanyPreviewMode())
+  ) {
     params.set("company_id", companyId);
   }
   if (filterStatus) {
@@ -37713,13 +37718,15 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
     let payload = await response.json();
     let requests = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : []);
     let scopeHint = getLeaveAdminScopeHint();
+    let showAllCompaniesAction = "";
 
     if (
       !requests.length
       && isSuperadminCompanyPreviewMode()
       && String(getEffectiveUiCompanyId() || "").trim()
     ) {
-      const allResponse = await fetch(`${API_BASE}/api/leave-requests${filterStatus ? `?status=${encodeURIComponent(filterStatus)}` : ""}`, {
+      const allQuery = buildLeaveRequestsApiQuery(filterStatus, { includeAllCompanies: true });
+      const allResponse = await fetch(`${API_BASE}/api/leave-requests${allQuery}`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${sessionToken}`,
@@ -37730,14 +37737,15 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
         const allPayload = await allResponse.json();
         const allRequests = Array.isArray(allPayload) ? allPayload : (Array.isArray(allPayload?.items) ? allPayload.items : []);
         if (allRequests.length) {
-          scopeHint = `${scopeHint} · Es gibt ${allRequests.length} Antrag/Anträge in anderen Firmen — Firmenansicht prüfen.`;
+          scopeHint = `${scopeHint} · Es gibt ${allRequests.length} Antrag/Anträge in anderen Firmen.`;
+          showAllCompaniesAction = `<button type="button" class="ghost small-btn" id="leaveShowAllCompaniesBtn">Alle Firmen anzeigen</button>`;
           console.warn("[WorkPass admin leave] company filter returned 0, but unscoped list has", allRequests.length);
         }
       }
     }
 
     updateLeavePendingBadge(requests.filter((req) => req.status === "ausstehend").length);
-    renderLeaveRequestsTable(requests, filterStatus, scopeHint);
+    renderLeaveRequestsTable(requests, filterStatus, scopeHint, showAllCompaniesAction);
     if (getCurrentViewName() === "leave") {
       startLeaveRequestsPoll(filterStatus);
     }
@@ -37757,7 +37765,7 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
   }
 }
 
-function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "") {
+function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "", showAllCompaniesAction = "") {
   const container = document.getElementById("leaveRequestsTable") || createLeaveRequestsPanel();
   const filtered = filterStatus
     ? requests.filter((req) => req.status === filterStatus)
@@ -37814,9 +37822,31 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "")
           </article>
         `;
       }).join("")
-        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.<br><small>${escapeHtml(adminScopeHint)} · API: ${escapeHtml(sanitizeApiBase(API_BASE) || window.location.origin)}</small></p>`}
+        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.<br><small>${escapeHtml(adminScopeHint)} · API: ${escapeHtml(sanitizeApiBase(API_BASE) || window.location.origin)}</small>${showAllCompaniesAction ? `<div class="leave-empty-actions">${showAllCompaniesAction}</div>` : ""}</p>`}
     </div>
   `;
+
+  document.getElementById("leaveShowAllCompaniesBtn")?.addEventListener("click", async () => {
+    try {
+      const sessionToken = loadStoredSessionToken();
+      if (!sessionToken) return;
+      const query = buildLeaveRequestsApiQuery(filterStatus, { includeAllCompanies: true });
+      const allResponse = await fetch(`${API_BASE}/api/leave-requests${query}`, {
+        headers: { Authorization: `Bearer ${sessionToken}` },
+      });
+      if (!allResponse.ok) throw new Error(`HTTP ${allResponse.status}`);
+      const allPayload = await allResponse.json();
+      const allRequests = Array.isArray(allPayload) ? allPayload : (Array.isArray(allPayload?.items) ? allPayload.items : []);
+      renderLeaveRequestsTable(
+        allRequests,
+        filterStatus,
+        "Firmenfilter: alle Firmen (Superadmin)",
+        "",
+      );
+    } catch (error) {
+      showAlert("alertActionFailed", { error: String(error) });
+    }
+  });
 }
 
 function createLeaveRequestsPanel() {

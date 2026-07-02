@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702j";
+const WORKER_BUILD_TAG = "20260702k";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -5031,7 +5031,12 @@ async function refreshWorkerLeaveStatsQuiet() {
 
   // Keep bottom-tab pages in sync with the active tab (avoid breaking pass layout on background refresh).
   if (resyncTab && document.body.classList.contains("worker-loaded")) {
-    switchToTab(currentActiveTab);
+    if (isWorkerDeploymentPlanOpen()) {
+      updateWorkerShellForTab(currentActiveTab || "home");
+      void loadDeploymentPlan();
+    } else {
+      switchToTab(currentActiveTab);
+    }
   } else if (!document.body.classList.contains("worker-loaded")) {
     if (elements.timesheetCard) {
       elements.timesheetCard.classList.add("hidden");
@@ -5080,7 +5085,7 @@ async function refreshWorkerLeaveStatsQuiet() {
     void openWorkerDeploymentPlanScreen();
   } else if (!isVisitor && (launchHash === "#urlaub" || launchHash === "#leave")) {
     switchToTab("vacation");
-  } else {
+  } else if (!isWorkerDeploymentPlanOpen()) {
     switchToTab(currentActiveTab || "home");
   }
 }
@@ -8323,13 +8328,14 @@ async function submitLeaveRequest() {
       throw new Error("leave_request_not_persisted");
     }
     lastSubmittedLeaveRequestId = String(result.id);
+    leaveCompactExpanded = true;
     console.info("[WorkPass leave] created", {
       id: result.id,
       companyId: result.company_id || result.companyId || "",
       apiBase: API_BASE,
     });
     
-    showWorkerNotice(t("leaveRequestSubmitted"));
+    showWorkerNotice(`${t("leaveRequestSubmitted")} (${result.id})`);
     if (elements.sendToBossPanel) {
       elements.sendToBossPanel.classList.remove("hidden");
       if (elements.bossEmailInput && elements.leaveRequestBossEmail?.value) {
@@ -8957,6 +8963,20 @@ function switchToTab(tabName) {
   // Backward compatibility: older flows still call "pass"
   if (tabName === "pass") tabName = "home";
   if (tabName === "request") tabName = "vacation";
+  if (tabName === "deployment") {
+    void openWorkerDeploymentPlanScreen();
+    return;
+  }
+
+  const deploymentOpen = isWorkerDeploymentPlanOpen();
+  if (deploymentOpen && tabName === "home") {
+    closeWorkerDeploymentPlanScreen();
+  } else if (deploymentOpen && tabName === currentActiveTab) {
+    updateWorkerShellForTab(tabName);
+    return;
+  } else if (deploymentOpen && tabName !== "documents") {
+    closeWorkerDeploymentPlanScreen();
+  }
 
   // Tab mode must win over legacy overview/focus modes.
   document.body.classList.remove("worker-tile-overview");
@@ -9037,12 +9057,11 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
-  if (document.body.classList.contains("worker-deployment-open")) {
-    closeWorkerDeploymentPlanScreen();
-  }
   updateWorkerShellForTab(tabName);
   document.body.classList.remove("worker-tile-overview");
-  activeWorkerPageTarget = "";
+  if (!isWorkerDeploymentPlanOpen()) {
+    activeWorkerPageTarget = "";
+  }
 
   // Show the correct panel based on tab
   if (tabName === "home") {
@@ -9553,6 +9572,9 @@ function closeWorkerDeploymentPlanScreen() {
 }
 
 function handleDeploymentPlanPointer(event) {
+  if (event.type === "click" && event.defaultPrevented) {
+    return;
+  }
   if (!document.body.classList.contains("worker-loaded")) {
     return;
   }
@@ -9862,9 +9884,8 @@ function bindDeploymentPlanInteractions() {
   bindDeploymentPlanInteractions._done = true;
 
   document.addEventListener("click", handleDeploymentPlanPointer, true);
+  document.addEventListener("touchend", handleDeploymentPlanPointer, true);
   document.addEventListener("keydown", handleDeploymentPlanKeydown, true);
-  elements.deploymentPlanList?.addEventListener("click", handleDeploymentPlanPointer);
-  elements.deploymentPlanList?.addEventListener("keydown", handleDeploymentPlanKeydown);
 
   document.getElementById("deploymentDayDetailClose")?.addEventListener("click", closeDeploymentDayDetailModal);
   document.getElementById("deploymentDayDetailModal")?.addEventListener("click", (event) => {
