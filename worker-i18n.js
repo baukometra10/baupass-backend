@@ -987,6 +987,8 @@ Object.assign(TRANSLATIONS.de, {
 
   visitEndedLogout: "Ihre Besuchszeit ist abgelaufen. Bitte neu anmelden.",
   aiSuggestBtn: "✨ KI Vorschlag",
+  aiSuggestLoading: "KI schreibt…",
+  aiSuggestFallback: "✓ Standardtext eingefügt (KI nicht verfügbar)",
   bossEmailLabel: "An Chef senden (optional)",
   bossEmailPlaceholder: "chef@firma.de",
   leaveRequestNotePlaceholder: "Optional",
@@ -1135,6 +1137,8 @@ Object.assign(TRANSLATIONS.en, {
 
   visitEndedLogout: "Your visit time has expired. Please log in again.",
   aiSuggestBtn: "✨ AI Suggestion",
+  aiSuggestLoading: "AI writing…",
+  aiSuggestFallback: "✓ Default text inserted (AI unavailable)",
   bossEmailLabel: "Send to manager (optional)",
   bossEmailPlaceholder: "manager@company.com",
   leaveRequestNotePlaceholder: "Optional",

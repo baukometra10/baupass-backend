@@ -37,6 +37,7 @@ def _register_core_worker_routes() -> None:
         export_workers_pdf,
         export_workers_signatures_zip,
         get_current_visitors,
+        get_leave_requests,
         get_worker_app_access,
         get_worker_compliance_signature,
         create_worker_handover_sign_link,
@@ -52,6 +53,7 @@ def _register_core_worker_routes() -> None:
         reset_worker_pin,
         restore_worker,
         revoke_worker_hce_device,
+        review_leave_request,
         set_worker_identity_token_status,
         set_worker_lock,
         update_worker,
@@ -100,6 +102,8 @@ def _register_core_worker_routes() -> None:
         ("/workers/<worker_id>/documents/upload", upload_worker_document, ("POST",)),
         ("/workers/<worker_id>/documents/<doc_id>/download", download_worker_document, ("GET",)),
         ("/workers/<worker_id>/documents/<doc_id>", delete_worker_document, ("DELETE",)),
+        ("/leave-requests", get_leave_requests, ("GET",)),
+        ("/leave-requests/<req_id>", review_leave_request, ("PUT",)),
         ("/leave-requests/<req_id>/export.pdf", export_leave_request_pdf, ("GET",)),
     )
     mount_rules_once("workers", workers_core_bp, rules)

@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260630b";
+const WORKER_BUILD_TAG = "20260630d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3043,7 +3043,7 @@ async function init() {
           markWorkerLoginCompleted();
           finishWorkerLoginUi();
           releaseSplashEarly();
-          void loadWorkerData();
+          void loadWorkerData({ quiet: true });
           window.__workerAppInitDone = true;
           return;
         } catch {
@@ -3203,7 +3203,7 @@ function bindEvents() {
         refreshWorkerChatPanel();
         void requestWakeLock();
         void fetchAndDisplayDynamicQr();
-        void loadWorkerData();
+        void loadWorkerData({ quiet: true });
         if (lastSiteAccessCfg?.siteApp && hasSiteGeofenceConfig(lastSiteAccessCfg)) {
           siteOffSiteStrikeCount = 0;
           void pollSitePresence(lastSiteAccessCfg);
@@ -4469,7 +4469,8 @@ async function loginWithBadgeId(badgeId, badgePin, { silent = false, locationPay
   }
 }
 
-async function loadWorkerData() {
+async function loadWorkerData(options = {}) {
+  const quiet = Boolean(options.quiet);
   if (!workerToken) {
     console.warn("[loadWorkerData] No worker token – showing login");
     showLogin();
@@ -4485,12 +4486,24 @@ async function loadWorkerData() {
       return false;
     }
     workerDebug("[loadWorkerData] Success:", payload);
-    wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(payload));
+    const nextSerialized = JSON.stringify(payload);
+    const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
+    const unchanged = cachedRaw === nextSerialized && document.body.classList.contains("worker-loaded");
+    wpSet(WORKER_CACHED_PAYLOAD_KEY, nextSerialized);
     offlineWorkerSessionActive = false;
-    renderWorker(payload);
-    markWorkerSyncedNow();
-    updateConnectionState();
-    releaseSplashEarly();
+    if (!unchanged) {
+      renderWorker(payload);
+    } else if (quiet) {
+      markWorkerSyncedNow();
+      updateConnectionState();
+    } else {
+      restoreWorkerPassLayout(payload);
+      markWorkerSyncedNow();
+      updateConnectionState();
+    }
+    if (!unchanged || !quiet) {
+      releaseSplashEarly();
+    }
     void syncOfflinePhotoQueue();
     void syncOfflineEventQueue();
     return true;
@@ -4541,6 +4554,30 @@ async function loadWorkerData() {
       showLogin(true);
     }
     return false;
+  }
+}
+
+function restoreWorkerPassLayout(payload) {
+  if (!payload || !document.body.classList.contains("worker-loaded")) {
+    return;
+  }
+  const worker = payload.worker || {};
+  const identityLock = payload.identityLock || null;
+  const identityBlocked = String(worker.workerType || "worker").trim().toLowerCase() !== "visitor"
+    && Boolean(identityLock?.identityBlocked);
+  const qrPayload = identityBlocked ? "" : buildQrPayload(worker);
+  const isCompactViewport = window.matchMedia("(max-width: 520px)").matches;
+  const workerQrSize = isCompactViewport ? 520 : 460;
+  if (elements.workerQr && qrPayload) {
+    elements.workerQr.classList.remove("hidden");
+    void setQrImage(elements.workerQr, qrPayload, workerQrSize);
+  }
+  if (elements.badgeCard) {
+    elements.badgeCard.classList.remove("card-entrance-active", "card-transition-top");
+  }
+  document.body.classList.remove("card-animating", "card-transitioned");
+  if (document.body.classList.contains("worker-loaded")) {
+    switchToTab(currentActiveTab);
   }
 }
 
@@ -4881,50 +4918,35 @@ function renderWorker(payload) {
     if (lateBanner) lateBanner.remove();
   }
 
-  // Keep bottom-tab pages available for all users so tabs never open blank screens.
-  if (elements.timesheetCard) {
-    elements.timesheetCard.classList.remove("hidden");
+  // Keep bottom-tab pages in sync with the active tab (avoid breaking pass layout on background refresh).
+  if (document.body.classList.contains("worker-loaded")) {
+    switchToTab(currentActiveTab);
+  } else {
+    if (elements.timesheetCard) {
+      elements.timesheetCard.classList.add("hidden");
+    }
+    if (elements.documentsCard) {
+      elements.documentsCard.classList.add("hidden");
+    }
+    const leaveCard = document.getElementById("leaveRequestCard");
+    if (leaveCard) {
+      leaveCard.classList.add("hidden");
+    }
   }
-  if (elements.dailyInsightsCard) {
-    elements.dailyInsightsCard.classList.remove("hidden");
-  }
-  if (elements.companyModeCard) {
-    elements.companyModeCard.classList.toggle("hidden", isVisitor);
-  }
-  if (elements.smartWorkHubCard) {
-    elements.smartWorkHubCard.classList.toggle("hidden", isVisitor);
-  }
-  // Keep shortcuts visible to match bottom-tab navigation.
-  document.querySelectorAll("[data-scroll-target='timesheetCard'], [data-worker-page-target='timesheetCard']").forEach((btn) => {
-    btn.classList.remove("hidden");
-  });
-  document.querySelectorAll("[data-worker-page-target='dailyInsightsCard']").forEach((btn) => {
-    btn.classList.remove("hidden");
-  });
-  document.querySelectorAll("[data-worker-page-target='companyModeCard']").forEach((btn) => {
-    btn.classList.toggle("hidden", isVisitor);
-  });
-  if (elements.documentsCard) {
-    elements.documentsCard.classList.remove("hidden");
-  }
-  // Keep leave section visible to avoid empty tab state.
-  const leaveCard = document.getElementById("leaveRequestCard");
-  if (leaveCard) {
-    leaveCard.classList.remove("hidden");
-  }
-  document.querySelectorAll("[data-scroll-target='leaveRequestCard'], [data-worker-page-target='leaveRequestCard']").forEach((btn) => {
-    btn.classList.remove("hidden");
-  });
-  
+
   // Load section data after render.
-  if (!isVisitor) void loadLeaveRequests();
-  if (!isVisitor) void loadIncidents();
+  if (!isVisitor && (currentActiveTab === "vacation" || !document.body.classList.contains("worker-loaded"))) {
+    void loadLeaveRequests();
+  }
+  if (!isVisitor && currentActiveTab === "vacation") {
+    void loadIncidents();
+  }
   if (leaveRefreshInterval) {
     clearInterval(leaveRefreshInterval);
   }
   if (!isVisitor) {
     leaveRefreshInterval = setInterval(() => {
-      if (workerToken) {
+      if (workerToken && currentActiveTab === "vacation") {
         void loadLeaveRequests();
       }
     }, 60000);
@@ -4946,7 +4968,7 @@ function renderWorker(payload) {
   if (!isVisitor && (launchHash === "#einsatzplan" || launchHash === "#deployment")) {
     void openWorkerDeploymentPlanScreen();
   } else {
-    switchToTab("home");
+    switchToTab(currentActiveTab || "home");
   }
 }
 
@@ -8183,6 +8205,9 @@ async function submitLeaveRequest() {
     elements.leaveRequestForm.reset();
     toggleLeaveRequestForm();
     await loadLeaveRequests();
+    if (currentActiveTab !== "vacation") {
+      switchToTab("vacation");
+    }
   } catch (error) {
     if (isWorkerSessionAuthError(error?.code)) {
       return;
@@ -8191,18 +8216,77 @@ async function submitLeaveRequest() {
   }
 }
 
-function applyAiLeaveSuggestion() {
+function buildStaticLeaveSuggestion(type, start, end) {
+  const typeLabel = type === "krank" ? "krankheitsbedingt" : type === "sonstiges" ? "aus persönlichem Grund" : "urlaubsbedingt";
+  const dateRange = start && end ? `vom ${start} bis ${end}` : "im gewünschten Zeitraum";
+  return `Hiermit beantrage ich ${typeLabel} meine Abwesenheit ${dateRange}. Ich bitte um Genehmigung und danke für die Rückmeldung.`;
+}
+
+async function applyAiLeaveSuggestion() {
   const type = elements.leaveRequestType?.value || "urlaub";
   const start = elements.leaveRequestStart?.value || "";
   const end = elements.leaveRequestEnd?.value || "";
+  const noteField = elements.leaveRequestNote;
+  const btn = elements.leaveRequestAiBtn;
+  if (!noteField) return;
 
-  const typeLabel = type === "krank" ? "krankheitsbedingt" : type === "sonstiges" ? "aus persönlichem Grund" : "urlaubsbedingt";
-  const dateRange = start && end ? `vom ${start} bis ${end}` : "im gewünschten Zeitraum";
-  const suggestion = `Hiermit beantrage ich ${typeLabel} meine Abwesenheit ${dateRange}. Ich bitte um Genehmigung und danke für die Rückmeldung.`;
+  const insertSuggestion = (text, noticeKey) => {
+    noteField.value = text;
+    showWorkerNotice(t(noticeKey));
+  };
 
-  if (elements.leaveRequestNote) {
-    elements.leaveRequestNote.value = suggestion;
-    showWorkerNotice(t("aiSuggestionInserted"));
+  if (!workerToken) {
+    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestionInserted");
+    return;
+  }
+  if (offlineWorkerSessionActive) {
+    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestFallback");
+    return;
+  }
+
+  const lang = getWorkerLang();
+  const dateRange = start && end ? `${start} bis ${end}` : "im gewünschten Zeitraum";
+  const typePrompt = type === "krank"
+    ? "Krankmeldung"
+    : type === "sonstiges"
+      ? "Abwesenheitsantrag aus persönlichen Gründen"
+      : "Urlaubsantrag";
+  const question = [
+    `Formuliere einen kurzen, höflichen Antragstext (2–3 Sätze) für einen ${typePrompt}`,
+    dateRange !== "im gewünschten Zeitraum" ? `für den Zeitraum ${dateRange}` : "für den gewünschten Zeitraum",
+    "Nur den Antragstext, ohne Anrede oder Grußformel.",
+    `Sprache: ${lang === "de" ? "Deutsch" : lang}.`,
+  ].join(" ");
+
+  const previousLabel = btn?.textContent || "";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = t("aiSuggestLoading");
+  }
+
+  try {
+    const payload = await fetchJson(`${API_BASE}/ai/ask`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${workerToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question, lang }),
+    });
+    const rawAnswer = String(payload?.answer || payload?.message || "").trim();
+    const cleaned = globalThis.BaupassAiUi?.cleanTextForDisplay?.(rawAnswer) || rawAnswer;
+    if (cleaned && payload?.configured !== false) {
+      insertSuggestion(cleaned, "aiSuggestionInserted");
+      return;
+    }
+    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), payload?.configured === false ? "aiSuggestFallback" : "aiSuggestionInserted");
+  } catch {
+    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestFallback");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = previousLabel || t("aiSuggestBtn");
+    }
   }
 }
 

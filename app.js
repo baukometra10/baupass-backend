@@ -18253,7 +18253,7 @@ function getAllowedViewsForRole(role) {
   const normalized = String(role || "").toLowerCase();
   let allowed = ["dashboard"];
   if (normalized === "superadmin") {
-    allowed = ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices"];
+    allowed = ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices", "leave"];
   }
   if (normalized === "company-admin") {
     allowed = ["dashboard", "workers", "badge", "access", "documents"];
@@ -37104,7 +37104,9 @@ async function exportLeaveCsv() {
       showAlert("alertSessionExpired");
       return;
     }
-    const res = await fetch(`${API_BASE}/api/leave-requests`, {
+    const companyId = String(getEffectiveUiCompanyId() || "").trim();
+    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+    const res = await fetch(`${API_BASE}/api/leave-requests${query}`, {
       headers: { Authorization: `Bearer ${sessionToken}` },
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -37138,7 +37140,9 @@ async function loadLeaveRequests(filterStatus = null) {
       return;
     }
 
-    const response = await fetch(`${API_BASE}/api/leave-requests`, {
+    const companyId = String(getEffectiveUiCompanyId() || "").trim();
+    const query = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+    const response = await fetch(`${API_BASE}/api/leave-requests${query}`, {
       method: "GET",
       headers: {
         "Authorization": `Bearer ${sessionToken}`,
@@ -37189,7 +37193,8 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
       <button class="btn-filter ${filterStatus === "abgelehnt" ? "active" : ""}" onclick="loadLeaveRequests('abgelehnt')">Abgelehnt</button>
     </div>
     <div class="leave-cards-grid">
-      ${filtered.map((req) => {
+      ${filtered.length
+        ? filtered.map((req) => {
         const requestId = String(req.id || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const statusClass = `leave-status-${String(req.status || "").toLowerCase()}`;
         const cardClass = `leave-card leave-card-${String(req.status || "").toLowerCase()}`;
@@ -37226,7 +37231,8 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
             ${actions}
           </article>
         `;
-      }).join("")}
+      }).join("")
+        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.</p>`}
     </div>
   `;
 }

@@ -424,6 +424,18 @@
     const resolvedLogo = logoData || chipFallback;
     const resolvedSidebarLogo = logoData || chipFallback;
     applyTenantFavicon({ logoData: resolvedLogo, title: displayName, accentColor: accent || primary });
+    try {
+      global.localStorage.setItem("workpass-tenant-branding-v1", JSON.stringify({
+        portalDisplayName: displayName,
+        companyName: String(branding.companyName || "").trim(),
+        platformName: String(branding.platformName || "").trim(),
+        logoData,
+        accentColor: accent || primary,
+        primaryColor: primary,
+      }));
+    } catch {
+      // ignore storage errors
+    }
     document.querySelectorAll("[data-tenant-logo]").forEach((img) => {
       const useChip = img.classList.contains("tenant-logo-chip")
         || img.classList.contains("foreman-header-logo")
