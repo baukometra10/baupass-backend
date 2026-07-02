@@ -3362,6 +3362,31 @@ body {
   gap: 14px;
 }
 
+body.worker-loaded.worker-deployment-open #workerDashboard {
+  display: none !important;
+}
+
+body.worker-loaded.worker-deployment-open #badgeCard,
+body.worker-loaded.worker-deployment-open #workerHubPanel:not(.hidden) {
+  display: flex !important;
+}
+
+body.worker-loaded.worker-deployment-open #deploymentPlanCard:not(.hidden) {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.worker-loaded.worker-deployment-open #deploymentDayDetailModal:not(.hidden),
+body.worker-loaded.worker-deployment-open #deploymentDeclineModal:not(.hidden) {
+  display: flex !important;
+  z-index: 10050;
+}
+
 .home-deployment-teaser {
   display: grid;
   gap: 4px;

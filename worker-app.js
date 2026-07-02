@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702i";
+const WORKER_BUILD_TAG = "20260702j";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2235,6 +2235,7 @@ function bindWorkerFeatureTabActions() {
     if (backBtn) {
       event.preventDefault();
       event.stopPropagation();
+      closeWorkerDeploymentPlanScreen();
       switchToTab("home");
       return;
     }
@@ -2283,6 +2284,11 @@ async function deleteWorkerChatMessage(messageId) {
   }
 }
 
+function isWorkerDeploymentPlanOpen() {
+  return document.body.classList.contains("worker-deployment-open")
+    || activeWorkerPageTarget === "deploymentPlanCard";
+}
+
 /** Dashboard-Karte vs. QR-Pass vs. Hub-Bereiche (Urlaub/Zeiten/Docs) sichtbar schalten. */
 function updateWorkerShellForTab(tabName) {
   const cardInstall = document.body.classList.contains("worker-card-install");
@@ -2293,9 +2299,10 @@ function updateWorkerShellForTab(tabName) {
   const visitorCard = document.getElementById("visitorCardContainer");
   const hubToggleRow = document.querySelector(".worker-hub-toggle-row");
   const isHome = tabName === "home";
+  const deploymentPlanOpen = isWorkerDeploymentPlanOpen();
 
   if (dashboardEl) {
-    const showDashboard = isHome && !cardInstall;
+    const showDashboard = isHome && !cardInstall && !deploymentPlanOpen;
     dashboardEl.classList.toggle("hidden", !showDashboard);
     if (showDashboard) {
       dashboardEl.style.removeProperty("display");
@@ -2315,7 +2322,7 @@ function updateWorkerShellForTab(tabName) {
   }
 
   if (elements.badgeCard) {
-    const showBadgeShell = cardInstall || !isHome;
+    const showBadgeShell = cardInstall || !isHome || deploymentPlanOpen;
     elements.badgeCard.classList.toggle("hidden", !showBadgeShell);
     if (showBadgeShell) {
       elements.badgeCard.style.removeProperty("display");
@@ -2354,7 +2361,7 @@ function updateWorkerShellForTab(tabName) {
   }
 
   if (hubPanel) {
-    const showHub = !isHome || Boolean(activeWorkerPageTarget);
+    const showHub = !isHome || Boolean(activeWorkerPageTarget) || deploymentPlanOpen;
     hubPanel.classList.toggle("hidden", !showHub);
     if (showHub) {
       hubPanel.style.removeProperty("display");
@@ -9030,6 +9037,9 @@ function switchToTab(tabName) {
     tab.setAttribute("aria-selected", isActive);
   });
 
+  if (document.body.classList.contains("worker-deployment-open")) {
+    closeWorkerDeploymentPlanScreen();
+  }
   updateWorkerShellForTab(tabName);
   document.body.classList.remove("worker-tile-overview");
   activeWorkerPageTarget = "";
@@ -9548,6 +9558,10 @@ function handleDeploymentPlanPointer(event) {
   }
   const declineBtn = event.target.closest("[data-dep-decline]");
   const undoBtn = event.target.closest("[data-dep-undo]");
+  const dayCell = event.target.closest("#deploymentPlanList [data-dep-date]");
+  if (!declineBtn && !undoBtn && !dayCell) {
+    return;
+  }
   if (declineBtn) {
     event.preventDefault();
     event.stopPropagation();
@@ -9573,11 +9587,8 @@ function handleDeploymentPlanPointer(event) {
     })();
     return;
   }
-  const dayCell = event.target.closest("#deploymentPlanList [data-dep-date]");
-  if (!dayCell) {
-    return;
-  }
   event.preventDefault();
+  event.stopPropagation();
   const iso = dayCell.getAttribute("data-dep-date") || "";
   if (iso) {
     openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
@@ -9850,8 +9861,10 @@ function bindDeploymentPlanInteractions() {
   }
   bindDeploymentPlanInteractions._done = true;
 
-  document.addEventListener("click", handleDeploymentPlanPointer);
-  document.addEventListener("keydown", handleDeploymentPlanKeydown);
+  document.addEventListener("click", handleDeploymentPlanPointer, true);
+  document.addEventListener("keydown", handleDeploymentPlanKeydown, true);
+  elements.deploymentPlanList?.addEventListener("click", handleDeploymentPlanPointer);
+  elements.deploymentPlanList?.addEventListener("keydown", handleDeploymentPlanKeydown);
 
   document.getElementById("deploymentDayDetailClose")?.addEventListener("click", closeDeploymentDayDetailModal);
   document.getElementById("deploymentDayDetailModal")?.addEventListener("click", (event) => {
@@ -9983,9 +9996,9 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
     }
   }
   ensureWorkerDeploymentShellVisible();
-  updateWorkerShellForTab(currentActiveTab || "home");
   showOnlyWorkerFeaturePanel("deploymentPlanCard");
   applyWorkerPageView("deploymentPlanCard");
+  updateWorkerShellForTab(currentActiveTab || "home");
   if (elements.workerPageNav) {
     elements.workerPageNav.classList.remove("hidden");
   }

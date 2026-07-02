@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702i";
+window.__BAUPASS_UI_BUILD = "20260702j";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37710,10 +37710,34 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
       return;
     }
 
-    const payload = await response.json();
-    const requests = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : []);
+    let payload = await response.json();
+    let requests = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : []);
+    let scopeHint = getLeaveAdminScopeHint();
+
+    if (
+      !requests.length
+      && isSuperadminCompanyPreviewMode()
+      && String(getEffectiveUiCompanyId() || "").trim()
+    ) {
+      const allResponse = await fetch(`${API_BASE}/api/leave-requests${filterStatus ? `?status=${encodeURIComponent(filterStatus)}` : ""}`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${sessionToken}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (allResponse.ok) {
+        const allPayload = await allResponse.json();
+        const allRequests = Array.isArray(allPayload) ? allPayload : (Array.isArray(allPayload?.items) ? allPayload.items : []);
+        if (allRequests.length) {
+          scopeHint = `${scopeHint} · Es gibt ${allRequests.length} Antrag/Anträge in anderen Firmen — Firmenansicht prüfen.`;
+          console.warn("[WorkPass admin leave] company filter returned 0, but unscoped list has", allRequests.length);
+        }
+      }
+    }
+
     updateLeavePendingBadge(requests.filter((req) => req.status === "ausstehend").length);
-    renderLeaveRequestsTable(requests, filterStatus);
+    renderLeaveRequestsTable(requests, filterStatus, scopeHint);
     if (getCurrentViewName() === "leave") {
       startLeaveRequestsPoll(filterStatus);
     }
@@ -37733,7 +37757,7 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
   }
 }
 
-function renderLeaveRequestsTable(requests, filterStatus = null) {
+function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "") {
   const container = document.getElementById("leaveRequestsTable") || createLeaveRequestsPanel();
   const filtered = filterStatus
     ? requests.filter((req) => req.status === filterStatus)
@@ -37741,6 +37765,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
 
   const pendingCount = requests.filter((req) => req.status === "ausstehend").length;
   updateLeavePendingBadge(pendingCount);
+  const adminScopeHint = String(scopeHint || getLeaveAdminScopeHint());
 
   container.innerHTML = `
     <div class="leave-filter-bar">
@@ -37789,7 +37814,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null) {
           </article>
         `;
       }).join("")
-        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.<br><small>${escapeHtml(getLeaveAdminScopeHint())} · API: ${escapeHtml(sanitizeApiBase(API_BASE) || window.location.origin)}</small></p>`}
+        : `<p class="muted-info leave-empty-state">Noch keine Urlaubsanträge vorhanden. Sobald Mitarbeitende einen Antrag stellen, erscheint er hier als PDF.<br><small>${escapeHtml(adminScopeHint)} · API: ${escapeHtml(sanitizeApiBase(API_BASE) || window.location.origin)}</small></p>`}
     </div>
   `;
 }
