@@ -26341,21 +26341,30 @@ def _ensure_leave_requests_table(db):
 
 def _resolve_leave_admin_company_scope(user, db=None):
     """Resolve tenant company filter for admin leave list/review APIs."""
-    from backend.app.domains.shared import company_id_from_user
-
     role = str(user.get("role") or "").strip().lower()
-    user_company = str(user.get("company_id") or user.get("companyId") or "").strip()
-    scoped = str(company_id_from_user(allow_query=True) or "").strip()
-    if not scoped:
-        scoped = user_company
-    if not scoped and role in ("company-admin", "turnstile"):
-        query_cid = str(request.args.get("company_id") or request.args.get("companyId") or "").strip()
-        if query_cid and (not user_company or query_cid == user_company):
-            scoped = query_cid
-    if scoped:
-        return scoped
-    if role == "superadmin":
+    query_cid = str(request.args.get("company_id") or request.args.get("companyId") or "").strip()
+    include_all = str(
+        request.args.get("include_all") or request.args.get("all_companies") or ""
+    ).strip().lower()
+
+    if role == "superadmin" and include_all in ("1", "true", "yes"):
         return None
+
+    if query_cid:
+        return query_cid
+
+    user_company = str(user.get("company_id") or user.get("companyId") or "").strip()
+    if user_company and role in ("company-admin", "turnstile"):
+        return user_company
+
+    if role == "superadmin":
+        preview = str(
+            getattr(g, "preview_company_id", None) or user.get("preview_company_id") or ""
+        ).strip()
+        if preview:
+            return preview
+        return None
+
     if db is not None:
         tenant = resolve_public_tenant_company(db, host=get_request_host())
         if tenant and tenant.get("id"):

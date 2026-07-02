@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702p";
+window.__BAUPASS_UI_BUILD = "20260702q";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37565,6 +37565,18 @@ function formatLeaveAdminDiagnostics(stats, scopedCompanyId = "") {
     return cid === String(scopedCompanyId).trim();
   })) {
     lines.push("Es gibt Anträge, aber nicht für die aktuell gewählte Firmenansicht.");
+    const byCompany = Array.isArray(stats.byCompany) ? stats.byCompany : [];
+    const otherCompanies = byCompany
+      .filter((row) => String(row.company_id || "").trim() && String(row.company_id).trim() !== String(scopedCompanyId).trim())
+      .map((row) => {
+        const cid = String(row.company_id || "").trim();
+        const company = (stats.workers || []).find((w) => String(w.company_id || "").trim() === cid);
+        const name = company?.company_name || cid;
+        return `${name}: ${row.request_count || 0}`;
+      });
+    if (otherCompanies.length) {
+      lines.push(`Anträge in anderen Firmen: ${otherCompanies.join(", ")}`);
+    }
   }
   if (scopedWorkers.length) {
     const names = scopedWorkers
@@ -37602,6 +37614,9 @@ function buildLeaveRequestsApiQuery(filterStatus = null, options = {}) {
     && (role === "company-admin" || role === "turnstile" || isSuperadminCompanyPreviewMode())
   ) {
     params.set("company_id", companyId);
+  }
+  if (includeAllCompanies && role === "superadmin") {
+    params.set("include_all", "1");
   }
   if (filterStatus) {
     params.set("status", filterStatus);
@@ -37769,22 +37784,18 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
         if (statsResponse.ok) {
           const stats = await statsResponse.json();
           diagnosticHint = formatLeaveAdminDiagnostics(stats, getEffectiveUiCompanyId());
-          if (!silent) {
-            console.info("[WorkPass admin leave] stats", stats);
-          }
+          console.info("[WorkPass admin leave] stats", stats, diagnosticHint);
         }
       } catch (statsError) {
-        if (!silent) {
-          console.warn("[WorkPass admin leave] stats failed", statsError);
-        }
+        console.warn("[WorkPass admin leave] stats failed", statsError);
       }
     }
 
-    if (
-      !requests.length
-      && isSuperadminCompanyPreviewMode()
-      && String(getEffectiveUiCompanyId() || "").trim()
-    ) {
+    const adminRole = String(getCurrentUser()?.role || "").toLowerCase();
+    const hadCompanyFilter = buildLeaveRequestsApiQuery(null).includes("company_id");
+    const shouldTryAllCompanies = !requests.length && adminRole === "superadmin" && hadCompanyFilter;
+
+    if (shouldTryAllCompanies) {
       const allQuery = buildLeaveRequestsApiQuery(filterStatus, { includeAllCompanies: true });
       const allResponse = await fetch(`${API_BASE}/api/leave-requests${allQuery}`, {
         method: "GET",
@@ -37797,9 +37808,10 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
         const allPayload = await allResponse.json();
         const allRequests = Array.isArray(allPayload) ? allPayload : (Array.isArray(allPayload?.items) ? allPayload.items : []);
         if (allRequests.length) {
-          scopeHint = `${scopeHint} · Es gibt ${allRequests.length} Antrag/Anträge in anderen Firmen.`;
-          showAllCompaniesAction = `<button type="button" class="ghost small-btn" id="leaveShowAllCompaniesBtn">Alle Firmen anzeigen</button>`;
-          console.warn("[WorkPass admin leave] company filter returned 0, but unscoped list has", allRequests.length);
+          const companyIds = [...new Set(allRequests.map((req) => String(req.company_id || req.worker_company_id || "").trim()).filter(Boolean))];
+          scopeHint = `${scopeHint} · ${allRequests.length} Antrag/Anträge in anderen Firmen${companyIds.length ? ` (${companyIds.join(", ")})` : ""}.`;
+          showAllCompaniesAction = `<button type="button" class="ghost small-btn" id="leaveShowAllCompaniesBtn">Alle Firmen anzeigen (${allRequests.length})</button>`;
+          console.warn("[WorkPass admin leave] company filter returned 0, unscoped list has", allRequests.length, companyIds);
         }
       }
     }
