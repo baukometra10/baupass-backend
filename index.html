@@ -115,7 +115,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
-  <link rel="stylesheet" href="./styles.css?v=20260702c" />
+  <link rel="stylesheet" href="./styles.css?v=20260702d" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
     <link rel="stylesheet" href="./platform-health.css?v=20260621contrast1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
@@ -1436,6 +1436,15 @@
           <p class="helper-text" data-ui-i18n="camerasHint">Lokaler RTSP-Agent oder Webhook an <code>/api/integrations/cameras/rtsp-ingest</code> (Header: <code>X-WorkPass-Rtsp-Token</code>).</p>
           <div id="cameraSummaryBar" class="meta-box hidden"></div>
 
+          <section class="camera-live-section" aria-labelledby="cameraLiveGridHeading">
+            <div class="panel-heading camera-live-section-heading">
+              <h4 id="cameraLiveGridHeading" data-ui-i18n="camerasLiveGridH4">Live-Übersicht</h4>
+              <p class="helper-text" data-ui-i18n="camerasLiveGridHint">Alle registrierten Kameras nebeneinander — Snapshots alle 10 s.</p>
+            </div>
+            <div id="cameraLiveGrid" class="camera-tiles-grid" role="list"></div>
+            <p id="cameraLiveGridEmpty" class="helper-text camera-live-grid-empty" data-ui-i18n="camerasLiveGridEmpty">Noch keine Kameras — Massen-Import oder Einzelkamera oben nutzen.</p>
+          </section>
+
           <div class="camera-setup-tabs" role="tablist">
             <button type="button" class="camera-setup-tab active" data-camera-tab="bulk" data-ui-i18n="camerasTabBulk">Massen-Import</button>
             <button type="button" class="camera-setup-tab" data-camera-tab="single" data-ui-i18n="camerasTabSingle">Einzelne Kamera</button>
@@ -1477,20 +1486,6 @@
             <button type="button" id="cameraBridgeRefreshBtn" class="ghost-button small-button" data-ui-i18n="camerasBridgeRefreshBtn">Setup aktualisieren</button>
           </div>
 
-          <div class="panel-grid two-columns camera-live-grid" style="margin-top:16px;">
-            <article class="panel camera-list-panel" style="margin:0;">
-              <div class="panel-heading"><h4 data-ui-i18n="camerasListH4">Registrierte Kameras</h4></div>
-              <div id="cameraList" class="list camera-device-list"></div>
-            </article>
-            <article class="panel camera-live-panel" style="margin:0;">
-              <div class="panel-heading"><h4 data-ui-i18n="camerasLiveH4">Live-Snapshot</h4></div>
-              <p class="helper-text" data-ui-i18n="camerasLiveHint">Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).</p>
-              <div id="cameraLiveView" class="camera-live-view">
-                <img id="cameraLiveImage" alt="" class="hidden camera-live-image" />
-                <p id="cameraLivePlaceholder" class="helper-text" data-ui-i18n="camerasLiveEmpty">Kamera auswählen oder warten auf ersten Snapshot.</p>
-              </div>
-            </article>
-          </div>
           <div class="panel-heading" style="margin-top:16px;"><h4 data-ui-i18n="camerasEventsH4">Sicherheitsereignisse</h4></div>
           <div id="cameraEventsList" class="list"></div>
         </article>
@@ -2411,7 +2406,7 @@
   <script src="./usage-tracker.js?v=20260624usage2"></script>
   <script src="./enterprise-shell-i18n.js?v=20260621enterprise8"></script>
   <script src="./app-i18n-extra-langs.js?v=20260622i18nfull"></script>
-  <script src="./app.js?v=20260702c"></script>
+  <script src="./app.js?v=20260702d"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

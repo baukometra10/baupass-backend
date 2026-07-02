@@ -6758,6 +6758,152 @@ html.pwa-installed .enterprise-embed-toolbar a[target="_blank"]:not([data-pwa-ex
   align-items: start;
 }
 
+.camera-live-section {
+  margin: 14px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 14px);
+  background: rgba(8, 12, 24, 0.28);
+}
+
+.camera-live-section-heading {
+  margin-bottom: 12px;
+}
+
+.camera-live-section-heading .helper-text {
+  margin: 4px 0 0;
+}
+
+.camera-live-grid-empty {
+  margin: 0;
+  padding: 24px 12px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+
+.camera-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.camera-tile {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.22);
+  min-width: 0;
+}
+
+.camera-tile-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  padding: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.35);
+  cursor: zoom-in;
+}
+
+.camera-tile-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-tile-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted, #94a3b8);
+}
+
+.camera-tile-footer {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  gap: 6px 8px;
+  align-items: center;
+  padding: 10px 10px 10px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.camera-tile-meta {
+  min-width: 0;
+}
+
+.camera-tile-name {
+  display: block;
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.camera-tile-location {
+  display: block;
+  font-size: 0.74rem;
+  opacity: 0.82;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.camera-tile-badge {
+  font-size: 0.68rem;
+}
+
+.camera-tile-delete {
+  color: #dc2626 !important;
+  padding: 4px 8px !important;
+}
+
+.camera-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.camera-fullscreen-overlay.hidden {
+  display: none;
+}
+
+.camera-fullscreen-dialog {
+  width: min(96vw, 1200px);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.camera-fullscreen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #fff;
+}
+
+.camera-fullscreen-image {
+  width: 100%;
+  max-height: calc(92vh - 48px);
+  object-fit: contain;
+  border-radius: 12px;
+  background: #000;
+}
+
 .camera-live-view {
   min-height: 200px;
   display: grid;

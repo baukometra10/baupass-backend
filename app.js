@@ -998,6 +998,11 @@ const UI_TRANSLATIONS = {
     camerasRefreshAllBtn: "Aktualisieren",
     camerasListH4: "Registrierte Kameras",
     camerasLiveH4: "Live-Snapshot",
+    camerasLiveGridH4: "Live-Übersicht",
+    camerasLiveGridHint: "Alle registrierten Kameras nebeneinander — Snapshots alle 10 s.",
+    camerasLiveGridEmpty: "Noch keine Kameras — Massen-Import oder Einzelkamera unten nutzen.",
+    cameraWaitingSnapshot: "Warte auf Snapshot…",
+    cameraExpandHint: "Klicken für Vollbild",
     camerasLiveHint: "Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).",
     camerasLiveEmpty: "Kamera auswählen oder warten auf ersten Snapshot.",
     camerasEventsH4: "Sicherheitsereignisse",
@@ -4030,6 +4035,11 @@ const UI_TRANSLATIONS = {
     camerasRefreshAllBtn: "تحديث",
     camerasListH4: "الكameras المسجّلة",
     camerasLiveH4: "لقطة مباشرة",
+    camerasLiveGridH4: "عرض مباشر",
+    camerasLiveGridHint: "كل الكameras المسجّلة جنباً إلى جنب — تحديث كل 10 ثوانٍ.",
+    camerasLiveGridEmpty: "لا كameras بعد — استخدم الاستيراد الجماعي أو كamera واحدة أدناه.",
+    cameraWaitingSnapshot: "بانتظار اللقطة…",
+    cameraExpandHint: "انقر للعرض الكامل",
     camerasLiveHint: "آخر صورة من وكيل RTSP (تحديث كل 10 ثوانٍ).",
     camerasLiveEmpty: "اختر كamera أو انتظر أول لقطة.",
     camerasEventsH4: "أحداث الأمان",
@@ -21131,7 +21141,7 @@ function showLoginGreeting() {
 
 // ── Camera Management ────────────────────────────────────────────────────────
 let _cameraLiveTimer = null;
-let _selectedCameraId = null;
+const _cameraBlobUrls = new Map();
 state.siteCameras = state.siteCameras || [];
 
 function _cameraEventsUrl() {
@@ -21177,8 +21187,36 @@ async function loadSiteCameras() {
   }
 }
 
+function _cameraSnapshotUrl(cameraId) {
+  const role = String(getCurrentUser()?.role || "");
+  let url = `${API_BASE}/api/integrations/cameras/${encodeURIComponent(cameraId)}/snapshot?format=jpeg&_=${Date.now()}`;
+  if (role === "superadmin" && superadminUiPreviewCompanyId) {
+    url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+  }
+  return url;
+}
+
+function _revokeCameraBlobUrl(cameraId) {
+  const prev = _cameraBlobUrls.get(cameraId);
+  if (prev) {
+    try {
+      URL.revokeObjectURL(prev);
+    } catch {
+      /* ignore */
+    }
+    _cameraBlobUrls.delete(cameraId);
+  }
+}
+
+function _revokeAllCameraBlobUrls() {
+  for (const id of [..._cameraBlobUrls.keys()]) {
+    _revokeCameraBlobUrl(id);
+  }
+}
+
 function renderSiteCameras(summary) {
-  const list = document.querySelector("#cameraList");
+  const grid = document.querySelector("#cameraLiveGrid");
+  const emptyEl = document.querySelector("#cameraLiveGridEmpty");
   const bar = document.querySelector("#cameraSummaryBar");
   const cameras = state.siteCameras || [];
   if (bar) {
@@ -21192,12 +21230,15 @@ function renderSiteCameras(summary) {
       bar.innerHTML = "";
     }
   }
-  if (!list) return;
+  if (!grid) return;
   if (!cameras.length) {
-    list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasLiveEmpty"))}</p>`;
+    grid.innerHTML = "";
+    if (emptyEl) emptyEl.classList.remove("hidden");
+    _revokeAllCameraBlobUrls();
     return;
   }
-  list.innerHTML = cameras
+  if (emptyEl) emptyEl.classList.add("hidden");
+  grid.innerHTML = cameras
     .map((cam) => {
       const dotClass = cam.online ? "device-dot online" : cam.lastSeenAt ? "device-dot offline" : "device-dot";
       const statusLabel = cam.online
@@ -21205,77 +21246,120 @@ function renderSiteCameras(summary) {
         : cam.lastSeenAt
           ? uiT("cameraOffline")
           : uiT("cameraUnknown");
-      const selected = _selectedCameraId === cam.id ? " camera-row-selected" : "";
-      return `<div class="device-status-item${selected}" data-camera-id="${escapeHtml(cam.id)}">
-        <span class="${dotClass}"></span>
-        <span class="device-name">${escapeHtml(cam.name || cam.id)}</span>
-        <span class="device-meta">${escapeHtml(cam.location || "")}</span>
-        <span class="device-badge">${escapeHtml(statusLabel)}</span>
-        <button type="button" class="ghost-button small-button camera-live-btn" data-camera-id="${escapeHtml(cam.id)}">${escapeHtml(uiT("cameraSelectLive"))}</button>
-        <button type="button" class="ghost-button small-button camera-delete-btn" style="color:#dc2626;" data-camera-id="${escapeHtml(cam.id)}">✕</button>
-      </div>`;
+      const location = cam.location ? `<span class="camera-tile-location">${escapeHtml(cam.location)}</span>` : "";
+      return `<article class="camera-tile" role="listitem" data-camera-id="${escapeHtml(cam.id)}">
+        <button type="button" class="camera-tile-frame" data-camera-expand="${escapeHtml(cam.id)}" title="${escapeHtml(uiT("cameraExpandHint"))}">
+          <img class="camera-tile-image hidden" alt="${escapeHtml(cam.name || cam.id)}" data-camera-img="${escapeHtml(cam.id)}" />
+          <div class="camera-tile-placeholder" data-camera-placeholder="${escapeHtml(cam.id)}">${escapeHtml(uiT("cameraWaitingSnapshot"))}</div>
+        </button>
+        <div class="camera-tile-footer">
+          <span class="${dotClass}" aria-hidden="true"></span>
+          <div class="camera-tile-meta">
+            <strong class="camera-tile-name">${escapeHtml(cam.name || cam.id)}</strong>
+            ${location}
+          </div>
+          <span class="device-badge camera-tile-badge">${escapeHtml(statusLabel)}</span>
+          <button type="button" class="ghost-button small-button camera-delete-btn camera-tile-delete" data-camera-id="${escapeHtml(cam.id)}" aria-label="Delete">✕</button>
+        </div>
+      </article>`;
     })
     .join("");
-  list.querySelectorAll(".camera-live-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      _selectedCameraId = btn.getAttribute("data-camera-id");
-      renderSiteCameras(summary);
-      refreshCameraLiveView();
-    });
-  });
-  list.querySelectorAll(".camera-delete-btn").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+  grid.querySelectorAll(".camera-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
       const id = btn.getAttribute("data-camera-id");
       if (!(await showConfirmDialog(uiT("cameraDeleteConfirm")))) return;
       try {
         await apiRequest(_camerasApiUrl(`/${encodeURIComponent(id)}`), { method: "DELETE" });
-        if (_selectedCameraId === id) _selectedCameraId = null;
+        _revokeCameraBlobUrl(id);
         await loadSiteCameras();
-        refreshCameraLiveView();
       } catch (err) {
         showToast(String(err?.message || err), "error");
       }
     });
   });
+  grid.querySelectorAll("[data-camera-expand]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-camera-expand");
+      const tile = grid.querySelector(`.camera-tile[data-camera-id="${id}"]`);
+      const img = tile?.querySelector(".camera-tile-image");
+      if (img && !img.classList.contains("hidden") && img.src) {
+        openCameraFullscreen(img.src, id);
+      }
+    });
+  });
+  void refreshAllCameraLiveViews();
 }
 
-async function refreshCameraLiveView() {
-  const img = document.querySelector("#cameraLiveImage");
-  const placeholder = document.querySelector("#cameraLivePlaceholder");
+async function refreshCameraTileSnapshot(cameraId) {
+  const grid = document.getElementById("cameraLiveGrid");
+  const tile = grid?.querySelector(`.camera-tile[data-camera-id="${cameraId}"]`);
+  const img = tile?.querySelector(".camera-tile-image");
+  const placeholder = tile?.querySelector(".camera-tile-placeholder");
   if (!img || !placeholder) return;
-  if (!_selectedCameraId) {
-    img.classList.add("hidden");
-    placeholder.classList.remove("hidden");
-    placeholder.textContent = uiT("camerasLiveEmpty");
-    return;
-  }
   const role = String(getCurrentUser()?.role || "");
   if (role === "superadmin" && !superadminUiPreviewCompanyId) return;
   try {
-    let url = `${API_BASE}/api/integrations/cameras/${encodeURIComponent(_selectedCameraId)}/snapshot?format=jpeg&_=${Date.now()}`;
-    if (role === "superadmin" && superadminUiPreviewCompanyId) {
-      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
-    }
-    const resp = await fetch(url, {
+    const resp = await fetch(_cameraSnapshotUrl(cameraId), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: "include",
     });
     if (!resp.ok) throw new Error("no_snapshot");
     const blob = await resp.blob();
-    img.src = URL.createObjectURL(blob);
+    _revokeCameraBlobUrl(cameraId);
+    const objectUrl = URL.createObjectURL(blob);
+    _cameraBlobUrls.set(cameraId, objectUrl);
+    img.src = objectUrl;
     img.classList.remove("hidden");
     placeholder.classList.add("hidden");
   } catch {
     img.classList.add("hidden");
     placeholder.classList.remove("hidden");
-    placeholder.textContent = uiT("camerasLiveEmpty");
+    placeholder.textContent = uiT("cameraWaitingSnapshot");
   }
+}
+
+async function refreshAllCameraLiveViews() {
+  const cameras = state.siteCameras || [];
+  if (!cameras.length) return;
+  await Promise.allSettled(cameras.map((cam) => refreshCameraTileSnapshot(cam.id)));
+}
+
+function openCameraFullscreen(src, cameraId) {
+  const cam = (state.siteCameras || []).find((c) => c.id === cameraId);
+  const title = cam?.name || cameraId || uiT("camerasLiveGridH4");
+  let overlay = document.getElementById("cameraFullscreenOverlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "cameraFullscreenOverlay";
+    overlay.className = "camera-fullscreen-overlay hidden";
+    overlay.innerHTML = `
+      <div class="camera-fullscreen-dialog" role="dialog" aria-modal="true">
+        <div class="camera-fullscreen-header">
+          <strong id="cameraFullscreenTitle"></strong>
+          <button type="button" id="cameraFullscreenClose" class="ghost-button small-button">✕</button>
+        </div>
+        <img id="cameraFullscreenImage" class="camera-fullscreen-image" alt="" />
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.classList.add("hidden");
+    });
+    overlay.querySelector("#cameraFullscreenClose")?.addEventListener("click", () => {
+      overlay.classList.add("hidden");
+    });
+  }
+  const imgEl = overlay.querySelector("#cameraFullscreenImage");
+  const titleEl = overlay.querySelector("#cameraFullscreenTitle");
+  if (imgEl) imgEl.src = src;
+  if (titleEl) titleEl.textContent = title;
+  overlay.classList.remove("hidden");
 }
 
 function startCameraLivePolling() {
   stopCameraLivePolling();
   _cameraLiveTimer = setInterval(() => {
-    if (_selectedCameraId) void refreshCameraLiveView();
+    if ((state.siteCameras || []).length) void refreshAllCameraLiveViews();
   }, 10000);
 }
 
@@ -21481,6 +21565,7 @@ async function importCamerasBulk() {
     showToast(resultEl?.textContent || "OK", failed ? "warning" : "success");
     await loadSiteCameras();
     void loadCameraBridgeSetup();
+    document.getElementById("cameraLiveGrid")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   } catch (err) {
     if (resultEl) resultEl.textContent = String(err?.message || err);
     showToast(String(err?.message || err), "error");
@@ -21501,60 +21586,6 @@ async function loadDevices() {
     await refreshCamerasPanel();
   } catch (e) {
     console.warn("loadDevices failed", e);
-  }
-}
-
-async function loadCameraEvents() {
-  const list = document.querySelector("#cameraEventsList");
-  if (!list) return;
-  const role = String(getCurrentUser()?.role || "");
-  if (!["superadmin", "company-admin"].includes(role)) {
-    list.innerHTML = "";
-    return;
-  }
-  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
-    list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
-    return;
-  }
-  try {
-    let url = `${API_BASE}/api/integrations/cameras/events?limit=25`;
-    if (role === "superadmin" && superadminUiPreviewCompanyId) {
-      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
-    }
-    const data = await apiRequest(url);
-    const events = Array.isArray(data?.events) ? data.events : [];
-    if (!events.length) {
-      list.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasEventsEmpty"))}</p>`;
-      return;
-    }
-    list.innerHTML = events
-      .map((ev) => {
-        let payload = {};
-        try {
-          payload = typeof ev.payload_json === "string" ? JSON.parse(ev.payload_json) : (ev.payload_json || {});
-        } catch {
-          payload = {};
-        }
-        const face = payload.face_match;
-        const faceTag = face === true
-          ? `<span class="helper-text helper-text-ok">${escapeHtml(uiT("cameraEventFaceOk"))}</span>`
-          : face === false
-            ? `<span class="helper-text helper-text-warning">${escapeHtml(uiT("cameraEventFaceNo"))}</span>`
-            : "";
-        const workerLine = ev.worker_id
-          ? ` · ${escapeHtml(uiT("cameraEventWorker"))}: ${escapeHtml(ev.worker_id)}`
-          : "";
-        return `
-        <article class="card-item" style="margin-bottom:6px;">
-          <strong>${escapeHtml(ev.event_type || "event")}</strong>
-          <span class="meta-text"> · ${escapeHtml(ev.camera_id || "-")}</span>
-          ${faceTag ? ` ${faceTag}` : ""}
-          <p class="helper-text">${escapeHtml(ev.created_at || "")}${workerLine}</p>
-        </article>`;
-      })
-      .join("");
-  } catch {
-    list.innerHTML = "";
   }
 }
 
