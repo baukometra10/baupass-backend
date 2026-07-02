@@ -117,6 +117,80 @@ def get_camera_snapshot_b64(db, company_id: str, camera_id: str) -> str | None:
     return data or None
 
 
+def _slug_camera_id(name: str) -> str:
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", str(name or "").strip().lower()).strip("-")
+    slug = slug[:40] or "camera"
+    return f"cam-{slug}"
+
+
+def parse_camera_bulk_text(text: str) -> list[dict[str, Any]]:
+    """Parse bulk camera lines: name,location,rtsp (comma/semicolon/tab)."""
+    items: list[dict[str, Any]] = []
+    for raw in str(text or "").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ";" in line and "," not in line:
+            parts = [p.strip() for p in line.split(";")]
+        elif "\t" in line:
+            parts = [p.strip() for p in line.split("\t")]
+        else:
+            parts = [p.strip() for p in line.split(",")]
+        while len(parts) < 3:
+            parts.append("")
+        name, location, rtsp_url = parts[0], parts[1], parts[2]
+        if not name:
+            continue
+        item: dict[str, Any] = {
+            "name": name,
+            "location": location,
+            "rtspUrl": rtsp_url,
+        }
+        if parts[0] and len(parts) >= 4 and parts[3]:
+            item["id"] = parts[3]
+        else:
+            item["id"] = _slug_camera_id(name)
+        items.append(item)
+    return items
+
+
+def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dict[str, Any]:
+    created: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for index, item in enumerate(items or []):
+        if not isinstance(item, dict):
+            failed.append({"index": index, "error": "invalid_item"})
+            continue
+        name = str(item.get("name") or "").strip()
+        if not name:
+            failed.append({"index": index, "error": "name_required"})
+            continue
+        cam_id = str(item.get("id") or _slug_camera_id(name)).strip()
+        payload = {
+            "id": cam_id,
+            "name": name,
+            "location": str(item.get("location") or "").strip(),
+            "rtspUrl": str(item.get("rtspUrl") or item.get("rtsp_url") or "").strip(),
+        }
+        try:
+            existing = get_camera(db, company_id, cam_id)
+            if existing:
+                updated = update_camera(db, company_id, cam_id, payload)
+                if updated:
+                    created.append(updated)
+                else:
+                    failed.append({"index": index, "error": "update_failed", "name": name})
+            else:
+                created.append(create_camera(db, company_id, payload))
+        except ValueError as exc:
+            failed.append({"index": index, "error": str(exc), "name": name})
+        except Exception as exc:
+            failed.append({"index": index, "error": str(exc), "name": name})
+    return {"ok": True, "created": len(created), "failed": failed, "cameras": created}
+
+
 def create_camera(db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     name = str(payload.get("name") or "").strip()
     if not name:

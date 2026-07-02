@@ -6699,6 +6699,124 @@ html.pwa-installed .enterprise-embed-toolbar a[target="_blank"]:not([data-pwa-ex
   display: none;
 }
 
+/* Camera hub — bulk import & bridge wizard */
+.camera-hub-panel {
+  overflow: hidden;
+}
+
+.camera-setup-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 12px;
+}
+
+.camera-setup-tab {
+  border: 1px solid var(--line);
+  background: rgba(8, 12, 24, 0.35);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.camera-setup-tab.active {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--accent, #38bdf8);
+}
+
+.camera-setup-pane {
+  padding: 12px 14px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md, 14px);
+  background: rgba(8, 12, 24, 0.28);
+}
+
+.camera-bulk-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong, rgba(17, 26, 47, 0.92));
+  color: var(--text);
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  padding: 10px 12px;
+}
+
+.camera-bulk-result {
+  min-height: 1.2rem;
+  margin-top: 8px;
+}
+
+.camera-live-grid {
+  align-items: start;
+}
+
+.camera-live-view {
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  border: 1px dashed var(--line);
+  background: rgba(0, 0, 0, 0.18);
+  padding: 8px;
+}
+
+.camera-live-image {
+  max-width: 100%;
+  border-radius: 10px;
+  display: block;
+}
+
+.camera-device-list .device-status-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 6px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+}
+
+.camera-device-list .device-meta {
+  grid-column: 2 / -1;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+.camera-row-selected {
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+}
+
+.camera-bridge-setup {
+  display: grid;
+  gap: 10px;
+}
+
+.camera-bridge-meta code {
+  word-break: break-all;
+}
+
+.camera-bridge-json-preview {
+  max-height: 180px;
+  overflow: auto;
+  font-size: 0.72rem;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.22);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 960px) {
   .admin-account-grid {
     grid-template-columns: 1fr;

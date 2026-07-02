@@ -1011,6 +1011,21 @@ const UI_TRANSLATIONS = {
     cameraSelectLive: "Live anzeigen",
     cameraDeleteConfirm: "Kamera wirklich löschen?",
     cameraSummary: "{online}/{total} Kameras online",
+    camerasTabBulk: "Massen-Import",
+    camerasTabSingle: "Einzelne Kamera",
+    camerasTabBridge: "Bridge einrichten",
+    camerasBulkHint: "Pro Zeile: Name, Standort, RTSP-URL — Komma, Semikolon oder Tab. Max. 100.",
+    camerasBulkImportBtn: "Kameras importieren",
+    camerasBulkSampleBtn: "Beispiel einfügen",
+    camerasBulkSuccess: "{n} Kamera(s) importiert.",
+    camerasBulkPartial: "{ok} importiert, {fail} fehlgeschlagen.",
+    camerasBulkEmpty: "Bitte mindestens eine Zeile eintragen.",
+    camerasBridgeLoading: "Bridge-Informationen werden geladen…",
+    camerasBridgeRefreshBtn: "Setup aktualisieren",
+    camerasBridgeTokenOk: "RTSP-Bridge-Token ist auf dem Server konfiguriert.",
+    camerasBridgeTokenMissing: "RTSP-Bridge-Token fehlt auf dem Server (BAUPASS_RTSP_BRIDGE_TOKEN in Railway).",
+    camerasBridgeCopyCmd: "Befehl kopieren",
+    camerasBridgeDownloadJson: "Agent-Konfiguration (JSON) herunterladen",
     reportingEmailEnterpriseBtn: "Enterprise-PDF per E-Mail",
     reportingEmailSentOk: "Bericht wurde per E-Mail gesendet.",
     dashExpiringEyebrow: "Compliance",
@@ -4028,6 +4043,21 @@ const UI_TRANSLATIONS = {
     cameraSelectLive: "عرض مباشر",
     cameraDeleteConfirm: "حذف الكamera؟",
     cameraSummary: "{online}/{total} كameras متصلة",
+    camerasTabBulk: "استيراد جماعي",
+    camerasTabSingle: "كamera واحدة",
+    camerasTabBridge: "إعداد الجسر",
+    camerasBulkHint: "كل سطر: الاسم، الموقع، RTSP — مفصول بفاصلة أو ; أو Tab. حتى 100.",
+    camerasBulkImportBtn: "استيراد الكameras",
+    camerasBulkSampleBtn: "إدراج مثال",
+    camerasBulkSuccess: "تم استيراد {n} كamera.",
+    camerasBulkPartial: "{ok} نجح، {fail} فشل.",
+    camerasBulkEmpty: "أدخل سطراً واحداً على الأقل.",
+    camerasBridgeLoading: "جاري تحميل إعداد الجسر…",
+    camerasBridgeRefreshBtn: "تحديث الإعداد",
+    camerasBridgeTokenOk: "رمز RTSP مُعدّ على الخادم.",
+    camerasBridgeTokenMissing: "رمز RTSP غير مُعدّ (BAUPASS_RTSP_BRIDGE_TOKEN في Railway).",
+    camerasBridgeCopyCmd: "نسخ الأمر",
+    camerasBridgeDownloadJson: "تنزيل JSON للوكيل",
     reportingEmailEnterpriseBtn: "PDF المؤسسة بالبريد",
     reportingEmailSentOk: "تم إرسال التقرير بالبريد.",
     dashExpiringEyebrow: "الامتثال",
@@ -21322,9 +21352,142 @@ async function loadCameraEvents() {
 }
 
 async function refreshCamerasPanel() {
-  await Promise.all([loadSiteCameras(), loadCameraEvents()]);
+  await Promise.all([loadSiteCameras(), loadCameraEvents(), loadCameraBridgeSetup()]);
 }
 
+function switchCameraSetupTab(tabName) {
+  const tabs = ["bulk", "single", "bridge"];
+  tabs.forEach((name) => {
+    const pane = document.getElementById(`cameraTab${name.charAt(0).toUpperCase()}${name.slice(1)}`);
+    if (pane) pane.classList.toggle("hidden", name !== tabName);
+  });
+  document.querySelectorAll(".camera-setup-tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.getAttribute("data-camera-tab") === tabName);
+  });
+  if (tabName === "bridge") void loadCameraBridgeSetup();
+}
+
+function buildCameraAgentConfigJson(setup, cameras) {
+  return {
+    apiUrl: setup?.apiUrl || API_BASE || window.location.origin,
+    companyId: setup?.companyId || "",
+    cameras: (cameras || []).map((cam) => ({
+      id: cam.id,
+      name: cam.name,
+      location: cam.location || "",
+      rtsp_url: cam.rtspUrl || "",
+    })),
+  };
+}
+
+function buildCameraAgentShellCommand(setup) {
+  const api = String(setup?.apiUrl || API_BASE || window.location.origin).replace(/\/+$/, "");
+  const cid = String(setup?.companyId || "").trim();
+  return [
+    "set BAUPASS_API_URL=" + api,
+    "set BAUPASS_COMPANY_ID=" + cid,
+    "set BAUPASS_RTSP_BRIDGE_TOKEN=<your-token>",
+    "set BAUPASS_CAMERAS_FILE=cameras.json",
+    "python scripts/rtsp_camera_agent.py --cameras-file cameras.json --snapshot --interval 120",
+  ].join("\n");
+}
+
+function renderCameraBridgeSetup(setup) {
+  const el = document.getElementById("cameraBridgeSetup");
+  if (!el) return;
+  if (!setup?.companyId) {
+    el.innerHTML = `<p class="helper-text">${escapeHtml(uiT("camerasBridgeLoading"))}</p>`;
+    return;
+  }
+  const tokenOk = Boolean(setup.rtspBridgeConfigured);
+  const tokenMsg = tokenOk ? uiT("camerasBridgeTokenOk") : uiT("camerasBridgeTokenMissing");
+  const cmd = buildCameraAgentShellCommand(setup);
+  const cameras = state.siteCameras || [];
+  const configJson = JSON.stringify(buildCameraAgentConfigJson(setup, cameras), null, 2);
+  el.innerHTML = `
+    <div class="camera-bridge-meta">
+      <p><strong>Company ID:</strong> <code>${escapeHtml(setup.companyId)}</code></p>
+      <p><strong>API:</strong> <code>${escapeHtml(setup.apiUrl || "")}</code></p>
+      <p class="helper-text ${tokenOk ? "helper-text-ok" : "helper-text-warning"}">${escapeHtml(tokenMsg)}</p>
+      <p class="helper-text">${escapeHtml(uiT("camerasHint"))}</p>
+    </div>
+    <label class="camera-bridge-cmd-label">
+      <span>${escapeHtml(uiT("camerasTabBridge"))} — Windows Agent</span>
+      <textarea id="cameraBridgeCmd" class="camera-bulk-textarea" rows="6" readonly>${escapeHtml(cmd)}</textarea>
+    </label>
+    <div class="button-row">
+      <button type="button" id="cameraBridgeCopyBtn" class="ghost-button small-button">${escapeHtml(uiT("camerasBridgeCopyCmd"))}</button>
+      <button type="button" id="cameraBridgeJsonBtn" class="ghost-button small-button">${escapeHtml(uiT("camerasBridgeDownloadJson"))}</button>
+    </div>
+    <pre class="camera-bridge-json-preview">${escapeHtml(configJson.slice(0, 1200))}${configJson.length > 1200 ? "\n…" : ""}</pre>
+  `;
+  document.getElementById("cameraBridgeCopyBtn")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(cmd);
+      showToast(uiT("camerasBridgeCopyCmd") + " ✓", "success");
+    } catch {
+      showToast("Copy failed", "error");
+    }
+  });
+  document.getElementById("cameraBridgeJsonBtn")?.addEventListener("click", () => {
+    const blob = new Blob([configJson], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `workpass-cameras-${setup.companyId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
+
+async function loadCameraBridgeSetup() {
+  const role = String(getCurrentUser()?.role || "");
+  if (!["superadmin", "company-admin"].includes(role)) return;
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
+    renderCameraBridgeSetup(null);
+    return;
+  }
+  try {
+    const setup = await apiRequest(_camerasApiUrl("/setup"));
+    renderCameraBridgeSetup(setup);
+  } catch (e) {
+    const el = document.getElementById("cameraBridgeSetup");
+    if (el) el.innerHTML = `<p class="helper-text helper-text-warning">${escapeHtml(String(e?.message || e))}</p>`;
+  }
+}
+
+async function importCamerasBulk() {
+  const textarea = document.getElementById("cameraBulkInput");
+  const resultEl = document.getElementById("cameraBulkResult");
+  const text = String(textarea?.value || "").trim();
+  if (!text) {
+    if (resultEl) resultEl.textContent = uiT("camerasBulkEmpty");
+    return;
+  }
+  const btn = document.getElementById("cameraBulkImportBtn");
+  if (btn) btn.disabled = true;
+  try {
+    const res = await apiRequest(_camerasApiUrl("/bulk"), {
+      method: "POST",
+      body: { lines: text },
+    });
+    const created = Number(res?.created || 0);
+    const failed = Array.isArray(res?.failed) ? res.failed.length : 0;
+    if (resultEl) {
+      resultEl.textContent = failed
+        ? uiT("camerasBulkPartial").replace("{ok}", created).replace("{fail}", failed)
+        : uiT("camerasBulkSuccess").replace("{n}", created);
+    }
+    showToast(resultEl?.textContent || "OK", failed ? "warning" : "success");
+    await loadSiteCameras();
+    void loadCameraBridgeSetup();
+  } catch (err) {
+    if (resultEl) resultEl.textContent = String(err?.message || err);
+    showToast(String(err?.message || err), "error");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
 // ── Device Management ────────────────────────────────────────────────────────
 const _deviceRefreshTimers = {};
 
@@ -21447,27 +21610,50 @@ if (camerasRefreshBtn) {
     void refreshCamerasPanel();
   });
 }
-(function wireCameraRegisterForm() {
-  const form = document.getElementById("cameraRegisterForm");
-  if (!form) return;
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = (document.getElementById("cameraName")?.value || "").trim();
-    const location = (document.getElementById("cameraLocation")?.value || "").trim();
-    const rtspUrl = (document.getElementById("cameraRtspUrl")?.value || "").trim();
-    if (!name) return;
-    try {
-      await apiRequest(_camerasApiUrl(), {
-        method: "POST",
-        body: { name, location, rtspUrl },
-      });
-      form.reset();
-      await loadSiteCameras();
-      showToast(uiT("btnCameraRegister") || "OK");
-    } catch (err) {
-      showToast(String(err?.message || err), "error");
-    }
+(function wireCameraSetupUi() {
+  document.querySelectorAll(".camera-setup-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      switchCameraSetupTab(btn.getAttribute("data-camera-tab") || "bulk");
+    });
   });
+  document.getElementById("cameraBulkImportBtn")?.addEventListener("click", () => {
+    void importCamerasBulk();
+  });
+  document.getElementById("cameraBulkSampleBtn")?.addEventListener("click", () => {
+    const el = document.getElementById("cameraBulkInput");
+    if (!el) return;
+    el.value = [
+      "Tor Nord; Eingang; rtsp://192.168.1.101/stream1",
+      "Halle Ost; Lager; rtsp://192.168.1.102/stream1",
+      "Parkplatz; Außen; rtsp://192.168.1.103/stream1",
+    ].join("\n");
+  });
+  document.getElementById("cameraBridgeRefreshBtn")?.addEventListener("click", () => {
+    void loadCameraBridgeSetup();
+  });
+
+  const form = document.getElementById("cameraRegisterForm");
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = (document.getElementById("cameraName")?.value || "").trim();
+      const location = (document.getElementById("cameraLocation")?.value || "").trim();
+      const rtspUrl = (document.getElementById("cameraRtspUrl")?.value || "").trim();
+      if (!name) return;
+      try {
+        await apiRequest(_camerasApiUrl(), {
+          method: "POST",
+          body: { name, location, rtspUrl },
+        });
+        form.reset();
+        await loadSiteCameras();
+        void loadCameraBridgeSetup();
+        showToast(uiT("btnCameraRegister") || "OK");
+      } catch (err) {
+        showToast(String(err?.message || err), "error");
+      }
+    });
+  }
 })();
 startCameraLivePolling();
 

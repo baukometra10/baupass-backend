@@ -11,8 +11,10 @@ from backend.app.database import MigrationRunner
 from backend.app.migrations import ALL_MIGRATIONS
 from backend.app.platform.physical_operations.camera_ai import analyze_camera_event, ingest_camera_event
 from backend.app.platform.physical_operations.camera_registry import (
+    bulk_create_cameras,
     create_camera,
     list_cameras,
+    parse_camera_bulk_text,
     touch_camera_heartbeat,
 )
 
@@ -73,6 +75,17 @@ class CameraRegistryTests(unittest.TestCase):
         self.assertTrue(result.get("heartbeat"))
         cams = list_cameras(db, "cmp-cam-test")
         self.assertIn("hb-cam", [c["id"] for c in cams])
+        db.close()
+
+    def test_bulk_import_text(self):
+        db = self._conn()
+        text = "Cam A; Site 1; rtsp://10.0.0.1/s\nCam B, Site 2, rtsp://10.0.0.2/s"
+        items = parse_camera_bulk_text(text)
+        self.assertEqual(len(items), 2)
+        result = bulk_create_cameras(db, "cmp-cam-test", items)
+        self.assertEqual(result["created"], 2)
+        rows = list_cameras(db, "cmp-cam-test")
+        self.assertEqual(len(rows), 2)
         db.close()
 
 

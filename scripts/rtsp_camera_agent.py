@@ -125,6 +125,30 @@ def send_once(
     return post_payload(api_url, token, company_id, body)
 
 
+def load_cameras_file(path: str) -> list[dict]:
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if isinstance(data, dict) and isinstance(data.get("cameras"), list):
+        return data["cameras"]
+    if isinstance(data, list):
+        return data
+    raise ValueError("cameras file must be a JSON array or {\"cameras\": [...]}")
+
+
+def normalize_camera_entry(entry: dict, *, default_company: str) -> dict:
+    cam_id = str(entry.get("id") or entry.get("camera_id") or "").strip()
+    name = str(entry.get("name") or entry.get("camera_name") or cam_id).strip()
+    if not cam_id:
+        cam_id = name.lower().replace(" ", "-")[:40] or "cam-1"
+    return {
+        "camera_id": cam_id,
+        "camera_name": name or cam_id,
+        "location": str(entry.get("location") or entry.get("site") or "").strip(),
+        "rtsp_url": str(entry.get("rtsp_url") or entry.get("rtspUrl") or "").strip(),
+        "company_id": str(entry.get("company_id") or entry.get("companyId") or default_company).strip(),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="WorkPass RTSP/camera bridge agent")
     parser.add_argument("--api-url", default=os.getenv("BAUPASS_API_URL", "http://127.0.0.1:8000"))
@@ -134,6 +158,11 @@ def main() -> int:
     parser.add_argument("--camera-name", default=os.getenv("BAUPASS_CAMERA_NAME", ""))
     parser.add_argument("--location", default=os.getenv("BAUPASS_CAMERA_LOCATION", ""))
     parser.add_argument("--rtsp-url", default=os.getenv("BAUPASS_CAMERA_RTSP_URL", ""))
+    parser.add_argument(
+        "--cameras-file",
+        default=os.getenv("BAUPASS_CAMERAS_FILE", ""),
+        help="JSON file with multiple cameras (array or {cameras:[]})",
+    )
     parser.add_argument("--worker-id", default=os.getenv("BAUPASS_WORKER_ID", ""))
     parser.add_argument("--event", default="motion", help="motion | ppe_check | unknown_person")
     parser.add_argument("--interval", type=int, default=120, help="seconds between sends (0 = once)")
@@ -145,44 +174,74 @@ def main() -> int:
     if not args.token:
         print("Missing BAUPASS_RTSP_BRIDGE_TOKEN or --token", file=sys.stderr)
         return 1
-    if not args.company_id:
-        print("Missing BAUPASS_COMPANY_ID or --company-id", file=sys.stderr)
+    if not args.company_id and not args.cameras_file:
+        print("Missing BAUPASS_COMPANY_ID or --company-id (or use --cameras-file)", file=sys.stderr)
         return 1
 
     worker_id = args.worker_id.strip() or None
     camera_name = args.camera_name.strip() or args.camera
 
-    def tick() -> None:
-        snap = None
-        if args.snapshot or args.rtsp_url:
-            snap = _capture_rtsp_jpeg(args.rtsp_url)
-            if args.snapshot and not snap:
-                print("Warning: ffmpeg snapshot failed", file=sys.stderr)
+    camera_targets: list[dict] = []
+    if args.cameras_file:
         try:
-            result = send_once(
-                api_url=args.api_url,
-                token=args.token,
-                company_id=args.company_id,
-                camera_id=args.camera,
-                event_type=args.event,
-                worker_id=worker_id,
-                heartbeat=args.heartbeat,
-                snapshot_b64=snap,
-                camera_name=camera_name,
-                location=args.location,
-                rtsp_url=args.rtsp_url,
-            )
-            print(json.dumps(result, indent=2))
-        except urllib.error.HTTPError as exc:
-            err = exc.read().decode("utf-8", errors="replace")
-            print(f"HTTP {exc.code}: {err}", file=sys.stderr)
-            raise
+            raw_entries = load_cameras_file(args.cameras_file)
+            for entry in raw_entries:
+                if not isinstance(entry, dict):
+                    continue
+                normalized = normalize_camera_entry(entry, default_company=args.company_id)
+                if normalized["company_id"]:
+                    camera_targets.append(normalized)
+        except Exception as exc:
+            print(f"Failed to load cameras file: {exc}", file=sys.stderr)
+            return 1
+    else:
+        camera_targets.append(
+            {
+                "camera_id": args.camera,
+                "camera_name": camera_name,
+                "location": args.location,
+                "rtsp_url": args.rtsp_url,
+                "company_id": args.company_id,
+            }
+        )
+
+    if not camera_targets:
+        print("No cameras configured", file=sys.stderr)
+        return 1
+
+    def tick() -> None:
+        for target in camera_targets:
+            snap = None
+            rtsp_url = target.get("rtsp_url") or ""
+            if args.snapshot or rtsp_url:
+                snap = _capture_rtsp_jpeg(rtsp_url)
+                if args.snapshot and rtsp_url and not snap:
+                    print(f"Warning: ffmpeg snapshot failed for {target.get('camera_id')}", file=sys.stderr)
+            try:
+                result = send_once(
+                    api_url=args.api_url,
+                    token=args.token,
+                    company_id=target["company_id"],
+                    camera_id=target["camera_id"],
+                    event_type=args.event,
+                    worker_id=worker_id,
+                    heartbeat=args.heartbeat or bool(rtsp_url),
+                    snapshot_b64=snap,
+                    camera_name=target["camera_name"],
+                    location=target["location"],
+                    rtsp_url=rtsp_url,
+                )
+                print(json.dumps({"camera": target["camera_id"], "result": result}, indent=2))
+            except urllib.error.HTTPError as exc:
+                err = exc.read().decode("utf-8", errors="replace")
+                print(f"HTTP {exc.code} ({target.get('camera_id')}): {err}", file=sys.stderr)
 
     if args.once or args.interval <= 0:
         tick()
         return 0
 
-    print(f"Sending every {args.interval}s to {args.api_url} (camera={args.camera})")
+    ids = ", ".join(c["camera_id"] for c in camera_targets)
+    print(f"Sending every {args.interval}s to {args.api_url} ({len(camera_targets)} camera(s): {ids})")
     while True:
         tick()
         time.sleep(max(5, args.interval))

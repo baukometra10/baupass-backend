@@ -230,6 +230,83 @@ def register_enterprise_layers(flask_app) -> None:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
 
+    @enterprise_layers_bp.post("/integrations/cameras/bulk")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def bulk_create_site_cameras():
+        from backend.app.platform.physical_operations.camera_registry import (
+            bulk_create_cameras,
+            parse_camera_bulk_text,
+        )
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        items: list = []
+        if isinstance(data.get("cameras"), list):
+            items = data["cameras"]
+        elif isinstance(data.get("lines"), str):
+            items = parse_camera_bulk_text(data["lines"])
+        elif isinstance(data.get("text"), str):
+            items = parse_camera_bulk_text(data["text"])
+        if not items:
+            return jsonify({"error": "no_cameras", "message": "Provide cameras[] or lines text"}), 400
+        if len(items) > 100:
+            return jsonify({"error": "too_many", "message": "Max 100 cameras per batch"}), 400
+        result = bulk_create_cameras(get_db(), cid, items)
+        if result.get("created"):
+            return jsonify(result), 201
+        return jsonify(result), 400
+
+    @enterprise_layers_bp.get("/integrations/cameras/setup")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def camera_setup_info():
+        import os
+
+        from backend.app.platform.physical_operations.camera_registry import list_cameras
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        token = (
+            os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN", "").strip()
+            or os.getenv("SUPPIX_RTSP_BRIDGE_TOKEN", "").strip()
+        )
+        try:
+            from backend.server import get_public_base_url
+
+            api_url = get_public_base_url()
+        except Exception:
+            api_url = request.url_root.rstrip("/")
+        cameras = list_cameras(get_db(), cid)
+        with_rtsp = [c for c in cameras if str(c.get("rtspUrl") or "").strip()]
+        return jsonify(
+            {
+                "ok": True,
+                "companyId": cid,
+                "apiUrl": api_url,
+                "ingestPath": "/api/integrations/cameras/rtsp-ingest",
+                "rtspBridgeConfigured": bool(token),
+                "cameraCount": len(cameras),
+                "camerasWithRtsp": len(with_rtsp),
+                "headers": {
+                    "rtspToken": "X-WorkPass-Rtsp-Token",
+                    "companyId": "X-WorkPass-Company-Id",
+                },
+                "agent": {
+                    "script": "scripts/rtsp_camera_agent.py",
+                    "env": {
+                        "BAUPASS_API_URL": api_url,
+                        "BAUPASS_COMPANY_ID": cid,
+                        "BAUPASS_RTSP_BRIDGE_TOKEN": "<set-on-server>",
+                    },
+                    "multiCameraFlag": "--cameras-file",
+                },
+            }
+        )
+
     @enterprise_layers_bp.put("/integrations/cameras/<camera_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")

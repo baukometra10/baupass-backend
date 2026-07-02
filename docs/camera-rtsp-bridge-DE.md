@@ -4,6 +4,8 @@
 
 | Methode | Pfad | Zweck |
 |---------|------|--------|
+| POST | `/api/integrations/cameras/bulk` | Mehrere Kameras (JSON `cameras[]` oder `lines` Text) |
+| GET | `/api/integrations/cameras/setup` | Bridge-Setup (Company-ID, API-URL, Agent-Hinweise) |
 | GET | `/api/integrations/cameras` | Registrierte Kameras + Online-Status |
 | POST | `/api/integrations/cameras` | Kamera registrieren |
 | PUT | `/api/integrations/cameras/<id>` | Kamera bearbeiten |
@@ -70,7 +72,41 @@ Mit `worker_id` + Worker-Foto → Stub `face_match`. Mit `image_base64` + Azure:
 - `BAUPASS_AZURE_FACE_KEY`
 - optional `BAUPASS_AZURE_FACE_MIN_CONFIDENCE` (Standard `0.5`)
 
-## Demo-Agent
+## Massen-Import (UI)
+
+WorkPass → **Geräte** → Tab **Massen-Import**
+
+```
+Tor Nord; Eingang; rtsp://192.168.1.101/stream1
+Halle Ost; Lager; rtsp://192.168.1.102/stream1
+```
+
+API:
+
+```json
+POST /api/integrations/cameras/bulk
+{ "lines": "Tor Nord; Eingang; rtsp://...\nHalle; Lager; rtsp://..." }
+```
+
+## Multi-Kamera-Agent
+
+```bash
+python scripts/rtsp_camera_agent.py --cameras-file cameras.json --snapshot --interval 120
+```
+
+`cameras.json` (aus UI Tab «Bridge einrichten» herunterladen):
+
+```json
+{
+  "apiUrl": "https://…",
+  "companyId": "cmp-…",
+  "cameras": [
+    {"id": "cam-tor-nord", "name": "Tor Nord", "location": "Eingang", "rtsp_url": "rtsp://…"}
+  ]
+}
+```
+
+## Demo-Agent (Einzelkamera)
 
 ```bash
 set BAUPASS_API_URL=https://baupass-production.up.railway.app
