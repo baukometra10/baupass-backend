@@ -63,7 +63,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702a";
+const WORKER_BUILD_TAG = "20260702b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -9469,6 +9469,21 @@ function deploymentDayColorStyle(day) {
   return `--dep-day-color:${color};border-color:${color};background:color-mix(in srgb, ${color} 16%, var(--card, #fff))`;
 }
 
+function truncateDeploymentLabel(text, maxLen = 22) {
+  const value = String(text || "").trim();
+  if (!value) return "";
+  if (value.length <= maxLen) return value;
+  return `${value.slice(0, Math.max(1, maxLen - 1))}…`;
+}
+
+function renderDeploymentPlanLegend() {
+  return `<div class="deployment-plan-legend" aria-hidden="true">
+    <span class="deployment-plan-legend-item is-assignment">${escapeHtmlBasic(t("deploymentPlanLegendAssignment"))}</span>
+    <span class="deployment-plan-legend-item is-free">${escapeHtmlBasic(t("deploymentPlanLegendFree"))}</span>
+    <span class="deployment-plan-legend-item is-declined">${escapeHtmlBasic(t("deploymentPlanLegendDeclined"))}</span>
+  </div>`;
+}
+
 function renderDeploymentPlanCalendar(days) {
   const headers = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
   const first = days[0];
@@ -9476,7 +9491,7 @@ function renderDeploymentPlanCalendar(days) {
   const headHtml = headers.map((label) => `<span class="deployment-plan-calendar-head-cell">${label}</span>`).join("");
   const padHtml = Array.from({ length: pad }, () => `<span class="deployment-plan-calendar-pad" aria-hidden="true"></span>`).join("");
   const cells = days.map((day) => renderDeploymentPlanDayRow(day)).join("");
-  return `<div class="deployment-plan-calendar"><div class="deployment-plan-calendar-head">${headHtml}</div><div class="deployment-plan-calendar-grid">${padHtml}${cells}</div></div>`;
+  return `${renderDeploymentPlanLegend()}<div class="deployment-plan-calendar"><div class="deployment-plan-calendar-head">${headHtml}</div><div class="deployment-plan-calendar-grid">${padHtml}${cells}</div></div>`;
 }
 
 function deploymentDayIsFree(day) {
@@ -9540,17 +9555,18 @@ function renderDeploymentPlanDayRow(day) {
   const locationLabel = isFreeDay
     ? t("deploymentPlanDayFree")
     : (location || t("deploymentPlanNoLocation"));
+  const locationShort = truncateDeploymentLabel(locationLabel, isFreeDay ? 16 : 20);
+  const notesShort = notes ? truncateDeploymentLabel(notes, 36) : "";
 
   return `
     <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}"${colorStyle ? ` style="${colorStyle}"` : ""}>
       <div class="deployment-plan-day-head">
         <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
-        <div class="deployment-plan-day-weekday">${escapeHtmlBasic(day.weekday || "")}</div>
       </div>
       <div class="deployment-plan-day-body">
-        <div class="deployment-plan-day-location">${escapeHtmlBasic(locationLabel)}</div>
+        <div class="deployment-plan-day-location" title="${escapeHtmlBasic(locationLabel)}">${escapeHtmlBasic(locationShort)}</div>
         ${timeText && !isFreeDay ? `<div class="deployment-plan-day-time">${escapeHtmlBasic(timeText)}</div>` : ""}
-        ${notes ? `<div class="deployment-plan-day-notes">${escapeHtmlBasic(notes)}</div>` : ""}
+        ${notesShort ? `<div class="deployment-plan-day-notes" title="${escapeHtmlBasic(notes)}">${escapeHtmlBasic(notesShort)}</div>` : ""}
         ${statusHtml}
       </div>
       ${actionsHtml}
@@ -9831,7 +9847,9 @@ async function loadDeploymentPlan() {
       sentAt ? tf("deploymentPlanSentAt", { date: sentAt }) : "",
     ].filter(Boolean);
     if (elements.deploymentPlanMeta) {
-      elements.deploymentPlanMeta.textContent = metaParts.join(" · ");
+      elements.deploymentPlanMeta.innerHTML = metaParts
+        .map((part) => `<span class="deployment-plan-meta-chip">${escapeHtmlBasic(part)}</span>`)
+        .join("");
     }
 
     const days = Array.isArray(data.days) ? data.days : [];

@@ -6501,6 +6501,97 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   color: #991b1b;
 }
 
+/* ── Admin view (nav Admin) — aligned with platform shell ── */
+.view-admin {
+  display: grid;
+  gap: 18px;
+  padding-bottom: 28px;
+}
+
+.admin-view-hero {
+  padding: 22px 24px 20px;
+  border-radius: var(--radius-lg, 20px);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(99, 102, 241, 0.06) 48%, rgba(10, 16, 30, 0.4) 100%),
+    var(--surface, rgba(11, 16, 32, 0.84));
+  box-shadow: var(--shadow);
+}
+
+.admin-view-title {
+  margin: 6px 0 8px;
+  font-size: clamp(1.35rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.02em;
+}
+
+.admin-view-lead {
+  margin: 0;
+  max-width: 62ch;
+}
+
+.view-admin .panel {
+  border: 1px solid var(--line);
+  background: var(--surface, rgba(11, 16, 32, 0.84));
+  box-shadow: var(--shadow);
+}
+
+.view-admin .admin-account-panel {
+  margin-bottom: 0;
+}
+
+.view-admin .admin-system-grid {
+  align-items: start;
+  gap: 18px;
+}
+
+.view-admin .admin-system-panel .form-section {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.view-admin .meta-box,
+.view-admin .card-item,
+.view-admin .card-list .list-item {
+  border-color: var(--line);
+  background: rgba(8, 12, 24, 0.35);
+}
+
+body.theme-white .view-admin .panel,
+body.theme-white .admin-view-hero {
+  background: var(--surface-strong, #ffffff);
+}
+
+body.theme-white .view-admin .admin-account-col,
+body.theme-white .view-admin .meta-box,
+body.theme-white .view-admin .card-item {
+  background: rgba(248, 250, 252, 0.92);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+body.theme-black .view-admin .panel,
+body.theme-black .admin-view-hero {
+  background:
+    linear-gradient(145deg, rgba(22, 27, 36, 0.96) 0%, rgba(16, 20, 28, 0.92) 100%);
+  border-color: rgba(129, 173, 240, 0.18);
+}
+
+body.theme-black .view-admin .admin-account-col,
+body.theme-black .view-admin .meta-box,
+body.theme-black .view-admin .card-item {
+  background: rgba(12, 17, 26, 0.72);
+  border-color: rgba(129, 173, 240, 0.16);
+}
+
+body.theme-black .password-toggle-btn {
+  color: var(--muted);
+}
+
+body.theme-black .password-toggle-btn:hover,
+body.theme-black .password-toggle-btn:focus-visible {
+  color: var(--text);
+  background: rgba(129, 173, 240, 0.14);
+}
+
 .admin-account-panel {
   margin-bottom: 18px;
 }
@@ -6517,9 +6608,9 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
 
 .admin-account-col {
   padding: 16px 18px;
-  border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--line, rgba(148, 163, 184, 0.28));
+  border-radius: var(--radius-md, 14px);
+  background: rgba(8, 12, 24, 0.35);
 }
 
 .admin-account-subtitle {

@@ -3403,6 +3403,67 @@ body {
   color: #5eead4;
 }
 
+.deployment-plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.deployment-plan-meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  border: 1px solid rgba(94, 234, 212, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+  color: rgba(232, 238, 244, 0.92);
+}
+
+.deployment-plan-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.deployment-plan-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted, #64748b);
+}
+
+.deployment-plan-legend-item::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.deployment-plan-legend-item.is-assignment::before {
+  background: rgba(56, 189, 248, 0.35);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.deployment-plan-legend-item.is-free::before {
+  background: rgba(16, 185, 129, 0.35);
+  border-color: rgba(16, 185, 129, 0.45);
+}
+
+.deployment-plan-legend-item.is-declined::before {
+  background: rgba(251, 113, 133, 0.35);
+  border-color: rgba(251, 113, 133, 0.45);
+}
+
 .deployment-plan-card {
   display: grid;
   gap: 12px;
@@ -3476,38 +3537,73 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  min-height: 7.5rem;
-  padding: 8px 8px 6px;
+  min-height: 6.5rem;
+  padding: 8px 7px 6px;
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   background: var(--card);
+  overflow: hidden;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-location {
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 700;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-time,
+.deployment-plan-calendar-cell .deployment-plan-day-notes {
+  font-size: 0.68rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-status {
+  font-size: 0.62rem;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-actions {
+  margin-top: auto;
+  padding-top: 2px;
+}
+
+.deployment-plan-calendar-cell .deployment-plan-day-actions .ghost.small-btn {
+  width: 100%;
+  font-size: 0.62rem;
+  padding: 4px 6px;
+  min-height: 0;
 }
 
 .deployment-plan-calendar-cell .deployment-plan-day-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 4px;
 }
 
 .deployment-plan-calendar-cell .deployment-plan-day-date {
-  font-size: 1rem;
-}
-
-.deployment-plan-calendar-cell .deployment-plan-day-weekday {
-  font-size: 0.68rem;
-}
-
-.deployment-plan-calendar-cell .deployment-plan-day-location {
-  font-size: 0.82rem;
-  line-height: 1.25;
-  font-weight: 700;
-}
-
-.deployment-plan-calendar-cell .deployment-plan-day-time,
-.deployment-plan-calendar-cell .deployment-plan-day-notes {
-  font-size: 0.72rem;
-  line-height: 1.3;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 .deployment-plan-calendar-cell.is-free {
