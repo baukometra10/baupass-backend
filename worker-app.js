@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702g";
+const WORKER_BUILD_TAG = "20260702h";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3569,6 +3569,13 @@ function bindEvents() {
     });
   }
   bindDeploymentPlanInteractions();
+
+  document.getElementById("homeDeploymentTeaser")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const teaser = event.currentTarget;
+    if (teaser instanceof HTMLButtonElement && teaser.disabled) return;
+    void openWorkerDeploymentPlanScreen();
+  });
 
   bindWorkerChatComposeEvents();
 
@@ -9500,6 +9507,103 @@ async function postDeploymentDayResponse(date, action, reason = "") {
   });
 }
 
+function ensureWorkerDeploymentShellVisible() {
+  ensureWorkerFeatureHubVisible();
+  if (elements.badgeCard) {
+    elements.badgeCard.classList.remove("hidden");
+    elements.badgeCard.style.removeProperty("display");
+  }
+  const hubPanel = elements.workerHubPanel || document.getElementById("workerHubPanel");
+  if (hubPanel) {
+    hubPanel.classList.remove("hidden");
+    hubPanel.style.removeProperty("display");
+  }
+}
+
+function findDeploymentPlanDay(iso) {
+  const key = String(iso || "").trim();
+  return deploymentPlanCachedDays.find((entry) => deploymentDayIso(entry) === key) || {
+    date: key,
+    weekday: "",
+  };
+}
+
+function closeDeploymentDayDetailModal() {
+  document.getElementById("deploymentDayDetailModal")?.classList.add("hidden");
+}
+
+function openDeploymentDayDetailModal(day) {
+  const modal = document.getElementById("deploymentDayDetailModal");
+  const dateEl = document.getElementById("deploymentDayDetailDate");
+  const bodyEl = document.getElementById("deploymentDayDetailBody");
+  const actionsEl = document.getElementById("deploymentDayDetailActions");
+  const titleEl = document.getElementById("deploymentDayDetailTitle");
+  if (!modal || !bodyEl || !actionsEl) return;
+
+  const iso = deploymentDayIso(day);
+  const location = deploymentDayLocationValue(day);
+  const isFreeDay = deploymentDayIsFree(day);
+  const declined = deploymentDayIsDeclined(day);
+  const declinable = deploymentDayIsDeclinable(day);
+  const shiftStart = formatDeploymentShiftTime(day.shiftStart);
+  const shiftEnd = formatDeploymentShiftTime(day.shiftEnd);
+  const notes = String(day.notes || "").trim();
+  const declineReason = String(day.declineReason || "").trim();
+  const timeText =
+    shiftStart && shiftEnd
+      ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
+      : shiftStart || shiftEnd || "";
+
+  if (titleEl) {
+    titleEl.textContent = isFreeDay ? t("deploymentPlanDayFree") : (location || t("deploymentPlanNoLocation"));
+  }
+  if (dateEl) {
+    dateEl.textContent = [day.weekday, iso].filter(Boolean).join(" · ");
+  }
+
+  const bodyParts = [];
+  if (!isFreeDay && location) {
+    bodyParts.push(
+      `<p class="deployment-day-detail-row"><strong>${escapeHtmlBasic(t("deploymentPlanDayDetailLocation"))}</strong><br>${escapeHtmlBasic(location)}</p>`
+    );
+  }
+  if (!isFreeDay && timeText) {
+    bodyParts.push(
+      `<p class="deployment-day-detail-row"><strong>${escapeHtmlBasic(t("deploymentPlanDayDetailTime"))}</strong><br>${escapeHtmlBasic(timeText)}</p>`
+    );
+  }
+  if (notes) {
+    bodyParts.push(
+      `<p class="deployment-day-detail-row"><strong>${escapeHtmlBasic(t("deploymentPlanDayDetailNotes"))}</strong><br>${escapeHtmlBasic(notes)}</p>`
+    );
+  }
+  if (declined) {
+    bodyParts.push(
+      `<p class="deployment-plan-day-status">${escapeHtmlBasic(t("deploymentPlanDeclinedBadge"))}${
+        declineReason
+          ? ` · ${escapeHtmlBasic(tf("deploymentPlanDeclineReasonShow", { reason: declineReason }))}`
+          : ""
+      }</p>`
+    );
+  }
+  if (isFreeDay) {
+    bodyParts.push(`<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanDayFree"))}</p>`);
+  }
+  bodyEl.innerHTML = bodyParts.join("") || `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanNoLocation"))}</p>`;
+
+  if (!isFreeDay && declined) {
+    actionsEl.innerHTML = `<button type="button" class="primary small-btn" data-dep-detail-undo="${escapeHtmlBasic(iso)}">${escapeHtmlBasic(t("deploymentPlanUndoDeclineBtn"))}</button>`;
+  } else if (!isFreeDay && declinable) {
+    actionsEl.innerHTML = `<button type="button" class="ghost small-btn btn-danger-solid" data-dep-detail-decline="${escapeHtmlBasic(iso)}">${escapeHtmlBasic(t("deploymentPlanDeclineBtn"))}</button>`;
+  } else if (!isFreeDay) {
+    actionsEl.innerHTML = `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanDayNotActionable"))}</p>`;
+  } else {
+    actionsEl.innerHTML = "";
+  }
+
+  modal.classList.remove("hidden");
+}
+
 function openDeploymentDeclineModal(day) {
   const modal = document.getElementById("deploymentDeclineModal");
   const dateEl = document.getElementById("deploymentDeclineModalDate");
@@ -9595,6 +9699,7 @@ function renderDeploymentPlanDayRow(day) {
   const classes = [
     "deployment-plan-day",
     "deployment-plan-calendar-cell",
+    "is-interactive",
     isFreeDay ? "is-free" : "",
     day.isWeekend && !isFreeDay ? "is-weekend" : "",
     !isFreeDay && location ? "has-assignment" : "",
@@ -9631,7 +9736,7 @@ function renderDeploymentPlanDayRow(day) {
   const notesShort = notes ? truncateDeploymentLabel(notes, 36) : "";
 
   return `
-    <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}"${colorStyle ? ` style="${colorStyle}"` : ""}>
+    <article class="${classes}" data-dep-date="${escapeHtmlBasic(deploymentDayIso(day))}" role="button" tabindex="0" aria-label="${escapeHtmlBasic(`${dayNum} · ${locationLabel}`)}"${colorStyle ? ` style="${colorStyle}"` : ""}>
       <div class="deployment-plan-day-head">
         <div class="deployment-plan-day-date">${escapeHtmlBasic(dayNum)}</div>
       </div>
@@ -9656,12 +9761,7 @@ function bindDeploymentPlanInteractions() {
     const undoBtn = event.target.closest("[data-dep-undo]");
     if (declineBtn) {
       const iso = declineBtn.getAttribute("data-dep-decline") || "";
-      const day =
-        deploymentPlanCachedDays.find((entry) => deploymentDayIso(entry) === iso) || {
-          date: iso,
-          weekday: "",
-        };
-      openDeploymentDeclineModal(day);
+      openDeploymentDeclineModal(findDeploymentPlanDay(iso));
       return;
     }
     if (undoBtn) {
@@ -9670,6 +9770,58 @@ function bindDeploymentPlanInteractions() {
       void (async () => {
         try {
           await postDeploymentDayResponse(iso, "undo");
+          showWorkerNotice(t("deploymentPlanUndoDone"));
+          closeDeploymentDayDetailModal();
+          await loadDeploymentPlan();
+          void refreshHomeDeploymentTeaser().catch(() => {});
+        } catch (error) {
+          showWorkerNotice(formatWorkerApiError(error));
+        }
+      })();
+      return;
+    }
+    const dayCell = event.target.closest("[data-dep-date]");
+    if (dayCell) {
+      const iso = dayCell.getAttribute("data-dep-date") || "";
+      if (iso) {
+        openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
+      }
+    }
+  });
+
+  list.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const dayCell = event.target.closest("[data-dep-date]");
+    if (!dayCell) return;
+    event.preventDefault();
+    const iso = dayCell.getAttribute("data-dep-date") || "";
+    if (iso) {
+      openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
+    }
+  });
+
+  document.getElementById("deploymentDayDetailClose")?.addEventListener("click", closeDeploymentDayDetailModal);
+  document.getElementById("deploymentDayDetailModal")?.addEventListener("click", (event) => {
+    if (event.target?.id === "deploymentDayDetailModal") {
+      closeDeploymentDayDetailModal();
+    }
+  });
+  document.getElementById("deploymentDayDetailActions")?.addEventListener("click", (event) => {
+    const declineBtn = event.target.closest("[data-dep-detail-decline]");
+    const undoBtn = event.target.closest("[data-dep-detail-undo]");
+    if (declineBtn) {
+      const iso = declineBtn.getAttribute("data-dep-detail-decline") || "";
+      closeDeploymentDayDetailModal();
+      openDeploymentDeclineModal(findDeploymentPlanDay(iso));
+      return;
+    }
+    if (undoBtn) {
+      const iso = undoBtn.getAttribute("data-dep-detail-undo") || "";
+      if (!iso) return;
+      void (async () => {
+        try {
+          await postDeploymentDayResponse(iso, "undo");
+          closeDeploymentDayDetailModal();
           showWorkerNotice(t("deploymentPlanUndoDone"));
           await loadDeploymentPlan();
           void refreshHomeDeploymentTeaser().catch(() => {});
@@ -9698,6 +9850,7 @@ function bindDeploymentPlanInteractions() {
       try {
         await postDeploymentDayResponse(iso, "decline", reason);
         closeDeploymentDeclineModal();
+        closeDeploymentDayDetailModal();
         showWorkerNotice(t("deploymentPlanDeclineDone"));
         await loadDeploymentPlan();
         void refreshHomeDeploymentTeaser().catch(() => {});
@@ -9767,9 +9920,15 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
   deploymentPlanViewYear = year || deploymentPlanViewYear || now.getFullYear();
   deploymentPlanViewMonth = month || deploymentPlanViewMonth || now.getMonth() + 1;
   document.body.classList.add("worker-feature-tab-active", "worker-page-focus");
-  ensureWorkerFeatureHubVisible();
+  ensureWorkerDeploymentShellVisible();
   showOnlyWorkerFeaturePanel("deploymentPlanCard");
   applyWorkerPageView("deploymentPlanCard");
+  if (elements.workerPageNav) {
+    elements.workerPageNav.classList.remove("hidden");
+  }
+  if (elements.workerPageLabel) {
+    elements.workerPageLabel.textContent = tf("workerPageOpened", { page: getWorkerPageTitle("deploymentPlanCard") });
+  }
   const card = elements.deploymentPlanCard || document.getElementById("deploymentPlanCard");
   if (card) {
     card.scrollIntoView({ behavior: "smooth", block: "start" });

@@ -3549,6 +3549,45 @@ body {
   overflow: hidden;
 }
 
+.deployment-plan-calendar-cell.is-interactive {
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.deployment-plan-calendar-cell.is-interactive:focus-visible {
+  outline: 2px solid rgba(56, 189, 248, 0.85);
+  outline-offset: 2px;
+}
+
+.deployment-plan-calendar-cell.is-interactive:active {
+  transform: scale(0.98);
+}
+
+.deployment-day-detail-body {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+
+.deployment-day-detail-row {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.deployment-day-detail-close {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.home-deployment-teaser:not(.hidden) {
+  pointer-events: auto;
+}
+
+.home-deployment-teaser[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .deployment-plan-calendar-cell .deployment-plan-day-body {
   flex: 1 1 auto;
   min-height: 0;

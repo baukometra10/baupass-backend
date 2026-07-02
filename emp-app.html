@@ -1267,6 +1267,16 @@
           </div>
         </div>
 
+        <div id="deploymentDayDetailModal" class="deployment-decline-modal hidden" role="dialog" aria-modal="true" aria-labelledby="deploymentDayDetailTitle">
+          <div class="deployment-decline-sheet deployment-day-detail-sheet">
+            <h4 id="deploymentDayDetailTitle" data-i18n="deploymentPlanDayDetailTitle">Einsatztag</h4>
+            <p id="deploymentDayDetailDate" class="muted-info"></p>
+            <div id="deploymentDayDetailBody" class="deployment-day-detail-body"></div>
+            <div id="deploymentDayDetailActions" class="deployment-decline-actions"></div>
+            <button type="button" id="deploymentDayDetailClose" class="ghost small-btn deployment-day-detail-close" data-i18n="deploymentPlanDayDetailClose">Schließen</button>
+          </div>
+        </div>
+
         <!-- Dokumente -->
         <div id="documentsCard" class="below-card documents-card hidden">
           <div class="section-head compact-head">
@@ -1498,7 +1508,7 @@
     })();
   </script>
   <script src="./worker-i18n-ar-overrides.js?v=20260614loginfix1"></script>
-  <script src="./worker-app.js?v=20260702g" defer></script>
+  <script src="./worker-app.js?v=20260702h" defer></script>
   <script defer>
     window.addEventListener("DOMContentLoaded", function () {
       ["./ai-voice-ui.js?v=20260614loginfix1", "./usage-tracker.js?v=20260619usage1"].forEach(function (src) {
