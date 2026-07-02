@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702k";
+window.__BAUPASS_UI_BUILD = "20260702l";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37542,6 +37542,42 @@ let activeLeaveRequestPreviewId = "";
 let leaveRequestPreviewObjectUrl = "";
 let leaveRequestsPollTimer = null;
 
+function formatLeaveAdminDiagnostics(stats, scopedCompanyId = "") {
+  if (!stats || typeof stats !== "object") {
+    return "";
+  }
+  const total = Number(stats.total) || 0;
+  const workers = Array.isArray(stats.workers) ? stats.workers : [];
+  const recent = Array.isArray(stats.recent) ? stats.recent : [];
+  const scopedWorkers = scopedCompanyId
+    ? workers.filter((row) => String(row.company_id || "").trim() === String(scopedCompanyId).trim())
+    : workers;
+  const lines = [
+    `Datenbank gesamt: ${total} Antrag/Anträge`,
+    scopedCompanyId
+      ? `Mitarbeiter in gewählter Firma: ${scopedWorkers.length}`
+      : `Mitarbeiter gesamt: ${workers.length}`,
+  ];
+  if (total === 0) {
+    lines.push("Es ist noch kein Urlaubsantrag in der Datenbank — bitte zuerst aus der Mitarbeiter-App (Tab Urlaub) einreichen.");
+  } else if (scopedCompanyId && !recent.some((row) => {
+    const cid = String(row.company_id || row.worker_company_id || "").trim();
+    return cid === String(scopedCompanyId).trim();
+  })) {
+    lines.push("Es gibt Anträge, aber nicht für die aktuell gewählte Firmenansicht.");
+  }
+  if (scopedWorkers.length) {
+    const names = scopedWorkers
+      .slice(0, 4)
+      .map((row) => `${row.first_name || ""} ${row.last_name || ""}`.trim() || row.badge_id || row.id)
+      .filter(Boolean);
+    if (names.length) {
+      lines.push(`MA in Firma: ${names.join(", ")}${scopedWorkers.length > names.length ? " …" : ""}`);
+    }
+  }
+  return lines.join(" · ");
+}
+
 function getLeaveAdminScopeHint() {
   const companyId = String(getEffectiveUiCompanyId() || "").trim();
   const role = String(getCurrentUser()?.role || "").toLowerCase();
@@ -37719,6 +37755,30 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
     let requests = Array.isArray(payload) ? payload : (Array.isArray(payload?.items) ? payload.items : []);
     let scopeHint = getLeaveAdminScopeHint();
     let showAllCompaniesAction = "";
+    let diagnosticHint = "";
+
+    if (!silent) {
+      console.info("[WorkPass admin leave] loaded", requests.length, "requests", scopeHint);
+    }
+
+    if (String(getCurrentUser()?.role || "").toLowerCase() === "superadmin") {
+      try {
+        const statsResponse = await fetch(`${API_BASE}/api/leave-requests/stats`, {
+          headers: { Authorization: `Bearer ${sessionToken}` },
+        });
+        if (statsResponse.ok) {
+          const stats = await statsResponse.json();
+          diagnosticHint = formatLeaveAdminDiagnostics(stats, getEffectiveUiCompanyId());
+          if (!silent) {
+            console.info("[WorkPass admin leave] stats", stats);
+          }
+        }
+      } catch (statsError) {
+        if (!silent) {
+          console.warn("[WorkPass admin leave] stats failed", statsError);
+        }
+      }
+    }
 
     if (
       !requests.length
@@ -37745,7 +37805,7 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
     }
 
     updateLeavePendingBadge(requests.filter((req) => req.status === "ausstehend").length);
-    renderLeaveRequestsTable(requests, filterStatus, scopeHint, showAllCompaniesAction);
+    renderLeaveRequestsTable(requests, filterStatus, scopeHint, showAllCompaniesAction, diagnosticHint);
     if (getCurrentViewName() === "leave") {
       startLeaveRequestsPoll(filterStatus);
     }
@@ -37765,7 +37825,7 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
   }
 }
 
-function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "", showAllCompaniesAction = "") {
+function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "", showAllCompaniesAction = "", diagnosticHint = "") {
   const container = document.getElementById("leaveRequestsTable") || createLeaveRequestsPanel();
   const filtered = filterStatus
     ? requests.filter((req) => req.status === filterStatus)
@@ -37774,13 +37834,22 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
   const pendingCount = requests.filter((req) => req.status === "ausstehend").length;
   updateLeavePendingBadge(pendingCount);
   const adminScopeHint = String(scopeHint || getLeaveAdminScopeHint());
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  const superadminAllCompaniesBtn = role === "superadmin" && getEffectiveUiCompanyId()
+    ? `<button type="button" class="ghost small-btn" id="leaveShowAllCompaniesBtn">Alle Firmen anzeigen</button>`
+    : "";
+  const diagnosticLine = diagnosticHint
+    ? `<p class="muted-info leave-diagnostics">${escapeHtml(diagnosticHint)}</p>`
+    : "";
 
   container.innerHTML = `
+    ${diagnosticLine}
     <div class="leave-filter-bar">
-      <button class="btn-filter ${!filterStatus ? "active" : ""}" onclick="loadLeaveRequests()">Alle</button>
+      <button class="btn-filter ${!filterStatus ? "active" : ""}" onclick="loadLeaveRequests()">Alle (${requests.length})</button>
       <button class="btn-filter ${filterStatus === "ausstehend" ? "active" : ""}" onclick="loadLeaveRequests('ausstehend')">Ausstehend</button>
       <button class="btn-filter ${filterStatus === "genehmigt" ? "active" : ""}" onclick="loadLeaveRequests('genehmigt')">Genehmigt</button>
       <button class="btn-filter ${filterStatus === "abgelehnt" ? "active" : ""}" onclick="loadLeaveRequests('abgelehnt')">Abgelehnt</button>
+      ${superadminAllCompaniesBtn}
     </div>
     <div class="leave-cards-grid">
       ${filtered.length
@@ -37826,7 +37895,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
     </div>
   `;
 
-  document.getElementById("leaveShowAllCompaniesBtn")?.addEventListener("click", async () => {
+  container.querySelector("#leaveShowAllCompaniesBtn")?.addEventListener("click", async () => {
     try {
       const sessionToken = loadStoredSessionToken();
       if (!sessionToken) return;

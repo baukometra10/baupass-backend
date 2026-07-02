@@ -26340,6 +26340,57 @@ def _resolve_leave_admin_company_scope(user, db=None):
     return None
 
 
+@app.route("/api/leave-requests/stats", methods=["GET"])
+@require_auth
+def get_leave_requests_stats():
+    user = g.current_user
+    if user["role"] != "superadmin":
+        return jsonify({"error": "forbidden"}), 403
+    db = get_db()
+    _ensure_leave_requests_table(db)
+    _backfill_leave_request_company_ids(db)
+    db.commit()
+    total = int(db.execute("SELECT COUNT(*) AS c FROM leave_requests").fetchone()["c"] or 0)
+    recent = db.execute(
+        """
+        SELECT lr.id, lr.company_id, lr.worker_id, lr.type, lr.status, lr.start_date, lr.end_date,
+               lr.created_at, w.first_name, w.last_name, w.badge_id, w.company_id AS worker_company_id
+        FROM leave_requests lr
+        LEFT JOIN workers w ON w.id = lr.worker_id
+        ORDER BY lr.created_at DESC
+        LIMIT 25
+        """
+    ).fetchall()
+    workers = db.execute(
+        """
+        SELECT w.id, w.first_name, w.last_name, w.badge_id, w.company_id,
+               COALESCE(c.name, w.company_id) AS company_name
+        FROM workers w
+        LEFT JOIN companies c ON c.id = w.company_id
+        WHERE w.deleted_at IS NULL
+        ORDER BY company_name, w.last_name, w.first_name
+        """
+    ).fetchall()
+    by_company = db.execute(
+        """
+        SELECT COALESCE(NULLIF(TRIM(lr.company_id), ''), w.company_id, 'unknown') AS company_id,
+               COUNT(*) AS request_count
+        FROM leave_requests lr
+        LEFT JOIN workers w ON w.id = lr.worker_id
+        GROUP BY COALESCE(NULLIF(TRIM(lr.company_id), ''), w.company_id, 'unknown')
+        ORDER BY request_count DESC
+        """
+    ).fetchall()
+    return jsonify(
+        {
+            "total": total,
+            "recent": [row_to_dict(r) for r in recent],
+            "workers": [row_to_dict(r) for r in workers],
+            "byCompany": [row_to_dict(r) for r in by_company],
+        }
+    )
+
+
 @app.route("/api/leave-requests", methods=["GET"])
 @require_auth
 def get_leave_requests():

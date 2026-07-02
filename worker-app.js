@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702k";
+const WORKER_BUILD_TAG = "20260702l";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -8278,6 +8278,7 @@ function arrayBufferToBase64(buffer) {
 // ═════════════════════════════════════════════════════════════════════
 
 async function submitLeaveRequest() {
+  refreshWorkerApiBase();
   if (!workerToken || !elements.leaveRequestForm) return;
   if (offlineWorkerSessionActive) {
     showWorkerNotice(t("leaveRequiresOnlineLogin"));
@@ -8308,8 +8309,21 @@ async function submitLeaveRequest() {
   }
   
   const leaveSubmitUrl = `${API_BASE}/leave-requests`;
+  const workerCompanyId = String(
+    lastWorkerPayload?.worker?.companyId
+    || lastWorkerPayload?.worker?.company_id
+    || lastWorkerPayload?.company?.id
+    || "",
+  ).trim();
   try {
-    console.info("[WorkPass leave] submit", leaveSubmitUrl, { type, start, end, apiBase: API_BASE });
+    console.info("[WorkPass leave] submit", leaveSubmitUrl, {
+      type,
+      start,
+      end,
+      apiBase: API_BASE,
+      workerCompanyId,
+      workerId: lastWorkerPayload?.worker?.id || "",
+    });
     const result = await fetchJson(leaveSubmitUrl, {
       method: "POST",
       headers: {
