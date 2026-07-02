@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702m";
+window.__BAUPASS_UI_BUILD = "20260702o";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37625,7 +37625,7 @@ function startLeaveRequestsPoll(filterStatus = null) {
       return;
     }
     void loadLeaveRequests(filterStatus, { silent: true });
-  }, 20_000);
+  }, 12_000);
 }
 
 function updateLeavePendingBadge(count) {

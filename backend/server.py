@@ -26344,9 +26344,14 @@ def _resolve_leave_admin_company_scope(user, db=None):
     from backend.app.domains.shared import company_id_from_user
 
     role = str(user.get("role") or "").strip().lower()
+    user_company = str(user.get("company_id") or user.get("companyId") or "").strip()
     scoped = str(company_id_from_user(allow_query=True) or "").strip()
-    if not scoped and role == "company-admin":
-        scoped = str(user.get("company_id") or "").strip()
+    if not scoped:
+        scoped = user_company
+    if not scoped and role in ("company-admin", "turnstile"):
+        query_cid = str(request.args.get("company_id") or request.args.get("companyId") or "").strip()
+        if query_cid and (not user_company or query_cid == user_company):
+            scoped = query_cid
     if scoped:
         return scoped
     if role == "superadmin":
@@ -26433,8 +26438,11 @@ def get_leave_requests():
     """
     params = []
     if company_id:
-        query += " AND (lr.company_id = ? OR w.company_id = ?)"
-        params.extend([company_id, company_id])
+        query += (
+            " AND (COALESCE(NULLIF(TRIM(lr.company_id), ''), w.company_id, '') = ?"
+            " OR lr.company_id = ? OR w.company_id = ?)"
+        )
+        params.extend([company_id, company_id, company_id])
     if status_filter:
         query += " AND lr.status = ?"
         params.append(status_filter)

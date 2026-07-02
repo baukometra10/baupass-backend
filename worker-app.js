@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702n";
+const WORKER_BUILD_TAG = "20260702o";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -9533,6 +9533,8 @@ let deploymentDeclinePendingDate = "";
 let deploymentPlanCachedDays = [];
 let deploymentPlanPublished = false;
 let deploymentPlanCanRespond = false;
+let deploymentPlanPointerLockUntil = 0;
+let deploymentModalGuardUntil = 0;
 
 function deploymentDayIso(day) {
   return String(day?.date || "").slice(0, 10);
@@ -9605,16 +9607,13 @@ async function postDeploymentDayResponse(date, action, reason = "") {
 }
 
 function mountWorkerPortalModals() {
-  if (mountWorkerPortalModals._done) {
-    return;
-  }
-  mountWorkerPortalModals._done = true;
   ["deploymentDeclineModal", "deploymentDayDetailModal"].forEach((modalId) => {
     const modal = document.getElementById(modalId);
     if (modal && modal.parentElement !== document.body) {
       document.body.appendChild(modal);
     }
   });
+  bindDeploymentPlanModalControls();
 }
 
 function closeWorkerDeploymentPlanScreen() {
@@ -9634,10 +9633,17 @@ function closeWorkerDeploymentPlanScreen() {
 }
 
 function handleDeploymentPlanPointer(event) {
-  if (event.type === "click" && event.defaultPrevented) {
+  if (!document.body.classList.contains("worker-loaded")) {
     return;
   }
-  if (!document.body.classList.contains("worker-loaded")) {
+  if (event.type === "click") {
+    if (event.defaultPrevented || Date.now() < deploymentPlanPointerLockUntil) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+  }
+  if ("button" in event && Number.isFinite(event.button) && event.button !== 0) {
     return;
   }
   const declineBtn = event.target.closest("[data-dep-decline]");
@@ -9646,16 +9652,15 @@ function handleDeploymentPlanPointer(event) {
   if (!declineBtn && !undoBtn && !dayCell) {
     return;
   }
+  event.preventDefault();
+  event.stopPropagation();
+  deploymentPlanPointerLockUntil = Date.now() + 500;
   if (declineBtn) {
-    event.preventDefault();
-    event.stopPropagation();
     const iso = declineBtn.getAttribute("data-dep-decline") || "";
     openDeploymentDeclineModal(findDeploymentPlanDay(iso));
     return;
   }
   if (undoBtn) {
-    event.preventDefault();
-    event.stopPropagation();
     const iso = undoBtn.getAttribute("data-dep-undo") || "";
     if (!iso) return;
     void (async () => {
@@ -9671,8 +9676,6 @@ function handleDeploymentPlanPointer(event) {
     })();
     return;
   }
-  event.preventDefault();
-  event.stopPropagation();
   const iso = dayCell.getAttribute("data-dep-date") || "";
   if (iso) {
     openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
@@ -9720,6 +9723,7 @@ function closeDeploymentDayDetailModal() {
 }
 
 function openDeploymentDayDetailModal(day) {
+  mountWorkerPortalModals();
   const modal = document.getElementById("deploymentDayDetailModal");
   const dateEl = document.getElementById("deploymentDayDetailDate");
   const bodyEl = document.getElementById("deploymentDayDetailBody");
@@ -9788,10 +9792,12 @@ function openDeploymentDayDetailModal(day) {
     actionsEl.innerHTML = "";
   }
 
+  deploymentModalGuardUntil = Date.now() + 500;
   modal.classList.remove("hidden");
 }
 
 function openDeploymentDeclineModal(day) {
+  mountWorkerPortalModals();
   const modal = document.getElementById("deploymentDeclineModal");
   const dateEl = document.getElementById("deploymentDeclineModalDate");
   const reasonEl = document.getElementById("deploymentDeclineReason");
@@ -9804,6 +9810,7 @@ function openDeploymentDeclineModal(day) {
     reasonEl.value = "";
     reasonEl.placeholder = t("deploymentPlanDeclineReasonPh");
   }
+  deploymentModalGuardUntil = Date.now() + 500;
   modal.classList.remove("hidden");
 }
 
@@ -9938,20 +9945,25 @@ function renderDeploymentPlanDayRow(day) {
   `;
 }
 
-function bindDeploymentPlanInteractions() {
-  mountWorkerPortalModals();
-  if (bindDeploymentPlanInteractions._done) {
+function bindDeploymentPlanModalControls() {
+  if (bindDeploymentPlanModalControls._done) {
     return;
   }
-  bindDeploymentPlanInteractions._done = true;
-
-  document.addEventListener("click", handleDeploymentPlanPointer, true);
-  document.addEventListener("touchend", handleDeploymentPlanPointer, true);
-  document.addEventListener("keydown", handleDeploymentPlanKeydown, true);
+  const detailModal = document.getElementById("deploymentDayDetailModal");
+  const declineModal = document.getElementById("deploymentDeclineModal");
+  if (!detailModal && !declineModal) {
+    return;
+  }
+  bindDeploymentPlanModalControls._done = true;
 
   document.getElementById("deploymentDayDetailClose")?.addEventListener("click", closeDeploymentDayDetailModal);
-  document.getElementById("deploymentDayDetailModal")?.addEventListener("click", (event) => {
+  detailModal?.addEventListener("click", (event) => {
     if (event.target?.id === "deploymentDayDetailModal") {
+      if (Date.now() < deploymentModalGuardUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       closeDeploymentDayDetailModal();
     }
   });
@@ -9982,8 +9994,15 @@ function bindDeploymentPlanInteractions() {
   });
 
   document.getElementById("deploymentDeclineCancel")?.addEventListener("click", closeDeploymentDeclineModal);
-  document.getElementById("deploymentDeclineModal")?.addEventListener("click", (event) => {
-    if (event.target?.id === "deploymentDeclineModal") closeDeploymentDeclineModal();
+  declineModal?.addEventListener("click", (event) => {
+    if (event.target?.id === "deploymentDeclineModal") {
+      if (Date.now() < deploymentModalGuardUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      closeDeploymentDeclineModal();
+    }
   });
   document.getElementById("deploymentDeclineConfirm")?.addEventListener("click", () => {
     const iso = deploymentDeclinePendingDate;
@@ -10015,6 +10034,19 @@ function bindDeploymentPlanInteractions() {
       }
     })();
   });
+}
+
+function bindDeploymentPlanInteractions() {
+  mountWorkerPortalModals();
+  if (bindDeploymentPlanInteractions._done) {
+    return;
+  }
+  bindDeploymentPlanInteractions._done = true;
+
+  const pointerOpts = { capture: true, passive: false };
+  document.addEventListener("pointerup", handleDeploymentPlanPointer, pointerOpts);
+  document.addEventListener("click", handleDeploymentPlanPointer, pointerOpts);
+  document.addEventListener("keydown", handleDeploymentPlanKeydown, true);
 }
 
 function monthLabelFromParts(year, month, lang) {
