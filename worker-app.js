@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702o";
+const WORKER_BUILD_TAG = "20260702p";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -8391,7 +8391,7 @@ async function submitLeaveRequest() {
       apiBase: API_BASE,
     });
     
-    showWorkerNotice(`${t("leaveRequestSubmitted")} (${result.id})`);
+    showWorkerNotice(`${t("leaveRequestSubmitted")} (${result.id}) · Firma: ${result.company_id || result.companyId || workerCompanyId || "?"}`);
     if (elements.sendToBossPanel) {
       elements.sendToBossPanel.classList.remove("hidden");
       if (elements.bossEmailInput && elements.leaveRequestBossEmail?.value) {
@@ -9632,6 +9632,64 @@ function closeWorkerDeploymentPlanScreen() {
   updateWorkerShellForTab(currentActiveTab || "home");
 }
 
+function handleDeploymentPlanDayCellEvent(event) {
+  if (!document.body.classList.contains("worker-loaded")) {
+    return;
+  }
+  if (event.type === "click" && Date.now() < deploymentPlanPointerLockUntil) {
+    event.preventDefault();
+    event.stopPropagation();
+    return;
+  }
+  const cell = event.currentTarget;
+  if (!(cell instanceof Element)) {
+    return;
+  }
+  const declineBtn = event.target instanceof Element ? event.target.closest("[data-dep-decline]") : null;
+  const undoBtn = event.target instanceof Element ? event.target.closest("[data-dep-undo]") : null;
+  event.preventDefault();
+  event.stopPropagation();
+  deploymentPlanPointerLockUntil = Date.now() + 500;
+  if (declineBtn) {
+    const iso = declineBtn.getAttribute("data-dep-decline") || "";
+    openDeploymentDeclineModal(findDeploymentPlanDay(iso));
+    return;
+  }
+  if (undoBtn) {
+    const iso = undoBtn.getAttribute("data-dep-undo") || "";
+    if (!iso) return;
+    void (async () => {
+      try {
+        await postDeploymentDayResponse(iso, "undo");
+        showWorkerNotice(t("deploymentPlanUndoDone"));
+        closeDeploymentDayDetailModal();
+        await loadDeploymentPlan();
+        void refreshHomeDeploymentTeaser().catch(() => {});
+      } catch (error) {
+        showWorkerNotice(formatWorkerApiError(error));
+      }
+    })();
+    return;
+  }
+  const iso = cell.getAttribute("data-dep-date") || "";
+  if (iso) {
+    openDeploymentDayDetailModal(findDeploymentPlanDay(iso));
+  }
+}
+
+function bindDeploymentPlanDayCells() {
+  const host = elements.deploymentPlanList || document.getElementById("deploymentPlanList");
+  if (!host) return;
+  host.querySelectorAll("[data-dep-date]").forEach((cell) => {
+    if (cell.dataset.depBound === "1") {
+      return;
+    }
+    cell.dataset.depBound = "1";
+    cell.addEventListener("pointerup", handleDeploymentPlanDayCellEvent, { passive: false });
+    cell.addEventListener("click", handleDeploymentPlanDayCellEvent);
+  });
+}
+
 function handleDeploymentPlanPointer(event) {
   if (!document.body.classList.contains("worker-loaded")) {
     return;
@@ -10279,6 +10337,7 @@ async function loadDeploymentPlan() {
     elements.deploymentPlanList.innerHTML = days.length
       ? renderDeploymentPlanCalendar(days)
       : `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanEmpty"))}</p>`;
+    bindDeploymentPlanDayCells();
   } catch (error) {
     renderWorkerListMessage(elements.deploymentPlanList, formatWorkerApiError(error), "error");
     if (elements.deploymentPlanPdfBtn) elements.deploymentPlanPdfBtn.disabled = true;
