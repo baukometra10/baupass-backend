@@ -4525,7 +4525,7 @@ async function loadWorkerData(options = {}) {
     wpSet(WORKER_CACHED_PAYLOAD_KEY, nextSerialized);
     offlineWorkerSessionActive = false;
     if (!unchanged) {
-      renderWorker(payload);
+      renderWorker(payload, { resyncTab: !quiet });
     } else if (quiet) {
       markWorkerSyncedNow();
       updateConnectionState();
@@ -4614,7 +4614,8 @@ function restoreWorkerPassLayout(payload) {
   }
 }
 
-function renderWorker(payload) {
+function renderWorker(payload, options = {}) {
+  const resyncTab = options.resyncTab !== false;
   const previousPayload = lastWorkerPayload;
   const planFeatures = payload.planFeatures && Object.keys(payload.planFeatures).length
     ? payload.planFeatures
@@ -4907,17 +4908,42 @@ function renderWorker(payload) {
     elements.quickGateModeButton.classList.add("hidden");
   }
 
-  // Show leave balance badge
-  const leaveStats = payload.leaveStats;
+function updateWorkerLeaveBalanceBadge(payload) {
+  const leaveStats = payload?.leaveStats;
+  const worker = payload?.worker || {};
+  const isVisitor = String(worker.workerType || "worker").trim().toLowerCase() === "visitor";
   const balanceBadge = document.getElementById("leaveBalanceBadge");
   const balanceRemaining = document.getElementById("leaveBalanceRemaining");
-  if (leaveStats && balanceBadge && balanceRemaining && !isVisitor) {
-    balanceRemaining.textContent = leaveStats.remaining;
-    balanceBadge.classList.remove("hidden");
-    balanceBadge.title = `Anspruch: ${leaveStats.balance} Tage · Genommen: ${leaveStats.taken} Tage`;
-    const pct = leaveStats.balance > 0 ? leaveStats.remaining / leaveStats.balance : 1;
-    balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
+  if (!leaveStats || !balanceBadge || !balanceRemaining || isVisitor) {
+    return;
   }
+  balanceRemaining.textContent = leaveStats.remaining;
+  balanceBadge.classList.remove("hidden");
+  balanceBadge.title = `Anspruch: ${leaveStats.balance} Tage · Genommen: ${leaveStats.taken} Tage`;
+  const pct = leaveStats.balance > 0 ? leaveStats.remaining / leaveStats.balance : 1;
+  balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
+}
+
+async function refreshWorkerLeaveStatsQuiet() {
+  if (!workerToken || offlineWorkerSessionActive) {
+    return;
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
+    if (!payload?.leaveStats) {
+      return;
+    }
+    lastWorkerPayload = {
+      ...(lastWorkerPayload || {}),
+      leaveStats: payload.leaveStats,
+    };
+    updateWorkerLeaveBalanceBadge(lastWorkerPayload);
+  } catch {
+    // Non-blocking: leave list already refreshed after submit.
+  }
+}
+
+  updateWorkerLeaveBalanceBadge(payload);
 
   // Late check-in notification banner
   const lateInfo = payload.lateCheckIn;
@@ -4958,9 +4984,9 @@ function renderWorker(payload) {
   }
 
   // Keep bottom-tab pages in sync with the active tab (avoid breaking pass layout on background refresh).
-  if (document.body.classList.contains("worker-loaded")) {
+  if (resyncTab && document.body.classList.contains("worker-loaded")) {
     switchToTab(currentActiveTab);
-  } else {
+  } else if (!document.body.classList.contains("worker-loaded")) {
     if (elements.timesheetCard) {
       elements.timesheetCard.classList.add("hidden");
     }
@@ -5689,6 +5715,7 @@ async function fetchAndDisplayDynamicQr() {
           elements.workerQr.style.transition = "opacity 0.35s ease";
           elements.workerQr.style.opacity = "1";
         });
+        syncWorkerDataToDashboard(lastWorkerPayload);
       }
       // Also update gate QR if open
       if (elements.gateQr && !elements.gateQr.classList.contains("hidden")) {
@@ -8249,11 +8276,11 @@ async function submitLeaveRequest() {
     }
     elements.leaveRequestForm.reset();
     toggleLeaveRequestForm();
-    await loadLeaveRequests();
-    void loadWorkerData({ quiet: true });
     if (currentActiveTab !== "vacation") {
       switchToTab("vacation");
     }
+    await loadLeaveRequests();
+    void refreshWorkerLeaveStatsQuiet();
   } catch (error) {
     if (isWorkerSessionAuthError(error?.code)) {
       return;

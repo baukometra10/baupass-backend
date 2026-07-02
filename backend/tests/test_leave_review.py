@@ -61,6 +61,26 @@ def _submit_leave(client, worker_headers):
     return response.get_json()["id"]
 
 
+def test_company_admin_sees_submitted_leave_requests(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    admin_headers = _superadmin_headers(client)
+    worker_id = _create_worker(client, admin_headers)
+    worker_headers = _worker_session_headers(client, admin_headers, worker_id)
+    leave_id = _submit_leave(client, worker_headers)
+
+    company_admin = client.post(
+        "/api/login",
+        json={"username": "firma", "password": "1234", "loginScope": "company-admin"},
+    )
+    assert company_admin.status_code == 200
+    company_admin_headers = {"Authorization": f"Bearer {company_admin.get_json()['token']}"}
+
+    listed = client.get("/api/leave-requests", headers=company_admin_headers)
+    assert listed.status_code == 200
+    payload = listed.get_json()
+    assert any(item["id"] == leave_id for item in payload)
+
+
 def test_reject_leave_returns_ok_when_push_succeeds(client_and_db, monkeypatch):
     client, _ = client_and_db
     admin_headers = _superadmin_headers(client)

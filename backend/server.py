@@ -26263,6 +26263,18 @@ def worker_submit_leave_request():
     }), 201
 
 
+def _resolve_leave_admin_company_scope(user):
+    """Resolve tenant company filter for admin leave list/review APIs."""
+    role = str(user.get("role") or "").strip().lower()
+    if role == "superadmin":
+        scoped = (
+            str(request.args.get("company_id") or "").strip()
+            or str(getattr(g, "preview_company_id", None) or user.get("preview_company_id") or "").strip()
+        )
+        return scoped or None
+    return str(user.get("company_id") or "").strip() or None
+
+
 @app.route("/api/leave-requests")
 @require_auth
 def get_leave_requests():
@@ -26270,9 +26282,7 @@ def get_leave_requests():
     if user["role"] not in ("superadmin", "company-admin", "turnstile"):
         return jsonify({"error": "forbidden"}), 403
     db = get_db()
-    company_id = user.get("company_id")
-    if user["role"] == "superadmin":
-        company_id = request.args.get("company_id") or None
+    company_id = _resolve_leave_admin_company_scope(user)
     status_filter = request.args.get("status", "").strip()
     query = """
         SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
@@ -26311,8 +26321,10 @@ def review_leave_request(req_id):
     req_row = db.execute("SELECT * FROM leave_requests WHERE id = ?", (req_id,)).fetchone()
     if not req_row:
         return jsonify({"error": "not_found"}), 404
-    if user["role"] != "superadmin" and str(req_row["company_id"]) != str(user.get("company_id") or ""):
-        return jsonify({"error": "forbidden"}), 403
+    if user["role"] != "superadmin":
+        scoped_company_id = _resolve_leave_admin_company_scope(user)
+        if not scoped_company_id or str(req_row["company_id"]) != scoped_company_id:
+            return jsonify({"error": "forbidden"}), 403
     db.execute(
         "UPDATE leave_requests SET status = ?, reviewed_by_user_id = ?, reviewed_at = ?, review_note = ? WHERE id = ?",
         (new_status, user["id"], now_iso(), review_note, req_id)
