@@ -21,7 +21,7 @@ logger = logging.getLogger("baupass.api")
 
 
 def register_logging_middleware(app: Flask) -> None:
-    """يُسجّل logging middleware على Flask app."""
+    """Registers logging middleware على Flask app."""
 
     @app.before_request
     def _before():

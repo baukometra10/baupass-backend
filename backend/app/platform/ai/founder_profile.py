@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Any
 
 from backend.app.core.platform_env import DEFAULT_PLATFORM_EMAIL, platform_env
 
@@ -115,6 +116,8 @@ def _resolve_title(profile: dict[str, Any], lang: str) -> str:
 
 
 def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
+    from .brand_guard import sanitize_legacy_brand
+
     lang = (lang or "de")[:2]
     name = str(profile.get("name") or "").strip()
     company = str(profile.get("company") or "Suppix AI").strip()
@@ -151,7 +154,7 @@ def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
             parts.append(f"المقر: {address}.")
         if contact:
             parts.append(f"للتواصل: {contact}.")
-        return " ".join(p for p in parts if p)
+        return sanitize_legacy_brand(" ".join(p for p in parts if p))
 
     if lang == "en":
         if name:
@@ -168,7 +171,7 @@ def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
             parts.append(f"Headquarters: {address}.")
         if contact:
             parts.append(f"Contact: {contact}.")
-        return " ".join(p for p in parts if p)
+        return sanitize_legacy_brand(" ".join(p for p in parts if p))
 
     if name:
         lead = (
@@ -189,23 +192,7 @@ def format_founder_answer(profile: dict[str, Any], lang: str) -> str:
 
 
 def format_founder_context_for_llm(db, lang: str = "de") -> str:
+    from .brand_guard import enrich_founder_context
+
     profile = load_founder_profile(db)
-    lang = (lang or "de")[:2]
-    name = profile.get("name") or "—"
-    if lang == "en":
-        return (
-            f"Platform founder (use when asked who built/founded the system): "
-            f"{name}, {_resolve_title(profile, lang)}, {profile.get('company')}. "
-            f"{_resolve_bio(profile, lang)}"
-        )
-    if lang == "ar":
-        return (
-            f"مؤسّس المنصة (عند سؤال من أسّس النظام): "
-            f"{name}، {_resolve_title(profile, lang)}، {profile.get('company')}. "
-            f"{_resolve_bio(profile, lang)}"
-        )
-    return (
-        f"Plattform-Gründer (bei Fragen wer das System gegründet hat): "
-        f"{name}, {_resolve_title(profile, lang)}, {profile.get('company')}. "
-        f"{_resolve_bio(profile, lang)}"
-    )
+    return enrich_founder_context(profile, lang)

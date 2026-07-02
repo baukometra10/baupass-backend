@@ -130,6 +130,9 @@ def run_agent_query(
                 continue
 
             answer = msg.get("content") or ""
+            from .brand_guard import sanitize_ai_answer
+
+            answer = sanitize_ai_answer(answer) or ""
             out: dict[str, Any] = {
                 "answer": answer,
                 "configured": True,

@@ -2,12 +2,12 @@
 WorkPass – Configuration Management
 ====================================
 بيئات:
-  - DevelopmentConfig : للتطوير المحلي
-  - TestingConfig     : للاختبارات الآلية (in-memory SQLite)
-  - ProductionConfig  : للإنتاج
+  - DevelopmentConfig : for local development
+  - TestingConfig     : for automated tests (in-memory SQLite)
+  - ProductionConfig  : for production
 
-جميع القيم الحساسة تُقرأ من متغيرات البيئة فقط.
-لا توجد قيم حساسة مكتوبة مباشرة في الكود.
+All sensitive values تُقرأ من متغيرات البيئة فقط.
+No hardcoded secrets مكتوبة مباشرة في الكود.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def _env_flag_enabled(name: str, default: str = "0") -> bool:
 
 
 def _require_env(key: str) -> str:
-    """يُجبر على وجود متغير البيئة في الإنتاج. يرفع خطأ صريحاً إذا كان مفقوداً."""
+    """Requires على وجود متغير البيئة في الإنتاج. يرفع خطأ صريحاً إذا كان مفقوداً."""
     value = os.getenv(key, "").strip()
     if not value:
         raise RuntimeError(
@@ -45,7 +45,7 @@ class BaseConfig:
     TESTING: bool = False
 
     # ── Database ──────────────────────────────────────────────────────────────
-    # تحديد مسار SQLite أو DATABASE_URL لـ PostgreSQL مستقبلاً
+    # SQLite path or DATABASE_URL أو DATABASE_URL لـ PostgreSQL مستقبلاً
     DATABASE_URL: str = os.getenv("DATABASE_URL", "").strip()
     DATABASE_READ_REPLICA_URL: str = os.getenv("DATABASE_READ_REPLICA_URL", "").strip()
     SQLITE_PATH: str = platform_env("DB_PATH", "")
@@ -68,10 +68,10 @@ class BaseConfig:
     REDIS_RETRY_ON_TIMEOUT: bool = True
 
     # ── Rate Limiting ─────────────────────────────────────────────────────────
-    # المفتاح يُبنى في Redis: ratelimit:{scope}:{key}
+    # Redis key pattern: ratelimit:{scope}:{key}
     RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_STRATEGY: str = "sliding_window"  # "sliding_window" | "token_bucket"
-    # تعريفات الـ scopes: (max_requests, window_seconds)
+    # Scope definitions: (max_requests, window_seconds)
     RATE_LIMIT_SCOPES: dict = {
         "global":               (300,  60),   # 300 req/min لكل IP
         "ai_api":               (120,  60),   # transcribe + stream + speak per voice turn
@@ -83,7 +83,7 @@ class BaseConfig:
         "gate_api":             (600,  60),   # البوابات تُولّد طلبات أكثر
         "public_api":           (30,   60),
     }
-    # مدة حظر IP بعد تجاوز الحد (بالثواني)
+    # مدة Ban IP بعد تجاوز الحد (in seconds)
     RATE_LIMIT_BAN_DURATION_SECONDS: int = 900  # 15 دقيقة
 
     # ── Security ──────────────────────────────────────────────────────────────

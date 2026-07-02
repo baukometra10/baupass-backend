@@ -226,7 +226,7 @@ def task_queues_ready() -> bool:
 
 
 def get_queue_stats() -> dict:
-    """يُعيد إحصائيات الـ queues للـ monitoring."""
+    """Returns إحصائيات الـ queues للـ monitoring."""
     stats = {}
     for name, queue in _rq_queues.items():
         try:

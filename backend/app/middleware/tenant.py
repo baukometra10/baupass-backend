@@ -34,19 +34,19 @@ class TenantContext:
     is_superadmin: bool = False  # يمكنه الوصول لجميع tenants
 
     def validate(self) -> None:
-        """يتحقق من صحة الـ context."""
+        """Validates tenant context."""
         if not self.is_superadmin and (not self.company_id or self.company_id <= 0):
             raise ValueError(f"Invalid TenantContext: company_id={self.company_id}")
 
     def can_access_company(self, target_company_id: int) -> bool:
-        """هل يمكن لهذا المستخدم الوصول لبيانات شركة معينة؟"""
+        """Whether this user may access a given company's data معينة؟"""
         if self.is_superadmin:
             return True
         return self.company_id == target_company_id
 
 
 def get_tenant_context() -> Optional[TenantContext]:
-    """يُعيد الـ tenant context للطلب الحالي (None إذا غير authenticated)."""
+    """Returns الـ tenant context للطلب الحالي (None إذا when unauthenticated)."""
     return getattr(g, "_tenant_context", None)
 
 
@@ -65,7 +65,7 @@ def require_tenant_context() -> TenantContext:
 
 
 def set_tenant_context(ctx: TenantContext) -> None:
-    """يُعيّن الـ tenant context للطلب الحالي. يُستدعى من auth decorators."""
+    """Sets الـ tenant context للطلب الحالي. called from auth decorators."""
     ctx.validate()
     g._tenant_context = ctx
 
@@ -101,7 +101,7 @@ def tenant_guard(target_company_id: int) -> None:
             ctx.company_id,
             target_company_id,
         )
-        # هذا خطأ أمني خطير — يُسجَّل ويُرفع
+        # هذا critical security violation — logged and raised
         raise PermissionError(
             f"Tenant isolation: user from company {ctx.company_id} "
             f"attempted to access company {target_company_id} data."
@@ -109,12 +109,12 @@ def tenant_guard(target_company_id: int) -> None:
 
 
 def register_tenant_violation_handler(app: Flask) -> None:
-    """يُسجّل معالج أخطاء لـ PermissionError الناتجة عن انتهاك tenant isolation."""
+    """Registers معالج أخطاء لـ PermissionError الناتجة عن انتهاك tenant isolation."""
 
     @app.errorhandler(PermissionError)
     def handle_tenant_violation(exc: PermissionError):
         logger.critical("TENANT ISOLATION VIOLATION: %s", exc)
-        # لا نُعيد تفاصيل الخطأ للعميل
+        # do not expose error details to the client
         return jsonify({
             "error": "forbidden",
             "message": "Access denied.",

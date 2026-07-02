@@ -5,7 +5,7 @@ WorkPass – Flask Application Factory
        وتفصل التهيئة عن تعريف التطبيق.
 
 الاستخدام:
-    من server.py الحالي:
+    from server.py الحالي:
         from app import create_app
         app = create_app()
 
@@ -13,7 +13,7 @@ WorkPass – Flask Application Factory
         app = create_app(config_name="testing")
 
 الانتقال التدريجي: هذا الملف يعمل بجانب server.py ولا يحذفه.
-                  كل module يُنقل هنا يُحذف من server.py تدريجياً.
+                  كل module Moved هنا Removed from server.py تدريجياً.
 """
 from __future__ import annotations
 
@@ -88,7 +88,7 @@ def create_app(config_name: Optional[str] = None) -> Flask:
 
 
 def _register_blueprints(app: Flask) -> None:
-    """تسجيل جميع blueprints. يُضاف blueprint جديد هنا عند نقله من server.py."""
+    """Register all blueprints. Added blueprint جديد هنا عند نقله from server.py."""
     from .api import (
         auth_bp,
         workers_bp,
@@ -112,14 +112,14 @@ def _register_blueprints(app: Flask) -> None:
 def _register_startup_hooks(app: Flask) -> None:
     @app.before_request
     def _attach_request_id():
-        """يُرفق X-Request-Id لكل طلب لتتبعه في اللوقات."""
+        """Attaches X-Request-Id لكل طلب لتتبعه في اللوقات."""
         import uuid
         from flask import g, request
         g.request_id = request.headers.get("X-Request-Id") or str(uuid.uuid4())
 
     @app.teardown_appcontext
     def _close_db(exc: Optional[Exception]) -> None:
-        """يُغلق اتصال قاعدة البيانات في نهاية كل طلب."""
+        """Closes اتصال قاعدة البيانات في نهاية كل طلب."""
         from flask import g
         db = g.pop("_db", None)
         if db is not None:

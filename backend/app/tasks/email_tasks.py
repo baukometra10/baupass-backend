@@ -4,7 +4,7 @@ WorkPass – Email Tasks (Background)
 جميع إرسالات الإيميل تعمل خارج Flask request cycle.
 
 الميزات:
-  - Retry تلقائي عند فشل الإرسال
+  - Retry تلقائي عند failures الإرسال
   - Dead letter queue للإيميلات الفاشلة
   - Deduplication (لا إرسال مزدوج)
   - Audit trail لكل إرسال
@@ -206,7 +206,7 @@ def _send_via_smtp(
         return None
 
 
-# ── Idempotency tracking (in-memory للتطوير، Redis للإنتاج) ─────────────────
+# ── Idempotency tracking (in-memory للتطوير، Redis for production) ─────────────────
 _sent_keys: set[str] = set()
 
 
@@ -223,7 +223,7 @@ def _is_already_sent(key: str) -> bool:
 
 
 def _mark_as_sent(key: str, ttl_seconds: int = 86400) -> None:
-    """يُسجّل أن الإيميل أُرسل (لمنع الإرسال المزدوج)."""
+    """Registers أن الإيميل أُرسل (لمنع الإرسال المزدوج)."""
     try:
         from backend.app.extensions import get_redis
         redis = get_redis()

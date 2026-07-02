@@ -1,10 +1,10 @@
 ﻿"""
 WorkPass – Security Middleware
 ==============================
-يُضيف:
-  1. Security Headers (HSTS, CSP, X-Frame-Options, etc.)
-  2. CSRF Protection للطلبات المعدّلة
-  3. Session rotation بعد تسجيل الدخول
+Adds:
+  1. Security headers (HSTS, CSP, X-Frame-Options, etc.)
+  2. CSRF protection for mutating requests
+  3. Session rotation after login
   4. Clickjacking protection
   5. Content-Type sniffing prevention
 """
@@ -58,10 +58,10 @@ _SECURITY_HEADERS = {
 
 _HSTS_HEADER = "max-age=31536000; includeSubDomains; preload"
 
-# الطلبات التي تُعدّل البيانات وتحتاج CSRF protection
+# Mutating methods that require CSRF protection
 _CSRF_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
-# Endpoints مستثناة من CSRF (APIs التي تستخدم Bearer tokens فقط)
+# CSRF-exempt path prefixes (Bearer-token APIs)
 _CSRF_EXEMPT_PREFIXES = (
     "/api/gate/",
     "/api/worker-app/",
@@ -71,7 +71,7 @@ _CSRF_EXEMPT_PREFIXES = (
 
 
 def register_security_middleware(app: Flask) -> None:
-    """يُسجّل جميع security middleware على Flask app."""
+    """Register all security middleware on the Flask app."""
 
     @app.after_request
     def _add_security_headers(response: Response) -> Response:
@@ -84,7 +84,7 @@ def register_security_middleware(app: Flask) -> None:
         for header, value in skip_framing.items():
             response.headers.setdefault(header, value)
 
-        # HSTS: فقط على HTTPS
+        # HSTS: HTTPS only
         if request.is_secure or request.headers.get("X-Forwarded-Proto") == "https":
             response.headers["Strict-Transport-Security"] = _HSTS_HEADER
 
@@ -97,18 +97,18 @@ def register_security_middleware(app: Flask) -> None:
                 csp = csp.replace("object-src 'none'", "object-src 'self' blob:")
             response.headers["Content-Security-Policy"] = csp
 
-        # إخفاء معلومات الـ server
+        # Strip server identification headers
         response.headers.pop("Server", None)
         response.headers.pop("X-Powered-By", None)
 
-        # CSRF Token في cookies للـ SPA
+        # CSRF token cookie for SPA (readable by JavaScript)
         if request.method == "GET" and "text/html" in (response.content_type or ""):
             if "csrf_token" not in request.cookies:
                 token = secrets.token_urlsafe(32)
                 response.set_cookie(
                     "csrf_token",
                     token,
-                    httponly=False,  # يجب أن يقرأه JavaScript
+                    httponly=False,  # must be readable by JavaScript
                     samesite="Strict",
                     secure=request.is_secure,
                 )
@@ -117,7 +117,7 @@ def register_security_middleware(app: Flask) -> None:
 
     @app.before_request
     def _csrf_check():
-        """CSRF Protection للطلبات المعدّلة."""
+        """CSRF protection for mutating requests."""
         if request.method not in _CSRF_METHODS:
             return None
 
@@ -128,20 +128,20 @@ def register_security_middleware(app: Flask) -> None:
         if auth_header.lower().startswith("bearer "):
             return None
 
-        # استثناء APIs التي تستخدم Bearer tokens (لها حماية خاصة)
+        # Bearer-token APIs are exempt (separate auth)
         if any(path.startswith(prefix) for prefix in _CSRF_EXEMPT_PREFIXES):
             return None
 
         if app.config.get("TESTING") or not app.config.get("WTF_CSRF_ENABLED", True):
             return None
 
-        # استثناء Content-Type: application/json (لا CSRF على JSON APIs)
+        # JSON APIs: validate Origin instead of CSRF token
         content_type = request.content_type or ""
         if "application/json" in content_type:
-            # نتحقق من Origin بدلاً من CSRF token
+            # Origin check for JSON requests
             return _check_origin()
 
-        # CSRF Token check للـ form submissions
+        # CSRF token check for form submissions
         if not app.config.get("WTF_CSRF_ENABLED", True):
             return None
 
@@ -166,19 +166,19 @@ def register_security_middleware(app: Flask) -> None:
         return None
 
     def _check_origin() -> Optional[Response]:
-        """يتحقق من Origin header للـ JSON API requests."""
+        """Validate Origin header for JSON API requests."""
         origin = request.headers.get("Origin", "").strip().rstrip("/")
         if not origin:
-            return None  # طلبات بدون Origin (curl، server-to-server) مسموحة
+            return None  # no Origin (curl, server-to-server) — allowed
 
         host = request.host.split(":")[0]
         allowed_origins = app.config.get("CORS_ORIGINS", [])
 
-        # Origin يطابق host الحالي
+        # Origin matches current host
         if f"https://{host}" == origin or f"http://{host}" == origin:
             return None
 
-        # Origin في القائمة البيضاء
+        # Origin in allowlist
         if origin in allowed_origins:
             return None
 
@@ -186,5 +186,5 @@ def register_security_middleware(app: Flask) -> None:
             "Origin mismatch (potential CSRF): origin=%s host=%s path=%s",
             origin, host, request.path,
         )
-        # ملاحظة: لا نرفض هنا لأن CORS يتولى ذلك — نُسجّل فقط
+        # Log only; CORS handles rejection
         return None

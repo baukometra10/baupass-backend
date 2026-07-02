@@ -86,6 +86,10 @@ def register_worker_ai_blueprint(flask_app) -> None:
                 spoken=spoken,
             )
         result["worker"] = ctx_worker
+        from .brand_guard import sanitize_ai_answer
+
+        if result.get("answer"):
+            result["answer"] = sanitize_ai_answer(result["answer"])
         return jsonify(result)
 
     @worker_ai_bp.post("/ai/voice")
@@ -137,6 +141,10 @@ def register_worker_ai_blueprint(flask_app) -> None:
                 spoken=True,
             )
         result["transcript"] = question
+        from .brand_guard import sanitize_ai_answer
+
+        if result.get("answer"):
+            result["answer"] = sanitize_ai_answer(result["answer"])
         return jsonify(result)
 
     @worker_ai_bp.post("/ai/speak")

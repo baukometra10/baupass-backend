@@ -33,7 +33,7 @@ logger = logging.getLogger("baupass.database")
 # ── Thread-local storage للاتصالات ───────────────────────────────────────────
 _local = threading.local()
 
-# ── Migration lock (يمنع تشغيل migrations بالتوازي) ─────────────────────────
+# ── Migration lock (Prevents parallel migration runs) ─────────────────────────
 _migration_lock = threading.Lock()
 
 # ── PostgreSQL pool globals (transition mode) ───────────────────────────────
@@ -48,7 +48,7 @@ _pg_read_pool_lock = threading.Lock()
 # =============================================================================
 
 def get_db_path() -> Path:
-    """يُحدد مسار قاعدة البيانات بالأولوية: env var > Railway /data > default."""
+    """Determines مسار قاعدة البيانات priority order: env var > Railway /data > default."""
     from flask import current_app
 
     explicit = current_app.config.get("SQLITE_PATH", "").strip()
@@ -593,7 +593,7 @@ class MigrationRunner:
         return version
 
     def status(self) -> list[dict]:
-        """يُعيد حالة جميع migrations المطبَّقة."""
+        """Returns حالة جميع migrations المطبَّقة."""
         rows = self.conn.execute(
             f"SELECT * FROM {MIGRATIONS_TABLE} ORDER BY id"
         ).fetchall()
@@ -614,7 +614,7 @@ class TenantDB:
     الاستخدام:
         db = TenantDB(get_connection(), company_id=g.current_user["company_id"])
         workers = db.execute_for_tenant("SELECT * FROM workers WHERE company_id = ?")
-        # company_id يُضاف تلقائياً كـ parameter أول
+        # company_id Added تلقائياً كـ parameter أول
     """
 
     # الجداول التي تحتوي بيانات multi-tenant ويجب تقييدها
@@ -631,7 +631,7 @@ class TenantDB:
         self.company_id = company_id
 
     def execute(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:
-        """تنفيذ query عادي مع الحفاظ على context."""
+        """تنفيذ query عادي while keeping context."""
         return self._conn.execute(sql, params)
 
     def execute_for_tenant(self, sql: str, params: tuple = ()) -> sqlite3.Cursor:

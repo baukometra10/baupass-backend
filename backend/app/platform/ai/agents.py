@@ -178,6 +178,8 @@ def agent_tool_schemas(agent_id: str) -> list[dict[str, Any]]:
 
 
 def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = "", spoken: bool = False) -> str:
+    from .brand_guard import ai_branding_system_block
+
     agent = get_agent(agent_id) or AGENT_PROFILES["operations"]
     lang = (lang or "de")[:2]
     lang_reply = {
@@ -186,6 +188,7 @@ def agent_system_prompt(agent_id: str, lang: str = "de", *, live_context: str = 
         "ar": "أجب بالعربية ما لم يكتب المستخدم بالألمانية أو الإنجليزية.",
     }.get(lang, "Match the user's language.")
     parts = [
+        ai_branding_system_block(lang),
         agent["system"],
         _CONVERSATION_RULES.get(lang) or _CONVERSATION_RULES["de"],
         lang_reply,

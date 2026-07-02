@@ -30,6 +30,12 @@ class FieldEncryptionTests(unittest.TestCase):
         self.assertTrue(encrypted.startswith("enc:v1:"))
         self.assertEqual(fe.maybe_decrypt_field(encrypted), "Geheime Nachricht")
 
+    def test_company_scoped_chat_roundtrip(self):
+        os.environ["BAUPASS_FIELD_ENCRYPTION_KEY"] = "unit-test-secret-key"
+        encrypted = fe.encrypt_chat_field("cmp-test", "Hallo Chat")
+        self.assertTrue(encrypted.startswith("enc:v2:"))
+        self.assertEqual(fe.decrypt_chat_field("cmp-test", encrypted), "Hallo Chat")
+
 
 if __name__ == "__main__":
     unittest.main()

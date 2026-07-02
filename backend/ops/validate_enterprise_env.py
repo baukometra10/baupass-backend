@@ -183,6 +183,15 @@ def _check_env() -> dict[str, Any]:
         value_hint="weak" if weak_jwt else ("set" if _present("SUPPIX_WORKER_JWT_SECRET") else "missing"),
     )
 
+    weak_field = _weak_secret("SUPPIX_FIELD_ENCRYPTION_KEY", 32)
+    add(
+        "SUPPIX_FIELD_ENCRYPTION_KEY",
+        ok=_present("SUPPIX_FIELD_ENCRYPTION_KEY") and not weak_field,
+        severity="critical" if hosted else "recommended",
+        hint="Encrypts chat messages at rest (per-tenant key). Set BAUPASS_FIELD_ENCRYPTION_KEY on Railway.",
+        value_hint="weak" if weak_field else ("set" if _present("SUPPIX_FIELD_ENCRYPTION_KEY") else "missing"),
+    )
+
     # ── AI / Copilot ────────────────────────────────────────────────────
     openai_ok = _present("OPENAI_API_KEY")
     add(

@@ -22,7 +22,7 @@ health_bp      = Blueprint("health",      __name__)
 worker_app_bp  = Blueprint("worker_app",  __name__)
 
 # ── Route Registrations ───────────────────────────────────────────────────────
-# يُستورد هنا لتفعيل تسجيل الـ routes
+# Imported هنا لتفعيل route handlers
 from . import (  # noqa: F401, E402
     auth,
     health_routes,

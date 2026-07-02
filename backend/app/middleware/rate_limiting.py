@@ -29,8 +29,8 @@ from flask import Flask, Request, g, jsonify, request
 
 logger = logging.getLogger("baupass.rate_limit")
 
-# ── Lua Script للـ Sliding Window (atomic في Redis) ─────────────────────────
-# يُنفَّذ كـ atomic operation لمنع race conditions
+# ── Lua script للـ Sliding Window (atomic in Redis) ─────────────────────────
+# Executed كـ atomic operation prevents race conditions
 _SLIDING_WINDOW_LUA = """
 local key = KEYS[1]
 local now = tonumber(ARGV[1])
@@ -143,11 +143,11 @@ class RedisRateLimiter:
 
         except Exception as exc:
             logger.error("Redis rate limit check failed: %s", exc)
-            # في حالة فشل Redis → نسمح بالطلب (fail open) لتجنب outage
+            # On Redis failure → نسمح بالطلب (fail open) to avoid outage
             return True, 0
 
     def is_banned(self, identifier: str) -> Tuple[bool, int]:
-        """يتحقق إذا كان IP محظوراً."""
+        """Checks if IP is banned."""
         try:
             key_hash = hashlib.sha256(identifier.encode()).hexdigest()[:16]
             ban_key = f"rl:ban:{key_hash}"
@@ -159,7 +159,7 @@ class RedisRateLimiter:
             return False, 0
 
     def ban_ip(self, identifier: str, duration_seconds: int, reason: str = "") -> None:
-        """حظر IP يدوي (من admin)."""
+        """Ban IP يدوي (by admin)."""
         try:
             key_hash = hashlib.sha256(identifier.encode()).hexdigest()[:16]
             ban_key = f"rl:ban:{key_hash}"
@@ -169,7 +169,7 @@ class RedisRateLimiter:
             logger.error("Failed to ban IP: %s", exc)
 
     def reset(self, scope: str, identifier: str) -> None:
-        """إعادة تعيين عداد IP (من admin)."""
+        """إعادة تعيين عداد IP (by admin)."""
         try:
             key_hash = hashlib.sha256(f"{scope}:{identifier}".encode()).hexdigest()[:16]
             rate_key = f"rl:{scope}:{key_hash}"
@@ -203,7 +203,7 @@ class InMemoryRateLimiter:
             if key in self._bans and self._bans[key] > now:
                 return False, int(self._bans[key] - now)
 
-            # حذف الطلبات القديمة
+            # Remove stale requests
             q = self._windows[key]
             cutoff = now - window
             while q and q[0] <= cutoff:
@@ -232,7 +232,7 @@ class InMemoryRateLimiter:
             self._windows.pop(f"{scope}:{identifier}", None)
 
 
-# ── IPs الداخلية التي لا تخضع لـ rate limiting ──────────────────────────────
+# ── Internal IPs التي exempt from rate limiting ──────────────────────────────
 _INTERNAL_NETWORKS = [
     ipaddress.ip_network("127.0.0.0/8"),
     ipaddress.ip_network("10.0.0.0/8"),
@@ -293,7 +293,7 @@ def register_rate_limit_middleware(app: Flask) -> None:
         if not limiter:
             return None
 
-        # تحديد الـ scope بناءً على المسار
+        # Resolve rate-limit scope from request path
         scope = _detect_scope(path, request.method)
 
         allowed, retry_after = limiter.check(scope, client_ip)
@@ -316,7 +316,7 @@ def register_rate_limit_middleware(app: Flask) -> None:
 
 
 def _detect_scope(path: str, method: str) -> str:
-    """يُحدد الـ scope المناسب للـ rate limit بناءً على المسار."""
+    """Determines الـ scope المناسب للـ rate limit from request path."""
     if path.startswith("/api/ai/"):
         return "ai_api"
     if path in {"/api/login", "/api/logout"} and method in {"POST", "PUT"}:

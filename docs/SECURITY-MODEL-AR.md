@@ -14,7 +14,7 @@
 |----------|---------|
 | كلمات المرور | ✅ bcrypt (`werkzeug.security`) |
 | مفاتيح الأجهزة | ✅ hash فقط |
-| رسائل Chat | 🟡 **اختياري** — `BAUPASS_FIELD_ENCRYPTION_KEY` (Fernet، بادئة `enc:v1:`) |
+| Chat messages | **Recommended** — `BAUPASS_FIELD_ENCRYPTION_KEY` with per-tenant `enc:v2:` (Fernet) |
 | طلبات الإجازة / PDF | ❌ نص عادي (TLS فقط) |
 | لقطات الكameras | base64 في DB — احمِ Volume/backups |
 

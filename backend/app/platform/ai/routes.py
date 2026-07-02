@@ -133,6 +133,10 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                         result["source"] = fallback.get("source", "deterministic")
 
             result["companyId"] = company_id
+            from .brand_guard import sanitize_ai_answer
+
+            if result.get("answer"):
+                result["answer"] = sanitize_ai_answer(result["answer"])
             tool_count = len(result.get("toolsUsed") or [])
             record_audit(
                 db,

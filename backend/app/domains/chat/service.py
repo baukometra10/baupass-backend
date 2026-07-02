@@ -250,7 +250,7 @@ class ChatService:
                     "senderType": row["sender_type"],
                     "senderUserId": row["sender_user_id"],
                     "senderWorkerId": row["sender_worker_id"],
-                    "body": maybe_decrypt_field(row["body"]),
+                    "body": maybe_decrypt_field(row["body"], company_id=str(row["company_id"] or "")),
                     "createdAt": row["created_at"],
                     "readAt": row["read_at"],
                     "attachments": [],
@@ -327,7 +327,7 @@ class ChatService:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
-        stored_body = maybe_encrypt_field(plain_body)
+        stored_body = maybe_encrypt_field(plain_body, company_id=company_id)
         self.db.execute(
             """
             INSERT INTO chat_messages

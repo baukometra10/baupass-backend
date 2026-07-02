@@ -14,7 +14,7 @@ WorkPass – Base Repository with Tenant Isolation
 
         def find_by_badge(self, badge_id: str) -> Optional[dict]:
             return self.find_one("badge_id = ?", (badge_id,))
-            # يُضاف AND company_id = ? تلقائياً
+            # Added AND company_id = ? تلقائياً
 
         def find_active(self) -> list[dict]:
             return self.find_many("status = ?", ("active",))
@@ -88,7 +88,7 @@ class BaseRepository:
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _tenant_filter(self) -> tuple[str, tuple]:
-        """يُعيد WHERE clause وparams للـ tenant filter."""
+        """Returns WHERE clause وparams للـ tenant filter."""
         return f"{self.TENANT_COLUMN} = ?", (self._company_id,)
 
     def _build_where(self, extra_where: str = "", extra_params: tuple = ()) -> tuple[str, tuple]:
@@ -121,7 +121,7 @@ class BaseRepository:
         params: tuple = (),
         order_by: str = "",
     ) -> Optional[dict]:
-        """يُعيد سجلاً واحداً مطابقاً للـ where clause."""
+        """Returns سجلاً واحداً مطابقاً للـ where clause."""
         full_where, full_params = self._build_where(where, params)
 
         sql = f"SELECT * FROM {self.TABLE} WHERE {full_where}"
@@ -133,7 +133,7 @@ class BaseRepository:
         return self._row_to_dict(row)
 
     def find_by_id(self, record_id: Any) -> Optional[dict]:
-        """يُعيد سجلاً بـ primary key مع التحقق من tenant ownership."""
+        """Returns سجلاً بـ primary key مع التحقق من tenant ownership."""
         full_where, full_params = self._build_where(
             f"{self.PRIMARY_KEY} = ?", (record_id,)
         )
@@ -149,7 +149,7 @@ class BaseRepository:
         limit: Optional[int] = None,
         offset: int = 0,
     ) -> list[dict]:
-        """يُعيد قائمة السجلات المطابقة."""
+        """Returns قائمة السجلات المطابقة."""
         full_where, full_params = self._build_where(where, params)
 
         sql = f"SELECT * FROM {self.TABLE} WHERE {full_where}"
@@ -162,7 +162,7 @@ class BaseRepository:
         return [self._row_to_dict(row) for row in rows]
 
     def count(self, where: str = "", params: tuple = ()) -> int:
-        """يُعيد عدد السجلات المطابقة."""
+        """Returns عدد السجلات المطابقة."""
         full_where, full_params = self._build_where(where, params)
         sql = f"SELECT COUNT(*) FROM {self.TABLE} WHERE {full_where}"
         row = self._db.execute(sql, full_params).fetchone()
