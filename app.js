@@ -1503,6 +1503,13 @@ const UI_TRANSLATIONS = {
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
     btnCreateCompany: "Firma anlegen",
     accountEyebrow: "Konto",
+    accountPanelH3: "Mein Admin-Konto",
+    accountPanelLead: "Benutzername, Anzeigename und Passwort zentral verwalten.",
+    accountNoChanges: "Keine Änderungen — Anmeldedaten sind bereits aktuell.",
+    passwordMatchOk: "Passwörter stimmen überein.",
+    passwordMatchFail: "Passwörter stimmen noch nicht überein.",
+    passwordToggleShow: "Passwort anzeigen",
+    passwordToggleHide: "Passwort verbergen",
     accountProfileH3: "Anmeldedaten",
     accountProfileHint: "Benutzername und Anzeigename ändern — aktuelles Passwort zur Bestätigung nötig.",
     labelDisplayName: "Anzeigename",
@@ -2689,6 +2696,13 @@ const UI_TRANSLATIONS = {
     companyAdminPasswordPlaceholder: "e.g. Secure!2025",
     btnCreateCompany: "Create company",
     accountEyebrow: "Account",
+    accountPanelH3: "My admin account",
+    accountPanelLead: "Manage username, display name, and password in one place.",
+    accountNoChanges: "No changes — account details are already up to date.",
+    passwordMatchOk: "Passwords match.",
+    passwordMatchFail: "Passwords do not match yet.",
+    passwordToggleShow: "Show password",
+    passwordToggleHide: "Hide password",
     accountH3: "Change Password",
     accountProfileH3: "Login details",
     accountProfileHint: "Change username and display name — current password required for confirmation.",
@@ -4318,6 +4332,13 @@ const UI_TRANSLATIONS = {
     companyAdminPasswordPlaceholder: "مثال: آمن!2025",
     btnCreateCompany: "إنشاء شركة",
     accountEyebrow: "الحساب",
+    accountPanelH3: "حساب المسؤول",
+    accountPanelLead: "إدارة اسم المستخدم واسم العرض وكلمة المرور من مكان واحد.",
+    accountNoChanges: "لا توجد تغييرات — بيانات الحساب محدّثة بالفعل.",
+    passwordMatchOk: "كلمتا المرور متطابقتان.",
+    passwordMatchFail: "كلمتا المرور غير متطابقتين بعد.",
+    passwordToggleShow: "إظهار كلمة المرور",
+    passwordToggleHide: "إخفاء كلمة المرور",
     accountH3: "تغيير كلمة المرور",
     labelCurrentPassword: "كلمة المرور الحالية",
     labelNewPassword: "كلمة مرور جديدة",
@@ -16529,6 +16550,57 @@ function registerControlServiceWorker() {
     }).catch(() => {
       // ignore cache delete failures
     });
+  }
+}
+
+function wireInstalledPwaNavigation() {
+  if (!isStandaloneDesktopApp()) return;
+  document.documentElement.classList.add("pwa-installed");
+
+  document.addEventListener("click", (event) => {
+    const anchor = event.target?.closest?.("a[href]");
+    if (!anchor || anchor.dataset.pwaExternal === "1") return;
+    if (event.defaultPrevented) return;
+    if (anchor.hasAttribute("download")) return;
+    const rawHref = String(anchor.getAttribute("href") || "").trim();
+    if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:")) {
+      return;
+    }
+    let targetUrl;
+    try {
+      targetUrl = new URL(rawHref, window.location.href);
+    } catch {
+      return;
+    }
+    if (targetUrl.origin !== window.location.origin) {
+      event.preventDefault();
+      window.location.assign(targetUrl.href);
+      return;
+    }
+    if (anchor.target === "_blank") {
+      event.preventDefault();
+      window.location.assign(targetUrl.href);
+    }
+  }, true);
+
+  if (!window.__pwaWindowOpenPatched) {
+    window.__pwaWindowOpenPatched = true;
+    const nativeOpen = window.open.bind(window);
+    window.open = function patchedWindowOpen(url, target, features) {
+      if (!url || !isStandaloneDesktopApp()) {
+        return nativeOpen(url, target, features);
+      }
+      try {
+        const targetUrl = new URL(String(url), window.location.href);
+        if (targetUrl.origin === window.location.origin) {
+          window.location.assign(targetUrl.href);
+          return null;
+        }
+      } catch {
+        // fall through
+      }
+      return nativeOpen(url, target, features);
+    };
   }
 }
 
@@ -33000,6 +33072,91 @@ async function handleLogout(options = {}) {
   syncSupportAssistSpectatorWatch();
 }
 
+function setAccountFormFeedback(element, message, type = "info") {
+  if (!element) return;
+  const text = String(message || "").trim();
+  element.textContent = text;
+  element.classList.remove("is-error", "is-success", "is-info");
+  if (!text) return;
+  element.classList.add(type === "error" ? "is-error" : type === "success" ? "is-success" : "is-info");
+}
+
+function enhancePasswordFields(root = document) {
+  const scope = root && root.querySelectorAll ? root : document;
+  scope.querySelectorAll('input[type="password"]').forEach((input) => {
+    if (!input || input.closest(".password-field-wrap")) return;
+    const label = input.closest("label");
+    if (!label) return;
+    const wrap = document.createElement("div");
+    wrap.className = "password-field-wrap";
+    label.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "password-toggle-btn";
+    toggle.setAttribute("aria-label", uiT("passwordToggleShow"));
+    toggle.innerHTML = `<svg class="password-eye-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 5C7 5 2.73 8.11 1 12c1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7zm0 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>`;
+    toggle.addEventListener("click", () => {
+      const visible = input.type === "text";
+      input.type = visible ? "password" : "text";
+      toggle.setAttribute("aria-label", uiT(visible ? "passwordToggleShow" : "passwordToggleHide"));
+      toggle.classList.toggle("is-visible", !visible);
+    });
+    wrap.appendChild(toggle);
+  });
+}
+
+function wirePasswordMatchValidation() {
+  const newPasswordEl = document.querySelector("#newPassword");
+  const confirmPasswordEl = document.querySelector("#confirmPassword");
+  const hintEl = document.querySelector("#passwordMatchHint");
+  if (!newPasswordEl || !confirmPasswordEl || !hintEl) return;
+  const updateHint = () => {
+    const next = String(newPasswordEl.value || "");
+    const confirm = String(confirmPasswordEl.value || "");
+    if (!confirm) {
+      hintEl.textContent = "";
+      hintEl.classList.remove("is-ok", "is-error");
+      return;
+    }
+    if (next === confirm) {
+      hintEl.textContent = uiT("passwordMatchOk");
+      hintEl.classList.add("is-ok");
+      hintEl.classList.remove("is-error");
+      return;
+    }
+    hintEl.textContent = uiT("passwordMatchFail");
+    hintEl.classList.add("is-error");
+    hintEl.classList.remove("is-ok");
+  };
+  newPasswordEl.addEventListener("input", updateHint);
+  confirmPasswordEl.addEventListener("input", updateHint);
+}
+
+let accountSettingsUiReady = false;
+
+function initAccountSettingsUi() {
+  if (!window.__passwordFieldsEnhanced) {
+    window.__passwordFieldsEnhanced = true;
+    enhancePasswordFields(document);
+  }
+  wirePasswordMatchValidation();
+
+  const passwordForm = document.querySelector("#passwordForm");
+  if (passwordForm && passwordForm.dataset.bound !== "1") {
+    passwordForm.dataset.bound = "1";
+    passwordForm.addEventListener("submit", handlePasswordChange);
+  }
+
+  const accountForm = document.querySelector("#accountForm");
+  if (accountForm && accountForm.dataset.bound !== "1") {
+    accountForm.dataset.bound = "1";
+    accountForm.addEventListener("submit", handleAccountUpdate);
+  }
+
+  accountSettingsUiReady = true;
+}
+
 function populateAccountForm() {
   if (!state.currentUser) return;
   const displayNameEl = document.querySelector("#accountDisplayName");
@@ -33024,6 +33181,10 @@ function accountUpdateErrorMessage(error) {
 
 async function handleAccountUpdate(event) {
   event.preventDefault();
+  const form = event.currentTarget;
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  const feedbackEl = document.querySelector("#accountFormFeedback");
+  setAccountFormFeedback(feedbackEl, "", "info");
   if (isSupportReadOnlyMode()) {
     showSupportReadOnlyAlert();
     return;
@@ -33032,14 +33193,28 @@ async function handleAccountUpdate(event) {
   const name = String(document.querySelector("#accountDisplayName")?.value || "").trim();
   const currentPassword = document.querySelector("#accountCurrentPassword")?.value || "";
   if (!currentPassword) {
+    setAccountFormFeedback(feedbackEl, uiT("accountPasswordRequired"), "error");
     showToast(uiT("accountPasswordRequired"), "error");
     return;
   }
   if (!username) {
+    setAccountFormFeedback(feedbackEl, uiT("alertInvalidUsername"), "error");
     showToast(uiT("alertInvalidUsername"), "error");
     return;
   }
 
+  const currentUsername = String(state.currentUser?.username || "").trim().toLowerCase();
+  const currentName = String(state.currentUser?.name || "").trim();
+  if (username === currentUsername && name === currentName) {
+    setAccountFormFeedback(feedbackEl, uiT("accountNoChanges"), "info");
+    showToast(uiT("accountNoChanges"), "info");
+    return;
+  }
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.dataset.busy = "1";
+  }
   try {
     const result = await apiRequest(buildApiUrl("/api/me/account"), {
       method: "PUT",
@@ -33050,54 +33225,99 @@ async function handleAccountUpdate(event) {
     }
     const confirmField = document.querySelector("#accountCurrentPassword");
     if (confirmField) confirmField.value = "";
+    setAccountFormFeedback(feedbackEl, uiT("alertAccountUpdated"), "success");
     showToast(uiT("alertAccountUpdated"), "success");
     refreshAll();
   } catch (error) {
-    showToast(accountUpdateErrorMessage(error), "error", 3600);
+    const message = accountUpdateErrorMessage(error);
+    if (String(error?.message || error || "").includes("support_session_read_only")) {
+      showSupportReadOnlyAlert();
+      return;
+    }
+    setAccountFormFeedback(feedbackEl, message, "error");
+    showToast(message, "error", 3600);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      delete submitBtn.dataset.busy;
+    }
   }
 }
 
 async function handlePasswordChange(event) {
   event.preventDefault();
+  const form = event.currentTarget;
+  const submitBtn = form?.querySelector('button[type="submit"]');
+  const feedbackEl = document.querySelector("#passwordFormFeedback");
+  setAccountFormFeedback(feedbackEl, "", "info");
   if (isSupportReadOnlyMode()) {
     showSupportReadOnlyAlert();
-    return;
-  }
-  const form = event.currentTarget;
-  if (form && typeof form.reportValidity === "function" && !form.reportValidity()) {
-    showToast("Bitte alle Felder korrekt ausfüllen (neues Passwort mind. 8 Zeichen).", "error");
     return;
   }
   const currentPassword = document.querySelector("#currentPassword")?.value || "";
   const newPassword = document.querySelector("#newPassword")?.value || "";
   const confirmPassword = document.querySelector("#confirmPassword")?.value || "";
+  if (!currentPassword) {
+    setAccountFormFeedback(feedbackEl, uiT("accountPasswordRequired"), "error");
+    showToast(uiT("accountPasswordRequired"), "error");
+    return;
+  }
   if (newPassword.length < 8) {
-    showToast(runtimeText("companyAdminPasswordMinLength"), "error");
+    const message = runtimeText("companyAdminPasswordMinLength");
+    setAccountFormFeedback(feedbackEl, message, "error");
+    showToast(message, "error");
     return;
   }
   if (newPassword !== confirmPassword) {
-    showToast(runtimeText("passwordSetDialogMismatch"), "error");
+    const message = runtimeText("passwordSetDialogMismatch");
+    setAccountFormFeedback(feedbackEl, message, "error");
+    showToast(message, "error");
     return;
   }
 
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.dataset.busy = "1";
+  }
   try {
     await apiRequest(buildApiUrl("/api/me/password"), {
       method: "POST",
       body: { currentPassword, newPassword },
     });
+    form.reset();
+    const hintEl = document.querySelector("#passwordMatchHint");
+    if (hintEl) {
+      hintEl.textContent = "";
+      hintEl.classList.remove("is-ok", "is-error");
+    }
+    setAccountFormFeedback(feedbackEl, uiT("alertPasswordChanged"), "success");
     showToast(uiT("alertPasswordChanged"), "success");
     await handleLogout();
   } catch (error) {
     const code = String(error?.message || error || "").trim();
+    if (code === "support_session_read_only") {
+      showSupportReadOnlyAlert();
+      return;
+    }
     if (code === "invalid_current_password") {
+      setAccountFormFeedback(feedbackEl, uiT("alertInvalidCurrentPassword"), "error");
       showToast(uiT("alertInvalidCurrentPassword"), "error", 3600);
       return;
     }
     if (code === "password_too_short") {
-      showToast(runtimeText("companyAdminPasswordMinLength"), "error");
+      const message = runtimeText("companyAdminPasswordMinLength");
+      setAccountFormFeedback(feedbackEl, message, "error");
+      showToast(message, "error");
       return;
     }
-    showToast(uiT("alertPasswordChangeFailed").replace("{error}", code), "error", 3600);
+    const message = uiT("alertPasswordChangeFailed").replace("{error}", code);
+    setAccountFormFeedback(feedbackEl, message, "error");
+    showToast(message, "error", 3600);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      delete submitBtn.dataset.busy;
+    }
   }
 }
 
@@ -36834,15 +37054,7 @@ if (elements.bulkDeleteButton) {
   });
 }
 
-const passwordForm = document.querySelector("#passwordForm");
-if (passwordForm) {
-  passwordForm.addEventListener("submit", handlePasswordChange);
-}
-
-const accountForm = document.querySelector("#accountForm");
-if (accountForm) {
-  accountForm.addEventListener("submit", handleAccountUpdate);
-}
+initAccountSettingsUi();
 
 const imapTestBtn = document.querySelector("#imapTestBtn");
 if (imapTestBtn) {
@@ -37751,6 +37963,7 @@ function warnStaleControlAssets() {
 initUiLanguageControl();
 initSystemThemeControl();
 registerControlServiceWorker();
+wireInstalledPwaNavigation();
 initNativeDesktopShell();
 warnBrowserZoom();
 warnStaleControlAssets();

@@ -1533,6 +1533,68 @@
       </section>
 
       <section class="view" data-view="admin">
+        <article class="panel admin-account-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="eyebrow" data-ui-i18n="accountEyebrow">Konto</p>
+              <h3 data-ui-i18n="accountPanelH3">Mein Admin-Konto</h3>
+            </div>
+          </div>
+          <p class="helper-text admin-account-lead" data-ui-i18n="accountPanelLead">Benutzername, Anzeigename und Passwort zentral verwalten.</p>
+          <div class="admin-account-grid">
+            <div class="admin-account-col">
+              <h4 class="admin-account-subtitle" data-ui-i18n="accountProfileH3">Anmeldedaten</h4>
+              <p class="helper-text" data-ui-i18n="accountProfileHint">Benutzername und Anzeigename ändern — aktuelles Passwort zur Bestätigung nötig.</p>
+              <form id="accountForm" class="form-grid compact-grid" novalidate>
+                <label>
+                  <span data-ui-i18n="labelDisplayName">Anzeigename</span>
+                  <input id="accountDisplayName" type="text" maxlength="120" autocomplete="name" />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelUsername">Benutzername (Login)</span>
+                  <input id="accountUsername" type="text" maxlength="64" autocomplete="username" autocapitalize="none" spellcheck="false" />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelAccountConfirmPassword">Aktuelles Passwort (Bestätigung)</span>
+                  <input id="accountCurrentPassword" type="password" autocomplete="current-password" />
+                </label>
+                <p id="accountFormFeedback" class="account-form-feedback" role="status" aria-live="polite"></p>
+                <button type="submit" class="ghost-button full-width" data-ui-i18n="btnSaveAccount">Anmeldedaten speichern</button>
+              </form>
+            </div>
+            <div class="admin-account-col">
+              <h4 class="admin-account-subtitle" data-ui-i18n="accountH3">Passwort ändern</h4>
+              <p class="helper-text" data-ui-i18n="accountPasswordHint">Hier ändern Sie Ihr persönliches Login-Passwort.</p>
+              <form id="passwordForm" class="form-grid compact-grid" novalidate>
+                <label>
+                  <span data-ui-i18n="labelCurrentPassword">Aktuelles Passwort</span>
+                  <input id="currentPassword" type="password" autocomplete="current-password" />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelNewPassword">Neues Passwort</span>
+                  <input id="newPassword" type="password" minlength="8" autocomplete="new-password" />
+                </label>
+                <label>
+                  <span data-ui-i18n="labelConfirmPassword">Neues Passwort bestätigen</span>
+                  <input id="confirmPassword" type="password" minlength="8" autocomplete="new-password" />
+                </label>
+                <p id="passwordMatchHint" class="password-match-hint" aria-live="polite"></p>
+                <p id="passwordFormFeedback" class="account-form-feedback" role="status" aria-live="polite"></p>
+                <button type="submit" class="ghost-button full-width" data-ui-i18n="btnChangePassword">Passwort ändern</button>
+              </form>
+            </div>
+          </div>
+          <div class="admin-account-security">
+            <div class="panel-heading compact-heading">
+              <div>
+                <p class="eyebrow" data-ui-i18n="tfaEyebrow">Zwei-Faktor</p>
+                <h4 data-ui-i18n="tfaH3">2FA Verwaltung</h4>
+              </div>
+            </div>
+            <div id="twofaPanel" class="card-item"></div>
+          </div>
+        </article>
+
         <div class="panel-grid two-columns">
           <article class="panel">
             <div data-superadmin-only>
@@ -2075,66 +2137,6 @@
 
             <div class="panel-heading">
               <div>
-                <p class="eyebrow" data-ui-i18n="accountEyebrow">Konto</p>
-                <h3 data-ui-i18n="accountProfileH3">Anmeldedaten</h3>
-              </div>
-            </div>
-            <p class="helper-text" data-ui-i18n="accountProfileHint">Benutzername und Anzeigename ändern — aktuelles Passwort zur Bestätigung nötig.</p>
-            <form id="accountForm" class="form-grid compact-grid">
-              <label>
-                <span data-ui-i18n="labelDisplayName">Anzeigename</span>
-                <input id="accountDisplayName" type="text" maxlength="120" autocomplete="name" />
-              </label>
-              <label>
-                <span data-ui-i18n="labelUsername">Benutzername (Login)</span>
-                <input id="accountUsername" type="text" maxlength="64" autocomplete="username" autocapitalize="none" spellcheck="false" />
-              </label>
-              <label>
-                <span data-ui-i18n="labelAccountConfirmPassword">Aktuelles Passwort (Bestätigung)</span>
-                <input id="accountCurrentPassword" type="password" required autocomplete="current-password" />
-              </label>
-              <button type="submit" class="ghost-button full-width" data-ui-i18n="btnSaveAccount">Anmeldedaten speichern</button>
-            </form>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow" data-ui-i18n="accountEyebrow">Konto</p>
-                <h3 data-ui-i18n="accountH3">Passwort ändern</h3>
-              </div>
-            </div>
-            <p class="helper-text" data-ui-i18n="accountPasswordHint">Hier ändern Sie Ihr persönliches Login-Passwort.</p>
-            <form id="passwordForm" class="form-grid compact-grid">
-              <label>
-                <span data-ui-i18n="labelCurrentPassword">Aktuelles Passwort</span>
-                <input id="currentPassword" type="password" required autocomplete="current-password" />
-              </label>
-              <label>
-                <span data-ui-i18n="labelNewPassword">Neues Passwort</span>
-                <input id="newPassword" type="password" minlength="8" required autocomplete="new-password" />
-              </label>
-              <label>
-                <span data-ui-i18n="labelConfirmPassword">Neues Passwort bestätigen</span>
-                <input id="confirmPassword" type="password" minlength="8" required autocomplete="new-password" />
-              </label>
-              <button type="submit" class="ghost-button full-width" data-ui-i18n="btnChangePassword">Passwort ändern</button>
-            </form>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow" data-ui-i18n="tfaEyebrow">Zwei-Faktor</p>
-                <h3 data-ui-i18n="tfaH3">2FA Verwaltung</h3>
-              </div>
-            </div>
-            <div id="twofaPanel" class="card-item"></div>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
                 <p class="eyebrow" data-ui-i18n="ttsEyebrow">Sprachausgabe</p>
                 <h3 data-ui-i18n="ttsH3">Verfügbare TTS-Stimmen</h3>
               </div>
@@ -2377,7 +2379,7 @@
   <script src="./usage-tracker.js?v=20260624usage2"></script>
   <script src="./enterprise-shell-i18n.js?v=20260621enterprise8"></script>
   <script src="./app-i18n-extra-langs.js?v=20260622i18nfull"></script>
-  <script src="./app.js?v=20260624handover1"></script>
+  <script src="./app.js?v=20260630g"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

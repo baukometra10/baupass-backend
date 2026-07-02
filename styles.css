@@ -6501,6 +6501,119 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   color: #991b1b;
 }
 
+.admin-account-panel {
+  margin-bottom: 18px;
+}
+
+.admin-account-lead {
+  margin: 0 0 14px;
+}
+
+.admin-account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
+.admin-account-col {
+  padding: 16px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.admin-account-subtitle {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+}
+
+.admin-account-security {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.24);
+}
+
+.compact-heading {
+  margin-bottom: 8px;
+}
+
+.password-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.password-field-wrap input[type="password"],
+.password-field-wrap input[type="text"] {
+  width: 100%;
+  padding-right: 2.8rem;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2rem;
+  height: 2rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.password-toggle-btn:hover,
+.password-toggle-btn:focus-visible {
+  color: #0f172a;
+  background: rgba(148, 163, 184, 0.18);
+  outline: none;
+}
+
+.password-toggle-btn.is-visible {
+  color: #0f766e;
+}
+
+.password-eye-icon {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.password-match-hint,
+.account-form-feedback {
+  min-height: 1.2rem;
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.password-match-hint.is-ok,
+.account-form-feedback.is-success {
+  color: #166534;
+}
+
+.password-match-hint.is-error,
+.account-form-feedback.is-error {
+  color: #b91c1c;
+}
+
+.account-form-feedback.is-info {
+  color: #475569;
+}
+
+html.pwa-installed .enterprise-embed-toolbar a[target="_blank"]:not([data-pwa-external="1"]) {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .admin-account-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .app-toast {
   position: fixed;
   left: 50%;
