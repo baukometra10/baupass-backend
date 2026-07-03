@@ -95,8 +95,10 @@ const SITE_GEOFENCE_WATCH_INTERVAL_MS = 5000;
 const SITE_OFF_SITE_STRIKES_REQUIRED = 1;
 const SITE_GEOFENCE_LEAVE_GUARD_MS = 30000;
 const DEPLOYMENT_API_TIMEOUT_MS = 25000;
-const PROXIMITY_LOGIN_POLL_MS = 10000;
+const PROXIMITY_LOGIN_POLL_MS = 15000;
 const PROXIMITY_LOGIN_DWELL_MS = 15000;
+const PROXIMITY_HINT_CACHE_MS = 5 * 60 * 1000;
+const PROXIMITY_HINT_LOCATION_GRID = 500; // ~500m cache grid for location hints
 const RETIRED_WORKER_API_HOSTS = new Set([
   "baupass-control.up.railway.app",
   "baupass-production.up.railway.app",
@@ -456,7 +458,7 @@ const WORKER_JWT_KEY = WP?.KEYS?.WORKER_JWT || "workpass-worker-jwt";
 const WORKER_DEVICE_ID_KEY = WP?.KEYS?.WORKER_DEVICE_ID || "workpass-worker-device-id";
 const WORKER_DEVICE_FP_KEY = WP?.KEYS?.WORKER_DEVICE_FP || "workpass-worker-device-fp";
 const WORKER_LANG_KEY = WP?.KEYS?.WORKER_LANG || "workpass-worker-lang";
-const WORKER_INACTIVITY_TIMEOUT_MS = 60 * 1000;
+const WORKER_INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
 const WORKER_PASS_LOCK_TIMEOUT_MS = 2 * 60 * 1000;
 const WORKER_THEME_KEY = WP?.KEYS?.WORKER_THEME || "workpass-worker-theme";
 const WORKER_DAY_PLANNER_KEY = WP?.KEYS?.WORKER_DAY_PLANNER || "workpass-worker-day-planner";
@@ -1702,6 +1704,7 @@ let proximityLoginInProgress = false;
 let proximityLoginNoticeShownAt = 0;
 let proximitySiteHintCache = null;
 let proximitySiteHintCacheBadgeId = "";
+let proximityRateLimitedUntil = 0;
 let pinLockEnabled = false; // Wird vom Backend gesetzt
 let isPassLocked = false; // Aktueller Status
 let lastPassInteractionAt = Date.now();
@@ -3254,6 +3257,9 @@ function bindEvents() {
   window.addEventListener("offline", updateConnectionState);
   window.addEventListener("pointerdown", unlockHaptic, { passive: true });
   window.addEventListener("touchstart", unlockHaptic, { passive: true });
+  window.addEventListener("pointerdown", markUserInteraction, { passive: true });
+  window.addEventListener("touchstart", markUserInteraction, { passive: true });
+  window.addEventListener("click", markUserInteraction, { passive: true });
   window.addEventListener("keydown", markUserInteraction, { passive: true });
   window.addEventListener("scroll", markUserInteraction, { passive: true });
   document.addEventListener("visibilitychange", () => {
@@ -5267,6 +5273,13 @@ function hideWorkerNotice() {
 // ═════════════════════════════════════════════════════════════════════
 
 function initializeSessionInactivityProtection() {
+  if (!workerToken && !offlineWorkerSessionActive) {
+    if (inactivityCheckInterval) {
+      clearInterval(inactivityCheckInterval);
+      inactivityCheckInterval = null;
+    }
+    return;
+  }
   // Stoppe jeden existierenden Timer
   if (inactivityCheckInterval) {
     clearInterval(inactivityCheckInterval);
@@ -5284,7 +5297,7 @@ function initializeSessionInactivityProtection() {
     }
   }, 5 * 1000);
 
-  console.log("✓ Session protection: 60s Inaktivitäts-Monitor gestartet");
+  console.log("✓ Session protection: 3min Inaktivitäts-Monitor gestartet");
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -5432,8 +5445,11 @@ async function finalizeWorkerLogoutSession(tokenForRevoke, cfg) {
           body: JSON.stringify({ location: locationPayload }),
         });
       }
-    } catch {
-      // best-effort; backend logout still records app-logout when needed
+    } catch (error) {
+      const quietSiteLeave = new Set(["still_on_site", "worker_geolocation_required", "not_site_app_mode"]);
+      if (!quietSiteLeave.has(error?.code)) {
+        // best-effort; backend logout still records app-logout when needed
+      }
     }
   }
   fetchJson(`${API_BASE}/logout`, {
@@ -6828,14 +6844,20 @@ async function fetchProximitySiteHint(badgeId, locationPayload = null) {
   if (!normalizedBadgeId) {
     return null;
   }
-  const cacheKey = locationPayload
-    ? `${normalizedBadgeId}:${Math.round(Number(locationPayload.latitude) * 1000)}:${Math.round(Number(locationPayload.longitude) * 1000)}`
+  if (proximityRateLimitedUntil && Date.now() < proximityRateLimitedUntil) {
+    return proximitySiteHintCache;
+  }
+  const locationGridKey = locationPayload
+    ? `${Math.round(Number(locationPayload.latitude) * PROXIMITY_HINT_LOCATION_GRID) / PROXIMITY_HINT_LOCATION_GRID}:${Math.round(Number(locationPayload.longitude) * PROXIMITY_HINT_LOCATION_GRID) / PROXIMITY_HINT_LOCATION_GRID}`
+    : "";
+  const cacheKey = locationGridKey
+    ? `${normalizedBadgeId}:${locationGridKey}`
     : normalizedBadgeId;
   if (
     proximitySiteHintCache
     && proximitySiteHintCacheBadgeId === cacheKey
     && proximitySiteHintCache.fetchedAt
-    && Date.now() - proximitySiteHintCache.fetchedAt < 5 * 60 * 1000
+    && Date.now() - proximitySiteHintCache.fetchedAt < PROXIMITY_HINT_CACHE_MS
   ) {
     return proximitySiteHintCache;
   }
@@ -6852,8 +6874,13 @@ async function fetchProximitySiteHint(badgeId, locationPayload = null) {
     proximitySiteHintCache = { ...hint, fetchedAt: Date.now() };
     proximitySiteHintCacheBadgeId = cacheKey;
     return proximitySiteHintCache;
-  } catch {
-    return null;
+  } catch (error) {
+    if (error?.code === "rate_limited" || error?.status === 429) {
+      const retrySec = Number(error?.payload?.retryAfterSeconds || 60);
+      proximityRateLimitedUntil = Date.now() + Math.max(15, retrySec) * 1000;
+      stopProximityLoginWatcher();
+    }
+    return proximitySiteHintCache;
   }
 }
 
@@ -6975,6 +7002,9 @@ async function pollProximityLoginCandidate() {
   if (workerToken || proximityLoginInProgress || !navigator.onLine) {
     return;
   }
+  if (proximityRateLimitedUntil && Date.now() < proximityRateLimitedUntil) {
+    return;
+  }
   const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
   const badgePin = getStoredBadgePinForProximity();
   if (!badgeId || !badgePin) {
@@ -6982,37 +7012,40 @@ async function pollProximityLoginCandidate() {
     return;
   }
 
-  const siteHintBase = await fetchProximitySiteHint(badgeId);
-  const hintCfg = siteAccessCfgFromHint(siteHintBase);
-  if (siteHintBase && siteHintBase.siteAutoProximityLogin === false) {
-    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase.locationPreview });
+  const locationPayload = await resolveSiteLocation({ preferFast: false });
+  const siteHint = (await fetchProximitySiteHint(badgeId, locationPayload))
+    || (await fetchProximitySiteHint(badgeId));
+  if (!siteHint) {
+    return;
+  }
+  const hintCfg = siteAccessCfgFromHint(siteHint);
+  if (siteHint.siteAutoProximityLogin === false) {
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHint.locationPreview });
     stopProximityLoginWatcher();
     return;
   }
-  if (siteHintBase && String(siteHintBase.accessMode || "").toLowerCase() !== "site_app") {
-    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase.locationPreview });
+  if (String(siteHint.accessMode || "").toLowerCase() !== "site_app") {
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHint.locationPreview });
     stopProximityLoginWatcher();
     return;
   }
-  if (siteHintBase && !shouldAllowProximityAutoLogin(siteHintBase)) {
+  if (!shouldAllowProximityAutoLogin(siteHint)) {
     updateSiteGpsStatusBar({
       cfg: hintCfg,
-      preview: siteHintBase.locationPreview,
+      preview: siteHint.locationPreview,
       phase: "attendance-blocked",
-      blockedMessage: proximityAttendanceBlockedMessage(siteHintBase),
+      blockedMessage: proximityAttendanceBlockedMessage(siteHint),
     });
     stopProximityLoginWatcher();
     return;
   }
 
-  const locationPayload = await resolveSiteLocation({ preferFast: false });
   if (!locationPayload) {
     proximityInsideSince = 0;
-    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHintBase?.locationPreview });
+    updateSiteGpsStatusBar({ cfg: hintCfg, preview: siteHint?.locationPreview });
     return;
   }
 
-  const siteHint = (await fetchProximitySiteHint(badgeId, locationPayload)) || siteHintBase;
   let inside = null;
   const preview = siteHint?.locationPreview;
   if (preview && typeof preview.onSite === "boolean") {
@@ -7084,6 +7117,12 @@ async function pollProximityLoginCandidate() {
     void ensureWorkerPushNotifications({ promptIfNeeded: false });
   } catch (error) {
     proximityInsideSince = 0;
+    if (error?.code === "rate_limited") {
+      const retrySec = Number(error?.payload?.retryAfterSeconds || 60);
+      proximityRateLimitedUntil = Date.now() + Math.max(15, retrySec) * 1000;
+      stopProximityLoginWatcher();
+      return;
+    }
     const quietCodes = new Set([
       "not_scheduled_today",
       "on_approved_leave",
@@ -7352,7 +7391,10 @@ async function handleSiteLeaveDetected() {
       body: JSON.stringify({ location: locationPayload }),
     });
   } catch (error) {
-    console.warn("[site-leave]", error);
+    const quietSiteLeave = new Set(["still_on_site", "worker_geolocation_required", "not_site_app_mode"]);
+    if (!quietSiteLeave.has(error?.code)) {
+      console.warn("[site-leave]", error);
+    }
   } finally {
     clearTimeout(leaveGuard);
     siteGeofenceLeaveInProgress = false;
@@ -7648,7 +7690,8 @@ async function fetchJson(url, options = {}) {
       message = t("connError");
     }
     const error = new Error(message);
-    error.code = code;
+    error.code = code || (response.status === 429 ? "rate_limited" : "");
+    error.status = response.status;
     error.payload = payload;
     if (isWorkerProtectedApiUrl(url) && isWorkerSessionAuthError(code)) {
       if (!shouldKeepWorkerShellAfterSyncError({ code })) {

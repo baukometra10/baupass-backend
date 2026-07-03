@@ -13552,7 +13552,7 @@ def worker_app_proximity_login():
         }), 500
 
 
-@require_rate_limit("worker_login")
+@require_rate_limit("worker_api")
 def worker_app_proximity_site_hint():
     """Public site zones for badge-based proximity pre-check (no session required)."""
     payload = request.get_json(silent=True) or {}
