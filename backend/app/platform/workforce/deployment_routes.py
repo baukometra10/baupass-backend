@@ -354,6 +354,31 @@ def register_workforce_blueprint(flask_app) -> None:
             )
         )
 
+    @workforce_bp.post("/workforce/deployment-decline/acknowledge")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("scheduling")
+    def deployment_decline_acknowledge():
+        from .deployment_responses import acknowledge_deployment_decline
+
+        cid = _company_id()
+        body = request.get_json(silent=True) or {}
+        worker_id = str(body.get("workerId") or body.get("worker_id") or "").strip()
+        work_date = str(body.get("workDate") or body.get("work_date") or "").strip()
+        if not cid or not worker_id or not work_date:
+            return jsonify({"error": "company_id_worker_id_and_work_date_required"}), 400
+        user = g.current_user
+        payload, err = acknowledge_deployment_decline(
+            get_db(),
+            company_id=cid,
+            worker_id=worker_id,
+            work_date=work_date,
+            user_id=str(user.get("id") or user.get("username") or ""),
+        )
+        if err:
+            return jsonify(err[0]), err[1]
+        return jsonify(payload)
+
     @workforce_bp.get("/workforce/deployment-month")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -369,11 +394,16 @@ def register_workforce_blueprint(flask_app) -> None:
         batch = get_month_batch(db, cid, year, month)
         workers = worker_month_summary(db, cid, year, month)
         ready_count = sum(1 for w in workers if w.get("ready"))
-        declined_day_count = sum(int(w.get("declinedDayCount") or 0) for w in workers)
-        from .deployment_responses import list_company_declines_for_month
+        from .deployment_responses import (
+            count_unacknowledged_declines_for_month,
+            list_company_declines_for_month,
+        )
 
+        declined_day_count = count_unacknowledged_declines_for_month(
+            db, company_id=cid, year=year, month=month
+        )
         recent_declines = list_company_declines_for_month(
-            db, company_id=cid, year=year, month=month, limit=30
+            db, company_id=cid, year=year, month=month, limit=30, unacknowledged_only=True
         )
         return jsonify(
             {

@@ -9419,6 +9419,7 @@ let pendingFocusCompanies = false;
 let pendingHubUpgradePlan = "";
 let pendingDeploymentOpenWorkerId = null;
 let pendingDeploymentOpenWorkerName = null;
+let pendingDeploymentOpenWorkDate = null;
 let enterpriseNavDelegationBound = false;
 
 const PLAN_FEATURES = {
@@ -18574,6 +18575,7 @@ function scheduleAdminV2EinsatzplanFocus() {
   }
   const workerId = pendingDeploymentOpenWorkerId;
   const workerName = pendingDeploymentOpenWorkerName;
+  const workDate = pendingDeploymentOpenWorkDate;
   const send = () => {
     try {
       iframe.contentWindow?.postMessage(
@@ -18582,6 +18584,7 @@ function scheduleAdminV2EinsatzplanFocus() {
           companyId: getEffectiveUiCompanyId(),
           workerId: workerId || undefined,
           workerName: workerName || undefined,
+          workDate: workDate || undefined,
         },
         window.location.origin,
       );
@@ -18625,6 +18628,7 @@ function broadcastSessionClearToEmbeds() {
 function requestEinsatzplanEditor(options = {}) {
   pendingDeploymentOpenWorkerId = String(options.workerId || "").trim() || null;
   pendingDeploymentOpenWorkerName = String(options.workerName || "").trim() || null;
+  pendingDeploymentOpenWorkDate = String(options.workDate || "").trim().slice(0, 10) || null;
   if (!token || !state.currentUser) {
     refreshAll();
     showToast(
@@ -18657,10 +18661,12 @@ function requestEinsatzplanEditor(options = {}) {
     const afterLoad = () => {
       const wid = pendingDeploymentOpenWorkerId;
       const wname = pendingDeploymentOpenWorkerName;
+      const wdate = pendingDeploymentOpenWorkDate;
       pendingDeploymentOpenWorkerId = null;
       pendingDeploymentOpenWorkerName = null;
+      pendingDeploymentOpenWorkDate = null;
       if (wid && globalThis.BaupassDeploymentPlan?.openWorker) {
-        globalThis.BaupassDeploymentPlan.openWorker(wid, wname || "");
+        globalThis.BaupassDeploymentPlan.openWorker(wid, wname || "", wdate || "");
         return;
       }
       globalThis.BaupassDeploymentPlan?.scrollToWorkers?.();
@@ -19071,14 +19077,14 @@ function renderDeploymentDeclinesBannerEl(bannerEl, state) {
     bannerEl.innerHTML = "";
     return;
   }
-  const items = (state.recentDeclines || [])
-    .slice(0, 6)
+  const declines = (state.recentDeclines || []).slice(0, 6);
+  const items = declines
     .map((item) => {
       const name = escapeHtml(String(item.workerName || item.workerId || "—"));
       const date = escapeHtml(String(item.workDate || "").slice(0, 10));
       const loc = escapeHtml(String(item.location || "—"));
       const reason = escapeHtml(String(item.reason || "").trim());
-      return `<li><strong>${name}</strong> · ${date} · ${loc}${reason ? ` — ${reason}` : ""}</li>`;
+      return `<li class="deployment-decline-clickable" role="button" tabindex="0"><strong>${name}</strong> · ${date} · ${loc}${reason ? ` — ${reason}` : ""}</li>`;
     })
     .join("");
   bannerEl.innerHTML = `
@@ -19090,6 +19096,43 @@ function renderDeploymentDeclinesBannerEl(bannerEl, state) {
     </div>`;
   bannerEl.classList.remove("hidden");
   bannerEl.querySelector("[data-view='deployment-plan']")?.addEventListener("click", () => setView("deployment-plan"));
+  bannerEl.querySelectorAll(".deployment-decline-clickable").forEach((li, idx) => {
+    const item = declines[idx];
+    if (!item?.workerId) return;
+    const openDecline = () => {
+      void acknowledgeDashboardDeploymentDecline(item).catch((err) => {
+        showToast(err?.message || String(err), "error", 6000);
+      });
+    };
+    li.addEventListener("click", openDecline);
+    li.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openDecline();
+      }
+    });
+  });
+}
+
+async function acknowledgeDashboardDeploymentDecline(item) {
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  const q =
+    role === "superadmin" && getEffectiveUiCompanyId()
+      ? `?company_id=${encodeURIComponent(getEffectiveUiCompanyId())}`
+      : "";
+  await apiRequest(`${API_BASE}/api/workforce/deployment-decline/acknowledge${q}`, {
+    method: "POST",
+    body: JSON.stringify({
+      workerId: item.workerId,
+      workDate: String(item.workDate || "").slice(0, 10),
+    }),
+  });
+  requestEinsatzplanEditor({
+    workerId: item.workerId,
+    workerName: item.workerName || item.workerId,
+    workDate: item.workDate,
+  });
+  void refreshDashboardDeploymentDeclines();
 }
 
 async function refreshDashboardDeploymentDeclines() {
@@ -35721,6 +35764,7 @@ window.addEventListener("message", (event) => {
     requestEinsatzplanEditor({
       workerId: event.data.workerId,
       workerName: event.data.workerName,
+      workDate: event.data.workDate,
     });
     return;
   }

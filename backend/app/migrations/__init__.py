@@ -1213,6 +1213,18 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="034",
+        name="worker_deployment_day_responses_admin_ack",
+        up_sql="""
+            ALTER TABLE worker_deployment_day_responses ADD COLUMN admin_acknowledged_at TEXT;
+            ALTER TABLE worker_deployment_day_responses ADD COLUMN admin_acknowledged_by TEXT;
+        """,
+        down_sql="""
+            -- SQLite cannot drop columns in older builds; no-op downgrade.
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

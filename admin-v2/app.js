@@ -351,6 +351,7 @@ window.addEventListener("message", (event) => {
     pendingEinsatzplanFocus = true;
     pendingDeploymentWorkerId = String(event.data.workerId || "").trim() || null;
     pendingDeploymentWorkerName = String(event.data.workerName || "").trim() || null;
+    pendingDeploymentWorkDate = String(event.data.workDate || "").trim().slice(0, 10) || null;
     if (!tryFocusEinsatzplanFromParent()) {
       bootSession().catch(() => {});
     }
@@ -395,6 +396,7 @@ let pendingIntegrationProvider = null;
 let pendingEinsatzplanFocus = false;
 let pendingDeploymentWorkerId = null;
 let pendingDeploymentWorkerName = null;
+let pendingDeploymentWorkDate = null;
 
 function tryFocusEinsatzplanFromParent() {
   if ($("dashboardView")?.classList.contains("hidden")) {
@@ -403,8 +405,10 @@ function tryFocusEinsatzplanFromParent() {
   pendingEinsatzplanFocus = false;
   const workerId = pendingDeploymentWorkerId;
   const workerName = pendingDeploymentWorkerName;
+  const workDate = pendingDeploymentWorkDate;
   pendingDeploymentWorkerId = null;
   pendingDeploymentWorkerName = null;
+  pendingDeploymentWorkDate = null;
   activateCommandItem({
     tab: "workers",
     focusDeployment: true,
@@ -417,7 +421,7 @@ function tryFocusEinsatzplanFromParent() {
         workerName ||
         `${w?.firstName || w?.first_name || ""} ${w?.lastName || w?.last_name || ""}`.trim() ||
         workerId;
-      await openDeploymentModal(workerId, name);
+      await openDeploymentModal(workerId, name, workDate);
     })
     .catch(notifyTabError);
   return true;
@@ -1468,7 +1472,7 @@ function renderDeploymentDaysList() {
   wireDeploymentDayRowActions();
 }
 
-async function openDeploymentModal(workerId, workerName) {
+async function openDeploymentModal(workerId, workerName, focusWorkDate) {
   deploymentModalWorkerId = workerId;
   $("deploymentModalWorker").textContent = workerName;
   const now = new Date();
@@ -1480,7 +1484,49 @@ async function openDeploymentModal(workerId, workerName) {
     window.setTimeout(() => scrollHost.focus({ preventScroll: true }), 50);
   }
   await reloadDeploymentPlan();
-  if (scrollHost) scrollHost.scrollTop = 0;
+  if (focusWorkDate) {
+    window.setTimeout(() => scrollDeploymentModalToDate(focusWorkDate), 80);
+  } else if (scrollHost) {
+    scrollHost.scrollTop = 0;
+  }
+}
+
+function scrollDeploymentModalToDate(workDate) {
+  const iso = String(workDate || "").slice(0, 10);
+  if (!iso) return;
+  const host = $("deploymentDaysList");
+  const scrollHost = $("deploymentModalScroll");
+  const idx = deploymentModalDays.findIndex((d) => String(d.date || "").slice(0, 10) === iso);
+  if (idx < 0 || !host) return;
+  const row = host.querySelector(`[data-dep-idx="${idx}"]`);
+  if (!row) return;
+  row.classList.add("deployment-day-highlight");
+  window.setTimeout(() => row.classList.remove("deployment-day-highlight"), 3200);
+  if (scrollHost) {
+    const top = row.offsetTop - Math.max(0, (scrollHost.clientHeight - row.clientHeight) / 2);
+    scrollHost.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  } else {
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+  }
+}
+
+async function acknowledgeDeploymentDecline(item) {
+  const q = companyQuery();
+  await api(`/api/workforce/deployment-decline/acknowledge${q}`, {
+    method: "POST",
+    body: JSON.stringify({
+      workerId: item.workerId,
+      workDate: String(item.workDate || "").slice(0, 10),
+    }),
+  });
+}
+
+async function handleDeploymentDeclineClick(item) {
+  await acknowledgeDeploymentDecline(item);
+  const wname = String(item.workerName || item.workerId || "").trim();
+  const workDate = String(item.workDate || "").slice(0, 10);
+  await openDeploymentModal(item.workerId, wname, workDate);
+  await loadDeploymentMonthBar();
 }
 
 async function reloadDeploymentPlan() {
@@ -1723,6 +1769,10 @@ function bindDeploymentModalOnce() {
       body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month, lang: getLang().slice(0, 2) }),
     });
     showActionToast(res.ok ? t("deployment.send") + " ✓" : res.emailError || t("common.error"), !res.ok);
+    if (res.ok) {
+      await reloadDeploymentPlan();
+      await loadDeploymentMonthBar();
+    }
   });
   $("deploymentFromShifts")?.addEventListener("click", async () => {
     const q = companyQuery();
@@ -3585,15 +3635,15 @@ function renderDeploymentDeclinesBanner(state) {
     banner.setAttribute("role", "alert");
     bar.insertAdjacentElement("afterend", banner);
   }
-  const items = (state.recentDeclines || [])
-    .slice(0, 8)
+  const declines = (state.recentDeclines || []).slice(0, 8);
+  const items = declines
     .map((item) => {
       const name = escapeAttr(item.workerName || item.workerId || "—");
       const date = escapeAttr(String(item.workDate || "").slice(0, 10));
       const loc = escapeAttr(item.location || "—");
       const reason = escapeAttr(item.reason || "");
       const reasonPart = reason ? ` — ${reason}` : "";
-      return `<li><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
+      return `<li class="deployment-decline-clickable" role="button" tabindex="0"><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
     })
     .join("");
   banner.innerHTML = `
@@ -3602,13 +3652,18 @@ function renderDeploymentDeclinesBanner(state) {
       <p class="muted small">${escapeAttr(t("deployment.declinesBannerHint"))}</p>
       <ul class="deployment-declines-list">${items}</ul>
     </div>`;
-  banner.querySelectorAll(".deployment-declines-list li").forEach((li, idx) => {
-    const item = (state.recentDeclines || []).slice(0, 8)[idx];
+  banner.querySelectorAll(".deployment-decline-clickable").forEach((li, idx) => {
+    const item = declines[idx];
     if (!item?.workerId) return;
-    li.classList.add("deployment-decline-clickable");
-    li.addEventListener("click", () => {
-      const wname = String(item.workerName || item.workerId || "").trim();
-      openDeploymentModal(item.workerId, wname).catch((e) => showActionToast(e.message, true));
+    const openDecline = () => {
+      void handleDeploymentDeclineClick(item).catch((e) => showActionToast(e.message, true));
+    };
+    li.addEventListener("click", openDecline);
+    li.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        openDecline();
+      }
     });
   });
 }

@@ -1,6 +1,7 @@
 """Worker responses to scheduled deployment days (decline / undo)."""
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from datetime import date, datetime, timezone
@@ -21,6 +22,27 @@ def _business_today() -> date:
         return datetime.now(timezone.utc).date()
 
 
+def _ensure_admin_ack_columns(db) -> None:
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(worker_deployment_day_responses)").fetchall()}
+    except Exception:
+        return
+    if "admin_acknowledged_at" not in cols:
+        try:
+            db.execute(
+                "ALTER TABLE worker_deployment_day_responses ADD COLUMN admin_acknowledged_at TEXT"
+            )
+        except Exception:
+            pass
+    if "admin_acknowledged_by" not in cols:
+        try:
+            db.execute(
+                "ALTER TABLE worker_deployment_day_responses ADD COLUMN admin_acknowledged_by TEXT"
+            )
+        except Exception:
+            pass
+
+
 def ensure_worker_deployment_day_responses_table(db) -> None:
     db.execute(
         """
@@ -32,6 +54,8 @@ def ensure_worker_deployment_day_responses_table(db) -> None:
             status TEXT NOT NULL DEFAULT 'declined',
             reason TEXT NOT NULL DEFAULT '',
             responded_at TEXT NOT NULL,
+            admin_acknowledged_at TEXT,
+            admin_acknowledged_by TEXT,
             UNIQUE(company_id, worker_id, work_date)
         )
         """
@@ -42,6 +66,7 @@ def ensure_worker_deployment_day_responses_table(db) -> None:
         ON worker_deployment_day_responses(company_id, worker_id, work_date)
         """
     )
+    _ensure_admin_ack_columns(db)
 
 
 def list_responses_for_month(
@@ -99,13 +124,20 @@ def list_company_declines_for_month(
     year: int,
     month: int,
     limit: int = 30,
+    unacknowledged_only: bool = True,
 ) -> list[dict[str, Any]]:
     from .deployment_store import month_bounds
 
+    ensure_worker_deployment_day_responses_table(db)
     start, end = month_bounds(year, month)
+    ack_filter = (
+        "AND (r.admin_acknowledged_at IS NULL OR r.admin_acknowledged_at = '')"
+        if unacknowledged_only
+        else ""
+    )
     try:
         rows = db.execute(
-            """
+            f"""
             SELECT r.work_date, r.reason, r.responded_at,
                    w.id AS worker_id, w.first_name, w.last_name, w.badge_id,
                    d.location_label
@@ -116,6 +148,7 @@ def list_company_declines_for_month(
              AND d.work_date = r.work_date
             WHERE r.company_id = ? AND r.status = 'declined'
               AND r.work_date >= ? AND r.work_date <= ?
+              {ack_filter}
             ORDER BY r.responded_at DESC
             LIMIT ?
             """,
@@ -137,6 +170,151 @@ def list_company_declines_for_month(
             }
         )
     return out
+
+
+def count_unacknowledged_declines_for_month(
+    db,
+    *,
+    company_id: str,
+    year: int,
+    month: int,
+) -> int:
+    from .deployment_store import month_bounds
+
+    ensure_worker_deployment_day_responses_table(db)
+    start, end = month_bounds(year, month)
+    try:
+        row = db.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM worker_deployment_day_responses
+            WHERE company_id = ? AND status = 'declined'
+              AND work_date >= ? AND work_date <= ?
+              AND (admin_acknowledged_at IS NULL OR admin_acknowledged_at = '')
+            """,
+            (str(company_id), start, end),
+        ).fetchone()
+        return int(row["c"] or 0) if row else 0
+    except Exception:
+        return 0
+
+
+def _resolve_deployment_decline_alerts(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    work_date: str,
+) -> None:
+    try:
+        rows = db.execute(
+            """
+            SELECT id, details FROM system_alerts
+            WHERE code = 'deployment_worker_declined' AND resolved_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 80
+            """
+        ).fetchall()
+    except Exception:
+        return
+    work_iso = str(work_date)[:10]
+    now = _now_iso()
+    for row in rows:
+        try:
+            details = json.loads(str(row["details"] or "{}"))
+        except Exception:
+            continue
+        if str(details.get("companyId") or "") != str(company_id):
+            continue
+        if str(details.get("workerId") or "") != str(worker_id):
+            continue
+        if str(details.get("workDate") or "")[:10] != work_iso:
+            continue
+        try:
+            db.execute(
+                "UPDATE system_alerts SET resolved_at = ? WHERE id = ?",
+                (now, row["id"]),
+            )
+        except Exception:
+            pass
+
+
+def acknowledge_deployment_decline(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    work_date: str,
+    user_id: str,
+) -> tuple[dict[str, Any] | None, tuple[Any, int] | None]:
+    ensure_worker_deployment_day_responses_table(db)
+    parsed = _parse_work_date(work_date)
+    if not parsed:
+        return None, ({"error": "invalid_date"}, 400)
+    work_iso = parsed.isoformat()
+    row = db.execute(
+        """
+        SELECT id, status FROM worker_deployment_day_responses
+        WHERE company_id = ? AND worker_id = ? AND work_date = ?
+        """,
+        (str(company_id), str(worker_id), work_iso),
+    ).fetchone()
+    if not row or str(row["status"] or "") != "declined":
+        return None, ({"error": "decline_not_found"}, 404)
+    now = _now_iso()
+    db.execute(
+        """
+        UPDATE worker_deployment_day_responses
+        SET admin_acknowledged_at = ?, admin_acknowledged_by = ?
+        WHERE company_id = ? AND worker_id = ? AND work_date = ?
+        """,
+        (now, str(user_id or ""), str(company_id), str(worker_id), work_iso),
+    )
+    _resolve_deployment_decline_alerts(
+        db,
+        company_id=str(company_id),
+        worker_id=str(worker_id),
+        work_date=work_iso,
+    )
+    db.commit()
+    try:
+        from backend.app.platform.inbox.events import notify_inbox_changed
+
+        notify_inbox_changed(str(company_id), source="deployment_decline_ack")
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "workerId": str(worker_id),
+        "workDate": work_iso,
+        "acknowledgedAt": now,
+    }, None
+
+
+def clear_worker_declines_for_month(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    year: int,
+    month: int,
+) -> int:
+    from .deployment_store import month_bounds
+
+    ensure_worker_deployment_day_responses_table(db)
+    start, end = month_bounds(year, month)
+    try:
+        cur = db.execute(
+            """
+            DELETE FROM worker_deployment_day_responses
+            WHERE company_id = ? AND worker_id = ? AND work_date >= ? AND work_date <= ?
+            """,
+            (str(company_id), str(worker_id), start, end),
+        )
+        db.commit()
+        return int(cur.rowcount or 0)
+    except Exception:
+        return 0
 
 
 def _parse_work_date(work_date: str) -> date | None:

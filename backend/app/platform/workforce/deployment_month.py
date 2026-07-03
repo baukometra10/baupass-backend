@@ -391,8 +391,23 @@ def send_worker_plan(
     except Exception:
         pass
 
+    sent_ok = ok or bool(document_id)
+    if sent_ok:
+        try:
+            from .deployment_responses import clear_worker_declines_for_month
+
+            clear_worker_declines_for_month(
+                db,
+                company_id=str(company_id),
+                worker_id=str(worker_id),
+                year=year,
+                month=month,
+            )
+        except Exception:
+            pass
+
     return {
-        "ok": ok or bool(document_id),
+        "ok": sent_ok,
         "workerId": worker_id,
         "email": to_email or None,
         "emailSent": ok,

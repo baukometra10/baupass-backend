@@ -127,15 +127,15 @@
       banner.innerHTML = "";
       return;
     }
-    const items = (state.recentDeclines || [])
-      .slice(0, 8)
+    const declines = (state.recentDeclines || []).slice(0, 8);
+    const items = declines
       .map((item) => {
         const name = escapeAttr(item.workerName || item.workerId || "—");
         const date = escapeAttr(String(item.workDate || "").slice(0, 10));
         const loc = escapeAttr(item.location || "—");
         const reason = escapeAttr(item.reason || "");
         const reasonPart = reason ? ` — ${reason}` : "";
-        return `<li><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
+        return `<li class="deployment-decline-clickable" role="button" tabindex="0"><strong>${name}</strong> · ${date} · ${loc}${reasonPart}</li>`;
       })
       .join("");
     banner.innerHTML = `
@@ -145,18 +145,60 @@
         <ul class="deployment-declines-list">${items}</ul>
       </div>`;
     banner.classList.remove("hidden");
-    const declines = (state.recentDeclines || []).slice(0, 8);
-    banner.querySelectorAll(".deployment-declines-list li").forEach((li, idx) => {
+    banner.querySelectorAll(".deployment-decline-clickable").forEach((li, idx) => {
       const item = declines[idx];
       if (!item?.workerId) return;
-      li.classList.add("deployment-decline-clickable");
-      li.addEventListener("click", () => {
-        const wname = String(item.workerName || item.workerId || "").trim();
-        openWorkerModal(item.workerId, wname).catch((e) =>
+      const openDecline = () => {
+        void handleDeploymentDeclineClick(item).catch((e) =>
           global.showToast?.(e.message, "error", 6000),
         );
+      };
+      li.addEventListener("click", openDecline);
+      li.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openDecline();
+        }
       });
     });
+  }
+
+  async function acknowledgeDeploymentDecline(item) {
+    const q = companyQuery();
+    await api(`/api/workforce/deployment-decline/acknowledge${q}`, {
+      method: "POST",
+      body: JSON.stringify({
+        workerId: item.workerId,
+        workDate: String(item.workDate || "").slice(0, 10),
+      }),
+    });
+  }
+
+  async function handleDeploymentDeclineClick(item) {
+    await acknowledgeDeploymentDecline(item);
+    const wname = String(item.workerName || item.workerId || "").trim();
+    const workDate = String(item.workDate || "").slice(0, 10);
+    await openWorkerModal(item.workerId, wname, workDate);
+    await loadMonthBar();
+  }
+
+  function scrollModalToWorkDate(workDate) {
+    const iso = String(workDate || "").slice(0, 10);
+    if (!iso) return;
+    const host = $("cpDeploymentDaysList");
+    const scrollHost = $("cpDeploymentModalScroll");
+    const idx = modalDays.findIndex((d) => String(d.date || "").slice(0, 10) === iso);
+    if (idx < 0 || !host) return;
+    const row = host.querySelector(`[data-dep-idx="${idx}"]`);
+    if (!row) return;
+    row.classList.add("deployment-day-highlight");
+    window.setTimeout(() => row.classList.remove("deployment-day-highlight"), 3200);
+    if (scrollHost) {
+      const top = row.offsetTop - Math.max(0, (scrollHost.clientHeight - row.clientHeight) / 2);
+      scrollHost.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+    } else {
+      row.scrollIntoView({ block: "center", behavior: "smooth" });
+    }
   }
 
   function renderModalDaysList() {
@@ -283,7 +325,7 @@
     renderModalDaysList();
   }
 
-  async function openWorkerModal(workerId, workerName) {
+  async function openWorkerModal(workerId, workerName, focusWorkDate) {
     modalWorkerId = workerId;
     const nameEl = $("cpDeploymentModalWorker");
     if (nameEl) nameEl.textContent = workerName;
@@ -296,6 +338,9 @@
       window.setTimeout(() => scrollHost.focus({ preventScroll: true }), 50);
     }
     await reloadModalPlan();
+    if (focusWorkDate) {
+      window.setTimeout(() => scrollModalToWorkDate(focusWorkDate), 80);
+    }
   }
 
   async function saveModalPlan() {
@@ -543,8 +588,8 @@
   global.BaupassDeploymentPlan = {
     refresh: refreshView,
     scrollToWorkers,
-    openWorker: (workerId, workerName) =>
-      openWorkerModal(workerId, workerName || "").catch((e) =>
+    openWorker: (workerId, workerName, focusWorkDate) =>
+      openWorkerModal(workerId, workerName || "", focusWorkDate || "").catch((e) =>
         global.showToast?.(e.message, "error", 6000),
       ),
     bindOnce,
