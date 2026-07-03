@@ -3576,6 +3576,13 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
   overflow: hidden;
 }
 
+.leave-worker-context-hint {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
 .deployment-plan-calendar-cell.is-interactive {
   cursor: pointer;
   touch-action: manipulation;
