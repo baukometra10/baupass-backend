@@ -1201,6 +1201,18 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="033",
+        name="leave_requests_worker_signature",
+        up_sql="""
+            ALTER TABLE leave_requests ADD COLUMN worker_signature_data TEXT NOT NULL DEFAULT '';
+            ALTER TABLE leave_requests ADD COLUMN worker_signature_name TEXT NOT NULL DEFAULT '';
+        """,
+        down_sql="""
+            -- SQLite cannot drop columns in older builds; no-op downgrade.
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

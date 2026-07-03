@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260702q";
+window.__BAUPASS_UI_BUILD = "20260703b";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -37837,6 +37837,23 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
   }
 }
 
+function resolveLeaveRequestCardBranding(companyId) {
+  const cid = String(companyId || getEffectiveUiCompanyId() || "").trim();
+  const company = (state.companies || []).find((entry) => String(entry?.id || "") === cid);
+  return {
+    name: String(company?.portalDisplayName || company?.portal_display_name || company?.name || "").trim(),
+    logo: String(company?.brandingLogoData || company?.branding_logo_data || "").trim(),
+  };
+}
+
+function leaveRequestTypeLabel(type) {
+  return ({ urlaub: "Urlaub", krank: "Krankmeldung", sonstiges: "Sonstiges", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" })[String(type || "").trim()] || String(type || "—");
+}
+
+function leaveRequestStatusLabel(status) {
+  return ({ ausstehend: "Ausstehend", genehmigt: "Genehmigt", abgelehnt: "Abgelehnt" })[String(status || "").trim()] || String(status || "—");
+}
+
 function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "", showAllCompaniesAction = "", diagnosticHint = "") {
   const container = document.getElementById("leaveRequestsTable") || createLeaveRequestsPanel();
   const filtered = filterStatus
@@ -37869,6 +37886,15 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
         const requestId = String(req.id || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
         const statusClass = `leave-status-${String(req.status || "").toLowerCase()}`;
         const cardClass = `leave-card leave-card-${String(req.status || "").toLowerCase()}`;
+        const branding = resolveLeaveRequestCardBranding(req.company_id || req.worker_company_id);
+        const companyLabel = String(req.company_display_name || branding.name || "").trim();
+        const logoMarkup = branding.logo
+          ? `<img class="leave-card-logo" src="${branding.logo}" alt="" />`
+          : `<div class="leave-card-logo leave-card-logo-fallback" aria-hidden="true">${escapeHtml((companyLabel || "W").slice(0, 1))}</div>`;
+        const signatureName = String(req.worker_signature_name || req.worker_name || "").trim();
+        const signatureLine = signatureName
+          ? `<div class="leave-card-signature">✍ ${escapeHtml(signatureName)}</div>`
+          : "";
         const daysText = Number(req.days_count || 0) > 0
           ? runtimeTextTemplate("labelDaysCount", { count: Number(req.days_count || 0) })
           : "-";
@@ -37886,19 +37912,27 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
             </div>
           `;
         return `
-          <article class="${cardClass} leave-card-clickable" role="button" tabindex="0" onclick="openLeaveRequestPreview('${requestId}')">
-            <div class="leave-card-header">
+          <article class="${cardClass} leave-card-clickable leave-card-document" role="button" tabindex="0" onclick="openLeaveRequestPreview('${requestId}')">
+            <div class="leave-card-doc-head">
+              ${logoMarkup}
+              <div class="leave-card-doc-brand">
+                <span class="leave-card-company">${escapeHtml(companyLabel || "Firma")}</span>
+                <span class="leave-card-doc-title">Abwesenheitsantrag</span>
+              </div>
+              <div class="leave-card-status ${statusClass}">${escapeHtml(leaveRequestStatusLabel(req.status))}</div>
+            </div>
+            <div class="leave-card-body">
               <div class="leave-card-worker">${escapeHtml(req.worker_name || req.worker_id || "-")}</div>
-              <div class="leave-card-status ${statusClass}">${escapeHtml(req.status || "-")}</div>
+              <div class="leave-card-type">${escapeHtml(leaveRequestTypeLabel(req.type))}</div>
+              <div class="leave-card-dates">
+                <span>${escapeHtml(req.start_date || "-")} - ${escapeHtml(req.end_date || "-")}</span>
+                <span class="leave-card-days">${escapeHtml(daysText)}</span>
+              </div>
+              ${req.note ? `<div class="leave-card-note">${escapeHtml(req.note)}</div>` : ""}
+              ${req.review_note ? `<div class="leave-card-review-note">Entscheidungsnotiz: ${escapeHtml(req.review_note)}</div>` : ""}
+              ${signatureLine}
+              ${req.email_forwarded_to ? `<div class="leave-card-forwarded">📧 Weitergeleitet an: ${escapeHtml(req.email_forwarded_to)}</div>` : ""}
             </div>
-            <div class="leave-card-type">${escapeHtml(req.type || "-")}</div>
-            <div class="leave-card-dates">
-              <span>${escapeHtml(req.start_date || "-")} - ${escapeHtml(req.end_date || "-")}</span>
-              <span class="leave-card-days">${escapeHtml(daysText)}</span>
-            </div>
-            ${req.note ? `<div class="leave-card-note">${escapeHtml(req.note)}</div>` : ""}
-            ${req.review_note ? `<div class="leave-card-review-note">Entscheidungsnotiz: ${escapeHtml(req.review_note)}</div>` : ""}
-            ${req.email_forwarded_to ? `<div class="leave-card-forwarded">📧 Weitergeleitet an: ${escapeHtml(req.email_forwarded_to)}</div>` : ""}
             ${actions}
           </article>
         `;

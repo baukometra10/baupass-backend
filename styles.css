@@ -8470,6 +8470,70 @@ body.theme-black .dashboard-compliance-panel .dashboard-compliance-subhead h4 {
 .leave-card-review-note { margin-top: 6px; font-size: 12px; color: #555; background: #f5f5f5; border-radius: 4px; padding: 4px 8px; }
 .leave-card-forwarded { margin-top: 6px; font-size: 11px; opacity: .7; }
 .leave-card-actions { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border, #e0e0e0); }
+.leave-card-document {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border, #dbe3ef);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+.leave-card-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border, #e8edf3);
+  background: linear-gradient(135deg, rgba(15,76,117,.06), rgba(255,255,255,.96));
+}
+.leave-card-logo {
+  width: 42px;
+  height: 42px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.06);
+  flex-shrink: 0;
+}
+.leave-card-logo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: var(--accent, #0f4c75);
+  font-size: 18px;
+}
+.leave-card-doc-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.leave-card-company {
+  font-size: 11px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--text-secondary, #64748b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.leave-card-doc-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text, #0f172a);
+}
+.leave-card-body {
+  padding: 14px 16px 4px;
+}
+.leave-card-signature {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(15, 76, 117, 0.06);
+  font-size: 12px;
+  color: #334155;
+  font-style: italic;
+}
 .btn-approve { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .btn-approve:hover { background: #43a047; color: #fff; }
 .leave-forwarded-badge { font-size: 11px; opacity: .8; }

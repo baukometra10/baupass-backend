@@ -567,9 +567,15 @@ class WorkersRepository:
         row = db.execute(
             """
             SELECT lr.*, w.first_name, w.last_name, w.badge_id,
-                   reviewer.username AS reviewer_username
+                   trim(coalesce(w.first_name, '') || ' ' || coalesce(w.last_name, '')) AS worker_name,
+                   reviewer.username AS reviewer_username,
+                   c.name AS company_name,
+                   c.portal_display_name,
+                   c.branding_logo_data,
+                   c.branding_accent_color
             FROM leave_requests lr
             JOIN workers w ON w.id = lr.worker_id
+            LEFT JOIN companies c ON c.id = lr.company_id
             LEFT JOIN users reviewer ON reviewer.id = lr.reviewed_by_user_id
             WHERE lr.id = ?
             """,

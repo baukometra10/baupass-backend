@@ -3603,6 +3603,88 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
   margin-bottom: 12px;
 }
 
+.leave-signature-block {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.leave-signature-name {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--corp-text, var(--text));
+}
+
+.leave-signature-hint {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.leave-signature-pad-wrap {
+  border: 1px dashed rgba(0, 0, 0, 0.18);
+  border-radius: 12px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+#leaveSignatureCanvas {
+  width: 100%;
+  height: 140px;
+  display: block;
+  touch-action: none;
+  border-radius: 8px;
+  background: #fff;
+  cursor: crosshair;
+}
+
+.worker-loaded .leave-request-item.leave-request-doc {
+  border: 1px solid var(--corp-border, rgba(0, 0, 0, 0.1));
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--corp-surface, var(--card));
+}
+
+.leave-req-doc-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(248,250,252,.98));
+}
+
+.leave-req-doc-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.leave-req-doc-company {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--corp-muted, var(--muted));
+}
+
+.leave-req-doc-body {
+  padding: 10px 12px 12px;
+}
+
+.leave-req-signature-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 0.68rem;
+  color: var(--corp-muted, var(--muted));
+}
+
 .deployment-plan-calendar-cell.is-interactive {
   cursor: pointer;
   touch-action: manipulation;

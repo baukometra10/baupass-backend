@@ -269,74 +269,303 @@ def build_attendance_pdf_bytes(
     return buffer.getvalue()
 
 
-def build_leave_request_pdf_bytes(data: dict[str, Any]) -> dict[str, Any] | bytes:
+def _hex_to_rgb(hex_color: str, fallback=(0.06, 0.35, 0.42)) -> tuple[float, float, float]:
+    raw = str(hex_color or "").strip().lstrip("#")
+    if len(raw) != 6:
+        return fallback
     try:
+        return tuple(int(raw[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+    except Exception:
+        return fallback
+
+
+def _escape_pdf_text(value: str) -> str:
+    return str(value or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _format_iso_date(value: str) -> str:
+    raw = str(value or "").strip()
+    if len(raw) >= 10 and raw[4] == "-" and raw[7] == "-":
+        try:
+            return datetime.strptime(raw[:10], "%Y-%m-%d").strftime("%d.%m.%Y")
+        except Exception:
+            pass
+    return raw or "—"
+
+
+def _logo_flowable(logo_data: str, *, max_height_mm: float = 16.0):
+    raw = str(logo_data or "").strip()
+    if not raw.lower().startswith("data:image/"):
+        return None
+    try:
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Image
+
+        _header, payload = raw.split(",", 1)
+        blob = base64.b64decode(payload, validate=False)
+        if not blob:
+            return None
+        bio = io.BytesIO(blob)
+        img = Image(bio)
+        max_h = max_height_mm * mm
+        if img.imageHeight > max_h:
+            ratio = max_h / float(img.imageHeight)
+            img.drawWidth = img.imageWidth * ratio
+            img.drawHeight = max_h
+        return img
+    except Exception:
+        return None
+
+
+def _signature_flowable(signature_data: str, signature_name: str):
+    raw = str(signature_data or "").strip()
+    if raw.lower().startswith("data:image/"):
+        try:
+            from reportlab.lib.units import mm
+            from reportlab.platypus import Image
+
+            _header, payload = raw.split(",", 1)
+            blob = base64.b64decode(payload, validate=False)
+            if blob:
+                bio = io.BytesIO(blob)
+                img = Image(bio, width=62 * mm, height=20 * mm)
+                img.hAlign = "CENTER"
+                return img
+        except Exception:
+            pass
+    name = str(signature_name or "").strip()
+    if name:
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import Paragraph
+
+        styles = getSampleStyleSheet()
+        return Paragraph(
+            f"<para align='center'><i><font size='16'>{_escape_pdf_text(name)}</font></i></para>",
+            styles["Normal"],
+        )
+    return None
+
+
+def build_leave_request_pdf_bytes(data: dict[str, Any]) -> dict[str, Any] | bytes:
+    """Professional leave request PDF with company logo and worker signature."""
+    try:
+        from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
+        from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            HRFlowable,
+            Paragraph,
+            SimpleDocTemplate,
+            Spacer,
+            Table,
+            TableStyle,
+        )
     except Exception:
         return _reportlab_missing()
 
-    worker_name = f"{data.get('first_name', '')} {data.get('last_name', '')}".strip() or data.get(
-        "worker_id", "-"
+    worker_name = (
+        str(data.get("worker_name") or "").strip()
+        or f"{data.get('first_name', '')} {data.get('last_name', '')}".strip()
+        or str(data.get("worker_id") or "—")
     )
-    type_label = {"urlaub": "Urlaub", "krank": "Krankmeldung", "sonstiges": "Sonstiges"}.get(
-        data.get("type"), data.get("type") or "-"
+    company_name = str(
+        data.get("companyName") or data.get("company_name") or data.get("portal_display_name") or "WorkPass"
+    ).strip()
+    req_type = str(data.get("type") or "-")
+    type_label = {
+        "urlaub": "Urlaub",
+        "krank": "Krankmeldung",
+        "sonstiges": "Sonstiger Antrag",
+    }.get(req_type, req_type)
+    status = str(data.get("status") or "ausstehend")
+    status_label = {"ausstehend": "Ausstehend", "genehmigt": "Genehmigt", "abgelehnt": "Abgelehnt"}.get(
+        status, status
     )
+    accent = str(data.get("accent") or data.get("branding_accent_color") or "#0f4c75")
+    pr, pg, pb = _hex_to_rgb(accent)
+    logo_data = str(data.get("logoData") or data.get("branding_logo_data") or "")
+    signature_data = str(data.get("worker_signature_data") or "")
+    signature_name = str(data.get("worker_signature_name") or worker_name).strip()
 
     buffer = io.BytesIO()
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-    page_width, page_height = A4
-    y = page_height - 48
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=18 * mm,
+        rightMargin=18 * mm,
+        topMargin=16 * mm,
+        bottomMargin=18 * mm,
+        title=f"Abwesenheitsantrag {worker_name}",
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        "LeaveTitle",
+        parent=styles["Heading1"],
+        fontSize=18,
+        leading=22,
+        textColor=colors.Color(pr, pg, pb),
+        spaceAfter=4,
+    )
+    subtitle_style = ParagraphStyle(
+        "LeaveSubtitle",
+        parent=styles["Normal"],
+        fontSize=10,
+        textColor=colors.HexColor("#5a6578"),
+    )
+    label_style = ParagraphStyle(
+        "LeaveLabel",
+        parent=styles["Normal"],
+        fontSize=9,
+        textColor=colors.HexColor("#6b7280"),
+        spaceAfter=2,
+    )
+    value_style = ParagraphStyle(
+        "LeaveValue",
+        parent=styles["Normal"],
+        fontSize=11,
+        textColor=colors.HexColor("#111827"),
+        spaceAfter=8,
+    )
+    note_style = ParagraphStyle(
+        "LeaveNote",
+        parent=styles["Normal"],
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor("#374151"),
+    )
 
-    pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "SUPPIX - Urlaubsantrag")
-    y -= 20
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(40, y, f"Exportiert: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
+    logo = _logo_flowable(logo_data, max_height_mm=14.0)
+    header_left = logo if logo else Paragraph(
+        f"<b>{_escape_pdf_text(company_name[:40])}</b>",
+        ParagraphStyle("LogoFallback", parent=styles["Normal"], fontSize=12, textColor=colors.Color(pr, pg, pb)),
+    )
+    header_right = Paragraph(
+        f"<para align='right'><font size='8' color='#94a3b8'>Antrags-ID</font><br/>"
+        f"<font size='9'><b>{_escape_pdf_text(str(data.get('id') or '—'))}</b></font></para>",
+        styles["Normal"],
+    )
+    header_table = Table([[header_left, header_right]], colWidths=[doc.width * 0.72, doc.width * 0.28])
+    header_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+            ]
+        )
+    )
 
-    y -= 24
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Antragsdaten")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-
-    lines = [
-        f"ID: {data.get('id', '-')}",
-        f"Mitarbeiter: {worker_name}",
-        f"Badge-ID: {data.get('badge_id', '-')}",
-        f"Art: {type_label}",
-        f"Zeitraum: {data.get('start_date', '-')} bis {data.get('end_date', '-')}",
-        f"Arbeitstage: {int(data.get('days_count') or 0)}",
-        f"Status: {data.get('status', '-')}",
-        f"Eingereicht am: {data.get('created_at', '-')}",
-        f"Bearbeitet von: {data.get('reviewer_username') or '-'}",
-        f"Bearbeitet am: {data.get('reviewed_at') or '-'}",
+    story = [
+        header_table,
+        Spacer(1, 6 * mm),
+        HRFlowable(width="100%", thickness=2, color=colors.Color(pr, pg, pb), spaceAfter=8),
+        Paragraph(_escape_pdf_text(company_name), subtitle_style),
+        Paragraph("Abwesenheitsantrag", title_style),
+        Paragraph(
+            f"Eingereicht am {_format_iso_date(str(data.get('created_at') or '')[:10])} · Status: <b>{_escape_pdf_text(status_label)}</b>",
+            subtitle_style,
+        ),
+        Spacer(1, 8 * mm),
     ]
-    for line in lines:
-        pdf.drawString(40, y, line)
-        y -= 14
 
-    note = (data.get("note") or "").strip() or "-"
-    review_note = (data.get("review_note") or "").strip() or "-"
+    info_rows = [
+        [Paragraph("Mitarbeiter", label_style), Paragraph(_escape_pdf_text(worker_name), value_style)],
+        [Paragraph("Badge-ID", label_style), Paragraph(_escape_pdf_text(str(data.get("badge_id") or "—")), value_style)],
+        [Paragraph("Art", label_style), Paragraph(_escape_pdf_text(type_label), value_style)],
+        [
+            Paragraph("Zeitraum", label_style),
+            Paragraph(
+                f"{_format_iso_date(data.get('start_date', ''))} – {_format_iso_date(data.get('end_date', ''))}",
+                value_style,
+            ),
+        ],
+        [Paragraph("Arbeitstage", label_style), Paragraph(str(int(data.get("days_count") or 0)), value_style)],
+    ]
+    if data.get("reviewer_username") or data.get("reviewed_at"):
+        info_rows.append(
+            [
+                Paragraph("Bearbeitung", label_style),
+                Paragraph(
+                    f"{_escape_pdf_text(str(data.get('reviewer_username') or '—'))}"
+                    f" · {_format_iso_date(str(data.get('reviewed_at') or '')[:10])}",
+                    value_style,
+                ),
+            ]
+        )
 
-    y -= 8
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Notiz")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for chunk in textwrap.wrap(note, width=95)[:10]:
-        pdf.drawString(40, y, chunk)
-        y -= 13
+    info_table = Table(info_rows, colWidths=[34 * mm, doc.width - 34 * mm])
+    info_table.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.6, colors.HexColor("#dbe3ef")),
+                ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#eef2f7")),
+                ("BACKGROUND", (0, 0), (0, -1), colors.HexColor("#f8fafc")),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ]
+        )
+    )
+    story.extend([info_table, Spacer(1, 8 * mm)])
 
-    y -= 6
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Entscheidungsnotiz")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for chunk in textwrap.wrap(review_note, width=95)[:10]:
-        pdf.drawString(40, y, chunk)
-        y -= 13
+    note = str(data.get("note") or "").strip()
+    if note:
+        story.extend(
+            [
+                Paragraph("Begründung / Notiz", label_style),
+                Paragraph(_escape_pdf_text(note).replace("\n", "<br/>"), note_style),
+                Spacer(1, 6 * mm),
+            ]
+        )
 
-    pdf.save()
+    review_note = str(data.get("review_note") or "").strip()
+    if review_note:
+        story.extend(
+            [
+                Paragraph("Entscheidungsnotiz (Arbeitgeber)", label_style),
+                Paragraph(_escape_pdf_text(review_note).replace("\n", "<br/>"), note_style),
+                Spacer(1, 6 * mm),
+            ]
+        )
+
+    story.extend([Spacer(1, 10 * mm), Paragraph("Unterschrift Mitarbeiter/in", label_style)])
+    sig_flow = _signature_flowable(signature_data, signature_name)
+    sig_table = Table([[sig_flow or Paragraph("—", value_style)]], colWidths=[doc.width * 0.55])
+    sig_table.setStyle(
+        TableStyle(
+            [
+                ("BOX", (0, 0), (-1, -1), 0.8, colors.HexColor("#cbd5e1")),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.white),
+                ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.extend(
+        [
+            sig_table,
+            Spacer(1, 4 * mm),
+            Paragraph(
+                f"<font size='9' color='#64748b'>{_escape_pdf_text(signature_name)}</font>",
+                styles["Normal"],
+            ),
+            Spacer(1, 8 * mm),
+            Paragraph(
+                f"<para align='center'><font size='8' color='#94a3b8'>"
+                f"Dokument erstellt am {datetime.now().strftime('%d.%m.%Y %H:%M')} · {_escape_pdf_text(company_name)}"
+                f"</font></para>",
+                styles["Normal"],
+            ),
+        ]
+    )
+
+    doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()

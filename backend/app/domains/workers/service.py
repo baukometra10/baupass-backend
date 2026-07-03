@@ -1777,6 +1777,14 @@ class WorkersService:
             return {"error": {"error": "forbidden"}, "status": 403}
 
         data = row_to_dict(row)
+        from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
+
+        branding = resolve_company_pdf_branding(db, str(row.get("company_id") or ""))
+        data["companyName"] = branding.get("companyName") or data.get("portal_display_name") or data.get("company_name")
+        data["logoData"] = branding.get("logoData") or data.get("branding_logo_data") or ""
+        data["accent"] = branding.get("accent") or data.get("branding_accent_color") or ""
+        if not str(data.get("worker_signature_name") or "").strip():
+            data["worker_signature_name"] = data.get("worker_name") or ""
         pdf_result = build_leave_request_pdf_bytes(data)
         if isinstance(pdf_result, dict) and "error" in pdf_result:
             return pdf_result

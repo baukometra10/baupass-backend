@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260703a";
+const WORKER_BUILD_TAG = "20260703b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -4986,6 +4986,7 @@ function renderWorker(payload, options = {}) {
   }
 
   updateWorkerLeaveBalanceBadge(payload);
+  updateLeaveSignatureNameLabel();
 
   // Late check-in notification banner
   const lateInfo = payload.lateCheckIn;
@@ -8322,6 +8323,114 @@ function getWorkerCompanyContextLabel() {
   return companyId || companyName || "?";
 }
 
+let leaveSignaturePadBound = false;
+const leaveSignaturePadState = { drawing: false, hasStroke: false };
+
+function getWorkerDisplayName() {
+  const worker = lastWorkerPayload?.worker || {};
+  return `${worker.firstName || worker.first_name || ""} ${worker.lastName || worker.last_name || ""}`.trim()
+    || String(worker.name || "").trim()
+    || t("workerDefaultName");
+}
+
+function getWorkerCompanyLogoData() {
+  const company = lastWorkerPayload?.company || {};
+  return String(
+    company.brandingLogoData
+    || company.branding_logo_data
+    || lastWorkerPayload?.brandingLogoData
+    || "",
+  ).trim();
+}
+
+function updateLeaveSignatureNameLabel() {
+  const label = document.getElementById("leaveSignatureName");
+  if (label) {
+    label.textContent = getWorkerDisplayName();
+  }
+}
+
+function bindLeaveSignaturePad() {
+  const canvas = document.getElementById("leaveSignatureCanvas");
+  const clearBtn = document.getElementById("leaveSignatureClearBtn");
+  if (!canvas || leaveSignaturePadBound) {
+    return;
+  }
+  leaveSignaturePadBound = true;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const canvasPos = (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const source = event.touches ? event.touches[0] : event;
+    return {
+      x: (source.clientX - rect.left) * scaleX,
+      y: (source.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const startDraw = (event) => {
+    leaveSignaturePadState.drawing = true;
+    leaveSignaturePadState.hasStroke = true;
+    const point = canvasPos(event);
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y);
+    event.preventDefault();
+  };
+
+  const moveDraw = (event) => {
+    if (!leaveSignaturePadState.drawing) return;
+    const point = canvasPos(event);
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "#111827";
+    ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+    event.preventDefault();
+  };
+
+  const endDraw = () => {
+    leaveSignaturePadState.drawing = false;
+  };
+
+  canvas.addEventListener("pointerdown", startDraw);
+  canvas.addEventListener("pointermove", moveDraw);
+  canvas.addEventListener("pointerup", endDraw);
+  canvas.addEventListener("pointerleave", endDraw);
+  canvas.addEventListener("touchstart", startDraw, { passive: false });
+  canvas.addEventListener("touchmove", moveDraw, { passive: false });
+  canvas.addEventListener("touchend", endDraw);
+
+  clearBtn?.addEventListener("click", () => {
+    clearLeaveSignaturePad();
+  });
+}
+
+function clearLeaveSignaturePad() {
+  const canvas = document.getElementById("leaveSignatureCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  leaveSignaturePadState.hasStroke = false;
+}
+
+function getLeaveSignaturePayload() {
+  const canvas = document.getElementById("leaveSignatureCanvas");
+  const signatureName = getWorkerDisplayName();
+  let signatureData = "";
+  if (canvas && leaveSignaturePadState.hasStroke) {
+    try {
+      signatureData = canvas.toDataURL("image/png");
+    } catch {
+      signatureData = "";
+    }
+  }
+  return { signatureData, signatureName };
+}
+
 function renderWorkerLeaveContextHint() {
   const hint = document.getElementById("leaveWorkerContextHint");
   if (!hint) return;
@@ -8374,6 +8483,11 @@ async function submitLeaveRequest() {
     showWorkerNotice(t("enterAccessCode")); // Reuse: please enter dates
     return;
   }
+  const signaturePayload = getLeaveSignaturePayload();
+  if (!signaturePayload.signatureName) {
+    showWorkerNotice(t("leaveSignatureRequired"));
+    return;
+  }
   if (start > end) {
     showWorkerNotice(t("leaveDateRangeInvalid"));
     return;
@@ -8410,7 +8524,9 @@ async function submitLeaveRequest() {
         start_date: start,
         end_date: end,
         note,
-        recipient_email: recipientEmail
+        recipient_email: recipientEmail,
+        signature_data: signaturePayload.signatureData,
+        signature_name: signaturePayload.signatureName,
       })
     });
     if (!result?.id) {
@@ -8436,6 +8552,7 @@ async function submitLeaveRequest() {
       }
     }
     elements.leaveRequestForm.reset();
+    clearLeaveSignaturePad();
     toggleLeaveRequestForm(false);
     if (currentActiveTab !== "vacation") {
       switchToTab("vacation");
@@ -8640,6 +8757,8 @@ function toggleLeaveRequestForm(forceOpen) {
   toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
 
   if (open) {
+    bindLeaveSignaturePad();
+    updateLeaveSignatureNameLabel();
     formWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
     window.requestAnimationFrame(() => {
       elements.leaveRequestStart?.focus({ preventScroll: true });
@@ -8764,6 +8883,13 @@ async function loadLeaveRequests() {
       const visibleRequests = leaveCompactExpanded ? sortedRequests : sortedRequests.slice(0, 1);
       const hiddenCount = Math.max(0, sortedRequests.length - visibleRequests.length);
 
+      const companyLogo = getWorkerCompanyLogoData();
+      const companyName = String(
+        lastWorkerPayload?.company?.portalDisplayName
+        || lastWorkerPayload?.company?.portal_display_name
+        || lastWorkerPayload?.company?.name
+        || "",
+      ).trim();
       const requestMarkup = visibleRequests.map((req) => {
         const typeMap = { urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" };
         const typeLabel = typeMap[req.type] || req.type || "–";
@@ -8773,14 +8899,29 @@ async function loadLeaveRequests() {
           : req.status === "abgelehnt"
             ? t("leaveStatusRejected")
             : t("leaveStatusPending");
-        return `<div class="leave-request-item ${statusCls}">
-          <div class="leave-req-row">
-            <strong>${typeLabel}</strong>
+        const logoMarkup = companyLogo
+          ? `<img class="leave-req-doc-logo" src="${companyLogo}" alt="" />`
+          : `<div class="leave-req-doc-logo" aria-hidden="true"></div>`;
+        const signatureName = String(req.worker_signature_name || getWorkerDisplayName()).trim();
+        const signatureTag = signatureName
+          ? `<div class="leave-req-signature-tag">✍ ${escapeHtmlBasic(signatureName)}</div>`
+          : "";
+        return `<div class="leave-request-item leave-request-doc ${statusCls}">
+          <div class="leave-req-doc-head">
+            ${logoMarkup}
+            <div>
+              <p class="leave-req-doc-company">${escapeHtmlBasic(companyName || t("companyFallback"))}</p>
+              <strong>${typeLabel}</strong>
+            </div>
             <span class="leave-req-badge ${statusCls}">${statusTxt}</span>
           </div>
-          <div class="leave-req-dates">${req.start_date} → ${req.end_date}${req.days_count > 0 ? ` <span class="leave-req-days">${req.days_count} AT</span>` : ""}</div>
-          ${req.note ? `<div class="leave-req-note">${req.note}</div>` : ""}
-          ${req.review_note ? `<div class="leave-req-review">📋 ${req.review_note}</div>` : ""}
+          <div class="leave-req-doc-body">
+            <div class="leave-req-dates">${req.start_date} → ${req.end_date}${req.days_count > 0 ? ` <span class="leave-req-days">${req.days_count} AT</span>` : ""}</div>
+            ${req.note ? `<div class="leave-req-note">${escapeHtmlBasic(req.note)}</div>` : ""}
+            ${req.review_note ? `<div class="leave-req-review">📋 ${escapeHtmlBasic(req.review_note)}</div>` : ""}
+            ${signatureTag}
+            <div class="muted-info" style="margin-top:6px;font-size:0.68rem;">ID: ${escapeHtmlBasic(String(req.id || ""))}</div>
+          </div>
         </div>`;
       }).join("");
 

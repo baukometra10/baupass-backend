@@ -3588,6 +3588,10 @@ def init_db():
     leave_req_columns = [row[1] for row in cur.execute("PRAGMA table_info(leave_requests)").fetchall()]
     if leave_req_columns and "days_count" not in leave_req_columns:
         cur.execute("ALTER TABLE leave_requests ADD COLUMN days_count INTEGER NOT NULL DEFAULT 0")
+    if leave_req_columns and "worker_signature_data" not in leave_req_columns:
+        cur.execute("ALTER TABLE leave_requests ADD COLUMN worker_signature_data TEXT NOT NULL DEFAULT ''")
+    if leave_req_columns and "worker_signature_name" not in leave_req_columns:
+        cur.execute("ALTER TABLE leave_requests ADD COLUMN worker_signature_name TEXT NOT NULL DEFAULT ''")
 
     # IMAP-Einstellungen fuer Dokumenten-Postfach
     if "imap_host" not in settings_columns:
@@ -26002,66 +26006,29 @@ def trigger_checkout_reminders():
 
 # ── Urlaubsantraege & Krankmeldungen ─────────────────────────────────
 def _build_leave_request_pdf_bytes(payload: dict) -> bytes | None:
-    """Build a compact leave request PDF for mail attachments."""
+    """Build leave PDF with company branding and worker signature."""
     try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
+        from backend.app.domains.workers.exports import build_leave_request_pdf_bytes
+        from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
+
+        db = get_db()
+        company_id = str(payload.get("company_id") or "").strip()
+        branding = resolve_company_pdf_branding(db, company_id) if company_id else {}
+        merged = {
+            **payload,
+            "companyName": branding.get("companyName") or payload.get("company_name") or "WorkPass",
+            "logoData": branding.get("logoData") or payload.get("branding_logo_data") or "",
+            "accent": branding.get("accent") or payload.get("branding_accent_color") or "",
+        }
+        if not str(merged.get("worker_signature_name") or "").strip():
+            merged["worker_signature_name"] = merged.get("worker_name") or ""
+        result = build_leave_request_pdf_bytes(merged)
+        if isinstance(result, dict):
+            return None
+        return result
     except Exception:
+        app.logger.debug("leave PDF build failed", exc_info=True)
         return None
-
-    worker_name = str(payload.get("worker_name") or "-")
-    badge_id = str(payload.get("badge_id") or "-")
-    req_type = str(payload.get("type") or "-")
-    type_label = {
-        "urlaub": "Urlaub",
-        "krank": "Krankmeldung",
-        "sonstiges": "Sonstiger Antrag",
-    }.get(req_type, req_type)
-
-    buf = io.BytesIO()
-    pdf = rl_canvas.Canvas(buf, pagesize=A4)
-    _w, page_h = A4
-    y = page_h - 50
-
-    pdf.setFont("Helvetica-Bold", 15)
-    pdf.drawString(40, y, "SUPPIX - Abwesenheitsantrag")
-    y -= 18
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(40, y, f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')}")
-
-    y -= 24
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Antragsdaten")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-
-    lines = [
-        f"Mitarbeiter: {worker_name}",
-        f"Badge-ID: {badge_id}",
-        f"Art: {type_label}",
-        f"Zeitraum: {payload.get('start_date', '-')} bis {payload.get('end_date', '-')}",
-        f"Arbeitstage: {int(payload.get('days_count') or 0)}",
-        f"Status: {payload.get('status', 'ausstehend')}",
-        f"Antrags-ID: {payload.get('id', '-')}",
-        f"Eingereicht am: {payload.get('created_at', '-')}",
-    ]
-    for line in lines:
-        pdf.drawString(40, y, line)
-        y -= 14
-
-    note = (str(payload.get("note") or "").strip()) or "-"
-    y -= 6
-    pdf.setFont("Helvetica-Bold", 10)
-    pdf.drawString(40, y, "Notiz")
-    y -= 14
-    pdf.setFont("Helvetica", 10)
-    for chunk in textwrap.wrap(note, width=95)[:12]:
-        pdf.drawString(40, y, chunk)
-        y -= 13
-
-    pdf.save()
-    buf.seek(0)
-    return buf.getvalue()
 
 
 @require_worker_session
@@ -26106,6 +26073,19 @@ def worker_submit_leave_request():
     end_date = str(data.get("end_date", "")).strip()
     note = str(data.get("note", "")).strip()[:500]
     manager_email = str(data.get("recipient_email") or data.get("boss_email") or "").strip()
+    signature_raw = str(data.get("signature_data") or data.get("worker_signature_data") or "").strip()
+    signature_name = str(
+        data.get("signature_name")
+        or data.get("worker_signature_name")
+        or f"{worker.get('first_name', '')} {worker.get('last_name', '')}".strip()
+    ).strip()[:120]
+    worker_signature_data = ""
+    try:
+        worker_signature_data = sanitize_compliance_signature_data(signature_raw, required=False)
+    except ValueError:
+        worker_signature_data = ""
+    if not worker_signature_data and not signature_name:
+        return jsonify({"error": "signature_required", "message": "Bitte unterschreiben oder Namen bestätigen."}), 400
     if req_type not in ("urlaub", "krank", "sonstiges"):
         return jsonify({"error": "invalid_type"}), 400
     if not start_date or not end_date:
@@ -26118,10 +26098,11 @@ def worker_submit_leave_request():
         return jsonify({"error": "invalid_recipient_email"}), 400
     req_id = f"leave-{secrets.token_hex(8)}"
     days_count = _count_working_days(start_date, end_date)
+    created_at = now_iso()
     db.execute(
-        "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, days_count, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?, ?)",
-        (req_id, worker["id"], company_id, req_type, start_date, end_date, note, days_count, now_iso())
+        "INSERT INTO leave_requests (id, worker_id, company_id, type, start_date, end_date, note, status, days_count, created_at, worker_signature_data, worker_signature_name)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, 'ausstehend', ?, ?, ?, ?)",
+        (req_id, worker["id"], company_id, req_type, start_date, end_date, note, days_count, created_at, worker_signature_data, signature_name)
     )
     db.commit()
     log_audit(
@@ -26186,6 +26167,7 @@ def worker_submit_leave_request():
 
     pdf_payload = {
         "id": req_id,
+        "company_id": company_id,
         "worker_name": worker_name,
         "badge_id": worker.get("badge_id") or "-",
         "type": req_type,
@@ -26193,8 +26175,10 @@ def worker_submit_leave_request():
         "end_date": end_date,
         "days_count": days_count,
         "status": "ausstehend",
-        "created_at": now_iso(),
+        "created_at": created_at,
         "note": note,
+        "worker_signature_data": worker_signature_data,
+        "worker_signature_name": signature_name,
     }
     pdf_bytes = _build_leave_request_pdf_bytes(pdf_payload)
     attachments = []
@@ -26337,6 +26321,12 @@ def _ensure_leave_requests_table(db):
         )
         """
     )
+    leave_req_columns = [row[1] for row in db.execute("PRAGMA table_info(leave_requests)").fetchall()]
+    if leave_req_columns:
+        if "worker_signature_data" not in leave_req_columns:
+            db.execute("ALTER TABLE leave_requests ADD COLUMN worker_signature_data TEXT NOT NULL DEFAULT ''")
+        if "worker_signature_name" not in leave_req_columns:
+            db.execute("ALTER TABLE leave_requests ADD COLUMN worker_signature_name TEXT NOT NULL DEFAULT ''")
 
 
 def _resolve_leave_admin_company_scope(user, db=None):
@@ -26439,10 +26429,14 @@ def get_leave_requests():
         SELECT lr.id, lr.worker_id, lr.company_id, lr.type, lr.start_date, lr.end_date,
                lr.note, lr.status, lr.reviewed_by_user_id, lr.reviewed_at, lr.review_note,
                lr.created_at, lr.email_forwarded_to, lr.days_count,
+               lr.worker_signature_name,
+               CASE WHEN COALESCE(lr.worker_signature_data, '') != '' THEN 1 ELSE 0 END AS has_worker_signature,
                w.first_name, w.last_name, w.badge_id,
-               trim(coalesce(w.first_name, '') || ' ' || coalesce(w.last_name, '')) AS worker_name
+               trim(coalesce(w.first_name, '') || ' ' || coalesce(w.last_name, '')) AS worker_name,
+               COALESCE(NULLIF(TRIM(c.portal_display_name), ''), c.name, '') AS company_display_name
         FROM leave_requests lr
         LEFT JOIN workers w ON w.id = lr.worker_id
+        LEFT JOIN companies c ON c.id = lr.company_id
         WHERE 1=1
     """
     params = []
