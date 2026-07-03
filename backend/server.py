@@ -26761,23 +26761,41 @@ def worker_app_deployment_plan_day_response():
             company_id=str(worker["company_id"]),
             actor={"role": "worker", "id": str(worker["id"]), "name": worker_name},
         )
-        try:
-            from backend.app.platform.notifications.company_mitteilung import (
-                notify_company_deployment_day_declined,
-            )
+        notify_ctx = {
+            "companyId": str(worker["company_id"]),
+            "workerId": str(worker["id"]),
+            "workerName": worker_name,
+            "workDate": str(result.get("date") or work_date),
+            "location": location,
+            "reason": str(result.get("declineReason") or reason),
+        }
+        threading.Thread(
+            target=_notify_company_deployment_decline_async,
+            args=(notify_ctx,),
+            daemon=True,
+        ).start()
+    return jsonify(result)
 
+
+def _notify_company_deployment_decline_async(ctx):
+    try:
+        from backend.app.platform.notifications.company_mitteilung import (
+            notify_company_deployment_day_declined,
+        )
+
+        with app.app_context():
+            db = get_db()
             notify_company_deployment_day_declined(
                 db,
-                company_id=str(worker["company_id"]),
-                worker_id=str(worker["id"]),
-                worker_name=worker_name,
-                work_date=str(result.get("date") or work_date),
-                location=location,
-                reason=str(result.get("declineReason") or reason),
+                company_id=str(ctx.get("companyId") or ""),
+                worker_id=str(ctx.get("workerId") or ""),
+                worker_name=str(ctx.get("workerName") or ""),
+                work_date=str(ctx.get("workDate") or ""),
+                location=str(ctx.get("location") or ""),
+                reason=str(ctx.get("reason") or ""),
             )
-        except Exception:
-            pass
-    return jsonify(result)
+    except Exception:
+        app.logger.debug("deployment decline notify async skipped", exc_info=True)
 
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────

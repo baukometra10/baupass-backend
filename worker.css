@@ -3929,6 +3929,7 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
   justify-content: center;
   padding: 1rem;
   background: rgba(15, 23, 42, 0.45);
+  pointer-events: auto;
 }
 
 .deployment-decline-modal.hidden {
@@ -3938,6 +3939,7 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
 }
 
 .deployment-decline-sheet {
+  pointer-events: auto;
   width: min(100%, 420px);
   background: #fff;
   border-radius: 16px 16px 12px 12px;
