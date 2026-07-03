@@ -32,6 +32,13 @@ _ANALYTICAL_PATTERNS = re.compile(
     re.I,
 )
 
+_COMPOSE_PATTERNS = re.compile(
+    r"(formuliere|schreib(?:e)?|verfass|erstell(?:e|en)?|generier(?:e|en)?|"
+    r"draft|compose|write|vorschlag|antragstext|nur den antragstext|bitte um genehmigung|"
+    r"formulate|suggest a|write a (?:short )?(?:leave|sick|absence))",
+    re.I,
+)
+
 _NAV_COMMAND_PATTERNS = re.compile(
     r"\b(öffne|open|zeig(?:e)?(?: mir)?(?: die)? (?:seite|ansicht|übersicht|uebersicht)|"
     r"geh(?:e)? zu|navigier|bring mich|wechsel(?:e)? zu|switch to|open the)\b",
@@ -200,6 +207,9 @@ def try_intent_response(
     if not q or not company_id:
         return None
     lang = (lang or "de")[:2]
+
+    if _COMPOSE_PATTERNS.search(q):
+        return None
 
     if _FOUNDER_PATTERNS.search(q):
         from .founder_profile import format_founder_answer, load_founder_profile

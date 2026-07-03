@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260703b";
+const WORKER_BUILD_TAG = "20260703c";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -8578,45 +8578,68 @@ async function submitLeaveRequest() {
 }
 
 function buildStaticLeaveSuggestion(type, start, end) {
-  const typeLabel = type === "krank" ? "krankheitsbedingt" : type === "sonstiges" ? "aus persönlichem Grund" : "urlaubsbedingt";
-  const dateRange = start && end ? `vom ${start} bis ${end}` : "im gewünschten Zeitraum";
-  return `Hiermit beantrage ich ${typeLabel} meine Abwesenheit ${dateRange}. Ich bitte um Genehmigung und danke für die Rückmeldung.`;
+  const fromLabel = start ? formatDate(start) : "";
+  const toLabel = end ? formatDate(end) : "";
+  const dateRange = fromLabel && toLabel
+    ? `vom ${fromLabel} bis ${toLabel}`
+    : fromLabel
+      ? `ab ${fromLabel}`
+      : "im gewünschten Zeitraum";
+
+  if (type === "krank") {
+    return `Hiermit melde ich mich ${dateRange} krankheitsbedingt ab. Ich werde mich bei Bedarf telefonisch oder per Nachricht melden, falls sich mein Gesundheitszustand ändert. Bitte bestätigen Sie kurz den Erhalt dieser Krankmeldung.`;
+  }
+  if (type === "sonstiges") {
+    return `Hiermit beantrage ich ${dateRange} eine befristete Abwesenheit aus persönlichen Gründen. Ich bitte um freundliche Prüfung und Genehmigung meines Antrags.`;
+  }
+  return `Hiermit beantrage ich Urlaub ${dateRange}. Meine anstehenden Aufgaben habe ich vorbereitet bzw. werde sie vor meinem Abwesenheitsbeginn übergeben. Ich bitte um Genehmigung und danke für die Bearbeitung.`;
 }
 
 async function applyAiLeaveSuggestion() {
-  const type = elements.leaveRequestType?.value || "urlaub";
-  const start = elements.leaveRequestStart?.value || "";
-  const end = elements.leaveRequestEnd?.value || "";
-  const noteField = elements.leaveRequestNote;
-  const btn = elements.leaveRequestAiBtn;
-  if (!noteField) return;
+  syncLeaveRequestDomRefs();
+  const type = elements.leaveRequestType?.value || document.getElementById("leaveRequestType")?.value || "urlaub";
+  const start = elements.leaveRequestStart?.value || document.getElementById("leaveRequestStart")?.value || "";
+  const end = elements.leaveRequestEnd?.value || document.getElementById("leaveRequestEnd")?.value || "";
+  const noteField = elements.leaveRequestNote || document.getElementById("leaveRequestNote");
+  const btn = elements.leaveRequestAiBtn || document.getElementById("leaveRequestAiBtn");
+  if (!noteField) {
+    showWorkerNotice("Notizfeld nicht gefunden – bitte Seite neu laden.");
+    return;
+  }
 
   const insertSuggestion = (text, noticeKey) => {
     noteField.value = text;
+    noteField.dispatchEvent(new Event("input", { bubbles: true }));
     showWorkerNotice(t(noticeKey));
   };
 
+  const fallbackSuggestion = () => buildStaticLeaveSuggestion(type, start, end);
+
   if (!workerToken) {
-    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestionInserted");
+    insertSuggestion(fallbackSuggestion(), "aiSuggestionInserted");
     return;
   }
   if (offlineWorkerSessionActive) {
-    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestFallback");
+    insertSuggestion(fallbackSuggestion(), "aiSuggestFallback");
     return;
   }
 
   const lang = getWorkerLang();
-  const dateRange = start && end ? `${start} bis ${end}` : "im gewünschten Zeitraum";
-  const typePrompt = type === "krank"
-    ? "Krankmeldung"
+  const fromLabel = start ? formatDate(start) : "";
+  const toLabel = end ? formatDate(end) : "";
+  const dateRange = fromLabel && toLabel
+    ? `${fromLabel} bis ${toLabel}`
+    : fromLabel || toLabel || "dem gewünschten Zeitraum";
+  const typeBrief = type === "krank"
+    ? "Krankmeldung (Abwesenheit wegen Krankheit, sachlich und kurz)"
     : type === "sonstiges"
-      ? "Abwesenheitsantrag aus persönlichen Gründen"
-      : "Urlaubsantrag";
+      ? "Antrag auf sonstige Abwesenheit aus persönlichen Gründen (neutral formuliert)"
+      : "Urlaubsantrag (höflich, professionell)";
   const question = [
-    `Formuliere einen kurzen, höflichen Antragstext (2–3 Sätze) für einen ${typePrompt}`,
-    dateRange !== "im gewünschten Zeitraum" ? `für den Zeitraum ${dateRange}` : "für den gewünschten Zeitraum",
-    "Nur den Antragstext, ohne Anrede oder Grußformel.",
-    `Sprache: ${lang === "de" ? "Deutsch" : lang}.`,
+    `Schreibe nur den Antragstext für einen ${typeBrief}.`,
+    `Zeitraum: ${dateRange}.`,
+    "Genau 2–3 kurze Sätze, ohne Betreff, ohne Anrede, ohne Grußformel, ohne Markdown.",
+    lang === "de" ? "Sprache: Deutsch." : `Sprache: ${lang}.`,
   ].join(" ");
 
   const previousLabel = btn?.textContent || "";
@@ -8628,21 +8651,22 @@ async function applyAiLeaveSuggestion() {
   try {
     const payload = await fetchJson(`${API_BASE}/ai/ask`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${workerToken}`,
+      headers: buildWorkerAuthHeaders({
         "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ question, lang }),
+      }),
+      body: JSON.stringify({ question, lang, skip_intents: true }),
     });
     const rawAnswer = String(payload?.answer || payload?.message || "").trim();
-    const cleaned = globalThis.BaupassAiUi?.cleanTextForDisplay?.(rawAnswer) || rawAnswer;
-    if (cleaned && payload?.configured !== false) {
-      insertSuggestion(cleaned, "aiSuggestionInserted");
+    let cleaned = globalThis.BaupassAiUi?.cleanTextForDisplay?.(rawAnswer) || rawAnswer;
+    cleaned = cleaned.replace(/^\*\*|\*\*$/g, "").trim();
+    if (cleaned && !/öffnen\.?$/i.test(cleaned) && cleaned.length > 24) {
+      insertSuggestion(cleaned, payload?.configured === false ? "aiSuggestFallback" : "aiSuggestionInserted");
       return;
     }
-    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), payload?.configured === false ? "aiSuggestFallback" : "aiSuggestionInserted");
-  } catch {
-    insertSuggestion(buildStaticLeaveSuggestion(type, start, end), "aiSuggestFallback");
+    insertSuggestion(fallbackSuggestion(), "aiSuggestFallback");
+  } catch (error) {
+    console.warn("[WorkPass leave] AI suggest failed", error);
+    insertSuggestion(fallbackSuggestion(), "aiSuggestFallback");
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -8723,6 +8747,13 @@ function bindLeaveRequestTabControls() {
   }
   host.dataset.leaveControlsBound = "1";
   host.addEventListener("click", (event) => {
+    const aiBtn = event.target instanceof Element ? event.target.closest("#leaveRequestAiBtn") : null;
+    if (aiBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      void applyAiLeaveSuggestion();
+      return;
+    }
     const toggleBtn = event.target instanceof Element ? event.target.closest("#leaveRequestToggleBtn") : null;
     if (!toggleBtn) {
       return;

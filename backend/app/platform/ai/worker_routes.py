@@ -52,6 +52,7 @@ def register_worker_ai_blueprint(flask_app) -> None:
             return jsonify({"error": "question_required"}), 400
 
         lang = str(data.get("lang") or "de")[:2]
+        skip_intents = bool(data.get("skip_intents") or data.get("skipIntents"))
         spoken = data.get("spoken", data.get("voice_mode", False))
         if isinstance(spoken, str):
             spoken = spoken.lower() not in {"0", "false", "no"}
@@ -65,14 +66,16 @@ def register_worker_ai_blueprint(flask_app) -> None:
         }
         from .intents import try_intent_response
 
-        intent_hit = try_intent_response(
-            get_db(),
-            company_id,
-            question,
-            role="worker",
-            lang=lang,
-            worker=worker,
-        )
+        intent_hit = None
+        if not skip_intents:
+            intent_hit = try_intent_response(
+                get_db(),
+                company_id,
+                question,
+                role="worker",
+                lang=lang,
+                worker=worker,
+            )
         if intent_hit:
             result = intent_hit
         else:
