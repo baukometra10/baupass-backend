@@ -98,7 +98,7 @@ WORKER_SITE_GEOFENCE_MIN_METERS = 15
 WORKER_SITE_GEOFENCE_MAX_METERS = 500
 WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 200
 WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 100
-SITE_LEAVE_OFF_SITE_POLLS_REQUIRED = 2
+SITE_LEAVE_OFF_SITE_POLLS_REQUIRED = 1
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -11709,10 +11709,7 @@ def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note="")
             app.logger.debug("worker.site_leave publish skipped for worker %s", worker["id"], exc_info=True)
 
     logged_out = False
-    if site_cfg.get("siteAutoLogoutOnLeave") and session_token:
-        db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (session_token,))
-        logged_out = True
-    elif session_token:
+    if session_token:
         db.execute(
             "UPDATE worker_app_sessions SET site_off_site_polls = 0 WHERE token = ?",
             (session_token,),
@@ -13863,7 +13860,7 @@ def worker_app_site_presence():
 
 @require_worker_session
 def worker_app_site_leave():
-    """Check-out and revoke session when the worker leaves the site geofence."""
+    """Check-out attendance when the worker leaves the site geofence (app session stays active)."""
     worker = g.worker
     db = get_db()
     payload = request.get_json(silent=True) or {}

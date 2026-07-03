@@ -3932,7 +3932,9 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
 }
 
 .deployment-decline-modal.hidden {
-  display: none;
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden;
 }
 
 .deployment-decline-sheet {

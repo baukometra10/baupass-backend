@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260703c";
+const WORKER_BUILD_TAG = "20260703d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -91,8 +91,10 @@ function workerDebug(...args) {
 }
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 80;
 const WORKER_GEO_MAX_ACCURACY_METERS = 200;
-const SITE_GEOFENCE_WATCH_INTERVAL_MS = 10000;
-const SITE_OFF_SITE_STRIKES_REQUIRED = 2;
+const SITE_GEOFENCE_WATCH_INTERVAL_MS = 5000;
+const SITE_OFF_SITE_STRIKES_REQUIRED = 1;
+const SITE_GEOFENCE_LEAVE_GUARD_MS = 30000;
+const DEPLOYMENT_API_TIMEOUT_MS = 25000;
 const PROXIMITY_LOGIN_POLL_MS = 10000;
 const PROXIMITY_LOGIN_DWELL_MS = 15000;
 const RETIRED_WORKER_API_HOSTS = new Set([
@@ -1687,6 +1689,8 @@ let lastUserInteractionAt = Date.now();
 let autoOpenScannerEnabled = wpGet(AUTO_OPEN_SCANNER_KEY) !== "0";
 let offlineWorkerSessionActive = false;
 let siteGeofenceWatchTimer = null;
+let siteGeofencePositionWatchId = null;
+let siteGeofencePollInFlight = false;
 let siteOffSiteStrikeCount = 0;
 let siteGeofenceLeaveInProgress = false;
 let lastSitePresenceNoticeKey = "";
@@ -3264,6 +3268,7 @@ function bindEvents() {
         void loadWorkerData({ quiet: true });
         if (lastSiteAccessCfg?.siteApp && hasSiteGeofenceConfig(lastSiteAccessCfg)) {
           siteOffSiteStrikeCount = 0;
+          startSiteGeofenceMonitor(lastSiteAccessCfg);
           void pollSitePresence(lastSiteAccessCfg);
         }
       }
@@ -3275,10 +3280,16 @@ function bindEvents() {
     updateWalletImmersiveMode();
     updateWorkerPulsePanel();
     ensureWorkerChatDom();
+    resetDeploymentPlanUiState();
     if (workerToken) {
       refreshWorkerChatPanel();
       void requestWakeLock();
       void fetchAndDisplayDynamicQr();
+      if (lastSiteAccessCfg?.siteApp && hasSiteGeofenceConfig(lastSiteAccessCfg)) {
+        siteOffSiteStrikeCount = 0;
+        startSiteGeofenceMonitor(lastSiteAccessCfg);
+        void pollSitePresence(lastSiteAccessCfg);
+      }
     }
   });
   window.addEventListener("pagehide", () => {
@@ -6789,6 +6800,10 @@ function stopSiteGeofenceMonitor() {
     clearInterval(siteGeofenceWatchTimer);
     siteGeofenceWatchTimer = null;
   }
+  if (siteGeofencePositionWatchId != null && navigator.geolocation?.clearWatch) {
+    navigator.geolocation.clearWatch(siteGeofencePositionWatchId);
+    siteGeofencePositionWatchId = null;
+  }
   siteOffSiteStrikeCount = 0;
 }
 
@@ -7309,16 +7324,36 @@ function applySiteAccessUi(payload = lastWorkerPayload) {
   updateSiteGpsStatusBar({ cfg });
 }
 
+function notifyWorkerSiteGeofenceLeave(message) {
+  if (!message) return;
+  showWorkerNotice(message);
+  haptic([24, 36, 24]);
+  try {
+    if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+      new Notification("WorkPass", {
+        body: message,
+        tag: "site-geofence-leave",
+        renotify: true,
+        icon: "/branding/suppix-icon-192.png",
+      });
+    }
+  } catch {
+    // ignore notification failures
+  }
+}
+
 async function handleSiteLeaveDetected() {
   if (siteGeofenceLeaveInProgress || !workerToken) return;
   siteGeofenceLeaveInProgress = true;
   stopSiteGeofenceMonitor();
   const tokenForLeave = workerToken;
   const cfg = lastSiteAccessCfg;
-  let leavePayload = null;
+  const leaveGuard = setTimeout(() => {
+    siteGeofenceLeaveInProgress = false;
+  }, SITE_GEOFENCE_LEAVE_GUARD_MS);
   try {
     const locationPayload = await resolveSiteLocation({ preferFast: false });
-    leavePayload = await fetchJson(`${API_BASE}/site-leave`, {
+    await fetchJson(`${API_BASE}/site-leave`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -7328,47 +7363,36 @@ async function handleSiteLeaveDetected() {
     });
   } catch (error) {
     console.warn("[site-leave]", error);
+  } finally {
+    clearTimeout(leaveGuard);
+    siteGeofenceLeaveInProgress = false;
   }
-  if (tokenForLeave === workerToken) {
-    const fullLogout = leavePayload?.loggedOut === true;
-    if (fullLogout) {
-      invalidateWorkerSession({ showNotice: false });
-      showWorkerNotice(t("siteLeaveAutoLogout"));
-      showWorkerNotice(t("siteReturnProximityHint"));
-      lastSitePresenceNoticeKey = "";
-      const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
-      if (badgeId && getStoredBadgePinForProximity()) {
-        try {
-          const hint = await fetchProximitySiteHint(badgeId);
-          if (shouldAllowProximityAutoLogin(hint)) {
-            startProximityLoginWatcher();
-          }
-          updateSiteGpsStatusBar({ cfg: siteAccessCfgFromHint(hint) || cfg || undefined });
-        } catch {
-          updateSiteGpsStatusBar({ cfg: cfg || undefined });
-        }
-      }
-    } else {
-      showWorkerNotice(t("siteLeaveAttendanceOnly"));
-      siteOffSiteStrikeCount = 0;
-      if (cfg) {
-        startSiteGeofenceMonitor(cfg);
-      }
-    }
+  if (tokenForLeave !== workerToken) {
+    return;
   }
-  siteGeofenceLeaveInProgress = false;
+  notifyWorkerSiteGeofenceLeave(t("siteLeaveAttendanceOnly"));
+  siteOffSiteStrikeCount = 0;
+  void loadMyTimesheets();
+  if (cfg) {
+    startSiteGeofenceMonitor(cfg);
+  }
 }
 
 async function pollSitePresence(cfg) {
-  if (!workerToken || offlineWorkerSessionActive || siteGeofenceLeaveInProgress) return;
+  if (!workerToken || offlineWorkerSessionActive || siteGeofenceLeaveInProgress || siteGeofencePollInFlight) {
+    return;
+  }
+  siteGeofencePollInFlight = true;
   lastSiteAccessCfg = cfg;
   let locationPayload = null;
   try {
     locationPayload = await resolveSiteLocation({ preferFast: false });
   } catch {
+    siteGeofencePollInFlight = false;
     return;
   }
   if (!locationPayload) {
+    siteGeofencePollInFlight = false;
     return;
   }
   const accuracy = Number(locationPayload.accuracy);
@@ -7381,6 +7405,7 @@ async function pollSitePresence(cfg) {
         accuracyMeters: accuracy,
       },
     });
+    siteGeofencePollInFlight = false;
     return;
   }
   try {
@@ -7416,28 +7441,11 @@ async function pollSitePresence(cfg) {
       const leaveKey = `leave:${presence.checkoutLogId || presence.siteLeaveLogId || "applied"}`;
       if (leaveKey !== lastSitePresenceNoticeKey) {
         lastSitePresenceNoticeKey = leaveKey;
-        if (presence.loggedOut) {
-          invalidateWorkerSession({ showNotice: false });
-          showWorkerNotice(t("siteLeaveAutoLogout"));
-          showWorkerNotice(t("siteReturnProximityHint"));
-          const badgeId = normalizeBadgeIdInput(wpGet(WORKER_BADGE_LOGIN_KEY) || "");
-          if (badgeId && getStoredBadgePinForProximity()) {
-            try {
-              const hint = await fetchProximitySiteHint(badgeId);
-              if (shouldAllowProximityAutoLogin(hint)) {
-                startProximityLoginWatcher();
-              }
-            } catch {
-              // ignore
-            }
-          }
-        } else {
-          showWorkerNotice(t("siteLeaveAttendanceOnly"));
-        }
+        notifyWorkerSiteGeofenceLeave(t("siteLeaveAttendanceOnly"));
       }
       siteOffSiteStrikeCount = 0;
       void loadMyTimesheets();
-      if (!presence.loggedOut && cfg) {
+      if (cfg) {
         startSiteGeofenceMonitor(cfg);
       }
       return;
@@ -7486,6 +7494,8 @@ async function pollSitePresence(cfg) {
       return;
     }
     workerDebug("[site-presence]", error);
+  } finally {
+    siteGeofencePollInFlight = false;
   }
 }
 
@@ -7497,6 +7507,21 @@ function startSiteGeofenceMonitor(cfg) {
   siteGeofenceWatchTimer = setInterval(() => {
     void pollSitePresence(cfg);
   }, SITE_GEOFENCE_WATCH_INTERVAL_MS);
+  if (navigator.geolocation?.watchPosition) {
+    let lastWatchPollAt = 0;
+    siteGeofencePositionWatchId = navigator.geolocation.watchPosition(
+      () => {
+        const now = Date.now();
+        if (now - lastWatchPollAt < 4000) {
+          return;
+        }
+        lastWatchPollAt = now;
+        void pollSitePresence(cfg);
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+  }
 }
 
 function invalidateWorkerSession({ showNotice = true } = {}) {
@@ -7613,7 +7638,7 @@ async function fetchJson(url, options = {}) {
     response = await fetch(url, requestOptions);
   } catch (fetchError) {
     const error = new Error(fetchError?.message || "Network error");
-    error.code = "network_error";
+    error.code = fetchError?.name === "AbortError" ? "request_timeout" : "network_error";
     error.cause = fetchError;
     throw error;
   }
@@ -7649,6 +7674,16 @@ async function fetchJson(url, options = {}) {
     throw error;
   }
   return response.json();
+}
+
+async function fetchJsonWithTimeout(url, options = {}, timeoutMs = DEPLOYMENT_API_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetchJson(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 function isAccessLogCheckIn(direction) {
@@ -7882,6 +7917,9 @@ function formatWorkerApiError(error) {
   }
   if (code === "attachment_upload_failed" || code === "attachment_payload_required") {
     return t("workerChatDocumentSubmitFailed");
+  }
+  if (code === "request_timeout" || code === "network_error") {
+    return t("connError");
   }
   return String(error?.message || "Daten konnten nicht geladen werden.");
 }
@@ -9781,6 +9819,7 @@ let deploymentPlanPublished = false;
 let deploymentPlanCanRespond = false;
 let deploymentPlanPointerLockUntil = 0;
 let deploymentModalGuardUntil = 0;
+let deploymentDeclineInFlight = false;
 
 function deploymentDayIso(day) {
   return String(day?.date || "").slice(0, 10);
@@ -9842,7 +9881,7 @@ function deploymentDayIsDeclined(day) {
 }
 
 async function postDeploymentDayResponse(date, action, reason = "") {
-  return fetchJson(`${API_BASE}/deployment-plan/day-response`, {
+  return fetchJsonWithTimeout(`${API_BASE}/deployment-plan/day-response`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${workerToken}`,
@@ -9850,6 +9889,14 @@ async function postDeploymentDayResponse(date, action, reason = "") {
     },
     body: JSON.stringify({ date, action, reason }),
   });
+}
+
+function resetDeploymentPlanUiState() {
+  deploymentPlanPointerLockUntil = 0;
+  deploymentModalGuardUntil = 0;
+  deploymentDeclineInFlight = false;
+  closeDeploymentDeclineModal();
+  closeDeploymentDayDetailModal();
 }
 
 function mountWorkerPortalModals() {
@@ -9879,7 +9926,7 @@ function closeWorkerDeploymentPlanScreen() {
 }
 
 function handleDeploymentPlanListClick(event) {
-  if (!document.body.classList.contains("worker-loaded")) {
+  if (!workerToken) {
     return;
   }
   if (Date.now() < deploymentPlanPointerLockUntil) {
@@ -9888,6 +9935,10 @@ function handleDeploymentPlanListClick(event) {
     return;
   }
   if (!(event.target instanceof Element)) {
+    return;
+  }
+  const host = event.target.closest("#deploymentPlanList, #deploymentPlanCard");
+  if (!host) {
     return;
   }
   const declineBtn = event.target.closest("[data-dep-decline]");
@@ -10045,8 +10096,14 @@ function openDeploymentDeclineModal(day) {
   const modal = document.getElementById("deploymentDeclineModal");
   const dateEl = document.getElementById("deploymentDeclineModalDate");
   const reasonEl = document.getElementById("deploymentDeclineReason");
+  const confirmBtn = document.getElementById("deploymentDeclineConfirm");
   if (!modal || !dateEl) return;
+  deploymentDeclineInFlight = false;
   setDeploymentDeclineModalError("");
+  if (confirmBtn) {
+    confirmBtn.disabled = false;
+    confirmBtn.removeAttribute("aria-busy");
+  }
   deploymentDeclinePendingDate = deploymentDayIso(day);
   const label = [day.weekday, deploymentDayIso(day)].filter(Boolean).join(" · ");
   dateEl.textContent = label;
@@ -10060,6 +10117,7 @@ function openDeploymentDeclineModal(day) {
 
 function closeDeploymentDeclineModal() {
   deploymentDeclinePendingDate = "";
+  deploymentDeclineInFlight = false;
   setDeploymentDeclineModalError("");
   const confirmBtn = document.getElementById("deploymentDeclineConfirm");
   if (confirmBtn) {
@@ -10250,9 +10308,10 @@ function bindDeploymentPlanModalControls() {
   });
   document.getElementById("deploymentDeclineConfirm")?.addEventListener("click", () => {
     const iso = deploymentDeclinePendingDate;
-    if (!iso) return;
+    if (!iso || deploymentDeclineInFlight) return;
     const reason = String(document.getElementById("deploymentDeclineReason")?.value || "").trim();
     const confirmBtn = document.getElementById("deploymentDeclineConfirm");
+    deploymentDeclineInFlight = true;
     void (async () => {
       setDeploymentDeclineModalError("");
       if (confirmBtn) {
@@ -10271,6 +10330,7 @@ function bindDeploymentPlanModalControls() {
         setDeploymentDeclineModalError(message);
         showWorkerNotice(message);
       } finally {
+        deploymentDeclineInFlight = false;
         if (confirmBtn) {
           confirmBtn.disabled = false;
           confirmBtn.removeAttribute("aria-busy");
@@ -10282,16 +10342,13 @@ function bindDeploymentPlanModalControls() {
 
 function bindDeploymentPlanInteractions() {
   mountWorkerPortalModals();
-  if (bindDeploymentPlanInteractions._done) {
+  const card = document.getElementById("deploymentPlanCard");
+  if (!card || card.dataset.depPlanBound === "1") {
     return;
   }
-  bindDeploymentPlanInteractions._done = true;
-
-  const listHost = document.getElementById("deploymentPlanList");
-  if (listHost) {
-    listHost.addEventListener("click", handleDeploymentPlanListClick);
-    listHost.addEventListener("keydown", handleDeploymentPlanKeydown);
-  }
+  card.dataset.depPlanBound = "1";
+  card.addEventListener("click", handleDeploymentPlanListClick);
+  card.addEventListener("keydown", handleDeploymentPlanKeydown);
 }
 
 function monthLabelFromParts(year, month, lang) {
@@ -10342,6 +10399,7 @@ async function openWorkerDeploymentPlanScreen(year = null, month = null) {
     showWorkerNotice(planFeatureBlockedMessage("deployment_plan"));
     return;
   }
+  resetDeploymentPlanUiState();
   mountWorkerPortalModals();
   const now = new Date();
   deploymentPlanViewYear = year || deploymentPlanViewYear || now.getFullYear();
