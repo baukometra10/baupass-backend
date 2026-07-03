@@ -317,9 +317,17 @@ def build_worker_deployment_pdf_bytes(
 
     company_id = str(worker["company_id"])
     worker_id = str(worker["id"])
-    if not worker_month_published_for_worker(
+    can_show = worker_month_published_for_worker(
         db, company_id=company_id, worker_id=worker_id, year=year, month=month
-    ):
+    ) or worker_can_respond_to_deployment_month(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        year=year,
+        month=month,
+        lang=lang,
+    )
+    if not can_show:
         return None
     days = build_month_calendar(
         db, company_id=company_id, worker_id=str(worker["id"]), year=year, month=month, lang=lang

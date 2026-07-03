@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260703f";
+const WORKER_BUILD_TAG = "20260703g";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -10650,6 +10650,24 @@ async function loadDeploymentPlan() {
   }
 }
 
+async function openWorkerPdfBlob(blob, filename, { suggestPrint = false } = {}) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener noreferrer";
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  if (suggestPrint) {
+    showWorkerNotice(t("deploymentPlanPrintHint"));
+  } else {
+    showWorkerNotice(t("deploymentPlanPdfOpened"));
+  }
+  setTimeout(() => URL.revokeObjectURL(url), 120000);
+}
+
 async function openDeploymentPlanPdf(shouldPrint = false) {
   if (!workerToken) {
     showWorkerNotice("Bitte zuerst anmelden.");
@@ -10658,27 +10676,35 @@ async function openDeploymentPlanPdf(shouldPrint = false) {
   const year = deploymentPlanViewYear || new Date().getFullYear();
   const month = deploymentPlanViewMonth || new Date().getMonth() + 1;
   const lang = getWorkerLang();
+  const filename = `einsatzplan-${year}-${String(month).padStart(2, "0")}.pdf`;
+  showWorkerNotice(t("deploymentPlanPdfLoading"));
   try {
     const response = await fetch(
       `${API_BASE}/deployment-plan/pdf?year=${encodeURIComponent(year)}&month=${encodeURIComponent(month)}&lang=${encodeURIComponent(lang)}`,
       { headers: buildWorkerAuthHeaders() }
     );
-    if (!response.ok) {
-      let message = t("deploymentPlanNotPublished");
+    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    if (!response.ok || !contentType.includes("pdf")) {
+      let message = t("deploymentPlanPdfUnavailable");
       try {
-        const payload = await response.json();
+        const payload = contentType.includes("json") ? await response.json() : null;
         if (payload?.message || payload?.error) {
-          message = String(payload.message || payload.error);
+          const code = String(payload.error || "");
+          message = code === "plan_not_available" || code === "plan_not_published"
+            ? t("deploymentPlanPdfUnavailable")
+            : String(payload.message || payload.error);
         }
       } catch {
-        // ignore parse errors
+        if (response.status === 404) {
+          message = t("deploymentPlanPdfUnavailable");
+        }
       }
       showWorkerNotice(message);
       return;
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    if (shouldPrint) {
+    if (shouldPrint && !/iphone|ipad|ipod|android/i.test(navigator.userAgent || "")) {
+      const url = URL.createObjectURL(blob);
       const frame = document.createElement("iframe");
       frame.className = "hidden-control";
       frame.src = url;
@@ -10687,8 +10713,9 @@ async function openDeploymentPlanPdf(shouldPrint = false) {
         try {
           frame.contentWindow?.focus();
           frame.contentWindow?.print();
+          showWorkerNotice(t("deploymentPlanPrintHint"));
         } catch {
-          window.open(url, "_blank", "noopener");
+          void openWorkerPdfBlob(blob, filename, { suggestPrint: true });
         }
         setTimeout(() => {
           frame.remove();
@@ -10697,8 +10724,7 @@ async function openDeploymentPlanPdf(shouldPrint = false) {
       };
       return;
     }
-    window.open(url, "_blank", "noopener");
-    setTimeout(() => URL.revokeObjectURL(url), 120000);
+    await openWorkerPdfBlob(blob, filename, { suggestPrint: shouldPrint });
   } catch (error) {
     showWorkerNotice(formatWorkerApiError(error));
   }

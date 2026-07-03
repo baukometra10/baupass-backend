@@ -3952,10 +3952,26 @@ body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden) {
 .deployment-decline-sheet {
   pointer-events: auto;
   width: min(100%, 420px);
-  background: #fff;
+  background: #ffffff;
+  color: #0f172a;
+  color-scheme: light;
   border-radius: 16px 16px 12px 12px;
   padding: 1rem 1rem 1.25rem;
-  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.28);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.deployment-decline-sheet h4 {
+  margin: 0 0 0.35rem;
+  color: #0f172a;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.deployment-decline-sheet .muted-info {
+  color: #475569;
+  font-size: 0.92rem;
+  padding: 0 0 0.35rem;
 }
 
 .deployment-decline-reason-label {
@@ -3963,16 +3979,48 @@ body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden) {
   flex-direction: column;
   gap: 0.35rem;
   margin: 0.75rem 0;
-  font-size: 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1e293b;
 }
 
 .deployment-decline-reason {
   width: 100%;
-  border: 1px solid #cbd5e1;
+  border: 1px solid #94a3b8;
   border-radius: 10px;
   padding: 0.65rem 0.75rem;
   font: inherit;
+  font-size: 1rem;
+  line-height: 1.45;
   resize: vertical;
+  min-height: 5.5rem;
+  background: #ffffff;
+  color: #0f172a;
+  caret-color: #0f172a;
+}
+
+.deployment-decline-reason::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+.deployment-decline-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+  margin-top: 0.35rem;
+}
+
+.deployment-decline-sheet .ghost.small-btn {
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+}
+
+.deployment-decline-sheet .primary.small-btn {
+  color: #ffffff;
+  background: #0a57c0;
+  border: 1px solid #0a57c0;
 }
 
 .deployment-decline-error {
@@ -3988,12 +4036,6 @@ body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden) {
 
 .deployment-decline-error.hidden {
   display: none;
-}
-
-.deployment-decline-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
 }
 
 .home-deployment-teaser.is-declined {
