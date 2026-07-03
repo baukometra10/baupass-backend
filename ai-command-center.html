@@ -259,7 +259,6 @@
         <button type="button" class="secondary" id="clearChatBtn">Chat leeren</button>
       </div>
       <div class="scroll" id="chatLog"></div>
-      <div class="chip-row" id="quickPrompts" style="padding:0 0.65rem"></div>
       <form class="chat-form" id="chatForm">
         <div class="input-row">
           <textarea id="question" rows="1" placeholder="Frage stellen…"></textarea>
@@ -1135,22 +1134,6 @@
       });
     }
 
-    async function loadPrompts() {
-      const el = document.getElementById("quickPrompts");
-      el.innerHTML = "";
-      try {
-        const data = await api(`/api/ai/prompts?${companyQs()}`);
-        data.prompts.forEach((p) => {
-          const b = document.createElement("button");
-          b.type = "button";
-          b.textContent = p.text.length > 40 ? p.text.slice(0, 38) + "…" : p.text;
-          b.title = p.text;
-          b.onclick = () => submitQuestion(p.text);
-          el.appendChild(b);
-        });
-      } catch { /* ignore */ }
-    }
-
     async function loadSessions() {
       if (companyRequiredForUi()) {
         sessions = [];
@@ -1552,7 +1535,7 @@
     async function boot() {
       await loadAgents();
       renderAgents();
-      await Promise.all([loadInsights(), loadPrompts(), loadSessions()]);
+      await Promise.all([loadInsights(), loadSessions()]);
       startInsightsPolling();
       startInsightsRealtime();
     }
@@ -1560,13 +1543,11 @@
     window.addEventListener("storage", (event) => {
       if (event.key !== UI_LANG_KEY || !event.newValue) return;
       applyUiLanguage({ reloadAgents: true, reloadInsights: true });
-      loadPrompts().catch(() => {});
       if (!companyRequiredForUi()) loadInsights().catch(() => {});
     });
 
     window.addEventListener("baupass-lang-sync", () => {
       applyUiLanguage({ reloadAgents: true, reloadInsights: true });
-      loadPrompts().catch(() => {});
       if (!companyRequiredForUi()) loadInsights().catch(() => {});
     });
 

@@ -21221,6 +21221,8 @@ function showLoginGreeting() {
 let _cameraLiveTimer = null;
 let _cameraActiveTab = null;
 const _cameraBlobUrls = new Map();
+const _cameraSnapshotBackoff = new Map();
+const CAMERA_SNAPSHOT_BACKOFF_MS = 120000;
 state.siteCameras = state.siteCameras || [];
 
 function _cameraEventsUrl() {
@@ -21402,6 +21404,8 @@ function switchCameraSetupTab(tabName) {
     btn.classList.toggle("active", btn.getAttribute("data-camera-tab") === next);
   });
   if (next === "live") {
+    // Manual tab switch: retry once even for cameras currently in backoff.
+    _cameraSnapshotBackoff.clear();
     void refreshAllCameraLiveViews();
     document.getElementById("cameraLiveGrid")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -21416,12 +21420,24 @@ async function refreshCameraTileSnapshot(cameraId) {
   if (!img || !placeholder) return;
   const role = String(getCurrentUser()?.role || "");
   if (role === "superadmin" && !superadminUiPreviewCompanyId) return;
+  const backoffUntil = _cameraSnapshotBackoff.get(cameraId) || 0;
+  if (Date.now() < backoffUntil) {
+    return;
+  }
   try {
     const resp = await fetch(_cameraSnapshotUrl(cameraId), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: "include",
     });
-    if (!resp.ok) throw new Error("no_snapshot");
+    if (!resp.ok) {
+      // 404 = camera has no snapshot yet (e.g. bridge not sending) — back off
+      // instead of hammering the endpoint every poll cycle.
+      if (resp.status === 404 || resp.status === 429) {
+        _cameraSnapshotBackoff.set(cameraId, Date.now() + CAMERA_SNAPSHOT_BACKOFF_MS);
+      }
+      throw new Error("no_snapshot");
+    }
+    _cameraSnapshotBackoff.delete(cameraId);
     const blob = await resp.blob();
     _revokeCameraBlobUrl(cameraId);
     const objectUrl = URL.createObjectURL(blob);
@@ -21436,9 +21452,17 @@ async function refreshCameraTileSnapshot(cameraId) {
   }
 }
 
+function isCameraLiveGridVisible() {
+  const grid = document.getElementById("cameraLiveGrid");
+  if (!grid) return false;
+  if (document.visibilityState !== "visible") return false;
+  return grid.offsetParent !== null;
+}
+
 async function refreshAllCameraLiveViews() {
   const cameras = state.siteCameras || [];
   if (!cameras.length) return;
+  if (!isCameraLiveGridVisible()) return;
   await Promise.allSettled(cameras.map((cam) => refreshCameraTileSnapshot(cam.id)));
 }
 
@@ -21476,7 +21500,9 @@ function openCameraFullscreen(src, cameraId) {
 function startCameraLivePolling() {
   stopCameraLivePolling();
   _cameraLiveTimer = setInterval(() => {
-    if ((state.siteCameras || []).length) void refreshAllCameraLiveViews();
+    if ((state.siteCameras || []).length && isCameraLiveGridVisible()) {
+      void refreshAllCameraLiveViews();
+    }
   }, 10000);
 }
 

@@ -154,12 +154,6 @@
       border: 1px solid var(--border); background: #0f1419; color: var(--accent); cursor: pointer;
     }
     .ai-toolbar button.primary { background: #1a3a4a; color: var(--text); border-color: var(--accent); }
-    #aiPrompts { padding: 0 0.75rem 0.5rem; display: flex; flex-wrap: wrap; gap: 0.35rem; }
-    #aiPrompts button {
-      font-size: 0.7rem; padding: 0.2rem 0.45rem; border-radius: 999px;
-      border: 1px solid var(--border); background: #0f1419; color: var(--muted); cursor: pointer; text-align: start;
-    }
-    #aiPrompts button:hover { color: var(--accent); border-color: var(--accent); }
     .msg-sources { font-size: 0.7rem; color: var(--muted); margin-top: 0.25rem; }
     .maturity { font-size: 0.85rem; color: var(--muted); padding: 0 0 0.75rem; }
     .plan-banner {
@@ -518,7 +512,6 @@
         <button type="button" id="aiBriefingBtn" class="primary"></button>
         <a href="/ai-command-center.html" id="aiCenterLink" style="font-size:0.72rem;padding:0.25rem 0.5rem;border-radius:6px;border:1px solid var(--border);text-decoration:none;color:var(--accent)"></a>
       </div>
-      <div id="aiPrompts"></div>
       <div id="aiLog" class="embed-scroll-main"></div>
       <form class="ai-form embed-panel-footer" id="aiForm">
         <div class="ai-form-row">
@@ -700,7 +693,6 @@
       renderLayers();
       updateEmbedLayersHint();
       loadRolePlaybook(hubPreviewMode).catch(() => {});
-      if (!hubPreviewMode) loadAiPrompts().catch(() => {});
       refreshMaturityAndAiStatus();
     }
     function planLabel(plan) {
@@ -1613,7 +1605,6 @@
         if (!isPreview && !aiSt.configured) {
           appendAi("system", t("aiAddKey"));
         }
-        if (!isPreview) await loadAiPrompts();
       } catch (e) {
         document.getElementById("authErr").classList.remove("hidden");
         document.getElementById("layers").innerHTML = `<p class="err-box">${t("authErr")}</p>`;
@@ -1700,29 +1691,6 @@
 
     function aiCompanyRequired() {
       return currentUserRole === "superadmin" && !selectedCompanyId;
-    }
-
-    async function loadAiPrompts() {
-      const el = document.getElementById("aiPrompts");
-      if (!el) return;
-      el.innerHTML = "";
-      if (aiCompanyRequired()) return;
-      try {
-        let url = `/api/ai/prompts?lang=${encodeURIComponent(HUB_LANG)}`;
-        if (selectedCompanyId) url += `&company_id=${encodeURIComponent(selectedCompanyId)}`;
-        const data = await api(url);
-        data.prompts.forEach((p) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          const label = p.text.length > 48 ? `${p.text.slice(0, 46)}…` : p.text;
-          btn.textContent = label;
-          btn.title = p.text;
-          btn.addEventListener("click", () => submitAiQuestion(p.text));
-          el.appendChild(btn);
-        });
-      } catch {
-        el.innerHTML = "";
-      }
     }
 
     function hubVoiceInputOptions() {
