@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260702r";
+const WORKER_BUILD_TAG = "20260703a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3494,8 +3494,13 @@ function bindEvents() {
 
   bindTopBarActions();
   
+  bindLeaveRequestTabControls();
   if (elements.leaveRequestToggleBtn) {
-    elements.leaveRequestToggleBtn.addEventListener("click", toggleLeaveRequestForm);
+    elements.leaveRequestToggleBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toggleLeaveRequestForm();
+    });
   }
   
   if (elements.leaveRequestForm) {
@@ -4651,6 +4656,41 @@ function restoreWorkerPassLayout(payload) {
   }
 }
 
+function updateWorkerLeaveBalanceBadge(payload) {
+  const leaveStats = payload?.leaveStats;
+  const worker = payload?.worker || {};
+  const isVisitor = String(worker.workerType || "worker").trim().toLowerCase() === "visitor";
+  const balanceBadge = document.getElementById("leaveBalanceBadge");
+  const balanceRemaining = document.getElementById("leaveBalanceRemaining");
+  if (!leaveStats || !balanceBadge || !balanceRemaining || isVisitor) {
+    return;
+  }
+  balanceRemaining.textContent = leaveStats.remaining;
+  balanceBadge.classList.remove("hidden");
+  balanceBadge.title = `Anspruch: ${leaveStats.balance} Tage · Genommen: ${leaveStats.taken} Tage`;
+  const pct = leaveStats.balance > 0 ? leaveStats.remaining / leaveStats.balance : 1;
+  balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
+}
+
+async function refreshWorkerLeaveStatsQuiet() {
+  if (!workerToken || offlineWorkerSessionActive) {
+    return;
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
+    if (!payload?.leaveStats) {
+      return;
+    }
+    lastWorkerPayload = {
+      ...(lastWorkerPayload || {}),
+      leaveStats: payload.leaveStats,
+    };
+    updateWorkerLeaveBalanceBadge(lastWorkerPayload);
+  } catch {
+    // Non-blocking: leave list already refreshed after submit.
+  }
+}
+
 function renderWorker(payload, options = {}) {
   const resyncTab = options.resyncTab !== false;
   const previousPayload = lastWorkerPayload;
@@ -4944,41 +4984,6 @@ function renderWorker(payload, options = {}) {
   if (elements.quickGateModeButton) {
     elements.quickGateModeButton.classList.add("hidden");
   }
-
-function updateWorkerLeaveBalanceBadge(payload) {
-  const leaveStats = payload?.leaveStats;
-  const worker = payload?.worker || {};
-  const isVisitor = String(worker.workerType || "worker").trim().toLowerCase() === "visitor";
-  const balanceBadge = document.getElementById("leaveBalanceBadge");
-  const balanceRemaining = document.getElementById("leaveBalanceRemaining");
-  if (!leaveStats || !balanceBadge || !balanceRemaining || isVisitor) {
-    return;
-  }
-  balanceRemaining.textContent = leaveStats.remaining;
-  balanceBadge.classList.remove("hidden");
-  balanceBadge.title = `Anspruch: ${leaveStats.balance} Tage · Genommen: ${leaveStats.taken} Tage`;
-  const pct = leaveStats.balance > 0 ? leaveStats.remaining / leaveStats.balance : 1;
-  balanceBadge.className = "leave-balance-badge" + (pct <= 0.1 ? " low" : pct <= 0.3 ? " medium" : "");
-}
-
-async function refreshWorkerLeaveStatsQuiet() {
-  if (!workerToken || offlineWorkerSessionActive) {
-    return;
-  }
-  try {
-    const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
-    if (!payload?.leaveStats) {
-      return;
-    }
-    lastWorkerPayload = {
-      ...(lastWorkerPayload || {}),
-      leaveStats: payload.leaveStats,
-    };
-    updateWorkerLeaveBalanceBadge(lastWorkerPayload);
-  } catch {
-    // Non-blocking: leave list already refreshed after submit.
-  }
-}
 
   updateWorkerLeaveBalanceBadge(payload);
 
@@ -8299,6 +8304,8 @@ function syncLeaveRequestDomRefs() {
   elements.leaveRequestNote = document.querySelector("#leaveRequestNote") || elements.leaveRequestNote;
   elements.leaveRequestBossEmail = document.querySelector("#leaveRequestBossEmail") || elements.leaveRequestBossEmail;
   elements.leaveRequestList = document.querySelector("#leaveRequestList") || elements.leaveRequestList;
+  elements.leaveRequestToggleBtn = document.querySelector("#leaveRequestToggleBtn") || elements.leaveRequestToggleBtn;
+  elements.leaveRequestFormWrapper = document.querySelector("#leaveRequestFormWrapper") || elements.leaveRequestFormWrapper;
 }
 
 function getWorkerCompanyContextLabel() {
@@ -8429,7 +8436,7 @@ async function submitLeaveRequest() {
       }
     }
     elements.leaveRequestForm.reset();
-    toggleLeaveRequestForm();
+    toggleLeaveRequestForm(false);
     if (currentActiveTab !== "vacation") {
       switchToTab("vacation");
     } else {
@@ -8592,17 +8599,52 @@ async function prefillCompanyAdminEmails() {
   }
 }
 
-function toggleLeaveRequestForm() {
-  syncWorkerChatComposeRefs();
+function bindLeaveRequestTabControls() {
+  const host = document.getElementById("leaveRequestCard");
+  if (!host || host.dataset.leaveControlsBound === "1") {
+    return;
+  }
+  host.dataset.leaveControlsBound = "1";
+  host.addEventListener("click", (event) => {
+    const toggleBtn = event.target instanceof Element ? event.target.closest("#leaveRequestToggleBtn") : null;
+    if (!toggleBtn) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    toggleLeaveRequestForm();
+  });
+}
+
+function toggleLeaveRequestForm(forceOpen) {
+  syncLeaveRequestDomRefs();
   const formWrapper = document.getElementById("leaveRequestFormWrapper");
   const toggleBtn = document.getElementById("leaveRequestToggleBtn");
+  const leaveCard = document.getElementById("leaveRequestCard");
   if (!formWrapper || !toggleBtn) {
+    console.warn("[WorkPass leave] toggle: form wrapper or button missing");
     return;
   }
   elements.leaveRequestFormWrapper = formWrapper;
   elements.leaveRequestToggleBtn = toggleBtn;
-  const isHidden = formWrapper.classList.toggle("hidden");
-  toggleBtn.textContent = isHidden ? t("leaveRequestNewBtn") : t("leaveRequestHideFormBtn");
+
+  const open = typeof forceOpen === "boolean"
+    ? forceOpen
+    : formWrapper.classList.contains("hidden");
+
+  formWrapper.classList.toggle("hidden", !open);
+  formWrapper.setAttribute("aria-hidden", open ? "false" : "true");
+  formWrapper.style.removeProperty("display");
+  leaveCard?.classList.toggle("leave-form-open", open);
+  toggleBtn.textContent = open ? t("leaveRequestHideFormBtn") : t("leaveRequestNewBtn");
+  toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+
+  if (open) {
+    formWrapper.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    window.requestAnimationFrame(() => {
+      elements.leaveRequestStart?.focus({ preventScroll: true });
+    });
+  }
 }
 
 async function addWorkerPassToWallet(platform) {
@@ -8711,7 +8753,7 @@ async function loadLeaveRequests() {
     const requests = Array.isArray(res) ? res : res.requests || [];
     console.info("[WorkPass leave] loaded", requests.length, "requests");
     if (requests.length === 0) {
-      elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests") || "Keine Anträge vorhanden."}<br><small>Tippe „+ Neuer Antrag“, wähle Datum und sende ab. Nach Erfolg erscheint hier die Antrags-ID.</small></p>`;
+      elements.leaveRequestList.innerHTML = `<p class="muted-info">${t("leaveNoRequests")}<br><small>${t("leaveNoRequestsHint")}</small></p>`;
     } else {
       const sortedRequests = [...requests].sort((a, b) => {
         const aDate = String(a.start_date || a.created_at || "");
@@ -9179,6 +9221,7 @@ function switchToTab(tabName) {
   } else if (tabName === "vacation") {
     ensureWorkerFeatureHubVisible();
     showOnlyWorkerFeaturePanel("leaveRequestCard");
+    bindLeaveRequestTabControls();
     if (!workerPlanAllowsFeature(WORKER_PLAN_TAB_FEATURES.vacation)) {
       renderWorkerListMessage(elements.leaveRequestList, planFeatureBlockedMessage(WORKER_PLAN_TAB_FEATURES.vacation), "error");
     } else if (workerToken) {
@@ -11016,7 +11059,7 @@ function processVoiceCommand(text) {
   }
   if (cmd.includes("antrag") || cmd.includes("urlaub")) {
     applyWorkerPageView("leaveRequestCard");
-    toggleLeaveRequestForm();
+    toggleLeaveRequestForm(true);
     return;
   }
   if (cmd.includes("thema") || cmd.includes("theme")) {
@@ -11207,6 +11250,7 @@ function initWorkerAppShell() {
   bindTopBarActions();
   enforceUiVisibilityGuard();
   bindWorkerFeatureTabActions();
+  bindLeaveRequestTabControls();
   initBottomTabNavigation();
 }
 

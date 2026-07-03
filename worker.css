@@ -3583,6 +3583,26 @@ body.worker-loaded #deploymentDeclineModal:not(.hidden) {
   word-break: break-word;
 }
 
+.leave-request-actions {
+  margin: 0 0 12px;
+}
+
+.leave-request-toggle-btn {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+#leaveRequestCard.leave-form-open #leaveRequestFormWrapper {
+  display: block !important;
+}
+
+#leaveRequestFormWrapper:not(.hidden) {
+  margin-bottom: 12px;
+}
+
 .deployment-plan-calendar-cell.is-interactive {
   cursor: pointer;
   touch-action: manipulation;
