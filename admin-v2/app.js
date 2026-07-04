@@ -1,4 +1,4 @@
-﻿import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
+﻿import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
 import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -372,6 +372,18 @@ window.addEventListener("message", (event) => {
     }
     return;
   }
+  if (event.data.type === "baupass-navigate") {
+    if (window.self !== window.top) {
+      try {
+        window.parent.postMessage(event.data, window.location.origin);
+      } catch {
+        // ignore
+      }
+      return;
+    }
+    handleHubNavigateFromEmbed(event.data);
+    return;
+  }
   if (event.data.type !== "baupass-sync-token") return;
   const langFromParent = String(event.data.lang || "").trim().slice(0, 2);
   if (langFromParent) {
@@ -402,6 +414,48 @@ let pendingEinsatzplanFocus = false;
 let pendingDeploymentWorkerId = null;
 let pendingDeploymentWorkerName = null;
 let pendingDeploymentWorkDate = null;
+let pendingOpsEmbedPage = null;
+
+function handleHubNavigateFromEmbed(data) {
+  const view = String(data?.view || "").trim();
+  if (data?.companyId) {
+    applyParentCompanyId(data.companyId);
+  }
+  if (view === "deployment-plan" || data?.focusEinsatzplan || (view === "admin-v2" && data?.focusEinsatzplan)) {
+    pendingEinsatzplanFocus = true;
+    switchToTab("workers");
+    tryFocusEinsatzplanFromParent();
+    return;
+  }
+  const tabByView = {
+    dashboard: "overview",
+    workers: "workers",
+    access: "access",
+    documents: "inbox",
+    "ai-assistant": "copilot",
+    "enterprise-hub": "enterprise",
+    "admin-v2": "workers",
+    "ops-center": "operations",
+  };
+  const tab = tabByView[view];
+  if (tab) {
+    switchToTab(tab);
+    return;
+  }
+  if (data?.url && typeof data.url === "string") {
+    try {
+      window.location.href = data.url;
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function navigateToOpsEmbed(page) {
+  pendingOpsEmbedPage = String(page || "").trim();
+  switchToTab("operations");
+  refreshActiveTab().catch(notifyTabError);
+}
 
 function tryFocusEinsatzplanFromParent() {
   if ($("dashboardView")?.classList.contains("hidden")) {
@@ -521,7 +575,9 @@ async function api(path, options = {}) {
   if (options.body && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
-  const res = await fetch(`${apiBase()}${path}`, { ...options, headers });
+  const res = await (window.BaupassGuardian?.fetchWithGuardianRetry
+    ? window.BaupassGuardian.fetchWithGuardianRetry(`${apiBase()}${path}`, { ...options, headers })
+    : fetch(`${apiBase()}${path}`, { ...options, headers }));
   const text = await res.text();
   let data = {};
   try {
@@ -851,7 +907,7 @@ function syncEnterpriseFrame() {
   const q = companyQuery();
   const cid = q ? q.replace(/^\?company_id=/, "") : "";
   const lang = getLang();
-  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260705a`;
+  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260705b`;
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
   try {
     if (window.BaupassEmbed?.postMessageToIframe) {
@@ -1200,8 +1256,6 @@ function bindWorkTimesPanelOnce(host) {
     const cfg = host._workTimesCfg || {};
     const feedback = host.querySelector("#workTimesFeedback");
     const submitBtn = form.querySelector('button[type="submit"]');
-    const fd = new FormData(form);
-    const toHm = (v) => String(v || "").trim().slice(0, 5);
     if (!companyId) {
       if (feedback) {
         feedback.textContent = t("workTimes.pickCompany");
@@ -1218,14 +1272,15 @@ function bindWorkTimesPanelOnce(host) {
       feedback.textContent = "";
       feedback.className = "work-times-feedback hidden";
     }
+    const fd = new FormData(form);
     const accessMode = String(fd.get("accessMode") || cfg.accessMode || "gate");
     const siteApp = accessMode === "site_app";
     try {
       const saved = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
         method: "PUT",
         body: JSON.stringify({
-          workStartTime: toHm(fd.get("workStartTime")),
-          workEndTime: toHm(fd.get("workEndTime")),
+          workStartTime: "",
+          workEndTime: "",
           accessMode,
           siteGeofenceRadiusMeters: Number(fd.get("siteGeofenceRadiusMeters") || cfg.siteGeofenceRadiusMeters || 80),
           siteAutoCheckin: siteApp ? fd.get("siteAutoCheckin") === "on" : cfg.siteAutoCheckin !== false,
@@ -1271,8 +1326,6 @@ async function loadCompanyWorkTimesForm(companyId) {
   try {
     const cfg = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`);
     host._workTimesCfg = cfg;
-    const start = (cfg.workStartTime || "08:00").slice(0, 5);
-    const end = (cfg.workEndTime || "17:00").slice(0, 5);
     const accessMode = String(cfg.accessMode || "gate").toLowerCase() === "site_app" ? "site_app" : "gate";
     const siteRadius = Number(cfg.siteGeofenceRadiusMeters || 80);
     const siteFieldsHidden = accessMode !== "site_app";
@@ -1280,16 +1333,14 @@ async function loadCompanyWorkTimesForm(companyId) {
       <h3>${t("workTimes.title")}</h3>
       <p class="muted small">${t("workTimes.hint")}</p>
       <p id="workTimesFeedback" class="work-times-feedback hidden" role="status"></p>
-      <form id="workTimesForm" class="tool-form">
-        <label>${t("workTimes.start")} <input name="workStartTime" type="time" value="${start}" /></label>
-        <label>${t("workTimes.end")} <input name="workEndTime" type="time" value="${end}" /></label>
+      <form id="workTimesForm" class="tool-form access-settings-form">
         <label>${t("workTimes.accessMode")}
           <select name="accessMode" id="workTimesAccessMode">
             <option value="gate"${accessMode === "gate" ? " selected" : ""}>${t("workTimes.accessGate")}</option>
             <option value="site_app"${accessMode === "site_app" ? " selected" : ""}>${t("workTimes.accessSiteApp")}</option>
           </select>
         </label>
-        <fieldset id="workTimesSiteFieldset" class="tool-fieldset${siteFieldsHidden ? " hidden" : ""}">
+        <fieldset id="workTimesSiteFieldset" class="access-settings-fieldset${siteFieldsHidden ? " hidden" : ""}">
           <legend>${t("workTimes.siteAccessLegend")}</legend>
           <label>${t("workTimes.siteRadius")}
             <input name="siteGeofenceRadiusMeters" type="number" min="20" max="500" step="5" value="${siteRadius}" />
@@ -1950,14 +2001,16 @@ async function loadPlatform() {
       ${
         ent
           ? `<div class="panel-block">
-        <h3>${t("platform.yourPlan")}: ${ent.planMeta?.labelAr || ent.plan}</h3>
+        <h3>${t("platform.yourPlan")}: ${resolvePlanLabel(ent.planMeta, ent.plan)}</h3>
         <p>${t("platform.planSummary", {
           enabled: ent.entitlements?.enabledCount || 0,
           locked: ent.entitlements?.lockedCount || 0,
           pct: ent.entitlements?.coveragePercent || 0,
         })}</p>
-        <a class="feature-card" href="/enterprise-hub.html" style="display:inline-block;margin-top:0.5rem">${t("platform.openEnterprise")}</a>
-        <a class="feature-card" href="/ai-command-center.html" style="display:inline-block;margin-top:0.5rem">${t("platform.openAiCenter")}</a>
+        <div class="platform-plan-actions">
+          <button type="button" class="feature-card" id="platformOpenEnterpriseBtn">${t("platform.openEnterprise")}</button>
+          <button type="button" class="feature-card" id="platformOpenAiBtn">${t("platform.openAiCenter")}</button>
+        </div>
       </div>`
           : ""
       }
@@ -2002,9 +2055,18 @@ async function loadPlatform() {
     `;
     await loadCompanyWorkTimesForm(cid);
     bindAutopilotPanel($("autopilotPanel"), ap);
-    panel.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
-      switchToTab("mobile");
-      refreshActiveTab();
+    panel.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        switchToTab(btn.getAttribute("data-goto-tab"));
+        await refreshActiveTab();
+      });
+    });
+    panel.querySelector("#platformOpenEnterpriseBtn")?.addEventListener("click", () => {
+      switchToTab("enterprise");
+      syncEnterpriseFrame();
+    });
+    panel.querySelector("#platformOpenAiBtn")?.addEventListener("click", () => {
+      navigateToOpsEmbed("/ai-command-center.html");
     });
     panel.querySelector("#platformBrandingPdfBtn")?.addEventListener("click", () =>
       previewCompanyBrandingPdf().catch((e) => showActionToast(e.message, true)),
@@ -2458,6 +2520,12 @@ async function loadOperations() {
     initOpsCarousel($("opsCarousel"));
     initOpsLayerCards($("opsCarousel"));
     initOpsEmbedTabs(panel, cid);
+    if (pendingOpsEmbedPage) {
+      const page = pendingOpsEmbedPage;
+      pendingOpsEmbedPage = null;
+      const embedBtn = panel.querySelector(`.ops-embed-tab[data-ops-page="${page}"]`);
+      embedBtn?.click();
+    }
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
   }

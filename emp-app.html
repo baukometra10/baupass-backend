@@ -4,7 +4,7 @@
   <script>
     /* Erzwingt aktuelle worker-build.json — PWA: Cache+SW einmal leeren bei neuem Build */
     (function bootstrapWorkerShell() {
-      var INLINE_BUILD = "20260704d";
+      var INLINE_BUILD = "20260705b";
       var params = new URLSearchParams(window.location.search);
 
       var isStandalone = window.navigator.standalone === true
@@ -1516,7 +1516,7 @@
     </div>
   </div>
 
-  <script src="./worker-app.js?v=20260704d" defer></script>
+  <script src="./worker-app.js?v=20260705b" defer></script>
   <script defer>
     window.addEventListener("DOMContentLoaded", function () {
       ["./ai-voice-ui.js?v=20260614loginfix1", "./usage-tracker.js?v=20260619usage1"].forEach(function (src) {

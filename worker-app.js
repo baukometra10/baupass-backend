@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260704d";
+const WORKER_BUILD_TAG = "20260705b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -7665,14 +7665,26 @@ async function fetchJson(url, options = {}) {
   if (isWorkerProtectedApiUrl(url) && !isWorkerAnonymousRequest(url) && getWorkerAuthorizationValue()) {
     requestOptions.headers = buildWorkerAuthHeaders(requestOptions.headers || {});
   }
+  const transientHttp = new Set([408, 429, 502, 503, 504]);
+  const maxAttempts = 3;
   let response;
-  try {
-    response = await fetch(url, requestOptions);
-  } catch (fetchError) {
-    const error = new Error(fetchError?.message || "Network error");
-    error.code = fetchError?.name === "AbortError" ? "request_timeout" : "network_error";
-    error.cause = fetchError;
-    throw error;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      response = await fetch(url, requestOptions);
+    } catch (fetchError) {
+      if (attempt >= maxAttempts) {
+        const error = new Error(fetchError?.message || "Network error");
+        error.code = fetchError?.name === "AbortError" ? "request_timeout" : "network_error";
+        error.cause = fetchError;
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+      continue;
+    }
+    if (response.ok || !transientHttp.has(response.status) || attempt >= maxAttempts) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
   }
   if (!response.ok) {
     let message = `HTTP ${response.status}`;

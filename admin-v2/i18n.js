@@ -51,6 +51,16 @@ export function getLang() {
   return LANGS_8.includes(code) ? code : "de";
 }
 
+/** Plan display name from API planMeta — respects UI language (not always Arabic). */
+export function resolvePlanLabel(planMeta, plan) {
+  const meta = planMeta && typeof planMeta === "object" ? planMeta : {};
+  const code = getLang();
+  if (code === "ar") {
+    return String(meta.labelAr || meta.label || plan || "").trim() || plan;
+  }
+  return String(meta.label || meta.labelEn || plan || "").trim() || plan;
+}
+
 export function setLang(code) {
   if (!LANGS_8.includes(code)) return;
   localStorage.setItem(LANG_KEY, code);

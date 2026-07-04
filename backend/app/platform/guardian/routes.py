@@ -83,6 +83,7 @@ def register_guardian_blueprint(flask_app) -> None:
             status=status,
             workers_degraded=bool(worker_check.get("degraded")),
             dead_letter_total=dead_letter_total,
+            failed_probes=list(snapshot.get("failedProbes") or []),
             force=True,
         )
         refreshed = run_guardian_cycle(

@@ -95,6 +95,7 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
     remediation: dict[str, Any] = {"enabled": False, "actions": []}
     security: dict[str, Any] = {"enabled": False, "elevated": False, "severity": "ok"}
     security_alert: dict[str, Any] = {"sent": 0, "skipped": "not_run"}
+    re_probe: dict[str, Any] = {"ran": False}
 
     if db_ok:
         try:
@@ -107,12 +108,34 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
                 status=status,
                 workers_degraded=bool(worker_check.get("degraded")),
                 dead_letter_total=dead_letter_total,
+                failed_probes=failed_probes,
             )
             security = scan_security(db)
             security_alert = maybe_raise_security_alert(db, security)
+            security_fixes = [f for f in (security.get("fixes") or []) if f.get("ok") and not f.get("skipped")]
+            if security_fixes:
+                remediation["appliedCount"] = int(remediation.get("appliedCount") or 0) + len(security_fixes)
+                remediation["securityFixCount"] = len(security_fixes)
         except Exception as exc:
             remediation = {"enabled": True, "error": str(exc)[:200], "actions": []}
             security = {"enabled": True, "error": str(exc)[:200], "elevated": False, "severity": "ok"}
+
+    if failed_probes and int(remediation.get("appliedCount") or 0) > 0:
+        try:
+            platform_after = collect_platform_health(app, host=host, public_url=public_url)
+            failed_after = [p["id"] for p in platform_after.get("probes") or [] if not p.get("ok")]
+            re_probe = {
+                "ran": True,
+                "before": failed_probes,
+                "after": failed_after,
+                "recovered": [p for p in failed_probes if p not in failed_after],
+            }
+            if len(failed_after) < len(failed_probes):
+                platform = platform_after
+                failed_probes = failed_after
+                status = _merge_status(platform.get("status"), db_ok=db_ok, workers_degraded=bool(worker_check.get("degraded")))
+        except Exception as exc:
+            re_probe = {"ran": True, "error": str(exc)[:200]}
 
     snapshot: dict[str, Any] = {
         "status": status,
@@ -128,6 +151,7 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
         "workersDegraded": bool(worker_check.get("degraded")),
         "deadLetterTotal": dead_letter_total,
         "remediation": remediation,
+        "reProbe": re_probe,
         "security": security,
         "securityAlert": security_alert,
         "previousStatus": _previous_status,

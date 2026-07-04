@@ -88,6 +88,44 @@ def test_security_detects_login_spike():
     assert report["failedLogins15m"] == 20
 
 
+def test_lift_expired_bans(monkeypatch):
+    playbooks.reset_playbook_state_for_tests()
+    monkeypatch.setenv("BAUPASS_GUARDIAN_REMEDIATION_COOLDOWN_SECONDS", "3600")
+
+    class _Db:
+        rowcount = 2
+
+        def execute(self, *_args, **_kwargs):
+            return self
+
+        def commit(self):
+            return None
+
+    result = playbooks.lift_expired_rate_limit_bans(_Db())
+    assert result.get("ok") is True
+    assert result.get("lifted") == 2
+
+
+def test_resolve_guardian_alerts_when_ok(monkeypatch):
+    playbooks.reset_playbook_state_for_tests()
+    monkeypatch.setenv("BAUPASS_GUARDIAN_REMEDIATION_COOLDOWN_SECONDS", "3600")
+
+    class _Db:
+        rowcount = 1
+
+        def execute(self, *_args, **_kwargs):
+            return self
+
+        def commit(self):
+            return None
+
+    skipped = playbooks.resolve_guardian_status_alerts(_Db(), status="degraded")
+    assert skipped.get("skipped") == "status_not_ok"
+    ok = playbooks.resolve_guardian_status_alerts(_Db(), status="ok")
+    assert ok.get("ok") is True
+    assert ok.get("resolved") == 1
+
+
 def test_guardian_history_ring_buffer():
     from backend.app.platform.guardian import history
 

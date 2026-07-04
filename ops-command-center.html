@@ -81,7 +81,7 @@
     </nav>
   </header>
   <main id="grid"></main>
-  <script src="/embed-helpers.js?v=20260609csrf"></script>
+  <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
@@ -112,6 +112,7 @@
         guardianAllGreen: "Alle Module grün",
         guardianAutoRepair: "Auto-Reparatur: {n} Playbook(s)",
         guardianAutoRepairReady: "Auto-Reparatur bereit",
+        guardianReProbeRecovered: "Nach Reparatur wieder OK: {list}",
         guardianSecurityElevated: "Security: {n} Fehl-Logins/15min ({severity})",
         guardianSecurityOk: "Security: {n} Fehl-Logins/24h · OK",
         invoiceRetry: "Rechnungs-Retry",
@@ -170,6 +171,7 @@
         guardianAllGreen: "All modules green",
         guardianAutoRepair: "Auto-repair: {n} playbook(s)",
         guardianAutoRepairReady: "Auto-repair ready",
+        guardianReProbeRecovered: "Recovered after repair: {list}",
         guardianSecurityElevated: "Security: {n} failed logins/15min ({severity})",
         guardianSecurityOk: "Security: {n} failed logins/24h · OK",
         invoiceRetry: "Invoice retry",
@@ -381,13 +383,16 @@
       const remediationHint = remediation.enabled
         ? (applied > 0 ? tr("guardianAutoRepair", { n: applied }) : tr("guardianAutoRepairReady"))
         : "";
+      const reProbe = guardian.reProbe || {};
+      const recovered = Array.isArray(reProbe.recovered) ? reProbe.recovered : [];
+      const reProbeHint = recovered.length ? tr("guardianReProbeRecovered", { list: recovered.join(", ") }) : "";
       const sec = guardian.security || {};
       const secHint = sec.enabled
         ? (sec.elevated
           ? tr("guardianSecurityElevated", { n: sec.failedLogins15m ?? 0, severity: String(sec.severity || "warn").toUpperCase() })
           : tr("guardianSecurityOk", { n: sec.failedLogins24h ?? 0 }))
         : "";
-      const extraHints = [remediationHint, secHint].filter(Boolean).join(" · ");
+      const extraHints = [remediationHint, reProbeHint, secHint].filter(Boolean).join(" · ");
       const ops = guardian.ops || {};
       const opsHtml = `
         <div class="guardian-ops">

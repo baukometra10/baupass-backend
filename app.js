@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260705a";
+window.__BAUPASS_UI_BUILD = "20260705b";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -18550,7 +18550,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260621enterprise8");
+    params.push("v=20260705b");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }

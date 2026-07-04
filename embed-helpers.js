@@ -65,6 +65,21 @@
     return "";
   }
 
+  function postNavigateToHost(payload) {
+    const origin = global.location.origin;
+    if (!origin) return false;
+    const message = { ...(payload || {}), type: "baupass-navigate" };
+    try {
+      if (global.parent && global.parent !== global) {
+        global.parent.postMessage(message, origin);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  }
+
   function navigateFromEmbed(href, extraParams) {
     const url = withEmbed(href, extraParams);
     const view = viewFromHref(href);
@@ -80,11 +95,7 @@
       } catch {
         focusEinsatzplan = view === "deployment-plan";
       }
-      global.parent.postMessage(
-        { type: "baupass-navigate", view, url, focusEinsatzplan },
-        global.location.origin,
-      );
-      return;
+      return postNavigateToHost({ view, url, focusEinsatzplan });
     }
     global.location.href = url;
   }
@@ -237,14 +248,63 @@
     }
   }
 
+  const GUARDIAN_RETRY_HTTP = new Set([408, 429, 502, 503, 504]);
+  const _iframeHealAt = new WeakMap();
+
+  function guardianDelay(ms) {
+    return new Promise((resolve) => global.setTimeout(resolve, ms));
+  }
+
+  async function fetchWithGuardianRetry(input, init = {}, opts = {}) {
+    const maxAttempts = Math.max(1, Math.min(5, Number(opts.maxAttempts) || 3));
+    const baseDelayMs = Math.max(200, Number(opts.baseDelayMs) || 500);
+    let lastResponse = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(input, init);
+        lastResponse = response;
+        if (response.ok || !GUARDIAN_RETRY_HTTP.has(response.status) || attempt >= maxAttempts) {
+          return response;
+        }
+      } catch (err) {
+        if (attempt >= maxAttempts) throw err;
+      }
+      await guardianDelay(baseDelayMs * attempt);
+    }
+    return lastResponse || fetch(input, init);
+  }
+
+  function scheduleIframeHeal(frame) {
+    if (!frame || _iframeHealAt.get(frame)) return;
+    const src = String(frame.getAttribute("src") || frame.src || "").trim();
+    if (!src || src === "about:blank" || src.startsWith("about:")) return;
+    _iframeHealAt.set(frame, Date.now());
+    global.setTimeout(() => {
+      try {
+        const load = frame.__baupassEmbedLoad;
+        if (typeof load === "function") {
+          load(src);
+          return;
+        }
+        frame.setAttribute("src", src);
+      } catch {
+        // ignore
+      }
+    }, 1200);
+  }
+
   function postMessageToIframe(frame, message) {
-    if (!isPostMessageReadyIframe(frame)) return false;
+    if (!isPostMessageReadyIframe(frame)) {
+      scheduleIframeHeal(frame);
+      return false;
+    }
     const origin = global.location.origin;
     if (!origin) return false;
     try {
       frame.contentWindow.postMessage(message, origin);
       return true;
     } catch {
+      scheduleIframeHeal(frame);
       return false;
     }
   }
@@ -271,6 +331,13 @@
     isPostMessageReadyIframe,
     postMessageToIframe,
     postMessageToParent,
+    postNavigateToHost,
+  };
+
+  global.BaupassGuardian = {
+    fetchWithGuardianRetry,
+    scheduleIframeHeal,
+    postMessageToIframe,
   };
 
   const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ["workpass-session-token", "workpass-admin-token"];
@@ -374,7 +441,7 @@
     if (!["GET", "HEAD", "OPTIONS"].includes(method) && body === undefined) {
       body = {};
     }
-    const res = await fetch(path, {
+    const res = await fetchWithGuardianRetry(path, {
       credentials: "include",
       ...opts,
       method,

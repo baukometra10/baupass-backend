@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from flask import Flask
@@ -13,6 +14,7 @@ from backend.app.database import get_database_health
 _UI_PROBE_PATHS = (
     ("api", "/api/health/live"),
     ("ready", "/api/health/ready"),
+    ("worker_app", "/emp-app.html"),
     ("admin_v2", "/admin-v2/index.html?embed=1"),
     ("enterprise_hub", "/enterprise-hub.html?embed=1"),
     ("ops_center", "/ops-command-center.html?embed=1"),
