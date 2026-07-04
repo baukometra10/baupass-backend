@@ -226,6 +226,41 @@
     }
   }
 
+  function isPostMessageReadyIframe(frame) {
+    if (!frame?.contentWindow) return false;
+    const src = String(frame.getAttribute("src") || frame.src || "").trim();
+    if (!src || src === "about:blank" || src.startsWith("about:")) return false;
+    try {
+      return new URL(src, global.location.href).origin === global.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  function postMessageToIframe(frame, message) {
+    if (!isPostMessageReadyIframe(frame)) return false;
+    const origin = global.location.origin;
+    if (!origin) return false;
+    try {
+      frame.contentWindow.postMessage(message, origin);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function postMessageToParent(message) {
+    if (!global.parent || global.parent === global) return false;
+    const origin = global.location.origin;
+    if (!origin) return false;
+    try {
+      global.parent.postMessage(message, origin);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   global.BaupassEmbed = {
     isEmbedMode,
     withEmbed,
@@ -233,6 +268,9 @@
     navigateFromEmbed,
     wireEmbedNav,
     bindEnterpriseIframe,
+    isPostMessageReadyIframe,
+    postMessageToIframe,
+    postMessageToParent,
   };
 
   const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ["workpass-session-token", "workpass-admin-token"];

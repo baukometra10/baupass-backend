@@ -55,6 +55,50 @@
     }
   }
 
+  function isPostMessageReadyIframe(frame) {
+    if (global.BaupassEmbed?.isPostMessageReadyIframe) {
+      return global.BaupassEmbed.isPostMessageReadyIframe(frame);
+    }
+    if (!frame?.contentWindow) return false;
+    const src = String(frame.getAttribute("src") || frame.src || "").trim();
+    if (!src || src === "about:blank" || src.startsWith("about:")) return false;
+    try {
+      return new URL(src, global.location.href).origin === global.location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  function postMessageToIframe(frame, message) {
+    if (global.BaupassEmbed?.postMessageToIframe) {
+      return global.BaupassEmbed.postMessageToIframe(frame, message);
+    }
+    if (!isPostMessageReadyIframe(frame)) return false;
+    const origin = global.location.origin;
+    if (!origin) return false;
+    try {
+      frame.contentWindow.postMessage(message, origin);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function postMessageToParent(message) {
+    if (global.BaupassEmbed?.postMessageToParent) {
+      return global.BaupassEmbed.postMessageToParent(message);
+    }
+    if (!global.parent || global.parent === global) return false;
+    const origin = global.location.origin;
+    if (!origin) return false;
+    try {
+      global.parent.postMessage(message, origin);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function apply(mode, { persist = true, broadcast = true } = {}) {
     const selected = normalizeMode(mode);
     const effective = selected === BLACK ? BLACK : WHITE;
@@ -77,15 +121,10 @@
     if (broadcast) {
       try {
         global.dispatchEvent(new CustomEvent("baupass-theme-changed", { detail: { mode: selected, effective } }));
-        if (global.parent && global.parent !== global) {
-          global.parent.postMessage({ type: "baupass-theme-changed", mode: selected }, global.location.origin);
-        }
+        postMessageToParent({ type: "baupass-theme-changed", mode: selected });
+        const themeMessage = { type: "baupass-sync-theme", mode: selected };
         document.querySelectorAll("iframe").forEach((frame) => {
-          try {
-            frame.contentWindow?.postMessage({ type: "baupass-sync-theme", mode: selected }, global.location.origin);
-          } catch {
-            // ignore
-          }
+          postMessageToIframe(frame, themeMessage);
         });
       } catch {
         // ignore

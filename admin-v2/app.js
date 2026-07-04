@@ -141,6 +141,11 @@ async function activateCommandItem(item) {
   if (!item) return;
   closeCommandPalette();
   if (item.href) {
+    if (item.href.includes("enterprise-hub.html")) {
+      switchToTab("enterprise");
+      syncEnterpriseFrame();
+      return;
+    }
     if (isEmbedMode()) {
       window.open(item.href, "_blank", "noopener");
     } else {
@@ -846,10 +851,14 @@ function syncEnterpriseFrame() {
   const q = companyQuery();
   const cid = q ? q.replace(/^\?company_id=/, "") : "";
   const lang = getLang();
-  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260621enterprise8`;
+  const base = `/enterprise-hub.html?embed=1&lang=${encodeURIComponent(lang)}&v=20260705a`;
   frame.src = cid ? `${base}&company_id=${encodeURIComponent(cid)}` : base;
   try {
-    frame.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+    if (window.BaupassEmbed?.postMessageToIframe) {
+      window.BaupassEmbed.postMessageToIframe(frame, { type: "baupass-sync-lang", lang });
+    } else if (frame.contentWindow && frame.src && frame.src !== "about:blank") {
+      frame.contentWindow.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+    }
   } catch {
     // iframe not ready
   }
@@ -859,7 +868,11 @@ function broadcastLangToEnterpriseFrame(lang) {
   const frame = $("enterpriseFrame");
   if (!frame) return;
   try {
-    frame.contentWindow?.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+    if (window.BaupassEmbed?.postMessageToIframe) {
+      window.BaupassEmbed.postMessageToIframe(frame, { type: "baupass-sync-lang", lang });
+    } else if (frame.contentWindow && frame.src && frame.src !== "about:blank") {
+      frame.contentWindow.postMessage({ type: "baupass-sync-lang", lang }, window.location.origin);
+    }
   } catch {
     // iframe not ready
   }
@@ -910,8 +923,8 @@ const COMMAND_NAV = [
   { tab: "tools", titleKey: "tab.tools", groupKey: "nav.group.ops" },
   { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
   { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
+  { tab: "enterprise", titleKey: "common.enterpriseHub", groupKey: "nav.group.enterprise", searchTerms: "enterprise hub funktionen 16 ebenen layers katalog" },
   { href: "/index.html", titleKey: "common.legacyDashboard", groupKey: "nav.group.ops" },
-  { href: "/enterprise-hub.html", titleKey: "common.enterpriseHub", groupKey: "nav.group.enterprise" },
 ];
 
 let commandPaletteIndex = 0;

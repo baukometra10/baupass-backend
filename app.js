@@ -1,5 +1,5 @@
 ﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260704d";
+window.__BAUPASS_UI_BUILD = "20260705a";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -8914,8 +8914,15 @@ function broadcastLangToEmbeds() {
   };
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
+    if (window.BaupassEmbed?.postMessageToIframe) {
+      window.BaupassEmbed.postMessageToIframe(frame, message);
+      return;
+    }
+    const src = String(frame?.getAttribute("src") || frame?.src || "").trim();
+    if (!frame?.contentWindow || !src || src === "about:blank" || src.startsWith("about:")) return;
     try {
-      frame?.contentWindow?.postMessage(message, window.location.origin);
+      if (new URL(src, window.location.href).origin !== window.location.origin) return;
+      frame.contentWindow.postMessage(message, window.location.origin);
     } catch {
       // iframe not ready
     }
@@ -18577,17 +18584,22 @@ function scheduleAdminV2EinsatzplanFocus() {
   const workerName = pendingDeploymentOpenWorkerName;
   const workDate = pendingDeploymentOpenWorkDate;
   const send = () => {
+    const message = {
+      type: "baupass-focus-einsatzplan",
+      companyId: getEffectiveUiCompanyId(),
+      workerId: workerId || undefined,
+      workerName: workerName || undefined,
+      workDate: workDate || undefined,
+    };
+    if (window.BaupassEmbed?.postMessageToIframe) {
+      window.BaupassEmbed.postMessageToIframe(iframe, message);
+      return;
+    }
+    const src = String(iframe.getAttribute("src") || iframe.src || "").trim();
+    if (!iframe.contentWindow || !src || src === "about:blank" || src.startsWith("about:")) return;
     try {
-      iframe.contentWindow?.postMessage(
-        {
-          type: "baupass-focus-einsatzplan",
-          companyId: getEffectiveUiCompanyId(),
-          workerId: workerId || undefined,
-          workerName: workerName || undefined,
-          workDate: workDate || undefined,
-        },
-        window.location.origin,
-      );
+      if (new URL(src, window.location.href).origin !== window.location.origin) return;
+      iframe.contentWindow.postMessage(message, window.location.origin);
     } catch {
       // iframe not ready
     }
@@ -18601,8 +18613,15 @@ function scheduleAdminV2EinsatzplanFocus() {
 function postMessageToEmbedFrames(message) {
   Object.values(ENTERPRISE_EMBED_META).forEach((meta) => {
     const frame = document.getElementById(meta.frameId);
+    if (window.BaupassEmbed?.postMessageToIframe) {
+      window.BaupassEmbed.postMessageToIframe(frame, message);
+      return;
+    }
+    const src = String(frame?.getAttribute("src") || frame?.src || "").trim();
+    if (!frame?.contentWindow || !src || src === "about:blank" || src.startsWith("about:")) return;
     try {
-      frame?.contentWindow?.postMessage(message, window.location.origin);
+      if (new URL(src, window.location.href).origin !== window.location.origin) return;
+      frame.contentWindow.postMessage(message, window.location.origin);
     } catch {
       // iframe not ready
     }
