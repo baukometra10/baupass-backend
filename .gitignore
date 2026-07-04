@@ -65,6 +65,7 @@ plan.md
 dist/
 *.exe
 *.ico
+!branding/*.ico
 
 # Deploy pack artifacts (rebuild with deploy/hetzner-pack.ps1)
 baupass-hetzner-upload.zip
