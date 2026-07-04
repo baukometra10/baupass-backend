@@ -252,6 +252,79 @@ body.worker-feature-tab-active #documentsCard:not(.hidden) .documents-list {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ── Einsatzplan Feature-Tab: kompakter Kopf, Kalender füllt die Höhe ── */
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard:not(.hidden) > .section-head.compact-head,
+body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden) > .section-head.compact-head {
+  display: none;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard:not(.hidden),
+body.worker-loaded.worker-page-focus #deploymentPlanCard:not(.hidden) {
+  gap: 8px;
+  padding: 8px 8px 8px;
+  overflow: hidden;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-toolbar,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-toolbar {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-month-label,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-month-label {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-month-label > span,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-month-label > span {
+  display: none;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-month-select,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-month-select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-actions,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-actions {
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-actions .small-btn,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-actions .small-btn {
+  padding: 6px 10px;
+  min-height: 34px;
+  white-space: nowrap;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard .deployment-plan-meta,
+body.worker-loaded.worker-page-focus #deploymentPlanCard .deployment-plan-meta {
+  flex-shrink: 0;
+}
+
+body.worker-loaded.worker-feature-tab-active #deploymentPlanCard #deploymentPlanList,
+body.worker-loaded.worker-page-focus #deploymentPlanCard #deploymentPlanList {
+  flex: 1;
+  min-height: 0;
+  align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
 /* ── Chat Feature-Tab (WhatsApp-Layout: scroll oben, Eingabe fix unten) ─ */
 body.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden) {
   display: flex !important;
