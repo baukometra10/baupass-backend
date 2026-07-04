@@ -18983,7 +18983,7 @@ function renderPlatformHealthPanel(payload, errorMessage, opsExtras = null) {
     </div>`);
 
   const db = payload?.database || {};
-  const dbOk = String(db.status || "").toLowerCase() === "ok";
+  const dbOk = db.ok === true || String(db.status || "").toLowerCase() === "ok";
   cards.push(`
     <div class="platform-health-card ${dbOk ? "is-ok" : "is-fail"}">
       <p class="platform-health-label">${escapeHtml(uiT("platformHealthProbeDb") || "Datenbank")}</p>

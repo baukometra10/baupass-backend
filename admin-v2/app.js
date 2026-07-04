@@ -140,8 +140,14 @@ async function focusDeploymentSection() {
 async function activateCommandItem(item) {
   if (!item) return;
   closeCommandPalette();
+  if (item.tab === "enterprise" && requestEnterpriseHubInShell()) {
+    return;
+  }
   if (item.href) {
     if (item.href.includes("enterprise-hub.html")) {
+      if (requestEnterpriseHubInShell()) {
+        return;
+      }
       switchToTab("enterprise");
       syncEnterpriseFrame();
       return;
@@ -455,6 +461,30 @@ function navigateToOpsEmbed(page) {
   pendingOpsEmbedPage = String(page || "").trim();
   switchToTab("operations");
   refreshActiveTab().catch(notifyTabError);
+}
+
+/** When embedded in SUPPIX shell, open Enterprise Hub in parent (local tab is hidden). */
+function postShellNavigate(payload) {
+  if (!isEmbedMode() || window.self === window.top) {
+    return false;
+  }
+  try {
+    window.parent.postMessage(
+      {
+        type: "baupass-navigate",
+        companyId: activeCompanyId() || getUser()?.company_id || "",
+        ...payload,
+      },
+      window.location.origin,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function requestEnterpriseHubInShell() {
+  return postShellNavigate({ view: "enterprise-hub" });
 }
 
 function tryFocusEinsatzplanFromParent() {
@@ -1009,6 +1039,12 @@ function switchToTab(tabId) {
   if (tabId === "analytics" && !canAccessAnalyticsTab()) {
     tabId = "overview";
   }
+  if (tabId === "enterprise") {
+    if (requestEnterpriseHubInShell()) {
+      closeCommandPalette();
+      return;
+    }
+  }
   document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
     const on = btn.dataset.tab === tabId;
     btn.classList.toggle("active", on);
@@ -1096,6 +1132,9 @@ function renderCommandPaletteList(query) {
   if (!list) return;
   const q = query.toLowerCase();
   commandPaletteFiltered = COMMAND_NAV.filter((item) => {
+    if (isEmbedMode() && item.tab === "enterprise" && item.titleKey === "tab.enterprise") {
+      return false;
+    }
     if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
       return false;
     }
@@ -1228,10 +1267,15 @@ async function loadPlatformBanner() {
         <span class="muted small">${level}</span>
       </div>
       <div>${t("platform.banner.database")}: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
-      <a href="/enterprise-hub.html?v=20260527e" class="btn-link" style="color:#fbbf24;font-weight:700">${t("platform.banner.enterpriseLink")}</a>
+      <a href="/enterprise-hub.html?v=20260527e" class="btn-link platform-banner-enterprise-link" style="color:#fbbf24;font-weight:700">${t("platform.banner.enterpriseLink")}</a>
       <button type="button" class="btn-link" data-goto-tab="platform">${t("platform.banner.details")}</button>
     `;
     el.classList.remove("hidden");
+    el.querySelector(".platform-banner-enterprise-link")?.addEventListener("click", (ev) => {
+      if (requestEnterpriseHubInShell()) {
+        ev.preventDefault();
+      }
+    });
     el.querySelector("[data-goto-tab]")?.addEventListener("click", async () => {
       switchToTab("platform");
       await loadPlatform();
