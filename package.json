@@ -33,15 +33,13 @@
       "control-sw.js",
       "branding/suppix-icon-192.png",
       "branding/suppix-icon-512.png",
+      "branding/suppix-icon-512.ico",
       "branding/suppix-ai-mark.svg",
-      "branding/suppix-ai-logo.svg",
-      "worker-icon-192.png",
-      "worker-icon-512.png",
-      "worker-icon-512.ico"
+      "branding/suppix-ai-logo.svg"
     ],
     "win": {
       "target": [{"target": "portable"}],
-      "icon": "worker-icon-512.ico",
+      "icon": "branding/suppix-icon-512.ico",
       "signAndEditExecutable": false
     },
     "nsis": {

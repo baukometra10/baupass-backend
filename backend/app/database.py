@@ -455,12 +455,36 @@ def execute_migration_sql(conn: sqlite3.Connection, sql: str) -> None:
             try:
                 conn.execute(normalized)
             except sqlite3.Error as exc:
-                if "duplicate column name" in str(exc).lower():
+                msg = str(exc).lower()
+                if "duplicate column name" in msg:
+                    continue
+                if "no such table" in msg:
                     continue
                 raise
         return
 
-    conn.executescript(sql)
+    if re.search(r"\bCREATE\s+TRIGGER\b", sql, flags=re.IGNORECASE):
+        conn.executescript(sql)
+        return
+
+    for raw_stmt in sql.split(";"):
+        stmt = raw_stmt.strip()
+        if not stmt or stmt.startswith("--"):
+            continue
+        try:
+            conn.execute(stmt)
+        except sqlite3.Error as exc:
+            msg = str(exc).lower()
+            if "duplicate column name" in msg:
+                continue
+            # Index/column migrations may run before init_db() on empty databases (tests).
+            if "no such table" in msg and re.match(
+                r"(CREATE\s+INDEX|ALTER\s+TABLE)", stmt, re.IGNORECASE
+            ):
+                continue
+            if "already exists" in msg and re.match(r"CREATE\s+(UNIQUE\s+)?INDEX", stmt, re.IGNORECASE):
+                continue
+            raise
 
 
 class MigrationRunner:

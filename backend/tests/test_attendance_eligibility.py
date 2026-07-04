@@ -40,7 +40,8 @@ def db_conn(tmp_path, monkeypatch):
             location_label TEXT NOT NULL DEFAULT '',
             shift_start TEXT NOT NULL DEFAULT '',
             shift_end TEXT NOT NULL DEFAULT '',
-            notes TEXT NOT NULL DEFAULT ''
+            notes TEXT NOT NULL DEFAULT '',
+            day_color TEXT NOT NULL DEFAULT ''
         );
         CREATE TABLE worker_deployment_day_responses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +61,9 @@ def db_conn(tmp_path, monkeypatch):
         CREATE TABLE companies (
             id TEXT PRIMARY KEY,
             work_start_time TEXT NOT NULL DEFAULT '',
-            work_end_time TEXT NOT NULL DEFAULT ''
+            work_end_time TEXT NOT NULL DEFAULT '',
+            operating_sector TEXT NOT NULL DEFAULT 'construction',
+            branding_preset TEXT NOT NULL DEFAULT 'construction'
         );
         CREATE TABLE settings (
             id INTEGER PRIMARY KEY,

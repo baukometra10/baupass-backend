@@ -27,10 +27,16 @@ class CameraRegistryTests(unittest.TestCase):
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         MigrationRunner(conn).run(ALL_MIGRATIONS)
-        conn.execute(
+        conn.executescript(
             """
-            INSERT INTO companies (id, name, status, created_at)
-            VALUES ('cmp-cam-test', 'Camera Test Co', 'aktiv', datetime('now'))
+            CREATE TABLE IF NOT EXISTS companies (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO companies (id, name, status)
+            VALUES ('cmp-cam-test', 'Camera Test Co', 'aktiv');
             """
         )
         conn.commit()

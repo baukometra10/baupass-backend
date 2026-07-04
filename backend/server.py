@@ -26362,7 +26362,6 @@ def _resolve_leave_admin_company_scope(user, db=None):
     return None
 
 
-@app.route("/api/leave-requests/stats", methods=["GET"])
 @require_auth
 def get_leave_requests_stats():
     user = g.current_user
@@ -26413,7 +26412,6 @@ def get_leave_requests_stats():
     )
 
 
-@app.route("/api/leave-requests", methods=["GET"])
 @require_auth
 def get_leave_requests():
     user = g.current_user
@@ -26454,7 +26452,6 @@ def get_leave_requests():
     return jsonify([row_to_dict(r) for r in rows])
 
 
-@app.route("/api/leave-requests/<req_id>", methods=["PUT", "POST"])
 @require_auth
 def review_leave_request(req_id):
     user = g.current_user

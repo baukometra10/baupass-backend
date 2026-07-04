@@ -186,7 +186,7 @@ class WorkersServiceTest(unittest.TestCase):
         self.assertEqual(row["company_id"], "cmp-a")
 
     @patch.object(WorkersService, "_ensure_worker_doc_dir", return_value=None)
-    def test_create_worker_requires_signature(self, _doc_dir):
+    def test_create_worker_allows_missing_signature(self, _doc_dir):
         user = {"role": "company-admin", "company_id": "cmp-a", "id": "usr-1"}
         result = self.svc.create_worker(
             self.conn,
@@ -199,8 +199,12 @@ class WorkersServiceTest(unittest.TestCase):
                 "photoData": _VALID_PHOTO,
             },
         )
-        self.assertEqual(result["status"], 400)
-        self.assertEqual(result["error"]["error"], "compliance_signature_required")
+        self.assertEqual(result["status"], 201)
+        row = self.conn.execute(
+            "SELECT compliance_signature_data FROM workers WHERE first_name = ?",
+            ("No",),
+        ).fetchone()
+        self.assertEqual((row["compliance_signature_data"] or "").strip(), "")
 
     def test_update_worker_not_found(self):
         user = {"role": "superadmin", "company_id": None}

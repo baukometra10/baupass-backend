@@ -25,6 +25,27 @@ TEST_COMPLIANCE_SIGNATURE = (
 )
 
 
+@pytest.fixture(autouse=True)
+def _reset_server_rate_state():
+    server.request_rate_state.clear()
+    server.failed_login_attempts.clear()
+    yield
+    server.request_rate_state.clear()
+    server.failed_login_attempts.clear()
+
+
+@pytest.fixture(autouse=True)
+def _restore_db_path_env():
+    original_path = server.DB_PATH
+    original_env = os.environ.get("BAUPASS_DB_PATH")
+    yield
+    server.DB_PATH = original_path
+    if original_env is None:
+        os.environ.pop("BAUPASS_DB_PATH", None)
+    else:
+        os.environ["BAUPASS_DB_PATH"] = original_env
+
+
 def _prepare_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     db_path = tmp_path / "baupass-test.db"
     monkeypatch.setenv("BAUPASS_DB_PATH", str(db_path))
@@ -35,6 +56,14 @@ def _prepare_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     apply_sqlite_migrations(db_path)
     server.app.config.update(TESTING=True)
     return db_path
+
+
+def bootstrap_sqlite_test_db(db_path: Path) -> None:
+    """Full schema for unittest modules that manage their own temp DB path."""
+    os.environ["BAUPASS_DB_PATH"] = str(db_path)
+    server.DB_PATH = db_path
+    server.init_db()
+    apply_sqlite_migrations(db_path)
 
 
 @pytest.fixture()

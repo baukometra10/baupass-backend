@@ -218,7 +218,7 @@ function createSplashWindow() {
     center: true,
     backgroundColor: "#0b1218",
     autoHideMenuBar: true,
-    icon: path.join(PROJECT_ROOT, process.platform === "win32" ? "worker-icon-512.ico" : "worker-icon-512.png"),
+    icon: path.join(PROJECT_ROOT, process.platform === "win32" ? "branding/suppix-icon-512.ico" : "branding/suppix-icon-512.png"),
     webPreferences: {
       preload: path.join(__dirname, "splash-preload.js"),
       contextIsolation: true,
@@ -265,7 +265,7 @@ function createWindow() {
     show: false,
     backgroundColor: "#0d131a",
     autoHideMenuBar: true,
-    icon: path.join(PROJECT_ROOT, process.platform === "win32" ? "worker-icon-512.ico" : "worker-icon-512.png"),
+    icon: path.join(PROJECT_ROOT, process.platform === "win32" ? "branding/suppix-icon-512.ico" : "branding/suppix-icon-512.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
