@@ -6961,7 +6961,7 @@ function proximityAttendanceBlockedMessage(hint) {
   if (attendance.message) {
     return attendance.message;
   }
-  if (attendance.reason === "outside_work_hours" || attendance.reason === "outside_shift_window") {
+  if (attendance.reason === "outside_work_hours" || attendance.reason === "outside_shift_window" || attendance.reason === "shift_times_required") {
     return t("proximityOutsideWorkHours");
   }
   if (attendance.reason === "on_approved_leave") {

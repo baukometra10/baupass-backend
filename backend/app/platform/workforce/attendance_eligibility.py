@@ -1,7 +1,7 @@
 """Rules for automatic attendance (proximity login, site auto check-in)."""
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, timedelta
 from typing import Any
 
 _FREE_DEPLOYMENT_MARKERS = frozenset(
@@ -21,6 +21,9 @@ _FREE_DEPLOYMENT_MARKERS = frozenset(
         "off day",
     }
 )
+
+# Allow geofence check-in this many minutes before shift_start.
+SHIFT_EARLY_MINUTES = 30
 
 
 def is_real_deployment_location(location: str | None) -> bool:
@@ -172,25 +175,119 @@ def _effective_work_times(db, worker_id: str) -> tuple[str, str]:
     return work_start, work_end
 
 
-def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | None = None) -> bool:
+def _shift_times(shift_start: str | None, shift_end: str | None) -> tuple[int, int] | None:
     start_raw = _shift_hhmm(shift_start)
     end_raw = _shift_hhmm(shift_end)
     if not start_raw or not end_raw:
-        return True
-    current = now or datetime.now()
+        return None
     try:
         sh, sm = (int(x) for x in start_raw.split(":"))
         eh, em = (int(x) for x in end_raw.split(":"))
     except (TypeError, ValueError):
-        return True
-    start_minutes = sh * 60 + sm
-    end_minutes = eh * 60 + em
+        return None
+    return sh * 60 + sm, eh * 60 + em
+
+
+def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | None = None) -> bool:
+    parsed = _shift_times(shift_start, shift_end)
+    if parsed is None:
+        return False
+    start_minutes, end_minutes = parsed
+    current = now or datetime.now()
     current_minutes = current.hour * 60 + current.minute
-    window_start = start_minutes - 30
-    # Night shift: end before start (e.g. 22:00–06:00)
+    window_start = max(0, start_minutes - SHIFT_EARLY_MINUTES)
+    # Night shift starting today (e.g. 22:00–06:00 on the same calendar day).
     if end_minutes < start_minutes:
         return current_minutes >= window_start or current_minutes <= end_minutes
     return window_start <= current_minutes <= end_minutes
+
+
+def _overnight_morning_tail_active(shift_start: str, shift_end: str, *, now: datetime) -> bool:
+    """True when now is in the morning tail of an overnight shift that started yesterday."""
+    parsed = _shift_times(shift_start, shift_end)
+    if parsed is None:
+        return False
+    start_minutes, end_minutes = parsed
+    if end_minutes >= start_minutes:
+        return False
+    current_minutes = now.hour * 60 + now.minute
+    return current_minutes <= end_minutes
+
+
+def _deployment_row_context(row: dict[str, Any] | None) -> dict[str, str]:
+    if not row:
+        return {"location": "", "shiftStart": "", "shiftEnd": ""}
+    return {
+        "location": str(row.get("location_label") or "").strip(),
+        "shiftStart": str(row.get("shift_start") or "").strip(),
+        "shiftEnd": str(row.get("shift_end") or "").strip(),
+    }
+
+
+def _deployment_row_active_at(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    work_date: date,
+    row: dict[str, Any],
+    now: datetime,
+    overnight_tail_only: bool,
+) -> bool:
+    if worker_deployment_response_for_date(
+        db, company_id=company_id, worker_id=worker_id, target_date=work_date
+    ) == "declined":
+        return False
+    ctx = _deployment_row_context(row)
+    if not is_real_deployment_location(ctx["location"]):
+        return False
+    if not ctx["shiftStart"] or not ctx["shiftEnd"]:
+        return False
+    if overnight_tail_only:
+        return _overnight_morning_tail_active(ctx["shiftStart"], ctx["shiftEnd"], now=now)
+    return _within_shift_window(ctx["shiftStart"], ctx["shiftEnd"], now=now)
+
+
+def _resolve_active_deployment_at(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    now: datetime,
+) -> tuple[date | None, dict[str, Any] | None]:
+    """Return (work_date, row) when an Einsatzplan shift window covers `now`."""
+    today = now.date()
+    yesterday = today - timedelta(days=1)
+
+    today_row = worker_deployment_day_row(
+        db, company_id=company_id, worker_id=worker_id, target_date=today
+    )
+    if today_row and _deployment_row_active_at(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        work_date=today,
+        row=today_row,
+        now=now,
+        overnight_tail_only=False,
+    ):
+        return today, today_row
+
+    yesterday_row = worker_deployment_day_row(
+        db, company_id=company_id, worker_id=worker_id, target_date=yesterday
+    )
+    if yesterday_row and _deployment_row_active_at(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        work_date=yesterday,
+        row=yesterday_row,
+        now=now,
+        overnight_tail_only=True,
+    ):
+        return yesterday, yesterday_row
+
+    return None, None
 
 
 def worker_may_auto_attend_today(
@@ -252,11 +349,28 @@ def worker_may_auto_attend_today(
     deployment_row = worker_deployment_day_row(
         db, company_id=company_id, worker_id=worker_id, target_date=day
     )
-    location = str((deployment_row or {}).get("location_label") or "").strip()
-    shift_start = str((deployment_row or {}).get("shift_start") or "").strip()
-    shift_end = str((deployment_row or {}).get("shift_end") or "").strip()
+    ctx = _deployment_row_context(deployment_row)
+    location = ctx["location"]
+    shift_start = ctx["shiftStart"]
+    shift_end = ctx["shiftEnd"]
 
     if plan_active:
+        active_date, active_row = _resolve_active_deployment_at(
+            db, company_id=company_id, worker_id=worker_id, now=current
+        )
+        if active_row:
+            active_ctx = _deployment_row_context(active_row)
+            return {
+                "ok": True,
+                "reason": "scheduled",
+                "message": "",
+                "dayType": "scheduled",
+                "location": active_ctx["location"],
+                "shiftStart": active_ctx["shiftStart"],
+                "shiftEnd": active_ctx["shiftEnd"],
+                "workDate": active_date.isoformat() if active_date else day.isoformat(),
+            }
+
         if not is_real_deployment_location(location):
             return {
                 "ok": False,
@@ -267,20 +381,20 @@ def worker_may_auto_attend_today(
                 "shiftStart": shift_start,
                 "shiftEnd": shift_end,
             }
-        if shift_start and shift_end and not _within_shift_window(shift_start, shift_end, now=current):
+        if not shift_start or not shift_end:
             return {
                 "ok": False,
-                "reason": "outside_shift_window",
-                "message": sector_attendance_message(db, company_id, "attendanceOutsideShift", lang=lang),
+                "reason": "shift_times_required",
+                "message": sector_attendance_message(db, company_id, "attendanceShiftTimesRequired", lang=lang),
                 "dayType": "scheduled",
                 "location": location,
                 "shiftStart": shift_start,
                 "shiftEnd": shift_end,
             }
         return {
-            "ok": True,
-            "reason": "scheduled",
-            "message": "",
+            "ok": False,
+            "reason": "outside_shift_window",
+            "message": sector_attendance_message(db, company_id, "attendanceOutsideShift", lang=lang),
             "dayType": "scheduled",
             "location": location,
             "shiftStart": shift_start,

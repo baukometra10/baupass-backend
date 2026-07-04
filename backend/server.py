@@ -13386,11 +13386,14 @@ def worker_app_login():
         on_site = bool(measured and measured.get("onSite"))
         if on_site and site_cfg["accessMode"] == "site_app":
             geofence_id = (measured or {}).get("geofenceId")
-            if site_cfg["siteAutoCheckin"]:
+            from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+            attendance = worker_may_auto_attend_today(db, worker)
+            if site_cfg["siteAutoCheckin"] and attendance.get("ok"):
                 checkin_log_id = maybe_site_app_auto_checkin(
                     db, worker, via_proximity=False, geofence_id=geofence_id
                 )
-            if not checkin_log_id:
+            if not checkin_log_id and attendance.get("ok"):
                 login_log_id = record_site_app_login_activity(
                     db,
                     worker,

@@ -216,6 +216,71 @@ def test_allows_night_shift_window(db_conn):
     assert result["dayType"] == "scheduled"
 
 
+def test_allows_overnight_shift_morning_tail(db_conn):
+    db_conn.execute(
+        """
+        INSERT INTO worker_deployment_days (company_id, worker_id, work_date, location_label, shift_start, shift_end)
+        VALUES ('co-1', 'wrk-1', '2026-06-09', 'Nachtschicht', '22:00', '06:00')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 10), now=__import__("datetime").datetime(2026, 6, 10, 2, 0)
+    )
+    assert result["ok"] is True
+    assert result["dayType"] == "scheduled"
+    assert result["workDate"] == "2026-06-09"
+
+
+def test_blocks_overnight_tail_after_shift_end(db_conn):
+    db_conn.execute(
+        """
+        INSERT INTO worker_deployment_days (company_id, worker_id, work_date, location_label, shift_start, shift_end)
+        VALUES ('co-1', 'wrk-1', '2026-06-09', 'Nachtschicht', '22:00', '06:00')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 10), now=__import__("datetime").datetime(2026, 6, 10, 8, 0)
+    )
+    assert result["ok"] is False
+    assert result["reason"] == "not_scheduled_today"
+
+
+def test_blocks_scheduled_day_without_shift_times(db_conn):
+    db_conn.execute(
+        """
+        INSERT INTO worker_deployment_days (company_id, worker_id, work_date, location_label)
+        VALUES ('co-1', 'wrk-1', '2026-06-09', 'Baustelle Nord')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 9), now=__import__("datetime").datetime(2026, 6, 9, 8, 0)
+    )
+    assert result["ok"] is False
+    assert result["reason"] == "shift_times_required"
+
+
+def test_blocks_outside_shift_at_night(db_conn):
+    db_conn.execute(
+        """
+        INSERT INTO worker_deployment_days (company_id, worker_id, work_date, location_label, shift_start, shift_end)
+        VALUES ('co-1', 'wrk-1', '2026-06-09', 'Frühschicht', '06:00', '14:00')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    result = worker_may_auto_attend_today(
+        db_conn, worker, target_date=date(2026, 6, 9), now=__import__("datetime").datetime(2026, 6, 9, 0, 27)
+    )
+    assert result["ok"] is False
+    assert result["reason"] == "outside_shift_window"
+
+
 def test_allows_inside_company_work_hours(db_conn):
     worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
     result = worker_may_auto_attend_today(

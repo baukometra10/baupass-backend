@@ -357,6 +357,11 @@ def _worker_attendance_msgs(site_de: str, site_en: str, site_ar: str) -> dict[st
             "Automatic sign-in only during scheduled shift hours.",
             "التسجيل التلقائي فقط خلال وقت الوردية المحدد.",
         ),
+        "attendanceShiftTimesRequired": _t(
+            "Einsatz ohne Schichtzeit im Plan – bitte Arbeitgeber informieren. Keine automatische Anmeldung.",
+            "Assignment without shift times in the plan – contact your employer. No automatic sign-in.",
+            "تكليف بدون أوقات وردية في الخطة – تواصل مع صاحب العمل. لا تسجيل تلقائي.",
+        ),
         "attendanceOutsideWorkHours": _t(
             "Automatische Anmeldung nur während der Arbeitszeit.",
             "Automatic sign-in only during work hours.",
