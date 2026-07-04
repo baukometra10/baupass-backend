@@ -1,10 +1,10 @@
 {
-  "build": "20260703i",
+  "build": "20260704a",
   "kind": "hybrid_flutter",
   "entry": "/join.html",
   "launcher": "/join.html?launch=1",
   "legacyPwa": "/emp-app.html",
-  "manifest": "/emp-app-manifest.json?v=20260703i",
+  "manifest": "/emp-app-manifest.json?v=20260704a",
   "mobileSetup": "/api/worker-app/mobile-setup",
   "joinConfig": "/worker-join-config.json",
   "recommended": "native",

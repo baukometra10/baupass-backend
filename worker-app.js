@@ -9861,7 +9861,7 @@ function deploymentDayIso(day) {
 }
 
 function deploymentDayLocationValue(day) {
-  return String(day?.location || "").trim();
+  return String(day?.location || day?.locationLabel || day?.location_label || "").trim();
 }
 
 function deploymentDayIsExplicitFreeLocation(location) {
@@ -10140,11 +10140,8 @@ function handleDeploymentPlanClick(event) {
   }
   const day = findDeploymentPlanDay(iso);
   haptic([12, 18, 12]);
-  if (deploymentDayIsDeclinable(day)) {
-    openDeploymentDeclineModal(day);
-    return;
-  }
   openDeploymentDayDetailModal(day);
+  return;
 }
 
 function closeWorkerDeploymentPlanScreen() {
@@ -10175,11 +10172,7 @@ function handleDeploymentPlanKeydown(event) {
   const iso = dayCell.getAttribute("data-dep-date") || "";
   if (!iso) return;
   const day = findDeploymentPlanDay(iso);
-  if (deploymentDayIsDeclinable(day)) {
-    openDeploymentDeclineModal(day);
-  } else {
-    openDeploymentDayDetailModal(day);
-  }
+  openDeploymentDayDetailModal(day);
 }
 
 function ensureWorkerDeploymentShellVisible() {
@@ -10207,35 +10200,18 @@ function closeDeploymentDayDetailModal() {
   document.getElementById("deploymentDayDetailModal")?.classList.add("hidden");
 }
 
-function openDeploymentDayDetailModal(day) {
-  mountWorkerPortalModals();
-  const modal = document.getElementById("deploymentDayDetailModal");
-  const dateEl = document.getElementById("deploymentDayDetailDate");
-  const bodyEl = document.getElementById("deploymentDayDetailBody");
-  const actionsEl = document.getElementById("deploymentDayDetailActions");
-  const titleEl = document.getElementById("deploymentDayDetailTitle");
-  if (!modal || !bodyEl || !actionsEl) return;
-
-  const iso = deploymentDayIso(day);
+function renderDeploymentDayInfoHtml(day, { includeDeclineStatus = true } = {}) {
   const location = deploymentDayLocationValue(day);
   const isFreeDay = deploymentDayIsFree(day);
   const declined = deploymentDayIsDeclined(day);
-  const declinable = deploymentDayIsDeclinable(day);
   const shiftStart = formatDeploymentShiftTime(day.shiftStart);
   const shiftEnd = formatDeploymentShiftTime(day.shiftEnd);
-  const notes = String(day.notes || "").trim();
+  const notes = String(day.notes || day.description || "").trim();
   const declineReason = String(day.declineReason || "").trim();
   const timeText =
     shiftStart && shiftEnd
       ? tf("deploymentPlanTimeRange", { start: shiftStart, end: shiftEnd })
       : shiftStart || shiftEnd || "";
-
-  if (titleEl) {
-    titleEl.textContent = isFreeDay ? t("deploymentPlanDayFree") : (location || t("deploymentPlanNoLocation"));
-  }
-  if (dateEl) {
-    dateEl.textContent = [day.weekday, iso].filter(Boolean).join(" · ");
-  }
 
   const bodyParts = [];
   if (!isFreeDay && location) {
@@ -10253,7 +10229,7 @@ function openDeploymentDayDetailModal(day) {
       `<p class="deployment-day-detail-row"><strong>${escapeHtmlBasic(t("deploymentPlanDayDetailNotes"))}</strong><br>${escapeHtmlBasic(notes)}</p>`
     );
   }
-  if (declined) {
+  if (includeDeclineStatus && declined) {
     bodyParts.push(
       `<p class="deployment-plan-day-status">${escapeHtmlBasic(t("deploymentPlanDeclinedBadge"))}${
         declineReason
@@ -10265,7 +10241,32 @@ function openDeploymentDayDetailModal(day) {
   if (isFreeDay) {
     bodyParts.push(`<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanDayFree"))}</p>`);
   }
-  bodyEl.innerHTML = bodyParts.join("") || `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanNoLocation"))}</p>`;
+  return bodyParts.join("") || `<p class="muted-info">${escapeHtmlBasic(t("deploymentPlanNoLocation"))}</p>`;
+}
+
+function openDeploymentDayDetailModal(day) {
+  mountWorkerPortalModals();
+  const modal = document.getElementById("deploymentDayDetailModal");
+  const dateEl = document.getElementById("deploymentDayDetailDate");
+  const bodyEl = document.getElementById("deploymentDayDetailBody");
+  const actionsEl = document.getElementById("deploymentDayDetailActions");
+  const titleEl = document.getElementById("deploymentDayDetailTitle");
+  if (!modal || !bodyEl || !actionsEl) return;
+
+  const iso = deploymentDayIso(day);
+  const location = deploymentDayLocationValue(day);
+  const isFreeDay = deploymentDayIsFree(day);
+  const declined = deploymentDayIsDeclined(day);
+  const declinable = deploymentDayIsDeclinable(day);
+
+  if (titleEl) {
+    titleEl.textContent = isFreeDay ? t("deploymentPlanDayFree") : (location || t("deploymentPlanNoLocation"));
+  }
+  if (dateEl) {
+    dateEl.textContent = [day.weekday, iso].filter(Boolean).join(" · ");
+  }
+
+  bodyEl.innerHTML = renderDeploymentDayInfoHtml(day, { includeDeclineStatus: true });
 
   if (!isFreeDay && declined) {
     actionsEl.innerHTML = `<button type="button" class="primary small-btn" data-dep-detail-undo="${escapeHtmlBasic(iso)}">${escapeHtmlBasic(t("deploymentPlanUndoDeclineBtn"))}</button>`;
@@ -10287,6 +10288,7 @@ function openDeploymentDeclineModal(day) {
   mountWorkerPortalModals();
   const modal = document.getElementById("deploymentDeclineModal");
   const dateEl = document.getElementById("deploymentDeclineModalDate");
+  const summaryEl = document.getElementById("deploymentDeclineModalSummary");
   const reasonEl = document.getElementById("deploymentDeclineReason");
   const confirmBtn = document.getElementById("deploymentDeclineConfirm");
   if (!modal || !dateEl) return;
@@ -10299,6 +10301,9 @@ function openDeploymentDeclineModal(day) {
   deploymentDeclinePendingDate = deploymentDayIso(day);
   const label = [day.weekday, deploymentDayIso(day)].filter(Boolean).join(" · ");
   dateEl.textContent = label;
+  if (summaryEl) {
+    summaryEl.innerHTML = renderDeploymentDayInfoHtml(day, { includeDeclineStatus: false });
+  }
   if (reasonEl) {
     reasonEl.value = "";
     reasonEl.placeholder = t("deploymentPlanDeclineReasonPh");
@@ -10377,7 +10382,7 @@ function renderDeploymentPlanDayRow(day) {
   const location = deploymentDayLocationValue(day);
   const shiftStart = formatDeploymentShiftTime(day.shiftStart);
   const shiftEnd = formatDeploymentShiftTime(day.shiftEnd);
-  const notes = String(day.notes || "").trim();
+  const notes = String(day.notes || day.description || "").trim();
   const declineReason = String(day.declineReason || "").trim();
   const isFreeDay = deploymentDayIsFree(day);
   const timeText =
