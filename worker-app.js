@@ -1637,6 +1637,7 @@ function applyTranslations() {
     applyWorkerSectorTerms(lastWorkerPayload.company);
   }
   updateWorkerHubToggleLabel();
+  applyWorkerChatDirection();
 }
 
 function setLang(lang) {
@@ -2547,15 +2548,21 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
   "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}",
   "#chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}",
-  "#chatCard .worker-chat-row.is-company{align-items:flex-start;padding-right:12%}",
-  "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-left:12%}",
+  "#chatCard .worker-chat-row.is-company{align-items:flex-start;padding-inline-end:12%}",
+  "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-inline-start:12%}",
   "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
   "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
   "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
   "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}",
-  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-bottom-left-radius:5px}",
-  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-bottom-right-radius:5px}",
-  "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500}",
+  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-end-end-radius:5px}",
+  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-end-start-radius:5px}",
+  "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500;unicode-bidi:plaintext}",
+  "#chatCard.worker-chat-rtl .worker-chat-messages,#chatCard.worker-chat-rtl .worker-chat-compose{direction:rtl}",
+  "#chatCard.worker-chat-rtl .worker-chat-body{text-align:right}",
+  "#chatCard.worker-chat-rtl .worker-chat-sender{text-align:right;width:100%}",
+  "#chatCard.worker-chat-rtl .worker-chat-meta{justify-content:flex-start}",
+  "#chatCard.worker-chat-rtl .worker-chat-compose-bar{direction:rtl}",
+  "#chatCard.worker-chat-rtl .worker-chat-attachment-btn{text-align:right}",
   "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.78rem;color:#64748b}",
   "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}",
   "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}",
@@ -2565,6 +2572,18 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
   ".stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}",
 ].join("");
+
+function applyWorkerChatDirection() {
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  if (!chatCard) return;
+  const isAr = currentLang === "ar";
+  chatCard.classList.toggle("worker-chat-rtl", isAr);
+  chatCard.setAttribute("dir", isAr ? "rtl" : "ltr");
+  const messagesHost = elements.workerChatMessages || chatCard.querySelector("#workerChatMessages");
+  const composeHost = chatCard.querySelector(".worker-chat-compose");
+  if (messagesHost) messagesHost.setAttribute("dir", isAr ? "rtl" : "ltr");
+  if (composeHost) composeHost.setAttribute("dir", isAr ? "rtl" : "ltr");
+}
 
 function ensureWorkerChatShellStyles() {
   let style = document.getElementById("workerChatShellFix");
@@ -2653,6 +2672,7 @@ function applyWorkerChatTabLayout(chatCard) {
     compose.style.flexShrink = "0";
     compose.style.display = "block";
   }
+  applyWorkerChatDirection();
 }
 
 function ensureWorkerChatNavDom() {
@@ -2771,6 +2791,8 @@ function ensureWorkerChatDom() {
   ensureWorkerChatComposeBar();
   if (currentActiveTab === "chat") {
     applyWorkerChatTabLayout(chatCard);
+  } else {
+    applyWorkerChatDirection();
   }
   return chatCard;
 }
@@ -10926,6 +10948,7 @@ function renderWorkerChatMessages(messages) {
     })
     .join("");
   bindWorkerChatMessageActions();
+  applyWorkerChatDirection();
   elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
 }
 

@@ -385,12 +385,12 @@ body.worker-feature-tab-active #chatCard .worker-feature-chat-head {
 
 .worker-chat-row.is-company {
   justify-content: flex-start;
-  padding-right: 18%;
+  padding-inline-end: 18%;
 }
 
 .worker-chat-row.is-mine {
   justify-content: flex-end;
-  padding-left: 18%;
+  padding-inline-start: 18%;
 }
 
 .worker-chat-bubble {
@@ -408,7 +408,7 @@ body.worker-feature-tab-active #chatCard .worker-feature-chat-head {
 .worker-chat-bubble.is-company {
   background: #fff;
   border-color: var(--corp-border, rgba(60, 94, 139, 0.22));
-  border-bottom-left-radius: 6px;
+  border-end-end-radius: 6px;
   box-shadow: 0 2px 10px rgba(18, 41, 70, 0.07);
   color: var(--corp-text, #142a44);
 }
@@ -416,7 +416,7 @@ body.worker-feature-tab-active #chatCard .worker-feature-chat-head {
 .worker-chat-bubble.is-mine {
   background: linear-gradient(145deg, #dbeafe, #eff6ff);
   border-color: rgba(10, 87, 192, 0.22);
-  border-bottom-right-radius: 6px;
+  border-end-start-radius: 6px;
   box-shadow: 0 2px 10px rgba(10, 87, 192, 0.12);
   color: #0f2744;
 }
@@ -622,6 +622,34 @@ html[data-theme="dark"] #chatCard .worker-chat-compose {
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+/* Arabic chat: RTL layout only inside chat (other tabs stay unchanged) */
+#chatCard.worker-chat-rtl .worker-chat-messages,
+#chatCard.worker-chat-rtl .worker-chat-compose {
+  direction: rtl;
+}
+
+#chatCard.worker-chat-rtl .worker-chat-body {
+  text-align: right;
+  unicode-bidi: plaintext;
+}
+
+#chatCard.worker-chat-rtl .worker-chat-sender {
+  text-align: right;
+  width: 100%;
+}
+
+#chatCard.worker-chat-rtl .worker-chat-meta {
+  justify-content: flex-start;
+}
+
+#chatCard.worker-chat-rtl .worker-chat-compose-bar {
+  direction: rtl;
+}
+
+#chatCard.worker-chat-rtl .worker-chat-attachment-btn {
+  text-align: right;
 }
 
 body.worker-feature-tab-active .section-head.compact-head h3 {

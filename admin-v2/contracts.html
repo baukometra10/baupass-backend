@@ -92,7 +92,9 @@
       display:grid; grid-template-columns:minmax(140px,1fr) minmax(0,2fr) auto;
       align-items:center; gap:0.65rem;
     }
-    .brand-row { display:flex; align-items:center; gap:0.5rem; min-width:0; }
+    .brand-row { display:flex; align-items:center; gap:0.5rem; min-width:0; flex:1; }
+    .header-back-link { flex-shrink:0; margin-left:0.15rem; }
+    .header-end { display:flex; align-items:center; justify-content:flex-end; gap:0.45rem; }
     .brand-logo { width:28px; height:28px; border-radius:6px; object-fit:contain; flex-shrink:0; }
     .brand-logo-fallback {
       width:28px; height:28px; border-radius:6px; flex-shrink:0;
@@ -262,6 +264,7 @@
         <strong id="brandTitle" data-tenant-brand-title>SUPPIX</strong>
         <div id="pageSubtitle" class="muted" data-cpi18n="pageSubtitle">Arbeitsverträge</div>
       </div>
+      <a href="/admin-v2/index.html" id="backLink" class="header-link header-back-link" data-cpi18n="back">Zurück</a>
     </div>
     <div class="toolbar">
       <button type="button" class="primary compact" id="generateBtn" data-cpi18n="toolbarGen">KI-Entwurf</button>
@@ -275,17 +278,18 @@
       <button type="button" class="compact" id="signSmsEmployeeBtn" data-cpi18n="toolbarSmsEmp">💬 MA</button>
       <button type="button" class="danger compact" id="deleteBtn" data-cpi18n="toolbarDelete">Löschen</button>
     </div>
-    <select id="contractLangSelect" class="header-lang" aria-label="Sprache">
-      <option value="de">DE</option>
-      <option value="en">EN</option>
-      <option value="ar">AR</option>
-      <option value="tr">TR</option>
-      <option value="fr">FR</option>
-      <option value="es">ES</option>
-      <option value="it">IT</option>
-      <option value="pl">PL</option>
-    </select>
-    <a href="/admin-v2/index.html" id="backLink" class="header-link" data-cpi18n="back">Zurück</a>
+    <div class="header-end">
+      <select id="contractLangSelect" class="header-lang" aria-label="Sprache">
+        <option value="de">DE</option>
+        <option value="en">EN</option>
+        <option value="ar">AR</option>
+        <option value="tr">TR</option>
+        <option value="fr">FR</option>
+        <option value="es">ES</option>
+        <option value="it">IT</option>
+        <option value="pl">PL</option>
+      </select>
+    </div>
   </header>
   <div class="app-shell" id="mainRoot">
     <aside class="sidebar">
