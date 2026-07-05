@@ -93,6 +93,7 @@
       foremanShiftSavedNoFcm: "Schicht gespeichert (kein FCM-Token beim MA).",
       foremanHybridPushSent: "Hybrid Push gesendet ({count})",
       foremanNoFcmHint: "Kein FCM-Token — Mitarbeiter-App Push aktivieren.",
+      foremanKiPrompt: "Status und nächste Schritte für {name} (ID {id})?",
       foremanErrorPrefix: "Fehler",
     },
     en: {
@@ -184,6 +185,7 @@
       foremanShiftSavedNoFcm: "Shift saved (no FCM token on worker app).",
       foremanHybridPushSent: "Hybrid push sent ({count})",
       foremanNoFcmHint: "No FCM token — enable push in worker app.",
+      foremanKiPrompt: "Status and next steps for {name} (ID {id})?",
       foremanErrorPrefix: "Error",
     },
     ar: {
@@ -275,6 +277,7 @@
       foremanShiftSavedNoFcm: "تم حفظ الوردية (لا يوجد رمز FCM في تطبيق الموظف).",
       foremanHybridPushSent: "تم إرسال الدفع الهجين ({count})",
       foremanNoFcmHint: "لا يوجد رمز FCM — فعّل الدفع في تطبيق الموظف.",
+      foremanKiPrompt: "الحالة والخطوات التالية لـ {name} (المعرف {id})؟",
       foremanErrorPrefix: "خطأ",
     },
     tr: {
@@ -366,6 +369,7 @@
       foremanShiftSavedNoFcm: "Vardiya kaydedildi (calisan uygulamasinda FCM token yok).",
       foremanHybridPushSent: "Hibrit push gonderildi ({count})",
       foremanNoFcmHint: "FCM token yok — calisan uygulamasinda push etkinlestirin.",
+      foremanKiPrompt: "{name} icin durum ve sonraki adimlar (ID {id})?",
       foremanErrorPrefix: "Hata",
     },
     fr: {
@@ -457,6 +461,7 @@
       foremanShiftSavedNoFcm: "Shift enregistre (pas de jeton FCM sur l'app salarie).",
       foremanHybridPushSent: "Push hybride envoye ({count})",
       foremanNoFcmHint: "Pas de jeton FCM — activer le push dans l'app salarie.",
+      foremanKiPrompt: "Statut et prochaines etapes pour {name} (ID {id}) ?",
       foremanErrorPrefix: "Erreur",
     },
     es: {
@@ -548,6 +553,7 @@
       foremanShiftSavedNoFcm: "Turno guardado (sin token FCM en la app del trabajador).",
       foremanHybridPushSent: "Push hibrido enviado ({count})",
       foremanNoFcmHint: "Sin token FCM — activar push en la app del trabajador.",
+      foremanKiPrompt: "Estado y proximos pasos para {name} (ID {id})?",
       foremanErrorPrefix: "Error",
     },
     it: {
@@ -639,6 +645,7 @@
       foremanShiftSavedNoFcm: "Turno salvato (nessun token FCM nell'app lavoratore).",
       foremanHybridPushSent: "Push ibrido inviato ({count})",
       foremanNoFcmHint: "Nessun token FCM — attivare push nell'app lavoratore.",
+      foremanKiPrompt: "Stato e prossimi passi per {name} (ID {id})?",
       foremanErrorPrefix: "Errore",
     },
     pl: {
@@ -730,6 +737,7 @@
       foremanShiftSavedNoFcm: "Zmiana zapisana (brak tokenu FCM w aplikacji pracownika).",
       foremanHybridPushSent: "Push hybrydowy wyslany ({count})",
       foremanNoFcmHint: "Brak tokenu FCM — wlacz push w aplikacji pracownika.",
+      foremanKiPrompt: "Status i nastepne kroki dla {name} (ID {id})?",
       foremanErrorPrefix: "Blad",
     },
   };

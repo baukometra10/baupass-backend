@@ -7359,7 +7359,7 @@ function notifyWorkerSiteGeofenceLeave(message) {
   haptic([24, 36, 24]);
   try {
     if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-      new Notification("WorkPass", {
+      new Notification("SUPPIX", {
         body: message,
         tag: "site-geofence-leave",
         renotify: true,
@@ -8709,18 +8709,18 @@ async function applyAiLeaveSuggestion() {
   const fromLabel = start ? formatDate(start) : "";
   const toLabel = end ? formatDate(end) : "";
   const dateRange = fromLabel && toLabel
-    ? `${fromLabel} bis ${toLabel}`
-    : fromLabel || toLabel || "dem gewünschten Zeitraum";
+    ? tf("workerLeaveDateRangeBetween", { from: fromLabel, to: toLabel })
+    : fromLabel || toLabel || t("workerLeaveDateRangeFallback");
   const typeBrief = type === "krank"
-    ? "Krankmeldung (Abwesenheit wegen Krankheit, sachlich und kurz)"
+    ? t("workerLeaveAiTypeSick")
     : type === "sonstiges"
-      ? "Antrag auf sonstige Abwesenheit aus persönlichen Gründen (neutral formuliert)"
-      : "Urlaubsantrag (höflich, professionell)";
+      ? t("workerLeaveAiTypeOther")
+      : t("workerLeaveAiTypeVacation");
   const question = [
-    `Schreibe nur den Antragstext für einen ${typeBrief}.`,
-    `Zeitraum: ${dateRange}.`,
-    "Genau 2–3 kurze Sätze, ohne Betreff, ohne Anrede, ohne Grußformel, ohne Markdown.",
-    lang === "de" ? "Sprache: Deutsch." : `Sprache: ${lang}.`,
+    tf("workerLeaveAiPromptIntro", { typeBrief }),
+    tf("workerLeaveAiPromptRange", { dateRange }),
+    t("workerLeaveAiPromptRules"),
+    lang === "de" ? t("workerLeaveAiLangDe") : tf("workerLeaveAiLangOther", { lang }),
   ].join(" ");
 
   const previousLabel = btn?.textContent || "";
@@ -9173,7 +9173,7 @@ function showLateCheckInBanner(lateInfo, isVisitor) {
   banner.innerHTML = `
     <span class="late-banner-icon">⚠️</span>
     <span class="late-banner-text">${msg}</span>
-    <button class="late-banner-close" aria-label="Schließen" onclick="this.parentElement.remove()">×</button>
+    <button class="late-banner-close" aria-label="${escapeHtmlBasic(t("workerLateBannerClose"))}" onclick="this.parentElement.remove()">×</button>
   `;
 
   // Insert after the wallet card or at top of main content

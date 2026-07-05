@@ -779,7 +779,7 @@ function syncSupportAssistSpectatorWatch() {
 const UI_TRANSLATIONS = {
   de: {
     authEyebrow: "Melde-Seite",
-    authTitle: "Sicher in WorkPass anmelden",
+    authTitle: "Sicher in SUPPIX anmelden",
     authTitleTenant: "Bei {company} anmelden",
     authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Digitale Ausweise, Zutrittskontrolle und Compliance für Unternehmen, Teams und Standorte.",
@@ -830,7 +830,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop-App",
     desktopInstallHint: "Dieses Portal kann auf dem Computer wie ein Programm installiert werden.",
     desktopInstallButton: "Auf diesem Computer installieren",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "Betrieb",
     topbarHeadingDashboard: "Übersicht — Ausweise, Zutritt & Betrieb",
     topbarHeadingWorkers: "Mitarbeiter verwalten",
@@ -848,7 +848,7 @@ const UI_TRANSLATIONS = {
     alertInstallUnavailable: "Die Installation ist in diesem Browser gerade nicht direkt verfuegbar. In Chrome oder Edge kannst du im Browser-Menue 'App installieren' waehlen.",
     alertSessionExpired: "Sitzung abgelaufen. Bitte neu anmelden.",
     // Shell
-    sidebarEyebrow: "WorkPass Plattform",
+    sidebarEyebrow: "SUPPIX Plattform",
     sidebarCopy: "Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.",
     sidebarCardTitle: "Vermietungsmodus",
     sidebarCardStrong: "Multi-Firma f\u00e4hig",
@@ -874,7 +874,7 @@ const UI_TRANSLATIONS = {
     deploymentPdfPrint: "Drucken",
     deploymentPlanBetriebHint: "Der vollständige Editor (Monat, Mitarbeiter, PDF, Versand) liegt unter Betrieb — nicht nur diese Kurzanleitung.",
     deploymentPlanLockedToast: "Einsatzplan ist in Ihrem Paket nicht freigeschaltet (ab Professional).",
-    deploymentPlanLoginRequired: "Bitte zuerst in WorkPass anmelden — danach öffnet sich der Einsatzplan-Editor.",
+    deploymentPlanLoginRequired: "Bitte zuerst in SUPPIX anmelden — danach öffnet sich der Einsatzplan-Editor.",
     loginMissingFields: "Bitte Benutzername und Passwort eingeben.",
     loginAlreadyActive: "Sie sind bereits angemeldet als {user} ({role}). Zum Wechseln bitte zuerst abmelden.",
     deploymentStep1Title: "1. Monat wählen",
@@ -951,7 +951,7 @@ const UI_TRANSLATIONS = {
     btnExport: "System exportieren",
     btnImport: "System importieren",
     btnLogout: "Sicher abmelden",
-    dashEyebrow: "Enterprise WorkPass",
+    dashEyebrow: "Enterprise SUPPIX",
     dashHeading: "Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz",
     dashSubtext: "Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting \u2014 mandantenf\u00e4hig f\u00fcr Beh\u00f6rden und Unternehmen.",
     dashBadge1: "Fotoaufnahme",
@@ -1190,7 +1190,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer läuft nicht — wenn https://localhost:49494 im Browser nicht öffnet: „Einrichtung starten“ als Administrator ausführen.",
     signotecBridgeServerDown: "Wenn Firefox „Verbindung unterbrochen“ zeigt: Bridge ist nicht installiert/gestartet. setup.bat als Admin → Log auf dem Desktop prüfen.",
     signotecBridgeStatusCert: "Bridge läuft, Zertifikat fehlt — „Zertifikat bestätigen“, dann Verbindung prüfen.",
-    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann WorkPass mit Strg+Shift+R neu laden.",
+    signotecBridgeFirefoxHint: "Firefox: Öffnen Sie https://localhost:49494 (nicht 127.0.0.1), klicken Sie „Erweitert“ → „Risiko akzeptieren“, dann SUPPIX mit Strg+Shift+R neu laden.",
     signotecBridgeStatusFirefox: "Signotec-Bridge fehlt oder Zertifikat in Firefox noch nicht bestätigt — zuerst Einrichtung starten, dann Zertifikat.",
     signatureDeviceTimeout: "Signaturgerät antwortet nicht — bitte erneut versuchen oder in der weißen Fläche unterschreiben.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA nicht bereit — Wacom-Software auf diesem PC installieren und starten.",
@@ -2025,7 +2025,7 @@ const UI_TRANSLATIONS = {
   en: {
     alertOtpCooldown: "Code already sent – please wait 60 seconds before requesting a new one.",
     authEyebrow: "Login Page",
-    authTitle: "Secure sign-in to WorkPass",
+    authTitle: "Secure sign-in to SUPPIX",
     authTitleTenant: "Sign in to {company}",
     authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Digital badges, access control and compliance for companies, teams and sites.",
@@ -2079,7 +2079,7 @@ const UI_TRANSLATIONS = {
     desktopAppTitle: "Desktop App",
     desktopInstallHint: "This portal can be installed on your computer like a native app.",
     desktopInstallButton: "Install on this computer",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "Operations",
     topbarHeadingDashboard: "Overview — badges, access & operations",
     topbarHeadingBetrieb: "Operations — inbox, shifts & workforce",
@@ -2128,7 +2128,7 @@ const UI_TRANSLATIONS = {
     deploymentPlanTitle: "Deployment plan — monthly",
     deploymentPlanDesc: "Create, review and send the monthly plan to all workers.",
     deploymentPlanLockedToast: "Deployment plan requires Professional plan or higher.",
-    deploymentPlanLoginRequired: "Please sign in to WorkPass first — then the deployment plan editor opens.",
+    deploymentPlanLoginRequired: "Please sign in to SUPPIX first — then the deployment plan editor opens.",
     loginMissingFields: "Please enter username and password.",
     loginAlreadyActive: "You are already signed in as {user} ({role}). Sign out first to switch accounts.",
     deploymentStep1Title: "1. Pick month",
@@ -2205,7 +2205,7 @@ const UI_TRANSLATIONS = {
     btnExport: "Export system",
     btnImport: "Import system",
     btnLogout: "Sign out securely",
-    dashEyebrow: "Enterprise WorkPass",
+    dashEyebrow: "Enterprise SUPPIX",
     dashHeading: "Digital badges with photo, badge ID and check-in at turnstile",
     dashSubtext: "Enterprise identity, access control, workforce, compliance, documents and reporting \u2014 multi-tenant for agencies and enterprises.",
     dashBadge1: "Photo capture",
@@ -2320,7 +2320,7 @@ const UI_TRANSLATIONS = {
     signotecBridgeStatusInstall: "STPadServer not running — if https://localhost:49494 won't open in the browser, run Start setup as Administrator.",
     signotecBridgeServerDown: "If Firefox shows connection interrupted: bridge not installed/started. Run setup.bat as Admin, check Desktop log.",
     signotecBridgeStatusCert: "Bridge is running; certificate not trusted — click Trust certificate, then test again.",
-    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload WorkPass with Ctrl+Shift+R.",
+    signotecBridgeFirefoxHint: "Firefox: open https://localhost:49494 (not 127.0.0.1), click Advanced → Accept the Risk, then reload SUPPIX with Ctrl+Shift+R.",
     signotecBridgeStatusFirefox: "Signotec bridge missing or Firefox certificate not trusted — run setup first, then trust the certificate.",
     signatureDeviceTimeout: "Signature device timed out — try again or sign in the white area.",
     signatureWacomMissing: "Wacom: SigCaptX/DCA is not ready — install and start Wacom software on this PC.",
@@ -2512,7 +2512,7 @@ const UI_TRANSLATIONS = {
     passwordSetDialogMismatch: "Passwords do not match.",
     turnstilePasswordDialogTitle: "Reset turnstile password",
     alertCompanyCreate405: "Company could not be created (405). Request landed on {target}. The backend does not accept POST there — check the API URL or wait for deploy.",
-    accountPasswordHint: "Change your personal WorkPass login here. Set company admin passwords in the company list (\"Set password\" button).",
+    accountPasswordHint: "Change your personal SUPPIX login here. Set company admin passwords in the company list (\"Set password\" button).",
     companyAdminStartPasswordHint: "Initial password for the new company admin login of \"{company}\".",
     btnDocInboxRematch: "Re-assign",
     manualEntryBtn: "Manual Entry",
@@ -3136,7 +3136,7 @@ const UI_TRANSLATIONS = {
   },
   tr: {
     authEyebrow: "Giriş Sayfası",
-    authTitle: "WorkPass'a Güvenli Giriş",
+    authTitle: "SUPPIX'e Güvenli Giriş",
     authCopy: "Süper admin tüm sistem kontrolünü elinde tutar. Firma adminleri yalnızca kendi firmalarını görür. Turnike girişi hızlı geçiş moduna sahiptir.",
     authPlatform: "Platform",
     authOperator: "İşletmeci",
@@ -3896,7 +3896,7 @@ const UI_TRANSLATIONS = {
   },
   ar: {
     authEyebrow: "صفحة تسجيل الدخول",
-    authTitle: "تسجيل دخول آمن إلى WorkPass",
+    authTitle: "تسجيل دخول آمن إلى SUPPIX",
     authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
     labelOperatingSector: "القطاع التشغيلي",
     optSectorConstruction: "البناء",
@@ -3989,7 +3989,7 @@ const UI_TRANSLATIONS = {
     enterpriseHubOpsBtn: "مركز العمليات",
     enterpriseHubPlanHint: "الخطة الحالية: {plan} — {enabled} من {total} قدرة مفعّلة ({percent}%). المشرف: اختر معاينة شركة لمحاكاة خطة العميل.",
     enterpriseHubPreviewHint: "معاينة الشركة ({company}): الخطة {plan}",
-    appTitle: "WorkPass",
+    appTitle: "SUPPIX",
     navBetrieb: "التشغيل",
     navEnterpriseSection: "الذكاء والتكامل",
     topbarHeadingDashboard: "نظرة عامة — البطاقات والدخول والتشغيل",
@@ -4968,7 +4968,7 @@ const UI_TRANSLATIONS = {
   },
   fr: {
     authEyebrow: "Page de connexion",
-    authTitle: "Connexion sécurisée à WorkPass",
+    authTitle: "Connexion sécurisée à SUPPIX",
     authCopy: "Le super admin garde le contrôle total du système. Les admins d'entreprise ne voient que leur entreprise. Le login tourniquet offre un mode d'accès rapide.",
     authPlatform: "Plateforme",
     authOperator: "Opérateur",
@@ -5754,7 +5754,7 @@ const UI_TRANSLATIONS = {
   },
   es: {
     authEyebrow: "Página de acceso",
-    authTitle: "Inicio de sesión seguro en WorkPass",
+    authTitle: "Inicio de sesión seguro en SUPPIX",
     authCopy: "El super admin mantiene el control completo del sistema. Los admins de empresa solo ven su empresa. El acceso de torniquete ofrece un modo rápido.",
     authPlatform: "Plataforma",
     authOperator: "Operador",
@@ -6532,7 +6532,7 @@ const UI_TRANSLATIONS = {
   },
   it: {
     authEyebrow: "Pagina di accesso",
-    authTitle: "Accesso sicuro a WorkPass",
+    authTitle: "Accesso sicuro a SUPPIX",
     authCopy: "Il super admin mantiene il controllo completo del sistema. Gli admin aziendali vedono solo la propria azienda. L'accesso tornello ha una modalità rapida.",
     authPlatform: "Piattaforma",
     authOperator: "Operatore",
@@ -7318,7 +7318,7 @@ const UI_TRANSLATIONS = {
   },
   pl: {
     authEyebrow: "Strona logowania",
-    authTitle: "Bezpieczne logowanie do WorkPass",
+    authTitle: "Bezpieczne logowanie do SUPPIX",
     authCopy: "Super administrator zachowuje pełną kontrolę nad systemem. Administratorzy firm widzą tylko swoją firmę. Logowanie bramki ma szybki tryb dostępu.",
     authPlatform: "Platforma",
     authOperator: "Operator",
@@ -8329,14 +8329,14 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. Bramka Północna",
   },
   platformName: {
-    de: "WorkPass",
-    en: "WorkPass",
-    tr: "WorkPass",
-    ar: "WorkPass",
-    fr: "WorkPass",
-    es: "WorkPass",
-    it: "WorkPass",
-    pl: "WorkPass",
+    de: "SUPPIX",
+    en: "SUPPIX",
+    tr: "SUPPIX",
+    ar: "SUPPIX",
+    fr: "SUPPIX",
+    es: "SUPPIX",
+    it: "SUPPIX",
+    pl: "SUPPIX",
   },
   operatorName: {
     de: "Suppix AI",
@@ -9453,7 +9453,7 @@ const state = {
   currentUser: null,
   supportLoginContext: loadSupportLoginContext(),
   settings: {
-    platformName: "WorkPass",
+    platformName: "SUPPIX",
     operatorName: "Suppix AI",
     turnstileEndpoint: ""
   },
@@ -10333,7 +10333,7 @@ function getRuntimeUiTexts() {
     ttsFallbackEnglish: "Until installation is complete, the greeting uses <strong>English</strong> as fallback.",
     ttsVoiceCountOne: "{count} voice",
     ttsVoiceCountMany: "{count} voices",
-    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in WorkPass",
+    ttsLegend: "🖥️ = local voice &nbsp; ☁️ = cloud voice &nbsp; <strong>Bold</strong> = languages used in SUPPIX",
     ttsLoadingVoices: "Loading voices...",
     smtpEnvCheckPrefix: "Env check",
     smtpEnvSet: "set",
@@ -11193,7 +11193,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Bis zur Installation spricht die Begruessung auf <strong>Englisch</strong> als Fallback.",
       ttsVoiceCountOne: "{count} Stimme",
       ttsVoiceCountMany: "{count} Stimmen",
-      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in WorkPass genutzte Sprachen",
+      ttsLegend: "🖥️ = lokale Stimme &nbsp; ☁️ = Cloud-Stimme &nbsp; <strong>Fett</strong> = in SUPPIX genutzte Sprachen",
       ttsLoadingVoices: "Lade Stimmen...",
       smtpEnvCheckPrefix: "Env-Check",
       smtpEnvSet: "gesetzt",
@@ -14429,7 +14429,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Hasta que finalice la instalación, el saludo usa <strong>English</strong> como alternativa.",
       ttsVoiceCountOne: "{count} voz",
       ttsVoiceCountMany: "{count} voces",
-      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en WorkPass",
+      ttsLegend: "🖥️ = voz local &nbsp; ☁️ = voz en la nube &nbsp; <strong>Bold</strong> = idiomas usados en SUPPIX",
       ttsLoadingVoices: "Cargando voces...",
       smtpEnvCheckPrefix: "Comprobación de entorno",
       smtpEnvSet: "configurado",
@@ -15236,7 +15236,7 @@ function getRuntimeUiTexts() {
       ttsFallbackEnglish: "Fino al completamento dell'installazione, il saluto usa <strong>English</strong> come fallback.",
       ttsVoiceCountOne: "{count} voce",
       ttsVoiceCountMany: "{count} voci",
-      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in WorkPass",
+      ttsLegend: "🖥️ = voce locale &nbsp; ☁️ = voce cloud &nbsp; <strong>Bold</strong> = lingue usate in SUPPIX",
       ttsLoadingVoices: "Caricamento voci...",
       smtpEnvCheckPrefix: "Controllo env",
       smtpEnvSet: "impostato",
@@ -16586,14 +16586,14 @@ function updateDesktopInstallHint() {
 
   const lang = getStoredUiLang();
   const installHintInstalledByLang = {
-    de: "WorkPass ist auf diesem Geraet bereits als Desktop-App installiert.",
-    en: "WorkPass is already installed as a desktop app on this device.",
-    tr: "WorkPass bu cihazda zaten masaustu uygulamasi olarak kurulu.",
-    ar: "WorkPass مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
-    fr: "WorkPass est deja installe comme application de bureau sur cet appareil.",
-    es: "WorkPass ya esta instalado como aplicacion de escritorio en este dispositivo.",
-    it: "WorkPass e gia installato come app desktop su questo dispositivo.",
-    pl: "WorkPass jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
+    de: "SUPPIX ist auf diesem Geraet bereits als Desktop-App installiert.",
+    en: "SUPPIX is already installed as a desktop app on this device.",
+    tr: "SUPPIX bu cihazda zaten masaustu uygulamasi olarak kurulu.",
+    ar: "SUPPIX مثبت بالفعل كتطبيق سطح مكتب على هذا الجهاز.",
+    fr: "SUPPIX est deja installe comme application de bureau sur cet appareil.",
+    es: "SUPPIX ya esta instalado como aplicacion de escritorio en este dispositivo.",
+    it: "SUPPIX e gia installato come app desktop su questo dispositivo.",
+    pl: "SUPPIX jest juz zainstalowany na tym urzadzeniu jako aplikacja desktopowa.",
   };
   const installHintDefaultByLang = {
     de: "Dieses Portal kann auf Windows, macOS und Linux wie ein lokales Programm installiert werden.",
@@ -22790,7 +22790,7 @@ async function collectBrandingPayloadFromCard(companyId) {
   };
   const theme = themeMap[preset] || themeMap.construction;
   return {
-    companyName: portalName || company.name || "WorkPass",
+    companyName: portalName || company.name || "SUPPIX",
     logoData: brandingLogoData,
     accent,
     accentLight: theme.accentLight,
@@ -24681,7 +24681,7 @@ function renderCompanyList() {
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailSenderLabel"))}</label>
               <input data-company-mail-sender-email="${escapeHtml(companyId)}" type="email" placeholder="sender@company.tld" value="${escapeAttr(companyMail.senderEmail)}" ${canManageMail ? "" : "disabled"} />
-              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="WorkPass" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
+              <input data-company-mail-sender-name="${escapeHtml(companyId)}" type="text" placeholder="SUPPIX" value="${escapeAttr(companyMail.senderName)}" ${canManageMail ? "" : "disabled"} />
             </div>
             <div class="button-row" style="gap:6px;align-items:center; margin-top:6px;">
               <label style="min-width:120px;">${escapeHtml(runtimeText("companyMailImapLabel"))}</label>
@@ -30490,7 +30490,7 @@ async function loadCustomBrandingPreset() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#platformName").value = "SUPPIX";
     document.querySelector("#operatorName").value = "Suppix AI";
     document.querySelector("#invoicePrimaryColor").value = "#06b6d4";
     document.querySelector("#invoiceAccentColor").value = "#a855f7";
@@ -30516,7 +30516,7 @@ async function loadCustomBrandingPresetAlt() {
     const svg = await response.text();
     const logoDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
-    document.querySelector("#platformName").value = "WorkPass";
+    document.querySelector("#platformName").value = "SUPPIX";
     document.querySelector("#operatorName").value = "Suppix AI";
     document.querySelector("#invoicePrimaryColor").value = "#24324a";
     document.querySelector("#invoiceAccentColor").value = "#9333ea";

@@ -249,7 +249,7 @@
   <div id="authErr" class="err hidden">
     <span id="authErrText">Bitte anmelden.</span>
     <a id="authLoginLink" href="/admin-v2/index.html?login=1" style="margin-inline-start:0.5rem">Anmelden</a>
-    · <a id="authControlPassLink" href="/index.html">WorkPass</a>
+    · <a id="authControlPassLink" href="/index.html">SUPPIX</a>
   </div>
 
   <div class="shell hidden embed-shell" id="shell">
@@ -320,7 +320,7 @@
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
-  <script src="/ai-center-i18n-extra.js?v=20260705g"></script>
+  <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
     (function initEmbed() {
@@ -351,7 +351,7 @@
         send: "Senden", voiceInput: "Spracheingabe", briefing: "Tagesbriefing",
         placeholder: "Frage an den Agenten…",
         thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
-        auth: "Bitte anmelden (WorkPass).", authLogin: "Anmelden", controlPass: "WorkPass",
+        auth: "Bitte anmelden (SUPPIX).", authLogin: "Anmelden", controlPass: "SUPPIX",
         sources: "Quellen", tools: "Tools", toolsPanelSummary: "Tools & Briefings",
         actions: "Aktionen", emailBriefing: "Briefing mailen", emailPrompt: "Empfänger-E-Mail:",
         emailOk: "Briefing gesendet.", emailFail: "E-Mail fehlgeschlagen.",
@@ -392,6 +392,18 @@
         errRateLimitVoiceNote: "Sprache nutzt zusätzlich Transkription und Vorlesen.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
         uiLang: "Sprache",
+        leaveTitle: "Urlaubsantrag",
+        leavePdfFrameTitle: "Urlaubsantrag PDF",
+        leaveApproveBtn: "✓ Genehmigen",
+        leaveRejectBtn: "✗ Ablehnen",
+        leaveCloseBtn: "Schließen",
+        leaveRejectPh: "Ablehnungsgrund (optional)",
+        leavePendingHeading: "{count} offene Urlaubsanträge",
+        leaveWorkerDefault: "Mitarbeiter",
+        leaveApprovedToast: "Antrag genehmigt",
+        leaveRejectedToast: "Antrag abgelehnt",
+        errGeneric: "Fehler",
+        leaveRejectedDefaultNote: "Abgelehnt",
       },
       en: {
         title: "Suppix AI — Assistant",
@@ -399,7 +411,7 @@
         send: "Send", voiceInput: "Voice input", briefing: "Daily briefing",
         placeholder: "Ask the agent…",
         thinking: "Analyzing live data…", needCompany: "Select company.",
-        auth: "Please sign in.", authLogin: "Sign in", controlPass: "WorkPass",
+        auth: "Please sign in.", authLogin: "Sign in", controlPass: "SUPPIX",
         sources: "Sources", tools: "Tools", toolsPanelSummary: "Tools & briefings",
         actions: "Actions", emailBriefing: "Email briefing", emailPrompt: "Recipient email:",
         emailOk: "Briefing sent.", emailFail: "Email failed.",
@@ -440,6 +452,18 @@
         errRateLimitVoiceNote: "Voice also uses transcription and text-to-speech.",
         errNetwork: "Network error — check connection.",
         uiLang: "Language",
+        leaveTitle: "Leave request",
+        leavePdfFrameTitle: "Leave request PDF",
+        leaveApproveBtn: "✓ Approve",
+        leaveRejectBtn: "✗ Reject",
+        leaveCloseBtn: "Close",
+        leaveRejectPh: "Rejection reason (optional)",
+        leavePendingHeading: "{count} open leave requests",
+        leaveWorkerDefault: "Employee",
+        leaveApprovedToast: "Request approved",
+        leaveRejectedToast: "Request rejected",
+        errGeneric: "Error",
+        leaveRejectedDefaultNote: "Rejected",
       },
       ar: {
         title: "مركز قيادة AI — SUPPIX",
@@ -447,7 +471,7 @@
         send: "إرسال", voiceInput: "إدخال صوتي", briefing: "ملخص اليوم",
         placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
-        auth: "يرجى تسجيل الدخول.", authLogin: "تسجيل الدخول", controlPass: "WorkPass",
+        auth: "يرجى تسجيل الدخول.", authLogin: "تسجيل الدخول", controlPass: "SUPPIX",
         sources: "المصادر", tools: "أدوات", toolsPanelSummary: "أدوات وملخصات",
         actions: "إجراءات", emailBriefing: "إرسال الملخص", emailPrompt: "البريد:",
         emailOk: "تم الإرسال.", emailFail: "فشل الإرسال.",
@@ -488,6 +512,18 @@
         errRateLimitVoiceNote: "الصوت يستخدم أيضاً التفريغ والقراءة الصوتية.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
         uiLang: "اللغة",
+        leaveTitle: "طلب إجازة",
+        leavePdfFrameTitle: "PDF طلب الإجازة",
+        leaveApproveBtn: "✓ موافقة",
+        leaveRejectBtn: "✗ رفض",
+        leaveCloseBtn: "إغلاق",
+        leaveRejectPh: "سبب الرفض (اختياري)",
+        leavePendingHeading: "{count} طلبات إجازة مفتوحة",
+        leaveWorkerDefault: "موظف",
+        leaveApprovedToast: "تمت الموافقة على الطلب",
+        leaveRejectedToast: "تم رفض الطلب",
+        errGeneric: "خطأ",
+        leaveRejectedDefaultNote: "مرفوض",
       },
     };
     Object.assign(I18N, window.AiCenterI18nExtra || {});
@@ -505,6 +541,13 @@
       executive: "executive",
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
+    function tf(k, vars = {}) {
+      let text = t(k);
+      for (const [key, val] of Object.entries(vars)) {
+        text = text.replaceAll(`{${key}}`, String(val ?? ""));
+      }
+      return text;
+    }
     function formatStatusLine(data, ts) {
       return t("statusLine")
         .replace("{onsite}", data?.snapshot?.workersOnSite ?? "—")
@@ -569,6 +612,18 @@
         langSel.value = LANG;
         langSel.setAttribute("aria-label", t("uiLang"));
       }
+      const leaveTitleEl = document.getElementById("aiLeavePdfTitle");
+      if (leaveTitleEl) leaveTitleEl.textContent = t("leaveTitle");
+      const leaveApproveBtn = document.getElementById("aiLeaveApproveBtn");
+      if (leaveApproveBtn) leaveApproveBtn.textContent = t("leaveApproveBtn");
+      const leaveRejectBtn = document.getElementById("aiLeaveRejectBtn");
+      if (leaveRejectBtn) leaveRejectBtn.textContent = t("leaveRejectBtn");
+      const leaveCloseBtn = document.getElementById("aiLeaveCloseBtn");
+      if (leaveCloseBtn) leaveCloseBtn.textContent = t("leaveCloseBtn");
+      const leaveRejectNote = document.getElementById("aiLeaveRejectNote");
+      if (leaveRejectNote) leaveRejectNote.placeholder = t("leaveRejectPh");
+      const leavePdfFrame = document.getElementById("aiLeavePdfFrame");
+      if (leavePdfFrame) leavePdfFrame.title = t("leavePdfFrameTitle");
       if (uiBooted) {
         renderSessions();
         if (reloadAgents) {
@@ -581,6 +636,7 @@
           const ts = new Date().toLocaleTimeString();
           document.getElementById("statusLine").textContent = formatStatusLine(lastInsightsData, ts);
         }
+        loadPendingLeaveRequests().catch(() => {});
       }
     }
     const CARD_LABELS = {
@@ -1134,10 +1190,10 @@
           host.innerHTML = "";
           return;
         }
-        host.innerHTML = `<div class="playbook-block"><h3>${rows.length} offene Urlaubsanträge</h3>` +
+        host.innerHTML = `<div class="playbook-block"><h3>${tf("leavePendingHeading", { count: rows.length })}</h3>` +
           rows.slice(0, 8).map((row) => {
             const id = escapeHtml(String(row.id || ""));
-            const name = escapeHtml(String(row.worker_name || row.worker_id || "Mitarbeiter"));
+            const name = escapeHtml(String(row.worker_name || row.worker_id || t("leaveWorkerDefault")));
             const meta = escapeHtml(`${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`);
             return `<button type="button" class="leave-preview-btn" data-leave-id="${id}"><strong>${name}</strong><span class="status-line">${meta}</span></button>`;
           }).join("") +
@@ -1546,7 +1602,7 @@
             company_id: selectedCompanyId,
           }),
         });
-        showToast(r.ok ? "Antrag genehmigt" : (r.error || "Fehler"));
+        showToast(r.ok ? t("leaveApprovedToast") : (r.error || t("errGeneric")));
         if (r.ok) {
           closeAiLeavePreview();
           await loadPendingLeaveRequests();
@@ -1565,11 +1621,11 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "reject_leave_request",
-            params: { leave_id: aiLeavePreviewId, review_note: reviewNote || "Abgelehnt" },
+            params: { leave_id: aiLeavePreviewId, review_note: reviewNote || t("leaveRejectedDefaultNote") },
             company_id: selectedCompanyId,
           }),
         });
-        showToast(r.ok ? "Antrag abgelehnt" : (r.error || "Fehler"));
+        showToast(r.ok ? t("leaveRejectedToast") : (r.error || t("errGeneric")));
         if (r.ok) {
           closeAiLeavePreview();
           await loadPendingLeaveRequests();

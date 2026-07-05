@@ -1154,7 +1154,7 @@
     }
 
     function askKi(name, workerId) {
-      const q = encodeURIComponent(`Status und nächste Schritte für ${name} (ID ${workerId})?`);
+      const q = encodeURIComponent(ft('foremanKiPrompt', { name, id: workerId }));
       window.open(`/ai-command-center.html?autoprompt=${q}`, "_blank");
     }
 

@@ -422,6 +422,17 @@
     workerFeatureApp: "Mitarbeiter-App",
     workerFeatureDefault: "Diese Funktion",
     workerErrorPrefix: "Fehler",
+    workerLeaveAiTypeSick: "Krankmeldung (Abwesenheit wegen Krankheit, sachlich und kurz)",
+    workerLeaveAiTypeOther: "Antrag auf sonstige Abwesenheit aus persönlichen Gründen (neutral formuliert)",
+    workerLeaveAiTypeVacation: "Urlaubsantrag (höflich, professionell)",
+    workerLeaveAiPromptIntro: "Schreibe nur den Antragstext für einen {typeBrief}.",
+    workerLeaveAiPromptRange: "Zeitraum: {dateRange}.",
+    workerLeaveAiPromptRules: "Genau 2–3 kurze Sätze, ohne Betreff, ohne Anrede, ohne Grußformel, ohne Markdown.",
+    workerLeaveAiLangDe: "Sprache: Deutsch.",
+    workerLeaveAiLangOther: "Sprache: {lang}.",
+    workerLeaveDateRangeBetween: "{from} bis {to}",
+    workerLeaveDateRangeFallback: "dem gewünschten Zeitraum",
+    workerLateBannerClose: "Schließen",
   });
   Object.assign(T.en, {
     workerLoginBadgePinFirst: "Please sign in with badge ID and PIN first.",
@@ -445,6 +456,17 @@
     workerFeatureApp: "Worker app",
     workerFeatureDefault: "This feature",
     workerErrorPrefix: "Error",
+    workerLeaveAiTypeSick: "Sick leave notice (illness absence, factual and brief)",
+    workerLeaveAiTypeOther: "Other absence request for personal reasons (neutral wording)",
+    workerLeaveAiTypeVacation: "Vacation request (polite, professional)",
+    workerLeaveAiPromptIntro: "Write only the request text for a {typeBrief}.",
+    workerLeaveAiPromptRange: "Period: {dateRange}.",
+    workerLeaveAiPromptRules: "Exactly 2–3 short sentences, no subject line, no salutation, no closing, no markdown.",
+    workerLeaveAiLangDe: "Language: German.",
+    workerLeaveAiLangOther: "Language: {lang}.",
+    workerLeaveDateRangeBetween: "{from} to {to}",
+    workerLeaveDateRangeFallback: "the requested period",
+    workerLateBannerClose: "Close",
   });
 
   const syncLangs = ["en", "tr", "ar", "fr", "es", "it", "pl"];
