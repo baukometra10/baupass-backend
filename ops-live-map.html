@@ -26,6 +26,51 @@
       border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.75rem; font-size: 0.78rem;
     }
     .legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-inline-end: 6px; }
+    .legend .legend-pin {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 0;
+      margin-inline-end: 6px;
+      vertical-align: middle;
+    }
+    .legend .legend-pin svg { width: 16px; height: 16px; display: block; }
+    .ops-map-pin-wrap {
+      background: transparent;
+      border: none;
+    }
+    .ops-map-pin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55));
+      pointer-events: auto;
+    }
+    .ops-map-pin-svg {
+      width: 34px;
+      height: 34px;
+      display: block;
+    }
+    .ops-map-pin-worker { color: #5eead4; }
+    .ops-map-pin-geofence { color: #38bdf8; }
+    .ops-map-pin-gate { color: #fbbf24; }
+    .ops-map-pin-label {
+      margin-top: 1px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(8, 12, 18, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      color: #f8fafc;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      max-width: 128px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .side {
       width: 280px; max-width: 40vw; border-inline-start: 1px solid var(--border);
       background: var(--panel); overflow: auto; font-size: 0.8rem;
@@ -58,9 +103,9 @@
     <div id="map"></div>
     <aside class="side" id="workerList"></aside>
     <div class="legend">
-      <div><span style="background:#5eead4"></span> Auf Baustelle</div>
-      <div><span style="background:#1b7a9e"></span> Geofence</div>
-      <div><span style="background:#fbbf24"></span> Gate (heute)</div>
+      <div><span class="legend-pin ops-map-pin-worker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Auf Baustelle</div>
+      <div><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Geofence</div>
+      <div><span class="legend-pin ops-map-pin-gate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Gate (heute)</div>
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
@@ -96,6 +141,43 @@
       layers[key] = [];
     }
 
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    const PIN_SVG =
+      '<svg viewBox="0 0 24 24" class="ops-map-pin-svg" aria-hidden="true">' +
+      '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="currentColor"/>' +
+      '<circle cx="12" cy="9" r="2.6" fill="#fff"/>' +
+      "</svg>";
+
+    function mapPinIcon(kind, label) {
+      const safeLabel = escapeHtml(label);
+      const labelHtml = safeLabel
+        ? `<span class="ops-map-pin-label">${safeLabel}</span>`
+        : "";
+      return L.divIcon({
+        className: "ops-map-pin-wrap",
+        html: `<div class="ops-map-pin ops-map-pin-${kind}" role="img" aria-label="${safeLabel}">${PIN_SVG}${labelHtml}</div>`,
+        iconSize: [36, safeLabel ? 52 : 36],
+        iconAnchor: [18, safeLabel ? 50 : 34],
+        popupAnchor: [0, safeLabel ? -48 : -32],
+      });
+    }
+
+    function addPinMarker(lat, lng, kind, label, popupHtml) {
+      const marker = L.marker([lat, lng], {
+        icon: mapPinIcon(kind, label),
+        title: label || "",
+        zIndexOffset: kind === "worker" ? 300 : kind === "gate" ? 200 : 100,
+      }).addTo(map);
+      if (popupHtml) marker.bindPopup(popupHtml);
+      return marker;
+    }
+
     function renderMap(data) {
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
@@ -111,20 +193,36 @@
       (data.geofences || []).forEach((z) => {
         if (z.latitude == null) return;
         const circle = L.circle([z.latitude, z.longitude], {
-          radius: z.radius_meters || 50, color: "#1b7a9e", fillOpacity: 0.12,
-        }).addTo(map).bindPopup(`<b>${z.site_name}</b><br>${z.radius_meters}m`);
+          radius: z.radius_meters || 50,
+          color: "#38bdf8",
+          weight: 2,
+          fillColor: "#38bdf8",
+          fillOpacity: 0.16,
+        }).addTo(map).bindPopup(`<b>${escapeHtml(z.site_name)}</b><br>${z.radius_meters}m`);
         layers.zones.push(circle);
+        const siteLabel = z.site_name || "Geofence";
+        const pin = addPinMarker(
+          z.latitude,
+          z.longitude,
+          "geofence",
+          siteLabel,
+          `<b>${escapeHtml(siteLabel)}</b><br>${z.radius_meters || 50}m Radius`,
+        );
+        layers.zones.push(pin);
         bounds.push([z.latitude, z.longitude]);
       });
       (data.workersOnSite || []).forEach((w) => {
-        const m = L.circleMarker([w.lat, w.lng], {
-          radius: 8, color: "#5eead4", fillColor: "#5eead4", fillOpacity: 0.85,
-        }).addTo(map).bindPopup(`<b>${w.name}</b><br>${w.site || ""}<br>${w.gate || ""}<br><small>${(w.lastAccess||"").slice(0,19)}</small>`);
+        const label = w.name || "MA";
+        const popup =
+          `<b>${escapeHtml(w.name)}</b><br>${escapeHtml(w.site || "")}` +
+          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>`;
+        const m = addPinMarker(w.lat, w.lng, "worker", label, popup);
         layers.workers.push(m);
         bounds.push([w.lat, w.lng]);
       });
       (data.gates || []).forEach((g) => {
-        const m = L.marker([g.lat, g.lng], { title: g.name }).addTo(map).bindPopup(g.name);
+        const label = g.name || "Gate";
+        const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
         layers.gates.push(m);
         bounds.push([g.lat, g.lng]);
       });
