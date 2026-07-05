@@ -1621,7 +1621,10 @@ function applyTranslations() {
       }
     }
     if (attr) {
-      el.setAttribute(attr, t(key));
+      const value = t(key);
+      attr.split(",").map((part) => part.trim()).filter(Boolean).forEach((name) => {
+        el.setAttribute(name, value);
+      });
     } else {
       el.textContent = t(key);
     }
@@ -1649,8 +1652,17 @@ function setLang(lang) {
   updateConnectionState();
   updatePlatformInstallHint();
   applyQrContrastState();
+  updateWorkerBuildBadge();
+  updateWorkerPulsePanel();
+  updateWorkerHubToggleLabel();
+  updateWorkHoursBannerVisibility(currentActiveTab);
+  updateFeatureTabPageNav(currentActiveTab);
+  if (lastWorkerPayload && document.body.classList.contains("worker-loaded")) {
+    renderWorker(lastWorkerPayload, { resyncTab: true });
+    return;
+  }
   if (workerToken) {
-    void loadWorkerData();
+    void loadWorkerData({ forceRender: true });
   }
 }
 // ─────────────────────────────────────────────────────────────────────
@@ -4570,11 +4582,11 @@ async function loadWorkerData(options = {}) {
     workerDebug("[loadWorkerData] Success:", payload);
     const nextSerialized = JSON.stringify(payload);
     const cachedRaw = wpGet(WORKER_CACHED_PAYLOAD_KEY);
-    const unchanged = cachedRaw === nextSerialized && document.body.classList.contains("worker-loaded");
+    const unchanged = !options.forceRender && cachedRaw === nextSerialized && document.body.classList.contains("worker-loaded");
     wpSet(WORKER_CACHED_PAYLOAD_KEY, nextSerialized);
     offlineWorkerSessionActive = false;
-    if (!unchanged) {
-      renderWorker(payload, { resyncTab: !quiet });
+    if (!unchanged || options.forceRender) {
+      renderWorker(payload, { resyncTab: !quiet || Boolean(options.forceRender) });
     } else if (quiet) {
       markWorkerSyncedNow();
       updateConnectionState();

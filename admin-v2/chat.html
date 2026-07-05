@@ -51,6 +51,22 @@
     button { padding:0.65rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; }
     button.primary { background:#164e63; border-color:#5eead4; }
     button:disabled { opacity:0.6; cursor:not-allowed; }
+    .header-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.35rem 0.55rem;
+      border: 1px solid rgba(94, 234, 212, 0.38);
+      border-radius: 8px;
+      background: rgba(94, 234, 212, 0.1);
+      white-space: nowrap;
+    }
+    .header-link:hover {
+      border-color: var(--accent);
+      color: var(--text);
+      background: rgba(94, 234, 212, 0.18);
+    }
     .muted { color:var(--muted); }
     .chat-attachment-btn {
       display: inline-flex;
@@ -117,7 +133,7 @@
           <option value="it">IT</option>
           <option value="pl">PL</option>
         </select>
-        <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;" data-aci18n="back">Zurück zu Betrieb</a>
+        <a href="/admin-v2/index.html" id="backLink" class="header-link" data-aci18n="back">Zurück zu Betrieb</a>
       </div>
     </header>
     <main class="chat-shell">
