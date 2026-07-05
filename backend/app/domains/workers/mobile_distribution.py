@@ -30,7 +30,7 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
         "hybridModes": [
             {
                 "id": "app_qr_badge",
-                "label": "Hybrid app (Flutter): QR / Badge + PIN",
+                "label": "App: QR-Code, Badge & PIN",
                 "api": "/api/worker-app/login",
                 "flutter": True,
                 "pwa": False,
@@ -38,25 +38,25 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
             },
             {
                 "id": "gate_reader_nfc_rfid",
-                "label": "Physical NFC/RFID card on gate reader",
+                "label": "Physische Karte am Drehkreuz (NFC/RFID)",
                 "api": "/api/scan",
-                "note": "Reader connected to cloud; phone offline OK",
+                "note": "Leser mit Cloud verbunden — Handy kann offline sein",
             },
             {
                 "id": "hce_phone_card",
-                "label": "Android HCE (phone emulates card)",
+                "label": "Android HCE (Handy als Karte)",
                 "api": "/api/worker-app/hce",
                 "companion": "android-hce-companion/",
             },
         ],
         "nativeInstall": {
-            "label": "Flutter hybrid app (APK / TestFlight / internal build)",
+            "label": "SUPPIX Mitarbeiter-App (Android & iOS)",
             "flutterProject": "mobile/",
             "apiPrefix": "/api/worker-app",
             "pushRegister": "/api/worker-app/push/register",
         },
         "pwaInstall": {
-            "label": "Legacy browser install (deprecated — use Flutter app)",
+            "label": "Veraltete Browser-App — bitte Flutter-App verwenden",
             "deprecated": True,
             "entry": f"{base}{entry}?worker=1",
             "launcher": f"{base}{launcher}?v={build_tag}",

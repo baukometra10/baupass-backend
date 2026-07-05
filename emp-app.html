@@ -1478,9 +1478,10 @@
   <script src="./tenant-brand-icon.js?v=20260704d"></script>
   <script>
     (function bootstrapWorkerFavicon() {
-      if (!window.TenantBrandIcon) return;
-      var href = TenantBrandIcon.resolveTenantIconHref({ brandTitle: "WP", accentColor: "#0a57c0", size: 192 });
-      if (!href) return;
+      var href = "/branding/suppix-icon-192.png";
+      if (window.TenantBrandIcon) {
+        href = TenantBrandIcon.resolveTenantIconHref({ brandTitle: "SUPPIX", logoData: "/branding/suppix-icon-192.png", accentColor: "#38bdf8", size: 192 }) || href;
+      }
       ["workerAppFavicon", "workerAppTouchIcon"].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.href = href;

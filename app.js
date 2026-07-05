@@ -1,5 +1,5 @@
-﻿// ALLE ELEMENTE OBEN DEFINIEREN!
-window.__BAUPASS_UI_BUILD = "20260705b";
+// ALLE ELEMENTE OBEN DEFINIEREN!
+window.__BAUPASS_UI_BUILD = "20260705c";
 window.__baupassEnterprise = { demoAllowed: null, copilotConfigured: null };
 
 async function loadEnterpriseFlags() {
@@ -9392,7 +9392,7 @@ const ADMIN_V2_EMBED_ITEM = {
 const ENTERPRISE_NAV_ITEMS = [
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "starter", queryCompany: true, version: true, embed: true },
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "professional", queryCompany: true, version: true, embed: true },
-  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", embed: true },
+  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", queryCompany: true, embed: true },
 ];
 
 const PLATFORM_VIEW_CHROME = {
@@ -18550,7 +18550,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260705b");
+    params.push("v=20260705c");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
@@ -35816,6 +35816,9 @@ window.addEventListener("message", (event) => {
   if (view && allowedViews.includes(view)) {
     if (view === "ai-assistant") {
       pendingEnterpriseEmbedItemId = "ai-assistant";
+    }
+    if (view === "ops-center") {
+      pendingEnterpriseEmbedItemId = "ops-center";
     }
     if (view === "admin-v2" && event.data.focusEinsatzplan) {
       pendingAdminV2EinsatzplanFocus = true;

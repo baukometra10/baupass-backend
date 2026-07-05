@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de" dir="ltr">
 <head>
   <meta charset="utf-8" />
@@ -80,7 +80,7 @@
       <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
     </nav>
   </header>
-  <main id="grid"></main>
+  <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
@@ -607,9 +607,32 @@
       }
     })();
 
+    async function waitForEmbedSession(maxMs = 3200) {
+      const embedded =
+        qs.get("embed") === "1" ||
+        (window.BaupassEmbed?.isEmbedMode?.() && window.self !== window.top);
+      if (!embedded) return;
+      const deadline = Date.now() + maxMs;
+      while (Date.now() < deadline) {
+        if (window.BaupassAuth?.getSessionToken?.()) return;
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      }
+    }
+
+    let loadScheduled = false;
+
+    window.addEventListener("message", (event) => {
+      if (event.origin !== location.origin || !event?.data) return;
+      if (event.data.type === "baupass-sync-token" && event.data.token && loadScheduled) {
+        load().catch(() => {});
+      }
+    });
+
     applyOpsUiLanguage();
     (async () => {
+      loadScheduled = true;
       try {
+        await waitForEmbedSession();
         if (window.BaupassAuth?.bootstrapSession) {
           await window.BaupassAuth.bootstrapSession();
         }

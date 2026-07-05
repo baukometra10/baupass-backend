@@ -1,4 +1,4 @@
-﻿import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
 import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -433,6 +433,25 @@ function handleHubNavigateFromEmbed(data) {
     tryFocusEinsatzplanFromParent();
     return;
   }
+  if (view === "ops-center") {
+    if (postShellNavigate({ view: "ops-center", companyId: data?.companyId || activeCompanyId() })) {
+      return;
+    }
+    navigateToOpsEmbed("/ops-command-center.html");
+    return;
+  }
+  if (view === "ai-assistant") {
+    if (postShellNavigate({ view: "ai-assistant", companyId: data?.companyId || activeCompanyId() })) {
+      return;
+    }
+    navigateToOpsEmbed("/ai-command-center.html");
+    return;
+  }
+  if (view === "enterprise-hub") {
+    if (requestEnterpriseHubInShell()) {
+      return;
+    }
+  }
   const tabByView = {
     dashboard: "overview",
     workers: "workers",
@@ -441,7 +460,6 @@ function handleHubNavigateFromEmbed(data) {
     "ai-assistant": "copilot",
     "enterprise-hub": "enterprise",
     "admin-v2": "workers",
-    "ops-center": "operations",
   };
   const tab = tabByView[view];
   if (tab) {
@@ -2106,6 +2124,9 @@ async function loadPlatform() {
       });
     });
     panel.querySelector("#platformOpenEnterpriseBtn")?.addEventListener("click", () => {
+      if (requestEnterpriseHubInShell()) {
+        return;
+      }
       switchToTab("enterprise");
       syncEnterpriseFrame();
     });
@@ -2145,38 +2166,137 @@ async function loadPlatform() {
   }
 }
 
+function renderMobileChannelCard({ icon, title, desc, href, ready }) {
+  if (href && ready) {
+    return `
+      <a href="${escapeHtml(href)}" target="_blank" rel="noopener" class="mobile-channel-card">
+        <span class="mobile-channel-icon" aria-hidden="true">${icon}</span>
+        <strong>${escapeHtml(title)}</strong>
+        <span class="muted small">${escapeHtml(desc)}</span>
+        ${statusBadge(true)}
+        <span class="mobile-channel-cta">${t("mobile.channel.open")} →</span>
+      </a>`;
+  }
+  return `
+    <div class="mobile-channel-card mobile-channel-card--pending">
+      <span class="mobile-channel-icon" aria-hidden="true">${icon}</span>
+      <strong>${escapeHtml(title)}</strong>
+      <span class="muted small">${escapeHtml(desc)}</span>
+      ${statusBadge(false)}
+      <span class="mobile-channel-hint muted small">${t("mobile.channel.setupHint")}</span>
+    </div>`;
+}
+
+function resolveMobileModeLabel(mode) {
+  const id = String(mode?.id || "").trim();
+  const key = {
+    app_qr_badge: "mobile.mode.qrBadge",
+    gate_reader_nfc_rfid: "mobile.mode.nfcGate",
+    hce_phone_card: "mobile.mode.hce",
+  }[id];
+  return key ? t(key) : mode?.label || id;
+}
+
 async function loadMobile() {
   const panel = $("mobilePanel");
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const data = await api("/api/v2/mobile/distribution");
     const install = data.install || {};
-    const modes = (data.hybridModes || [])
-      .map(
-        (m) =>
-          `<div class="layer-pill"><strong>${m.label || m.id}</strong><br/><span class="muted small">${m.api || ""}</span></div>`
-      )
-      .join("");
     const native = data.nativeInstall || {};
     const pwaLegacy = data.pwaInstall || {};
+    const joinUrl = install.joinPage || "/join.html";
+    const channels = [
+      {
+        icon: "🤖",
+        title: t("mobile.channel.android"),
+        desc: t("mobile.channel.androidDesc"),
+        href: install.apkUrl,
+        ready: Boolean(install.apkUrl),
+      },
+      {
+        icon: "🍎",
+        title: t("mobile.channel.testflight"),
+        desc: t("mobile.channel.testflightDesc"),
+        href: install.testFlightUrl,
+        ready: Boolean(install.testFlightUrl),
+      },
+      {
+        icon: "▶️",
+        title: t("mobile.channel.playStore"),
+        desc: t("mobile.channel.playStoreDesc"),
+        href: install.playStoreUrl,
+        ready: Boolean(install.playStoreUrl),
+      },
+      {
+        icon: "📲",
+        title: t("mobile.channel.appStore"),
+        desc: t("mobile.channel.appStoreDesc"),
+        href: install.appStoreUrl,
+        ready: Boolean(install.appStoreUrl),
+      },
+    ];
+    const modeIcons = { app_qr_badge: "📱", gate_reader_nfc_rfid: "💳", hce_phone_card: "📡" };
+    const modes = (data.hybridModes || [])
+      .map(
+        (m) => `
+        <article class="mobile-mode-card">
+          <span class="mobile-mode-icon" aria-hidden="true">${modeIcons[m.id] || "✓"}</span>
+          <div>
+            <strong>${escapeHtml(resolveMobileModeLabel(m))}</strong>
+            <p class="muted small">${escapeHtml(m.note || m.api || "")}</p>
+          </div>
+        </article>`,
+      )
+      .join("");
     panel.innerHTML = `
+      <div class="mobile-hero panel-block">
+        <div class="mobile-hero-main">
+          <div class="mobile-hero-brand">
+            <img src="/branding/suppix-ai-mark.svg" alt="SUPPIX" class="mobile-hero-logo" width="44" height="44" />
+            <div>
+              <p class="mobile-hero-eyebrow">${t("mobile.kicker")}</p>
+              <h2 class="mobile-hero-title">${t("mobile.title")}</h2>
+            </div>
+          </div>
+          <p class="muted mobile-hero-sub">${t("mobile.subtitle")}</p>
+        </div>
+        <div class="mobile-hero-actions">
+          <a href="${escapeHtml(joinUrl)}" target="_blank" rel="noopener" class="primary-button mobile-hero-btn">${t("mobile.qrOpen")}</a>
+          <button type="button" class="ghost mobile-hero-btn" data-goto-tab="workers">${t("mobile.goWorkers")}</button>
+        </div>
+      </div>
       <div class="panel-block">
-        <h3>${t("mobile.title")}</h3>
-        <p class="muted small">${native.label || "Hybrid native — FCM push"} · API: <code>${native.apiPrefix || "/api/worker-app"}</code></p>
-        <p><a href="${install.joinPage || "/join.html"}" target="_blank" rel="noopener">${install.joinPage || "/join.html"}</a> — ${t("mobile.qrActivation")}</p>
-        <p>APK: ${install.apkUrl ? `<a href="${install.apkUrl}" target="_blank" rel="noopener">${install.apkUrl}</a>` : statusBadge(false) + " " + t("mobile.apkMissing")}</p>
-        <p>TestFlight: ${install.testFlightUrl ? `<a href="${install.testFlightUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
-        <p>Play Store: ${install.playStoreUrl ? `<a href="${install.playStoreUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
-        <p>App Store: ${install.appStoreUrl ? `<a href="${install.appStoreUrl}" target="_blank" rel="noopener">${t("mobile.storeLink")}</a>` : statusBadge(false)}</p>
-        <p class="muted small">Push: <code>${native.pushRegister || "/api/worker-app/push/register"}</code> (FCM) — ${t("mobile.notPwa")}.</p>
-        <p class="muted small">${t("mobile.legacyPwa")}: ${pwaLegacy.deprecated ? statusBadge(false) + " " : ""}<a href="${install.pwaEntry || "#"}" target="_blank" rel="noopener">${pwaLegacy.label || "Legacy browser"}</a></p>
+        <h3>${t("mobile.distributionTitle")}</h3>
+        <p class="muted small">${t("mobile.distributionHint")}</p>
+        <div class="mobile-channel-grid">${channels.map((c) => renderMobileChannelCard(c)).join("")}</div>
+      </div>
+      <div class="panel-block mobile-tech-strip">
+        <div class="mobile-tech-item">
+          <strong>${t("mobile.pushTitle")}</strong>
+          <p class="muted small">${t("mobile.pushHint")}</p>
+        </div>
+        <div class="mobile-tech-item">
+          <strong>API</strong>
+          <p class="muted small"><code>${escapeHtml(native.apiPrefix || "/api/worker-app")}</code> · FCM</p>
+        </div>
+      </div>
+      <div class="panel-block mobile-legacy-block">
+        <h3>${t("mobile.legacyTitle")}</h3>
+        <p class="muted small">${escapeHtml(pwaLegacy.label || t("mobile.legacyDesc"))}</p>
+        <p class="mobile-legacy-row">${pwaLegacy.deprecated ? statusBadge(false) : ""}<a href="${escapeHtml(install.pwaEntry || pwaLegacy.entry || "#")}" target="_blank" rel="noopener">${t("mobile.legacyOpen")}</a></p>
       </div>
       <div class="panel-block">
         <h3>${t("mobile.attendanceModes")}</h3>
-        <div class="layer-grid">${modes}</div>
+        <p class="muted small">${t("mobile.attendanceModesHint")}</p>
+        <div class="mobile-mode-grid">${modes}</div>
       </div>
-      <p class="muted small">${t("mobile.workersHint")}</p>
+      <p class="muted small mobile-footnote">${t("mobile.workersHint")}</p>
     `;
+    panel.querySelector("[data-goto-tab='workers']")?.addEventListener("click", () => {
+      switchToTab("workers");
+      refreshActiveTab().catch(notifyTabError);
+    });
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message}</p>`;
   }
@@ -2353,6 +2473,29 @@ function buildOpsEmbedUrl(pagePath, companyId) {
   return u.pathname + u.search;
 }
 
+function syncTokenToOpsEmbedFrame(frame, companyId) {
+  if (!frame) return;
+  const token = (wpGet(CONTROL_TOKEN_KEY) || wpGet(TOKEN_KEY) || "").trim();
+  if (!token) return;
+  const send = () => {
+    try {
+      frame.contentWindow?.postMessage(
+        {
+          type: "baupass-sync-token",
+          token,
+          companyId: companyId || activeCompanyId() || "",
+          lang: getLang(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      // iframe not ready
+    }
+  };
+  frame.addEventListener("load", send, { once: false });
+  send();
+}
+
 function initOpsEmbedTabs(panel, companyId) {
   const frame = panel?.querySelector("#opsEmbedFrame");
   if (!frame) return;
@@ -2364,8 +2507,10 @@ function initOpsEmbedTabs(panel, companyId) {
       btn.classList.add("active");
       frame.src = buildOpsEmbedUrl(page, companyId);
       frame.title = btn.textContent || "";
+      syncTokenToOpsEmbedFrame(frame, companyId);
     });
   });
+  syncTokenToOpsEmbedFrame(frame, companyId);
 }
 
 function initOpsCarousel(root) {
@@ -4283,7 +4428,12 @@ window.addEventListener("baupass-admin-lang", (event) => {
       titleEl.setAttribute("data-i18n", TAB_TITLE_KEYS[tab]);
     }
   }
-  if (tab === "overview") renderOverviewQuickBar();
+  if (tab === "overview") {
+    renderOverviewQuickBar();
+    $("overviewQuickBar")?.classList.remove("hidden");
+  } else {
+    $("overviewQuickBar")?.classList.add("hidden");
+  }
   refreshActiveTab().catch(() => {});
 });
 applyI18n();

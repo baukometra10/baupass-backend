@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#050816" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass Betrieb" />
-  <meta name="application-name" content="WorkPass Betrieb" />
-  <title>WorkPass — Betrieb</title>
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Betrieb" />
+  <meta name="application-name" content="SUPPIX Betrieb" />
+  <title>SUPPIX — Betrieb</title>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script>
     (function clearLocalPreviewState() {
@@ -29,11 +29,12 @@
       }
     })();
   </script>
-  <link rel="shortcut icon" href="data:," id="adminAppFavicon" />
-  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="adminAppTouchIcon" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="data:," />
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" id="adminAppTouchIcon" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
+  <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260630h" />
+  <link rel="stylesheet" href="styles.css?v=20260705c" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </head>
@@ -89,7 +90,7 @@
           <div class="sidebar-brand">
             <span class="sidebar-logo" aria-hidden="true">
               <img data-tenant-logo class="tenant-logo-img hidden" src="" alt="" />
-              <span data-tenant-logo-fallback>WP</span>
+              <span data-tenant-logo-fallback>S</span>
             </span>
             <div>
               <strong id="sidebarBrandTitle" data-tenant-brand-title data-i18n="app.title">WorkPass Admin</strong>
@@ -111,7 +112,7 @@
               <span class="nav-group-label" data-i18n="nav.group.people">Personal</span>
               <button type="button" data-tab="workers" class="tab nav-item" data-i18n="tab.workers">Mitarbeiter</button>
               <button type="button" data-tab="access" class="tab nav-item" data-i18n="tab.access">Anwesenheit</button>
-              <button type="button" data-tab="mobile" class="tab nav-item" data-i18n="tab.mobile">Worker-App</button>
+              <button type="button" data-tab="mobile" class="tab nav-item" data-i18n="tab.mobile">Mitarbeiter-App</button>
             </div>
             <div class="nav-group">
               <span class="nav-group-label" data-i18n="nav.group.ops">Betrieb</span>
@@ -482,6 +483,6 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
-  <script src="app.js?v=20260630h" type="module"></script>
+  <script src="app.js?v=20260705c" type="module"></script>
 </body>
 </html>

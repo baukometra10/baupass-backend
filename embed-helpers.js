@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Same-origin iframe embed: add embed=1 to links and optional parent navigation (SUPPIX).
  */
 (function initBaupassEmbedHelpers(global) {
@@ -95,7 +95,16 @@
       } catch {
         focusEinsatzplan = view === "deployment-plan";
       }
-      return postNavigateToHost({ view, url, focusEinsatzplan });
+      const companyId =
+        String(extraParams?.company_id || extraParams?.companyId || readStoredCompanyId() || "").trim() ||
+        (() => {
+          try {
+            return String(new URLSearchParams(global.location.search).get("company_id") || "").trim();
+          } catch {
+            return "";
+          }
+        })();
+      return postNavigateToHost({ view, url, focusEinsatzplan, companyId: companyId || undefined });
     }
     global.location.href = url;
   }
@@ -519,13 +528,15 @@
       document.body.setAttribute("data-portal-display-name", displayName);
     }
     const logoData = String(branding.logoData || branding.brandingLogoData || "").trim();
-    const chipFallback = global.TenantBrandIcon
-      ? global.TenantBrandIcon.resolveTenantIconHref({
-          brandTitle: displayName || "WorkPass",
-          logoData: "",
-          accentColor: accent || primary,
-        })
-      : "";
+    const chipFallback = logoData
+      ? ""
+      : displayName && global.TenantBrandIcon
+        ? global.TenantBrandIcon.resolveTenantIconHref({
+            brandTitle: displayName,
+            logoData: "",
+            accentColor: accent || primary,
+          })
+        : platformDefaultIconHref(accent || primary);
     const resolvedLogo = logoData || chipFallback;
     const resolvedSidebarLogo = logoData || chipFallback;
     applyTenantFavicon({ logoData: resolvedLogo, title: displayName, accentColor: accent || primary });
@@ -630,16 +641,31 @@
     return link;
   }
 
+  function platformDefaultIconHref(accentColor) {
+    const logo = "/branding/suppix-icon-192.png";
+    if (global.TenantBrandIcon?.resolveTenantIconHref) {
+      return global.TenantBrandIcon.resolveTenantIconHref({
+        brandTitle: "SUPPIX",
+        logoData: logo,
+        accentColor: accentColor || "#38bdf8",
+        size: 192,
+      }) || logo;
+    }
+    return logo;
+  }
+
   function applyTenantFavicon({ logoData, title, accentColor } = {}) {
     const displayName = String(title || "").trim();
     const accent = String(accentColor || "").trim();
     let iconHref = String(logoData || "").trim();
-    if (!iconHref && global.TenantBrandIcon) {
-      iconHref = global.TenantBrandIcon.resolveTenantIconHref({
-        brandTitle: displayName || "WorkPass",
-        logoData: "",
-        accentColor: accent,
-      });
+    if (!iconHref) {
+      iconHref = displayName && global.TenantBrandIcon
+        ? global.TenantBrandIcon.resolveTenantIconHref({
+            brandTitle: displayName,
+            logoData: "",
+            accentColor: accent,
+          })
+        : platformDefaultIconHref(accent);
     }
     if (!iconHref) return;
     const appFavicon = ensureBrandingLink("#appFavicon", "icon");
