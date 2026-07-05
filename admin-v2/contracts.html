@@ -92,6 +92,14 @@
       display:grid; grid-template-columns:minmax(140px,1fr) minmax(0,2fr) auto;
       align-items:center; gap:0.65rem;
     }
+    .brand-row { display:flex; align-items:center; gap:0.5rem; min-width:0; }
+    .brand-logo { width:28px; height:28px; border-radius:6px; object-fit:contain; flex-shrink:0; }
+    .brand-logo-fallback {
+      width:28px; height:28px; border-radius:6px; flex-shrink:0;
+      display:inline-flex; align-items:center; justify-content:center;
+      background:rgba(94,234,212,0.12); color:var(--accent); font-size:0.72rem; font-weight:700;
+    }
+    .brand-logo.hidden, .brand-logo-fallback.hidden { display:none; }
     .brand strong { font-size:0.95rem; }
     .brand .muted { font-size:0.72rem; line-height:1.2; }
     .toolbar {
@@ -236,9 +244,13 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="brand">
-      <strong>WorkPass</strong>
-      <div id="pageSubtitle" class="muted">Arbeitsverträge</div>
+    <div class="brand brand-row">
+      <img data-tenant-logo class="brand-logo" src="/branding/suppix-icon-192.png" alt="" width="28" height="28" />
+      <span data-tenant-logo-fallback class="brand-logo-fallback hidden">S</span>
+      <div class="brand-text">
+        <strong id="brandTitle" data-tenant-brand-title>SUPPIX</strong>
+        <div id="pageSubtitle" class="muted" data-cpi18n="pageSubtitle">Arbeitsverträge</div>
+      </div>
     </div>
     <div class="toolbar">
       <button type="button" class="primary compact" id="generateBtn" data-cpi18n="toolbarGen">KI-Entwurf</button>
@@ -287,54 +299,10 @@
             <h4 data-cpi18n="sectionContract">Vertrag</h4>
             <div class="field-grid cols-3">
               <label class="span-2"><span data-cpi18n="template">Vertragstyp</span><select id="templateId"></select></label>
-              <label id="parentContractWrap" class="span-2 hidden"><span data-cpi18n="parentContract">Bezug-Vertrag (Nachtrag)</span><select id="parentContractId"><option value="">—</option></select></label>
+              <label id="parentContractWrap" class="span-2 hidden"><span data-cpi18n="parentContract">Bezug-Vertrag (Nachtrag)</span><select id="parentContractId"><option value="" data-cpi18n="parentContractNone">— kein Bezug —</option></select></label>
               <label><span data-cpi18n="title">Titel</span><input id="contractTitle" value="Arbeitsvertrag" /></label>
               <label><span data-cpi18n="jurisdiction">Rechtsraum</span>
-                <select id="jurisdiction">
-                  <optgroup label="Europa">
-                    <option value="DE">Deutschland</option>
-                    <option value="AT">Österreich</option>
-                    <option value="CH">Schweiz</option>
-                    <option value="FR">Frankreich</option>
-                    <option value="NL">Niederlande</option>
-                    <option value="BE">Belgien</option>
-                    <option value="IT">Italien</option>
-                    <option value="ES">Spanien</option>
-                    <option value="PL">Polen</option>
-                    <option value="EU">EU (allgemein)</option>
-                  </optgroup>
-                  <optgroup label="Naher Osten">
-                    <option value="SA">Saudi-Arabien</option>
-                    <option value="AE">VAE</option>
-                    <option value="QA">Katar</option>
-                    <option value="KW">Kuwait</option>
-                    <option value="BH">Bahrain</option>
-                    <option value="OM">Oman</option>
-                    <option value="JO">Jordanien</option>
-                    <option value="LB">Libanon</option>
-                    <option value="EG">Ägypten</option>
-                    <option value="TR">Türkei</option>
-                  </optgroup>
-                  <optgroup label="Amerika">
-                    <option value="US">USA</option>
-                    <option value="CA">Kanada</option>
-                    <option value="MX">Mexiko</option>
-                    <option value="BR">Brasilien</option>
-                  </optgroup>
-                  <optgroup label="Asien &amp; Pazifik">
-                    <option value="IN">Indien</option>
-                    <option value="PK">Pakistan</option>
-                    <option value="SG">Singapur</option>
-                    <option value="MY">Malaysia</option>
-                    <option value="AU">Australien</option>
-                  </optgroup>
-                  <optgroup label="Afrika">
-                    <option value="MA">Marokko</option>
-                    <option value="TN">Tunesien</option>
-                    <option value="ZA">Südafrika</option>
-                  </optgroup>
-                  <option value="INT">International</option>
-                </select>
+                <select id="jurisdiction"></select>
               </label>
               <label><span data-cpi18n="language">Sprache</span><select id="language"><option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option><option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option><option value="it">IT</option><option value="pl">PL</option></select></label>
             </div>
@@ -430,7 +398,7 @@
           <iframe id="adminPdfPreview" title="PDF Vorschau"></iframe>
           <div class="workspace-footer">
             <div class="signing-hint" id="signingHint" title=""></div>
-            <div id="statusLine" data-cpi18n="statusEmpty">Noch kein Vertrag geladen.</div>
+            <div id="statusLine">Noch kein Vertrag geladen.</div>
           </div>
           <div id="signStatusPanel" class="sign-status-panel hidden">
             <strong data-cpi18n="signStatusTitle">Signatur-Status</strong>
@@ -448,8 +416,10 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260621contracts8lang"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260705d"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260621contracts1"></script>
+  <script src="/tenant-brand-icon.js?v=20260630d"></script>
+  <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="/ai-voice-ui.js?v=20260601voice22"></script>
@@ -466,11 +436,15 @@
     let workers = [];
     let baselineDraftText = "";
     let templateMeta = {};
+    let lastSignSessions = [];
+    let lastContractEvents = [];
     const TOOLBAR_BTN_IDS = ["generateBtn", "saveBtn", "pdfBtn", "printBtn", "signLinkEmployeeBtn", "signLinkEmployerBtn", "signEmailEmployeeBtn", "signEmailEmployerBtn", "signSmsEmployeeBtn", "deleteBtn"];
 
     function setStatus(text, { active = false, error = false } = {}) {
       const el = document.getElementById("statusLine");
       el.textContent = text;
+      if (text) el.dataset.dynamic = "1";
+      else delete el.dataset.dynamic;
       el.classList.toggle("is-active", active);
       el.classList.toggle("is-error", error);
     }
@@ -691,6 +665,76 @@
       ZA: { currency: "ZAR", language: "en" },
       INT: { currency: "EUR", language: "en" },
     };
+    const JURISDICTION_GROUPS = [
+      { groupKey: "jGroupEurope", codes: ["DE", "AT", "CH", "FR", "NL", "BE", "IT", "ES", "PL", "EU"] },
+      { groupKey: "jGroupMiddleEast", codes: ["SA", "AE", "QA", "KW", "BH", "OM", "JO", "LB", "EG", "TR"] },
+      { groupKey: "jGroupAmericas", codes: ["US", "CA", "MX", "BR"] },
+      { groupKey: "jGroupAsiaPacific", codes: ["IN", "PK", "SG", "MY", "AU"] },
+      { groupKey: "jGroupAfrica", codes: ["MA", "TN", "ZA"] },
+    ];
+    const JURISDICTION_STANDALONE = ["INT"];
+    function intlLocaleForContractPage(lang) {
+      const map = { de: "de", en: "en", ar: "ar", tr: "tr", fr: "fr", es: "es", it: "it", pl: "pl" };
+      return map[lang] || "en";
+    }
+    function countryLabelForJurisdiction(code) {
+      if (code === "EU") return window.contractPageT("jEU");
+      if (code === "INT") return window.contractPageT("jINT");
+      try {
+        const lang = window.getContractPageLang();
+        const dn = new Intl.DisplayNames([intlLocaleForContractPage(lang)], { type: "region" });
+        return dn.of(code) || code;
+      } catch {
+        return code;
+      }
+    }
+    function renderJurisdictionSelect() {
+      const sel = document.getElementById("jurisdiction");
+      if (!sel) return;
+      const prev = sel.value || "DE";
+      sel.innerHTML = "";
+      JURISDICTION_GROUPS.forEach(({ groupKey, codes }) => {
+        const og = document.createElement("optgroup");
+        og.label = window.contractPageT(groupKey);
+        codes.forEach((code) => {
+          const opt = document.createElement("option");
+          opt.value = code;
+          opt.textContent = countryLabelForJurisdiction(code);
+          og.appendChild(opt);
+        });
+        sel.appendChild(og);
+      });
+      JURISDICTION_STANDALONE.forEach((code) => {
+        const opt = document.createElement("option");
+        opt.value = code;
+        opt.textContent = countryLabelForJurisdiction(code);
+        sel.appendChild(opt);
+      });
+      sel.value = [...sel.options].some((o) => o.value === prev) ? prev : "DE";
+    }
+    function eventTypeLabel(type) {
+      const map = {
+        "contract.created": "eventCreated",
+        "contract.regenerated": "eventRegenerated",
+        "contract.updated": "eventUpdated",
+        "contract.pdf_generated": "eventPdfGenerated",
+        "sign_link.created": "eventSignLinkCreated",
+        "sign_link.sms": "eventSignLinkSms",
+        "sign_link.reminder": "eventSignLinkReminder",
+        "contract.signed": "eventSigned",
+        "contract.sign_notify": "eventSignNotify",
+      };
+      const key = map[type];
+      return key ? window.contractPageT(key) : (type || window.contractPageT("eventGeneric"));
+    }
+    window.refreshContractPageDynamicUi = function refreshContractPageDynamicUi() {
+      renderJurisdictionSelect();
+      updateSigningHint();
+      renderContractList();
+      renderSignSessions(lastSignSessions);
+      renderEvents(lastContractEvents);
+      checkIntegrations();
+    };
     function syncLocaleFromJurisdiction(force = false) {
       const code = document.getElementById("jurisdiction").value;
       const defaults = JURISDICTION_DEFAULTS[code] || JURISDICTION_DEFAULTS.INT;
@@ -844,29 +888,19 @@
       }
     }
     function renderEvents(events) {
+      lastContractEvents = events || [];
       const panel = document.getElementById("eventsPanel");
       const list = document.getElementById("eventsList");
       if (!panel || !list) return;
-      if (!currentContractId || !events.length) {
+      if (!currentContractId || !lastContractEvents.length) {
         panel.classList.add("hidden");
         list.innerHTML = "";
         return;
       }
       panel.classList.remove("hidden");
-      const labels = {
-        "contract.created": "Erstellt",
-        "contract.regenerated": "KI neu generiert",
-        "contract.updated": "Gespeichert",
-        "contract.pdf_generated": "PDF erzeugt",
-        "sign_link.created": "Signatur-Link",
-        "sign_link.sms": "SMS gesendet",
-        "sign_link.reminder": "Erinnerung",
-        "contract.signed": "Unterschrieben",
-        "contract.sign_notify": "Benachrichtigung",
-      };
-      list.innerHTML = events.slice(0, 12).map((ev) => {
+      list.innerHTML = lastContractEvents.slice(0, 12).map((ev) => {
         const ts = (ev.created_at || "").slice(0, 16).replace("T", " ");
-        const label = labels[ev.event_type] || ev.event_type || "Event";
+        const label = eventTypeLabel(ev.event_type);
         return `<li>${ts} · ${label}</li>`;
       }).join("");
     }
@@ -917,10 +951,11 @@
       return `<span class="status-badge ${cls}">${window.contractPageT(i18n)}</span>`;
     }
     function renderSignSessions(sessions) {
+      lastSignSessions = sessions || [];
       const panel = document.getElementById("signStatusPanel");
       const list = document.getElementById("signSessionList");
       if (!panel || !list) return;
-      const rows = sessions || [];
+      const rows = lastSignSessions;
       if (!currentContractId || !rows.length) {
         panel.classList.add("hidden");
         list.innerHTML = "";
@@ -1263,6 +1298,9 @@
     window.initContractPageLangSync?.();
     syncLocaleFromJurisdiction(false);
     bindNotesComposer();
+    if (window.BaupassAuth?.resolveTenantBranding) {
+      void window.BaupassAuth.resolveTenantBranding({ companyId: companyId || undefined });
+    }
     document.getElementById("language").addEventListener("change", () => {
       window.BaupassAiUi?.refreshComposerLabels?.(contractVoiceOptions());
     });
