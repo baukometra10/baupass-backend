@@ -4,6 +4,8 @@ import json
 
 import pytest
 
+from backend.tests.e2e_test_helpers import fake_e2e_envelope
+
 
 def test_validate_hourly_skips_gross():
     from backend.app.domains.contracts.validation import validate_contract_form
@@ -85,7 +87,7 @@ def test_submit_signature_requires_consent(client_and_db):
         f"/api/contracts/{contract_id}",
         json={
             "company_id": company_id,
-            "final_text": "Vertragstext mit Stundenlohn 15 EUR.",
+            "final_text": fake_e2e_envelope(),
             "form": {
                 "employee_name": "Anna Test",
                 "employee_gender": "female",

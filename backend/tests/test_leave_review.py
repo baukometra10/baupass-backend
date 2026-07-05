@@ -1,7 +1,5 @@
-"""Leave request approve/reject API."""
-from __future__ import annotations
-
-from backend import server
+from backend import server  # noqa: E402
+from backend.tests.e2e_test_helpers import fake_e2e_envelope
 
 
 def _superadmin_headers(client):
@@ -53,7 +51,7 @@ def _submit_leave(client, worker_headers):
             "type": "urlaub",
             "start_date": "2026-07-01",
             "end_date": "2026-07-05",
-            "note": "Familienurlaub",
+            "note": fake_e2e_envelope(),
         },
         headers=worker_headers,
     )

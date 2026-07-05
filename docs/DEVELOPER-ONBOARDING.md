@@ -56,7 +56,7 @@ Kopiere `.env.example` → `.env` und `.env.railway.example` für Produktion.
 | Feldverschlüsselung Chat | `BAUPASS_FIELD_ENCRYPTION_KEY` → `field_encryption.py` |
 | RTSP-Bridge | `BAUPASS_RTSP_BRIDGE_TOKEN` + Header `X-WorkPass-Rtsp-Token` |
 
-Details: [`docs/SECURITY-MODEL-AR.md`](SECURITY-MODEL-AR.md)
+Details: [`docs/SECURITY-MODEL-AR.md`](SECURITY-MODEL-AR.md) · E2E: [`docs/E2E-VERSCHLUESSELUNG.md`](E2E-VERSCHLUESSELUNG.md), [`docs/E2E-SMOKE-TEST.md`](E2E-SMOKE-TEST.md)
 
 ## 5. Datenbank
 
@@ -79,7 +79,7 @@ Verify script: `deploy/postgres-staging-verify.ps1`
 
 1. Handler-Logik aus `server.py` in Domain-`service.py` verschieben (siehe Roadmap)
 2. PostgreSQL in Staging testen, bevor Multi-Region
-3. E2E-Tests für kritische Flows erweitern (Login, Zutritt, Urlaub, Chat)
+3. E2E-Tests ausführen: `pytest backend/tests/test_e2e_*.py` (Python 3.11+, siehe [`docs/E2E-SMOKE-TEST.md`](E2E-SMOKE-TEST.md))
 4. Keine Secrets in Git — nur `.env.example`
 
 ## 7. Ist die Plattform „team-ready“?

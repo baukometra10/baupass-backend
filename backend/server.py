@@ -1915,6 +1915,8 @@ def apply_security_headers(response):
             "/worker-join-config.json",
             "/worker.css",
             "/worker-app.js",
+            "/e2e-crypto.js",
+            "/e2e-worker-security.js",
             "/emp-app-manifest.json",
             "/worker-manifest.json",
             "/worker-sw.js",

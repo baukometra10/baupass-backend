@@ -6,10 +6,16 @@ Stand: 2026-07-05 — Phase 1–4 Härtung implementiert.
 
 - `backend/tests/test_e2e_identity_routes.py` — Public-Key-API, Private-Key-Ablehnung
 - `backend/tests/test_e2e_policy_enforcement.py` — Erzwungenes E2E für Chat-Nachrichten
+- `backend/tests/test_e2e_sensitive_enforcement.py` — Leave, Dokumente, Verträge
 
 ```bash
-pytest backend/tests/test_e2e_identity_routes.py backend/tests/test_e2e_policy_enforcement.py
+pytest backend/tests/test_e2e_identity_routes.py \
+  backend/tests/test_e2e_policy_enforcement.py \
+  backend/tests/test_e2e_sensitive_enforcement.py
 ```
+
+Manuelle Smoke-Checkliste: [`docs/E2E-SMOKE-TEST.md`](E2E-SMOKE-TEST.md)
+Mitarbeiter-Recovery: [`docs/E2E-RECOVERY-MITARBEITER.md`](E2E-RECOVERY-MITARBEITER.md)
 
 ## Manuelle Pen-Test-Punkte
 

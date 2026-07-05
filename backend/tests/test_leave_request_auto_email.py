@@ -10,6 +10,7 @@ import pytest
 
 
 from backend import server  # noqa: E402
+from backend.tests.e2e_test_helpers import fake_e2e_envelope
 
 
 def _superadmin_headers(client):
@@ -88,7 +89,7 @@ def test_submit_leave_request_auto_sends_pdf_to_manager(client_and_db, monkeypat
             "type": "urlaub",
             "start_date": "2026-06-01",
             "end_date": "2026-06-03",
-            "note": "Bitte freigeben",
+            "note": fake_e2e_envelope(),
             "recipient_email": "chef@example.com",
         },
         headers=worker_headers,
@@ -153,7 +154,7 @@ def test_submit_leave_request_falls_back_to_company_admins(client_and_db, monkey
             "type": "urlaub",
             "start_date": "2026-06-10",
             "end_date": "2026-06-11",
-            "note": "Fallback an Admin",
+            "note": fake_e2e_envelope(),
         },
         headers=worker_headers,
     )

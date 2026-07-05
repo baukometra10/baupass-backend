@@ -8,6 +8,7 @@ import sys
 import pytest
 
 from backend import server  # noqa: E402
+from backend.tests.e2e_test_helpers import e2e_document_upload_form, fake_e2e_envelope
 
 
 def _auth_headers(client):
@@ -473,12 +474,12 @@ def test_worker_document_upload_accepts_octet_stream_pdf(client_and_db):
 
     upload_response = client.post(
         f"/api/workers/{worker_id}/documents/upload",
-        data={
-            "docType": "mindestlohnnachweis",
-            "notes": "Windows octet-stream test",
-            "expiryDate": "",
-            "file": (io.BytesIO(b"%PDF-1.4 test"), "mindestlohn.pdf", "application/octet-stream"),
-        },
+        data=e2e_document_upload_form(
+            doc_type="mindestlohnnachweis",
+            file_bytes=b"%PDF-1.4 test",
+            filename="mindestlohn.pdf",
+            mimetype="application/octet-stream",
+        ),
         headers=headers,
         content_type="multipart/form-data",
     )
@@ -552,12 +553,13 @@ def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(cli
 
     upload_response = client.post(
         f"/api/workers/{worker_id}/documents/upload",
-        data={
-            "docType": "personalausweis",
-            "notes": "Renewed ID",
-            "expiryDate": "2030-12-31",
-            "file": (io.BytesIO(b"%PDF-1.4 renewed"), "id-renewed.pdf", "application/pdf"),
-        },
+        data=e2e_document_upload_form(
+            doc_type="personalausweis",
+            file_bytes=b"%PDF-1.4 renewed",
+            filename="id-renewed.pdf",
+            mimetype="application/pdf",
+            expiry_date="2030-12-31",
+        ),
         headers=headers,
         content_type="multipart/form-data",
     )

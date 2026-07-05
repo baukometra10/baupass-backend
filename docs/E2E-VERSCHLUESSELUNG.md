@@ -149,4 +149,4 @@ const body = await window.E2ECrypto.encryptUtf8("Hallo", recipients);
 // body = JSON string → chat API POST
 ```
 
-Siehe auch: [`docs/SECURITY-MODEL-AR.md`](SECURITY-MODEL-AR.md), [`backend/app/platform/security/e2e_identity.py`](../backend/app/platform/security/e2e_identity.py).
+Siehe auch: [`docs/SECURITY-MODEL-AR.md`](SECURITY-MODEL-AR.md), [`docs/E2E-SMOKE-TEST.md`](E2E-SMOKE-TEST.md), [`docs/E2E-RECOVERY-MITARBEITER.md`](E2E-RECOVERY-MITARBEITER.md), [`backend/app/platform/security/e2e_identity.py`](../backend/app/platform/security/e2e_identity.py).
