@@ -238,6 +238,11 @@
       <a id="navAdminV2" href="/admin-v2/index.html">Betrieb</a>
       <a id="navPosteingang" href="/admin-v2/index.html">Posteingang</a>
       <a id="navOpsLive" href="/ops-command-center.html">Ops Live</a>
+      <select id="aiLangSelect" aria-label="Sprache" style="font-size:0.78rem;padding:0.25rem 0.35rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
+        <option value="it">IT</option><option value="pl">PL</option>
+      </select>
     </nav>
   </header>
 
@@ -315,6 +320,7 @@
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
+  <script src="/ai-center-i18n-extra.js?v=20260705g"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
     (function initEmbed() {
@@ -330,7 +336,12 @@
 
     const UI_LANG_KEY = "baupass-ui-lang";
     function getUiLang() {
-      return (localStorage.getItem(UI_LANG_KEY) || "de").slice(0, 2);
+      const code = (
+        localStorage.getItem("baupass-admin-v2-lang")
+        || localStorage.getItem(UI_LANG_KEY)
+        || "de"
+      ).slice(0, 2);
+      return AI_LANGS.includes(code) ? code : "de";
     }
     let LANG = getUiLang();
     const I18N = {
@@ -380,6 +391,7 @@
         errServerRateLimitWait: "Zu viele Anfragen — bitte {sec} Sekunden warten.",
         errRateLimitVoiceNote: "Sprache nutzt zusätzlich Transkription und Vorlesen.",
         errNetwork: "Netzwerkfehler — Verbindung prüfen.",
+        uiLang: "Sprache",
       },
       en: {
         title: "Suppix AI — Assistant",
@@ -427,6 +439,7 @@
         errServerRateLimitWait: "Too many requests — wait {sec} seconds.",
         errRateLimitVoiceNote: "Voice also uses transcription and text-to-speech.",
         errNetwork: "Network error — check connection.",
+        uiLang: "Language",
       },
       ar: {
         title: "مركز قيادة AI — SUPPIX",
@@ -474,8 +487,11 @@
         errServerRateLimitWait: "طلبات كثيرة — انتظر {sec} ثانية.",
         errRateLimitVoiceNote: "الصوت يستخدم أيضاً التفريغ والقراءة الصوتية.",
         errNetwork: "خطأ في الشبكة — تحقق من الاتصال.",
+        uiLang: "اللغة",
       },
     };
+    Object.assign(I18N, window.AiCenterI18nExtra || {});
+    const AI_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     const TOPIC_I18N_KEYS = {
       security: "topicSecurity",
       compliance: "topicCompliance",
@@ -548,6 +564,11 @@
       if (window.BaupassAiUi?.refreshComposerLabels) {
         window.BaupassAiUi.refreshComposerLabels(commandCenterVoiceOptions());
       }
+      const langSel = document.getElementById("aiLangSelect");
+      if (langSel) {
+        langSel.value = LANG;
+        langSel.setAttribute("aria-label", t("uiLang"));
+      }
       if (uiBooted) {
         renderSessions();
         if (reloadAgents) {
@@ -567,6 +588,21 @@
       en: { onsite: "On site", security: "Security", workforceRisk: "Risk", attendanceRisk: "Attendance risk", fraud: "Fraud", productivity: "Productivity", emergency: "Emergency", tomorrowForecast: "Tomorrow forecast", pendingLeave: "Leave requests" },
       ar: { onsite: "على الموقع", security: "الأمن", workforceRisk: "المخاطر", attendanceRisk: "غياب", fraud: "احتيال", productivity: "الإنتاجية", emergency: "طوارئ", tomorrowForecast: "توقعات الغد", pendingLeave: "طلبات الإجازة" },
     };
+    Object.assign(CARD_LABELS, window.AiCenterCardLabelsExtra || {});
+
+    function initAiLangSync() {
+      const langSel = document.getElementById("aiLangSelect");
+      if (langSel && !langSel.dataset.bound) {
+        langSel.dataset.bound = "1";
+        langSel.addEventListener("change", () => {
+          localStorage.setItem(UI_LANG_KEY, langSel.value);
+          localStorage.setItem("baupass-admin-v2-lang", langSel.value);
+          applyUiLanguage({ reloadAgents: true, reloadInsights: true });
+          window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: langSel.value } }));
+          if (!companyRequiredForUi()) loadInsights().catch(() => {});
+        });
+      }
+    }
 
     let selectedCompanyId = new URLSearchParams(location.search).get("company_id") || "";
     let currentRole = "";
@@ -729,6 +765,7 @@
     }
 
     applyUiLanguage();
+    initAiLangSync();
 
     function authHeaders(extra = {}) {
       if (window.BaupassAuth) return window.BaupassAuth.authHeaders(extra);
@@ -997,7 +1034,7 @@
     }
 
     function renderInsights(data) {
-      const labels = CARD_LABELS[LANG] || CARD_LABELS.de;
+      const labels = CARD_LABELS[LANG] || CARD_LABELS.en || CARD_LABELS.de;
       const cards = data?.cards || [];
       let html = "";
       const next = data?.nextActions || [];
@@ -1559,12 +1596,16 @@
     }
 
     window.addEventListener("storage", (event) => {
-      if (event.key !== UI_LANG_KEY || !event.newValue) return;
+      if ((event.key !== UI_LANG_KEY && event.key !== "baupass-admin-v2-lang") || !event.newValue) return;
       applyUiLanguage({ reloadAgents: true, reloadInsights: true });
       if (!companyRequiredForUi()) loadInsights().catch(() => {});
     });
 
     window.addEventListener("baupass-lang-sync", () => {
+      applyUiLanguage({ reloadAgents: true, reloadInsights: true });
+      if (!companyRequiredForUi()) loadInsights().catch(() => {});
+    });
+    window.addEventListener("baupass-admin-lang", () => {
       applyUiLanguage({ reloadAgents: true, reloadInsights: true });
       if (!companyRequiredForUi()) loadInsights().catch(() => {});
     });

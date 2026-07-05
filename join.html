@@ -57,22 +57,27 @@
 <body class="notranslate" translate="no">
   <main class="card">
     <img src="/branding/suppix-ai-mark.svg" alt="SUPPIX" width="48" height="48" style="justify-self:start;border-radius:12px" />
-    <h1 id="title">SUPPIX Mitarbeiter-App</h1>
-    <p id="subtitle">Native App (Flutter) installieren — dann mit diesem Einmal-Link anmelden.</p>
-    <p class="muted" id="hybridBadge" style="font-weight:600;color:#1b5e8c">Empfohlen: Flutter-App (Android / iPhone)</p>
+    <select id="joinLangSelect" aria-label="Sprache" style="justify-self:end;font-size:0.82rem;padding:0.25rem 0.35rem;border-radius:8px;border:1px solid rgba(0,0,0,0.12);">
+      <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+      <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option><option value="it">IT</option><option value="pl">PL</option>
+    </select>
+    <h1 id="title" data-joini18n="title">SUPPIX Mitarbeiter-App</h1>
+    <p id="subtitle" data-joini18n="subtitle">Native App (Flutter) installieren — dann mit diesem Einmal-Link anmelden.</p>
+    <p class="muted" id="hybridBadge" style="font-weight:600;color:#1b5e8c" data-joini18n="hybridBadge">Empfohlen: Flutter-App (Android / iPhone)</p>
     <p id="hint" class="muted"></p>
     <div id="statusBox" class="status hidden"></div>
     <div class="actions">
-      <a id="openAppBtn" class="btn primary hidden" href="#">In SUPPIX-App öffnen</a>
-      <a id="androidApkBtn" class="btn secondary hidden" href="#" rel="noopener">Android: APK installieren</a>
-      <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener">iPhone: TestFlight</a>
-      <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener">Google Play</a>
-      <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener">App Store</a>
-      <a id="pwaBtn" class="btn secondary hidden" href="#" style="font-size:0.95rem">Browser-PWA (Fallback, wenn keine App installiert)</a>
+      <a id="openAppBtn" class="btn primary hidden" href="#" data-joini18n="openApp">In SUPPIX-App öffnen</a>
+      <a id="androidApkBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="androidApk">Android: APK installieren</a>
+      <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="testFlight">iPhone: TestFlight</a>
+      <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="playStore">Google Play</a>
+      <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="appStore">App Store</a>
+      <a id="pwaBtn" class="btn secondary hidden" href="#" style="font-size:0.95rem" data-joini18n="pwaBtn">Browser-PWA (Fallback, wenn keine App installiert)</a>
     </div>
-    <p class="muted" id="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
+    <p class="muted" id="footerNote" data-joini18n="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
   </main>
 
+  <script src="/join-i18n.js?v=20260705g"></script>
   <script>
     const PENDING_KEY = "baupass-pending-access-token";
     const API_BASE_KEY = "baupass-api-base";
@@ -100,7 +105,7 @@
 
     function redirectToPwa(buildMeta, { replace = true } = {}) {
       const url = pwaFallbackUrl(buildMeta);
-      showStatus("Ausweis wird in der App geöffnet…");
+      showStatus(window.joinT("openingPwa"));
       if (replace) {
         window.location.replace(url);
       } else {
@@ -217,10 +222,9 @@
 
       if (accessToken) {
         setVisible("openAppBtn", true);
-        document.getElementById("hint").textContent =
-          "Einmal-Link aktiv. Gültig bis zum ersten erfolgreichen Login.";
+        document.getElementById("hint").textContent = window.joinT("hintActive");
       } else {
-        showStatus("Kein Zugangstoken im Link. Bitte QR erneut vom Administrator anfordern.", true);
+        showStatus(window.joinT("noToken"), true);
       }
 
       const apk = (cfg.apkUrl || "").trim();
@@ -261,7 +265,8 @@
       setVisible("pwaBtn", true);
     }
 
-    boot().catch(() => showStatus("Konfiguration konnte nicht geladen werden.", true));
+    window.initJoinLangSync?.();
+    boot().catch(() => showStatus(window.joinT("configError"), true));
   </script>
 </body>
 </html>

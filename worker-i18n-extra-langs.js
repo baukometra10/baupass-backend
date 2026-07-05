@@ -400,6 +400,53 @@
   Object.assign(T.pl, DEPLOYMENT_PL);
   Object.assign(T.ar, DEPLOYMENT_AR);
 
+  Object.assign(T.de, {
+    workerLoginBadgePinFirst: "Bitte zuerst mit Badge-ID und PIN anmelden.",
+    workerLoginFirst: "Bitte zuerst anmelden.",
+    workerLeaveFormMissing: "Urlaubsformular nicht gefunden – bitte Seite neu laden.",
+    workerNotesFieldMissing: "Notizfeld nicht gefunden – bitte Seite neu laden.",
+    workerUpdatingApp: "Aktualisiere App-Version …",
+    workerSending: "Wird gesendet …",
+    workerVisitExpiredShort: "Besuchszeit abgelaufen",
+    workerDeviceBindingMissing: "Gerätefreigabe fehlt – bitte einmal abmelden und erneut mit Badge-ID und PIN anmelden.",
+    workerCompanyMissingProfile: "Ihr Mitarbeiterprofil ist keiner Firma zugeordnet. Bitte den Administrator kontaktieren.",
+    workerDataLoadFailed: "Daten konnten nicht geladen werden.",
+    workerPlanFeatureBlocked: "{feature} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.",
+    workerPlanFeatureBlockedWithPlan: "{feature} ist in Ihrem Paket nicht freigeschaltet (benötigt: {plan}). Bitte Ihren Administrator kontaktieren.",
+    workerLeaveRequestNotVisible: "Antrag {id} wurde beantwortet, ist aber nicht unter {api} sichtbar. Bitte Seite mit ?refresh=1 neu laden oder Support informieren.",
+    workerFeatureHours: "Arbeitsstunden",
+    workerFeatureDocuments: "Dokumente",
+    workerFeatureLeave: "Urlaubsanträge",
+    workerFeatureDeployment: "Einsatzplan",
+    workerFeatureChat: "Chat",
+    workerFeatureApp: "Mitarbeiter-App",
+    workerFeatureDefault: "Diese Funktion",
+    workerErrorPrefix: "Fehler",
+  });
+  Object.assign(T.en, {
+    workerLoginBadgePinFirst: "Please sign in with badge ID and PIN first.",
+    workerLoginFirst: "Please sign in first.",
+    workerLeaveFormMissing: "Leave form not found — please reload the page.",
+    workerNotesFieldMissing: "Notes field not found — please reload the page.",
+    workerUpdatingApp: "Updating app version …",
+    workerSending: "Sending …",
+    workerVisitExpiredShort: "Visit time expired",
+    workerDeviceBindingMissing: "Device approval missing — sign out and sign in again with badge ID and PIN.",
+    workerCompanyMissingProfile: "Your worker profile is not assigned to a company. Please contact your administrator.",
+    workerDataLoadFailed: "Could not load data.",
+    workerPlanFeatureBlocked: "{feature} is not enabled in your plan. Please contact your administrator.",
+    workerPlanFeatureBlockedWithPlan: "{feature} is not enabled in your plan (requires: {plan}). Please contact your administrator.",
+    workerLeaveRequestNotVisible: "Request {id} was answered but is not visible under {api}. Reload with ?refresh=1 or contact support.",
+    workerFeatureHours: "Work hours",
+    workerFeatureDocuments: "Documents",
+    workerFeatureLeave: "Leave requests",
+    workerFeatureDeployment: "Deployment plan",
+    workerFeatureChat: "Chat",
+    workerFeatureApp: "Worker app",
+    workerFeatureDefault: "This feature",
+    workerErrorPrefix: "Error",
+  });
+
   const syncLangs = ["en", "tr", "ar", "fr", "es", "it", "pl"];
   const deKeys = Object.keys(T.de || {});
   for (const lang of syncLangs) {

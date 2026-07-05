@@ -532,11 +532,21 @@
           <div class="subtext" data-i18n="foremanSubtitle">Team-Verwaltung und Live-Übersicht</div>
         </div>
       </div>
-      <p style="margin-top:0.6rem;font-size:0.88rem;opacity:0.95">
-        <a href="/ops-live-map.html" style="color:#fff;margin-right:1rem">Live Karte</a>
-        <a href="/ops-command-center.html" style="color:#fff;margin-right:1rem">Ops Center</a>
-        <a href="/ai-command-center.html" style="color:#fff;margin-right:1rem">KI Assistent</a>
-        <a href="/admin-v2/index.html" style="color:#fff">Admin v2</a>
+      <p style="margin-top:0.6rem;font-size:0.88rem;opacity:0.95;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:center;">
+        <a href="/ops-live-map.html" style="color:#fff;" data-i18n="foremanNavLiveMap">Live-Karte</a>
+        <a href="/ops-command-center.html" style="color:#fff;" data-i18n="foremanNavOps">Ops Center</a>
+        <a href="/ai-command-center.html" style="color:#fff;" data-i18n="foremanNavAi">KI-Assistent</a>
+        <a href="/admin-v2/index.html" style="color:#fff;" data-i18n="foremanNavAdmin">Betrieb</a>
+        <select id="foremanLangSelect" aria-label="Sprache" data-i18n="foremanUiLang" data-i18n-attr="aria-label" style="margin-left:auto;padding:0.25rem 0.35rem;border-radius:6px;border:1px solid rgba(255,255,255,0.35);background:rgba(0,0,0,0.2);color:#fff;font-size:0.82rem;">
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+          <option value="ar">AR</option>
+          <option value="tr">TR</option>
+          <option value="fr">FR</option>
+          <option value="es">ES</option>
+          <option value="it">IT</option>
+          <option value="pl">PL</option>
+        </select>
       </p>
     </div>
 
@@ -626,11 +636,11 @@
         </div>
         <div class="form-group">
           <label data-i18n="foremanSiteLabel">Standort</label>
-          <input type="text" id="shiftSite" placeholder="z.B. Hauptgebäude" />
+          <input type="text" id="shiftSite" data-i18n="foremanSitePh" data-i18n-attr="placeholder" placeholder="z.B. Hauptgebäude" />
         </div>
         <div class="form-group">
           <label data-i18n="foremanNotesLabel">Notizen</label>
-          <textarea id="shiftNotes" rows="2" placeholder="Spezielle Anweisungen..."></textarea>
+          <textarea id="shiftNotes" rows="2" data-i18n="foremanShiftNotesPh" data-i18n-attr="placeholder" placeholder="Spezielle Anweisungen..."></textarea>
         </div>
         <button class="form-submit" id="submitShiftBtn" data-i18n="foremanSubmitShift">Schicht zuweisen</button>
       </div>
@@ -667,15 +677,15 @@
         <div class="form-group">
           <label data-i18n="foremanAlertType">Alert-Typ</label>
           <select id="alertTypeSelect">
-            <option value="checkout_reminder">Checkout-Erinnerung</option>
-            <option value="document_alert">Dokument-Alert</option>
-            <option value="late_start">Verspäteter Start</option>
-            <option value="general">Allgemein</option>
+            <option value="checkout_reminder" data-i18n="foremanAlertTypeCheckout">Checkout-Erinnerung</option>
+            <option value="document_alert" data-i18n="foremanAlertTypeDocument">Dokument-Alert</option>
+            <option value="late_start" data-i18n="foremanAlertTypeLateStart">Verspäteter Start</option>
+            <option value="general" data-i18n="foremanAlertTypeGeneral">Allgemein</option>
           </select>
         </div>
         <div class="form-group">
           <label data-i18n="foremanMessageLabel">Nachricht</label>
-          <textarea id="alertMessage" rows="3" placeholder="Nachricht eingeben..."></textarea>
+          <textarea id="alertMessage" rows="3" data-i18n="foremanAlertMessagePh" data-i18n-attr="placeholder" placeholder="Nachricht eingeben..."></textarea>
         </div>
         <button class="form-submit" id="submitAlertBtn" data-i18n="foremanSendBtn">Senden (Hybrid Push)</button>
       </div>
@@ -689,10 +699,73 @@
     </div>
   </div>
 
+  <script src="/worker-i18n.js?v=20260705f"></script>
+  <script src="/foreman-i18n-extra.js?v=20260705f"></script>
   <script>
     // ═════════════════════════════════════════════════════════════════════════════════
     // FOREMAN DASHBOARD LOGIC
     // ═════════════════════════════════════════════════════════════════════════════════
+
+    const FOREMAN_LANG_KEY = "baupass-ui-lang";
+    const FOREMAN_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
+    function getForemanLang() {
+      const code = (
+        localStorage.getItem("baupass-admin-v2-lang")
+        || localStorage.getItem(FOREMAN_LANG_KEY)
+        || "de"
+      ).slice(0, 2);
+      return FOREMAN_LANGS.includes(code) ? code : "de";
+    }
+    function ft(key, vars = {}) {
+      return window.WorkerI18N?.tf ? window.WorkerI18N.tf(key, vars) : key;
+    }
+    function foremanLocale() {
+      return window.WorkerI18N?.getCurrentLocale?.() || "de-DE";
+    }
+    function applyForemanI18n() {
+      const lang = getForemanLang();
+      window.WorkerI18N?.setCurrentLang?.(lang, FOREMAN_LANG_KEY);
+      localStorage.setItem("baupass-admin-v2-lang", lang);
+      window.WorkerI18N?.applyDomTranslations?.(document);
+      document.documentElement.lang = lang === "ar" ? "ar" : lang;
+      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
+      const sel = document.getElementById("foremanLangSelect");
+      if (sel) sel.value = lang;
+    }
+    function initForemanLangSync() {
+      applyForemanI18n();
+      const sel = document.getElementById("foremanLangSelect");
+      if (sel && !sel.dataset.bound) {
+        sel.dataset.bound = "1";
+        sel.addEventListener("change", () => {
+          const code = sel.value;
+          window.WorkerI18N?.setCurrentLang?.(code, FOREMAN_LANG_KEY);
+          localStorage.setItem("baupass-admin-v2-lang", code);
+          applyForemanI18n();
+          window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: code } }));
+          const activeTab = document.querySelector(".nav-btn.active")?.dataset?.tab || "team-status";
+          loadTabData(activeTab);
+        });
+      }
+      window.addEventListener("storage", (event) => {
+        if ((event.key === FOREMAN_LANG_KEY || event.key === "baupass-admin-v2-lang") && event.newValue) {
+          applyForemanI18n();
+          const activeTab = document.querySelector(".nav-btn.active")?.dataset?.tab || "team-status";
+          loadTabData(activeTab);
+        }
+      });
+      window.addEventListener("baupass-admin-lang", () => {
+        applyForemanI18n();
+        const activeTab = document.querySelector(".nav-btn.active")?.dataset?.tab || "team-status";
+        loadTabData(activeTab);
+      });
+    }
+    function loadTabData(tabName) {
+      if (tabName === "team-status") loadTeamStatus();
+      else if (tabName === "analytics") loadAnalytics();
+      else if (tabName === "shifts") loadShifts();
+      else if (tabName === "notifications") loadNotifications();
+    }
 
     // API Base URL
     const API_BASE = `/api`;
@@ -742,7 +815,7 @@
       });
 
       if (response.status === 401) {
-        throw new Error('Bitte zuerst in WorkPass anmelden.');
+        throw new Error(ft('foremanAuthRequired'));
       }
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -785,20 +858,20 @@
       }
       el.classList.remove('hidden');
       const drivers = (fc.drivers || []).slice(0, 3).map((d) => {
-        const label = d.type === 'approved_leave' ? 'Urlaub' : (d.type === 'attendance_pattern' ? 'Ausfallrisiko' : d.type);
+        const label = d.type === 'approved_leave' ? ft('foremanDriverLeave') : (d.type === 'attendance_pattern' ? ft('foremanDriverAbsent') : d.type);
         return `<li>${label}: ${d.count || 0}</li>`;
       }).join('');
       el.innerHTML = `
-        <h3>Prognose morgen · ${fc.weekdayLabel || ''} ${fc.date}</h3>
+        <h3>${ft('foremanForecastTitle')} · ${fc.weekdayLabel || ''} ${fc.date}</h3>
         <p style="margin:0;opacity:0.9">${fc.summary || ''}</p>
         <div class="forecast-stats">
-          <div><span>Erwartet on-site</span><strong>${fc.expectedOnSite ?? '—'}</strong></div>
-          <div><span>Ausfallrisiko</span><strong>${fc.expectedAbsent ?? '—'}</strong></div>
-          <div><span>Aktiv gesamt</span><strong>${fc.totalActive ?? '—'}</strong></div>
+          <div><span>${ft('foremanExpectedOnSite')}</span><strong>${fc.expectedOnSite ?? '—'}</strong></div>
+          <div><span>${ft('foremanAbsentRisk')}</span><strong>${fc.expectedAbsent ?? '—'}</strong></div>
+          <div><span>${ft('foremanActiveTotal')}</span><strong>${fc.totalActive ?? '—'}</strong></div>
         </div>
         ${drivers ? `<ul style="margin:0.75rem 0 0;padding-inline-start:1.2rem;font-size:0.88rem">${drivers}</ul>` : ''}
         <p style="margin:0.75rem 0 0;font-size:0.85rem">
-          <a href="/ai-command-center.html" style="color:var(--foreman-accent)">KI: Personalplan</a>
+          <a href="/ai-command-center.html" style="color:var(--foreman-accent)">${ft('foremanKiWorkforce')}</a>
         </p>`;
     }
 
@@ -816,8 +889,8 @@
         renderTeamGrid(teamData.team);
       } catch (error) {
         console.error('Failed to load team status:', error);
-        document.getElementById('teamStatusContainer').innerHTML = 
-          `<div class="error-message">Fehler beim Laden: ${error.message}</div>`;
+        document.getElementById('teamStatusContainer').innerHTML =
+          `<div class="error-message">${ft('foremanLoadError', { msg: error.message })}</div>`;
       }
     }
 
@@ -825,7 +898,8 @@
       const container = document.getElementById('teamStatusContainer');
       
       if (!team || team.length === 0) {
-        container.innerHTML = '<div class="error-message" data-i18n="foremanNoWorkers">Keine Mitarbeiter gefunden</div>';
+        container.innerHTML = `<div class="error-message" data-i18n="foremanNoWorkers">${ft('foremanNoWorkers')}</div>`;
+        window.WorkerI18N?.applyDomTranslations?.(container);
         return;
       }
 
@@ -836,15 +910,15 @@
             <div class="team-card-badge">${worker.badge}</div>
           </div>
           <div class="team-card-meta">
-            <div><strong>Rolle:</strong> ${worker.role}</div>
-            <div><strong>Standort:</strong> ${worker.site}</div>
-            <div><strong>Status:</strong> ${worker.status}</div>
-            <div><strong>Zuletzt:</strong> ${worker.lastEventTime ? new Date(worker.lastEventTime).toLocaleString('de-DE') : 'N/A'}</div>
+            <div><strong>${ft('foremanRoleLabel')}:</strong> ${worker.role}</div>
+            <div><strong>${ft('foremanSiteLabelCard')}:</strong> ${worker.site}</div>
+            <div><strong>${ft('foremanStatusLabel')}:</strong> ${worker.status}</div>
+            <div><strong>${ft('foremanLastLabel')}:</strong> ${worker.lastEventTime ? new Date(worker.lastEventTime).toLocaleString(foremanLocale()) : 'N/A'}</div>
           </div>
           <div class="team-card-actions">
-            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'checkout_reminder')">Checkout</button>
-            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'document_alert')">Dokument</button>
-            <button type="button" onclick="askKi('${worker.name}', '${worker.workerId}')">KI</button>
+            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'checkout_reminder')">${ft('foremanBtnCheckout')}</button>
+            <button type="button" onclick="sendQuickAlert('${worker.workerId}', 'document_alert')">${ft('foremanBtnDocument')}</button>
+            <button type="button" onclick="askKi('${worker.name}', '${worker.workerId}')">${ft('foremanBtnKi')}</button>
           </div>
         </div>
       `).join('');
@@ -891,15 +965,15 @@
         const trendRows = trends?.daily || trends?.days || trends?.trends || [];
         const vals = trendRows.map((d) => d.checkins ?? d.activeWorkers ?? d.count ?? 0);
         const labs = trendRows.map((d) => (d.date || d.day || '').slice(5));
-        trendsChartInst = renderLineChart('trendsChart', labs, vals, 'Check-ins', trendsChartInst);
+        trendsChartInst = renderLineChart('trendsChart', labs, vals, ft('foremanChartCheckins'), trendsChartInst);
 
         const docHealth = await fetchAPI('/analytics/document-health');
         const docVals = [docHealth?.valid ?? 0, docHealth?.expiring ?? 0, docHealth?.expired ?? 0, docHealth?.missing ?? 0];
         docHealthChartInst = renderLineChart(
           'docHealthChart',
-          ['OK', 'Läuft ab', 'Abgel.', 'Fehlt'],
+          [ft('foremanDocOk'), ft('foremanDocExpiring'), ft('foremanDocExpired'), ft('foremanDocMissing')],
           docVals,
-          'Dokumente',
+          ft('foremanChartDocuments'),
           docHealthChartInst,
         );
 
@@ -914,13 +988,13 @@
       const hint = document.getElementById('punctualityHint');
       if (hint) {
         hint.textContent = data?.workStartTime
-          ? `Soll-Check-in ab ${data.workStartTime} · Pünktlichkeit ${data.punctualityRate ?? 0}%`
+          ? ft('foremanPunctualityHint', { time: data.workStartTime, rate: data.punctualityRate ?? 0 })
           : '';
       }
       const tbody = document.getElementById('punctualityTableBody');
       
       if (!data.lateWorkers || data.lateWorkers.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="loading">Alle pünktlich! ✓</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="3" class="loading">${ft('foremanAllPunctual')}</td></tr>`;
         return;
       }
 
@@ -928,7 +1002,7 @@
         <tr>
           <td>${w.name}</td>
           <td>${w.checkinTime}</td>
-          <td>+${w.minutesLate ?? 0} Min</td>
+          <td>${ft('foremanMinutesLate', { mins: w.minutesLate ?? 0 })}</td>
         </tr>
       `).join('');
     }
@@ -937,7 +1011,7 @@
     function renderShiftsTable(assignments) {
       const tbody = document.getElementById('shiftsTableBody');
       if (!assignments?.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="muted">Keine anstehenden Schichten</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="5" class="muted">${ft('foremanNoUpcomingShifts')}</td></tr>`;
         return;
       }
       tbody.innerHTML = assignments
@@ -975,7 +1049,7 @@
     function populateWorkerSelect(selectId, workers) {
       const select = document.getElementById(selectId);
       if (!select) return;
-      select.innerHTML = '<option value="">-- Auswählen --</option>';
+      select.innerHTML = `<option value="">${ft('foremanSelectOption')}</option>`;
       (workers || []).forEach((w) => {
         const id = workerOptionId(w);
         if (!id) return;
@@ -1002,7 +1076,7 @@
       const notes = document.getElementById('shiftNotes').value;
 
       if (!workerId || !startTime || !endTime) {
-        alert('Bitte alle Felder ausfüllen');
+        alert(ft('foremanFillAllFields'));
         return;
       }
 
@@ -1014,13 +1088,13 @@
         const d = res.pushDelivery || {};
         alert(
           d.pushSent
-            ? `Schicht gespeichert · Hybrid Push an MA (${d.pushSent})`
-            : 'Schicht gespeichert (kein FCM-Token beim MA).',
+            ? ft('foremanShiftPushOk', { count: d.pushSent })
+            : ft('foremanShiftSavedNoFcm'),
         );
         document.getElementById('shiftNotes').value = '';
         await loadShifts();
       } catch (error) {
-        alert(`Fehler: ${error.message}`);
+        alert(`${ft('foremanErrorPrefix')}: ${error.message}`);
       }
     });
 
@@ -1032,7 +1106,7 @@
         const data = await fetchAPI('/foreman/recent-notifications?limit=30');
         const rows = data.notifications || [];
         if (!rows.length) {
-          list.innerHTML = '<p class="muted">Noch keine Alerts versendet.</p>';
+          list.innerHTML = `<p class="muted">${ft('foremanNoAlertsYet')}</p>`;
           return;
         }
         list.innerHTML = rows
@@ -1050,15 +1124,18 @@
       }
     }
 
-    const QUICK_ALERTS = {
-      checkout_reminder: 'Bitte auschecken / Baustelle verlassen melden.',
-      document_alert: 'Bitte fehlendes oder ablaufendes Dokument mitbringen.',
-      late_start: 'Verspäteter Start — bitte Teamleitung informieren.',
-      general: 'Nachricht vom Vorarbeiter.',
-    };
+    function getQuickAlert(type) {
+      const map = {
+        checkout_reminder: ft('foremanAlertCheckout'),
+        document_alert: ft('foremanAlertDocument'),
+        late_start: ft('foremanAlertLateStart'),
+        general: ft('foremanAlertGeneral'),
+      };
+      return map[type] || map.general;
+    }
 
     async function sendQuickAlert(workerId, type) {
-      const message = QUICK_ALERTS[type] || QUICK_ALERTS.general;
+      const message = getQuickAlert(type);
       try {
         const res = await fetchAPI('/foreman/send-alert', {
           method: 'POST',
@@ -1067,12 +1144,12 @@
         const d = res.pushDelivery || {};
         alert(
           d.delivered || res.pushSent
-            ? `Hybrid Push gesendet (${res.pushSent})`
-            : (d.hint || 'Kein FCM-Token — Mitarbeiter-App Push aktivieren.'),
+            ? ft('foremanHybridPushSent', { count: res.pushSent })
+            : (d.hint || ft('foremanNoFcmHint')),
         );
         loadNotifications();
       } catch (e) {
-        alert('Fehler: ' + e.message);
+        alert(`${ft('foremanErrorPrefix')}: ${e.message}`);
       }
     }
 
@@ -1087,12 +1164,12 @@
       const message = document.getElementById('alertMessage').value;
 
       if (!workerId) {
-        alert('Bitte Mitarbeiter auswählen');
+        alert(ft('foremanSelectWorker'));
         return;
       }
-      const finalMessage = message || QUICK_ALERTS[type] || QUICK_ALERTS.general;
+      const finalMessage = message || getQuickAlert(type);
       if (!finalMessage) {
-        alert('Bitte Nachricht eingeben');
+        alert(ft('foremanEnterMessage'));
         return;
       }
 
@@ -1104,12 +1181,12 @@
         const d = res.pushDelivery || {};
         alert(
           d.delivered || res.pushSent
-            ? `Alert + Push (${res.pushSent})`
-            : (d.hint || 'In-App gespeichert.'),
+            ? ft('foremanAlertPushOk', { count: res.pushSent })
+            : (d.hint || ft('foremanAlertInApp')),
         );
         document.getElementById('alertMessage').value = '';
       } catch (error) {
-        alert(`Fehler: ${error.message}`);
+        alert(`${ft('foremanErrorPrefix')}: ${error.message}`);
       }
     });
 
@@ -1127,6 +1204,7 @@
     }
 
     window.addEventListener('load', () => {
+      initForemanLangSync();
       initForemanBranding().finally(() => loadTeamStatus());
     });
   </script>

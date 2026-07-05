@@ -3,62 +3,72 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>System-Bewertung — WorkPass</title>
+  <title>System-Bewertung — SUPPIX</title>
   <link rel="stylesheet" href="/admin-v2/styles.css?v=20260619survey1" />
   <style>
     body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
     .survey-card { max-width: 520px; width: 100%; background: var(--panel, #fff); border-radius: 16px; padding: 28px; border: 1px solid var(--border, #e5e7eb); }
     .scale-hint { font-size: 0.85rem; color: #6b7280; margin-bottom: 1rem; }
+    .survey-head { display: flex; justify-content: space-between; align-items: start; gap: 0.75rem; margin-bottom: 0.5rem; }
+    .survey-lang { font-size: 0.82rem; padding: 0.25rem 0.35rem; border-radius: 8px; border: 1px solid var(--border, #e5e7eb); }
   </style>
 </head>
 <body>
   <div class="survey-card">
-    <h1>System-Bewertung</h1>
-    <p class="scale-hint">1 = sehr gut · 5 = sehr schlecht</p>
-    <p id="authHint" class="muted small hidden">Bitte zuerst anmelden.</p>
+    <div class="survey-head">
+      <h1 data-surveyi18n="title">System-Bewertung</h1>
+      <select id="surveyLangSelect" class="survey-lang" aria-label="Sprache">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
+        <option value="it">IT</option><option value="pl">PL</option>
+      </select>
+    </div>
+    <p class="scale-hint" data-surveyi18n="scaleHint">1 = sehr gut · 5 = sehr schlecht</p>
+    <p id="authHint" class="muted small hidden" data-surveyi18n="authHint">Bitte zuerst anmelden.</p>
     <form id="surveyForm" class="satisfaction-form">
       <label>
-        <span>Zufriedenheit (1–5)</span>
+        <span data-surveyi18n="scoreLabel">Zufriedenheit (1–5)</span>
         <select id="score" required>
           <option value="">—</option>
-          <option value="1">1 — Sehr gut</option>
-          <option value="2">2 — Gut</option>
-          <option value="3">3 — Neutral</option>
-          <option value="4">4 — Schlecht</option>
-          <option value="5">5 — Sehr schlecht</option>
+          <option value="1" data-surveyi18n="score1">1 — Sehr gut</option>
+          <option value="2" data-surveyi18n="score2">2 — Gut</option>
+          <option value="3" data-surveyi18n="score3">3 — Neutral</option>
+          <option value="4" data-surveyi18n="score4">4 — Schlecht</option>
+          <option value="5" data-surveyi18n="score5">5 — Sehr schlecht</option>
         </select>
       </label>
       <label class="satisfaction-check">
         <input type="checkbox" id="recommend" />
-        <span>Würden Sie das System einer anderen Firma empfehlen?</span>
+        <span data-surveyi18n="recommend">Würden Sie das System einer anderen Firma empfehlen?</span>
       </label>
       <label>
-        <span>Welche Funktion nutzen Sie am meisten?</span>
+        <span data-surveyi18n="bestFeature">Welche Funktion nutzen Sie am meisten?</span>
         <input type="text" id="bestFeature" maxlength="500" />
       </label>
       <label>
-        <span>Was wünschen Sie sich häufiger?</span>
+        <span data-surveyi18n="frequentRequest">Was wünschen Sie sich häufiger?</span>
         <input type="text" id="frequentRequest" maxlength="500" />
       </label>
       <label>
-        <span>Was ist verwirrend oder unklar?</span>
+        <span data-surveyi18n="confusion">Was ist verwirrend oder unklar?</span>
         <textarea id="confusion" rows="2" maxlength="1000"></textarea>
       </label>
       <div class="satisfaction-roi-row">
         <label>
-          <span>Geschätzte Zeitersparnis (Std./Woche)</span>
+          <span data-surveyi18n="timeSaved">Geschätzte Zeitersparnis (Std./Woche)</span>
           <input type="number" id="timeSaved" min="0" step="0.5" />
         </label>
         <label>
-          <span>Geschätzte Kosteneinsparung (EUR/Monat)</span>
+          <span data-surveyi18n="costSaved">Geschätzte Kosteneinsparung (EUR/Monat)</span>
           <input type="number" id="costSaved" min="0" step="10" />
         </label>
       </div>
       <p id="errorBox" class="error hidden"></p>
-      <button type="submit" class="primary" style="width:100%;margin-top:0.5rem">Absenden</button>
+      <button type="submit" class="primary" style="width:100%;margin-top:0.5rem" data-surveyi18n="submit">Absenden</button>
     </form>
-    <p id="successBox" class="muted hidden" style="text-align:center;padding:2rem 0">Vielen Dank für Ihre Bewertung!</p>
+    <p id="successBox" class="muted hidden" style="text-align:center;padding:2rem 0" data-surveyi18n="success">Vielen Dank für Ihre Bewertung!</p>
   </div>
+  <script src="/satisfaction-survey-i18n.js?v=20260705g"></script>
   <script>
     const TOKEN_KEYS = window.WorkPassStorage?.SESSION_TOKEN_KEYS || ["workpass-admin-token", "workpass-session-token", "workpass-token"];
     function token() {
@@ -68,6 +78,7 @@
       }
       return "";
     }
+    window.initSurveyLangSync?.();
     const authHint = document.getElementById("authHint");
     const form = document.getElementById("surveyForm");
     const successBox = document.getElementById("successBox");
@@ -81,7 +92,7 @@
       err.classList.add("hidden");
       const score = Number(document.getElementById("score").value || 0);
       if (score < 1 || score > 5) {
-        err.textContent = "Bitte Zufriedenheit 1–5 wählen.";
+        err.textContent = window.surveyT("scoreRequired");
         err.classList.remove("hidden");
         return;
       }
@@ -104,7 +115,7 @@
         });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || "Fehler");
+          throw new Error(d.error || window.surveyT("errorGeneric"));
         }
         form.style.display = "none";
         successBox.classList.remove("hidden");

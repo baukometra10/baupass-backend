@@ -4262,7 +4262,7 @@ async function triggerInstall() {
 }
 
 async function forceRefreshApp() {
-  showWorkerNotice("Aktualisiere App-Version ...");
+  showWorkerNotice(t("workerUpdatingApp"));
 
   if ("serviceWorker" in navigator) {
     try {
@@ -7887,16 +7887,20 @@ function startWorkerNotificationPolling() {
   }, 30000);
 }
 
-function planFeatureBlockedMessage(featureKey) {
-  const labels = {
-    worker_hours_report: "Arbeitsstunden",
-    document_upload: "Dokumente",
-    leave_management: "Urlaubsanträge",
-    deployment_plan: "Einsatzplan",
-    worker_chat: "Chat",
+function workerFeatureLabel(featureKey) {
+  const map = {
+    worker_hours_report: t("workerFeatureHours"),
+    document_upload: t("workerFeatureDocuments"),
+    leave_management: t("workerFeatureLeave"),
+    deployment_plan: t("workerFeatureDeployment"),
+    worker_chat: t("workerFeatureChat"),
+    worker_app: t("workerFeatureApp"),
   };
-  const label = labels[featureKey] || "Diese Funktion";
-  return `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
+  return map[featureKey] || t("workerFeatureDefault");
+}
+
+function planFeatureBlockedMessage(featureKey) {
+  return tf("workerPlanFeatureBlocked", { feature: workerFeatureLabel(featureKey) });
 }
 
 function applyWorkerPlanNavState(planFeatures = {}) {
@@ -7919,19 +7923,13 @@ function formatWorkerApiError(error) {
   if (code === "feature_not_available") {
     const feature = String(error?.payload?.feature || "").trim();
     const requiredPlan = String(error?.payload?.requiredPlan || "").trim();
-    const labels = {
-      worker_hours_report: "Arbeitsstunden",
-      document_upload: "Dokumente",
-      leave_management: "Urlaubsanträge",
-      worker_app: "Mitarbeiter-App",
-    };
-    const label = labels[feature] || "Diese Funktion";
+    const label = workerFeatureLabel(feature);
     return requiredPlan
-      ? `${label} ist in Ihrem Paket nicht freigeschaltet (benötigt: ${requiredPlan}). Bitte Ihren Administrator kontaktieren.`
-      : `${label} ist in Ihrem Paket nicht freigeschaltet. Bitte Ihren Administrator kontaktieren.`;
+      ? tf("workerPlanFeatureBlockedWithPlan", { feature: label, plan: requiredPlan })
+      : tf("workerPlanFeatureBlocked", { feature: label });
   }
   if (code === "unauthorized" || code === "session_expired" || code === "invalid_session") {
-    return "Sitzung abgelaufen – bitte erneut mit Badge-ID und PIN anmelden.";
+    return t("sessionExpired");
   }
   if (isWorkerSessionAuthError(code)) {
     return t("sessionExpired");
@@ -7955,10 +7953,10 @@ function formatWorkerApiError(error) {
     return t("workerChatUnavailable");
   }
   if (code === "missing_device_id" || code === "device_not_bound" || code === "device_not_active") {
-    return "Gerätefreigabe fehlt – bitte einmal abmelden und erneut mit Badge-ID und PIN anmelden.";
+    return t("workerDeviceBindingMissing");
   }
   if (code === "worker_company_missing") {
-    return "Ihr Mitarbeiterprofil ist keiner Firma zugeordnet. Bitte den Administrator kontaktieren.";
+    return t("workerCompanyMissingProfile");
   }
   if (code === "attachment_upload_failed" || code === "attachment_payload_required") {
     return t("workerChatDocumentSubmitFailed");
@@ -7966,7 +7964,7 @@ function formatWorkerApiError(error) {
   if (code === "request_timeout" || code === "network_error") {
     return t("connError");
   }
-  return String(error?.message || "Daten konnten nicht geladen werden.");
+  return String(error?.message || t("workerDataLoadFailed"));
 }
 
 function setDeploymentDeclineModalError(message) {
@@ -8539,11 +8537,11 @@ async function submitLeaveRequest() {
   refreshWorkerApiBase();
   syncLeaveRequestDomRefs();
   if (!workerToken) {
-    showWorkerNotice("Bitte zuerst mit Badge-ID und PIN anmelden.");
+    showWorkerNotice(t("workerLoginBadgePinFirst"));
     return;
   }
   if (!elements.leaveRequestForm) {
-    showWorkerNotice("Urlaubsformular nicht gefunden – bitte Seite neu laden.");
+    showWorkerNotice(t("workerLeaveFormMissing"));
     return;
   }
   if (offlineWorkerSessionActive) {
@@ -8585,7 +8583,7 @@ async function submitLeaveRequest() {
   ).trim();
   if (submitBtn) {
     submitBtn.disabled = true;
-    submitBtn.textContent = "Wird gesendet …";
+    submitBtn.textContent = t("workerSending");
   }
   try {
     console.info("[WorkPass leave] submit", leaveSubmitUrl, {
@@ -8626,7 +8624,7 @@ async function submitLeaveRequest() {
     showWorkerNotice(`${t("leaveRequestSubmitted")} (${result.id}) · Firma: ${result.company_id || result.companyId || workerCompanyId || "?"}`);
     const persisted = await verifyLeaveRequestPersisted(result.id);
     if (!persisted) {
-      showWorkerNotice(`Antrag ${result.id} wurde beantwortet, ist aber nicht unter ${API_BASE} sichtbar. Bitte Seite mit ?refresh=1 neu laden oder Support informieren.`);
+      showWorkerNotice(tf("workerLeaveRequestNotVisible", { id: result.id, api: API_BASE }));
     }
     if (elements.sendToBossPanel) {
       elements.sendToBossPanel.classList.remove("hidden");
@@ -8651,7 +8649,7 @@ async function submitLeaveRequest() {
     if (isWorkerSessionAuthError(error?.code)) {
       return;
     }
-    showWorkerNotice(`Fehler: ${formatWorkerApiError(error)}`);
+    showWorkerNotice(`${t("workerErrorPrefix")}: ${formatWorkerApiError(error)}`);
   } finally {
     if (submitBtn) {
       submitBtn.disabled = false;
@@ -8686,7 +8684,7 @@ async function applyAiLeaveSuggestion() {
   const noteField = elements.leaveRequestNote || document.getElementById("leaveRequestNote");
   const btn = elements.leaveRequestAiBtn || document.getElementById("leaveRequestAiBtn");
   if (!noteField) {
-    showWorkerNotice("Notizfeld nicht gefunden – bitte Seite neu laden.");
+    showWorkerNotice(t("workerNotesFieldMissing"));
     return;
   }
 
@@ -9471,7 +9469,7 @@ function switchToTab(tabName) {
     } else if (workerToken) {
       void loadWorkerChat();
     } else if (elements.workerChatMessages) {
-      elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic("Bitte zuerst mit Badge-ID und PIN anmelden.")}</p>`;
+      elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(t("workerLoginBadgePinFirst"))}</p>`;
     }
   } else if (tabName === "vacation") {
     ensureWorkerFeatureHubVisible();
@@ -9482,7 +9480,7 @@ function switchToTab(tabName) {
     } else if (workerToken) {
       void loadLeaveRequests();
     } else {
-      renderWorkerListMessage(elements.leaveRequestList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
+      renderWorkerListMessage(elements.leaveRequestList, t("workerLoginBadgePinFirst"));
     }
     scrollWorkerFeaturePanelIntoView("leaveRequestCard");
   } else if (tabName === "timesheet") {
@@ -9493,7 +9491,7 @@ function switchToTab(tabName) {
     } else if (workerToken) {
       void loadMyTimesheets();
     } else {
-      renderWorkerListMessage(elements.timesheetList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
+      renderWorkerListMessage(elements.timesheetList, t("workerLoginBadgePinFirst"));
     }
     scrollWorkerFeaturePanelIntoView("timesheetCard");
   } else if (tabName === "documents") {
@@ -9505,7 +9503,7 @@ function switchToTab(tabName) {
     } else if (workerToken) {
       void loadMyDocuments();
     } else {
-      renderWorkerListMessage(elements.documentsList, "Bitte zuerst mit Badge-ID und PIN anmelden.");
+      renderWorkerListMessage(elements.documentsList, t("workerLoginBadgePinFirst"));
     }
     scrollWorkerFeaturePanelIntoView("documentsCard");
   }
@@ -10512,7 +10510,7 @@ function populateDeploymentMonthSelect(months, selectedYear, selectedMonth) {
 
 async function openWorkerDeploymentPlanScreen(year = null, month = null) {
   if (!workerToken) {
-    showWorkerNotice("Bitte zuerst mit Badge-ID und PIN anmelden.");
+    showWorkerNotice(t("workerLoginBadgePinFirst"));
     return;
   }
   if (!workerPlanAllowsFeature("deployment_plan")) {
@@ -10730,7 +10728,7 @@ async function openWorkerPdfBlob(blob, filename, { suggestPrint = false } = {}) 
 
 async function openDeploymentPlanPdf(shouldPrint = false) {
   if (!workerToken) {
-    showWorkerNotice("Bitte zuerst anmelden.");
+    showWorkerNotice(t("workerLoginFirst"));
     return;
   }
   const year = deploymentPlanViewYear || new Date().getFullYear();
@@ -11332,7 +11330,7 @@ function initVoiceCommands() {
         showWorkerNotice(t("noSpeechDetected"));
         return;
       }
-      showWorkerNotice(`Fehler: ${code || "unknown"}`);
+      showWorkerNotice(`${t("workerErrorPrefix")}: ${code || "unknown"}`);
     };
     
     voiceRecognition.onresult = (event) => {
@@ -11571,7 +11569,7 @@ function startVisitorCountdownTimer(visitEndAt) {
       timeDisplay.textContent = "00:00";
       timerRing.style.strokeDashoffset = MAX_DASH_OFFSET;
       stopVisitorCountdownTimer();
-      showWorkerNotice("Besuchszeit abgelaufen");
+      showWorkerNotice(t("workerVisitExpiredShort"));
       return;
     }
     

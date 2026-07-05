@@ -78,16 +78,27 @@
       <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
       <a id="navForeman" href="/foreman.html">Vorarbeiter</a>
       <a href="/ops-live-map.html" id="mapLink">Live Karte</a>
+      <select id="opsLangSelect" aria-label="Sprache" style="font-size:0.78rem;padding:0.25rem 0.35rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
+        <option value="it">IT</option><option value="pl">PL</option>
+      </select>
     </nav>
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260705g"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script>
     const UI_LANG_KEY = "baupass-ui-lang";
     function getUiLang() {
-      return (localStorage.getItem(UI_LANG_KEY) || "de").slice(0, 2);
+      const code = (
+        localStorage.getItem("baupass-admin-v2-lang")
+        || localStorage.getItem(UI_LANG_KEY)
+        || "de"
+      ).slice(0, 2);
+      return OPS_LANGS.includes(code) ? code : "de";
     }
     let OPS_LANG = getUiLang();
     const OPS_I18N = {
@@ -149,6 +160,7 @@
         promptEmergency: "Gibt es aktive Notfälle und was sind die Sofortmaßnahmen?",
         promptSecurity: "Fasse offene Security-Alerts zusammen und priorisiere.",
         promptCompanies: "Vergleiche die Firmen nach Risiko und Anwesenheit.",
+        uiLang: "Sprache",
       },
       en: {
         title: "Ops center",
@@ -208,6 +220,7 @@
         promptEmergency: "Are there active emergencies and what are the immediate actions?",
         promptSecurity: "Summarize open security alerts and prioritize.",
         promptCompanies: "Compare companies by risk and attendance.",
+        uiLang: "Language",
       },
       ar: {
         title: "مركز العمليات",
@@ -266,8 +279,11 @@
         promptEmergency: "هل توجد حالات طوارئ نشطة وما الإجراءات الفورية؟",
         promptSecurity: "لخّص التنبيهات الأمنية المفتوحة ورتّب الأولويات.",
         promptCompanies: "قارن الشركات حسب المخاطر والحضور.",
+        uiLang: "اللغة",
       },
     };
+    Object.assign(OPS_I18N, window.OpsCenterI18nExtra || {});
+    const OPS_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     const tr = (key, vars = {}) => {
       let text = (OPS_I18N[OPS_LANG] || OPS_I18N.de)[key] || (OPS_I18N.de[key] || key);
       Object.entries(vars).forEach(([k, v]) => {
@@ -308,11 +324,33 @@
       });
       const statusEl = document.getElementById("status");
       if (statusEl && !lastPayload) statusEl.textContent = tr("loading");
+      const gridLoading = document.getElementById("gridLoading");
+      if (gridLoading) gridLoading.textContent = tr("loading");
+      const langSel = document.getElementById("opsLangSelect");
+      if (langSel) {
+        langSel.value = OPS_LANG;
+        langSel.setAttribute("aria-label", tr("uiLang"));
+      }
+    }
+
+    function initOpsLangSync() {
+      applyOpsUiLanguage();
+      const langSel = document.getElementById("opsLangSelect");
+      if (langSel && !langSel.dataset.bound) {
+        langSel.dataset.bound = "1";
+        langSel.addEventListener("change", () => {
+          localStorage.setItem(UI_LANG_KEY, langSel.value);
+          localStorage.setItem("baupass-admin-v2-lang", langSel.value);
+          applyOpsUiLanguage();
+          if (lastPayload) render(lastPayload, lastForecast, lastGuardianBundle);
+          window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: langSel.value } }));
+        });
+      }
     }
 
     function syncOpsLangFromParent(lang) {
       const code = String(lang || "").slice(0, 2).toLowerCase();
-      if (!["de", "en", "ar"].includes(code) || code === OPS_LANG) return;
+      if (!OPS_LANGS.includes(code) || code === OPS_LANG) return;
       applyOpsUiLanguage();
       if (lastPayload) render(lastPayload, lastForecast, lastGuardianBundle);
     }
@@ -321,7 +359,12 @@
       syncOpsLangFromParent(event?.detail?.lang);
     });
     window.addEventListener("storage", (event) => {
-      if (event.key === UI_LANG_KEY && event.newValue) syncOpsLangFromParent(event.newValue);
+      if ((event.key === UI_LANG_KEY || event.key === "baupass-admin-v2-lang") && event.newValue) {
+        syncOpsLangFromParent(event.newValue);
+      }
+    });
+    window.addEventListener("baupass-admin-lang", (event) => {
+      syncOpsLangFromParent(event?.detail?.lang);
     });
 
     function companyLink(path, cid) {
@@ -628,7 +671,7 @@
       }
     });
 
-    applyOpsUiLanguage();
+    initOpsLangSync();
     (async () => {
       loadScheduled = true;
       try {

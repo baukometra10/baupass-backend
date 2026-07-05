@@ -4,11 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#050816" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass Mitarbeiter-Chat" />
-  <meta name="application-name" content="WorkPass Mitarbeiter-Chat" />
-  <title>Mitarbeiter-Chat</title>
-  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="chatAppTouchIcon" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="data:," />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Mitarbeiter-Chat" />
+  <meta name="application-name" content="SUPPIX Mitarbeiter-Chat" />
+  <title>SUPPIX — Mitarbeiter-Chat</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" id="chatAppTouchIcon" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <style>
     :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --accent-on:#111827; --input-bg:#0f1419; --item-bg:rgba(255,255,255,0.03); }
     body.theme-white { --item-bg: rgba(15,23,42,0.04); --input-bg: #ffffff; --bg:#f1f5f9; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,0.12); }
@@ -17,7 +17,10 @@
     html, body { height:100%; margin:0; overflow:hidden; }
     body { font-family:system-ui, "Segoe UI", sans-serif; background:var(--bg); color:var(--text); }
     .chat-app { display:flex; flex-direction:column; height:100%; min-height:0; }
-    header { flex-shrink:0; padding:0.85rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; }
+    header { flex-shrink:0; padding:0.85rem 1.25rem; border-bottom:1px solid var(--border); background:var(--panel); display:flex; justify-content:space-between; gap:1rem; align-items:center; flex-wrap:wrap; }
+    .brand-row { display:flex; align-items:center; gap:0.55rem; }
+    .brand-logo { width:28px; height:28px; border-radius:6px; object-fit:contain; }
+    .header-lang { font-size:0.78rem; padding:0.3rem 0.4rem; border-radius:8px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); }
     .chat-shell { flex:1; min-height:0; display:grid; grid-template-columns:minmax(260px, 320px) minmax(0, 1fr); gap:0.85rem; padding:0.85rem 1rem 1rem; max-width:1280px; width:100%; margin:0 auto; }
     @media (max-width: 980px) {
       .chat-shell { grid-template-columns:1fr; padding:0.65rem; }
@@ -96,41 +99,57 @@
 <body>
   <div class="chat-app">
     <header>
-      <div>
-        <strong>WorkPass</strong>
-        <div class="muted">Mitarbeiter-Chat</div>
+      <div class="brand-row">
+        <img data-tenant-logo class="brand-logo" src="/branding/suppix-icon-192.png" alt="" width="28" height="28" />
+        <div>
+          <strong data-tenant-brand-title>SUPPIX</strong>
+          <div class="muted" data-aci18n="pageSubtitle">Mitarbeiter-Chat</div>
+        </div>
       </div>
-      <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;">Zurück zu Betrieb</a>
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <select id="chatLangSelect" class="header-lang" aria-label="Sprache">
+          <option value="de">DE</option>
+          <option value="en">EN</option>
+          <option value="ar">AR</option>
+          <option value="tr">TR</option>
+          <option value="fr">FR</option>
+          <option value="es">ES</option>
+          <option value="it">IT</option>
+          <option value="pl">PL</option>
+        </select>
+        <a href="/admin-v2/index.html" id="backLink" class="muted" style="text-decoration:none;" data-aci18n="back">Zurück zu Betrieb</a>
+      </div>
     </header>
     <main class="chat-shell">
       <section class="panel chat-sidebar">
-        <h3>Chats</h3>
-        <input id="threadSearch" type="search" placeholder="Mitarbeiter oder Thema suchen" />
-        <p class="muted" style="font-size:0.85rem;margin:0;">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
+        <h3 data-aci18n="chatsTitle">Chats</h3>
+        <input id="threadSearch" type="search" data-aci18n="searchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter oder Thema suchen" />
+        <p class="muted" style="font-size:0.85rem;margin:0;" data-aci18n="sidebarHint">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
         <div id="threadList" class="thread-list"></div>
       </section>
       <section class="panel chat-main">
         <div class="chat-main-head">
-          <h2>Unterhaltung</h2>
-          <p id="threadMeta" class="muted">Noch kein Chat ausgewählt.</p>
+          <h2 data-aci18n="conversationTitle">Unterhaltung</h2>
+          <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
         </div>
         <div id="messageList" class="message-list">
-          <p class="muted">Wählen Sie links einen Mitarbeiter aus.</p>
+          <p class="muted" id="pickWorkerHint" data-aci18n="pickWorkerHint">Wählen Sie links einen Mitarbeiter aus.</p>
         </div>
         <div class="chat-compose">
           <div class="actions">
             <input id="chatFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
           </div>
-          <textarea id="chatReply" placeholder="Antwort schreiben…" rows="3"></textarea>
+          <textarea id="chatReply" data-aci18n="replyPh" data-aci18n-attr="placeholder" placeholder="Antwort schreiben…" rows="3"></textarea>
           <div class="actions">
-            <button type="button" class="primary" id="sendReplyBtn">Senden</button>
+            <button type="button" class="primary" id="sendReplyBtn" data-aci18n="send">Senden</button>
           </div>
         </div>
       </section>
     </main>
   </div>
+  <script src="/admin-v2/chat-i18n.js?v=20260705f"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
-  <script src="/embed-helpers.js?v=20260630d"></script>
+  <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script>
@@ -148,6 +167,33 @@
     let currentThreadId = "";
     let currentWorkerId = "";
     let chatPollTimer = null;
+    let lastThreadMetaName = "";
+    function chatLocale() {
+      const lang = window.getAdminChatLang?.() || "de";
+      const map = { de: "de-DE", en: "en-GB", ar: "ar-SA", tr: "tr-TR", fr: "fr-FR", es: "es-ES", it: "it-IT", pl: "pl-PL" };
+      return map[lang] || "de-DE";
+    }
+    function setThreadMeta(text, { dynamic = false } = {}) {
+      const el = document.getElementById("threadMeta");
+      el.textContent = text;
+      if (dynamic) el.dataset.dynamic = "1";
+      else delete el.dataset.dynamic;
+    }
+    window.refreshAdminChatDynamicUi = function refreshAdminChatDynamicUi() {
+      renderThreads();
+      if (!currentThreadId) {
+        const list = document.getElementById("messageList");
+        if (list && !currentWorkerId) {
+          list.innerHTML = `<p class="muted" id="pickWorkerHint">${window.adminChatT("pickWorkerHint")}</p>`;
+        }
+        if (!document.getElementById("threadMeta")?.dataset.dynamic) {
+          setThreadMeta(window.adminChatT("noThreadSelected"));
+        }
+      } else if (lastThreadMetaName) {
+        setThreadMeta(window.adminChatT("chatWith", { name: lastThreadMetaName }), { dynamic: true });
+        loadMessages(currentThreadId, currentWorkerId, { quiet: true }).catch(() => {});
+      }
+    };
     function getAdminUser() {
       try {
         return JSON.parse(wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}");
@@ -222,10 +268,10 @@
         const url = URL.createObjectURL(blob);
         img.src = url;
         img.dataset.loaded = "1";
-        img.title = `${filename} — Klicken zum Speichern`;
+        img.title = window.adminChatT("clickToSave", { name: filename });
         img.addEventListener("click", () => {
           downloadChatAttachment(attachmentId, filename, contentType || blob.type).catch((error) => {
-            document.getElementById("threadMeta").textContent = error.message || String(error);
+            setThreadMeta(error.message || String(error), { dynamic: true });
           });
         });
       } catch {
@@ -242,21 +288,21 @@
       if (!raw) return "";
       const date = new Date(raw);
       if (Number.isNaN(date.getTime())) return raw;
-      const timeStr = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+      const timeStr = date.toLocaleTimeString(chatLocale(), { hour: "2-digit", minute: "2-digit" });
       const now = new Date();
       if (date.toDateString() === now.toDateString()) return timeStr;
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
-      if (date.toDateString() === yesterday.toDateString()) return `Gestern, ${timeStr}`;
-      return `${date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "numeric" })}, ${timeStr}`;
+      if (date.toDateString() === yesterday.toDateString()) return `${window.adminChatT("yesterday")}, ${timeStr}`;
+      return `${date.toLocaleDateString(chatLocale(), { day: "2-digit", month: "2-digit", year: "numeric" })}, ${timeStr}`;
     }
     function chatReadLabel(msg) {
       const sender = String(msg.senderType || "");
       if (sender === "admin") {
-        return msg.readByRecipient ? "Gelesen" : "Zugestellt";
+        return msg.readByRecipient ? window.adminChatT("read") : window.adminChatT("delivered");
       }
       if (sender === "worker" && msg.readByRecipient) {
-        return "Gelesen";
+        return window.adminChatT("read");
       }
       return "";
     }
@@ -269,13 +315,13 @@
       return Boolean(String(msg.id || "").trim());
     }
     function renderChatBubble(msg) {
-      const who = msg.senderType === "worker" ? "Mitarbeiter" : "Firma";
+      const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
       const time = formatChatTimestamp(msg.createdAt);
       const read = chatReadLabel(msg);
       const attach = Array.isArray(msg.attachments) && msg.attachments.length
         ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => {
             const id = escapeHtml(a.id || "");
-            const name = escapeHtml(a.filename || "Anhang");
+            const name = escapeHtml(a.filename || window.adminChatT("attachment"));
             const type = escapeHtml(a.contentType || "");
             const image = isImageAttachment(a.filename, a.contentType);
             if (image) {
@@ -290,7 +336,7 @@
       const body = escapeHtml(msg.body || "");
       const messageId = escapeHtml(String(msg.id || ""));
       const deleteBtn = canDeleteAdminMessage(msg)
-        ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="Nachricht löschen">🗑</button>`
+        ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
         : "";
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
       return `<div class="bubble ${sideClass}"><strong>${who}</strong><br><span>${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}${deleteBtn}</div></div>`;
@@ -308,12 +354,12 @@
       const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
       host.innerHTML = rows.length
         ? rows.map((row) => {
-            const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.badge_id || 'Mitarbeiter';
-            const meta = row.hasThread ? (row.subject || 'general') : 'Neuer Chat';
+            const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.badge_id || window.adminChatT("workerDefault");
+            const meta = row.hasThread ? (row.subject || "general") : window.adminChatT("newChat");
             const active = currentWorkerId && String(row.worker_id) === String(currentWorkerId) ? " is-active" : "";
             return `<button type="button" class="thread-item${active}" data-id="${row.id || ''}" data-worker="${row.worker_id}"><strong>${name}</strong><br><span class="muted">${meta}</span></button>`;
           }).join("")
-        : `<p class="muted">Keine Mitarbeiter gefunden.</p>`;
+        : `<p class="muted">${window.adminChatT("noWorkersFound")}</p>`;
       host.querySelectorAll("[data-worker]").forEach((btn) => {
         btn.addEventListener("click", () => openThread(btn.getAttribute("data-id"), btn.getAttribute("data-worker"), btn));
       });
@@ -330,7 +376,7 @@
     async function openThread(threadId, workerId, buttonEl) {
       try {
         const resolvedId = await ensureThread(threadId, workerId);
-        if (!resolvedId) throw new Error("Chat konnte nicht geöffnet werden.");
+        if (!resolvedId) throw new Error(window.adminChatT("openThreadFailed"));
         if (buttonEl) buttonEl.setAttribute("data-id", resolvedId);
         const row = threads.find((item) => String(item.worker_id) === String(workerId));
         if (row) {
@@ -341,7 +387,7 @@
         startChatPolling();
         renderThreads();
       } catch (error) {
-        document.getElementById("threadMeta").textContent = error.message || String(error);
+        setThreadMeta(error.message || String(error), { dynamic: true });
       }
     }
     async function loadThreads() {
@@ -358,12 +404,13 @@
       const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
       const messages = data.messages || [];
       if (!quiet) {
-        document.getElementById("threadMeta").textContent = name ? `Chat mit ${name}` : `Thread: ${currentThreadId}`;
+        lastThreadMetaName = name || "";
+        setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
       }
       const list = document.getElementById("messageList");
       list.innerHTML = messages.length
         ? messages.map((msg) => renderChatBubble(msg)).join("")
-        : `<p class="muted">Noch keine Nachrichten.</p>`;
+        : `<p class="muted">${window.adminChatT("noMessages")}</p>`;
       list.scrollTop = list.scrollHeight;
       hydrateChatImagePreviews();
       renderThreads();
@@ -388,7 +435,7 @@
         const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
         if (!messageId) return;
         deleteAdminChatMessage(messageId).catch((error) => {
-          document.getElementById("threadMeta").textContent = error.message || String(error);
+          setThreadMeta(error.message || String(error), { dynamic: true });
         });
         return;
       }
@@ -399,7 +446,7 @@
       const contentType = btn.getAttribute("data-content-type") || "";
       if (!attachmentId) return;
       downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
-        document.getElementById("threadMeta").textContent = error.message || String(error);
+        setThreadMeta(error.message || String(error), { dynamic: true });
       });
     });
     document.getElementById("sendReplyBtn").addEventListener("click", async () => {
@@ -431,12 +478,14 @@
         }
         renderThreads();
       } catch (error) {
-        document.getElementById("threadMeta").textContent = error.message || String(error);
+        setThreadMeta(error.message || String(error), { dynamic: true });
       } finally {
         sendBtn.disabled = false;
       }
     });
-    loadThreads().catch((e) => { document.getElementById("threadMeta").textContent = e.message; });
+    window.applyAdminChatI18n?.();
+    window.initAdminChatLangSync?.();
+    loadThreads().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
   </script>
 </body>
 </html>

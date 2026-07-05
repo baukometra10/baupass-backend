@@ -93,9 +93,14 @@
     </div>
     <nav>
       <select id="companySelect" style="display:none"></select>
-      <a href="/ops-command-center.html">Command Center</a>
-      <a href="/ai-command-center.html">KI</a>
-      <a href="/admin-v2/index.html">Admin</a>
+      <a href="/ops-command-center.html" data-omapi18n="navCommand">Command Center</a>
+      <a href="/ai-command-center.html" data-omapi18n="navAi">KI</a>
+      <a href="/admin-v2/index.html" data-omapi18n="navAdmin">Admin</a>
+      <select id="opsMapLangSelect" aria-label="Sprache" style="font-size:0.78rem;padding:0.2rem 0.35rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
+        <option value="it">IT</option><option value="pl">PL</option>
+      </select>
       <button type="button" id="refreshBtn" style="margin-inline-start:8px">Aktualisieren</button>
     </nav>
   </header>
@@ -103,12 +108,13 @@
     <div id="map"></div>
     <aside class="side" id="workerList"></aside>
     <div class="legend">
-      <div><span class="legend-pin ops-map-pin-worker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Auf Baustelle</div>
-      <div><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Geofence</div>
-      <div><span class="legend-pin ops-map-pin-gate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> Gate (heute)</div>
+      <div><span class="legend-pin ops-map-pin-worker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> <span data-omapi18n="legendOnSite">Auf Baustelle</span></div>
+      <div><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> <span data-omapi18n="legendGeofence">Geofence</span></div>
+      <div><span class="legend-pin ops-map-pin-gate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span> <span data-omapi18n="legendGate">Gate (heute)</span></div>
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
+  <script src="/ops-live-map-i18n.js?v=20260705g"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
@@ -228,12 +234,16 @@
       });
       if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
       document.getElementById("status").textContent =
-        `${data.counts?.onSite ?? 0} on-site · ${data.counts?.zones ?? 0} Zonen · ${data.openSecurityAlerts ?? 0} Security`;
+        window.opsMapT("statusLine", {
+          onSite: data.counts?.onSite ?? 0,
+          zones: data.counts?.zones ?? 0,
+          security: data.openSecurityAlerts ?? 0,
+        });
       const list = document.getElementById("workerList");
-      list.innerHTML = "<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>Auf Baustelle</h3>" +
+      list.innerHTML = `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
         (data.workersOnSite || []).map((w) =>
           `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}"><strong>${w.name}</strong><br><span style="color:#94a3b8">${w.site||""} · ${w.gate||""}</span></div>`
-        ).join("") || "<p style='padding:0.65rem'>Niemand eingecheckt</p>";
+        ).join("") || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`;
       list.querySelectorAll(".worker-row").forEach((row) => {
         row.onclick = () => map.setView([+row.dataset.lat, +row.dataset.lng], 17);
       });
@@ -241,7 +251,7 @@
 
     async function load() {
       if (!companyId) {
-        document.getElementById("status").textContent = "Firma wählen (Superadmin)";
+        document.getElementById("status").textContent = window.opsMapT("selectCompany");
         return;
       }
       const data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
@@ -269,7 +279,7 @@
           const sel = document.getElementById("companySelect");
           sel.style.display = "inline-block";
           const rows = await api("/api/companies");
-          sel.innerHTML = `<option value="">— Firma —</option>` + rows.filter(c => !c.deleted_at).map(c =>
+          sel.innerHTML = `<option value="">${window.opsMapT("companyPlaceholder")}</option>` + rows.filter(c => !c.deleted_at).map(c =>
             `<option value="${c.id}" ${c.id === companyId ? "selected" : ""}>${c.name}</option>`).join("");
           sel.onchange = () => {
             companyId = sel.value;
@@ -302,14 +312,17 @@
           };
         }
       } catch (e) {
-        document.getElementById("status").textContent = "Anmeldung erforderlich";
+        document.getElementById("status").textContent = window.opsMapT("authRequired");
         alert(e.message);
       }
     }
 
+    window.__opsMapReload = () => load().catch((e) => alert(e.message));
+
     document.getElementById("refreshBtn")?.addEventListener("click", () =>
       load().catch((e) => alert(e.message)),
     );
+    window.initOpsMapLangSync?.();
     boot();
   </script>
 </body>
