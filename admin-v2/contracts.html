@@ -259,9 +259,9 @@
       <button type="button" class="compact" id="printBtn" data-cpi18n="toolbarPrint">Druck</button>
       <button type="button" class="compact" id="signLinkEmployeeBtn" data-cpi18n="toolbarLinkEmp">Link MA</button>
       <button type="button" class="compact" id="signLinkEmployerBtn" data-cpi18n="toolbarLinkEr">Link AG</button>
-      <button type="button" class="compact" id="signEmailEmployeeBtn" data-cpi18n="toolbarEmailEmp" data-cpi18n-attr="title">📧 MA</button>
-      <button type="button" class="compact" id="signEmailEmployerBtn" data-cpi18n="toolbarEmailEr" data-cpi18n-attr="title">📧 AG</button>
-      <button type="button" class="compact" id="signSmsEmployeeBtn" data-cpi18n="toolbarSmsEmp" data-cpi18n-attr="title">💬 MA</button>
+      <button type="button" class="compact" id="signEmailEmployeeBtn" data-cpi18n="toolbarEmailEmp">📧 MA</button>
+      <button type="button" class="compact" id="signEmailEmployerBtn" data-cpi18n="toolbarEmailEr">📧 AG</button>
+      <button type="button" class="compact" id="signSmsEmployeeBtn" data-cpi18n="toolbarSmsEmp">💬 MA</button>
       <button type="button" class="danger compact" id="deleteBtn" data-cpi18n="toolbarDelete">Löschen</button>
     </div>
     <select id="contractLangSelect" class="header-lang" aria-label="Sprache">
@@ -416,7 +416,7 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260705d"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260705e"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260621contracts1"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -734,6 +734,8 @@
       renderSignSessions(lastSignSessions);
       renderEvents(lastContractEvents);
       checkIntegrations();
+      const workerManual = document.querySelector("#workerPicker option[value='']");
+      if (workerManual) workerManual.textContent = window.contractPageT("workerPickerManual");
     };
     function syncLocaleFromJurisdiction(force = false) {
       const code = document.getElementById("jurisdiction").value;

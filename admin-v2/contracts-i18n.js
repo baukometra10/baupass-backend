@@ -55,9 +55,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Druck",
     toolbarLinkEmp: "Link MA",
     toolbarLinkEr: "Link AG",
-    toolbarEmailEmp: "E-Mail MA",
-    toolbarEmailEr: "E-Mail AG",
-    toolbarSmsEmp: "SMS MA",
+    toolbarEmailEmp: "📧 MA",
+    toolbarEmailEr: "📧 AG",
+    toolbarSmsEmp: "💬 MA",
     toolbarDelete: "Löschen",
     voiceSpeak: "Spracheingabe",
     uiLang: "Sprache",
@@ -215,9 +215,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Print",
     toolbarLinkEmp: "Link (EE)",
     toolbarLinkEr: "Link (ER)",
-    toolbarEmailEmp: "Email employee",
-    toolbarEmailEr: "Email employer",
-    toolbarSmsEmp: "SMS employee",
+    toolbarEmailEmp: "📧 EE",
+    toolbarEmailEr: "📧 ER",
+    toolbarSmsEmp: "💬 EE",
     toolbarDelete: "Delete",
     voiceSpeak: "Voice input",
     uiLang: "Language",
@@ -375,9 +375,9 @@ window.ContractPageI18n = {
     toolbarPrint: "طباعة",
     toolbarLinkEmp: "رابط موظف",
     toolbarLinkEr: "رابط صاحب عمل",
-    toolbarEmailEmp: "بريد الموظف",
-    toolbarEmailEr: "بريد صاحب العمل",
-    toolbarSmsEmp: "SMS موظف",
+    toolbarEmailEmp: "📧 موظف",
+    toolbarEmailEr: "📧 صاحب عمل",
+    toolbarSmsEmp: "💬 موظف",
     toolbarDelete: "حذف",
     voiceSpeak: "إدخال صوتي",
     uiLang: "اللغة",
@@ -534,9 +534,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Yazdir",
     toolbarLinkEmp: "Link (calisan)",
     toolbarLinkEr: "Link (isveren)",
-    toolbarEmailEmp: "E-posta calisan",
-    toolbarEmailEr: "E-posta isveren",
-    toolbarSmsEmp: "SMS calisan",
+    toolbarEmailEmp: "📧 Calisan",
+    toolbarEmailEr: "📧 Isveren",
+    toolbarSmsEmp: "💬 Calisan",
     toolbarDelete: "Sil",
     voiceSpeak: "Sesli giris",
     uiLang: "Dil",
@@ -694,9 +694,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Imprimer",
     toolbarLinkEmp: "Lien (employe)",
     toolbarLinkEr: "Lien (employeur)",
-    toolbarEmailEmp: "E-mail employe",
-    toolbarEmailEr: "E-mail employeur",
-    toolbarSmsEmp: "SMS employe",
+    toolbarEmailEmp: "📧 Employe",
+    toolbarEmailEr: "📧 Employeur",
+    toolbarSmsEmp: "💬 Employe",
     toolbarDelete: "Supprimer",
     voiceSpeak: "Saisie vocale",
     uiLang: "Langue",
@@ -854,9 +854,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Imprimir",
     toolbarLinkEmp: "Enlace (empleado)",
     toolbarLinkEr: "Enlace (empleador)",
-    toolbarEmailEmp: "Correo empleado",
-    toolbarEmailEr: "Correo empleador",
-    toolbarSmsEmp: "SMS empleado",
+    toolbarEmailEmp: "📧 Empleado",
+    toolbarEmailEr: "📧 Empleador",
+    toolbarSmsEmp: "💬 Empleado",
     toolbarDelete: "Eliminar",
     voiceSpeak: "Entrada de voz",
     uiLang: "Idioma",
@@ -1014,9 +1014,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Stampa",
     toolbarLinkEmp: "Link (dipendente)",
     toolbarLinkEr: "Link (datore)",
-    toolbarEmailEmp: "E-mail dipendente",
-    toolbarEmailEr: "E-mail datore",
-    toolbarSmsEmp: "SMS dipendente",
+    toolbarEmailEmp: "📧 Dipendente",
+    toolbarEmailEr: "📧 Datore",
+    toolbarSmsEmp: "💬 Dipendente",
     toolbarDelete: "Elimina",
     voiceSpeak: "Input vocale",
     uiLang: "Lingua",
@@ -1174,9 +1174,9 @@ window.ContractPageI18n = {
     toolbarPrint: "Drukuj",
     toolbarLinkEmp: "Link (pracownik)",
     toolbarLinkEr: "Link (pracodawca)",
-    toolbarEmailEmp: "E-mail pracownika",
-    toolbarEmailEr: "E-mail pracodawcy",
-    toolbarSmsEmp: "SMS pracownika",
+    toolbarEmailEmp: "📧 Pracownik",
+    toolbarEmailEr: "📧 Pracodawca",
+    toolbarSmsEmp: "💬 Pracownik",
     toolbarDelete: "Usun",
     voiceSpeak: "Wprowadzanie glosowe",
     uiLang: "Jezyk",
@@ -1347,6 +1347,14 @@ window.applyContractPageI18n = function applyContractPageI18n() {
   if (statusEl && !statusEl.dataset.dynamic) {
     statusEl.textContent = window.contractPageT("statusEmpty");
   }
+  ["signLinkEmployeeBtn", "signLinkEmployerBtn", "signEmailEmployeeBtn", "signEmailEmployerBtn", "signSmsEmployeeBtn", "renewSignEmployeeBtn", "renewSignEmployerBtn"].forEach((id) => {
+    const el = document.getElementById(id);
+    const key = el?.getAttribute("data-cpi18n");
+    if (!el || !key) return;
+    const label = window.contractPageT(key);
+    el.title = label;
+    el.setAttribute("aria-label", label);
+  });
   if (typeof window.refreshContractPageDynamicUi === "function") {
     window.refreshContractPageDynamicUi();
   }
