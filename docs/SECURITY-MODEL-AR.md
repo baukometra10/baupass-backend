@@ -20,7 +20,10 @@
 
 ## E2E Chat
 
-**غير مُنفَّذ حالياً** (لا Signal/Double Ratchet). TLS + تشفير at-rest اختياري للرسائل.
+**Phase 1 Foundation** — Public-Key-Registrierung + Client `e2e-crypto.js` (Private Keys nur auf dem Gerät).  
+Roadmap: [`docs/E2E-VERSCHLUESSELUNG.md`](E2E-VERSCHLUESSELUNG.md)
+
+Bisher: TLS + optional Fernet at-rest (**kein** echtes E2E). Ziel: Ciphertext-only auf dem Server.
 
 ## Bridge / Agent
 

@@ -1750,6 +1750,10 @@ let gateEventPollInFlight = false;
 let gateLastSeenEventId = "";
 let workerChatThreadId = "";
 let workerChatPollTimer = null;
+let workerE2EIdentityReady = false;
+let workerE2EPublicKeysCache = null;
+let workerE2EPublicKeysCacheAt = 0;
+const WORKER_E2E_KEYS_TTL_MS = 60000;
 let workerNotificationPollTimer = null;
 
 const elements = {
@@ -4622,6 +4626,9 @@ async function loadWorkerData(options = {}) {
     }
     void syncOfflinePhotoQueue();
     void syncOfflineEventQueue();
+    if (workerPlanAllowsFeature("worker_chat")) {
+      void ensureWorkerE2EIdentity();
+    }
     return true;
   } catch (error) {
     if (!tokenAtRequest || tokenAtRequest !== workerToken) {
@@ -7601,6 +7608,9 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   workerToken = "";
   workerBearerToken = "";
   workerChatThreadId = "";
+  workerE2EIdentityReady = false;
+  workerE2EPublicKeysCache = null;
+  workerE2EPublicKeysCacheAt = 0;
   stopWorkerChatPolling();
   clearWorkerSessionExpiryTimer();
   if (showNotice) {
@@ -10849,6 +10859,109 @@ async function downloadWorkerDocument(docId, filename) {
   URL.revokeObjectURL(url);
 }
 
+function workerE2ECryptoAvailable() {
+  return typeof window.E2ECrypto !== "undefined" && workerPlanAllowsFeature("worker_chat");
+}
+
+function getWorkerE2EEntityId() {
+  return String(lastWorkerPayload?.worker?.id || "").trim();
+}
+
+async function ensureWorkerE2EIdentity() {
+  if (!workerE2ECryptoAvailable()) {
+    workerE2EIdentityReady = false;
+    return false;
+  }
+  const workerId = getWorkerE2EEntityId();
+  if (!workerId || !workerToken) {
+    workerE2EIdentityReady = false;
+    return false;
+  }
+  try {
+    const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
+    await window.E2ECrypto.registerPublicKey(`${API_BASE}/e2e/identity/me`, identity.publicKeySpkiB64, {
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+      credentials: "include",
+    });
+    workerE2EIdentityReady = true;
+    return true;
+  } catch {
+    workerE2EIdentityReady = false;
+    return false;
+  }
+}
+
+async function fetchWorkerE2EPublicKeys(force = false) {
+  if (!workerE2ECryptoAvailable()) {
+    return [];
+  }
+  if (!workerE2EIdentityReady) {
+    await ensureWorkerE2EIdentity();
+  }
+  const now = Date.now();
+  if (!force && workerE2EPublicKeysCache && now - workerE2EPublicKeysCacheAt < WORKER_E2E_KEYS_TTL_MS) {
+    return workerE2EPublicKeysCache;
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/e2e/identity/public-keys`, {
+      headers: buildWorkerAuthHeaders(),
+    });
+    workerE2EPublicKeysCache = (payload?.publicKeys || [])
+      .map((row) => String(row.publicKeySpkiB64 || row.public_key_spki_b64 || "").trim())
+      .filter(Boolean);
+    workerE2EPublicKeysCacheAt = now;
+    return workerE2EPublicKeysCache;
+  } catch {
+    return workerE2EPublicKeysCache || [];
+  }
+}
+
+async function encryptWorkerChatBody(plaintext) {
+  const text = String(plaintext || "");
+  if (!text || !workerE2ECryptoAvailable() || window.E2ECrypto.isE2EEnvelope(text)) {
+    return text;
+  }
+  try {
+    const keys = await fetchWorkerE2EPublicKeys();
+    if (!keys.length) {
+      return text;
+    }
+    return await window.E2ECrypto.encryptUtf8(text, keys);
+  } catch {
+    return text;
+  }
+}
+
+async function decryptWorkerChatBody(storedBody) {
+  const text = String(storedBody || "");
+  if (!text || !workerE2ECryptoAvailable() || !window.E2ECrypto.isE2EEnvelope(text)) {
+    return text;
+  }
+  const workerId = getWorkerE2EEntityId();
+  if (!workerId) {
+    return text;
+  }
+  try {
+    return await window.E2ECrypto.decryptUtf8(text, "worker", workerId);
+  } catch {
+    return t("workerChatE2EDecryptFailed");
+  }
+}
+
+async function prepareWorkerChatMessagesForDisplay(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return [];
+  }
+  const prepared = [];
+  for (const msg of messages) {
+    prepared.push({
+      ...msg,
+      body: await decryptWorkerChatBody(msg.body),
+    });
+  }
+  return prepared;
+}
+
 async function ensureWorkerChatThread(forceRefresh = false) {
   if (!workerToken) {
     return "";
@@ -10914,7 +11027,12 @@ function renderWorkerChatMessages(messages) {
     elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatEmpty")}</p>`;
     return;
   }
-  elements.workerChatMessages.innerHTML = messages
+  void (async () => {
+    const displayMessages = await prepareWorkerChatMessagesForDisplay(messages);
+    if (!elements.workerChatMessages) {
+      return;
+    }
+    elements.workerChatMessages.innerHTML = displayMessages
     .map((msg) => {
       const side = workerChatSenderSide(msg);
       const senderLabel = side === "mine" ? t("workerChatFromYou") : getWorkerBrandTitle();
@@ -10947,9 +11065,10 @@ function renderWorkerChatMessages(messages) {
       `;
     })
     .join("");
-  bindWorkerChatMessageActions();
-  applyWorkerChatDirection();
-  elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+    bindWorkerChatMessageActions();
+    applyWorkerChatDirection();
+    elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+  })();
 }
 
 async function downloadWorkerChatAttachment(attachmentId, filename) {
@@ -11075,10 +11194,10 @@ async function sendWorkerChatMessage() {
   if (!body && !file) {
     return;
   }
-  const postMessage = async (threadId) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+  const postMessage = async (threadId, outboundBody) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
     method: "POST",
     headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ body }),
+    body: JSON.stringify({ body: outboundBody }),
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
   try {
@@ -11088,9 +11207,10 @@ async function sendWorkerChatMessage() {
       return;
     }
     setWorkerChatComposeEnabled(false);
+    const outboundBody = await encryptWorkerChatBody(body);
     let messageId = "";
     try {
-      const sent = await postMessage(threadId);
+      const sent = await postMessage(threadId, outboundBody);
       messageId = String(sent?.message?.id || "");
     } catch (error) {
       if (error?.code === "thread_not_found" || error?.code === "chat_send_failed") {
@@ -11099,7 +11219,7 @@ async function sendWorkerChatMessage() {
         if (!threadId) {
           throw error;
         }
-        const sent = await postMessage(threadId);
+        const sent = await postMessage(threadId, outboundBody);
         messageId = String(sent?.message?.id || "");
       } else {
         throw error;
@@ -11136,6 +11256,7 @@ async function openWorkerChatScreen() {
     return;
   }
   switchToTab("chat");
+  void ensureWorkerE2EIdentity();
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();
   }

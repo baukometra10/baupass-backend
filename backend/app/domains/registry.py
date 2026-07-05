@@ -25,6 +25,7 @@ DOMAIN_REGISTRARS: tuple[DomainRegistrar, ...] = (
     DomainRegistrar("runtime", "backend.app.domains.runtime.routes", "register_runtime_blueprint", "foundation"),
     DomainRegistrar("settings", "backend.app.domains.settings.routes", "register_settings_blueprint", "foundation"),
     DomainRegistrar("rbac", "backend.app.domains.rbac.routes", "register_rbac_domain_blueprint", "foundation"),
+    DomainRegistrar("e2e", "backend.app.domains.e2e.routes", "register_e2e_blueprint", "foundation"),
     # Tenant & people
     DomainRegistrar("companies", "backend.app.domains.companies.routes", "register_companies_blueprint", "tenant"),
     DomainRegistrar("workers", "backend.app.domains.workers.routes", "register_workers_blueprint", "tenant"),

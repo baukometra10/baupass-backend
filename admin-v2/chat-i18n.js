@@ -27,6 +27,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Chat konnte nicht geöffnet werden.",
     uiLang: "Sprache",
     yesterday: "Gestern",
+    e2eDecryptFailed: "Verschlüsselte Nachricht — Entschlüsselung fehlgeschlagen.",
   },
   en: {
     pageSubtitle: "Employee chat",
@@ -55,6 +56,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Could not open chat.",
     uiLang: "Language",
     yesterday: "Yesterday",
+    e2eDecryptFailed: "Encrypted message — decryption failed.",
   },
   ar: {
     pageSubtitle: "دردشة الموظفين",
@@ -83,6 +85,7 @@ window.AdminChatI18n = {
     openThreadFailed: "تعذر فتح الدردشة.",
     uiLang: "اللغة",
     yesterday: "أمس",
+    e2eDecryptFailed: "رسالة مشفرة — فشل فك التشفير.",
   },
   tr: {
     pageSubtitle: "Calisan sohbeti",
@@ -111,6 +114,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Sohbet acilamadi.",
     uiLang: "Dil",
     yesterday: "Dun",
+    e2eDecryptFailed: "Sifreli mesaj — cozulemedi.",
   },
   fr: {
     pageSubtitle: "Chat employes",
@@ -139,6 +143,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Impossible d'ouvrir le chat.",
     uiLang: "Langue",
     yesterday: "Hier",
+    e2eDecryptFailed: "Message chiffre — dechiffrement impossible.",
   },
   es: {
     pageSubtitle: "Chat de empleados",
@@ -167,6 +172,7 @@ window.AdminChatI18n = {
     openThreadFailed: "No se pudo abrir el chat.",
     uiLang: "Idioma",
     yesterday: "Ayer",
+    e2eDecryptFailed: "Mensaje cifrado — no se pudo descifrar.",
   },
   it: {
     pageSubtitle: "Chat dipendenti",
@@ -195,6 +201,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Impossibile aprire la chat.",
     uiLang: "Lingua",
     yesterday: "Ieri",
+    e2eDecryptFailed: "Messaggio crittografato — decifratura non riuscita.",
   },
   pl: {
     pageSubtitle: "Czat pracownikow",
@@ -223,6 +230,7 @@ window.AdminChatI18n = {
     openThreadFailed: "Nie mozna otworzyc czatu.",
     uiLang: "Jezyk",
     yesterday: "Wczoraj",
+    e2eDecryptFailed: "Zaszyfrowana wiadomosc — nie udalo sie odszyfrowac.",
   },
 };
 
