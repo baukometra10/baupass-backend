@@ -451,6 +451,59 @@
     }
   }
 
+  async function exportIdentityQrPayload(entityType, entityId) {
+    const id = identityStorageId(entityType, entityId);
+    const record = await idbGet(id);
+    if (!record?.privateKeyEnc) throw new Error("e2e_identity_missing");
+    const transferKey = crypto.getRandomValues(new Uint8Array(32));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const master = await crypto.subtle.importKey("raw", transferKey, "AES-GCM", false, ["encrypt", "decrypt"]);
+    const plain = utf8Encode(JSON.stringify(record.privateKeyEnc));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, master, plain);
+    const payload = {
+      v: 1,
+      kind: "identity-transfer",
+      entityType,
+      entityId,
+      publicKeySpkiB64: record.publicKeySpkiB64,
+      algorithm: ALGORITHM,
+      iv: b64Encode(iv),
+      ct: b64Encode(new Uint8Array(ct)),
+      exp: Date.now() + 5 * 60 * 1000,
+    };
+    return {
+      qrText: JSON.stringify({ ...payload, transferKey: b64Encode(transferKey) }),
+      expiresAt: payload.exp,
+    };
+  }
+
+  async function importIdentityQrPayload(qrText, entityType, entityId) {
+    const parsed = JSON.parse(String(qrText || ""));
+    if (parsed.kind !== "identity-transfer" || Date.now() > Number(parsed.exp || 0)) {
+      throw new Error("e2e_transfer_expired");
+    }
+    const transferKey = b64Decode(parsed.transferKey);
+    const master = await crypto.subtle.importKey("raw", transferKey, "AES-GCM", false, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: b64Decode(parsed.iv) },
+      master,
+      b64Decode(parsed.ct),
+    );
+    const privateKeyEnc = JSON.parse(utf8Decode(new Uint8Array(plain)));
+    const id = identityStorageId(entityType || parsed.entityType, entityId || parsed.entityId);
+    await idbPut({
+      id,
+      entityType: entityType || parsed.entityType,
+      entityId: entityId || parsed.entityId,
+      publicKeySpkiB64: parsed.publicKeySpkiB64,
+      privateKeyEnc,
+      algorithm: parsed.algorithm || ALGORITHM,
+      createdAt: new Date().toISOString(),
+      importedAt: new Date().toISOString(),
+    });
+    return true;
+  }
+
   global.E2ECrypto = Object.freeze({
     ALGORITHM,
     ENVELOPE_VERSION,
@@ -467,6 +520,8 @@
     importRecoveryPhrase,
     rotateIdentity,
     decryptUtf8WithArchive,
+    exportIdentityQrPayload,
+    importIdentityQrPayload,
     exportPublicKeySpkiB64,
     importPublicKeySpkiB64,
   });

@@ -3969,6 +3969,8 @@ def init_db():
     doc_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_documents)").fetchall()]
     if "expiry_date" not in doc_columns:
         cur.execute("ALTER TABLE worker_documents ADD COLUMN expiry_date TEXT")
+    if "e2e_meta" not in doc_columns:
+        cur.execute("ALTER TABLE worker_documents ADD COLUMN e2e_meta TEXT")
 
     # ── Neu: is_read fuer E-Mail-Posteingang ──
     inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]
@@ -25053,6 +25055,8 @@ def upload_worker_document(worker_id):
         filename=uploaded_file.filename if uploaded_file else None,
         mimetype=(uploaded_file.mimetype or "") if uploaded_file else "",
         file_data=uploaded_file.read() if uploaded_file else b"",
+        e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
+        encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),
     )
     if "error" in result:
         return jsonify(result["error"]), result.get("status", 400)
@@ -26832,7 +26836,7 @@ def worker_app_my_documents():
     lang = str(request.args.get("lang") or "de")[:2]
     rows = db.execute(
         """
-        SELECT id, doc_type, filename, file_size, created_at, notes, expiry_date
+        SELECT id, doc_type, filename, file_size, created_at, notes, expiry_date, e2e_meta
         FROM worker_documents
         WHERE worker_id = ?
         ORDER BY created_at DESC

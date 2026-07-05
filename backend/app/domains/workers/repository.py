@@ -332,7 +332,7 @@ class WorkersRepository:
     def list_worker_documents(self, db, worker_id: str) -> list[dict[str, Any]]:
         rows = db.execute(
             """
-            SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date
+            SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date, e2e_meta
             FROM worker_documents
             WHERE worker_id = ?
             ORDER BY created_at DESC
@@ -365,13 +365,14 @@ class WorkersRepository:
         created_at: str,
         notes: str,
         expiry_date: str | None,
+        e2e_meta: str | None = None,
     ) -> None:
         db.execute(
             """
             INSERT INTO worker_documents
                (id, worker_id, company_id, doc_type, filename, file_path, file_size,
-                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date, e2e_meta)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 doc_id,
@@ -387,6 +388,7 @@ class WorkersRepository:
                 created_at,
                 notes,
                 expiry_date,
+                e2e_meta,
             ),
         )
 

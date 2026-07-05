@@ -427,12 +427,15 @@
             <strong data-cpi18n="eventsTitle">Verlauf</strong>
             <ul id="eventsList"></ul>
           </div>
+          <div id="e2eSecurityHost"></div>
         </div>
       </form>
     </div>
   </div>
   <script src="/admin-v2/contracts-i18n.js?v=20260705e"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260621contracts1"></script>
+  <script src="/e2e-crypto.js?v=20260705e2e3"></script>
+  <script src="/e2e-admin-bridge.js?v=20260705e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -820,6 +823,15 @@
         ...contractFormPayload(),
       };
     }
+    async function saveContractPayloadAsync() {
+      const payload = contractActionPayload();
+      const workerId = document.getElementById("workerId").value || "";
+      const text = String(payload.final_text || "").trim();
+      if (text && window.E2EAdminBridge?.cryptoReady?.() && !window.E2ECrypto.isE2EEnvelope(text)) {
+        payload.final_text = await window.E2EAdminBridge.encryptField(text, workerId, companyId);
+      }
+      return payload;
+    }
     function saveContractPayload() {
       return contractActionPayload();
     }
@@ -858,18 +870,9 @@
     async function fetchContractPreviewBlob() {
       if (!currentContractId) throw new Error(window.contractPageT("statusNoContract"));
       await persistContract();
-      const url = `/api/contracts/${encodeURIComponent(currentContractId)}/preview.pdf?company_id=${encodeURIComponent(companyId)}&t=${Date.now()}`;
-      const res = await fetch(url, {
-        headers: { ...headers(), Accept: "application/pdf" },
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        const err = new Error(data.error || window.contractPageT("statusError"));
-        err.data = data;
-        throw err;
-      }
-      return res.blob();
+      const text = document.getElementById("contractEditor").value || "";
+      const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Vertrag</title></head><body style="font-family:Georgia,serif;padding:2rem;white-space:pre-wrap;line-height:1.45;">${String(text).replace(/&/g,"&amp;").replace(/</g,"&lt;")}</body></html>`;
+      return new Blob([html], { type: "text/html" });
     }
     async function setEditorMode(mode) {
       const pdf = mode === "pdf";
@@ -949,10 +952,11 @@
     }
     async function persistContract() {
       if (!currentContractId) return;
+      const body = await saveContractPayloadAsync();
       await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(saveContractPayload()),
+        body: JSON.stringify(body),
       });
     }
     function signStatusBadge(row) {
@@ -987,7 +991,7 @@
         return `<li>${role}: ${stLabel}${exp ? ` · ${exp}` : ""}${s.signer_name ? ` — ${s.signer_name}` : ""}</li>`;
       }).join("");
     }
-    function fillFormFromContract(data) {
+    async function fillFormFromContract(data) {
       const input = data.input_json ? (typeof data.input_json === "string" ? JSON.parse(data.input_json) : data.input_json) : {};
       const form = input.form || {};
       document.getElementById("contractTitle").value = data.title || "";
@@ -1023,7 +1027,11 @@
       document.getElementById("salaryHourly").value = form.hourly_rate || form.hourly_wage || "";
       syncSalaryFields();
       document.getElementById("notes").value = input.notes || "";
-      document.getElementById("contractEditor").value = data.final_text || data.draft_text || "";
+      let contractText = data.final_text || data.draft_text || "";
+      if (window.E2EAdminBridge) {
+        contractText = await window.E2EAdminBridge.decryptField(contractText);
+      }
+      document.getElementById("contractEditor").value = contractText;
       baselineDraftText = data.draft_text || "";
       document.getElementById("diffPanel").classList.add("hidden");
       if (form.currency) document.getElementById("currency").dataset.userSet = "1";
@@ -1137,7 +1145,7 @@
         btn.addEventListener("click", async () => {
           const data = await api(`/api/contracts/${btn.getAttribute("data-id")}?company_id=${encodeURIComponent(companyId)}`);
           currentContractId = data.id || "";
-          fillFormFromContract(data);
+          await fillFormFromContract(data);
           setStatus(`${data.title || data.id}`, { active: true });
           renderContractList();
         });
@@ -1323,6 +1331,8 @@
     });
     ensureAccess().then((ok) => {
       if (!ok) return;
+      void window.E2EAdminBridge?.ensureIdentity?.();
+      window.E2EAdminBridge?.mountSecurityPanel?.(document.getElementById("e2eSecurityHost"), { companyId });
       const preWorker = params.get("worker_id") || "";
       loadTemplates().then(() => loadWorkers()).then(loadContracts).then(checkIntegrations).then(() => {
         if (preWorker) {

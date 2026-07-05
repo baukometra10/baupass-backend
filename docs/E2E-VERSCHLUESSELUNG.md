@@ -103,14 +103,14 @@ flowchart LR
 - [x] Key-Rotation API + archivierte Keys lokal
 
 ### Phase 3 — Weitere Domänen
-- [x] Urlaubsanträge: `note` E2E erzwungen
-- [ ] Dokumenten-Upload E2E (Admin-Upload-Pfad)
-- [x] Verträge: `final_text` E2E erzwungen bei Update
+- [x] Urlaubsanträge: `note` E2E erzwungen; Admin-UI entschlüsselt (`app.js`, AI Command Center)
+- [x] Dokumenten-Upload E2E (Admin + Worker-Download)
+- [x] Verträge: `final_text` E2E erzwungen bei Update (Admin contracts.html)
 
 ### Phase 4 — Mobile Native
 - [x] Flutter: `e2e_crypto_service.dart` + Secure Storage
 - [x] Chat Mobile: E2E Send/Receive/Attachments
-- [ ] Multi-Device QR-Transfer
+- [x] Multi-Device QR-Transfer (Web: `exportIdentityQrPayload` / `importIdentityQrPayload`, Worker + Admin Panel)
 
 ---
 

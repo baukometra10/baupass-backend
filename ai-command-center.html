@@ -322,6 +322,8 @@
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
+  <script src="/e2e-crypto.js?v=20260705e2e4"></script>
+  <script src="/e2e-admin-bridge.js?v=20260705e2e4"></script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);
@@ -1186,12 +1188,15 @@
       }
       try {
         const rows = await api(`/api/leave-requests?status=ausstehend&${companyQs()}`);
-        if (!Array.isArray(rows) || !rows.length) {
+        const decrypted = window.E2EAdminBridge?.decryptLeaveRequests
+          ? await window.E2EAdminBridge.decryptLeaveRequests(rows)
+          : rows;
+        if (!Array.isArray(decrypted) || !decrypted.length) {
           host.innerHTML = "";
           return;
         }
-        host.innerHTML = `<div class="playbook-block"><h3>${tf("leavePendingHeading", { count: rows.length })}</h3>` +
-          rows.slice(0, 8).map((row) => {
+        host.innerHTML = `<div class="playbook-block"><h3>${tf("leavePendingHeading", { count: decrypted.length })}</h3>` +
+          decrypted.slice(0, 8).map((row) => {
             const id = escapeHtml(String(row.id || ""));
             const name = escapeHtml(String(row.worker_name || row.worker_id || t("leaveWorkerDefault")));
             const meta = escapeHtml(`${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`);
@@ -1200,7 +1205,7 @@
           `</div>`;
         host.querySelectorAll("[data-leave-id]").forEach((btn) => {
           btn.addEventListener("click", () => {
-            const row = rows.find((item) => String(item.id) === btn.getAttribute("data-leave-id"));
+            const row = decrypted.find((item) => String(item.id) === btn.getAttribute("data-leave-id"));
             const metaEl = document.getElementById("aiLeavePdfMeta");
             if (metaEl && row) {
               metaEl.textContent = `${row.worker_name || row.worker_id || "-"} · ${row.type || "-"} · ${row.start_date || "-"} – ${row.end_date || "-"}`;

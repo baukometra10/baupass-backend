@@ -5123,6 +5123,11 @@ function renderWorker(payload, options = {}) {
   }
   if (!isVisitor) {
     void ensureWorkerPushNotifications({ promptIfNeeded: false });
+    void ensureWorkerE2EIdentity();
+    const e2eHost = document.getElementById("workerE2eSecurityHost");
+    if (e2eHost && window.WorkerE2ESecurity?.mountWorkerE2ESecurityPanel) {
+      window.WorkerE2ESecurity.mountWorkerE2ESecurityPanel(e2eHost);
+    }
   }
 
   const launchHash = (window.location.hash || "").toLowerCase();
@@ -10869,7 +10874,7 @@ function workerDocTypeLabel(doc) {
   return t(key) || raw.replace(/_/g, " ");
 }
 
-async function downloadWorkerDocument(docId, filename) {
+async function downloadWorkerDocument(docId, filename, e2eMeta) {
   const response = await fetch(`${API_BASE}/my-documents/${encodeURIComponent(docId)}/download`, {
     headers: { Authorization: `Bearer ${workerToken}` },
   });
@@ -10877,10 +10882,20 @@ async function downloadWorkerDocument(docId, filename) {
     throw new Error(`HTTP ${response.status}`);
   }
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
+  let outBlob = blob;
+  let outName = filename || "dokument.pdf";
+  const meta = String(e2eMeta || "").trim();
+  if (meta && workerE2ECryptoAvailable()) {
+    const workerId = getWorkerE2EEntityId();
+    const buffer = new Uint8Array(await blob.arrayBuffer());
+    const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
+    outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "application/octet-stream" });
+    outName = decrypted.filename || outName;
+  }
+  const url = URL.createObjectURL(outBlob);
   const anchor = document.createElement("a");
   anchor.href = url;
-  anchor.download = filename || "dokument.pdf";
+  anchor.download = outName;
   anchor.click();
   URL.revokeObjectURL(url);
 }
@@ -11448,7 +11463,7 @@ async function loadMyDocuments() {
         ? `<button type="button" class="doc-open-plan-btn ghost small-btn" data-open-einsatzplan="1">${t("deploymentPlanOpenInApp")}</button>`
         : "";
       const downloadBtn = doc.id && doc.canDownload !== false
-        ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}">⬇ ${t("documentsDownload")}</button>`
+        ? `<button type="button" class="doc-download-btn" data-doc-id="${escapeHtmlBasic(doc.id)}" data-doc-name="${escapeHtmlBasic(doc.filename || "dokument.pdf")}" data-doc-e2e-meta="${escapeHtmlBasic(String(doc.e2e_meta || ""))}">⬇ ${t("documentsDownload")}</button>`
         : "";
       return `<div class="document-item ${statusClass}${isPayroll ? " doc-payroll-item" : ""}">
         <div class="doc-type-row">
@@ -11480,9 +11495,10 @@ async function loadMyDocuments() {
       btn.addEventListener("click", async () => {
         const docId = btn.getAttribute("data-doc-id");
         const docName = btn.getAttribute("data-doc-name") || "dokument.pdf";
+        const e2eMeta = btn.getAttribute("data-doc-e2e-meta") || "";
         btn.disabled = true;
         try {
-          await downloadWorkerDocument(docId, docName);
+          await downloadWorkerDocument(docId, docName, e2eMeta);
         } catch (error) {
           showWorkerNotice(formatWorkerApiError(error));
         } finally {

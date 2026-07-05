@@ -889,9 +889,13 @@ class WorkersService:
         filename: str | None,
         mimetype: str,
         file_data: bytes,
+        e2e_meta: str | None = None,
+        encrypted: bool = False,
     ) -> dict[str, Any]:
         import secrets
 
+        from backend.app.platform.security.e2e_envelope import assert_e2e_attachment, assert_e2e_sensitive_field
+        from backend.app.platform.security.e2e_policy import is_e2e_attachment_required, is_e2e_sensitive_required
         from backend.app.platform.worker_documents import (
             ALLOWED_WORKER_DOC_TYPES as ALLOWED_DOC_TYPES,
             normalize_doc_type,
@@ -956,6 +960,21 @@ class WorkersService:
         if "error" in loaded:
             return loaded
         worker = loaded["worker"]
+        company_id = str(worker.get("company_id") or "")
+        if is_e2e_attachment_required(db, company_id):
+            try:
+                assert_e2e_attachment(
+                    e2e_meta=str(e2e_meta or ""),
+                    content_type=str(mimetype or ""),
+                    encrypted=bool(encrypted),
+                )
+            except ValueError as exc:
+                return {"error": {"error": str(exc)}, "status": 400}
+        if notes and is_e2e_sensitive_required(db, company_id):
+            try:
+                assert_e2e_sensitive_field(notes, field_name="notes")
+            except ValueError as exc:
+                return {"error": {"error": str(exc)}, "status": 400}
 
         base_upload_root = DOCS_UPLOAD_DIR.resolve()
         worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
@@ -992,6 +1011,7 @@ class WorkersService:
             created_at=now_iso(),
             notes=notes,
             expiry_date=expiry_date,
+            e2e_meta=str(e2e_meta or "").strip() or None,
         )
         unlock_worker_if_documents_valid(db, worker, actor=user)
         try:

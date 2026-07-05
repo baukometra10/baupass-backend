@@ -20822,6 +20822,7 @@ function refreshAll() {
   loadDevices();
   showLoginGreeting();
   renderTwofaPanel();
+  renderE2ESecurityPanel();
   renderInvoiceHistory();
   renderInvoiceManagementList();
   updateDocumentEmailInfoBar();
@@ -27419,8 +27420,9 @@ function showWorkerDetailOverlay(worker) {
     }
     const docsContainer = overlay.querySelector("#workerDocsList");
     if (docsContainer) {
-      loadWorkerDocuments(worker.id).then((docs) => {
-        renderWorkerDocuments(docs, worker.id, docsContainer);
+      loadWorkerDocuments(worker.id).then(async (docs) => {
+        const prepared = await prepareWorkerDocumentsForDisplay(docs, worker.id);
+        await renderWorkerDocuments(prepared, worker.id, docsContainer);
       });
     }
   }
@@ -28379,7 +28381,7 @@ function renderWorkerDocuments(docs, workerId, container) {
             <span class="muted"> · ${escapeHtml(doc.filename)}${expiry}${notes} · ${escapeHtml(date)}</span>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;">
-            <button type="button" class="ghost-button small-button" data-download-doc="${escapeHtml(doc.id)}" data-doc-filename="${escapeHtml(doc.filename)}" style="font-size:0.8em;">${escapeHtml(uiT("btnDownloadDoc"))}</button>
+            <button type="button" class="ghost-button small-button" data-download-doc="${escapeHtml(doc.id)}" data-doc-filename="${escapeHtml(doc.filename)}" data-doc-e2e-meta="${escapeAttr(String(doc.e2e_meta || ""))}" style="font-size:0.8em;">${escapeHtml(uiT("btnDownloadDoc"))}</button>
             ${deleteBtn}
           </div>
         </div>`;
@@ -28413,6 +28415,7 @@ function renderWorkerDocuments(docs, workerId, container) {
       try {
         const docId = btn.dataset.downloadDoc;
         const filename = btn.dataset.docFilename || "dokument";
+        const e2eMeta = String(btn.dataset.docE2eMeta || "").trim();
         const response = await fetch(
           `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/${encodeURIComponent(docId)}/download`,
           { headers: { Authorization: `Bearer ${token}` }, credentials: "include" }
@@ -28431,10 +28434,19 @@ function renderWorkerDocuments(docs, workerId, container) {
           throw new Error(backendError || `HTTP ${response.status}`);
         }
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
+        let outBlob = blob;
+        let outName = filename;
+        if (e2eMeta && window.E2EAdminBridge?.cryptoReady?.() && window.E2ECrypto?.decryptBlob) {
+          const adminUserId = window.E2EAdminBridge.getAdminUserId?.() || "";
+          const buffer = new Uint8Array(await blob.arrayBuffer());
+          const decrypted = await window.E2ECrypto.decryptBlob(buffer, e2eMeta, "user", adminUserId);
+          outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "application/octet-stream" });
+          outName = decrypted.filename || outName;
+        }
+        const url = URL.createObjectURL(outBlob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = filename;
+        a.download = outName;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -28444,7 +28456,8 @@ function renderWorkerDocuments(docs, workerId, container) {
         if (String(err?.message || "").toLowerCase().includes("dokument nicht gefunden")) {
           try {
             const updatedDocs = await loadWorkerDocuments(workerId);
-            renderWorkerDocuments(updatedDocs, workerId, container);
+            const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
+            await renderWorkerDocuments(prepared, workerId, container);
           } catch {
             // ignore refresh errors and keep current UI state
           }
@@ -28467,7 +28480,8 @@ function renderWorkerDocuments(docs, workerId, container) {
           { method: "DELETE" }
         );
         const updatedDocs = await loadWorkerDocuments(workerId);
-        renderWorkerDocuments(updatedDocs, workerId, container);
+        const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
+        await renderWorkerDocuments(prepared, workerId, container);
       } catch (err) {
         showToast(runtimeText("docDeleteFailed").replace("{error}", err.message), "error", 3600);
         btn.disabled = false;
@@ -28481,6 +28495,7 @@ function renderWorkerDocuments(docs, workerId, container) {
     const docTypeSelect = form.querySelector("select[name=docType]");
     const expiryRow = form.querySelector(".doc-expiry-row");
     const expiryInput = form.querySelector("input[name=expiryDate]");
+    const fileInput = form.querySelector("input[name=file]");
 
     docTypeSelect.addEventListener("change", () => {
       const needsExpiry = DOC_TYPES_REQUIRE_EXPIRY.has(docTypeSelect.value);
@@ -28496,9 +28511,24 @@ function renderWorkerDocuments(docs, workerId, container) {
         const formData = new FormData();
         formData.append("docType", docTypeSelect.value);
         formData.append("expiryDate", expiryInput.value || "");
-        formData.append("notes", (form.querySelector("textarea[name=notes]").value || "").trim());
-        const fileInput = form.querySelector("input[name=file]");
-        if (fileInput.files[0]) formData.append("file", fileInput.files[0]);
+        const notesRaw = (form.querySelector("textarea[name=notes]").value || "").trim();
+        const companyId = await resolveWorkerDocumentsCompanyId(workerId);
+        let uploadFile = fileInput.files[0];
+        if (uploadFile && window.E2EAdminBridge?.cryptoReady?.()) {
+          await window.E2EAdminBridge.ensureIdentity?.();
+          const packed = await window.E2EAdminBridge.encryptDocumentUpload(uploadFile, workerId, companyId);
+          formData.append("e2e_meta", packed.meta);
+          formData.append("e2e_encrypted", "1");
+          uploadFile = new File([packed.blob], `${uploadFile.name || "upload.bin"}.e2e`, {
+            type: "application/vnd.suppix.e2e+binary",
+          });
+        }
+        if (notesRaw && window.E2EAdminBridge?.encryptNotesField) {
+          formData.append("notes", await window.E2EAdminBridge.encryptNotesField(notesRaw, workerId, companyId));
+        } else {
+          formData.append("notes", notesRaw);
+        }
+        if (uploadFile) formData.append("file", uploadFile);
 
         const response = await fetch(
           `${API_BASE}/api/workers/${encodeURIComponent(workerId)}/documents/upload`,
@@ -28522,7 +28552,8 @@ function renderWorkerDocuments(docs, workerId, container) {
 
         showToast(uiT("docUploadSuccess"), "success");
         const updatedDocs = await loadWorkerDocuments(workerId);
-        renderWorkerDocuments(updatedDocs, workerId, container);
+        const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
+        await renderWorkerDocuments(prepared, workerId, container);
       } catch (err) {
         showToast(`Upload fehlgeschlagen: ${err.message}`, "error", 3600);
         if (submitBtn) submitBtn.disabled = false;
@@ -33694,6 +33725,38 @@ async function handlePasswordChange(event) {
 
 
 // ── 2FA Panel ──────────────────────────────────────────────────────────────
+function renderE2ESecurityPanel() {
+  const host = document.getElementById("e2eSecurityHost");
+  if (!host || !window.E2EAdminBridge?.cryptoReady?.()) {
+    if (host) host.innerHTML = "";
+    return;
+  }
+  void window.E2EAdminBridge.ensureIdentity?.();
+  window.E2EAdminBridge.mountSecurityPanel?.(host, {
+    companyId: String(getEffectiveUiCompanyId() || ""),
+  });
+}
+
+async function resolveWorkerDocumentsCompanyId(workerId) {
+  const worker = (state.workers || []).find((entry) => String(entry?.id || "") === String(workerId || ""));
+  return String(getWorkerCompanyId(worker) || getEffectiveUiCompanyId() || "").trim();
+}
+
+async function prepareWorkerDocumentsForDisplay(docs, workerId) {
+  if (!Array.isArray(docs) || !window.E2EAdminBridge?.cryptoReady?.()) {
+    return docs || [];
+  }
+  const out = [];
+  for (const doc of docs) {
+    const copy = { ...doc };
+    if (copy.notes) {
+      copy.notes = await window.E2EAdminBridge.decryptField(copy.notes);
+    }
+    out.push(copy);
+  }
+  return out;
+}
+
 function renderTwofaPanel() {
   const panel = document.getElementById("twofaPanel");
   if (!panel) {
@@ -37868,6 +37931,11 @@ async function loadLeaveRequests(filterStatus = null, options = {}) {
       console.info("[WorkPass admin leave] loaded", requests.length, "requests", scopeHint);
     }
 
+    void window.E2EAdminBridge?.ensureIdentity?.();
+    if (window.E2EAdminBridge?.decryptLeaveRequests) {
+      requests = await window.E2EAdminBridge.decryptLeaveRequests(requests);
+    }
+
     if (String(getCurrentUser()?.role || "").toLowerCase() === "superadmin") {
       try {
         const statsResponse = await fetch(`${API_BASE}/api/leave-requests/stats`, {
@@ -38044,12 +38112,16 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
       if (!allResponse.ok) throw new Error(`HTTP ${allResponse.status}`);
       const allPayload = await allResponse.json();
       const allRequests = Array.isArray(allPayload) ? allPayload : (Array.isArray(allPayload?.items) ? allPayload.items : []);
-      renderLeaveRequestsTable(
-        allRequests,
-        filterStatus,
-        "Firmenfilter: alle Firmen (Superadmin)",
-        "",
-      );
+      if (allRequests.length) {
+        const decryptedAll = window.E2EAdminBridge?.decryptLeaveRequests
+          ? await window.E2EAdminBridge.decryptLeaveRequests(allRequests)
+          : allRequests;
+        renderLeaveRequestsTable(
+          decryptedAll,
+          filterStatus,
+          "Firmenfilter: alle Firmen (Superadmin)",
+          "",
+        );
     } catch (error) {
       showAlert("alertActionFailed", { error: String(error) });
     }
