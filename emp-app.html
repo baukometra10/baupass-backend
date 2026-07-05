@@ -399,6 +399,12 @@
             el.textContent = msg || "";
             el.classList.toggle("hidden", !msg);
           }
+          function wt(key, fallback) {
+            try {
+              var v = window.WorkerI18N && window.WorkerI18N.t && window.WorkerI18N.t(key);
+              return (v && v !== key) ? v : fallback;
+            } catch (e) { return fallback; }
+          }
           function storePayload(payload) {
             var shell = {
               worker: payload.worker || {},
@@ -439,15 +445,15 @@
               var badge = normBadge(badgeInput && badgeInput.value);
               var pin = normPin(pinInput && pinInput.value);
               if (!badge || badge.length < 4) {
-                showErr("Bitte Badge-ID prüfen.");
+                showErr(wt("enterBadgeId", "Bitte Badge-ID prüfen."));
                 return;
               }
               if (!pin || pin.length < 4) {
-                showErr("Bitte 4–8 stellige PIN eingeben.");
+                showErr(wt("enterPin", "Bitte 4–8 stellige PIN eingeben."));
                 return;
               }
               loginInFlight = true;
-              showErr("Anmeldung läuft…");
+              showErr(wt("loginProgress", "Anmeldung läuft…"));
               var btn = form.querySelector('button[type="submit"]');
               if (btn) btn.disabled = true;
               fetch("/api/worker-app/login", {
@@ -467,8 +473,8 @@
                   if (btn) btn.disabled = false;
                   if (!res.ok) {
                     var msg = (res.body && (res.body.message || res.body.error)) || ("HTTP " + res.status);
-                    if (res.body && res.body.error === "invalid_badge_pin") msg = "PIN ist falsch.";
-                    if (res.body && res.body.error === "invalid_badge_id") msg = "Badge-ID wurde nicht gefunden.";
+                    if (res.body && res.body.error === "invalid_badge_pin") msg = wt("badgePinWrong", "PIN ist falsch.");
+                    if (res.body && res.body.error === "invalid_badge_id") msg = wt("badgeNotFound", "Badge-ID wurde nicht gefunden.");
                     showErr(msg);
                     return;
                   }
@@ -488,7 +494,7 @@
                 .catch(function (err) {
                   loginInFlight = false;
                   if (btn) btn.disabled = false;
-                  showErr("Verbindungsfehler – bitte erneut versuchen.");
+                  showErr(wt("connError", "Verbindungsfehler – bitte erneut versuchen."));
                 });
             }, true);
           }

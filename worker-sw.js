@@ -138,9 +138,9 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "WorkPass", body: event.data ? event.data.text() : "" };
+    data = { title: "SUPPIX", body: event.data ? event.data.text() : "" };
   }
-  const title = data.title || "WorkPass";
+  const title = data.title || "SUPPIX";
   const tag = data.tag || "baupass-notification";
   let defaultUrl = data.url || "/worker-install.html?launch=1";
   if (tag === "deployment-plan") {

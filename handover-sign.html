@@ -24,12 +24,22 @@
     .error-box { border-color:rgba(248,113,113,0.45); background:rgba(63,29,29,0.35); }
     .success-box { border-color:rgba(94,234,212,0.35); background:rgba(22,78,99,0.22); }
     .hidden { display:none !important; }
+    .header-row { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    #handoverLangSelect { font-size:0.82rem; padding:0.25rem 0.35rem; border-radius:8px; border:1px solid var(--border); background:var(--panel); color:var(--text); }
   </style>
 </head>
 <body>
   <header>
-    <strong id="companyName">SUPPIX</strong>
-    <div class="muted" id="pageHint">Unterschrift bei Ausweisübergabe</div>
+    <div class="header-row">
+      <div>
+        <strong id="companyName">SUPPIX</strong>
+        <div class="muted" id="pageHint">Unterschrift bei Ausweisübergabe</div>
+      </div>
+      <select id="handoverLangSelect" aria-label="Sprache">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option><option value="it">IT</option><option value="pl">PL</option>
+      </select>
+    </div>
   </header>
   <main>
     <section id="errorPanel" class="panel error-box hidden"></section>
@@ -59,10 +69,16 @@
   <script>
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
+    const LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     const UI = {
-      de: { hint:"Unterschrift bei Ausweisübergabe", sign:"Ausweisübergabe bestätigen", drawHint:"Unterschrift mit Finger oder Stift zeichnen.", clear:"Löschen", submit:"Unterschrift speichern", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Ihr Ausweis kann jetzt freigeschaltet werden.", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", consent:"Ich bestätige den Erhalt meines Ausweises.", consentRequired:"Bitte bestätigen Sie den Erhalt.", legal:"Mit Ihrer Unterschrift bestätigen Sie den Erhalt des Ausweises gemäß den Vorgaben Ihres Arbeitgebers.", worker:"Mitarbeiter" },
-      en: { hint:"Sign ID handover", sign:"Confirm ID handover", drawHint:"Draw your signature with finger or stylus.", clear:"Clear", submit:"Save signature", done:"Thank you — signature saved", doneHint:"Your badge can now be activated.", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", consent:"I confirm receipt of my ID badge.", consentRequired:"Please confirm receipt.", legal:"Your signature confirms receipt of the ID badge per your employer's policy.", worker:"Employee" },
-      ar: { hint:"توقيع تسليم الهوية", sign:"تأكيد تسليم الهوية", drawHint:"ارسم توقيعك بالإصبع أو القلم.", clear:"مسح", submit:"حفظ التوقيع", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكن الآن تفعيل بطاقتك.", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", consent:"أؤكد استلام بطاقة الهوية.", consentRequired:"يرجى تأكيد الاستلام.", legal:"توقيعك يؤكد استلام بطاقة الهوية وفق سياسة صاحب العمل.", worker:"موظف" },
+      de: { hint:"Unterschrift bei Ausweisübergabe", sign:"Ausweisübergabe bestätigen", drawHint:"Unterschrift mit Finger oder Stift zeichnen.", clear:"Löschen", submit:"Unterschrift speichern", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Ihr Ausweis kann jetzt freigeschaltet werden.", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", consent:"Ich bestätige den Erhalt meines Ausweises.", consentRequired:"Bitte bestätigen Sie den Erhalt.", legal:"Mit Ihrer Unterschrift bestätigen Sie den Erhalt des Ausweises gemäß den Vorgaben Ihres Arbeitgebers.", worker:"Mitarbeiter", uiLang:"Sprache" },
+      en: { hint:"Sign ID handover", sign:"Confirm ID handover", drawHint:"Draw your signature with finger or stylus.", clear:"Clear", submit:"Save signature", done:"Thank you — signature saved", doneHint:"Your badge can now be activated.", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", consent:"I confirm receipt of my ID badge.", consentRequired:"Please confirm receipt.", legal:"Your signature confirms receipt of the ID badge per your employer's policy.", worker:"Employee", uiLang:"Language" },
+      ar: { hint:"توقيع تسليم الهوية", sign:"تأكيد تسليم الهوية", drawHint:"ارسم توقيعك بالإصبع أو القلم.", clear:"مسح", submit:"حفظ التوقيع", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكن الآن تفعيل بطاقتك.", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", consent:"أؤكد استلام بطاقة الهوية.", consentRequired:"يرجى تأكيد الاستلام.", legal:"توقيعك يؤكد استلام بطاقة الهوية وفق سياسة صاحب العمل.", worker:"موظف", uiLang:"اللغة" },
+      tr: { hint:"Kimlik teslim imzasi", sign:"Kimlik teslimini onayla", drawHint:"Imzayi parmak veya kalemle cizin.", clear:"Sil", submit:"Imzayi kaydet", done:"Tesekkürler — imza kaydedildi", doneHint:"Kimliginiz simdi etkinlestirilebilir.", expired:"Bu linkin suresi doldu.", missing:"Gecersiz imza linki.", signed:"Zaten imzalandi.", saving:"Kaydediliyor…", consent:"Kimligimi teslim aldigimi onayliyorum.", consentRequired:"Lütfen teslimi onaylayin.", legal:"Imzaniz, isvereninizin kurallarina gore kimligi teslim aldiginizi onaylar.", worker:"Calisan", uiLang:"Dil" },
+      fr: { hint:"Signature de remise de badge", sign:"Confirmer la remise du badge", drawHint:"Dessinez votre signature au doigt ou au stylet.", clear:"Effacer", submit:"Enregistrer la signature", done:"Merci — signature enregistrée", doneHint:"Votre badge peut maintenant être activé.", expired:"Ce lien a expiré.", missing:"Lien de signature invalide.", signed:"Déjà signé.", saving:"Enregistrement…", consent:"Je confirme la réception de mon badge.", consentRequired:"Veuillez confirmer la réception.", legal:"Votre signature confirme la réception du badge selon la politique de votre employeur.", worker:"Employé", uiLang:"Langue" },
+      es: { hint:"Firma de entrega de credencial", sign:"Confirmar entrega de credencial", drawHint:"Dibuje su firma con el dedo o un lápiz.", clear:"Borrar", submit:"Guardar firma", done:"Gracias — firma guardada", doneHint:"Su credencial ya puede activarse.", expired:"Este enlace ha caducado.", missing:"Enlace de firma no válido.", signed:"Ya firmado.", saving:"Guardando…", consent:"Confirmo la recepción de mi credencial.", consentRequired:"Confirme la recepción.", legal:"Su firma confirma la recepción de la credencial según la política de su empleador.", worker:"Empleado", uiLang:"Idioma" },
+      it: { hint:"Firma consegna badge", sign:"Conferma consegna badge", drawHint:"Disegna la firma con dito o pennino.", clear:"Cancella", submit:"Salva firma", done:"Grazie — firma salvata", doneHint:"Il badge può ora essere attivato.", expired:"Questo link è scaduto.", missing:"Link firma non valido.", signed:"Già firmato.", saving:"Salvataggio…", consent:"Confermo di aver ricevuto il badge.", consentRequired:"Conferma la ricezione.", legal:"La firma conferma la ricezione del badge secondo la policy del datore di lavoro.", worker:"Dipendente", uiLang:"Lingua" },
+      pl: { hint:"Podpis przekazania karty", sign:"Potwierdz przekazanie karty", drawHint:"Narysuj podpis palcem lub rysikiem.", clear:"Wyczysc", submit:"Zapisz podpis", done:"Dziekujemy — podpis zapisany", doneHint:"Karta moze zostac teraz aktywowana.", expired:"Ten link wygasl.", missing:"Nieprawidlowy link podpisu.", signed:"Juz podpisano.", saving:"Zapisywanie…", consent:"Potwierdzam odbior karty.", consentRequired:"Potwierdz odbior.", legal:"Podpis potwierdza odbior karty zgodnie z zasadami pracodawcy.", worker:"Pracownik", uiLang:"Jezyk" },
     };
     let view = null;
     const canvas = document.getElementById("signCanvas");
@@ -70,12 +86,23 @@
     let drawing = false;
     let hasStroke = false;
 
+    function getHandoverLang() {
+      const code = (
+        localStorage.getItem("baupass-ui-lang")
+        || (navigator.language || "de").slice(0, 2)
+      ).slice(0, 2);
+      return LANGS.includes(code) ? code : "de";
+    }
+
     function ui(key) {
-      const lang = (navigator.language || "de").slice(0, 2);
+      const lang = getHandoverLang();
       return (UI[lang] || UI.de)[key] || UI.de[key] || key;
     }
 
     function applyStaticUi() {
+      const lang = getHandoverLang();
+      document.documentElement.lang = lang === "ar" ? "ar" : lang;
+      document.documentElement.dir = lang === "ar" ? "rtl" : "ltr";
       document.getElementById("pageHint").textContent = ui("hint");
       document.getElementById("signHeading").textContent = ui("sign");
       document.getElementById("drawHint").textContent = ui("drawHint");
@@ -85,7 +112,27 @@
       document.getElementById("doneHint").textContent = ui("doneHint");
       document.getElementById("consentLabel").textContent = ui("consent");
       document.getElementById("legalNote").textContent = ui("legal");
+      const sel = document.getElementById("handoverLangSelect");
+      if (sel) {
+        sel.value = lang;
+        sel.setAttribute("aria-label", ui("uiLang"));
+      }
     }
+
+    (function initHandoverLangSync() {
+      applyStaticUi();
+      const sel = document.getElementById("handoverLangSelect");
+      if (sel && !sel.dataset.bound) {
+        sel.dataset.bound = "1";
+        sel.addEventListener("change", () => {
+          localStorage.setItem("baupass-ui-lang", sel.value);
+          applyStaticUi();
+          if (view) {
+            document.getElementById("workerLine").textContent = `${ui("worker")}: ${view.workerName || "—"}`;
+          }
+        });
+      }
+    })();
 
     function showError(message) {
       const panel = document.getElementById("errorPanel");

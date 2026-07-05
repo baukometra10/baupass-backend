@@ -1191,8 +1191,8 @@
       const params = typeof hubCompanyParams === "function" ? hubCompanyParams() : {};
       const companyId = params.company_id || params.companyId || selectedCompanyId || "";
       const plan = String(planKey || "professional").trim();
-      const subject = `SUPPIX Tarif-Upgrade: ${plan}`;
-      const body = `Gewünschter Tarif: ${plan}\nFirma-ID: ${companyId || "—"}\n\nBitte kontaktieren Sie uns für ein Angebot.`;
+      const subject = tf("planUpgradeMailSubject", { plan });
+      const body = tf("planUpgradeMailBody", { plan, companyId: companyId || "—" });
       const mailUrl = `mailto:support@baupass.de?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
       const fallbackText = `${t("planUpgradeMailFallback")}\nsupport@baupass.de\n\n${subject}`;
       if (window.self !== window.top) {

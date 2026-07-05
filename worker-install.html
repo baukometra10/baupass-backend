@@ -67,20 +67,41 @@
       font-size: 0.9rem;
       color: #5f5f5f;
     }
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    #workerInstallLangSelect {
+      font-size: 0.82rem;
+      padding: 0.25rem 0.35rem;
+      border-radius: 8px;
+      border: 1px solid rgba(0, 0, 0, 0.12);
+    }
   </style>
 </head>
 <body class="notranslate" translate="no">
   <main class="card">
-    <h1>Mitarbeiter-App installieren</h1>
-    <p>Installiere die SUPPIX App auf deinem Handy. Danach siehst du deinen digitalen Ausweis jederzeit direkt in der App.</p>
-    <div class="actions">
-      <button id="openAppBtn" type="button">Ausweis in App oeffnen</button>
-      <button id="installBtn" type="button">App installieren</button>
+    <div class="card-head">
+      <h1 id="title" data-wii18n="title">Mitarbeiter-App installieren</h1>
+      <select id="workerInstallLangSelect" aria-label="Sprache">
+        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option><option value="it">IT</option><option value="pl">PL</option>
+      </select>
     </div>
-    <p id="hint" class="hint">Falls kein Installationsfenster erscheint: Browser-Menue oeffnen und "Zum Startbildschirm" bzw. "App installieren" waehlen.</p>
+    <p id="subtitle" data-wii18n="subtitle">Installiere die SUPPIX App auf deinem Handy. Danach siehst du deinen digitalen Ausweis jederzeit direkt in der App.</p>
+    <div class="actions">
+      <button id="openAppBtn" type="button" data-wii18n="openApp">Ausweis in App öffnen</button>
+      <button id="installBtn" type="button" data-wii18n="install">App installieren</button>
+    </div>
+    <p id="hint" class="hint" data-wii18n="hintDefault">Falls kein Installationsfenster erscheint: Browser-Menü öffnen und „Zum Startbildschirm“ bzw. „App installieren“ wählen.</p>
   </main>
 
+  <script src="./worker-install-i18n.js?v=20260705h"></script>
   <script>
+    window.initWorkerInstallLangSync();
+
     const params = new URL(window.location.href).searchParams;
     const accessToken = params.get("access") || "";
     const badgeId = (params.get("badge") || "").trim();
@@ -172,12 +193,14 @@
 
     window.addEventListener("beforeinstallprompt", (event) => {
       deferredInstallPrompt = event;
-      hint.textContent = "Tippe auf 'App installieren', dann auf 'Ausweis in App oeffnen'.";
+      hint.dataset.dynamic = "1";
+      hint.textContent = window.workerInstallT("hintAfterPrompt");
     });
 
     installBtn.addEventListener("click", async () => {
       if (!deferredInstallPrompt) {
-        hint.textContent = "Kein automatischer Prompt verfuegbar. Bitte Browser-Menue nutzen: 'Zum Startbildschirm' / 'App installieren'.";
+        hint.dataset.dynamic = "1";
+        hint.textContent = window.workerInstallT("hintNoPrompt");
         return;
       }
       deferredInstallPrompt.prompt();
@@ -190,7 +213,8 @@
     });
 
     if (shouldAutoLaunch) {
-      hint.textContent = "App wird aktualisiert und geoeffnet...";
+      hint.dataset.dynamic = "1";
+      hint.textContent = window.workerInstallT("hintAutoLaunch");
       Promise.resolve()
         .then(resolveLatestTargetUrl)
         .then((targetUrl) => {

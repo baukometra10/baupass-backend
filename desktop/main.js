@@ -297,7 +297,7 @@ function createWindow() {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
-    updateSplashProgress(100, "Bereit", "Willkommen in WorkPass");
+    updateSplashProgress(100, "Bereit", "Willkommen in SUPPIX");
     revealMainWindow(0);
   });
 

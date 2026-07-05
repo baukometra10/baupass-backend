@@ -8,13 +8,13 @@
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <meta name="description" content="WorkPass – Admin-Portal für Desktop und Pforte. Installierbar als Programm auf Windows und anderen Rechnern." />
+  <meta name="description" content="SUPPIX – Admin-Portal für Desktop und Pforte. Installierbar als Programm auf Windows und anderen Rechnern." />
   <meta name="theme-color" content="#050816" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-title" content="WorkPass" />
-  <meta name="application-name" content="WorkPass" />
-  <title data-ui-i18n="appTitle">WorkPass</title>
+  <meta name="apple-mobile-web-app-title" content="SUPPIX" />
+  <meta name="application-name" content="SUPPIX" />
+  <title data-ui-i18n="appTitle">SUPPIX</title>
   <script src="./workpass-storage.js?v=20260624storage1"></script>
     <script>
       (function enforceLatestBuild() {
@@ -93,7 +93,7 @@
         if (!raw || !window.TenantBrandIcon) return;
         var branding = JSON.parse(raw);
         if (!branding || typeof branding !== "object") return;
-        var name = branding.portalDisplayName || branding.companyName || branding.platformName || "WorkPass";
+        var name = branding.portalDisplayName || branding.companyName || branding.platformName || "SUPPIX";
         var accent = branding.accentColor || branding.primaryColor || "#0a57c0";
         var href = window.TenantBrandIcon.resolveTenantIconHref({
           brandTitle: name,
@@ -122,7 +122,7 @@
 </head>
 <body class="auth-locked notranslate" translate="no" data-local-url="http://localhost:8000">
   <header id="desktopTitlebar" class="desktop-titlebar hidden" aria-hidden="true">
-    <div class="desktop-titlebar-brand">WorkPass</div>
+    <div class="desktop-titlebar-brand">SUPPIX</div>
     <div class="desktop-titlebar-spacer"></div>
     <div class="desktop-titlebar-actions">
       <button id="desktopMinimizeBtn" class="desktop-titlebar-btn" type="button" aria-label="Verkleinern" title="Verkleinern"><svg width="10" height="1" viewBox="0 0 10 1" aria-hidden="true"><line x1="0" y1="0.5" x2="10" y2="0.5" stroke="currentColor" stroke-width="1"/></svg></button>
@@ -177,15 +177,15 @@
       <div class="auth-brand-block" aria-label="Suppix AI">
         <div class="auth-brand-glow" aria-hidden="true"></div>
         <img class="website-logo-sync website-logo website-logo-auth" src="./branding/suppix-ai-logo.svg" alt="Suppix AI Logo" />
-        <p class="auth-brand-product">WorkPass</p>
+        <p class="auth-brand-product">SUPPIX</p>
       </div>
       <div class="auth-intro">
-        <h2 data-ui-i18n="authTitle">Sicher in WorkPass anmelden</h2>
+        <h2 data-ui-i18n="authTitle">Sicher in SUPPIX anmelden</h2>
         <p class="auth-copy" data-ui-i18n="authCopy">Super-Admin behält die Systemhoheit. Firmen-Admins sehen nur ihre Firma. Der Drehkreuz-Login bekommt einen schnellen Zutrittsmodus.</p>
         <div class="auth-system-grid">
           <article class="auth-system-card">
             <span data-ui-i18n="authPlatform">Plattform</span>
-            <strong id="loginPlatformName">WorkPass</strong>
+            <strong id="loginPlatformName">SUPPIX</strong>
           </article>
           <article class="auth-system-card">
             <span data-ui-i18n="authOperator">Betreiber</span>
@@ -304,7 +304,7 @@
       <div>
         <img class="website-logo-sync website-logo website-logo-sidebar" src="./branding/suppix-ai-logo-dark.svg" alt="Suppix AI" onerror="this.onerror=null;this.src='/branding/suppix-ai-logo-dark.svg'" />
         <p class="eyebrow" data-ui-i18n="sidebarEyebrow">Firmenportal</p>
-        <h1 data-ui-i18n="appTitle">WorkPass</h1>
+        <h1 data-ui-i18n="appTitle">SUPPIX</h1>
         <p class="sidebar-copy" data-ui-i18n="sidebarCopy">Mitarbeiter erfassen, Fotos aufnehmen, digitale Ausweise erzeugen und Zutritte am Drehkreuz steuern.</p>
       </div>
       <div id="superadminSidebarCompanyPicker" class="sidebar-company-picker hidden" aria-label="Firmenvorschau">
@@ -416,7 +416,7 @@
         </nav>
         <div class="hero-panel">
           <div>
-            <p class="eyebrow" data-ui-i18n="dashEyebrow">Enterprise WorkPass</p>
+            <p class="eyebrow" data-ui-i18n="dashEyebrow">Enterprise SUPPIX</p>
             <h3 data-ui-i18n="dashHeading">Digitale Ausweise mit Foto, Badge-ID und Check-in am Drehkreuz</h3>
             <p data-ui-i18n="dashSubtext">Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfähig für Behörden und Unternehmen.</p>
           </div>
@@ -1688,7 +1688,7 @@
               </div>
               <label>
                 <span data-ui-i18n="labelPlatformName">Plattformname</span>
-                <input id="platformName" type="text" placeholder="WorkPass" required />
+                <input id="platformName" type="text" placeholder="SUPPIX" required />
               </label>
               <label>
                 <span data-ui-i18n="labelOperatorName">Betreiber</span>

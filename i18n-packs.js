@@ -23,7 +23,7 @@ window.__I18N_PACKS = {
     "loginSetupEmailPlaceholder": "you@email.com"
   },
   "tr": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "dashOverviewEyebrow": "Envanter",
     "dashOverviewH3": "Ana veriler ve durum",
     "enterpriseHubEyebrow": "Yeni — Kurumsal platform",
@@ -148,7 +148,7 @@ window.__I18N_PACKS = {
     "gateOpsWindow240": "240 dk"
   },
   "ar": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "imapPlusAliasWarning": "ملاحظة: على GMX/Web.de، رسائل مستندات الشركة التلقائية معطّلة. أنشئ اسمًا مستعارًا/صندوق بريد حقيقيًا لكل عنوان شركة أو استخدم نطاق catch-all.",
     "loginSecurityTitle": "تنبيه أمني",
     "loginSecurityHint": "تم رصد 3 محاولات تسجيل دخول فاشلة.",
@@ -209,7 +209,7 @@ window.__I18N_PACKS = {
     "gateOpsWindow240": "240 د"
   },
   "fr": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "dashOverviewEyebrow": "Stock",
     "dashOverviewH3": "Données de base et statut",
     "enterpriseHubEyebrow": "Nouveau — Plateforme entreprise",
@@ -308,7 +308,7 @@ window.__I18N_PACKS = {
     "gateOpsWindow240": "240 min"
   },
   "es": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "dashOverviewEyebrow": "Inventario",
     "dashOverviewH3": "Datos maestros y estado",
     "enterpriseHubEyebrow": "Nuevo — Plataforma enterprise",
@@ -415,7 +415,7 @@ window.__I18N_PACKS = {
     "gateOpsWindow240": "240 min"
   },
   "it": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "dashOverviewEyebrow": "Stock",
     "dashOverviewH3": "Dati anagrafici e stato",
     "enterpriseHubEyebrow": "Nuovo — Piattaforma enterprise",
@@ -514,7 +514,7 @@ window.__I18N_PACKS = {
     "gateOpsWindow240": "240 min"
   },
   "pl": {
-    "appTitle": "WorkPass",
+    "appTitle": "SUPPIX",
     "dashOverviewEyebrow": "Stan",
     "dashOverviewH3": "Dane podstawowe i status",
     "enterpriseHubEyebrow": "Nowe — Platforma enterprise",
