@@ -3,7 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX AI" />
+  <meta name="application-name" content="SUPPIX AI" />
   <title>SUPPIX — KI Command Center</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/branding/suppix-ai-mark.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -308,7 +313,8 @@
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
-  <script src="/embed-helpers.js?v=20260609csrf"></script>
+  <script src="/tenant-brand-icon.js?v=20260705c"></script>
+  <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
   <script>
     (function initEmbed() {
@@ -769,6 +775,18 @@
       if (insightsRealtimeStop) {
         insightsRealtimeStop();
         insightsRealtimeStop = null;
+      }
+    }
+
+    async function applyCommandCenterBranding() {
+      try {
+        if (window.BaupassAuth?.resolveTenantBranding) {
+          await window.BaupassAuth.resolveTenantBranding({
+            companyId: selectedCompanyId || window.BaupassAuth.readStoredCompanyId?.() || "",
+          });
+        }
+      } catch {
+        // optional branding
       }
     }
 
@@ -1568,6 +1586,7 @@
         bootUser = bootData?.user || null;
         currentRole = bootUser?.role || "";
         syncSelectedCompanyId(bootUser);
+        await applyCommandCenterBranding();
         showApp();
         applySupportReadOnlyUi();
         await loadCompanies();
