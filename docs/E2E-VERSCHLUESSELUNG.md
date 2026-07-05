@@ -94,22 +94,23 @@ flowchart LR
 - [x] Foundation: `e2e-crypto.js`, Identity-API, DB-Tabelle
 - [x] Worker-PWA: Key erzeugen bei Login, Nachrichten verschlüsseln
 - [x] Admin Chat: Key erzeugen, entschlüsseln beim Anzeigen
-- [x] Klartext-Fallback für alte Nachrichten + Migrationshinweis
-- [ ] Feature-Flag pro Firma: `e2e_chat_enabled`
+- [x] Klartext-Fallback deaktiviert (Server erzwingt E2E)
+- [x] Feature-Flag / Policy: `BAUPASS_E2E_*` Env + Company-Override
 
 ### Phase 2 — Anhänge & Forward Secrecy
-- [ ] Chat-Anhänge clientseitig verschlüsselt hochladen
-- [ ] Optional Double-Ratchet (Signal-Protokoll) für Perfect Forward Secrecy
-- [ ] Key-Rotation UI
+- [x] Chat-Anhänge clientseitig verschlüsselt (Web + Flutter)
+- [x] Ephemeral Keys pro Nachricht (v1) + Ratchet-Metadaten (v2 API)
+- [x] Key-Rotation API + archivierte Keys lokal
 
 ### Phase 3 — Weitere Domänen
-- [ ] Urlaubsanträge (Freitext + KI-Vorschläge)
-- [ ] Dokumenten-Metadaten / sensible Notizen
-- [ ] Vertrags-Entwürfe (optional getrennte Vertragsschlüssel)
+- [x] Urlaubsanträge: `note` E2E erzwungen
+- [ ] Dokumenten-Upload E2E (Admin-Upload-Pfad)
+- [x] Verträge: `final_text` E2E erzwungen bei Update
 
 ### Phase 4 — Mobile Native
-- [ ] Flutter: Android Keystore / iOS Secure Enclave (analog HCE-Companion)
-- [ ] Key-Sync **nicht** über Server — pro Gerät eigene Identity oder QR-Transfer
+- [x] Flutter: `e2e_crypto_service.dart` + Secure Storage
+- [x] Chat Mobile: E2E Send/Receive/Attachments
+- [ ] Multi-Device QR-Transfer
 
 ---
 

@@ -120,6 +120,14 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         final_text = str(data.get("final_text") or "").strip()
         if not final_text:
             return jsonify({"error": "final_text_required"}), 400
+        from backend.app.platform.security.e2e_envelope import assert_e2e_sensitive_field
+        from backend.app.platform.security.e2e_policy import is_e2e_sensitive_required
+
+        if is_e2e_sensitive_required(get_db(), cid):
+            try:
+                assert_e2e_sensitive_field(final_text, field_name="final_text")
+            except ValueError as exc:
+                return jsonify({"error": str(exc), "message": "Vertragstext muss E2E-verschlüsselt sein."}), 400
         service = ContractsService(get_db())
         try:
             contract = service.update_contract(

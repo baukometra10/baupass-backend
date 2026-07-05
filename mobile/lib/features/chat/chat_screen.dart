@@ -59,6 +59,7 @@ class _ChatScreenState extends State<ChatScreen> {
       _silentRefresh = true;
     }
     try {
+      await widget.chat.ensureE2eReady(widget.session);
       final threads = await widget.chat.listThreads(widget.session);
       String threadId;
       if (threads.isNotEmpty) {
@@ -138,10 +139,13 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _openAttachment(Map<String, dynamic> attachment) async {
     final id = attachment['id'] as String?;
     final filename = attachment['filename'] as String? ?? 'attachment.bin';
+    final e2eMeta = attachment['e2eMeta'] as String? ?? attachment['e2e_meta'] as String?;
     if (id == null || id.isEmpty) return;
     final bytes = await widget.chat.downloadAttachment(
       session: widget.session,
       attachmentId: id,
+      e2eMeta: e2eMeta,
+      filename: filename,
     );
     await _saveAndOpenFile(bytes, filename: filename);
   }

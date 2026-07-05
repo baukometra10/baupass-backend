@@ -157,6 +157,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 filename=str(upload.filename or "upload.bin"),
                 content_type=str(upload.mimetype or "application/octet-stream"),
                 blob=upload.read(),
+                e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
+                encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),
             )
             return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id})
         except Exception:
@@ -405,6 +407,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 filename=filename,
                 content_type=content_type,
                 blob=blob,
+                e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
+                encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),
             )
             doc_type = str(request.form.get("doc_type") or "sonstiges").strip() or "sonstiges"
             document_id = service.register_worker_chat_submission(

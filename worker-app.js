@@ -2872,7 +2872,7 @@ function bindWorkerChatComposeEvents() {
       const attachmentId = target.getAttribute("data-attachment-id") || "";
       const filename = target.getAttribute("data-filename") || "download";
       if (attachmentId) {
-        void downloadWorkerChatAttachment(attachmentId, filename);
+        void downloadWorkerChatAttachment(attachmentId, filename, workerChatAttachmentMetaById[attachmentId] || "");
       }
     });
   }
@@ -8600,7 +8600,20 @@ async function submitLeaveRequest() {
   const type = elements.leaveRequestType?.value || "urlaub";
   const start = elements.leaveRequestStart?.value || "";
   const end = elements.leaveRequestEnd?.value || "";
-  const note = elements.leaveRequestNote?.value || "";
+  const noteRaw = elements.leaveRequestNote?.value || "";
+  let note = noteRaw;
+  if (noteRaw.trim() && workerE2ESensitiveRequired() && workerE2ECryptoAvailable()) {
+    try {
+      note = await encryptWorkerSensitiveField(noteRaw);
+    } catch (error) {
+      showWorkerNotice(t("workerChatE2EDecryptFailed"));
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = t("leaveRequestSubmitBtn");
+      }
+      return;
+    }
+  }
   const recipientEmail = (elements.leaveRequestBossEmail?.value || "").trim();
   const submitBtn = elements.leaveRequestForm.querySelector('button[type="submit"]');
   
@@ -9038,6 +9051,19 @@ async function loadLeaveRequests() {
       });
       const visibleRequests = leaveCompactExpanded ? sortedRequests : sortedRequests.slice(0, 1);
       const hiddenCount = Math.max(0, sortedRequests.length - visibleRequests.length);
+      const workerId = getWorkerE2EEntityId();
+      const decryptedRequests = [];
+      for (const req of visibleRequests) {
+        let noteText = String(req.note || "");
+        if (noteText && window.E2ECrypto?.isE2EEnvelope?.(noteText) && workerId) {
+          try {
+            noteText = await window.E2ECrypto.decryptUtf8WithArchive(noteText, "worker", workerId);
+          } catch {
+            noteText = t("workerChatE2EDecryptFailed");
+          }
+        }
+        decryptedRequests.push({ ...req, note: noteText });
+      }
 
       const companyLogo = getWorkerCompanyLogoData();
       const companyName = String(
@@ -9046,7 +9072,7 @@ async function loadLeaveRequests() {
         || lastWorkerPayload?.company?.name
         || "",
       ).trim();
-      const requestMarkup = visibleRequests.map((req) => {
+      const requestMarkup = decryptedRequests.map((req) => {
         const typeMap = { urlaub: "Urlaub", krank: "Krank", sonderurlaub: "Sonderurlaub", unbezahlt: "Unbezahlt" };
         const typeLabel = typeMap[req.type] || req.type || "–";
         const statusCls = req.status === "genehmigt" ? "leave-status-ok" : req.status === "abgelehnt" ? "leave-status-no" : "leave-status-pending";
@@ -10863,6 +10889,18 @@ function workerE2ECryptoAvailable() {
   return typeof window.E2ECrypto !== "undefined" && workerPlanAllowsFeature("worker_chat");
 }
 
+function workerE2ERequired() {
+  return lastWorkerPayload?.security?.e2eChatRequired !== false;
+}
+
+function workerE2EAttachmentsRequired() {
+  return lastWorkerPayload?.security?.e2eAttachmentsRequired !== false;
+}
+
+function workerE2ESensitiveRequired() {
+  return lastWorkerPayload?.security?.e2eSensitiveRequired !== false;
+}
+
 function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
@@ -10918,18 +10956,38 @@ async function fetchWorkerE2EPublicKeys(force = false) {
 
 async function encryptWorkerChatBody(plaintext) {
   const text = String(plaintext || "");
-  if (!text || !workerE2ECryptoAvailable() || window.E2ECrypto.isE2EEnvelope(text)) {
+  if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
     return text;
   }
-  try {
-    const keys = await fetchWorkerE2EPublicKeys();
-    if (!keys.length) {
-      return text;
+  if (!workerE2ECryptoAvailable()) {
+    if (workerE2ERequired()) {
+      throw new Error("e2e_crypto_unavailable");
     }
-    return await window.E2ECrypto.encryptUtf8(text, keys);
-  } catch {
     return text;
   }
+  const keys = await fetchWorkerE2EPublicKeys();
+  if (!keys.length) {
+    if (workerE2ERequired()) {
+      throw new Error("e2e_keys_missing");
+    }
+    return text;
+  }
+  return await window.E2ECrypto.encryptUtf8(text, keys);
+}
+
+async function encryptWorkerSensitiveField(plaintext) {
+  const text = String(plaintext || "").trim();
+  if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
+    return text;
+  }
+  if (!workerE2ESensitiveRequired() || !workerE2ECryptoAvailable()) {
+    return text;
+  }
+  const keys = await fetchWorkerE2EPublicKeys();
+  if (!keys.length) {
+    throw new Error("e2e_keys_missing");
+  }
+  return await window.E2ECrypto.encryptUtf8(text, keys);
 }
 
 async function decryptWorkerChatBody(storedBody) {
@@ -10942,7 +11000,7 @@ async function decryptWorkerChatBody(storedBody) {
     return text;
   }
   try {
-    return await window.E2ECrypto.decryptUtf8(text, "worker", workerId);
+    return await window.E2ECrypto.decryptUtf8WithArchive(text, "worker", workerId);
   } catch {
     return t("workerChatE2EDecryptFailed");
   }
@@ -11006,15 +11064,22 @@ async function ensureWorkerChatThread(forceRefresh = false) {
   return workerChatThreadId;
 }
 
+let workerChatAttachmentMetaById = {};
+
 function renderWorkerChatAttachmentHtml(attachments) {
   if (!Array.isArray(attachments) || !attachments.length) {
     return "";
   }
   return `<div class="worker-chat-attachments">${attachments
     .map((attachment) => {
-      const id = escapeHtmlBasic(String(attachment.id || ""));
+      const id = String(attachment.id || "");
+      const meta = String(attachment.e2eMeta || attachment.e2e_meta || "").trim();
+      if (id && meta) {
+        workerChatAttachmentMetaById[id] = meta;
+      }
+      const safeId = escapeHtmlBasic(id);
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
-      return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
+      return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${safeId}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
     .join("")}</div>`;
 }
@@ -11071,7 +11136,7 @@ function renderWorkerChatMessages(messages) {
   })();
 }
 
-async function downloadWorkerChatAttachment(attachmentId, filename) {
+async function downloadWorkerChatAttachment(attachmentId, filename, e2eMeta) {
   if (!workerToken || !attachmentId) {
     return;
   }
@@ -11083,10 +11148,20 @@ async function downloadWorkerChatAttachment(attachmentId, filename) {
       throw new Error(`HTTP ${response.status}`);
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
+    let outBlob = blob;
+    let outName = filename || "download";
+    const meta = String(e2eMeta || "").trim();
+    if (meta && workerE2ECryptoAvailable()) {
+      const workerId = getWorkerE2EEntityId();
+      const buffer = new Uint8Array(await blob.arrayBuffer());
+      const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
+      outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "application/octet-stream" });
+      outName = decrypted.filename || outName;
+    }
+    const url = URL.createObjectURL(outBlob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = filename || "download";
+    anchor.download = outName || "download";
     anchor.rel = "noopener";
     document.body.appendChild(anchor);
     anchor.click();
@@ -11100,8 +11175,25 @@ async function downloadWorkerChatAttachment(attachmentId, filename) {
 async function uploadWorkerChatAttachment(threadId, messageId, file) {
   const form = new FormData();
   form.append("message_id", messageId);
-  form.append("file", file);
   form.append("doc_type", "sonstiges");
+  let uploadFile = file;
+  if (workerE2EAttachmentsRequired() && workerE2ECryptoAvailable() && file) {
+    const keys = await fetchWorkerE2EPublicKeys();
+    if (!keys.length) {
+      throw new Error("e2e_keys_missing");
+    }
+    const buffer = await file.arrayBuffer();
+    const packed = await window.E2ECrypto.encryptBlob(new Uint8Array(buffer), keys, {
+      filename: file.name || "upload.bin",
+      mime: file.type || "application/octet-stream",
+    });
+    form.append("e2e_meta", packed.meta);
+    form.append("e2e_encrypted", "1");
+    uploadFile = new Blob([packed.blob], { type: "application/vnd.suppix.e2e+binary" });
+    form.append("file", uploadFile, `${file.name || "upload.bin"}.e2e`);
+  } else {
+    form.append("file", file);
+  }
   const response = await fetch(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/attachments`, {
     method: "POST",
     headers: buildWorkerAuthHeaders(),
@@ -11207,7 +11299,14 @@ async function sendWorkerChatMessage() {
       return;
     }
     setWorkerChatComposeEnabled(false);
-    const outboundBody = await encryptWorkerChatBody(body);
+    let outboundBody = body;
+    try {
+      outboundBody = await encryptWorkerChatBody(body);
+    } catch (error) {
+      showWorkerNotice(error?.message === "e2e_keys_missing" ? t("workerChatE2EKeysMissing") : t("workerChatUnavailable"));
+      setWorkerChatComposeEnabled(allowed);
+      return;
+    }
     let messageId = "";
     try {
       const sent = await postMessage(threadId, outboundBody);

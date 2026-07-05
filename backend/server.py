@@ -13744,6 +13744,20 @@ def worker_app_me():
                 },
                 "siteZones": site_zones,
             },
+            "security": {
+                "e2eChatRequired": __import__(
+                    "backend.app.platform.security.e2e_policy",
+                    fromlist=["is_e2e_chat_required"],
+                ).is_e2e_chat_required(db, worker["company_id"]),
+                "e2eAttachmentsRequired": __import__(
+                    "backend.app.platform.security.e2e_policy",
+                    fromlist=["is_e2e_attachment_required"],
+                ).is_e2e_attachment_required(db, worker["company_id"]),
+                "e2eSensitiveRequired": __import__(
+                    "backend.app.platform.security.e2e_policy",
+                    fromlist=["is_e2e_sensitive_required"],
+                ).is_e2e_sensitive_required(db, worker["company_id"]),
+            },
         }
     )
 
@@ -26096,6 +26110,14 @@ def worker_submit_leave_request():
         return jsonify({"error": "end_before_start"}), 400
     if manager_email and "@" not in manager_email:
         return jsonify({"error": "invalid_recipient_email"}), 400
+    from backend.app.platform.security.e2e_envelope import assert_e2e_sensitive_field
+    from backend.app.platform.security.e2e_policy import is_e2e_sensitive_required
+
+    if is_e2e_sensitive_required(db, company_id):
+        try:
+            assert_e2e_sensitive_field(note, field_name="note")
+        except ValueError as exc:
+            return jsonify({"error": str(exc), "message": "Notiz muss E2E-verschlüsselt sein."}), 400
     req_id = f"leave-{secrets.token_hex(8)}"
     days_count = _count_working_days(start_date, end_date)
     created_at = now_iso()

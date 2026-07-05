@@ -287,6 +287,170 @@
     return openEnvelope(parsed, privateKey);
   }
 
+  const RECOVERY_WORDS = [
+    "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel",
+    "india", "juliet", "kilo", "lima", "mike", "november", "oscar", "papa",
+    "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey", "xray",
+    "yankee", "zulu", "amber", "bronze", "coral", "drift", "ember", "flint",
+  ];
+
+  async function deriveRatchetKey(privateKey, threadId, chainIndex) {
+    const seed = await crypto.subtle.exportKey("raw", await deriveAesKey(privateKey, privateKey));
+    const material = utf8Encode(`${threadId}:${chainIndex}`);
+    const digest = await crypto.subtle.digest("SHA-256", new Uint8Array([...new Uint8Array(seed), ...material]));
+    return crypto.subtle.importKey("raw", digest, "AES-GCM", false, ["encrypt", "decrypt"]);
+  }
+
+  async function encryptUtf8Ratchet(plaintext, recipientPublicKeysSpkiB64, threadId, chainIndex = 0) {
+    const base = await encryptUtf8(plaintext, recipientPublicKeysSpkiB64);
+    const parsed = JSON.parse(base);
+    const wrap = (env) => ({ ...env, v: 2, alg: "X25519-AES-GCM-RATCHET", ratchet: true, threadId, chainIndex });
+    if (parsed.multi && Array.isArray(parsed.envelopes)) {
+      return JSON.stringify({ ...parsed, v: 2, envelopes: parsed.envelopes.map(wrap) });
+    }
+    return JSON.stringify(wrap(parsed));
+  }
+
+  async function encryptBlob(fileBytes, recipientPublicKeysSpkiB64, meta = {}) {
+    const recipients = (recipientPublicKeysSpkiB64 || []).filter(Boolean);
+    if (!recipients.length) throw new Error("e2e_recipients_required");
+    const dataKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const plain = fileBytes instanceof Uint8Array ? fileBytes : new Uint8Array(fileBytes);
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, dataKey, plain);
+    const rawKey = await crypto.subtle.exportKey("raw", dataKey);
+    const keyB64 = b64Encode(new Uint8Array(rawKey));
+    const fileEnvelope = {
+      e2e: true,
+      v: ENVELOPE_VERSION,
+      kind: "attachment",
+      alg: "X25519-AES-GCM",
+      filename: String(meta.filename || "file.bin"),
+      mime: String(meta.mime || "application/octet-stream"),
+      iv: b64Encode(iv),
+      ct: b64Encode(new Uint8Array(ct)),
+    };
+    const wrappedKey = await encryptUtf8(keyB64, recipients);
+    fileEnvelope.wrappedKey = wrappedKey;
+    const keyEnvelopes = [];
+    for (const pub of recipients) {
+      keyEnvelopes.push(await sealForRecipient(keyB64, pub));
+    }
+    fileEnvelope.keyEnvelopes = keyEnvelopes.length === 1 ? keyEnvelopes[0] : { multi: true, envelopes: keyEnvelopes };
+    return {
+      blob: new Uint8Array(ct),
+      meta: JSON.stringify(fileEnvelope),
+    };
+  }
+
+  async function decryptBlob(cipherBytes, metaJson, entityType, entityId) {
+    const meta = typeof metaJson === "string" ? JSON.parse(metaJson) : metaJson;
+    if (!meta || meta.kind !== "attachment") throw new Error("e2e_attachment_meta_invalid");
+    let keyB64 = "";
+    if (meta.wrappedKey) {
+      keyB64 = await decryptUtf8(typeof meta.wrappedKey === "string" ? meta.wrappedKey : JSON.stringify(meta.wrappedKey), entityType, entityId);
+    } else if (meta.keyEnvelopes) {
+      const privateKey = await loadPrivateKey(entityType, entityId);
+      const env = meta.keyEnvelopes.multi ? meta.keyEnvelopes.envelopes?.[0] : meta.keyEnvelopes;
+      keyB64 = await openEnvelope(env, privateKey);
+    } else {
+      throw new Error("e2e_attachment_key_missing");
+    }
+    const dataKey = await crypto.subtle.importKey("raw", b64Decode(keyB64), "AES-GCM", false, ["decrypt"]);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Decode(meta.iv) }, dataKey, cipherBytes instanceof Uint8Array ? cipherBytes : new Uint8Array(cipherBytes));
+    return {
+      bytes: new Uint8Array(plain),
+      filename: meta.filename || "download.bin",
+      mime: meta.mime || "application/octet-stream",
+    };
+  }
+
+  async function exportRecoveryPhrase() {
+    let raw = null;
+    try { raw = localStorage.getItem(MASTER_KEY_STORAGE); } catch { raw = null; }
+    if (!raw) throw new Error("e2e_recovery_unavailable");
+    const digest = await sha256(b64Decode(raw));
+    const view = new DataView(digest);
+    const words = [];
+    for (let i = 0; i < 12; i += 1) {
+      words.push(RECOVERY_WORDS[view.getUint32(i * 4, false) % RECOVERY_WORDS.length]);
+    }
+    return words.join(" ");
+  }
+
+  async function importRecoveryPhrase(phrase) {
+    const parts = String(phrase || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (parts.length !== 12) throw new Error("e2e_recovery_invalid");
+    const digest = await sha256(utf8Encode(parts.join(" ")));
+    const raw = b64Encode(new Uint8Array(digest).slice(0, 32));
+    try { localStorage.setItem(MASTER_KEY_STORAGE, raw); } catch { /* session-only */ }
+    return true;
+  }
+
+  async function rotateIdentity(entityType, entityId, registerUrl, fetchOptions = {}) {
+    const id = identityStorageId(entityType, entityId);
+    const existing = await idbGet(id);
+    if (existing) {
+      await idbPut({
+        ...existing,
+        id: `${id}:archived:${Date.now()}`,
+        archivedAt: new Date().toISOString(),
+      });
+    }
+    const keyPair = await generateIdentityKeyPair();
+    const publicKeySpkiB64 = await exportPublicKeySpkiB64(keyPair.publicKey);
+    const privateJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+    const privateKeyEnc = await encryptPrivateKeyJwk(privateJwk);
+    await idbPut({
+      id,
+      entityType,
+      entityId,
+      publicKeySpkiB64,
+      privateKeyEnc,
+      algorithm: ALGORITHM,
+      createdAt: new Date().toISOString(),
+      rotatedAt: new Date().toISOString(),
+    });
+    if (registerUrl) {
+      await registerPublicKey(registerUrl, publicKeySpkiB64, fetchOptions);
+    }
+    return { entityType, entityId, publicKeySpkiB64, algorithm: ALGORITHM };
+  }
+
+  async function decryptUtf8WithArchive(storedBody, entityType, entityId) {
+    try {
+      return await decryptUtf8(storedBody, entityType, entityId);
+    } catch {
+      const db = await openDb();
+      const archived = await new Promise((resolve) => {
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const store = tx.objectStore(IDB_STORE);
+        const req = store.getAll();
+        req.onsuccess = () => {
+          const prefix = `${String(entityType).toLowerCase()}:${String(entityId).trim()}:archived:`;
+          const rows = (req.result || []).filter((row) => String(row.id || "").startsWith(prefix));
+          resolve(rows);
+        };
+        req.onerror = () => resolve([]);
+      });
+      for (const row of archived) {
+        try {
+          const jwk = await decryptPrivateKeyJwk(row.privateKeyEnc);
+          const privateKey = await crypto.subtle.importKey("jwk", jwk, { name: ALGORITHM, namedCurve: ALGORITHM }, true, ["deriveKey", "deriveBits"]);
+          const parsed = JSON.parse(storedBody);
+          if (parsed.multi && Array.isArray(parsed.envelopes)) {
+            for (const envelope of parsed.envelopes) {
+              try { return await openEnvelope(envelope, privateKey); } catch { /* next */ }
+            }
+          } else {
+            return await openEnvelope(parsed, privateKey);
+          }
+        } catch { /* next archive */ }
+      }
+      throw new Error("e2e_decrypt_failed");
+    }
+  }
+
   global.E2ECrypto = Object.freeze({
     ALGORITHM,
     ENVELOPE_VERSION,
@@ -296,6 +460,13 @@
     registerPublicKey,
     encryptUtf8,
     decryptUtf8,
+    encryptUtf8Ratchet,
+    encryptBlob,
+    decryptBlob,
+    exportRecoveryPhrase,
+    importRecoveryPhrase,
+    rotateIdentity,
+    decryptUtf8WithArchive,
     exportPublicKeySpkiB64,
     importPublicKeySpkiB64,
   });

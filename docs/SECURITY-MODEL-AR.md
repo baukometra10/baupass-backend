@@ -20,10 +20,10 @@
 
 ## E2E Chat
 
-**Phase 1 Foundation** — Public-Key-Registrierung + Client `e2e-crypto.js` (Private Keys nur auf dem Gerät).  
-Roadmap: [`docs/E2E-VERSCHLUESSELUNG.md`](E2E-VERSCHLUESSELUNG.md)
-
-Bisher: TLS + optional Fernet at-rest (**kein** echtes E2E). Ziel: Ciphertext-only auf dem Server.
+**Maximum security mode (default)** — enforced E2E for chat text, attachments, leave notes, contract final text.  
+Client: `e2e-crypto.js` (Web), `e2e_crypto_service.dart` (Flutter + Secure Storage).  
+Policy env: `BAUPASS_E2E_CHAT_REQUIRED`, `BAUPASS_E2E_ATTACHMENTS_REQUIRED`, `BAUPASS_E2E_SENSITIVE_REQUIRED` (all default `1`).  
+Audit: [`docs/SECURITY-AUDIT-E2E.md`](SECURITY-AUDIT-E2E.md) · Roadmap: [`docs/E2E-VERSCHLUESSELUNG.md`](E2E-VERSCHLUESSELUNG.md)
 
 ## Bridge / Agent
 

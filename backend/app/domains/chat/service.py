@@ -8,6 +8,8 @@ from typing import Any
 from backend.app.platform.events.bus import publish_event
 from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
 from backend.app.platform.push.delivery import deliver_worker_push
+from backend.app.platform.security.e2e_envelope import assert_e2e_attachment, assert_e2e_message_body, is_e2e_envelope
+from backend.app.platform.security.e2e_policy import is_e2e_attachment_required, is_e2e_chat_required
 from backend.app.platform.security.field_encryption import maybe_decrypt_field, maybe_encrypt_field
 
 
@@ -114,6 +116,12 @@ class ChatService:
                         self.db.execute(ddl)
                     except Exception:
                         pass
+            attachment_cols = self._table_columns("chat_attachments")
+            if "e2e_meta" not in attachment_cols:
+                try:
+                    self.db.execute("ALTER TABLE chat_attachments ADD COLUMN e2e_meta TEXT")
+                except Exception:
+                    pass
             self.db.commit()
         except Exception:
             pass
@@ -229,7 +237,8 @@ class ChatService:
         last_admin_read = str(thread_row["last_admin_read_at"] or "") if thread_row else ""
         rows = self.db.execute(
             """
-            SELECT m.*, a.id AS attachment_id, a.filename AS attachment_filename, a.content_type AS attachment_content_type, a.file_size AS attachment_file_size
+            SELECT m.*, a.id AS attachment_id, a.filename AS attachment_filename, a.content_type AS attachment_content_type,
+                   a.file_size AS attachment_file_size, a.e2e_meta AS attachment_e2e_meta
             FROM chat_messages m
             LEFT JOIN chat_attachments a ON a.message_id = m.id
             WHERE m.thread_id = ? AND m.company_id = ?
@@ -257,14 +266,17 @@ class ChatService:
                 },
             )
             if row["attachment_id"]:
-                entry["attachments"].append(
-                    {
-                        "id": row["attachment_id"],
-                        "filename": row["attachment_filename"],
-                        "contentType": row["attachment_content_type"],
-                        "fileSize": row["attachment_file_size"],
-                    }
-                )
+                attach_payload = {
+                    "id": row["attachment_id"],
+                    "filename": row["attachment_filename"],
+                    "contentType": row["attachment_content_type"],
+                    "fileSize": row["attachment_file_size"],
+                }
+                e2e_meta = str(row["attachment_e2e_meta"] or "").strip()
+                if e2e_meta:
+                    attach_payload["e2eMeta"] = e2e_meta
+                    attach_payload["encrypted"] = True
+                entry["attachments"].append(attach_payload)
         result = list(messages.values())
         for entry in result:
             created = str(entry.get("createdAt") or "")
@@ -327,7 +339,10 @@ class ChatService:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
+        if is_e2e_chat_required(self.db, company_id):
+            assert_e2e_message_body(plain_body)
         stored_body = maybe_encrypt_field(plain_body, company_id=company_id)
+        encrypted_preview = is_e2e_envelope(plain_body)
         self.db.execute(
             """
             INSERT INTO chat_messages
@@ -353,24 +368,25 @@ class ChatService:
             "messageId": message_id,
             "workerId": worker_id,
             "senderType": sender_type,
-            "preview": plain_body[:120],
+            "preview": "encrypted" if encrypted_preview else plain_body[:120],
         }
         try:
             publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
         except Exception:
             pass
 
+        notify_body = "Neue verschlüsselte Nachricht" if encrypted_preview else plain_body
         try:
             if not silent_side_effects:
                 if sender_type == "worker":
-                    self._notify_company_side(company_id, worker_id, plain_body)
+                    self._notify_company_side(company_id, worker_id, notify_body)
                 else:
                     notify_worker_mitteilung(
                         self.db,
                         worker_id,
                         notif_type="worker_chat",
                         title="Neue Nachricht",
-                        message=plain_body[:280],
+                        message=notify_body[:280] if not encrypted_preview else "Neue verschlüsselte Nachricht",
                         action_url="chat",
                         push_tag="worker-chat",
                         send_email=False,
@@ -380,7 +396,7 @@ class ChatService:
                             self.db,
                             worker_id,
                             "Neue Nachricht",
-                            plain_body[:180],
+                            "Neue verschlüsselte Nachricht" if encrypted_preview else notify_body[:180],
                             tag="worker-chat",
                             company_id=company_id,
                         )
@@ -417,9 +433,17 @@ class ChatService:
         content_type: str,
         blob: bytes,
         storage_root: Path | None = None,
+        e2e_meta: str | None = None,
+        encrypted: bool = False,
     ) -> dict[str, Any]:
         from backend.server import CHAT_UPLOAD_DIR, _stored_file_path
 
+        if is_e2e_attachment_required(self.db, company_id):
+            assert_e2e_attachment(
+                e2e_meta=str(e2e_meta or ""),
+                content_type=str(content_type or ""),
+                encrypted=bool(encrypted),
+            )
         attachment_id = f"att-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         target_dir = CHAT_UPLOAD_DIR / company_id / worker_id
@@ -428,21 +452,58 @@ class ChatService:
         file_path = target_dir / safe_name
         file_path.write_bytes(blob)
         stored_path = _stored_file_path(file_path)
-        self.db.execute(
-            """
-            INSERT INTO chat_attachments
-            (id, message_id, company_id, worker_id, filename, content_type, file_path, file_size, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (attachment_id, message_id, company_id, worker_id, filename or "upload.bin", content_type or "application/octet-stream", stored_path, len(blob), now),
-        )
+        meta = str(e2e_meta or "").strip()
+        cols = self._table_columns("chat_attachments")
+        if "e2e_meta" in cols:
+            self.db.execute(
+                """
+                INSERT INTO chat_attachments
+                (id, message_id, company_id, worker_id, filename, content_type, file_path, file_size, created_at, e2e_meta)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attachment_id,
+                    message_id,
+                    company_id,
+                    worker_id,
+                    filename or "upload.bin",
+                    content_type or "application/octet-stream",
+                    stored_path,
+                    len(blob),
+                    now,
+                    meta or None,
+                ),
+            )
+        else:
+            self.db.execute(
+                """
+                INSERT INTO chat_attachments
+                (id, message_id, company_id, worker_id, filename, content_type, file_path, file_size, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attachment_id,
+                    message_id,
+                    company_id,
+                    worker_id,
+                    filename or "upload.bin",
+                    content_type or "application/octet-stream",
+                    stored_path,
+                    len(blob),
+                    now,
+                ),
+            )
         self.db.commit()
-        return {
+        payload = {
             "id": attachment_id,
             "filename": filename or "upload.bin",
             "contentType": content_type or "application/octet-stream",
             "fileSize": len(blob),
         }
+        if meta:
+            payload["e2eMeta"] = meta
+            payload["encrypted"] = True
+        return payload
 
     @staticmethod
     def resolve_storage_path(stored: str) -> Path | None:

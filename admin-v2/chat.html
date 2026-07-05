@@ -164,7 +164,7 @@
     </main>
   </div>
   <script src="/admin-v2/chat-i18n.js?v=20260705f"></script>
-  <script src="/e2e-crypto.js?v=20260705e2e1"></script>
+  <script src="/e2e-crypto.js?v=20260705e2e2"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -223,7 +223,8 @@
     let adminE2EPublicKeysCache = null;
     let adminE2EPublicKeysCacheKey = "";
     let adminE2EPublicKeysCacheAt = 0;
-    const ADMIN_E2E_KEYS_TTL_MS = 60000;
+    const ADMIN_E2E_REQUIRED = true;
+    let adminChatAttachmentMetaById = {};
     const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
     const api = async (path, options = {}) => {
       const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
@@ -293,18 +294,19 @@
     }
     async function encryptAdminChatBody(plaintext, workerId) {
       const text = String(plaintext || "");
-      if (!text || !adminE2ECryptoAvailable() || window.E2ECrypto.isE2EEnvelope(text)) {
+      if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
         return text;
       }
-      try {
-        const keys = await fetchAdminE2EPublicKeys(workerId);
-        if (!keys.length) {
-          return text;
-        }
-        return await window.E2ECrypto.encryptUtf8(text, keys);
-      } catch {
+      if (!adminE2ECryptoAvailable()) {
+        if (ADMIN_E2E_REQUIRED) throw new Error("e2e_crypto_unavailable");
         return text;
       }
+      const keys = await fetchAdminE2EPublicKeys(workerId);
+      if (!keys.length) {
+        if (ADMIN_E2E_REQUIRED) throw new Error("e2e_keys_missing");
+        return text;
+      }
+      return await window.E2ECrypto.encryptUtf8(text, keys);
     }
     async function decryptAdminChatBody(storedBody) {
       const text = String(storedBody || "");
@@ -312,10 +314,24 @@
         return text;
       }
       try {
-        return await window.E2ECrypto.decryptUtf8(text, "user", adminUserId);
+        return await window.E2ECrypto.decryptUtf8WithArchive(text, "user", adminUserId);
       } catch {
         return window.adminChatT("e2eDecryptFailed");
       }
+    }
+    async function encryptAdminChatAttachment(file, workerId) {
+      const keys = await fetchAdminE2EPublicKeys(workerId);
+      if (!keys.length) throw new Error("e2e_keys_missing");
+      const buffer = await file.arrayBuffer();
+      const packed = await window.E2ECrypto.encryptBlob(new Uint8Array(buffer), keys, {
+        filename: file.name || "upload.bin",
+        mime: file.type || "application/octet-stream",
+      });
+      return {
+        file: new Blob([packed.blob], { type: "application/vnd.suppix.e2e+binary" }),
+        fields: { e2e_meta: packed.meta, e2e_encrypted: "1" },
+        filename: `${file.name || "upload.bin"}.e2e`,
+      };
     }
     async function prepareAdminChatMessagesForDisplay(messages) {
       const prepared = [];
@@ -345,8 +361,17 @@
         throw new Error(data.message || data.error || res.statusText);
       }
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const safeName = filename || (isImageAttachment(filename, contentType) ? "bild.jpg" : "download");
+      let outBlob = blob;
+      let outName = filename || "download";
+      const meta = adminChatAttachmentMetaById[attachmentId] || "";
+      if (meta && adminE2ECryptoAvailable()) {
+        const buffer = new Uint8Array(await blob.arrayBuffer());
+        const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", adminUserId);
+        outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || contentType || "application/octet-stream" });
+        outName = decrypted.filename || outName;
+      }
+      const url = URL.createObjectURL(outBlob);
+      const safeName = outName || (isImageAttachment(filename, contentType) ? "bild.jpg" : "download");
       const anchor = document.createElement("a");
       anchor.href = url;
       anchor.download = safeName;
@@ -423,7 +448,10 @@
       const read = chatReadLabel(msg);
       const attach = Array.isArray(msg.attachments) && msg.attachments.length
         ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => {
-            const id = escapeHtml(a.id || "");
+            const rawId = String(a.id || "");
+            const meta = String(a.e2eMeta || a.e2e_meta || "").trim();
+            if (rawId && meta) adminChatAttachmentMetaById[rawId] = meta;
+            const id = escapeHtml(rawId);
             const name = escapeHtml(a.filename || window.adminChatT("attachment"));
             const type = escapeHtml(a.contentType || "");
             const image = isImageAttachment(a.filename, a.contentType);
@@ -567,9 +595,16 @@
           body: JSON.stringify({ worker_id: currentWorkerId, body: outboundBody }),
         });
         if (file && res?.message?.id) {
+          let uploadFile = file;
+          let extraFields = { message_id: String(res.message.id), worker_id: currentWorkerId };
+          if (ADMIN_E2E_REQUIRED && adminE2ECryptoAvailable()) {
+            const packed = await encryptAdminChatAttachment(file, currentWorkerId);
+            uploadFile = new File([packed.file], packed.filename, { type: "application/vnd.suppix.e2e+binary" });
+            extraFields = { ...extraFields, ...packed.fields };
+          }
           await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {
-            fields: { message_id: String(res.message.id), worker_id: currentWorkerId },
-            file,
+            fields: extraFields,
+            file: uploadFile,
           });
         }
         document.getElementById("chatReply").value = "";

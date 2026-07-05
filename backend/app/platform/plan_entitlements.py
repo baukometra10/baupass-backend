@@ -35,6 +35,7 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "workforce_reporting": "professional",
     "worker_notifications": "starter",
     "worker_chat": "starter",
+    "e2e_chat": "starter",
     "employment_contracts": "professional",
     "foreman_dashboard": "professional",
     "contractor_mgmt": "professional",
@@ -397,5 +398,6 @@ def catalog_keys_for_server_plan_features() -> dict[str, str]:
         "automation_suite": "professional",
         "enterprise_hub": "starter",
         "worker_chat": "starter",
+    "e2e_chat": "starter",
         "employment_contracts": "professional",
     }

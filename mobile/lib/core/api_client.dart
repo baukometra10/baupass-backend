@@ -89,6 +89,40 @@ class ApiClient {
     return decoded;
   }
 
+  Future<Map<String, dynamic>> putJson(
+    String path, {
+    Map<String, dynamic>? body,
+    String? bearerToken,
+    String? deviceId,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final http.Response response;
+    try {
+      response = await _http.put(
+        uri,
+        headers: _headers(bearerToken: bearerToken, deviceId: deviceId, jsonBody: true),
+        body: jsonEncode(body ?? <String, dynamic>{}),
+      );
+    } on Exception catch (e) {
+      throw ApiException(0, 'network_error', e.toString());
+    }
+    Map<String, dynamic> decoded = <String, dynamic>{};
+    if (response.body.isNotEmpty) {
+      final parsed = jsonDecode(response.body);
+      if (parsed is Map<String, dynamic>) decoded = parsed;
+    }
+    if (response.statusCode >= 400) {
+      final errorCode = decoded['error'] as String?;
+      _maybeNotifySessionExpired(response.statusCode, errorCode);
+      throw ApiException(
+        response.statusCode,
+        errorCode,
+        decoded['message'] as String?,
+      );
+    }
+    return decoded;
+  }
+
   Future<List<Map<String, dynamic>>> getJsonList(
     String path, {
     String? bearerToken,
