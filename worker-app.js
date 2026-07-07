@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice16";
+const WORKER_BUILD_TAG = "20260707voice17";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -87,13 +87,13 @@ function isWorkerTouchDevice() {
 
 function workerVoiceCaptureAvailable() {
   window.SUPPIXChatVoice?.ensureMediaDevices?.();
-  return Boolean(
-    window.SUPPIXChatVoice?.isSupported?.()
-    || (window.isSecureContext && window.navigator?.mediaDevices?.getUserMedia)
-  );
+  return Boolean(window.SUPPIXChatVoice?.isSupported?.());
 }
 
 function flashWorkerChatSendTapHint(mode = "") {
+  if (mode === "mic") {
+    return;
+  }
   const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
   if (!hint) {
     return;
@@ -138,9 +138,6 @@ function installWorkerChatComposeDelegation() {
     lastTouchBtn = btn;
     elements.workerChatSendBtn = btn;
     syncWorkerComposeAction();
-    if (resolveWorkerChatPrimaryMode() === "mic" && !workerVoiceRecording) {
-      armWorkerMicStreamInUserGesture();
-    }
   }, { capture: true, passive: true });
 
   document.addEventListener("touchend", (event) => {
@@ -3292,6 +3289,7 @@ function hydrateWorkerChatAudioPlayers() {
 function formatWorkerVoiceRecordError(error) {
   const code = window.SUPPIXChatVoice?.describeVoiceError?.(error) || String(error?.message || error || "");
   if (code === "voice_permission_denied") return t("chatVoiceMicDenied");
+  if (code === "voice_permission_timeout") return t("chatVoiceMicTimeout");
   if (code === "voice_insecure_context") return t("chatVoiceInsecure");
   if (code === "voice_no_device") return t("chatVoiceNoDevice");
   if (code === "voice_device_busy") return t("chatVoiceDeviceBusy");
@@ -3370,14 +3368,17 @@ async function handleWorkerPrimaryAction(options = {}) {
     const mode = resolveWorkerChatPrimaryMode();
     if (mode === "mic") {
       if (workerVoiceRecording) {
+        resetWorkerVoiceUi();
         return;
       }
       const activeRecorder = recorder || getWorkerVoiceRecorder();
       if (!workerVoiceCaptureAvailable()) {
+        resetWorkerVoiceUi();
         showWorkerNotice(t("chatVoiceNotSupported"));
         return;
       }
       if (!activeRecorder) {
+        resetWorkerVoiceUi();
         showWorkerNotice(t("chatVoiceNotSupported"));
         return;
       }
@@ -3386,9 +3387,14 @@ async function handleWorkerPrimaryAction(options = {}) {
         if (options.streamError) {
           throw options.streamError;
         }
-        await activeRecorder.start({
+        const startPromise = activeRecorder.start({
           streamPromise: options.streamPromise || null,
         });
+        await (window.SUPPIXChatVoice?.withTimeout?.(
+          startPromise,
+          14000,
+          "voice_permission_timeout"
+        ) ?? startPromise);
         if (!activeRecorder.recording) {
           throw new Error("voice_record_failed");
         }
@@ -3477,15 +3483,10 @@ function triggerWorkerChatPrimaryAction(event) {
       showWorkerNotice(t("chatVoiceNotSupported"));
       return false;
     }
-    const pending = consumeWorkerChatPendingMicStream();
-    if (pending) {
-      streamPromise = pending;
-    } else {
-      try {
-        streamPromise = window.SUPPIXChatVoice.requestAudioStream();
-      } catch (error) {
-        streamError = error;
-      }
+    try {
+      streamPromise = window.SUPPIXChatVoice.requestAudioStream();
+    } catch (error) {
+      streamError = error;
     }
   }
   workerChatSendGestureUntil = Date.now() + 450;

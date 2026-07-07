@@ -109,6 +109,19 @@
     }
   }
 
+  function withTimeout(promise, ms, message = "voice_timeout") {
+    let timer = null;
+    const wrapped = Promise.resolve(promise);
+    const timeoutPromise = new Promise((_, reject) => {
+      timer = global.setTimeout(() => reject(new Error(message)), ms);
+    });
+    return Promise.race([wrapped, timeoutPromise]).finally(() => {
+      if (timer) {
+        global.clearTimeout(timer);
+      }
+    });
+  }
+
   function isSupported() {
     ensureMediaDevices();
     return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
@@ -122,6 +135,7 @@
     if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") return "voice_permission_denied";
     if (name === "NotFoundError" || name === "DevicesNotFoundError") return "voice_no_device";
     if (name === "NotReadableError" || name === "TrackStartError") return "voice_device_busy";
+    if (message === "voice_permission_timeout" || message === "voice_timeout") return "voice_permission_timeout";
     if (name === "NotSupportedError" || message.includes("MediaRecorder")) return "voice_not_supported";
     return message || "voice_record_failed";
   }
@@ -155,18 +169,32 @@
   }
 
   function createMediaRecorder(stream, preferredMimeType = "") {
-    const candidates = preferredMimeType
-      ? [{ mimeType: preferredMimeType }, {}]
-      : [{}];
+    const mimeCandidates = [];
+    if (preferredMimeType) {
+      mimeCandidates.push(preferredMimeType);
+    }
+    const picked = pickMimeType();
+    if (picked && !mimeCandidates.includes(picked)) {
+      mimeCandidates.push(picked);
+    }
+    const fallbackMimes = isAppleLikeDevice()
+      ? ["audio/mp4", "audio/aac", "audio/webm;codecs=opus", "audio/webm", ""]
+      : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/aac", ""];
+    fallbackMimes.forEach((mime) => {
+      if (mime && !mimeCandidates.includes(mime)) {
+        mimeCandidates.push(mime);
+      }
+    });
+    const optionSets = mimeCandidates.map((mimeType) => ({ mimeType })).concat([{}]);
     let lastError = null;
-    for (const options of candidates) {
+    for (const options of optionSets) {
       try {
-        const recorder = Object.keys(options).length
+        const recorder = Object.keys(options).length && options.mimeType
           ? new global.MediaRecorder(stream, options)
           : new global.MediaRecorder(stream);
         return {
           recorder,
-          mimeType: recorder.mimeType || preferredMimeType || pickMimeType() || "audio/webm",
+          mimeType: recorder.mimeType || options.mimeType || picked || "audio/mp4",
         };
       } catch (error) {
         lastError = error;
@@ -412,15 +440,18 @@
         if (opts.stream instanceof global.MediaStream) {
           stream = opts.stream;
         } else if (opts.streamPromise) {
-          stream = await opts.streamPromise;
+          stream = await withTimeout(Promise.resolve(opts.streamPromise), 12000, "voice_permission_timeout");
         } else {
-          stream = await requestAudioStream();
+          stream = await withTimeout(requestAudioStream(), 12000, "voice_permission_timeout");
         }
         const audioTracks = stream?.getAudioTracks?.() || [];
         if (!audioTracks.length || !audioTracks.some((track) => track.readyState === "live")) {
           cleanupStream();
           throw new Error("voice_device_busy");
         }
+        audioTracks.forEach((track) => {
+          track.enabled = true;
+        });
         const created = createMediaRecorder(stream, mimeType);
         recorder = created.recorder;
         mimeType = created.mimeType;
@@ -434,11 +465,15 @@
           onError?.(event?.error || new Error("voice_record_failed"));
         };
         if (isAppleLikeDevice()) {
-          recorder.start(500);
+          try {
+            recorder.start();
+          } catch {
+            recorder.start(1000);
+          }
         } else {
           recorder.start(250);
         }
-        await wait(80);
+        await wait(isAppleLikeDevice() ? 250 : 80);
         if (!recorder || recorder.state !== "recording") {
           cleanupStream();
           recorder = null;
@@ -796,6 +831,7 @@
     describeVoiceError,
     ensureMediaDevices,
     requestAudioStream,
+    withTimeout,
     isSupported,
     isAppleLikeDevice,
     isTouchPrimaryDevice,
