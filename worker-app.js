@@ -2636,50 +2636,54 @@ function getWorkerPageSections() {
 
 const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #workerHubPanel:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;overflow:hidden}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;padding:0;border:none;border-radius:0;background:transparent;box-shadow:none;overflow:hidden}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1 1 auto;min-height:0;max-height:none!important;margin:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex:0 0 auto;flex-shrink:0;display:block!important;margin:0;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid rgba(60,94,139,.22);box-shadow:0 -4px 18px rgba(8,28,54,.07)}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard.worker-feature-chat-card:not(.hidden){display:flex!important;flex-direction:column;flex:1;min-height:0;padding:0;border:none;border-radius:0;background:#0b141a;box-shadow:none;overflow:hidden}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-messages{flex:1 1 auto;min-height:0;max-height:none!important;margin:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#0b141a}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{flex:0 0 auto;flex-shrink:0;display:block!important;margin:0;padding:8px 10px max(8px,env(safe-area-inset-bottom,0px));background:#1f2c34;border-top:1px solid rgba(134,150,160,.18);box-shadow:none}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar{display:flex;align-items:flex-end;gap:8px}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:46px;max-height:120px;border-radius:22px;font-size:1rem}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
-  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#b91c1c}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:46px;max-height:120px;border-radius:22px;font-size:1rem;background:#2a3942;border:1px solid rgba(134,150,160,.14);color:#e9edef}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea::placeholder{color:#8696a0}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-file-label{color:#8696a0;background:#2a3942;border:1px solid rgba(134,150,160,.14)}",
   "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
-  "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(10,87,192,.12);color:#0a57c0;display:grid;place-items:center;cursor:pointer}",
-  "#chatCard .chat-audio-track{flex:1;height:4px;border-radius:999px;background:rgba(100,116,139,.22);overflow:hidden}",
-  "#chatCard .chat-audio-progress{display:block;height:100%;width:0%;background:#0a57c0}",
-  "#chatCard .chat-audio-duration{font-size:.72rem;color:#64748b;min-width:2.4rem;text-align:end}",
-  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:linear-gradient(180deg,#f8fafc,#eef2f7)}",
+  "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(233,237,239,.12);color:#e9edef;display:grid;place-items:center;cursor:pointer}",
+  "#chatCard .chat-audio-track{flex:1;height:4px;border-radius:999px;background:rgba(134,150,160,.28);overflow:hidden}",
+  "#chatCard .chat-audio-progress{display:block;height:100%;width:0%;background:#00a884}",
+  "#chatCard .chat-audio-duration{font-size:.72rem;color:#8696a0;min-width:2.4rem;text-align:end}",
+  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:#0b141a}",
   "#chatCard .worker-chat-date-sep{display:flex;justify-content:center;margin:8px 0 4px}",
-  "#chatCard .worker-chat-date-sep span{font-size:.72rem;color:#64748b;background:#fff;border:1px solid rgba(100,116,139,.22);padding:.22rem .7rem;border-radius:999px}",
+  "#chatCard .worker-chat-date-sep span{font-size:.72rem;color:#8696a0;background:#182229;border:1px solid rgba(134,150,160,.16);padding:.22rem .7rem;border-radius:999px}",
   "#chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}",
   "#chatCard .worker-chat-row.is-grouped{margin-top:-4px}",
   "#chatCard .worker-chat-row.is-grouped .worker-chat-sender{display:none}",
   "#chatCard .worker-chat-row.is-company{align-items:flex-start;padding-inline-end:12%}",
   "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-inline-start:12%}",
-  "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
-  "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
-  "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
+  "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px;color:#8696a0}",
+  "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#8696a0}",
+  "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#53bdeb}",
   "#chatCard .worker-chat-row.is-pending .worker-chat-bubble{opacity:.72}",
-  "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:10px 12px 8px;border-radius:14px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 1px 2px rgba(15,23,42,.08)}",
+  "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:10px 12px 8px;border-radius:14px;border:1px solid transparent;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 1px 1px rgba(0,0,0,.28)}",
   "#chatCard .worker-chat-bubble.is-grouped{border-radius:10px}",
-  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12}",
+  "#chatCard .worker-chat-bubble.is-company{background:#202c33;color:#e9edef}",
   "#chatCard .worker-chat-bubble.is-company.is-tail{border-end-end-radius:4px}",
-  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a}",
+  "#chatCard .worker-chat-bubble.is-mine{background:#005c4b;color:#e9edef}",
   "#chatCard .worker-chat-bubble.is-mine.is-tail{border-end-start-radius:4px}",
-  "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500;unicode-bidi:plaintext}",
+  "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500;unicode-bidi:plaintext;color:inherit}",
   "#chatCard.worker-chat-rtl .worker-chat-messages,#chatCard.worker-chat-rtl .worker-chat-compose{direction:rtl}",
   "#chatCard.worker-chat-rtl .worker-chat-body{text-align:right}",
   "#chatCard.worker-chat-rtl .worker-chat-sender{text-align:right;width:100%}",
   "#chatCard.worker-chat-rtl .worker-chat-meta{justify-content:flex-start}",
   "#chatCard.worker-chat-rtl .worker-chat-compose-bar{direction:rtl}",
   "#chatCard.worker-chat-rtl .worker-chat-attachment-btn{text-align:right}",
-  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:6px;font-size:.72rem;color:#64748b}",
-  "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}",
-  "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}",
+  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:6px;font-size:.72rem;color:rgba(233,237,239,.62)}",
+  "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:rgba(233,237,239,.62)}",
+  "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:rgba(233,237,239,.72)}",
   "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1}",
-  "#chatCard .worker-chat-ticks.is-read{color:#059669;font-weight:700}",
-  "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%}",
-  "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#e8f4ff;color:#0a57c0;font-size:.72rem;font-weight:700;text-align:center}",
+  "#chatCard .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
+  "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%;background:#2a3942;border:1px solid rgba(134,150,160,.18);color:#e9edef}",
+  "#chatCard .worker-chat-file-hint{color:#8696a0!important}",
+  "#chatCard .muted-info{color:#8696a0!important}",
+  "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#182229;color:#53bdeb;font-size:.72rem;font-weight:700;text-align:center}",
   "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
   ".stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}",
 ].join("");
@@ -3029,10 +3033,24 @@ function hydrateWorkerChatAudioPlayers() {
   });
 }
 
+function formatWorkerVoiceRecordError(error) {
+  const code = window.SUPPIXChatVoice?.describeVoiceError?.(error) || String(error?.message || error || "");
+  if (code === "voice_permission_denied") return t("chatVoiceMicDenied");
+  if (code === "voice_insecure_context") return t("chatVoiceInsecure");
+  if (code === "voice_no_device") return t("chatVoiceNoDevice");
+  if (code === "voice_device_busy") return t("chatVoiceDeviceBusy");
+  if (code === "voice_not_supported") return t("chatVoiceNotSupported");
+  return t("chatVoiceNotSupported");
+}
+
 async function handleWorkerPrimaryAction() {
   syncWorkerChatComposeRefs();
   const mode = elements.workerChatSendBtn?.dataset.mode || "send";
   if (mode === "mic") {
+    if (workerVoiceRecording) {
+      return;
+    }
+    window.SUPPIXChatVoice?.ensureMediaDevices?.();
     const recorder = getWorkerVoiceRecorder();
     if (!recorder || !window.SUPPIXChatVoice?.isSupported?.()) {
       showWorkerNotice(t("chatVoiceNotSupported"));
@@ -3046,7 +3064,7 @@ async function handleWorkerPrimaryAction() {
       workerVoiceRecording = false;
       updateWorkerVoiceHint(0);
       syncWorkerComposeAction();
-      showWorkerNotice(t("chatVoiceNotSupported"));
+      showWorkerNotice(formatWorkerVoiceRecordError(error));
     }
     return;
   }
@@ -3082,14 +3100,23 @@ function bindWorkerChatComposeEvents() {
   const compose = chatCard?.querySelector(".worker-chat-compose");
   if (compose && !compose.dataset.chatDelegateBound) {
     compose.dataset.chatDelegateBound = "1";
-    compose.addEventListener("click", (event) => {
+    const triggerPrimaryAction = (event, { micOnly = false } = {}) => {
       const sendBtn = event.target instanceof Element ? event.target.closest("#workerChatSendBtn") : null;
       if (!sendBtn || sendBtn.disabled) {
         return;
       }
+      const mode = sendBtn.dataset.mode || "send";
+      if (micOnly && mode !== "mic") {
+        return;
+      }
+      if (!micOnly && mode === "mic") {
+        return;
+      }
       event.preventDefault();
       void handleWorkerPrimaryAction();
-    });
+    };
+    compose.addEventListener("click", (event) => triggerPrimaryAction(event));
+    compose.addEventListener("pointerdown", (event) => triggerPrimaryAction(event, { micOnly: true }));
   }
   const input = elements.workerChatInput || chatCard?.querySelector("#workerChatInput");
   const fileInput = elements.workerChatFileInput || chatCard?.querySelector("#workerChatFileInput");

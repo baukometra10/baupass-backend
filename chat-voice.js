@@ -8,19 +8,87 @@
   const PLAY_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l8-4.5-8-4.5Z" fill="currentColor"/></svg>`;
   const PAUSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="6" width="3.5" height="12" fill="currentColor"/><rect x="13.5" y="6" width="3.5" height="12" fill="currentColor"/></svg>`;
 
+  function isAppleLikeDevice() {
+    const ua = String(global.navigator?.userAgent || "");
+    return /iPad|iPhone|iPod/i.test(ua)
+      || (String(global.navigator?.platform || "") === "MacIntel" && Number(global.navigator?.maxTouchPoints || 0) > 1);
+  }
+
+  function ensureMediaDevices() {
+    const nav = global.navigator;
+    if (!nav) return false;
+    if (!nav.mediaDevices) {
+      nav.mediaDevices = {};
+    }
+    if (!nav.mediaDevices.getUserMedia) {
+      const legacy = nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia || nav.msGetUserMedia;
+      if (legacy) {
+        nav.mediaDevices.getUserMedia = (constraints) => new Promise((resolve, reject) => {
+          legacy.call(nav, constraints, resolve, reject);
+        });
+      }
+    }
+    return Boolean(nav.mediaDevices?.getUserMedia);
+  }
+
+  async function requestAudioStream() {
+    if (!global.isSecureContext) {
+      throw new Error("voice_insecure_context");
+    }
+    if (!ensureMediaDevices()) {
+      throw new Error("voice_not_supported");
+    }
+    const attempts = [
+      { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } },
+      { audio: true },
+      { audio: { channelCount: 1 } },
+    ];
+    let lastError = null;
+    for (const constraints of attempts) {
+      try {
+        return await global.navigator.mediaDevices.getUserMedia(constraints);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error("voice_record_failed");
+  }
+
   function isSupported() {
-    return Boolean(global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
+    ensureMediaDevices();
+    return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
+  }
+
+  function describeVoiceError(error) {
+    const name = String(error?.name || "").trim();
+    const message = String(error?.message || error || "").trim();
+    if (message === "voice_insecure_context" || !global.isSecureContext) return "voice_insecure_context";
+    if (message === "voice_not_supported" || message === "getUserMedia_not_supported") return "voice_not_supported";
+    if (name === "NotAllowedError" || name === "PermissionDeniedError" || name === "SecurityError") return "voice_permission_denied";
+    if (name === "NotFoundError" || name === "DevicesNotFoundError") return "voice_no_device";
+    if (name === "NotReadableError" || name === "TrackStartError") return "voice_device_busy";
+    if (name === "NotSupportedError" || message.includes("MediaRecorder")) return "voice_not_supported";
+    return message || "voice_record_failed";
   }
 
   function pickMimeType() {
-    const candidates = [
-      "audio/webm;codecs=opus",
-      "audio/webm",
-      "audio/mp4",
-      "audio/aac",
-      "audio/ogg;codecs=opus",
-      "audio/ogg",
-    ];
+    const candidates = isAppleLikeDevice()
+      ? [
+        "audio/mp4",
+        "audio/aac",
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ]
+      : [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/mp4",
+        "audio/aac",
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+      ];
     for (const mime of candidates) {
       try {
         if (global.MediaRecorder.isTypeSupported(mime)) return mime;
@@ -234,12 +302,26 @@
         chunks = [];
         mimeType = pickMimeType();
         lastDurationSec = 0;
-        stream = await global.navigator.mediaDevices.getUserMedia({ audio: true });
-        try {
-          recorder = mimeType ? new global.MediaRecorder(stream, { mimeType }) : new global.MediaRecorder(stream);
-        } catch (error) {
+        stream = await requestAudioStream();
+        const recorderCandidates = mimeType
+          ? [{ mimeType }, {}]
+          : [{}];
+        let lastError = null;
+        recorder = null;
+        for (const options of recorderCandidates) {
+          try {
+            recorder = Object.keys(options).length
+              ? new global.MediaRecorder(stream, options)
+              : new global.MediaRecorder(stream);
+            mimeType = recorder.mimeType || mimeType || pickMimeType() || "audio/webm";
+            break;
+          } catch (error) {
+            lastError = error;
+          }
+        }
+        if (!recorder) {
           cleanupStream();
-          throw error;
+          throw lastError || new Error("voice_not_supported");
         }
         recorder.ondataavailable = (event) => {
           if (event?.data?.size) chunks.push(event.data);
@@ -534,10 +616,11 @@
 .worker-chat-bubble.is-voice-only{padding:.4rem .55rem .35rem .45rem}
 .chat-delete-btn,.worker-chat-delete-btn{border:none;background:transparent;cursor:pointer;opacity:.5;font-size:.85rem;padding:0 .15rem}
 .chat-delete-btn:hover,.worker-chat-delete-btn:hover{opacity:1}
-.worker-chat-bubble.is-company .chat-voice-note{background:rgba(15,23,42,.06)}
-.worker-chat-bubble.is-company .chat-voice-play{background:rgba(194,65,12,.1);color:#c2410c}
-.worker-chat-bubble.is-mine .chat-voice-note{background:rgba(37,99,235,.08)}
-.worker-chat-bubble.is-mine .chat-voice-play{background:rgba(37,99,235,.14);color:#1d4ed8}
+.worker-chat-bubble.is-company .chat-voice-note{background:rgba(255,255,255,.06)}
+.worker-chat-bubble.is-company .chat-voice-play{background:rgba(233,237,239,.12);color:#e9edef}
+.worker-chat-bubble.is-mine .chat-voice-note{background:rgba(0,0,0,.12)}
+.worker-chat-bubble.is-mine .chat-voice-play{background:rgba(0,0,0,.16);color:#e9edef}
+.worker-chat-bubble.is-company .chat-voice-duration,.worker-chat-bubble.is-mine .chat-voice-duration{color:rgba(233,237,239,.82)}
 .chat-head-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem}
 .chat-head-actions button{font-size:.72rem;padding:.28rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);cursor:pointer}
 `;
@@ -556,6 +639,8 @@
     MIC_SVG,
     SEND_SVG,
     STOP_SVG,
+    describeVoiceError,
+    ensureMediaDevices,
     isSupported,
     pickMimeType,
     formatDuration,
