@@ -23861,6 +23861,14 @@ ALLOWED_UPLOAD_MIMETYPES = {
     "image/webp",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "audio/webm",
+    "audio/mp4",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/wav",
+    "audio/aac",
+    "audio/x-m4a",
+    "video/webm",
 }
 
 _UPLOAD_MIMETYPE_BY_EXTENSION = {
@@ -23872,6 +23880,12 @@ _UPLOAD_MIMETYPE_BY_EXTENSION = {
     ".webp": "image/webp",
     ".doc": "application/msword",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".webm": "audio/webm",
+    ".m4a": "audio/mp4",
+    ".mp4": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
 }
 
 

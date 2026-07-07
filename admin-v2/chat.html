@@ -141,6 +141,15 @@
       line-height: 1;
     }
     .chat-delete-btn:hover { opacity: 1; }
+    .chat-voice-hint { font-size: 0.78rem; color: #f87171; margin: 0 0 0.35rem; padding: 0 0.15rem; }
+    .chat-voice-hint.hidden { display: none; }
+    .chat-send-btn.is-recording { background: #b91c1c; color: #fff; }
+    .chat-audio-player { display:flex; align-items:center; gap:0.45rem; min-width:min(220px, 100%); margin-top:0.25rem; }
+    .chat-audio-play { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:inherit; cursor:pointer; display:grid; place-items:center; flex-shrink:0; }
+    .chat-audio-play.is-playing { background:rgba(255,255,255,.22); }
+    .chat-audio-track { flex:1; height:4px; border-radius:999px; background:rgba(255,255,255,.15); overflow:hidden; }
+    .chat-audio-progress { display:block; height:100%; width:0%; background:currentColor; opacity:.85; }
+    .chat-audio-duration { font-size:0.68rem; opacity:.85; min-width:2.4rem; text-align:end; }
   </style>
 </head>
 <body>
@@ -188,6 +197,7 @@
           <p class="muted" id="pickWorkerHint" data-aci18n="pickWorkerHint">Wählen Sie links einen Mitarbeiter aus.</p>
         </div>
         <div class="chat-compose">
+          <p id="chatVoiceHint" class="chat-voice-hint hidden" aria-live="polite"></p>
           <div class="chat-compose-bar">
             <label class="chat-compose-attach" for="chatFile" title="Anhang">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -203,7 +213,8 @@
       </section>
     </main>
   </div>
-  <script src="/admin-v2/chat-i18n.js?v=20260707wa"></script>
+  <script src="/chat-voice.js?v=20260707voice1"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260707voice1"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -525,6 +536,9 @@
       if (/^image\//i.test(mime)) return true;
       return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
     }
+    function isAudioAttachment(filename, contentType) {
+      return window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType) || false;
+    }
     function downloadHeaders() {
       return token ? { Authorization: `Bearer ${token}` } : {};
     }
@@ -588,6 +602,84 @@
         loadChatImagePreview(img);
       });
     }
+    async function downloadChatAudioBlob(attachmentId, e2eMeta) {
+      const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
+        headers: downloadHeaders(),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.error || res.statusText);
+      }
+      const blob = await res.blob();
+      let outBlob = blob;
+      const meta = String(e2eMeta || adminChatAttachmentMetaById[attachmentId] || "").trim();
+      if (meta && adminE2ECryptoAvailable()) {
+        const buffer = new Uint8Array(await blob.arrayBuffer());
+        const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", getAdminUserId());
+        outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || blob.type || "audio/webm" });
+      }
+      let duration = 0;
+      try {
+        const probe = new Audio(URL.createObjectURL(outBlob));
+        await new Promise((resolve) => {
+          probe.addEventListener("loadedmetadata", () => {
+            duration = Number(probe.duration || 0);
+            URL.revokeObjectURL(probe.src);
+            resolve();
+          }, { once: true });
+          probe.addEventListener("error", () => {
+            URL.revokeObjectURL(probe.src);
+            resolve();
+          }, { once: true });
+        });
+      } catch {
+        /* optional */
+      }
+      return { blob: outBlob, duration };
+    }
+    function hydrateChatAudioPreviews() {
+      window.SUPPIXChatVoice?.hydrateAudioPlayers?.(document.getElementById("messageList"), {
+        downloadFn: async (attachmentId, meta) => downloadChatAudioBlob(attachmentId, meta),
+        onError: (error) => setThreadMeta(error.message || String(error), { dynamic: true }),
+      });
+    }
+    const adminVoiceRecorder = window.SUPPIXChatVoice?.createRecorder?.({
+      onTick: (seconds) => updateAdminVoiceHint(seconds),
+      onError: (error) => setThreadMeta(error?.message || String(error), { dynamic: true }),
+    }) || null;
+    let adminVoiceRecording = false;
+    function adminVoiceLabels() {
+      return {
+        send: window.adminChatT("send"),
+        mic: window.adminChatT("chatVoiceMic"),
+        stop: window.adminChatT("chatVoiceStop"),
+        placeholder: window.adminChatT("replyPh"),
+      };
+    }
+    function syncAdminComposeAction() {
+      const input = document.getElementById("chatReply");
+      const button = document.getElementById("sendReplyBtn");
+      const fileInput = document.getElementById("chatFile");
+      return window.SUPPIXChatVoice?.updateComposePrimaryAction?.({
+        input,
+        button,
+        fileInput,
+        recording: adminVoiceRecording,
+        labels: adminVoiceLabels(),
+      });
+    }
+    function updateAdminVoiceHint(seconds) {
+      const hint = document.getElementById("chatVoiceHint");
+      if (!hint) return;
+      if (!adminVoiceRecording) {
+        hint.classList.add("hidden");
+        hint.textContent = "";
+        return;
+      }
+      hint.classList.remove("hidden");
+      hint.textContent = `${window.adminChatT("chatVoiceRecording")} ${window.SUPPIXChatVoice.formatDuration(seconds)}`;
+    }
     function formatBubbleTime(value) {
       const raw = String(value || "").trim();
       if (!raw) return "";
@@ -645,6 +737,10 @@
       const preview = String(row.last_message_preview || "").trim();
       if (!preview) return row.subject || "general";
       if (preview === "encrypted") return window.adminChatT("encryptedPreview");
+      if (preview === "voice" || /🎤|sprachnachricht|voice message/i.test(preview) || /\.(webm|m4a|ogg|mp3|wav)$/i.test(preview)) {
+        const voice = window.adminChatT("chatVoiceMessage");
+        return row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ${voice}` : voice;
+      }
       const prefix = row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ` : "";
       return `${prefix}${preview.replace(/\s+/g, " ").slice(0, 72)}`;
     }
@@ -723,6 +819,10 @@
             const name = escapeHtml(a.filename || window.adminChatT("attachment"));
             const type = escapeHtml(a.contentType || "");
             const image = isImageAttachment(a.filename, a.contentType);
+            const audio = isAudioAttachment(a.filename, a.contentType);
+            if (audio) {
+              return window.SUPPIXChatVoice.renderAudioPlayerHtml(a, { voice: window.adminChatT("chatVoiceMessage") });
+            }
             if (image) {
               return `<div class="chat-image-actions">
                 <button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">⬇ ${name}</button>
@@ -868,6 +968,7 @@
         list.innerHTML = renderMessageListHtml(messages);
         scrollMessageListToBottom(!quiet);
         hydrateChatImagePreviews();
+        hydrateChatAudioPreviews();
         const activeRow = threads.find((item) => String(item.worker_id) === String(workerId));
         if (activeRow) activeRow.unread_count = 0;
         renderThreads();
@@ -891,50 +992,15 @@
         loadMessages(currentThreadId, currentWorkerId, { quiet: true }).catch(() => {});
       }, CHAT_POLL_MS);
     }
-    document.getElementById("threadSearch").addEventListener("input", renderThreads);
-    const chatReplyInput = document.getElementById("chatReply");
-    if (chatReplyInput && !chatReplyInput.dataset.bound) {
-      chatReplyInput.dataset.bound = "1";
-      chatReplyInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          document.getElementById("sendReplyBtn")?.click();
-        }
-      });
-    }
-    document.getElementById("messageList").addEventListener("click", (event) => {
-      const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
-      if (deleteBtn) {
-        const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
-        if (!messageId) return;
-        deleteAdminChatMessage(messageId).catch((error) => {
-          setThreadMeta(error.message || String(error), { dynamic: true });
-        });
-        return;
-      }
-      const btn = event.target instanceof Element ? event.target.closest("[data-attachment-id]") : null;
-      if (!btn) return;
-      const attachmentId = btn.getAttribute("data-attachment-id") || "";
-      const filename = btn.getAttribute("data-filename") || "download";
-      const contentType = btn.getAttribute("data-content-type") || "";
-      if (!attachmentId) return;
-      downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
-        setThreadMeta(error.message || String(error), { dynamic: true });
-      });
-    });
-    document.getElementById("sendReplyBtn").addEventListener("click", async () => {
+    async function sendAdminChatPayload({ body, file }) {
       if (!currentThreadId || !currentWorkerId) return;
-      const body = document.getElementById("chatReply").value.trim();
-      const file = document.getElementById("chatFile").files[0] || null;
-      if (!body && !file) return;
       const sendBtn = document.getElementById("sendReplyBtn");
-      sendBtn.disabled = true;
       const replyInput = document.getElementById("chatReply");
-      const draftBody = body || (file ? `📎 ${file.name}` : "");
+      const fileInput = document.getElementById("chatFile");
+      const draftBody = String(body || "").trim() || (file ? window.adminChatT("chatVoiceMessage") : "");
       const list = document.getElementById("messageList");
       const pendingId = `pending-${Date.now()}`;
-      replyInput.value = "";
-      document.getElementById("chatFile").value = "";
+      if (sendBtn) sendBtn.disabled = true;
       if (!file && draftBody) {
         list.insertAdjacentHTML("beforeend", renderChatBubble({
           id: pendingId,
@@ -972,14 +1038,14 @@
         if (row) {
           row.hasThread = true;
           row.id = currentThreadId;
-          row.last_message_preview = draftBody.slice(0, 120);
+          row.last_message_preview = file ? "voice" : draftBody.slice(0, 120);
           row.last_message_sender_type = "admin";
           row.last_message_at = new Date().toISOString();
         }
         renderThreads();
       } catch (error) {
         list.querySelector(".bubble.admin.is-pending")?.remove();
-        if (!replyInput.value) {
+        if (replyInput && !replyInput.value) {
           replyInput.value = draftBody;
         }
         const msg = String(error?.message || error || "");
@@ -988,10 +1054,99 @@
         } else {
           setThreadMeta(msg, { dynamic: true });
         }
+        throw error;
       } finally {
-        sendBtn.disabled = false;
+        if (sendBtn) sendBtn.disabled = false;
+        syncAdminComposeAction();
       }
+    }
+    async function handleAdminPrimaryAction() {
+      if (!currentThreadId || !currentWorkerId) return;
+      const mode = document.getElementById("sendReplyBtn")?.dataset.mode || "send";
+      const replyInput = document.getElementById("chatReply");
+      const fileInput = document.getElementById("chatFile");
+      if (mode === "mic") {
+        if (!adminVoiceRecorder || !window.SUPPIXChatVoice?.isSupported?.()) {
+          setThreadMeta(window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
+          return;
+        }
+        try {
+          adminVoiceRecording = true;
+          syncAdminComposeAction();
+          await adminVoiceRecorder.start();
+        } catch (error) {
+          adminVoiceRecording = false;
+          updateAdminVoiceHint(0);
+          syncAdminComposeAction();
+          setThreadMeta(error?.message || window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
+        }
+        return;
+      }
+      if (mode === "stop") {
+        adminVoiceRecording = false;
+        updateAdminVoiceHint(0);
+        syncAdminComposeAction();
+        const blob = await adminVoiceRecorder.stop();
+        const voiceFile = adminVoiceRecorder.toFile(blob, "voice");
+        if (!voiceFile) {
+          setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });
+          return;
+        }
+        await sendAdminChatPayload({ body: window.adminChatT("chatVoiceMessage"), file: voiceFile });
+        if (replyInput) replyInput.value = "";
+        if (fileInput) fileInput.value = "";
+        return;
+      }
+      const body = String(replyInput?.value || "").trim();
+      const file = fileInput?.files?.[0] || null;
+      if (!body && !file) return;
+      if (replyInput) replyInput.value = "";
+      if (fileInput) fileInput.value = "";
+      await sendAdminChatPayload({ body: body || (file ? `📎 ${file.name}` : ""), file });
+    }
+    document.getElementById("threadSearch").addEventListener("input", renderThreads);
+    const chatReplyInput = document.getElementById("chatReply");
+    const chatFileInput = document.getElementById("chatFile");
+    if (chatReplyInput && !chatReplyInput.dataset.bound) {
+      chatReplyInput.dataset.bound = "1";
+      chatReplyInput.addEventListener("input", () => syncAdminComposeAction());
+      chatReplyInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          const mode = document.getElementById("sendReplyBtn")?.dataset.mode || "send";
+          if (mode !== "send") return;
+          event.preventDefault();
+          void handleAdminPrimaryAction();
+        }
+      });
+    }
+    if (chatFileInput && !chatFileInput.dataset.bound) {
+      chatFileInput.dataset.bound = "1";
+      chatFileInput.addEventListener("change", () => syncAdminComposeAction());
+    }
+    document.getElementById("messageList").addEventListener("click", (event) => {
+      const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
+      if (deleteBtn) {
+        const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
+        if (!messageId) return;
+        deleteAdminChatMessage(messageId).catch((error) => {
+          setThreadMeta(error.message || String(error), { dynamic: true });
+        });
+        return;
+      }
+      const btn = event.target instanceof Element ? event.target.closest(".chat-attachment-btn[data-attachment-id]") : null;
+      if (!btn) return;
+      const attachmentId = btn.getAttribute("data-attachment-id") || "";
+      const filename = btn.getAttribute("data-filename") || "download";
+      const contentType = btn.getAttribute("data-content-type") || "";
+      if (!attachmentId) return;
+      downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
+        setThreadMeta(error.message || String(error), { dynamic: true });
+      });
     });
+    document.getElementById("sendReplyBtn").addEventListener("click", () => {
+      void handleAdminPrimaryAction();
+    });
+    syncAdminComposeAction();
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
     void (async () => {

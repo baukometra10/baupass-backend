@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707wa";
+const WORKER_BUILD_TAG = "20260707voice1";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2601,6 +2601,12 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar{display:flex;align-items:flex-end;gap:8px}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:46px;max-height:120px;border-radius:22px;font-size:1rem}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#b91c1c}",
+  "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
+  "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(10,87,192,.12);color:#0a57c0;display:grid;place-items:center;cursor:pointer}",
+  "#chatCard .chat-audio-track{flex:1;height:4px;border-radius:999px;background:rgba(100,116,139,.22);overflow:hidden}",
+  "#chatCard .chat-audio-progress{display:block;height:100%;width:0%;background:#0a57c0}",
+  "#chatCard .chat-audio-duration{font-size:.72rem;color:#64748b;min-width:2.4rem;text-align:end}",
   "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:linear-gradient(180deg,#f8fafc,#eef2f7)}",
   "#chatCard .worker-chat-date-sep{display:flex;justify-content:center;margin:8px 0 4px}",
   "#chatCard .worker-chat-date-sep span{font-size:.72rem;color:#64748b;background:#fff;border:1px solid rgba(100,116,139,.22);padding:.22rem .7rem;border-radius:999px}",
@@ -2889,6 +2895,139 @@ function setWorkerChatComposeEnabled(enabled) {
   }
 }
 
+let workerVoiceRecorder = null;
+let workerVoiceRecording = false;
+
+function getWorkerVoiceRecorder() {
+  if (!workerVoiceRecorder && window.SUPPIXChatVoice?.createRecorder) {
+    workerVoiceRecorder = window.SUPPIXChatVoice.createRecorder({
+      onTick: (seconds) => updateWorkerVoiceHint(seconds),
+      onError: (error) => showWorkerNotice(formatWorkerApiError(error)),
+    });
+  }
+  return workerVoiceRecorder;
+}
+
+function workerVoiceLabels() {
+  return {
+    send: t("workerChatSend"),
+    mic: t("chatVoiceMic"),
+    stop: t("chatVoiceStop"),
+    placeholder: t("workerChatPlaceholder"),
+  };
+}
+
+function syncWorkerComposeAction() {
+  syncWorkerChatComposeRefs();
+  return window.SUPPIXChatVoice?.updateComposePrimaryAction?.({
+    input: elements.workerChatInput,
+    button: elements.workerChatSendBtn,
+    fileInput: elements.workerChatFileInput,
+    recording: workerVoiceRecording,
+    labels: workerVoiceLabels(),
+  });
+}
+
+function updateWorkerVoiceHint(seconds) {
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  if (!hint) return;
+  if (!workerVoiceRecording) {
+    return;
+  }
+  hint.classList.remove("hidden");
+  hint.textContent = `${t("chatVoiceRecording")} ${window.SUPPIXChatVoice.formatDuration(seconds)}`;
+}
+
+async function downloadWorkerChatAudioBlob(attachmentId, e2eMeta) {
+  const response = await fetch(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
+    headers: buildWorkerAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  let outBlob = blob;
+  const meta = String(e2eMeta || "").trim();
+  if (meta && workerE2ECryptoAvailable()) {
+    const workerId = getWorkerE2EEntityId();
+    const buffer = new Uint8Array(await blob.arrayBuffer());
+    const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
+    outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || blob.type || "audio/webm" });
+  }
+  let duration = 0;
+  try {
+    const probe = new Audio(URL.createObjectURL(outBlob));
+    await new Promise((resolve) => {
+      probe.addEventListener("loadedmetadata", () => {
+        duration = Number(probe.duration || 0);
+        URL.revokeObjectURL(probe.src);
+        resolve();
+      }, { once: true });
+      probe.addEventListener("error", () => {
+        URL.revokeObjectURL(probe.src);
+        resolve();
+      }, { once: true });
+    });
+  } catch {
+    /* optional */
+  }
+  return { blob: outBlob, duration };
+}
+
+function hydrateWorkerChatAudioPlayers() {
+  window.SUPPIXChatVoice?.hydrateAudioPlayers?.(elements.workerChatMessages, {
+    downloadFn: async (attachmentId, meta) => downloadWorkerChatAudioBlob(attachmentId, meta),
+    onError: (error) => showWorkerNotice(formatWorkerApiError(error)),
+  });
+}
+
+async function handleWorkerPrimaryAction() {
+  syncWorkerChatComposeRefs();
+  const mode = elements.workerChatSendBtn?.dataset.mode || "send";
+  if (mode === "mic") {
+    const recorder = getWorkerVoiceRecorder();
+    if (!recorder || !window.SUPPIXChatVoice?.isSupported?.()) {
+      showWorkerNotice(t("chatVoiceNotSupported"));
+      return;
+    }
+    try {
+      workerVoiceRecording = true;
+      syncWorkerComposeAction();
+      await recorder.start();
+    } catch (error) {
+      workerVoiceRecording = false;
+      updateWorkerVoiceHint(0);
+      syncWorkerComposeAction();
+      showWorkerNotice(t("chatVoiceNotSupported"));
+    }
+    return;
+  }
+  if (mode === "stop") {
+    const recorder = getWorkerVoiceRecorder();
+    workerVoiceRecording = false;
+    syncWorkerComposeAction();
+    const blob = await recorder?.stop();
+    const voiceFile = recorder?.toFile(blob, "voice");
+    if (!voiceFile) {
+      const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+      if (hint) {
+        hint.classList.add("hidden");
+        hint.textContent = "";
+      }
+      showWorkerNotice(t("chatVoiceTooShort"));
+      return;
+    }
+    const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+    if (hint) {
+      hint.classList.add("hidden");
+      hint.textContent = "";
+    }
+    await sendWorkerChatMessage({ voiceFile });
+    return;
+  }
+  await sendWorkerChatMessage();
+}
+
 function bindWorkerChatComposeEvents() {
   syncWorkerChatComposeRefs();
   const chatCard = elements.chatCard || document.getElementById("chatCard");
@@ -2901,7 +3040,7 @@ function bindWorkerChatComposeEvents() {
         return;
       }
       event.preventDefault();
-      void sendWorkerChatMessage();
+      void handleWorkerPrimaryAction();
     });
   }
   const input = elements.workerChatInput || chatCard?.querySelector("#workerChatInput");
@@ -2914,10 +3053,15 @@ function bindWorkerChatComposeEvents() {
         input.value = "";
       }
     });
+    input.addEventListener("input", () => {
+      syncWorkerComposeAction();
+    });
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
+        const mode = elements.workerChatSendBtn?.dataset.mode || "send";
+        if (mode !== "send") return;
         event.preventDefault();
-        void sendWorkerChatMessage();
+        void handleWorkerPrimaryAction();
       }
     });
   }
@@ -2925,13 +3069,14 @@ function bindWorkerChatComposeEvents() {
     fileInput.dataset.chatBound = "1";
     fileInput.addEventListener("change", () => {
       updateWorkerChatFileHint();
+      syncWorkerComposeAction();
     });
   }
   const messagesHost = elements.workerChatMessages || document.getElementById("workerChatMessages");
   if (messagesHost && !messagesHost.dataset.chatDownloadBound) {
     messagesHost.dataset.chatDownloadBound = "1";
     messagesHost.addEventListener("click", (event) => {
-      const target = event.target instanceof Element ? event.target.closest("[data-attachment-id]") : null;
+      const target = event.target instanceof Element ? event.target.closest(".worker-chat-attachment-btn[data-attachment-id]") : null;
       if (!target) {
         return;
       }
@@ -2942,6 +3087,7 @@ function bindWorkerChatComposeEvents() {
       }
     });
   }
+  syncWorkerComposeAction();
 }
 
 function updateWorkerChatFileHint() {
@@ -11676,6 +11822,10 @@ function renderWorkerChatAttachmentHtml(attachments) {
       }
       const safeId = escapeHtmlBasic(id);
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
+      const contentType = String(attachment.contentType || attachment.content_type || "");
+      if (window.SUPPIXChatVoice?.isAudioAttachment?.(attachment.filename, contentType)) {
+        return window.SUPPIXChatVoice.renderAudioPlayerHtml(attachment, { voice: t("chatVoiceMessage") });
+      }
       return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${safeId}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
     .join("")}</div>`;
@@ -11738,6 +11888,7 @@ function renderWorkerChatMessages(messages, options = {}) {
     elements.workerChatMessages.innerHTML = html;
     bindWorkerChatMessageActions();
     applyWorkerChatDirection();
+    hydrateWorkerChatAudioPlayers();
     scrollWorkerChatToBottom(!quiet);
   })();
 }
@@ -11894,7 +12045,7 @@ function startWorkerChatPolling() {
   }, WORKER_CHAT_POLL_MS);
 }
 
-async function sendWorkerChatMessage() {
+async function sendWorkerChatMessage(options = {}) {
   ensureWorkerChatDom();
   syncWorkerChatComposeRefs();
   if (!getWorkerAuthorizationValue()) {
@@ -11908,14 +12059,15 @@ async function sendWorkerChatMessage() {
   }
   elements.workerChatInput = input;
   const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
-  const file = fileInput?.files?.[0] || null;
+  const voiceFile = options.voiceFile || null;
+  const file = voiceFile || fileInput?.files?.[0] || null;
   let body = String(input.value || "").trim();
   const placeholderText = String(t("workerChatPlaceholder") || "").trim();
   if (placeholderText && body === placeholderText) {
     body = "";
   }
   if (!body && file) {
-    body = t("workerChatAttachmentOnly");
+    body = voiceFile ? t("chatVoiceMessage") : t("workerChatAttachmentOnly");
   }
   if (!body && !file) {
     return;
@@ -11996,6 +12148,7 @@ async function sendWorkerChatMessage() {
     }
     workerChatLastFingerprint = "";
     void loadWorkerChat({ quiet: true });
+    syncWorkerComposeAction();
   } catch (error) {
     removeOptimisticWorkerChatBubble(pendingId);
     if (input && !input.value) {
@@ -12003,6 +12156,7 @@ async function sendWorkerChatMessage() {
     }
     const message = formatWorkerApiError(error);
     showWorkerNotice(message);
+    syncWorkerComposeAction();
   }
 }
 
@@ -12021,6 +12175,7 @@ async function openWorkerChatScreen() {
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();
   }
+  syncWorkerComposeAction();
 }
 
 async function loadMyDocuments() {
