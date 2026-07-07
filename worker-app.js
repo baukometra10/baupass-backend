@@ -77,8 +77,28 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice10";
+const WORKER_BUILD_TAG = "20260707voice11";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
+
+function isWorkerTouchDevice() {
+  return window.SUPPIXChatVoice?.isTouchPrimaryDevice?.()
+    ?? Boolean(window.matchMedia?.("(pointer: coarse)")?.matches || navigator.maxTouchPoints > 0);
+}
+
+function beginWorkerVoiceStreamRequest(mode) {
+  if (mode !== "mic" || workerVoiceRecording) {
+    return null;
+  }
+  window.SUPPIXChatVoice?.ensureMediaDevices?.();
+  if (!window.SUPPIXChatVoice?.isSupported?.() || !window.SUPPIXChatVoice?.requestAudioStream) {
+    return null;
+  }
+  return window.SUPPIXChatVoice.requestAudioStream();
+}
+
+function launchWorkerPrimaryAction(options = {}) {
+  void handleWorkerPrimaryAction(options);
+}
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2964,7 +2984,7 @@ function shouldSuppressWorkerSendClick(event) {
   if (event?.type === "click" && Date.now() - workerSendLastPointerAt < 500) {
     return true;
   }
-  if (event?.type === "pointerup") {
+  if (event?.type === "pointerup" || event?.type === "touchend") {
     workerSendLastPointerAt = Date.now();
   }
   return false;
@@ -3141,7 +3161,7 @@ function resetWorkerVoiceUi() {
   }
 }
 
-async function handleWorkerPrimaryAction() {
+async function handleWorkerPrimaryAction(options = {}) {
   if (workerPrimaryActionBusy) {
     return;
   }
@@ -3159,7 +3179,6 @@ async function handleWorkerPrimaryAction() {
       if (workerVoiceRecording) {
         return;
       }
-      window.SUPPIXChatVoice?.ensureMediaDevices?.();
       const activeRecorder = recorder || getWorkerVoiceRecorder();
       if (!activeRecorder || !window.SUPPIXChatVoice?.isSupported?.()) {
         showWorkerVoiceStartingHint();
@@ -3168,7 +3187,12 @@ async function handleWorkerPrimaryAction() {
       }
       try {
         showWorkerVoiceStartingHint();
-        await activeRecorder.start();
+        if (options.streamError) {
+          throw options.streamError;
+        }
+        await activeRecorder.start({
+          streamPromise: options.streamPromise || null,
+        });
         if (!activeRecorder.recording) {
           throw new Error("voice_record_failed");
         }
@@ -3236,7 +3260,7 @@ function bindWorkerChatSendButton() {
     return;
   }
   sendBtn.dataset.chatSendBound = "1";
-  const triggerPrimaryAction = (event) => {
+  const runFromGesture = (event) => {
     if (sendBtn.disabled || shouldSuppressWorkerSendClick(event)) {
       event?.preventDefault?.();
       event?.stopPropagation?.();
@@ -3244,10 +3268,34 @@ function bindWorkerChatSendButton() {
     }
     event?.preventDefault?.();
     event?.stopPropagation?.();
-    void handleWorkerPrimaryAction();
+    syncWorkerChatComposeRefs();
+    if (workerVoiceRecording && !getWorkerVoiceRecorder()?.recording) {
+      workerVoiceRecording = false;
+      syncWorkerComposeAction();
+    }
+    const mode = resolveWorkerChatPrimaryMode();
+    let streamPromise = null;
+    let streamError = null;
+    if (mode === "mic" && !workerVoiceRecording) {
+      try {
+        streamPromise = beginWorkerVoiceStreamRequest(mode);
+      } catch (error) {
+        streamError = error;
+      }
+    }
+    launchWorkerPrimaryAction({ streamPromise, streamError });
   };
-  sendBtn.addEventListener("pointerup", triggerPrimaryAction, { passive: false });
-  sendBtn.addEventListener("click", triggerPrimaryAction);
+  if (isWorkerTouchDevice()) {
+    sendBtn.addEventListener("touchend", runFromGesture, { passive: false });
+    sendBtn.addEventListener("click", (event) => {
+      if (shouldSuppressWorkerSendClick(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, { passive: false });
+  } else {
+    sendBtn.addEventListener("click", runFromGesture);
+  }
 }
 
 window.workerChatSendClick = function workerChatSendClick(event) {
@@ -3256,7 +3304,18 @@ window.workerChatSendClick = function workerChatSendClick(event) {
     event?.stopPropagation?.();
     return false;
   }
-  void handleWorkerPrimaryAction();
+  syncWorkerChatComposeRefs();
+  const mode = resolveWorkerChatPrimaryMode();
+  let streamPromise = null;
+  let streamError = null;
+  if (mode === "mic" && !workerVoiceRecording) {
+    try {
+      streamPromise = beginWorkerVoiceStreamRequest(mode);
+    } catch (error) {
+      streamError = error;
+    }
+  }
+  launchWorkerPrimaryAction({ streamPromise, streamError });
   return false;
 };
 

@@ -54,6 +54,18 @@
     throw lastError || new Error("voice_record_failed");
   }
 
+  function isTouchPrimaryDevice() {
+    try {
+      return Boolean(
+        global.matchMedia?.("(pointer: coarse)")?.matches
+        || Number(global.navigator?.maxTouchPoints || 0) > 0
+        || "ontouchstart" in global
+      );
+    } catch {
+      return false;
+    }
+  }
+
   function isSupported() {
     ensureMediaDevices();
     return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
@@ -335,10 +347,11 @@
       get elapsedMs() {
         return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
       },
-      async start() {
+      async start(options = null) {
         if (!isSupported()) {
           throw new Error("voice_not_supported");
         }
+        const opts = options && typeof options === "object" ? options : {};
         stopTimer();
         if (recorder && recorder.state !== "inactive") {
           try {
@@ -353,7 +366,13 @@
         mimeType = pickMimeType();
         lastDurationSec = 0;
         startedAt = 0;
-        stream = await requestAudioStream();
+        if (opts.stream instanceof global.MediaStream) {
+          stream = opts.stream;
+        } else if (opts.streamPromise) {
+          stream = await opts.streamPromise;
+        } else {
+          stream = await requestAudioStream();
+        }
         const audioTracks = stream?.getAudioTracks?.() || [];
         if (!audioTracks.length || !audioTracks.some((track) => track.readyState === "live")) {
           cleanupStream();
@@ -733,7 +752,10 @@
     STOP_SVG,
     describeVoiceError,
     ensureMediaDevices,
+    requestAudioStream,
     isSupported,
+    isAppleLikeDevice,
+    isTouchPrimaryDevice,
     pickMimeType,
     formatDuration,
     isAudioAttachment,
