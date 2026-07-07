@@ -256,6 +256,8 @@ const DEFAULT_BRAND_LOGO = API_BASE
   ? `${API_BASE}/branding/suppix-ai-logo.svg`
   : `${window.location.origin}/branding/suppix-ai-logo.svg`;
 const SESSION_TOKEN_STORAGE_KEY = WP?.KEYS?.SESSION_TOKEN || "workpass-session-token";
+const ADMIN_USER_STORAGE_KEY = WP?.KEYS?.ADMIN_USER || "workpass-admin-user";
+const ADMIN_TOKEN_STORAGE_KEY = WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token";
 const SUPPORT_LOGIN_CONTEXT_KEY = WP?.KEYS?.SUPPORT_LOGIN_CONTEXT || "workpass-support-login-context";
 const SUPPORT_PHONE_STORAGE_KEY = WP?.KEYS?.SUPPORT_PHONE || "workpass-support-phone";
 const UI_LANG_STORAGE_KEY = WP?.KEYS?.UI_LANG || "workpass-ui-lang";
@@ -277,11 +279,29 @@ function persistSessionToken(value) {
     const next = String(value || "").trim();
     if (next) {
       wpSet(SESSION_TOKEN_STORAGE_KEY, next);
+      wpSet(ADMIN_TOKEN_STORAGE_KEY, next);
     } else {
       wpRemove(SESSION_TOKEN_STORAGE_KEY);
+      wpRemove(ADMIN_TOKEN_STORAGE_KEY);
     }
   } catch {
     // ignore storage failures (private mode / quota)
+  }
+}
+
+function persistAdminSessionUser(user, { bootstrapE2E = false } = {}) {
+  const snapshot = user && typeof user === "object" ? user : null;
+  try {
+    if (snapshot?.id) {
+      wpSet(ADMIN_USER_STORAGE_KEY, JSON.stringify(snapshot));
+    } else {
+      wpRemove(ADMIN_USER_STORAGE_KEY);
+    }
+  } catch {
+    // ignore storage failures
+  }
+  if (bootstrapE2E && snapshot?.id && window.E2EAdminBridge?.ensureIdentity) {
+    void window.E2EAdminBridge.ensureIdentity();
   }
 }
 
@@ -19460,6 +19480,7 @@ function clearSession() {
   sessionBootstrapInFlight = null;
   token = "";
   persistSessionToken("");
+  wpRemove(ADMIN_USER_STORAGE_KEY);
   state.currentUser = null;
   state.companyAccessBlocked = null;
   state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
@@ -19549,6 +19570,7 @@ async function restoreSessionFromBootstrap() {
     }
     if (bootstrap?.user) {
       state.currentUser = bootstrap.user;
+      persistAdminSessionUser(bootstrap.user, { bootstrapE2E: true });
       state.companyAccessBlocked = bootstrap.companyAccessBlocked || state.companyAccessBlocked || null;
       if (bootstrap.user.role === "superadmin") {
         const previewCid = String(bootstrap.user.preview_company_id || "").trim();
@@ -19557,9 +19579,6 @@ async function restoreSessionFromBootstrap() {
           const previewCompany = (state.companies || []).find((company) => company.id === superadminUiPreviewCompanyId);
           companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
         }
-      }
-      if (window.E2EAdminBridge?.ensureIdentity) {
-        void window.E2EAdminBridge.ensureIdentity();
       }
     }
     return bootstrap;
@@ -33227,6 +33246,7 @@ async function handleLoginSubmit(event) {
     token = payload.token;
     persistSessionToken(token);
     state.currentUser = payload.user;
+    persistAdminSessionUser(payload.user, { bootstrapE2E: true });
     if (String(payload.user?.role || "").toLowerCase() === "superadmin") {
       superadminUiPreviewCompanyId = "";
       companyBrandingPreviewOverride = "";

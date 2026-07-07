@@ -68,7 +68,8 @@ def register_e2e_blueprint(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def admin_register_e2e_identity():
         cid = company_id_from_user()
-        if not cid:
+        role = str((g.current_user or {}).get("role") or "").strip().lower()
+        if not cid and role != "superadmin":
             return forbidden_company()
         data = request.get_json(silent=True) or {}
         try:
@@ -141,7 +142,8 @@ def register_e2e_blueprint(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def admin_rotate_e2e_identity():
         cid = company_id_from_user()
-        if not cid:
+        role = str((g.current_user or {}).get("role") or "").strip().lower()
+        if not cid and role != "superadmin":
             return forbidden_company()
         data = request.get_json(silent=True) or {}
         try:

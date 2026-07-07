@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707a";
+const WORKER_BUILD_TAG = "20260707b";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1752,6 +1752,7 @@ let workerChatThreadId = "";
 let workerChatPollTimer = null;
 let workerE2EIdentityReady = false;
 let workerE2EPublicKeysCache = null;
+let workerE2EPublicKeyRowsCache = null;
 let workerE2EPublicKeysCacheAt = 0;
 const WORKER_E2E_KEYS_TTL_MS = 60000;
 let workerNotificationPollTimer = null;
@@ -6852,7 +6853,9 @@ function isWorkerSessionAuthError(code) {
 
 function isWorkerProtectedApiUrl(url) {
   const value = String(url || "");
-  return value.includes("/api/worker-app") || (API_BASE && value.startsWith(API_BASE));
+  return value.includes("/api/worker-app")
+    || value.includes("/api/e2e/")
+    || (API_BASE && value.startsWith(API_BASE));
 }
 
 function stopSiteGeofenceMonitor() {
@@ -7623,6 +7626,7 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   workerChatThreadId = "";
   workerE2EIdentityReady = false;
   workerE2EPublicKeysCache = null;
+  workerE2EPublicKeyRowsCache = null;
   workerE2EPublicKeysCacheAt = 0;
   stopWorkerChatPolling();
   clearWorkerSessionExpiryTimer();
@@ -10956,7 +10960,11 @@ async function ensureWorkerE2EIdentity(force = false) {
   }
 }
 
-async function fetchWorkerE2EPublicKeys(force = false) {
+function extractWorkerE2EKeyMaterial(row) {
+  return String(row?.publicKeySpkiB64 || row?.public_key_spki_b64 || "").trim();
+}
+
+async function fetchWorkerE2EPublicKeyRows(force = false) {
   if (!workerE2ECryptoAvailable()) {
     return [];
   }
@@ -10964,21 +10972,44 @@ async function fetchWorkerE2EPublicKeys(force = false) {
     await ensureWorkerE2EIdentity();
   }
   const now = Date.now();
-  if (!force && workerE2EPublicKeysCache && now - workerE2EPublicKeysCacheAt < WORKER_E2E_KEYS_TTL_MS) {
-    return workerE2EPublicKeysCache;
+  if (!force && workerE2EPublicKeyRowsCache && now - workerE2EPublicKeysCacheAt < WORKER_E2E_KEYS_TTL_MS) {
+    return workerE2EPublicKeyRowsCache;
   }
   try {
     const payload = await fetchJson(workerE2EEndpoint("public-keys"), {
       headers: buildWorkerAuthHeaders(),
     });
-    workerE2EPublicKeysCache = (payload?.publicKeys || [])
-      .map((row) => String(row.publicKeySpkiB64 || row.public_key_spki_b64 || "").trim())
+    workerE2EPublicKeyRowsCache = Array.isArray(payload?.publicKeys) ? payload.publicKeys : [];
+    workerE2EPublicKeysCache = workerE2EPublicKeyRowsCache
+      .map((row) => extractWorkerE2EKeyMaterial(row))
       .filter(Boolean);
     workerE2EPublicKeysCacheAt = now;
-    return workerE2EPublicKeysCache;
-  } catch {
-    return workerE2EPublicKeysCache || [];
+    return workerE2EPublicKeyRowsCache;
+  } catch (error) {
+    console.warn("[E2E] Worker public-key fetch failed:", error?.message || error);
+    return workerE2EPublicKeyRowsCache || [];
   }
+}
+
+async function fetchWorkerE2EChatRecipientKeys(force = false) {
+  const rows = await fetchWorkerE2EPublicKeyRows(force);
+  const adminKeys = rows
+    .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "user")
+    .map((row) => extractWorkerE2EKeyMaterial(row))
+    .filter(Boolean);
+  const selfKeys = rows
+    .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "worker")
+    .map((row) => extractWorkerE2EKeyMaterial(row))
+    .filter(Boolean);
+  if (!adminKeys.length) {
+    return [];
+  }
+  return [...new Set([...adminKeys, ...selfKeys])];
+}
+
+async function fetchWorkerE2EPublicKeys(force = false) {
+  await fetchWorkerE2EPublicKeyRows(force);
+  return workerE2EPublicKeysCache || [];
 }
 
 async function encryptWorkerChatBody(plaintext) {
@@ -10992,10 +11023,13 @@ async function encryptWorkerChatBody(plaintext) {
     }
     return text;
   }
-  let keys = await fetchWorkerE2EPublicKeys();
-  if (!keys.length) {
+  let keys = await fetchWorkerE2EChatRecipientKeys();
+  for (let attempt = 0; !keys.length && attempt < 3; attempt += 1) {
     await ensureWorkerE2EIdentity(true);
-    keys = await fetchWorkerE2EPublicKeys(true);
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
+    }
+    keys = await fetchWorkerE2EChatRecipientKeys(true);
   }
   if (!keys.length) {
     if (workerE2ERequired()) {

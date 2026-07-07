@@ -15,7 +15,37 @@
 
   function getAdminUserId() {
     try {
-      return String(JSON.parse(wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}").id || "");
+      const fromStorage = String(JSON.parse(wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}").id || "").trim();
+      if (fromStorage) return fromStorage;
+    } catch {
+      // ignore parse errors
+    }
+    try {
+      return String(
+        global.state?.currentUser?.id
+        || global.getCurrentUser?.()?.id
+        || ""
+      ).trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function getAdminCompanyId() {
+    try {
+      const preview = String(
+        wpGet(WP?.KEYS?.PREVIEW_COMPANY_ID || "workpass-preview-company-id")
+        || ""
+      ).trim();
+      if (preview) return preview;
+      const storedUser = JSON.parse(wpGet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user") || "{}");
+      return String(
+        storedUser?.preview_company_id
+        || storedUser?.company_id
+        || storedUser?.companyId
+        || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company")
+        || ""
+      ).trim();
     } catch {
       return "";
     }
@@ -51,13 +81,29 @@
     }
     try {
       const identity = await global.E2ECrypto.ensureLocalIdentity("user", adminUserId);
-      await global.E2ECrypto.registerPublicKey("/api/e2e/identity/admin/me", identity.publicKeySpkiB64, {
+      const companyId = getAdminCompanyId();
+      const registerBody = { publicKeySpkiB64: identity.publicKeySpkiB64 };
+      if (companyId) {
+        registerBody.company_id = companyId;
+        registerBody.companyId = companyId;
+      }
+      const response = await fetch("/api/e2e/identity/admin/me", {
+        method: "PUT",
         headers: authHeaders({ "Content-Type": "application/json" }),
         credentials: "include",
+        body: JSON.stringify(registerBody),
       });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error(body.error || `HTTP ${response.status}`);
+        err.code = body.error || "";
+        throw err;
+      }
       identityReady = true;
+      keyCache.clear();
       return true;
-    } catch {
+    } catch (error) {
+      console.warn("[E2E] Admin identity bootstrap failed:", error?.message || error);
       identityReady = false;
       return false;
     }

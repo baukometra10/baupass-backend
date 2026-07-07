@@ -13764,6 +13764,13 @@ def worker_app_me():
                     "backend.app.platform.security.e2e_policy",
                     fromlist=["is_e2e_sensitive_required"],
                 ).is_e2e_sensitive_required(db, worker["company_id"]),
+                "e2eAdminKeysReady": len([
+                    row for row in __import__(
+                        "backend.app.platform.security.e2e_identity",
+                        fromlist=["E2EIdentityService"],
+                    ).E2EIdentityService(db).list_company_chat_keys(str(worker["company_id"] or ""), worker_id=str(worker["id"] or ""))
+                    if str(row.get("entityType") or "").lower() == "user"
+                ]) > 0,
             },
         }
     )
