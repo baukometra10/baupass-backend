@@ -321,6 +321,7 @@ class ChatService:
         sender_user_id: str | None,
         sender_worker_id: str | None,
         body: str,
+        allow_plaintext_e2e_fallback: bool = False,
     ) -> dict[str, Any]:
         if not body.strip():
             raise ValueError("message_required")
@@ -333,6 +334,7 @@ class ChatService:
                 sender_user_id=sender_user_id,
                 sender_worker_id=sender_worker_id,
                 body=body,
+                allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
             )
         except ValueError:
             raise
@@ -346,6 +348,7 @@ class ChatService:
                 sender_user_id=sender_user_id,
                 sender_worker_id=sender_worker_id,
                 body=body,
+                allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
             )
 
     def _create_message_record(
@@ -359,11 +362,12 @@ class ChatService:
         sender_worker_id: str | None,
         body: str,
         silent_side_effects: bool = False,
+        allow_plaintext_e2e_fallback: bool = False,
     ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
-        if is_e2e_chat_required(self.db, company_id, worker_id=worker_id):
+        if is_e2e_chat_required(self.db, company_id, worker_id=worker_id) and not allow_plaintext_e2e_fallback:
             assert_e2e_message_body(plain_body)
         stored_body = maybe_encrypt_field(plain_body, company_id=company_id)
         encrypted_preview = is_e2e_envelope(plain_body)

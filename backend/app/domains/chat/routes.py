@@ -305,6 +305,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         ).fetchone()
         if not thread or str(thread["worker_id"]) != worker_id:
             return jsonify({"error": "thread_not_found", "message": "Chat nicht gefunden."}), 404
+        e2e_client_unavailable = str(request.headers.get("X-E2E-Client-Unavailable") or "").strip().lower() in {"1", "true", "yes"}
         try:
             message = service.create_message(
                 thread_id=thread_id,
@@ -314,6 +315,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 sender_user_id=None,
                 sender_worker_id=worker_id,
                 body=str(data.get("body") or ""),
+                allow_plaintext_e2e_fallback=e2e_client_unavailable,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:

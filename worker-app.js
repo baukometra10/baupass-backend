@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707i";
+const WORKER_BUILD_TAG = "20260707j";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -11033,6 +11033,14 @@ function workerChatEncryptErrorMessage(error) {
   return t("workerChatUnavailable");
 }
 
+function isWorkerE2EClientUnavailableError(error) {
+  const code = String(error?.message || error?.code || error?.payload?.error || "").trim();
+  if (code === "e2e_storage_unavailable" || code === "e2e_crypto_unavailable") {
+    return true;
+  }
+  return /indexeddb/i.test(String(error?.message || "")) || /can't find variable/i.test(String(error?.message || ""));
+}
+
 function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
@@ -11206,13 +11214,10 @@ async function encryptWorkerChatBody(plaintext) {
     return text;
   }
   await refreshWorkerSecurityFromServer();
-  await window.E2ECrypto?.ensureCryptoSessionReady?.();
   if (!workerE2ECryptoAvailable()) {
-    if (workerE2ERequired()) {
-      throw new Error("e2e_crypto_unavailable");
-    }
     return text;
   }
+  await window.E2ECrypto?.ensureCryptoSessionReady?.();
   await syncWorkerE2EIdentityWithServer();
   let keys = await fetchWorkerE2EChatRecipientKeys(true);
   for (let attempt = 0; !keys.length && attempt < 3; attempt += 1) {
@@ -11617,9 +11622,12 @@ async function sendWorkerChatMessage() {
   if (!body && !file) {
     return;
   }
-  const postMessage = async (threadId, outboundBody) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+  const postMessage = async (threadId, outboundBody, options = {}) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
     method: "POST",
-    headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+    headers: buildWorkerAuthHeaders({
+      "Content-Type": "application/json",
+      ...(options.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
+    }),
     body: JSON.stringify({ body: outboundBody }),
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
@@ -11650,16 +11658,22 @@ async function sendWorkerChatMessage() {
     }
     setWorkerChatComposeEnabled(false);
     let outboundBody = body;
+    let e2eClientUnavailable = workerE2ERequired() && !workerE2ECryptoAvailable();
     try {
       outboundBody = await encryptWorkerChatBody(body);
     } catch (error) {
-      showWorkerNotice(workerChatEncryptErrorMessage(error));
-      setWorkerChatComposeEnabled(allowed);
-      return;
+      if (workerE2ERequired() && isWorkerE2EClientUnavailableError(error)) {
+        e2eClientUnavailable = true;
+        outboundBody = body;
+      } else {
+        showWorkerNotice(workerChatEncryptErrorMessage(error));
+        setWorkerChatComposeEnabled(allowed);
+        return;
+      }
     }
     let messageId = "";
     try {
-      const sent = await postMessage(threadId, outboundBody);
+      const sent = await postMessage(threadId, outboundBody, { e2eClientUnavailable });
       messageId = String(sent?.message?.id || "");
     } catch (error) {
       if (error?.code === "thread_not_found" || error?.code === "chat_send_failed") {
@@ -11669,7 +11683,7 @@ async function sendWorkerChatMessage() {
         if (!threadId) {
           throw error;
         }
-        const sent = await postMessage(threadId, outboundBody);
+        const sent = await postMessage(threadId, outboundBody, { e2eClientUnavailable });
         messageId = String(sent?.message?.id || "");
       } else {
         throw error;
