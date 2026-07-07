@@ -15,6 +15,24 @@
   let _sessionMasterKey = null;
   let _sessionPinUnlocked = false;
 
+  function getIndexedDB() {
+    try {
+      const root = typeof global !== "undefined" ? global : typeof window !== "undefined" ? window : null;
+      if (!root) return null;
+      return root.indexedDB || root.webkitIndexedDB || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function isBrowserStorageAvailable() {
+    try {
+      return Boolean(getIndexedDB() && global.crypto?.subtle);
+    } catch {
+      return false;
+    }
+  }
+
   function b64Encode(bytes) {
     const bin = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
     let str = "";
@@ -84,6 +102,9 @@
 
   /** Session bootstrap — no PIN/password prompts; heals broken PIN-locked stores. */
   async function ensureCryptoSessionReady() {
+    if (!isBrowserStorageAvailable()) {
+      throw new Error("e2e_storage_unavailable");
+    }
     _sessionPinUnlocked = true;
     const pinConfig = await idbMetaGet("device-pin");
     const metaMaster = await idbMetaGet("master-key");
@@ -198,8 +219,12 @@
   }
 
   function openDb() {
+    const idb = getIndexedDB();
+    if (!idb) {
+      return Promise.reject(new Error("e2e_storage_unavailable"));
+    }
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+      const req = idb.open(IDB_NAME, IDB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(IDB_STORE)) {
@@ -726,6 +751,7 @@
     ENVELOPE_VERSION,
     init: async () => ensureCryptoSessionReady(),
     ensureCryptoSessionReady,
+    isBrowserStorageAvailable,
     looksLikeE2EPayload,
     isE2EEnvelope,
     ensureLocalIdentity,

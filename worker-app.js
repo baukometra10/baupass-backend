@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707h";
+const WORKER_BUILD_TAG = "20260707i";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -8049,6 +8049,13 @@ function formatWorkerApiError(error) {
   if (code === "e2e_required") {
     return t("workerChatE2EKeysMissing");
   }
+  if (code === "e2e_storage_unavailable" || code === "e2e_crypto_unavailable") {
+    return t("workerChatE2EStorageUnavailable");
+  }
+  const rawMessage = String(error?.message || "").trim();
+  if (/indexeddb/i.test(rawMessage) || /can't find variable/i.test(rawMessage)) {
+    return t("workerChatE2EStorageUnavailable");
+  }
   if (code === "chat_load_failed" || code === "chat_thread_failed") {
     return t("workerChatUnavailable");
   }
@@ -10952,7 +10959,17 @@ async function downloadWorkerDocument(docId, filename, e2eMeta) {
 }
 
 function workerE2ECryptoAvailable() {
-  return typeof window.E2ECrypto !== "undefined" && workerPlanAllowsFeature("worker_chat");
+  if (typeof window.E2ECrypto === "undefined" || !workerPlanAllowsFeature("worker_chat")) {
+    return false;
+  }
+  if (typeof window.E2ECrypto.isBrowserStorageAvailable === "function") {
+    return window.E2ECrypto.isBrowserStorageAvailable();
+  }
+  try {
+    return Boolean(window.indexedDB || window.webkitIndexedDB) && Boolean(window.crypto?.subtle);
+  } catch {
+    return false;
+  }
 }
 
 function workerE2ERequired() {
@@ -11007,7 +11024,10 @@ function applyWorkerChatBootstrap(payload = lastWorkerPayload) {
 
 function workerChatEncryptErrorMessage(error) {
   const code = String(error?.message || error?.code || "");
-  if (code === "e2e_keys_missing" || code === "e2e_recipients_required" || code === "e2e_crypto_unavailable") {
+  if (code === "e2e_storage_unavailable" || code === "e2e_crypto_unavailable") {
+    return t("workerChatE2EStorageUnavailable");
+  }
+  if (code === "e2e_keys_missing" || code === "e2e_recipients_required") {
     return t("workerChatE2EKeysMissing");
   }
   return t("workerChatUnavailable");
@@ -11069,17 +11089,23 @@ async function syncWorkerE2EIdentityWithServer() {
     workerE2EDeviceMismatch = false;
     return false;
   }
-  await refreshWorkerSecurityFromServer();
-  await window.E2ECrypto.ensureCryptoSessionReady?.();
-  const serverIdentity = await fetchWorkerServerE2EIdentity();
-  const serverPub = extractWorkerE2EPublicKeyFromIdentity(serverIdentity);
-  const localPub = await peekWorkerLocalE2EPublicKey();
-  workerE2EDeviceMismatch = Boolean(serverPub && (!localPub || localPub !== serverPub));
-  const registered = await ensureWorkerE2EIdentity(true);
-  if (workerE2EDeviceMismatch) {
-    maybeShowWorkerE2ENewDeviceHint();
+  try {
+    await refreshWorkerSecurityFromServer();
+    await window.E2ECrypto.ensureCryptoSessionReady?.();
+    const serverIdentity = await fetchWorkerServerE2EIdentity();
+    const serverPub = extractWorkerE2EPublicKeyFromIdentity(serverIdentity);
+    const localPub = await peekWorkerLocalE2EPublicKey();
+    workerE2EDeviceMismatch = Boolean(serverPub && (!localPub || localPub !== serverPub));
+    const registered = await ensureWorkerE2EIdentity(true);
+    if (workerE2EDeviceMismatch) {
+      maybeShowWorkerE2ENewDeviceHint();
+    }
+    return registered;
+  } catch (error) {
+    console.warn("[E2E] Worker identity sync failed:", error?.message || error);
+    workerE2EIdentityReady = false;
+    return false;
   }
-  return registered;
 }
 
 async function ensureWorkerE2EIdentity(force = false) {
@@ -11230,10 +11256,16 @@ async function encryptWorkerSensitiveField(plaintext) {
 
 async function decryptWorkerChatBody(storedBody) {
   const text = String(storedBody || "").trim();
-  if (!text || !workerE2ECryptoAvailable()) {
+  if (!text) {
     return text;
   }
-  const looksE2E = window.E2ECrypto.looksLikeE2EPayload?.(text) || window.E2ECrypto.isE2EEnvelope(text);
+  const looksE2E = window.E2ECrypto?.looksLikeE2EPayload?.(text) || window.E2ECrypto?.isE2EEnvelope?.(text);
+  if (!workerE2ECryptoAvailable()) {
+    if (looksE2E) {
+      return workerE2EDeviceMismatch ? t("workerChatE2EOtherDevice") : t("workerChatE2EDecryptFailed");
+    }
+    return text;
+  }
   if (!looksE2E) {
     return text;
   }
@@ -11504,8 +11536,12 @@ async function loadWorkerChat(options = {}) {
   try {
     applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
-    if (workerE2ERequired()) {
-      await syncWorkerE2EIdentityWithServer();
+    if (workerE2ERequired() && workerE2ECryptoAvailable()) {
+      try {
+        await syncWorkerE2EIdentityWithServer();
+      } catch (error) {
+        console.warn("[chat] Worker E2E sync skipped:", error?.message || error);
+      }
     }
     let threadId = String(workerChatThreadId || "").trim();
     if (!threadId) {
@@ -11590,8 +11626,12 @@ async function sendWorkerChatMessage() {
   try {
     applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
-    if (workerE2ERequired()) {
-      await syncWorkerE2EIdentityWithServer();
+    if (workerE2ERequired() && workerE2ECryptoAvailable()) {
+      try {
+        await syncWorkerE2EIdentityWithServer();
+      } catch (error) {
+        console.warn("[chat] Worker E2E sync skipped:", error?.message || error);
+      }
     }
     let threadId = String(workerChatThreadId || "").trim();
     if (!threadId) {
@@ -12046,13 +12086,19 @@ function processVoiceCommand(text) {
 async function initOfflineStorage() {
   // Already handled by existing offline queue in localStorage
   // IndexedDB can be added here for larger data persistence
-  if (!("indexedDB" in window)) {
+  let idb = null;
+  try {
+    idb = window.indexedDB || window.webkitIndexedDB || null;
+  } catch {
+    idb = null;
+  }
+  if (!idb) {
     console.warn("IndexedDB not supported");
     return;
   }
-  
+
   try {
-    const db = indexedDB.open("workpass-offline", 1);
+    const db = idb.open("workpass-offline", 1);
     db.onupgradeneeded = (event) => {
       const idb = event.target.result;
       if (!idb.objectStoreNames.contains("events")) {
