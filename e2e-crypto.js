@@ -5,9 +5,15 @@
 (function (global) {
   const IDB_NAME = "suppix-e2e-crypto-v1";
   const IDB_STORE = "identities";
+  const IDB_META = "meta";
+  const IDB_VERSION = 2;
   const MASTER_KEY_STORAGE = "suppix-e2e-master-v1";
+  const PIN_ITERATIONS = 310000;
   const ALGORITHM = "X25519";
   const ENVELOPE_VERSION = 1;
+
+  let _sessionMasterKey = null;
+  let _sessionPinUnlocked = false;
 
   function b64Encode(bytes) {
     const bin = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -36,35 +42,180 @@
   }
 
   async function getOrCreateMasterKey() {
-    let raw = null;
-    try {
-      raw = localStorage.getItem(MASTER_KEY_STORAGE);
-    } catch {
-      raw = null;
+    if (_sessionMasterKey) return _sessionMasterKey;
+
+    const pinConfig = await idbMetaGet("device-pin");
+    if (pinConfig?.enabled) {
+      if (!_sessionPinUnlocked) {
+        throw new Error("e2e_pin_required");
+      }
     }
-    if (!raw) {
-      const seed = crypto.getRandomValues(new Uint8Array(32));
-      raw = b64Encode(seed);
+
+    let raw = null;
+    const wrapped = await idbMetaGet("master-key-wrapped");
+    if (pinConfig?.enabled && wrapped?.iv && wrapped?.ct) {
+      throw new Error("e2e_pin_required");
+    }
+
+    const metaMaster = await idbMetaGet("master-key");
+    if (metaMaster?.seedB64) {
+      raw = metaMaster.seedB64;
+    } else {
       try {
-        localStorage.setItem(MASTER_KEY_STORAGE, raw);
+        raw = localStorage.getItem(MASTER_KEY_STORAGE);
       } catch {
-        // session-only fallback
+        raw = null;
+      }
+      if (!raw) {
+        const seed = crypto.getRandomValues(new Uint8Array(32));
+        raw = b64Encode(seed);
+      }
+      await idbMetaPut({ id: "master-key", seedB64: raw });
+      try {
+        localStorage.removeItem(MASTER_KEY_STORAGE);
+      } catch {
+        /* ignore */
       }
     }
     const material = await sha256(b64Decode(raw));
-    return crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
+    _sessionMasterKey = await crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
+    return _sessionMasterKey;
+  }
+
+  async function derivePinAesKey(pin, saltBytes) {
+    const keyMaterial = await crypto.subtle.importKey(
+      "raw",
+      utf8Encode(String(pin || "")),
+      "PBKDF2",
+      false,
+      ["deriveKey"],
+    );
+    return crypto.subtle.deriveKey(
+      { name: "PBKDF2", salt: saltBytes, iterations: PIN_ITERATIONS, hash: "SHA-256" },
+      keyMaterial,
+      { name: "AES-GCM", length: 256 },
+      false,
+      ["encrypt", "decrypt"],
+    );
+  }
+
+  async function pinVerifierHash(pin, saltB64) {
+    const digest = await sha256(utf8Encode(`${saltB64}:${String(pin || "")}:suppix-e2e-pin-v1`));
+    return b64Encode(new Uint8Array(digest));
+  }
+
+  async function isDevicePinEnabled() {
+    const pinConfig = await idbMetaGet("device-pin");
+    return Boolean(pinConfig?.enabled);
+  }
+
+  function isDevicePinUnlocked() {
+    return _sessionPinUnlocked;
+  }
+
+  async function hasDevicePinUnlocked() {
+    if (!(await isDevicePinEnabled())) return true;
+    return _sessionPinUnlocked;
+  }
+
+  async function setDevicePin(pin) {
+    const text = String(pin || "");
+    if (text.length < 6) throw new Error("e2e_pin_too_short");
+    const master = await getOrCreateMasterKey();
+    let raw = null;
+    const metaMaster = await idbMetaGet("master-key");
+    if (metaMaster?.seedB64) {
+      raw = metaMaster.seedB64;
+    } else {
+      throw new Error("e2e_pin_setup_failed");
+    }
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const saltB64 = b64Encode(salt);
+    const pinKey = await derivePinAesKey(text, salt);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, pinKey, utf8Encode(raw));
+    await idbMetaPut({
+      id: "master-key-wrapped",
+      iv: b64Encode(iv),
+      ct: b64Encode(new Uint8Array(ct)),
+    });
+    await idbMetaPut({ id: "master-key", seedB64: "" });
+    await idbMetaPut({
+      id: "device-pin",
+      enabled: true,
+      saltB64,
+      verifierB64: await pinVerifierHash(text, saltB64),
+    });
+    _sessionMasterKey = master;
+    _sessionPinUnlocked = true;
+    try {
+      localStorage.removeItem(MASTER_KEY_STORAGE);
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+
+  async function unlockDevicePin(pin) {
+    const pinConfig = await idbMetaGet("device-pin");
+    const wrapped = await idbMetaGet("master-key-wrapped");
+    if (!pinConfig?.enabled || !wrapped?.iv || !wrapped?.ct) {
+      _sessionPinUnlocked = true;
+      return true;
+    }
+    const verifier = await pinVerifierHash(pin, pinConfig.saltB64);
+    if (verifier !== pinConfig.verifierB64) {
+      throw new Error("e2e_pin_invalid");
+    }
+    const salt = b64Decode(pinConfig.saltB64);
+    const pinKey = await derivePinAesKey(pin, salt);
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: b64Decode(wrapped.iv) },
+      pinKey,
+      b64Decode(wrapped.ct),
+    );
+    const raw = utf8Decode(new Uint8Array(plain));
+    const material = await sha256(b64Decode(raw));
+    _sessionMasterKey = await crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
+    _sessionPinUnlocked = true;
+    return true;
   }
 
   function openDb() {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(IDB_NAME, 1);
+      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
       req.onupgradeneeded = () => {
         const db = req.result;
         if (!db.objectStoreNames.contains(IDB_STORE)) {
           db.createObjectStore(IDB_STORE, { keyPath: "id" });
         }
+        if (!db.objectStoreNames.contains(IDB_META)) {
+          db.createObjectStore(IDB_META, { keyPath: "id" });
+        }
       };
       req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbMetaGet(id) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_META, "readonly");
+      const store = tx.objectStore(IDB_META);
+      const req = store.get(id);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  async function idbMetaPut(record) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_META, "readwrite");
+      const store = tx.objectStore(IDB_META);
+      const req = store.put(record);
+      req.onsuccess = () => resolve(record);
       req.onerror = () => reject(req.error);
     });
   }
@@ -367,7 +518,11 @@
 
   async function exportRecoveryPhrase() {
     let raw = null;
-    try { raw = localStorage.getItem(MASTER_KEY_STORAGE); } catch { raw = null; }
+    const metaMaster = await idbMetaGet("master-key");
+    if (metaMaster?.seedB64) raw = metaMaster.seedB64;
+    if (!raw) {
+      try { raw = localStorage.getItem(MASTER_KEY_STORAGE); } catch { raw = null; }
+    }
     if (!raw) throw new Error("e2e_recovery_unavailable");
     const digest = await sha256(b64Decode(raw));
     const view = new DataView(digest);
@@ -384,6 +539,8 @@
     const digest = await sha256(utf8Encode(parts.join(" ")));
     const raw = b64Encode(new Uint8Array(digest).slice(0, 32));
     try { localStorage.setItem(MASTER_KEY_STORAGE, raw); } catch { /* session-only */ }
+    await idbMetaPut({ id: "master-key", seedB64: raw });
+    _sessionMasterKey = null;
     return true;
   }
 
@@ -522,6 +679,11 @@
     decryptUtf8WithArchive,
     exportIdentityQrPayload,
     importIdentityQrPayload,
+    isDevicePinEnabled,
+    isDevicePinUnlocked,
+    hasDevicePinUnlocked,
+    setDevicePin,
+    unlockDevicePin,
     exportPublicKeySpkiB64,
     importPublicKeySpkiB64,
   });

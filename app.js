@@ -8902,6 +8902,13 @@ function applyUiTranslations() {
   applyRuntimeUiTexts();
   populateCompanyPlanSelect();
 
+  if (typeof window.E2EI18n?.applyDom === "function") {
+    window.E2EI18n.applyDom(document, lang);
+  }
+  if (typeof renderE2ESecurityPanel === "function") {
+    renderE2ESecurityPanel();
+  }
+
   updateAuthLanguageControl(lang);
   const topbarSelect = document.querySelector("#uiLangTopbarSelect");
   if (topbarSelect) topbarSelect.value = lang;
@@ -8961,6 +8968,9 @@ function setUiLang(lang) {
   if (typeof applyRuntimeUiTexts === "function") applyRuntimeUiTexts();
   if (typeof loadSectorTerminology === "function") {
     loadSectorTerminology().catch(() => {});
+  }
+  if (typeof renderE2ESecurityPanel === "function") {
+    renderE2ESecurityPanel();
   }
 }
 

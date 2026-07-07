@@ -1,0 +1,170 @@
+/* E2E security panel — admin + worker */
+.e2e-security-card {
+  margin-top: 0.85rem;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent, #0a57c0) 22%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent, #0a57c0) 6%, #fff) 0%, #f8fafc 48%, #fff 100%);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.e2e-security-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.e2e-security-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.15rem;
+  background: linear-gradient(135deg, #0a57c0, #1d4ed8);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(10, 87, 192, 0.35);
+}
+
+.e2e-security-card-head h4 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.e2e-security-card-head .e2e-security-kicker {
+  margin: 0 0 2px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.e2e-security-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #475569;
+}
+
+.e2e-security-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+
+.e2e-security-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(255, 255, 255, 0.85);
+  color: #334155;
+}
+
+.e2e-security-badge.is-secure {
+  border-color: rgba(5, 150, 105, 0.25);
+  background: rgba(236, 253, 245, 0.95);
+  color: #047857;
+}
+
+.e2e-security-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+@media (min-width: 520px) {
+  .e2e-security-actions {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.e2e-security-actions button {
+  min-height: 38px;
+  border-radius: 10px !important;
+  font-size: 0.74rem !important;
+  font-weight: 700 !important;
+  justify-content: center;
+}
+
+.e2e-security-pin-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 0 16px 12px;
+}
+
+.e2e-security-pin-row input[type="password"] {
+  flex: 1 1 140px;
+  min-width: 120px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.82rem;
+}
+
+.e2e-security-output {
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.68rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: auto;
+}
+
+.e2e-security-output:empty {
+  display: none;
+}
+
+.e2e-security-import {
+  display: none;
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.72rem;
+  min-height: 64px;
+  resize: vertical;
+}
+
+.e2e-security-lock-banner {
+  margin: 0 16px 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+}
+
+.e2e-security-lock-banner.is-unlocked {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #047857;
+}
+
+.worker-e2e-panel.e2e-security-card {
+  margin-top: 12px;
+}

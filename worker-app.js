@@ -10931,6 +10931,12 @@ async function ensureWorkerE2EIdentity() {
     return false;
   }
   try {
+    if (window.E2ECrypto?.isDevicePinEnabled && await window.E2ECrypto.isDevicePinEnabled()) {
+      if (!window.E2ECrypto.isDevicePinUnlocked?.()) {
+        workerE2EIdentityReady = false;
+        return false;
+      }
+    }
     const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
     await window.E2ECrypto.registerPublicKey(`${API_BASE}/e2e/identity/me`, identity.publicKeySpkiB64, {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
