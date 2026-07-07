@@ -2798,6 +2798,11 @@ function getCurrentLocale() {
         attr.split(",").map((part) => part.trim()).filter(Boolean).forEach((name) => {
           el.setAttribute(name, value);
         });
+      } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        el.placeholder = value;
+        if (String(el.value || "").trim() === value) {
+          el.value = "";
+        }
       } else {
         el.textContent = value;
       }

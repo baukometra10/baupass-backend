@@ -30,6 +30,14 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return None, None
         return str(worker.get("id") or ""), str(worker.get("company_id") or "")
 
+    def _normalize_thread_row(row) -> dict:
+        item = dict(row) if row else {}
+        thread_id = str(item.get("id") or item.get("thread_id") or item.get("threadId") or "").strip()
+        if thread_id:
+            item["id"] = thread_id
+            item["threadId"] = thread_id
+        return item
+
     def _admin_can_access_company(company_id: str) -> bool:
         user = getattr(g, "current_user", None) or {}
         role = str(user.get("role") or "")
@@ -208,7 +216,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         if blocked:
             return blocked
         try:
-            return jsonify({"threads": ChatService(get_db()).list_threads(company_id, worker_id=worker_id)})
+            rows = ChatService(get_db()).list_threads(company_id, worker_id=worker_id)
+            return jsonify({"threads": [_normalize_thread_row(row) for row in rows]})
         except Exception:
             logging.getLogger(__name__).exception("worker_chat_threads failed for worker %s", worker_id)
             return jsonify({"error": "chat_load_failed", "message": "Chat konnte nicht geladen werden.", "threads": []}), 500

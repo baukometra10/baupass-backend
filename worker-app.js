@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707d";
+const WORKER_BUILD_TAG = "20260707e";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1625,6 +1625,12 @@ function applyTranslations() {
       attr.split(",").map((part) => part.trim()).filter(Boolean).forEach((name) => {
         el.setAttribute(name, value);
       });
+    } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+      const value = t(key);
+      el.placeholder = value;
+      if (String(el.value || "").trim() === value) {
+        el.value = "";
+      }
     } else {
       el.textContent = t(key);
     }
@@ -2770,7 +2776,7 @@ function ensureWorkerChatDom() {
             <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
             <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
           </label>
-          <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" placeholder="Nachricht schreiben…"></textarea>
+          <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -2850,6 +2856,12 @@ function bindWorkerChatComposeEvents() {
   const fileInput = elements.workerChatFileInput || chatCard?.querySelector("#workerChatFileInput");
   if (input && !input.dataset.chatBound) {
     input.dataset.chatBound = "1";
+    input.addEventListener("focus", () => {
+      const ph = String(t("workerChatPlaceholder") || "").trim();
+      if (ph && String(input.value || "").trim() === ph) {
+        input.value = "";
+      }
+    });
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
@@ -11161,12 +11173,20 @@ async function prepareWorkerChatMessagesForDisplay(messages) {
   return prepared;
 }
 
+function extractChatThreadId(row) {
+  if (!row || typeof row !== "object") {
+    return "";
+  }
+  return String(row.id || row.threadId || row.thread_id || row.ID || "").trim();
+}
+
 async function ensureWorkerChatThread(forceRefresh = false) {
   if (!workerToken) {
     return "";
   }
-  if (workerChatThreadId && !forceRefresh) {
-    return workerChatThreadId;
+  const cachedThreadId = String(workerChatThreadId || "").trim();
+  if (cachedThreadId && !forceRefresh) {
+    return cachedThreadId;
   }
   const authHeaders = buildWorkerAuthHeaders();
   let lastError = null;
@@ -11177,13 +11197,15 @@ async function ensureWorkerChatThread(forceRefresh = false) {
     const threads = Array.isArray(threadsPayload?.threads) ? threadsPayload.threads : [];
     if (threads.length) {
       const sorted = [...threads].sort((left, right) =>
-        String(right.last_message_at || right.updated_at || "").localeCompare(
-          String(left.last_message_at || left.updated_at || "")
+        String(right.last_message_at || right.updated_at || right.lastMessageAt || "").localeCompare(
+          String(left.last_message_at || left.updated_at || left.lastMessageAt || "")
         )
       );
       const existing = sorted.find((row) => String(row.subject || "general") === "general") || sorted[0];
-      workerChatThreadId = String(existing?.id || existing?.threadId || "");
-      if (workerChatThreadId) {
+      const resolvedId = extractChatThreadId(existing);
+      if (resolvedId) {
+        workerChatThreadId = resolvedId;
+        workerChatThreadLastError = null;
         return workerChatThreadId;
       }
     }
@@ -11197,8 +11219,10 @@ async function ensureWorkerChatThread(forceRefresh = false) {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ subject: "general" }),
     });
-    workerChatThreadId = String(created?.threadId || created?.thread_id || "");
-    if (workerChatThreadId) {
+    const resolvedId = extractChatThreadId(created) || String(created?.threadId || created?.thread_id || "").trim();
+    if (resolvedId) {
+      workerChatThreadId = resolvedId;
+      workerChatThreadLastError = null;
       return workerChatThreadId;
     }
   } catch (error) {
@@ -11206,6 +11230,10 @@ async function ensureWorkerChatThread(forceRefresh = false) {
     console.warn("[chat] Worker thread create failed:", error?.message || error);
   }
   workerChatThreadLastError = lastError;
+  if (cachedThreadId) {
+    workerChatThreadId = cachedThreadId;
+    return cachedThreadId;
+  }
   return workerChatThreadId;
 }
 
@@ -11361,6 +11389,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
 
 async function loadWorkerChat(options = {}) {
   const quiet = Boolean(options.quiet);
+  ensureWorkerChatDom();
   syncWorkerChatComposeRefs();
   if (!getWorkerAuthorizationValue() || !elements.workerChatMessages) {
     return;
@@ -11416,6 +11445,7 @@ function startWorkerChatPolling() {
 }
 
 async function sendWorkerChatMessage() {
+  ensureWorkerChatDom();
   syncWorkerChatComposeRefs();
   if (!getWorkerAuthorizationValue()) {
     showWorkerNotice(t("enterBadgeId"));
@@ -11430,6 +11460,10 @@ async function sendWorkerChatMessage() {
   const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
   const file = fileInput?.files?.[0] || null;
   let body = String(input.value || "").trim();
+  const placeholderText = String(t("workerChatPlaceholder") || "").trim();
+  if (placeholderText && body === placeholderText) {
+    body = "";
+  }
   if (!body && file) {
     body = t("workerChatAttachmentOnly");
   }
@@ -11445,7 +11479,10 @@ async function sendWorkerChatMessage() {
   try {
     await refreshWorkerSecurityFromServer();
     await ensureWorkerE2EIdentity(true);
-    let threadId = await ensureWorkerChatThread(true);
+    let threadId = await ensureWorkerChatThread();
+    if (!threadId) {
+      threadId = await ensureWorkerChatThread(true);
+    }
     if (!threadId) {
       showWorkerNotice(
         workerChatThreadLastError
