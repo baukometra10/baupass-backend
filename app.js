@@ -38122,6 +38122,7 @@ function renderLeaveRequestsTable(requests, filterStatus = null, scopeHint = "",
           "Firmenfilter: alle Firmen (Superadmin)",
           "",
         );
+      }
     } catch (error) {
       showAlert("alertActionFailed", { error: String(error) });
     }
