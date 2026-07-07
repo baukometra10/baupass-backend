@@ -83,7 +83,7 @@
   }
 
   function shouldPreferNativeVoiceCapture() {
-    return false;
+    return isAppleLikeDevice() && isTouchPrimaryDevice();
   }
 
   function normalizeCaptureFile(file) {

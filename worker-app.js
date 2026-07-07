@@ -77,12 +77,16 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice17";
+const WORKER_BUILD_TAG = "20260707voice18";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
   return window.SUPPIXChatVoice?.isTouchPrimaryDevice?.()
     ?? Boolean(window.matchMedia?.("(pointer: coarse)")?.matches || navigator.maxTouchPoints > 0);
+}
+
+function shouldUseWorkerNativeVoiceCapture() {
+  return Boolean(window.SUPPIXChatVoice?.shouldPreferNativeVoiceCapture?.());
 }
 
 function workerVoiceCaptureAvailable() {
@@ -110,6 +114,9 @@ function flashWorkerChatSendTapHint(mode = "") {
 
 function isWorkerChatSendTapTarget(target) {
   if (!(target instanceof Element)) {
+    return null;
+  }
+  if (target.closest(".worker-chat-native-mic-label, #workerChatVoiceCaptureInput")) {
     return null;
   }
   const btn = target.closest("#workerChatSendBtn");
@@ -177,7 +184,12 @@ let workerChatPendingMicStreamAt = 0;
 
 function normalizeWorkerChatSendDom() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  document.getElementById("workerChatVoiceCaptureInput")?.remove();
+  let slot = sendBtn?.closest(".worker-chat-send-slot");
+  document.querySelectorAll("#workerChatVoiceCaptureInput").forEach((input) => {
+    if (!slot?.contains(input)) {
+      input.remove();
+    }
+  });
   if (!sendBtn) {
     return null;
   }
@@ -192,7 +204,7 @@ function normalizeWorkerChatSendDom() {
     btn.parentElement?.replaceChild(replacement, btn);
     btn = replacement;
   }
-  let slot = btn.closest(".worker-chat-send-slot");
+  slot = btn.closest(".worker-chat-send-slot");
   if (!slot && btn.parentElement) {
     slot = document.createElement("div");
     slot.className = "worker-chat-send-slot";
@@ -2893,7 +2905,9 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-file-hint{color:#8696a0!important}",
   "#chatCard .muted-info{color:#8696a0!important}",
   "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#182229;color:#53bdeb;font-size:.72rem;font-weight:700;text-align:center}",
-  "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
+  "body.worker-feature-tab-active #chatCard .chat-layout-version{display:block!important;font-size:.62rem;padding:2px 8px;margin:0 0 4px;opacity:.85}",
+  "#chatCard .worker-chat-native-mic-label{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff;cursor:pointer;margin:0}",
+  "#chatCard .worker-chat-voice-capture-input{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}",
   ".stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}",
 ].join("");
 
@@ -3103,6 +3117,7 @@ function ensureWorkerChatDom() {
           </label>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <div class="worker-chat-send-slot">
+            <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input" accept="audio/x-m4a,audio/mp4,audio/mpeg,audio/*" capture="user" tabindex="-1" aria-hidden="true" />
             <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3225,7 +3240,98 @@ function syncWorkerComposeAction() {
     }
   }
   normalizeWorkerChatSendDom();
+  syncWorkerNativeMicCaptureUi(mode);
   return mode;
+}
+
+function ensureWorkerNativeVoiceCaptureInput(slot) {
+  if (!slot) {
+    return null;
+  }
+  let input = slot.querySelector("#workerChatVoiceCaptureInput");
+  if (!input) {
+    input = document.createElement("input");
+    input.type = "file";
+    input.id = "workerChatVoiceCaptureInput";
+    input.accept = "audio/x-m4a,audio/mp4,audio/mpeg,audio/*";
+    input.setAttribute("capture", "user");
+    input.className = "worker-chat-voice-capture-input";
+    input.tabIndex = -1;
+    slot.insertBefore(input, slot.firstChild);
+  }
+  if (input.dataset.nativeBound !== WORKER_BUILD_TAG) {
+    input.dataset.nativeBound = WORKER_BUILD_TAG;
+    input.addEventListener("change", () => {
+      const file = input.files?.[0] || null;
+      input.value = "";
+      resetWorkerVoiceUi();
+      if (file) {
+        void handleWorkerNativeVoiceFile(file);
+      }
+    });
+  }
+  return input;
+}
+
+function syncWorkerNativeMicCaptureUi(mode = "") {
+  const slot = document.querySelector("#chatCard .worker-chat-send-slot");
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (!slot || !sendBtn) {
+    return false;
+  }
+  const activeMode = mode || sendBtn.dataset.mode || "send";
+  const useNative = activeMode === "mic" && !workerVoiceRecording && shouldUseWorkerNativeVoiceCapture();
+  let nativeLabel = slot.querySelector(".worker-chat-native-mic-label");
+  const input = ensureWorkerNativeVoiceCaptureInput(slot);
+  if (useNative) {
+    if (!nativeLabel) {
+      nativeLabel = document.createElement("label");
+      nativeLabel.className = "worker-chat-send-btn worker-chat-native-mic-label";
+      nativeLabel.setAttribute("for", "workerChatVoiceCaptureInput");
+      nativeLabel.setAttribute("aria-label", t("chatVoiceMic"));
+      nativeLabel.innerHTML = window.SUPPIXChatVoice?.MIC_SVG || sendBtn.innerHTML;
+      nativeLabel.addEventListener("click", () => {
+        const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+        if (hint) {
+          hint.classList.remove("hidden");
+          hint.textContent = t("chatVoiceNative");
+        }
+      });
+      slot.appendChild(nativeLabel);
+    }
+    sendBtn.hidden = true;
+    sendBtn.style.display = "none";
+    nativeLabel.hidden = false;
+    nativeLabel.style.display = "inline-flex";
+    if (input) {
+      input.style.removeProperty("display");
+    }
+    return true;
+  }
+  sendBtn.hidden = false;
+  sendBtn.style.display = "inline-flex";
+  if (nativeLabel) {
+    nativeLabel.hidden = true;
+    nativeLabel.style.display = "none";
+  }
+  if (input) {
+    input.style.display = "none";
+  }
+  return false;
+}
+
+async function handleWorkerNativeVoiceFile(file) {
+  resetWorkerVoiceUi();
+  const normalized = window.SUPPIXChatVoice?.normalizeCaptureFile?.(file);
+  if (!normalized) {
+    showWorkerNotice(t("chatVoiceTooShort"));
+    return;
+  }
+  try {
+    await sendWorkerChatMessage({ voiceFile: normalized });
+  } catch (error) {
+    showWorkerNotice(formatWorkerApiError(error));
+  }
 }
 
 function updateWorkerVoiceHint(seconds) {
@@ -3367,6 +3473,10 @@ async function handleWorkerPrimaryAction(options = {}) {
     }
     const mode = resolveWorkerChatPrimaryMode();
     if (mode === "mic") {
+      if (shouldUseWorkerNativeVoiceCapture()) {
+        resetWorkerVoiceUi();
+        return;
+      }
       if (workerVoiceRecording) {
         resetWorkerVoiceUi();
         return;
@@ -3474,6 +3584,9 @@ function triggerWorkerChatPrimaryAction(event) {
   }
   pulseWorkerChatSendFeedback();
   const mode = resolveWorkerChatPrimaryMode();
+  if (mode === "mic" && shouldUseWorkerNativeVoiceCapture()) {
+    return false;
+  }
   flashWorkerChatSendTapHint(mode);
   let streamPromise = null;
   let streamError = null;
@@ -4925,6 +5038,17 @@ function enforceWorkerBuildFreshness(params = null) {
       }
     } catch {
       // ignore localStorage failures
+    }
+    const reloadKey = `worker-build-reloaded-${buildTag}`;
+    try {
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, "1");
+        window.location.reload();
+        return;
+      }
+    } catch {
+      window.location.reload();
+      return;
     }
   }
 
