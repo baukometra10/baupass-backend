@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707g";
+const WORKER_BUILD_TAG = "20260707h";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1759,6 +1759,8 @@ let workerChatThreadLastError = null;
 const WORKER_CHAT_THREAD_STORAGE_KEY = "worker-chat-thread-id";
 let workerChatPollTimer = null;
 let workerE2EIdentityReady = false;
+let workerE2EDeviceMismatch = false;
+const WORKER_E2E_MISMATCH_NOTICE_KEY = "worker-e2e-mismatch-noticed";
 let workerE2EPublicKeysCache = null;
 let workerE2EPublicKeyRowsCache = null;
 let workerE2EPublicKeysCacheAt = 0;
@@ -4769,6 +4771,8 @@ function renderWorker(payload, options = {}) {
     workerChatThreadId = "";
     workerChatThreadLastError = null;
     wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
+    workerE2EDeviceMismatch = false;
+    wpRemove(WORKER_E2E_MISMATCH_NOTICE_KEY);
     workerE2EIdentityReady = false;
     workerE2EPublicKeysCache = null;
     workerE2EPublicKeyRowsCache = null;
@@ -6013,6 +6017,9 @@ async function completeWorkerLogin(payload, extras = {}) {
   void loadWorkerData();
   void syncOfflinePhotoQueue();
   void syncOfflineEventQueue();
+  if (workerPlanAllowsFeature("worker_chat")) {
+    void syncWorkerE2EIdentityWithServer();
+  }
 }
 
 function getLoginBadgeCredential() {
@@ -7651,6 +7658,8 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   workerBearerToken = "";
   workerChatThreadId = "";
   wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
+  workerE2EDeviceMismatch = false;
+  wpRemove(WORKER_E2E_MISMATCH_NOTICE_KEY);
   workerE2EIdentityReady = false;
   workerE2EPublicKeysCache = null;
   workerE2EPublicKeyRowsCache = null;
@@ -11008,6 +11017,71 @@ function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
 
+function extractWorkerE2EPublicKeyFromIdentity(identity) {
+  return String(identity?.publicKeySpkiB64 || identity?.public_key_spki_b64 || "").trim();
+}
+
+async function fetchWorkerServerE2EIdentity() {
+  if (!workerToken || !workerE2ECryptoAvailable()) {
+    return null;
+  }
+  try {
+    const payload = await fetchJson(workerE2EEndpoint("me"), {
+      headers: buildWorkerAuthHeaders(),
+    });
+    return payload?.identity || null;
+  } catch (error) {
+    console.warn("[E2E] Worker server identity fetch failed:", error?.message || error);
+    return null;
+  }
+}
+
+async function peekWorkerLocalE2EPublicKey() {
+  const workerId = getWorkerE2EEntityId();
+  if (!workerId || !workerE2ECryptoAvailable()) {
+    return "";
+  }
+  try {
+    await window.E2ECrypto.ensureCryptoSessionReady?.();
+    const local = await window.E2ECrypto.peekLocalIdentity?.("worker", workerId);
+    return extractWorkerE2EPublicKeyFromIdentity(local);
+  } catch {
+    return "";
+  }
+}
+
+function maybeShowWorkerE2ENewDeviceHint() {
+  if (!workerE2EDeviceMismatch || wpGet(WORKER_E2E_MISMATCH_NOTICE_KEY)) {
+    return;
+  }
+  wpSet(WORKER_E2E_MISMATCH_NOTICE_KEY, "1");
+  showWorkerNotice(t("workerChatE2ENewDeviceHint"));
+}
+
+/** After reinstall/new device: register this device's key so sending works; flag old messages as other-device. */
+async function syncWorkerE2EIdentityWithServer() {
+  if (!workerE2ECryptoAvailable() || !workerToken) {
+    workerE2EDeviceMismatch = false;
+    return false;
+  }
+  const workerId = getWorkerE2EEntityId();
+  if (!workerId) {
+    workerE2EDeviceMismatch = false;
+    return false;
+  }
+  await refreshWorkerSecurityFromServer();
+  await window.E2ECrypto.ensureCryptoSessionReady?.();
+  const serverIdentity = await fetchWorkerServerE2EIdentity();
+  const serverPub = extractWorkerE2EPublicKeyFromIdentity(serverIdentity);
+  const localPub = await peekWorkerLocalE2EPublicKey();
+  workerE2EDeviceMismatch = Boolean(serverPub && (!localPub || localPub !== serverPub));
+  const registered = await ensureWorkerE2EIdentity(true);
+  if (workerE2EDeviceMismatch) {
+    maybeShowWorkerE2ENewDeviceHint();
+  }
+  return registered;
+}
+
 async function ensureWorkerE2EIdentity(force = false) {
   if (!workerE2ECryptoAvailable()) {
     workerE2EIdentityReady = false;
@@ -11048,13 +11122,11 @@ async function fetchWorkerE2EPublicKeyRows(force = false) {
   if (!workerE2ECryptoAvailable()) {
     return [];
   }
-  if (!workerE2EIdentityReady) {
-    await ensureWorkerE2EIdentity();
-  }
   const now = Date.now();
   if (!force && workerE2EPublicKeyRowsCache && now - workerE2EPublicKeysCacheAt < WORKER_E2E_KEYS_TTL_MS) {
     return workerE2EPublicKeyRowsCache;
   }
+  void ensureWorkerE2EIdentity();
   try {
     const payload = await fetchJson(workerE2EEndpoint("public-keys"), {
       headers: buildWorkerAuthHeaders(),
@@ -11115,7 +11187,7 @@ async function encryptWorkerChatBody(plaintext) {
     }
     return text;
   }
-  await ensureWorkerE2EIdentity(true);
+  await syncWorkerE2EIdentityWithServer();
   let keys = await fetchWorkerE2EChatRecipientKeys(true);
   for (let attempt = 0; !keys.length && attempt < 3; attempt += 1) {
     await ensureWorkerE2EIdentity(true);
@@ -11175,6 +11247,9 @@ async function decryptWorkerChatBody(storedBody) {
     return await window.E2ECrypto.decryptUtf8WithArchive(text, "worker", workerId);
   } catch (error) {
     console.warn("[E2E] Chat decrypt failed:", error?.message || error);
+    if (workerE2EDeviceMismatch) {
+      return t("workerChatE2EOtherDevice");
+    }
     return t("workerChatE2EDecryptFailed");
   }
 }
@@ -11430,7 +11505,7 @@ async function loadWorkerChat(options = {}) {
     applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
     if (workerE2ERequired()) {
-      void ensureWorkerE2EIdentity(true);
+      await syncWorkerE2EIdentityWithServer();
     }
     let threadId = String(workerChatThreadId || "").trim();
     if (!threadId) {
@@ -11516,7 +11591,7 @@ async function sendWorkerChatMessage() {
     applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
     if (workerE2ERequired()) {
-      await ensureWorkerE2EIdentity(true);
+      await syncWorkerE2EIdentityWithServer();
     }
     let threadId = String(workerChatThreadId || "").trim();
     if (!threadId) {
@@ -11591,7 +11666,7 @@ async function openWorkerChatScreen() {
     return;
   }
   switchToTab("chat");
-  void refreshWorkerSecurityFromServer().then(() => ensureWorkerE2EIdentity(true));
+  void refreshWorkerSecurityFromServer().then(() => syncWorkerE2EIdentityWithServer());
   void fetchWorkerE2EPublicKeys(true);
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();

@@ -335,6 +335,21 @@
     }
   }
 
+  async function peekLocalIdentity(entityType, entityId) {
+    const id = identityStorageId(entityType, entityId);
+    const existing = await idbGet(id);
+    if (!existing?.publicKeySpkiB64) {
+      return null;
+    }
+    return {
+      entityType,
+      entityId,
+      publicKeySpkiB64: existing.publicKeySpkiB64,
+      algorithm: existing.algorithm || ALGORITHM,
+      hasPrivateKey: Boolean(existing.privateKeyEnc),
+    };
+  }
+
   async function ensureLocalIdentity(entityType, entityId) {
     const id = identityStorageId(entityType, entityId);
     const existing = await idbGet(id);
@@ -714,6 +729,7 @@
     looksLikeE2EPayload,
     isE2EEnvelope,
     ensureLocalIdentity,
+    peekLocalIdentity,
     registerPublicKey,
     encryptUtf8,
     decryptUtf8,
