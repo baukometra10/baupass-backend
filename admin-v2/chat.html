@@ -541,7 +541,7 @@
     function canDeleteAdminMessage(msg) {
       const sender = String(msg.senderType || "");
       const senderUserId = String(msg.senderUserId || msg.sender_user_id || "");
-      return sender === "admin" && !msg.readByRecipient && messageIdPresent(msg) && senderUserId === adminUserId;
+      return sender === "admin" && !msg.readByRecipient && messageIdPresent(msg) && senderUserId === getAdminUserId();
     }
     function messageIdPresent(msg) {
       return Boolean(String(msg.id || "").trim());
@@ -634,25 +634,39 @@
       const quiet = Boolean(options.quiet);
       currentThreadId = threadId || "";
       currentWorkerId = workerId || "";
-      if (workerId) {
-        await refreshAdminE2EReadiness(workerId);
-        void ensureAdminE2EIdentity();
+      try {
+        if (workerId) {
+          await refreshAdminE2EReadiness(workerId);
+          void ensureAdminE2EIdentity();
+        }
+        const row = threads.find((item) => String(item.worker_id) === String(workerId));
+        const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
+        const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
+        const messages = await prepareAdminChatMessagesForDisplay(data.messages || []);
+        if (!quiet) {
+          lastThreadMetaName = name || "";
+          setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
+        }
+        const list = document.getElementById("messageList");
+        list.innerHTML = messages.length
+          ? messages.map((msg) => {
+              try {
+                return renderChatBubble(msg);
+              } catch (error) {
+                console.warn("[admin-chat] bubble render failed:", error);
+                return `<div class="bubble worker"><strong>${window.adminChatT("senderWorker")}</strong><br><span class="muted">${escapeHtml(String(error?.message || error))}</span></div>`;
+              }
+            }).join("")
+          : `<p class="muted">${window.adminChatT("noMessages")}</p>`;
+        list.scrollTop = list.scrollHeight;
+        hydrateChatImagePreviews();
+        renderThreads();
+      } catch (error) {
+        if (!quiet) {
+          setThreadMeta(error.message || String(error), { dynamic: true });
+        }
+        throw error;
       }
-      const row = threads.find((item) => String(item.worker_id) === String(workerId));
-      const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
-      const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
-      const messages = await prepareAdminChatMessagesForDisplay(data.messages || []);
-      if (!quiet) {
-        lastThreadMetaName = name || "";
-        setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
-      }
-      const list = document.getElementById("messageList");
-      list.innerHTML = messages.length
-        ? messages.map((msg) => renderChatBubble(msg)).join("")
-        : `<p class="muted">${window.adminChatT("noMessages")}</p>`;
-      list.scrollTop = list.scrollHeight;
-      hydrateChatImagePreviews();
-      renderThreads();
     }
     function stopChatPolling() {
       if (chatPollTimer) {

@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707f";
+const WORKER_BUILD_TAG = "20260707g";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1756,6 +1756,7 @@ let gateEventPollInFlight = false;
 let gateLastSeenEventId = "";
 let workerChatThreadId = "";
 let workerChatThreadLastError = null;
+const WORKER_CHAT_THREAD_STORAGE_KEY = "worker-chat-thread-id";
 let workerChatPollTimer = null;
 let workerE2EIdentityReady = false;
 let workerE2EPublicKeysCache = null;
@@ -4767,6 +4768,7 @@ function renderWorker(payload, options = {}) {
   if (prevWorkerId && nextWorkerId && prevWorkerId !== nextWorkerId) {
     workerChatThreadId = "";
     workerChatThreadLastError = null;
+    wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
     workerE2EIdentityReady = false;
     workerE2EPublicKeysCache = null;
     workerE2EPublicKeyRowsCache = null;
@@ -7648,6 +7650,7 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   workerToken = "";
   workerBearerToken = "";
   workerChatThreadId = "";
+  wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
   workerE2EIdentityReady = false;
   workerE2EPublicKeysCache = null;
   workerE2EPublicKeyRowsCache = null;
@@ -10984,6 +10987,12 @@ function applyWorkerChatBootstrap(payload = lastWorkerPayload) {
   if (tid) {
     workerChatThreadId = tid;
     workerChatThreadLastError = null;
+    wpSet(WORKER_CHAT_THREAD_STORAGE_KEY, tid);
+  } else if (!workerChatThreadId) {
+    const stored = String(wpGet(WORKER_CHAT_THREAD_STORAGE_KEY) || "").trim();
+    if (stored) {
+      workerChatThreadId = stored;
+    }
   }
 }
 
@@ -11216,6 +11225,7 @@ async function ensureWorkerChatThread(forceRefresh = false) {
     if (resolvedId) {
       workerChatThreadId = resolvedId;
       workerChatThreadLastError = null;
+      wpSet(WORKER_CHAT_THREAD_STORAGE_KEY, resolvedId);
       return workerChatThreadId;
     }
   } catch (error) {
@@ -11239,6 +11249,7 @@ async function ensureWorkerChatThread(forceRefresh = false) {
       if (resolvedId) {
         workerChatThreadId = resolvedId;
         workerChatThreadLastError = null;
+        wpSet(WORKER_CHAT_THREAD_STORAGE_KEY, resolvedId);
         return workerChatThreadId;
       }
     }
@@ -11416,9 +11427,15 @@ async function loadWorkerChat(options = {}) {
     elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatLoading")}</p>`;
   }
   try {
+    applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
-    void ensureWorkerE2EIdentity(true);
-    const threadId = await ensureWorkerChatThread();
+    if (workerE2ERequired()) {
+      void ensureWorkerE2EIdentity(true);
+    }
+    let threadId = String(workerChatThreadId || "").trim();
+    if (!threadId) {
+      threadId = await ensureWorkerChatThread();
+    }
     if (!threadId) {
       if (!quiet) {
         const hint = workerChatThreadLastError
@@ -11435,6 +11452,7 @@ async function loadWorkerChat(options = {}) {
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";
+      wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
     }
     if (!quiet) {
       elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(formatWorkerApiError(error))}</p>`;
@@ -11495,9 +11513,15 @@ async function sendWorkerChatMessage() {
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
   try {
+    applyWorkerChatBootstrap();
     await refreshWorkerSecurityFromServer();
-    await ensureWorkerE2EIdentity(true);
-    let threadId = await ensureWorkerChatThread();
+    if (workerE2ERequired()) {
+      await ensureWorkerE2EIdentity(true);
+    }
+    let threadId = String(workerChatThreadId || "").trim();
+    if (!threadId) {
+      threadId = await ensureWorkerChatThread();
+    }
     if (!threadId) {
       threadId = await ensureWorkerChatThread(true);
     }
@@ -11525,6 +11549,7 @@ async function sendWorkerChatMessage() {
     } catch (error) {
       if (error?.code === "thread_not_found" || error?.code === "chat_send_failed") {
         workerChatThreadId = "";
+        wpRemove(WORKER_CHAT_THREAD_STORAGE_KEY);
         threadId = await ensureWorkerChatThread(true);
         if (!threadId) {
           throw error;
