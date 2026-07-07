@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice14";
+const WORKER_BUILD_TAG = "20260707voice15";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -89,17 +89,98 @@ function workerVoiceCaptureAvailable() {
   return Boolean(window.SUPPIXChatVoice?.isSupported?.());
 }
 
-function clearWorkerVoiceCaptureOverlay() {
+let workerChatSendGestureUntil = 0;
+let workerChatPendingMicStream = null;
+let workerChatPendingMicStreamAt = 0;
+
+function normalizeWorkerChatSendDom() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  const input = document.getElementById("workerChatVoiceCaptureInput");
-  if (input) {
-    input.style.display = "none";
-    input.style.pointerEvents = "none";
+  document.getElementById("workerChatVoiceCaptureInput")?.remove();
+  if (!sendBtn) {
+    return;
   }
-  if (sendBtn) {
-    sendBtn.style.pointerEvents = "";
-    sendBtn.removeAttribute("aria-hidden");
+  const shell = sendBtn.closest(".worker-chat-send-shell");
+  if (shell?.parentElement) {
+    shell.parentElement.insertBefore(sendBtn, shell);
+    shell.remove();
   }
+  sendBtn.removeAttribute("aria-hidden");
+  sendBtn.style.removeProperty("pointer-events");
+  sendBtn.style.removeProperty("opacity");
+  sendBtn.style.removeProperty("z-index");
+  sendBtn.classList.add("worker-chat-send-btn");
+}
+
+function consumeWorkerChatPendingMicStream() {
+  const pending = workerChatPendingMicStream;
+  const age = Date.now() - workerChatPendingMicStreamAt;
+  workerChatPendingMicStream = null;
+  workerChatPendingMicStreamAt = 0;
+  if (!pending || age > 3000) {
+    return null;
+  }
+  return pending;
+}
+
+function armWorkerMicStreamInUserGesture() {
+  if (workerVoiceRecording) {
+    return null;
+  }
+  if (resolveWorkerChatPrimaryMode() !== "mic") {
+    return null;
+  }
+  if (!workerVoiceCaptureAvailable()) {
+    return null;
+  }
+  try {
+    window.SUPPIXChatVoice?.ensureMediaDevices?.();
+    const promise = window.SUPPIXChatVoice.requestAudioStream();
+    workerChatPendingMicStream = promise;
+    workerChatPendingMicStreamAt = Date.now();
+    return promise;
+  } catch (error) {
+    workerChatPendingMicStream = Promise.reject(error);
+    workerChatPendingMicStreamAt = Date.now();
+    return workerChatPendingMicStream;
+  }
+}
+
+function pulseWorkerChatSendFeedback() {
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (!sendBtn) {
+    return;
+  }
+  sendBtn.classList.add("is-tapped");
+  window.setTimeout(() => sendBtn.classList.remove("is-tapped"), 180);
+  try {
+    navigator.vibrate?.(10);
+  } catch {
+    /* optional */
+  }
+  workerDebug("[chat-voice] send tap", resolveWorkerChatPrimaryMode());
+}
+
+function installWorkerChatSendGlobalHandler() {
+  if (window.__workerChatSendGlobalBound === WORKER_BUILD_TAG) {
+    return;
+  }
+  window.__workerChatSendGlobalBound = WORKER_BUILD_TAG;
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const btn = target?.closest?.("#workerChatSendBtn");
+    if (!btn || btn.dataset.chatSendHandlers === "1") {
+      return;
+    }
+    triggerWorkerChatPrimaryAction(event);
+  }, true);
+  document.addEventListener("touchstart", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const btn = target?.closest?.("#workerChatSendBtn");
+    if (!btn || btn.disabled || btn.dataset.chatSendHandlers !== "1") {
+      return;
+    }
+    armWorkerMicStreamInUserGesture();
+  }, { capture: true, passive: true });
 }
 
 function beginWorkerVoiceStreamRequest(mode) {
@@ -2686,10 +2767,8 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}",
   "#chatCard .worker-chat-compose,#chatCard .worker-chat-compose-bar,#chatCard .worker-chat-send-btn{pointer-events:auto!important;touch-action:manipulation}",
-  "#chatCard .worker-chat-send-shell{position:relative;display:inline-flex;flex-shrink:0;width:46px;height:46px;align-items:center;justify-content:center;touch-action:manipulation}",
-  "#chatCard .worker-chat-send-shell .worker-chat-send-btn{width:100%;height:100%;margin:0}",
-  "#chatCard .worker-chat-send-shell .worker-chat-voice-capture-input{position:absolute;inset:0;width:100%;height:100%;opacity:0.001;border:0;padding:0;margin:0;z-index:6;cursor:pointer;font-size:16px;display:block;touch-action:manipulation}",
-  "#chatCard .worker-chat-send-btn{position:relative;z-index:2}",
+  "#chatCard .worker-chat-send-btn{position:relative;z-index:8;flex-shrink:0;-webkit-tap-highlight-color:transparent}",
+  "#chatCard .worker-chat-send-btn.is-tapped,#chatCard .worker-chat-send-btn:active{transform:scale(0.94);filter:brightness(1.08)}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-file-label{color:#8696a0;background:#2a3942;border:1px solid rgba(134,150,160,.14)}",
   "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
   "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(233,237,239,.12);color:#e9edef;display:grid;place-items:center;cursor:pointer}",
@@ -2922,7 +3001,6 @@ function ensureWorkerChatDom() {
       </div>
       <div class="worker-chat-compose">
         <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
-        <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input hidden-control" accept="audio/x-m4a,audio/mp4,audio/mpeg,audio/*" capture tabindex="-1" aria-hidden="true" style="display:none;" />
         <div class="worker-chat-compose-bar">
           <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3053,12 +3131,8 @@ function syncWorkerComposeAction() {
       mode = button.dataset.mode;
     }
   }
-  syncWorkerVoiceCaptureOverlay(mode);
+  normalizeWorkerChatSendDom();
   return mode;
-}
-
-function syncWorkerVoiceCaptureOverlay() {
-  clearWorkerVoiceCaptureOverlay();
 }
 
 function updateWorkerVoiceHint(seconds) {
@@ -3274,11 +3348,25 @@ async function handleWorkerPrimaryAction(options = {}) {
 }
 
 function triggerWorkerChatPrimaryAction(event) {
-  syncWorkerChatComposeRefs();
-  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  if (!sendBtn || sendBtn.disabled || workerPrimaryActionBusy) {
+  if (Date.now() < workerChatSendGestureUntil && event?.type === "click") {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
     return false;
   }
+  syncWorkerChatComposeRefs();
+  normalizeWorkerChatSendDom();
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (!sendBtn) {
+    return false;
+  }
+  if (sendBtn.disabled) {
+    showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
+    return false;
+  }
+  if (workerPrimaryActionBusy) {
+    return false;
+  }
+  pulseWorkerChatSendFeedback();
   if (workerVoiceRecording && !getWorkerVoiceRecorder()?.recording) {
     workerVoiceRecording = false;
     syncWorkerComposeAction();
@@ -3292,21 +3380,31 @@ function triggerWorkerChatPrimaryAction(event) {
       showWorkerNotice(t("chatVoiceNotSupported"));
       return false;
     }
-    try {
-      streamPromise = window.SUPPIXChatVoice.requestAudioStream();
-    } catch (error) {
-      streamError = error;
+    const pending = consumeWorkerChatPendingMicStream();
+    if (pending) {
+      streamPromise = pending;
+    } else {
+      try {
+        streamPromise = window.SUPPIXChatVoice.requestAudioStream();
+      } catch (error) {
+        streamError = error;
+      }
     }
   }
+  workerChatSendGestureUntil = Date.now() + 450;
   event?.preventDefault?.();
   event?.stopPropagation?.();
   void handleWorkerPrimaryAction({ streamPromise, streamError });
   return false;
 }
 
+function onWorkerChatSendButtonActivate(event) {
+  return triggerWorkerChatPrimaryAction(event);
+}
+
 function bindWorkerChatSendButton() {
   syncWorkerChatComposeRefs();
-  clearWorkerVoiceCaptureOverlay();
+  normalizeWorkerChatSendDom();
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
   if (!sendBtn) {
     return;
@@ -3314,11 +3412,26 @@ function bindWorkerChatSendButton() {
   elements.workerChatSendBtn = sendBtn;
   sendBtn.type = "button";
   sendBtn.setAttribute("aria-disabled", sendBtn.disabled ? "true" : "false");
-  if (sendBtn.dataset.chatSendBound === WORKER_BUILD_TAG) {
-    return;
+  if (sendBtn._workerChatTouchStartHandler) {
+    sendBtn.removeEventListener("touchstart", sendBtn._workerChatTouchStartHandler, true);
   }
+  sendBtn._workerChatTouchStartHandler = (event) => {
+    if (sendBtn.disabled || workerPrimaryActionBusy) {
+      return;
+    }
+    if (!isWorkerTouchDevice()) {
+      return;
+    }
+    const mode = resolveWorkerChatPrimaryMode();
+    if (mode === "mic" && !workerVoiceRecording) {
+      armWorkerMicStreamInUserGesture();
+      onWorkerChatSendButtonActivate(event);
+    }
+  };
+  sendBtn.addEventListener("touchstart", sendBtn._workerChatTouchStartHandler, { capture: true, passive: true });
+  sendBtn.onclick = (event) => onWorkerChatSendButtonActivate(event);
+  sendBtn.dataset.chatSendHandlers = "1";
   sendBtn.dataset.chatSendBound = WORKER_BUILD_TAG;
-  sendBtn.onclick = triggerWorkerChatPrimaryAction;
 }
 
 window.workerChatSendClick = triggerWorkerChatPrimaryAction;
@@ -8453,6 +8566,7 @@ function refreshWorkerChatPanel(options = {}) {
     void loadWorkerChat();
   }
   bindWorkerChatComposeEvents();
+  normalizeWorkerChatSendDom();
   applyWorkerChatTabLayout(chatCard);
 }
 
@@ -13040,7 +13154,9 @@ function initWorkerAppShell() {
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
   ensureWorkerChatComposeBar();
+  installWorkerChatSendGlobalHandler();
   bindWorkerChatComposeEvents();
+  normalizeWorkerChatSendDom();
   syncWorkerComposeAction();
   refreshTopBarElements();
   bindTopBarActions();
