@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice1";
+const WORKER_BUILD_TAG = "20260707voice8";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2955,6 +2955,18 @@ function setWorkerChatComposeEnabled(enabled) {
 
 let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
+let workerPrimaryActionBusy = false;
+let workerSendLastPointerAt = 0;
+
+function shouldSuppressWorkerSendClick(event) {
+  if (event?.type === "click" && Date.now() - workerSendLastPointerAt < 500) {
+    return true;
+  }
+  if (event?.type === "pointerup") {
+    workerSendLastPointerAt = Date.now();
+  }
+  return false;
+}
 
 function getWorkerVoiceRecorder() {
   if (!workerVoiceRecorder && window.SUPPIXChatVoice?.createRecorder) {
@@ -3088,62 +3100,87 @@ function resolveWorkerChatPrimaryMode() {
 
 function showWorkerVoiceStartingHint() {
   const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-  if (!hint) return;
-  hint.classList.remove("hidden");
-  hint.textContent = t("chatVoiceStarting");
+  if (hint) {
+    hint.classList.remove("hidden");
+    hint.textContent = t("chatVoiceStarting");
+  }
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (sendBtn) {
+    sendBtn.classList.add("is-recording");
+  }
+  try {
+    navigator.vibrate?.(12);
+  } catch {
+    /* optional */
+  }
 }
 
 async function handleWorkerPrimaryAction() {
-  syncWorkerChatComposeRefs();
-  const mode = resolveWorkerChatPrimaryMode();
-  if (mode === "mic") {
-    if (workerVoiceRecording) {
-      return;
-    }
-    window.SUPPIXChatVoice?.ensureMediaDevices?.();
-    const recorder = getWorkerVoiceRecorder();
-    if (!recorder || !window.SUPPIXChatVoice?.isSupported?.()) {
-      showWorkerNotice(t("chatVoiceNotSupported"));
-      return;
-    }
-    try {
-      showWorkerVoiceStartingHint();
-      workerVoiceRecording = true;
-      syncWorkerComposeAction();
-      await recorder.start();
-      updateWorkerVoiceHint(0);
-    } catch (error) {
-      workerVoiceRecording = false;
-      updateWorkerVoiceHint(0);
-      syncWorkerComposeAction();
-      showWorkerNotice(formatWorkerVoiceRecordError(error));
-    }
+  if (workerPrimaryActionBusy) {
     return;
   }
-  if (mode === "stop") {
+  workerPrimaryActionBusy = true;
+  try {
+    syncWorkerChatComposeRefs();
+    bindWorkerChatSendButton();
     const recorder = getWorkerVoiceRecorder();
-    workerVoiceRecording = false;
-    syncWorkerComposeAction();
-    const blob = await recorder?.stop();
-    const voiceFile = recorder?.toFile(blob, "voice");
-    if (!voiceFile) {
+    if (workerVoiceRecording && !recorder?.recording) {
+      workerVoiceRecording = false;
+      syncWorkerComposeAction();
+    }
+    const mode = resolveWorkerChatPrimaryMode();
+    if (mode === "mic") {
+      if (workerVoiceRecording) {
+        return;
+      }
+      window.SUPPIXChatVoice?.ensureMediaDevices?.();
+      const activeRecorder = recorder || getWorkerVoiceRecorder();
+      if (!activeRecorder || !window.SUPPIXChatVoice?.isSupported?.()) {
+        showWorkerVoiceStartingHint();
+        showWorkerNotice(t("chatVoiceNotSupported"));
+        return;
+      }
+      try {
+        showWorkerVoiceStartingHint();
+        workerVoiceRecording = true;
+        syncWorkerComposeAction();
+        await activeRecorder.start();
+        updateWorkerVoiceHint(0);
+      } catch (error) {
+        workerVoiceRecording = false;
+        updateWorkerVoiceHint(0);
+        syncWorkerComposeAction();
+        showWorkerNotice(formatWorkerVoiceRecordError(error));
+      }
+      return;
+    }
+    if (mode === "stop") {
+      const stopRecorder = getWorkerVoiceRecorder();
+      workerVoiceRecording = false;
+      syncWorkerComposeAction();
+      const blob = await stopRecorder?.stop();
+      const voiceFile = stopRecorder?.toFile(blob, "voice");
+      if (!voiceFile) {
+        const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+        if (hint) {
+          hint.classList.add("hidden");
+          hint.textContent = "";
+        }
+        showWorkerNotice(t("chatVoiceTooShort"));
+        return;
+      }
       const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
       if (hint) {
         hint.classList.add("hidden");
         hint.textContent = "";
       }
-      showWorkerNotice(t("chatVoiceTooShort"));
+      await sendWorkerChatMessage({ voiceFile });
       return;
     }
-    const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-    if (hint) {
-      hint.classList.add("hidden");
-      hint.textContent = "";
-    }
-    await sendWorkerChatMessage({ voiceFile });
-    return;
+    await sendWorkerChatMessage();
+  } finally {
+    workerPrimaryActionBusy = false;
   }
-  await sendWorkerChatMessage();
 }
 
 function bindWorkerChatSendButton() {
@@ -3153,21 +3190,35 @@ function bindWorkerChatSendButton() {
     return;
   }
   elements.workerChatSendBtn = sendBtn;
+  sendBtn.type = "button";
+  sendBtn.setAttribute("aria-disabled", sendBtn.disabled ? "true" : "false");
   if (sendBtn.dataset.chatSendBound === "1") {
     return;
   }
   sendBtn.dataset.chatSendBound = "1";
   const triggerPrimaryAction = (event) => {
-    if (sendBtn.disabled) {
+    if (sendBtn.disabled || shouldSuppressWorkerSendClick(event)) {
+      event?.preventDefault?.();
+      event?.stopPropagation?.();
       return;
     }
-    event.preventDefault();
-    event.stopPropagation();
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
     void handleWorkerPrimaryAction();
   };
+  sendBtn.addEventListener("pointerup", triggerPrimaryAction, { passive: false });
   sendBtn.addEventListener("click", triggerPrimaryAction);
-  sendBtn.addEventListener("touchend", triggerPrimaryAction, { passive: false });
 }
+
+window.workerChatSendClick = function workerChatSendClick(event) {
+  if (shouldSuppressWorkerSendClick(event)) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    return false;
+  }
+  void handleWorkerPrimaryAction();
+  return false;
+};
 
 function bindWorkerChatComposeEvents() {
   syncWorkerChatComposeRefs();
