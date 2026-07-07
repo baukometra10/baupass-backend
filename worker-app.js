@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707n";
+const WORKER_BUILD_TAG = "20260707o";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3563,6 +3563,9 @@ function bindEvents() {
   if (elements.enableNotificationsBtn) {
     elements.enableNotificationsBtn.addEventListener("click", requestNotificationPermission);
   }
+  if (elements.notificationPermissionBtn) {
+    elements.notificationPermissionBtn.addEventListener("click", requestNotificationPermission);
+  }
 
   bindTopBarActions();
   
@@ -5153,7 +5156,7 @@ function renderWorker(payload, options = {}) {
     document.body.classList.add("worker-card-install");
   }
   if (!isVisitor) {
-    void ensureWorkerPushNotifications({ promptIfNeeded: false });
+    void ensureWorkerPushNotifications({ promptIfNeeded: false, showSetupBanner: true });
     void ensureWorkerE2EIdentity();
     const e2eHost = document.getElementById("workerE2eSecurityHost");
     if (e2eHost && window.WorkerE2ESecurity?.mountWorkerE2ESecurityPanel) {
@@ -6010,7 +6013,7 @@ async function completeWorkerLogin(payload, extras = {}) {
   }
   initializeSessionInactivityProtection();
   await ensureWorkerSwRegisteredAndReady();
-  void ensureWorkerPushNotifications({ promptIfNeeded: true });
+  void ensureWorkerPushNotifications({ promptIfNeeded: false, showSetupBanner: true });
   void loadWorkerData();
   void syncOfflinePhotoQueue();
   void syncOfflineEventQueue();
@@ -8332,8 +8335,40 @@ async function ensureWorkerSwRegisteredAndReady(timeoutMs = 20000) {
   }
 }
 
+function shouldDeferPushPermissionPrompt() {
+  return isIosDevice() || isAndroidDevice();
+}
+
+function showWorkerPushPermissionBanner(customText = "") {
+  if (!elements.notificationBanner || !workerToken) return;
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  const hint = document.querySelector("#notificationBanner span");
+  if (hint) {
+    hint.textContent = String(customText || t("notificationBannerText") || "").trim();
+  }
+  elements.notificationBanner.classList.remove("hidden");
+  document.body.classList.add("worker-push-permission-pending");
+}
+
+function maybeShowPushPermissionHint() {
+  if (!("Notification" in window) || Notification.permission !== "default") return;
+  if (sessionStorage.getItem("workpass-push-hint-shown")) return;
+  sessionStorage.setItem("workpass-push-hint-shown", "1");
+  const hint = t("notificationBannerTapHint");
+  if (hint) {
+    showWorkerNotice(hint);
+  }
+}
+
 async function requestNotificationPermission() {
   await ensureWorkerPushNotifications({ promptIfNeeded: true, showSuccessNotice: true });
+}
+
+function updateNotificationPermissionButtonVisibility() {
+  if (!elements.notificationPermissionBtn) return;
+  const canPrompt = ("Notification" in window) && Notification.permission === "default";
+  elements.notificationPermissionBtn.classList.toggle("hidden-control", !canPrompt);
+  elements.notificationPermissionBtn.hidden = !canPrompt;
 }
 
 async function refreshPushSetupBanner() {
@@ -8358,8 +8393,10 @@ async function refreshPushSetupBanner() {
 async function ensureWorkerPushNotifications({
   promptIfNeeded = false,
   showSuccessNotice = false,
+  showSetupBanner = false,
 } = {}) {
   if (!workerToken) return;
+  updateNotificationPermissionButtonVisibility();
   if (!("Notification" in window)) {
     if (showSuccessNotice) {
       showWorkerNotice(t("browserPushNotSupported"));
@@ -8367,12 +8404,8 @@ async function ensureWorkerPushNotifications({
     return;
   }
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-    if (isIosDevice() && !isStandaloneMode() && elements.notificationBanner) {
-      const hint = document.querySelector("#notificationBanner span");
-      if (hint) {
-        hint.textContent = t("installIosHowto");
-      }
-      elements.notificationBanner.classList.remove("hidden");
+    if (isIosDevice() && !isStandaloneMode()) {
+      showWorkerPushPermissionBanner(t("installIosHowto"));
     }
     return;
   }
@@ -8380,34 +8413,35 @@ async function ensureWorkerPushNotifications({
   await ensureWorkerSwRegisteredAndReady();
 
   if (Notification.permission === "denied") {
-    if (elements.notificationBanner) {
-      elements.notificationBanner.classList.remove("hidden");
-    }
+    showWorkerPushPermissionBanner(t("notificationBannerDeniedHint") || t("notificationBannerPushNotReady"));
     return;
   }
 
   await refreshPushSetupBanner();
 
   if (Notification.permission === "default") {
-    if (!promptIfNeeded) {
-      if (elements.notificationBanner) {
-        elements.notificationBanner.classList.remove("hidden");
+    if (showSetupBanner || !promptIfNeeded) {
+      showWorkerPushPermissionBanner();
+      if (showSetupBanner) {
+        maybeShowPushPermissionHint();
       }
+    }
+    if (!promptIfNeeded || shouldDeferPushPermissionPrompt()) {
       return;
     }
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
-      if (elements.notificationBanner) {
-        elements.notificationBanner.classList.remove("hidden");
-      }
+      showWorkerPushPermissionBanner();
       return;
     }
   }
 
   if (Notification.permission === "granted") {
+    document.body.classList.remove("worker-push-permission-pending");
     if (elements.notificationBanner) {
       elements.notificationBanner.classList.add("hidden");
     }
+    updateNotificationPermissionButtonVisibility();
     if (showSuccessNotice) {
       showWorkerNotice(t("notificationsEnabled"));
     }

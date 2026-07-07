@@ -1104,8 +1104,7 @@ body.worker-loaded.worker-feature-tab-active #sessionInfoCard,
 body.worker-loaded.worker-feature-tab-active #companyModeCard,
 body.worker-loaded.worker-feature-tab-active #dailyInsightsCard,
 body.worker-loaded.worker-feature-tab-active #actionsPanel,
-body.worker-loaded.worker-feature-tab-active #incidentCard,
-body.worker-loaded.worker-feature-tab-active #notificationBanner {
+body.worker-loaded.worker-feature-tab-active #incidentCard {
   display: none !important;
 }
 
@@ -3218,6 +3217,18 @@ body {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+body.worker-loaded #notificationBanner:not(.hidden) {
+  display: flex !important;
+  position: fixed;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  z-index: 10050;
+  margin: 0;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
 }
 
 /* Voice Command Button */
