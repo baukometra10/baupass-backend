@@ -332,13 +332,27 @@
       get lastDurationSec() {
         return lastDurationSec;
       },
+      get elapsedMs() {
+        return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+      },
       async start() {
         if (!isSupported()) {
           throw new Error("voice_not_supported");
         }
+        stopTimer();
+        if (recorder && recorder.state !== "inactive") {
+          try {
+            recorder.stop();
+          } catch {
+            /* ignore */
+          }
+        }
+        cleanupStream();
+        recorder = null;
         chunks = [];
         mimeType = pickMimeType();
         lastDurationSec = 0;
+        startedAt = 0;
         stream = await requestAudioStream();
         const audioTracks = stream?.getAudioTracks?.() || [];
         if (!audioTracks.length || !audioTracks.some((track) => track.readyState === "live")) {
@@ -358,11 +372,11 @@
           onError?.(event?.error || new Error("voice_record_failed"));
         };
         if (isAppleLikeDevice()) {
-          recorder.start();
+          recorder.start(500);
         } else {
           recorder.start(250);
         }
-        await wait(60);
+        await wait(80);
         if (!recorder || recorder.state !== "recording") {
           cleanupStream();
           recorder = null;
@@ -382,9 +396,12 @@
           return null;
         }
         const activeRecorder = recorder;
+        recorder = null;
+        stopTimer();
+        const collected = [...chunks];
         const pushChunk = (event) => {
           if (event?.data?.size) {
-            chunks.push(event.data);
+            collected.push(event.data);
           }
         };
         activeRecorder.ondataavailable = pushChunk;
@@ -394,7 +411,7 @@
             if (settled) return;
             settled = true;
             const outMime = activeRecorder.mimeType || mimeType || "audio/webm";
-            const blob = chunks.length ? new Blob(chunks, { type: outMime }) : null;
+            const blob = collected.length ? new Blob(collected, { type: outMime }) : null;
             resolve(blob);
           };
           const fail = (error) => {
@@ -402,10 +419,11 @@
             settled = true;
             reject(error);
           };
-          const timeout = global.setTimeout(() => finish(), 4000);
+          const settleDelay = isAppleLikeDevice() ? 320 : 80;
+          const timeout = global.setTimeout(() => finish(), 5000);
           activeRecorder.onstop = () => {
             global.clearTimeout(timeout);
-            finish();
+            global.setTimeout(finish, settleDelay);
           };
           activeRecorder.onerror = (event) => {
             global.clearTimeout(timeout);
@@ -424,12 +442,15 @@
             fail(error);
           }
         });
-        stopTimer();
         cleanupStream();
-        recorder = null;
-        lastDurationSec = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
         chunks = [];
-        if (!result || !result.size || (result.size < 512 && lastDurationSec < 1)) {
+        lastDurationSec = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
+        startedAt = 0;
+        if (!result || !result.size) {
+          lastDurationSec = 0;
+          return null;
+        }
+        if (result.size < 256 && lastDurationSec < 1) {
           lastDurationSec = 0;
           return null;
         }
@@ -437,8 +458,12 @@
       },
       cancel() {
         stopTimer();
+        startedAt = 0;
+        lastDurationSec = 0;
         try {
-          if (recorder && recorder.state !== "inactive") recorder.stop();
+          if (recorder && recorder.state !== "inactive") {
+            recorder.stop();
+          }
         } catch {
           /* ignore */
         }

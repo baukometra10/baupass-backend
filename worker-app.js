@@ -77,7 +77,8 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice9";
+const WORKER_BUILD_TAG = "20260707voice10";
+const WORKER_VOICE_MIN_RECORD_MS = 800;
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2955,6 +2956,7 @@ function setWorkerChatComposeEnabled(enabled) {
 
 let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
+let workerVoiceStartedAt = 0;
 let workerPrimaryActionBusy = false;
 let workerSendLastPointerAt = 0;
 
@@ -2966,6 +2968,15 @@ function shouldSuppressWorkerSendClick(event) {
     workerSendLastPointerAt = Date.now();
   }
   return false;
+}
+
+function resetWorkerVoiceRecorder() {
+  try {
+    workerVoiceRecorder?.cancel?.();
+  } catch {
+    /* ignore */
+  }
+  workerVoiceRecorder = null;
 }
 
 function getWorkerVoiceRecorder() {
@@ -3162,11 +3173,14 @@ async function handleWorkerPrimaryAction() {
           throw new Error("voice_record_failed");
         }
         workerVoiceRecording = true;
+        workerVoiceStartedAt = Date.now();
         syncWorkerComposeAction();
         showWorkerVoiceRecordingUi();
         updateWorkerVoiceHint(0);
       } catch (error) {
         workerVoiceRecording = false;
+        workerVoiceStartedAt = 0;
+        resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
         syncWorkerComposeAction();
         showWorkerNotice(formatWorkerVoiceRecordError(error));
@@ -3175,11 +3189,26 @@ async function handleWorkerPrimaryAction() {
     }
     if (mode === "stop") {
       const stopRecorder = getWorkerVoiceRecorder();
+      const elapsedMs = stopRecorder?.elapsedMs || (workerVoiceStartedAt ? Date.now() - workerVoiceStartedAt : 0);
+      if (elapsedMs > 0 && elapsedMs < WORKER_VOICE_MIN_RECORD_MS) {
+        showWorkerNotice(t("chatVoiceTooShort"));
+        return;
+      }
       workerVoiceRecording = false;
+      workerVoiceStartedAt = 0;
       syncWorkerComposeAction();
-      const blob = await stopRecorder?.stop();
+      let blob = null;
+      try {
+        blob = await stopRecorder?.stop();
+      } catch (error) {
+        resetWorkerVoiceRecorder();
+        resetWorkerVoiceUi();
+        showWorkerNotice(formatWorkerVoiceRecordError(error));
+        return;
+      }
       const voiceFile = stopRecorder?.toFile(blob, "voice", stopRecorder?.lastDurationSec);
       if (!voiceFile) {
+        resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
         showWorkerNotice(t("chatVoiceTooShort"));
         return;
@@ -12170,7 +12199,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
     uploadFile = new Blob([packed.blob], { type: "application/vnd.suppix.e2e+binary" });
     form.append("file", uploadFile, `${file.name || "upload.bin"}.e2e`);
   } else {
-    form.append("file", file);
+    form.append("file", file, file.name || "voice.webm");
   }
   const response = await fetch(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/attachments`, {
     method: "POST",
@@ -12366,9 +12395,11 @@ async function sendWorkerChatMessage(options = {}) {
     }
     removeOptimisticWorkerChatBubble(pendingId);
     if (file && messageId) {
-      void uploadWorkerChatAttachment(threadId, messageId, file).then(() => {
-        void loadWorkerChat({ quiet: true });
-      });
+      try {
+        await uploadWorkerChatAttachment(threadId, messageId, file);
+      } catch (uploadError) {
+        showWorkerNotice(formatWorkerApiError(uploadError));
+      }
     }
     workerChatLastFingerprint = "";
     void loadWorkerChat({ quiet: true });

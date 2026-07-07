@@ -457,7 +457,8 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": "message_not_found", "message": "Nachricht nicht gefunden."}), 404
         blob = upload.read()
         filename = str(upload.filename or "upload.bin")
-        content_type = str(upload.mimetype or "application/octet-stream")
+        from backend.server import normalize_upload_mimetype
+        content_type = normalize_upload_mimetype(str(upload.mimetype or "application/octet-stream"), filename)
         service = ChatService(db)
         try:
             attachment = service.save_attachment(
