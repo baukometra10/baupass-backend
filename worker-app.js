@@ -1667,6 +1667,8 @@ function applyTranslations() {
       if (String(el.value || "").trim() === value) {
         el.value = "";
       }
+    } else if (el.id === "workerChatSendBtn") {
+      return;
     } else {
       el.textContent = t(key);
     }
@@ -1680,6 +1682,7 @@ function applyTranslations() {
   }
   updateWorkerHubToggleLabel();
   applyWorkerChatDirection();
+  syncWorkerComposeAction();
 }
 
 function setLang(lang) {
@@ -2644,6 +2647,8 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea::placeholder{color:#8696a0}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}",
+  "#chatCard .worker-chat-compose,#chatCard .worker-chat-compose-bar,#chatCard .worker-chat-send-btn{pointer-events:auto!important;touch-action:manipulation}",
+  "#chatCard .worker-chat-send-btn{position:relative;z-index:2}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-file-label{color:#8696a0;background:#2a3942;border:1px solid rgba(134,150,160,.14)}",
   "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
   "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(233,237,239,.12);color:#e9edef;display:grid;place-items:center;cursor:pointer}",
@@ -2915,6 +2920,8 @@ function ensureWorkerChatDom() {
   } else {
     applyWorkerChatDirection();
   }
+  bindWorkerChatComposeEvents();
+  syncWorkerComposeAction();
   return chatCard;
 }
 
@@ -2948,7 +2955,6 @@ function setWorkerChatComposeEnabled(enabled) {
 
 let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
-let workerVoiceMicGestureAt = 0;
 
 function getWorkerVoiceRecorder() {
   if (!workerVoiceRecorder && window.SUPPIXChatVoice?.createRecorder) {
@@ -2971,13 +2977,26 @@ function workerVoiceLabels() {
 
 function syncWorkerComposeAction() {
   syncWorkerChatComposeRefs();
-  return window.SUPPIXChatVoice?.updateComposePrimaryAction?.({
-    input: elements.workerChatInput,
-    button: elements.workerChatSendBtn,
-    fileInput: elements.workerChatFileInput,
-    recording: workerVoiceRecording,
-    labels: workerVoiceLabels(),
-  });
+  const button = elements.workerChatSendBtn;
+  if (!button) {
+    return "send";
+  }
+  if (window.SUPPIXChatVoice?.updateComposePrimaryAction) {
+    return window.SUPPIXChatVoice.updateComposePrimaryAction({
+      input: elements.workerChatInput,
+      button,
+      fileInput: elements.workerChatFileInput,
+      recording: workerVoiceRecording,
+      labels: workerVoiceLabels(),
+    });
+  }
+  button.disabled = false;
+  if (workerVoiceRecording) {
+    button.dataset.mode = "stop";
+    return "stop";
+  }
+  button.dataset.mode = workerComposeHasPayload() ? "send" : "mic";
+  return button.dataset.mode;
 }
 
 function updateWorkerVoiceHint(seconds) {
@@ -3044,9 +3063,39 @@ function formatWorkerVoiceRecordError(error) {
   return t("chatVoiceNotSupported");
 }
 
+function workerComposeHasPayload() {
+  syncWorkerChatComposeRefs();
+  const input = elements.workerChatInput;
+  const fileInput = elements.workerChatFileInput;
+  const placeholder = t("workerChatPlaceholder");
+  const hasText = window.SUPPIXChatVoice?.composeHasText?.(input, placeholder)
+    ?? Boolean(String(input?.value || "").trim() && String(input?.value || "").trim() !== String(placeholder || "").trim());
+  return hasText || Boolean(fileInput?.files?.length);
+}
+
+function resolveWorkerChatPrimaryMode() {
+  syncWorkerChatComposeRefs();
+  syncWorkerComposeAction();
+  let mode = elements.workerChatSendBtn?.dataset.mode || "";
+  if (!mode || (mode === "send" && !workerComposeHasPayload() && !workerVoiceRecording)) {
+    return "mic";
+  }
+  if (workerVoiceRecording) {
+    return "stop";
+  }
+  return mode;
+}
+
+function showWorkerVoiceStartingHint() {
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  if (!hint) return;
+  hint.classList.remove("hidden");
+  hint.textContent = t("chatVoiceStarting");
+}
+
 async function handleWorkerPrimaryAction() {
   syncWorkerChatComposeRefs();
-  const mode = elements.workerChatSendBtn?.dataset.mode || "send";
+  const mode = resolveWorkerChatPrimaryMode();
   if (mode === "mic") {
     if (workerVoiceRecording) {
       return;
@@ -3058,9 +3107,11 @@ async function handleWorkerPrimaryAction() {
       return;
     }
     try {
+      showWorkerVoiceStartingHint();
       workerVoiceRecording = true;
       syncWorkerComposeAction();
       await recorder.start();
+      updateWorkerVoiceHint(0);
     } catch (error) {
       workerVoiceRecording = false;
       updateWorkerVoiceHint(0);
@@ -3095,33 +3146,36 @@ async function handleWorkerPrimaryAction() {
   await sendWorkerChatMessage();
 }
 
+function bindWorkerChatSendButton() {
+  syncWorkerChatComposeRefs();
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (!sendBtn) {
+    return;
+  }
+  elements.workerChatSendBtn = sendBtn;
+  if (sendBtn.dataset.chatSendBound === "1") {
+    return;
+  }
+  sendBtn.dataset.chatSendBound = "1";
+  const triggerPrimaryAction = (event) => {
+    if (sendBtn.disabled) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    void handleWorkerPrimaryAction();
+  };
+  sendBtn.addEventListener("click", triggerPrimaryAction);
+  sendBtn.addEventListener("touchend", triggerPrimaryAction, { passive: false });
+}
+
 function bindWorkerChatComposeEvents() {
   syncWorkerChatComposeRefs();
+  bindWorkerChatSendButton();
   const chatCard = elements.chatCard || document.getElementById("chatCard");
   const compose = chatCard?.querySelector(".worker-chat-compose");
   if (compose && !compose.dataset.chatDelegateBound) {
     compose.dataset.chatDelegateBound = "1";
-    const triggerPrimaryAction = (event, { micOnly = false } = {}) => {
-      const sendBtn = event.target instanceof Element ? event.target.closest("#workerChatSendBtn") : null;
-      if (!sendBtn || sendBtn.disabled) {
-        return;
-      }
-      const mode = sendBtn.dataset.mode || "send";
-      if (micOnly && mode !== "mic") {
-        return;
-      }
-      if (!micOnly && mode === "mic" && Date.now() - workerVoiceMicGestureAt < 900) {
-        return;
-      }
-      event.preventDefault();
-      if (mode === "mic") {
-        workerVoiceMicGestureAt = Date.now();
-      }
-      void handleWorkerPrimaryAction();
-    };
-    compose.addEventListener("click", (event) => triggerPrimaryAction(event));
-    compose.addEventListener("pointerdown", (event) => triggerPrimaryAction(event, { micOnly: true }));
-    compose.addEventListener("touchstart", (event) => triggerPrimaryAction(event, { micOnly: true }), { passive: false });
   }
   const input = elements.workerChatInput || chatCard?.querySelector("#workerChatInput");
   const fileInput = elements.workerChatFileInput || chatCard?.querySelector("#workerChatFileInput");
@@ -12120,6 +12174,8 @@ async function loadWorkerChat(options = {}) {
     workerChatLastFingerprint = fingerprint;
     renderWorkerChatMessages(messages, { quiet });
     bindWorkerChatClearActions();
+    bindWorkerChatComposeEvents();
+    syncWorkerComposeAction();
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";
@@ -12828,6 +12884,8 @@ function initWorkerAppShell() {
   ensureWorkerChatNavDom();
   ensureWorkerChatDom();
   ensureWorkerChatComposeBar();
+  bindWorkerChatComposeEvents();
+  syncWorkerComposeAction();
   refreshTopBarElements();
   bindTopBarActions();
   enforceUiVisibilityGuard();
