@@ -8,6 +8,22 @@ import time
 from typing import Any
 
 
+def _web_push_failure_hint(db, worker_id: str) -> str:
+    vapid = bool(os.getenv("VAPID_PRIVATE_KEY", "").strip())
+    if not vapid:
+        return "Web-Push (PWA): VAPID-Schlüssel auf dem Server fehlen (VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL)."
+    row = db.execute(
+        "SELECT 1 FROM push_subscriptions WHERE worker_id = ? LIMIT 1",
+        (worker_id,),
+    ).fetchone()
+    if not row:
+        return (
+            "Web-Push (PWA): Keine Push-Anmeldung — Mitarbeiter-App vom Home-Bildschirm öffnen, "
+            "einloggen und auf „Aktivieren“ tippen."
+        )
+    return "Web-Push (PWA): Zustellung fehlgeschlagen — Push-Subscription erneuern (erneut „Aktivieren“)."
+
+
 def push_platform_status() -> dict[str, Any]:
     from .fcm import fcm_configured, fcm_mode, fcm_v1_only
 
@@ -16,7 +32,9 @@ def push_platform_status() -> dict[str, Any]:
     mode = fcm_mode()
     return {
         "workerAppKind": "hybrid_native",
-        "primaryChannel": "fcm",
+        "pwaChannel": "web_push_vapid",
+        "nativeChannel": "fcm",
+        "primaryChannel": "web_push" if vapid and not fcm else ("fcm" if fcm else "web_push"),
         "fcmConfigured": fcm,
         "fcmMode": mode,
         "fcmV1Only": fcm_v1_only(),
@@ -24,6 +42,7 @@ def push_platform_status() -> dict[str, Any]:
         "legacyWebPush": vapid,
         "anyChannelReady": fcm or vapid,
         "recommendedForWorkers": "fcm",
+        "recommendedForPwa": "vapid",
     }
 
 
@@ -152,5 +171,5 @@ def deliver_worker_push(
         "channels": channels,
         "hint": None
         if total > 0
-        else "Kein FCM-Token — in der Hybrid-App (Flutter) unter Profil Push aktivieren.",
+        else _web_push_failure_hint(db, worker_id),
     }

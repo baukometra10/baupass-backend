@@ -366,7 +366,7 @@ const TRANSLATIONS = {
     deploymentPlanDeclineErrNoAssignment: "Für diesen Tag ist kein Einsatz gespeichert. Bitte die Firma bitten, den Plan erneut zu speichern.",
     deploymentPlanDeclineErrPastDay: "Vergangene Tage können nicht mehr abgelehnt werden.",
     deploymentPlanDeclineErrSave: "Ablehnung konnte nicht gespeichert werden. Bitte erneut versuchen.",
-    notificationBannerPushNotReady: "System-Mitteilungen: Bitte „Erlauben“ tippen. (Server-Push muss von der Firma auf Railway eingerichtet sein.)",
+    notificationBannerPushNotReady: "PWA-Mitteilungen: Bitte unten auf „Aktivieren“ tippen. (Auf dem Server müssen VAPID-Schlüssel auf Railway stehen.)",
     deploymentPlanUndoDone: "Ablehnung wurde zurückgenommen.",
     deploymentPlanDeclineReasonShow: "Grund: {reason}",
     deploymentPlanDayDetailTitle: "Einsatztag",
