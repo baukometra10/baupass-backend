@@ -7,7 +7,6 @@ from typing import Any
 
 from backend.app.platform.events.bus import publish_event
 from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
-from backend.app.platform.push.delivery import deliver_worker_push
 from backend.app.platform.security.e2e_envelope import assert_e2e_attachment, assert_e2e_message_body, is_e2e_envelope
 from backend.app.platform.security.e2e_policy import is_e2e_attachment_required, is_e2e_chat_required
 from backend.app.platform.security.field_encryption import maybe_decrypt_field, maybe_encrypt_field
@@ -419,17 +418,6 @@ class ChatService:
                         push_tag="worker-chat",
                         send_email=False,
                     )
-                    try:
-                        deliver_worker_push(
-                            self.db,
-                            worker_id,
-                            "Neue Nachricht",
-                            "Neue verschlüsselte Nachricht" if encrypted_preview else notify_body[:180],
-                            tag="worker-chat",
-                            company_id=company_id,
-                        )
-                    except Exception:
-                        pass
         except Exception:
             pass
 

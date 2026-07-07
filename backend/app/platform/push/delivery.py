@@ -70,10 +70,9 @@ def deliver_worker_push(
             vapid_email = (
                 os.getenv("VAPID_EMAIL")
                 or os.getenv("BAUPASS_CONTACT_EMAIL")
-                or ""
+                or os.getenv("BAUPASS_NOREPLY_EMAIL")
+                or "mailto:admin@workpass.local"
             ).strip()
-            if not vapid_email:
-                vapid_email = ""
             if callable(webpush) and vapid_private_key and vapid_email:
                 from .deeplinks import push_data_payload
 
@@ -96,6 +95,7 @@ def deliver_worker_push(
                                     "tag": tag,
                                     "route": payload.get("route"),
                                     "deeplink": payload.get("deeplink"),
+                                    "url": payload.get("url"),
                                 }
                             ),
                             vapid_private_key=vapid_private_key,

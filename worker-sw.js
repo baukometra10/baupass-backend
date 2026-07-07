@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260705b";
+const WORKER_BUILD = "20260707m";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -133,6 +133,46 @@ self.addEventListener("fetch", (event) => {
 });
 
 // ── Push-Benachrichtigungen ───────────────────────────────────────────
+const PUSH_TAG_URLS = {
+  "deployment-plan": "/emp-app.html#einsatzplan",
+  "payroll-document": "/emp-app.html#documents",
+  "worker-document": "/emp-app.html#documents",
+  "leave-request-status": "/emp-app.html#leave",
+  "leave-approved": "/emp-app.html#leave",
+  "leave-denied": "/emp-app.html#leave",
+  "worker-chat": "/emp-app.html#chat",
+  "contract-sign": "/emp-app.html#documents",
+};
+
+function resolvePushTargetUrl(data, tag) {
+  const directUrl = String(data?.url || "").trim();
+  if (directUrl) {
+    return directUrl;
+  }
+  if (PUSH_TAG_URLS[tag]) {
+    return PUSH_TAG_URLS[tag];
+  }
+  const route = String(data?.route || data?.deeplink || "").trim();
+  if (route.startsWith("baupass://app/")) {
+    const routeMap = {
+      chat: "/emp-app.html#chat",
+      deployment: "/emp-app.html#einsatzplan",
+      documents: "/emp-app.html#documents",
+      tasks: "/emp-app.html#leave",
+      profile: "/emp-app.html",
+      shifts: "/emp-app.html",
+      attendance: "/emp-app.html",
+      ai: "/emp-app.html",
+      "contract-sign": "/emp-app.html#documents",
+    };
+    const routeKey = route.slice("baupass://app/".length).split("?")[0];
+    if (routeMap[routeKey]) {
+      return routeMap[routeKey];
+    }
+  }
+  return "/emp-app.html";
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -142,14 +182,7 @@ self.addEventListener("push", (event) => {
   }
   const title = data.title || "SUPPIX";
   const tag = data.tag || "baupass-notification";
-  let defaultUrl = data.url || "/worker-install.html?launch=1";
-  if (tag === "deployment-plan") {
-    defaultUrl = "/emp-app.html#einsatzplan";
-  } else if (tag === "payroll-document" || tag === "worker-document") {
-    defaultUrl = "/emp-app.html#documents";
-  } else if (tag === "leave-request-status" || tag === "leave-approved" || tag === "leave-denied") {
-    defaultUrl = "/emp-app.html#leave";
-  }
+  const defaultUrl = resolvePushTargetUrl(data, tag);
   const options = {
     body: data.body || "",
     tag,

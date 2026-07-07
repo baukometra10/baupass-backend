@@ -19,10 +19,33 @@ _TAG_ROUTES: dict[str, str] = {
     "contract-sign": "baupass://app/contract-sign",
 }
 
+_PWA_TAG_PATHS: dict[str, str] = {
+    "leave-request-status": "/emp-app.html#leave",
+    "leave-approved": "/emp-app.html#leave",
+    "leave-denied": "/emp-app.html#leave",
+    "document-expiry": "/emp-app.html#leave",
+    "deployment-plan": "/emp-app.html#einsatzplan",
+    "payroll-document": "/emp-app.html#documents",
+    "worker-document": "/emp-app.html#documents",
+    "worker-chat": "/emp-app.html#chat",
+    "contract-sign": "/emp-app.html#documents",
+    "notification": "/emp-app.html",
+}
+
+
+def pwa_path_for_tag(tag: str) -> str:
+    return _PWA_TAG_PATHS.get(str(tag or "").strip(), "/emp-app.html")
+
 
 def push_data_payload(*, tag: str, worker_id: str, extra: dict | None = None) -> dict[str, str]:
     route = _TAG_ROUTES.get(tag, "baupass://app/profile")
-    data = {"tag": tag, "workerId": str(worker_id), "route": route, "deeplink": route}
+    data = {
+        "tag": tag,
+        "workerId": str(worker_id),
+        "route": route,
+        "deeplink": route,
+        "url": pwa_path_for_tag(tag),
+    }
     if extra:
         for k, v in extra.items():
             data[str(k)] = str(v)[:200]

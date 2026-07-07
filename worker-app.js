@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707l";
+const WORKER_BUILD_TAG = "20260707m";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -6009,10 +6009,7 @@ async function completeWorkerLogin(payload, extras = {}) {
     }
   }
   initializeSessionInactivityProtection();
-  if (window.__deferredWorkerSwRegistration) {
-    window.__deferredWorkerSwRegistration = false;
-    registerWorkerSw();
-  }
+  await ensureWorkerSwRegisteredAndReady();
   void ensureWorkerPushNotifications({ promptIfNeeded: true });
   void loadWorkerData();
   void syncOfflinePhotoQueue();
@@ -7204,6 +7201,7 @@ async function pollProximityLoginCandidate() {
     finishWorkerLoginUi();
     showWorkerNotice(payload.autoCheckInLogId ? t("proximityLoginCheckIn") : payload.siteLoginLogId ? t("siteGpsRegistered") : t("proximityLoginSuccess"));
     initializeSessionInactivityProtection();
+    await ensureWorkerSwRegisteredAndReady();
     void ensureWorkerPushNotifications({ promptIfNeeded: false });
   } catch (error) {
     proximityInsideSince = 0;
@@ -8314,6 +8312,26 @@ function applyTheme(theme) {
 // ── FEATURE 2: PUSH NOTIFICATIONS (VAPID) ──
 // ═════════════════════════════════════════════════════════════════════
 
+async function ensureWorkerSwRegisteredAndReady(timeoutMs = 20000) {
+  if (!("serviceWorker" in navigator)) {
+    return null;
+  }
+  if (window.__deferredWorkerSwRegistration) {
+    window.__deferredWorkerSwRegistration = false;
+    registerWorkerSw();
+  }
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("sw_timeout")), timeoutMs);
+      }),
+    ]);
+  } catch {
+    return null;
+  }
+}
+
 async function requestNotificationPermission() {
   await ensureWorkerPushNotifications({ promptIfNeeded: true, showSuccessNotice: true });
 }
@@ -8349,8 +8367,17 @@ async function ensureWorkerPushNotifications({
     return;
   }
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (isIosDevice() && !isStandaloneMode() && elements.notificationBanner) {
+      const hint = document.querySelector("#notificationBanner span");
+      if (hint) {
+        hint.textContent = t("installIosHowto");
+      }
+      elements.notificationBanner.classList.remove("hidden");
+    }
     return;
   }
+
+  await ensureWorkerSwRegisteredAndReady();
 
   if (Notification.permission === "denied") {
     if (elements.notificationBanner) {
@@ -8394,7 +8421,10 @@ async function subscribePushNotifications() {
       return;
     }
 
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await ensureWorkerSwRegisteredAndReady();
+    if (!registration) {
+      return;
+    }
     let subscription = await registration.pushManager.getSubscription();
 
     if (!subscription) {
@@ -8460,6 +8490,10 @@ function navigateWorkerAppFromNotification(targetUrl) {
   }
   if (hash === "#leave" || hash === "#urlaub") {
     switchToTab("vacation");
+    return;
+  }
+  if (hash === "#chat") {
+    void openWorkerChatScreen();
     return;
   }
   switchToTab("home");
@@ -12256,6 +12290,15 @@ void initOfflineStorage();
 if ("Notification" in window && Notification.permission === "default" && elements.notificationBanner) {
   elements.notificationBanner.classList.remove("hidden");
 }
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !workerToken) {
+    return;
+  }
+  if (Notification.permission === "granted") {
+    void subscribePushNotifications();
+  }
+});
 
 // Load leave requests on login
 if (workerToken) {
