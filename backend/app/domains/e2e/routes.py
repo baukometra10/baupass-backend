@@ -46,6 +46,37 @@ def register_e2e_blueprint(flask_app) -> None:
             status = 403 if code == "private_key_forbidden" else 400
             return jsonify({"error": code}), status
 
+    @e2e_bp.get("/e2e/identity/me/backup")
+    @require_worker_session
+    def worker_get_e2e_identity_backup():
+        worker_id, _company_id = _worker_identity()
+        if not worker_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        backup = E2EIdentityService(get_db()).get_identity_backup("worker", worker_id)
+        return jsonify({"backup": backup})
+
+    @e2e_bp.put("/e2e/identity/me/backup")
+    @require_worker_session
+    def worker_put_e2e_identity_backup():
+        worker_id, _company_id = _worker_identity()
+        if not worker_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        data = request.get_json(silent=True) or {}
+        backup = data.get("backup") if isinstance(data, dict) else None
+        if not isinstance(backup, dict):
+            return jsonify({"error": "backup_required"}), 400
+        try:
+            assert_no_private_key_material(backup)
+            stored = E2EIdentityService(get_db()).upsert_identity_backup("worker", worker_id, backup)
+            from backend.app.platform.security.e2e_policy import clear_worker_e2e_client_unavailable
+
+            clear_worker_e2e_client_unavailable(get_db(), worker_id)
+            return jsonify({"ok": True, "backup": stored})
+        except ValueError as exc:
+            code = str(exc)
+            status = 404 if code == "identity_not_found" else 400
+            return jsonify({"error": code}), status
+
     @e2e_bp.get("/e2e/identity/me")
     @require_worker_session
     def worker_get_e2e_identity():

@@ -849,6 +849,48 @@
     return true;
   }
 
+  async function exportIdentityRecord(entityType, entityId) {
+    const etype = String(entityType || "").trim().toLowerCase();
+    const eid = String(entityId || "").trim();
+    const id = identityStorageId(etype, eid);
+    const record = await idbGet(id);
+    if (!record?.privateKeyEnc || !record?.publicKeySpkiB64) {
+      throw new Error("e2e_identity_missing");
+    }
+    return {
+      entityType: etype,
+      entityId: eid,
+      publicKeySpkiB64: record.publicKeySpkiB64,
+      privateKeyEnc: record.privateKeyEnc,
+      algorithm: record.algorithm || ALGORITHM,
+    };
+  }
+
+  async function importIdentityRecord(record) {
+    const etype = String(record?.entityType || "").trim().toLowerCase();
+    const eid = String(record?.entityId || "").trim();
+    if (!etype || !eid || !record?.privateKeyEnc || !record?.publicKeySpkiB64) {
+      throw new Error("e2e_identity_missing");
+    }
+    const id = identityStorageId(etype, eid);
+    await idbPut({
+      id,
+      entityType: etype,
+      entityId: eid,
+      publicKeySpkiB64: record.publicKeySpkiB64,
+      privateKeyEnc: record.privateKeyEnc,
+      algorithm: record.algorithm || ALGORITHM,
+      createdAt: record.createdAt || new Date().toISOString(),
+      importedAt: new Date().toISOString(),
+    });
+    return {
+      entityType: etype,
+      entityId: eid,
+      publicKeySpkiB64: record.publicKeySpkiB64,
+      algorithm: record.algorithm || ALGORITHM,
+    };
+  }
+
   global.E2ECrypto = Object.freeze({
     ALGORITHM,
     ENVELOPE_VERSION,
@@ -871,6 +913,8 @@
     decryptUtf8WithArchive,
     exportIdentityQrPayload,
     importIdentityQrPayload,
+    exportIdentityRecord,
+    importIdentityRecord,
     isDevicePinEnabled,
     isDevicePinUnlocked,
     hasDevicePinUnlocked,

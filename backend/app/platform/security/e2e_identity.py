@@ -85,9 +85,15 @@ class E2EIdentityService:
             """
         )
         try:
+            cols = {str(row[1] if isinstance(row, tuple) else row["name"]) for row in self.db.execute(f"PRAGMA table_info({self.TABLE})").fetchall()}
+            if "identity_backup_json" not in cols:
+                self.db.execute(f"ALTER TABLE {self.TABLE} ADD COLUMN identity_backup_json TEXT")
             self.db.commit()
         except Exception:
-            pass
+            try:
+                self.db.commit()
+            except Exception:
+                pass
 
     def upsert_identity(
         self,
@@ -133,6 +139,67 @@ class E2EIdentityService:
             )
         self.db.commit()
         return self.get_identity(etype, eid) or {}
+
+    def get_identity_backup(self, entity_type: str, entity_id: str) -> dict[str, Any] | None:
+        etype = str(entity_type or "").strip().lower()
+        eid = str(entity_id or "").strip()
+        if not eid:
+            return None
+        self._ensure_schema()
+        try:
+            row = self.db.execute(
+                f"SELECT identity_backup_json FROM {self.TABLE} WHERE entity_type = ? AND entity_id = ?",
+                (etype, eid),
+            ).fetchone()
+        except Exception:
+            return None
+        if not row:
+            return None
+        raw = str(row[0] if isinstance(row, tuple) else row["identity_backup_json"] or "").strip()
+        if not raw:
+            return None
+        import json
+
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+
+    def upsert_identity_backup(self, entity_type: str, entity_id: str, backup: dict[str, Any] | None) -> dict[str, Any] | None:
+        etype = str(entity_type or "").strip().lower()
+        eid = str(entity_id or "").strip()
+        if not eid:
+            raise ValueError("entity_id_required")
+        if backup is not None:
+            assert_no_private_key_material(backup)
+            iv = str(backup.get("iv") or "").strip()
+            ct = str(backup.get("ct") or "").strip()
+            if not iv or not ct:
+                raise ValueError("backup_invalid")
+            if len(iv) > 256 or len(ct) > 65536:
+                raise ValueError("backup_too_large")
+        import json
+
+        self._ensure_schema()
+        now = utc_now_iso()
+        payload = json.dumps(backup, separators=(",", ":")) if backup else ""
+        existing = self.db.execute(
+            f"SELECT id FROM {self.TABLE} WHERE entity_type = ? AND entity_id = ?",
+            (etype, eid),
+        ).fetchone()
+        if not existing:
+            raise ValueError("identity_not_found")
+        self.db.execute(
+            f"""
+            UPDATE {self.TABLE}
+            SET identity_backup_json = ?, updated_at = ?
+            WHERE entity_type = ? AND entity_id = ?
+            """,
+            (payload, now, etype, eid),
+        )
+        self.db.commit()
+        return self.get_identity_backup(etype, eid)
 
     def get_identity(self, entity_type: str, entity_id: str) -> dict[str, Any] | None:
         row = self.db.execute(

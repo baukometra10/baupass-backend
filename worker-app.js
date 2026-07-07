@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707k";
+const WORKER_BUILD_TAG = "20260707l";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -391,20 +391,7 @@ function buildWorkerAuthHeaders(extraHeaders = {}) {
   if (deviceId && !headers["X-Device-Id"]) {
     headers["X-Device-Id"] = deviceId;
   }
-  if (shouldAdvertiseWorkerE2EClientUnavailable() && !headers["X-E2E-Client-Unavailable"]) {
-    headers["X-E2E-Client-Unavailable"] = "1";
-  }
   return headers;
-}
-
-function shouldAdvertiseWorkerE2EClientUnavailable() {
-  if (!workerToken) {
-    return false;
-  }
-  if (!workerE2ECryptoAvailable()) {
-    return true;
-  }
-  return Boolean(workerE2EDeviceMismatch);
 }
 
 function persistWorkerSessionCredentials(payload) {
@@ -11058,6 +11045,120 @@ function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
 
+function getWorkerE2ECompanyId() {
+  return String(lastWorkerPayload?.worker?.companyId || lastWorkerPayload?.worker?.company_id || "").trim();
+}
+
+function getWorkerE2EWrapPin() {
+  try {
+    const sessionPin = normalizeBadgePinInput(sessionStorage.getItem("_wpf") || "");
+    if (sessionPin) {
+      return sessionPin;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+async function deriveWorkerE2EBackupKey(workerId, companyId, pin) {
+  const salt = new TextEncoder().encode(`suppix-worker-e2e-v1:${workerId}:${companyId}`);
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(String(pin || "")),
+    "PBKDF2",
+    false,
+    ["deriveKey"],
+  );
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: 310000, hash: "SHA-256" },
+    keyMaterial,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+async function decryptWorkerIdentityBackup(backup, workerId, companyId, pin) {
+  const iv = String(backup?.iv || "").trim();
+  const ct = String(backup?.ct || "").trim();
+  if (!iv || !ct) {
+    throw new Error("backup_invalid");
+  }
+  const key = await deriveWorkerE2EBackupKey(workerId, companyId, pin);
+  const plain = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: Uint8Array.from(atob(iv), (c) => c.charCodeAt(0)) },
+    key,
+    Uint8Array.from(atob(ct), (c) => c.charCodeAt(0)),
+  );
+  const parsed = JSON.parse(new TextDecoder().decode(new Uint8Array(plain)));
+  if (!parsed?.record?.privateKeyEnc || !parsed?.record?.publicKeySpkiB64) {
+    throw new Error("backup_invalid");
+  }
+  return parsed.record;
+}
+
+async function encryptWorkerIdentityBackupRecord(record, workerId, companyId, pin) {
+  const key = await deriveWorkerE2EBackupKey(workerId, companyId, pin);
+  const ivBytes = crypto.getRandomValues(new Uint8Array(12));
+  const plain = new TextEncoder().encode(JSON.stringify({ v: 1, record }));
+  const ctBytes = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: ivBytes }, key, plain));
+  let iv = "";
+  let ct = "";
+  ivBytes.forEach((b) => { iv += String.fromCharCode(b); });
+  ctBytes.forEach((b) => { ct += String.fromCharCode(b); });
+  return { v: 1, iv: btoa(iv), ct: btoa(ct) };
+}
+
+async function tryRestoreWorkerE2EFromBackup(pin) {
+  const workerId = getWorkerE2EEntityId();
+  const companyId = getWorkerE2ECompanyId();
+  if (!workerId || !companyId || !pin || !workerE2ECryptoAvailable()) {
+    return false;
+  }
+  try {
+    const payload = await fetchJson(workerE2EEndpoint("backup"), {
+      headers: buildWorkerAuthHeaders(),
+    });
+    const backup = payload?.backup;
+    if (!backup?.iv || !backup?.ct) {
+      return false;
+    }
+    const record = await decryptWorkerIdentityBackup(backup, workerId, companyId, pin);
+    await window.E2ECrypto.importIdentityRecord(record);
+    await window.E2ECrypto.registerPublicKey(workerE2EEndpoint("me"), record.publicKeySpkiB64, {
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+      credentials: "include",
+    });
+    workerE2EDeviceMismatch = false;
+    return true;
+  } catch (error) {
+    console.warn("[E2E] Worker backup restore failed:", error?.message || error);
+    return false;
+  }
+}
+
+async function uploadWorkerE2EBackup(pin) {
+  const workerId = getWorkerE2EEntityId();
+  const companyId = getWorkerE2ECompanyId();
+  if (!workerId || !companyId || !pin || !workerE2ECryptoAvailable()) {
+    return false;
+  }
+  try {
+    const record = await window.E2ECrypto.exportIdentityRecord("worker", workerId);
+    const backup = await encryptWorkerIdentityBackupRecord(record, workerId, companyId, pin);
+    await fetchJson(workerE2EEndpoint("backup"), {
+      method: "PUT",
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ backup }),
+    });
+    return true;
+  } catch (error) {
+    console.warn("[E2E] Worker backup upload failed:", error?.message || error);
+    return false;
+  }
+}
+
 function extractWorkerE2EPublicKeyFromIdentity(identity) {
   return String(identity?.publicKeySpkiB64 || identity?.public_key_spki_b64 || "").trim();
 }
@@ -11091,40 +11192,16 @@ async function peekWorkerLocalE2EPublicKey() {
   }
 }
 
-function maybeShowWorkerE2ENewDeviceHint() {
-  if (!workerE2EDeviceMismatch || wpGet(WORKER_E2E_MISMATCH_NOTICE_KEY)) {
-    return;
-  }
-  wpSet(WORKER_E2E_MISMATCH_NOTICE_KEY, "1");
-  showWorkerNotice(t("workerChatE2ENewDeviceHint"));
-}
-
-/** After reinstall/new device: register this device's key so sending works; flag old messages as other-device. */
+/** Automatic E2E bootstrap: restore encrypted backup from server after login, else create/register. */
 async function syncWorkerE2EIdentityWithServer() {
-  if (!workerE2ECryptoAvailable() || !workerToken) {
-    workerE2EDeviceMismatch = false;
-    return false;
-  }
-  const workerId = getWorkerE2EEntityId();
-  if (!workerId) {
-    workerE2EDeviceMismatch = false;
+  if (!workerToken) {
     return false;
   }
   try {
     await refreshWorkerSecurityFromServer();
-    await window.E2ECrypto.ensureCryptoSessionReady?.();
-    const serverIdentity = await fetchWorkerServerE2EIdentity();
-    const serverPub = extractWorkerE2EPublicKeyFromIdentity(serverIdentity);
-    const localPub = await peekWorkerLocalE2EPublicKey();
-    workerE2EDeviceMismatch = Boolean(serverPub && (!localPub || localPub !== serverPub));
-    const registered = await ensureWorkerE2EIdentity(true);
-    if (workerE2EDeviceMismatch) {
-      maybeShowWorkerE2ENewDeviceHint();
-    }
-    return registered;
+    return await ensureWorkerE2EIdentity(true);
   } catch (error) {
     console.warn("[E2E] Worker identity sync failed:", error?.message || error);
-    workerE2EIdentityReady = false;
     return false;
   }
 }
@@ -11144,12 +11221,39 @@ async function ensureWorkerE2EIdentity(force = false) {
   }
   try {
     await window.E2ECrypto?.ensureCryptoSessionReady?.();
+    const pin = getWorkerE2EWrapPin();
+    if (pin) {
+      const restored = await tryRestoreWorkerE2EFromBackup(pin);
+      if (restored) {
+        workerE2EIdentityReady = true;
+        workerE2EDeviceMismatch = false;
+        workerE2EPublicKeysCache = null;
+        workerE2EPublicKeyRowsCache = null;
+        workerE2EPublicKeysCacheAt = 0;
+        return true;
+      }
+    }
+    const localPub = await peekWorkerLocalE2EPublicKey();
+    const serverIdentity = await fetchWorkerServerE2EIdentity();
+    const serverPub = extractWorkerE2EPublicKeyFromIdentity(serverIdentity);
+    if (localPub && serverPub && localPub === serverPub) {
+      workerE2EIdentityReady = true;
+      workerE2EDeviceMismatch = false;
+      if (pin) {
+        void uploadWorkerE2EBackup(pin);
+      }
+      return true;
+    }
     const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
     await window.E2ECrypto.registerPublicKey(workerE2EEndpoint("me"), identity.publicKeySpkiB64, {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       credentials: "include",
     });
+    if (pin) {
+      await uploadWorkerE2EBackup(pin);
+    }
     workerE2EIdentityReady = true;
+    workerE2EDeviceMismatch = Boolean(serverPub && serverPub !== identity.publicKeySpkiB64);
     workerE2EPublicKeysCache = null;
     workerE2EPublicKeyRowsCache = null;
     workerE2EPublicKeysCacheAt = 0;
@@ -11293,6 +11397,7 @@ async function decryptWorkerChatBody(storedBody) {
   }
   try {
     await window.E2ECrypto.ensureCryptoSessionReady?.();
+    await ensureWorkerE2EIdentity();
     return await window.E2ECrypto.decryptUtf8WithArchive(text, "worker", workerId);
   } catch (error) {
     console.warn("[E2E] Chat decrypt failed:", error?.message || error);
