@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice12";
+const WORKER_BUILD_TAG = "20260707voice13";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -102,51 +102,105 @@ function ensureWorkerVoiceCaptureInput() {
   input = document.createElement("input");
   input.type = "file";
   input.id = "workerChatVoiceCaptureInput";
-  input.accept = "audio/*";
+  input.accept = "audio/x-m4a,audio/mp4,audio/mpeg,audio/*";
   input.setAttribute("capture", "");
-  input.className = "hidden-control";
-  input.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;";
+  input.className = "worker-chat-voice-capture-input hidden-control";
+  input.style.display = "none";
   const compose = document.querySelector("#chatCard .worker-chat-compose") || document.body;
   compose.appendChild(input);
   return input;
 }
 
-function openWorkerNativeVoiceCaptureSync() {
-  const input = ensureWorkerVoiceCaptureInput();
-  if (!input) {
-    showWorkerNotice(t("chatVoiceNotSupported"));
-    return;
-  }
+function resetWorkerVoiceNativeHint() {
   const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-  if (hint) {
-    hint.classList.remove("hidden");
-    hint.textContent = t("chatVoiceNative");
-  }
-  if (input.dataset.voiceCapturePending === "1") {
+  if (!hint || workerVoiceRecording) {
     return;
   }
-  input.dataset.voiceCapturePending = "1";
-  input.value = "";
-  const onPick = () => {
-    input.dataset.voiceCapturePending = "0";
-    input.removeEventListener("change", onPick);
+  hint.classList.add("hidden");
+  hint.textContent = "";
+}
+
+function bindWorkerVoiceCaptureInput() {
+  const input = ensureWorkerVoiceCaptureInput();
+  if (!input || input.dataset.changeBound === "1") {
+    return;
+  }
+  input.dataset.changeBound = "1";
+  input.addEventListener("change", () => {
     const file = input.files?.[0] || null;
-    if (hint) {
-      hint.classList.add("hidden");
-      hint.textContent = "";
-    }
+    input.value = "";
+    resetWorkerVoiceNativeHint();
     if (file) {
       void handleWorkerNativeVoiceFile(file);
     }
-  };
-  input.addEventListener("change", onPick);
-  try {
-    input.click();
-  } catch (error) {
-    input.dataset.voiceCapturePending = "0";
-    input.removeEventListener("change", onPick);
-    showWorkerNotice(formatWorkerVoiceRecordError(error));
+  });
+}
+
+function syncWorkerVoiceCaptureOverlay(mode = "") {
+  syncWorkerChatComposeRefs();
+  bindWorkerVoiceCaptureInput();
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  const input = ensureWorkerVoiceCaptureInput();
+  if (!sendBtn || !input) {
+    return false;
   }
+  const activeMode = mode || sendBtn.dataset.mode || "send";
+  const useNativeOverlay = activeMode === "mic"
+    && !workerVoiceRecording
+    && !sendBtn.disabled
+    && shouldUseWorkerNativeVoiceCapture()
+    && !workerComposeHasPayload();
+
+  let shell = sendBtn.closest(".worker-chat-send-shell");
+  if (!shell && sendBtn.parentElement) {
+    shell = document.createElement("div");
+    shell.className = "worker-chat-send-shell";
+    sendBtn.parentElement.insertBefore(shell, sendBtn);
+    shell.appendChild(sendBtn);
+  }
+  if (!shell) {
+    return false;
+  }
+
+  if (useNativeOverlay) {
+    if (input.parentElement !== shell) {
+      shell.appendChild(input);
+    }
+    input.style.cssText = [
+      "position:absolute",
+      "inset:0",
+      "width:100%",
+      "height:100%",
+      "opacity:0.001",
+      "border:0",
+      "padding:0",
+      "margin:0",
+      "z-index:6",
+      "cursor:pointer",
+      "font-size:16px",
+      "display:block",
+      "pointer-events:auto",
+      "touch-action:manipulation",
+    ].join(";");
+    sendBtn.style.pointerEvents = "none";
+    sendBtn.setAttribute("aria-hidden", "true");
+    input.setAttribute("aria-label", t("chatVoiceMic"));
+    const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+    if (hint) {
+      hint.classList.remove("hidden");
+      hint.textContent = t("chatVoiceNativeTap");
+    }
+    return true;
+  }
+
+  input.style.display = "none";
+  input.style.pointerEvents = "none";
+  sendBtn.style.pointerEvents = "";
+  sendBtn.removeAttribute("aria-hidden");
+  if (!workerVoiceRecording) {
+    resetWorkerVoiceNativeHint();
+  }
+  return false;
 }
 
 async function handleWorkerNativeVoiceFile(rawFile) {
@@ -2751,6 +2805,9 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}",
   "#chatCard .worker-chat-compose,#chatCard .worker-chat-compose-bar,#chatCard .worker-chat-send-btn{pointer-events:auto!important;touch-action:manipulation}",
+  "#chatCard .worker-chat-send-shell{position:relative;display:inline-flex;flex-shrink:0;width:46px;height:46px;align-items:center;justify-content:center;touch-action:manipulation}",
+  "#chatCard .worker-chat-send-shell .worker-chat-send-btn{width:100%;height:100%;margin:0}",
+  "#chatCard .worker-chat-send-shell .worker-chat-voice-capture-input{position:absolute;inset:0;width:100%;height:100%;opacity:0.001;border:0;padding:0;margin:0;z-index:6;cursor:pointer;font-size:16px;display:block;touch-action:manipulation}",
   "#chatCard .worker-chat-send-btn{position:relative;z-index:2}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-file-label{color:#8696a0;background:#2a3942;border:1px solid rgba(134,150,160,.14)}",
   "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
@@ -2984,7 +3041,7 @@ function ensureWorkerChatDom() {
       </div>
       <div class="worker-chat-compose">
         <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
-        <input type="file" id="workerChatVoiceCaptureInput" class="hidden-control" accept="audio/*" capture style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;" tabindex="-1" aria-hidden="true" />
+        <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input hidden-control" accept="audio/x-m4a,audio/mp4,audio/mpeg,audio/*" capture="microphone" tabindex="-1" aria-hidden="true" style="display:none;" />
         <div class="worker-chat-compose-bar">
           <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3108,22 +3165,27 @@ function syncWorkerComposeAction() {
   if (!button) {
     return "send";
   }
+  let mode = "send";
   if (window.SUPPIXChatVoice?.updateComposePrimaryAction) {
-    return window.SUPPIXChatVoice.updateComposePrimaryAction({
+    mode = window.SUPPIXChatVoice.updateComposePrimaryAction({
       input: elements.workerChatInput,
       button,
       fileInput: elements.workerChatFileInput,
       recording: workerVoiceRecording,
       labels: workerVoiceLabels(),
     });
+  } else {
+    button.disabled = false;
+    if (workerVoiceRecording) {
+      button.dataset.mode = "stop";
+      mode = "stop";
+    } else {
+      button.dataset.mode = workerComposeHasPayload() ? "send" : "mic";
+      mode = button.dataset.mode;
+    }
   }
-  button.disabled = false;
-  if (workerVoiceRecording) {
-    button.dataset.mode = "stop";
-    return "stop";
-  }
-  button.dataset.mode = workerComposeHasPayload() ? "send" : "mic";
-  return button.dataset.mode;
+  syncWorkerVoiceCaptureOverlay(mode);
+  return mode;
 }
 
 function updateWorkerVoiceHint(seconds) {
@@ -3270,7 +3332,7 @@ async function handleWorkerPrimaryAction(options = {}) {
         return;
       }
       if (shouldUseWorkerNativeVoiceCapture()) {
-        openWorkerNativeVoiceCaptureSync();
+        syncWorkerVoiceCaptureOverlay("mic");
         return;
       }
       if (!activeRecorder) {
@@ -3375,7 +3437,7 @@ function bindWorkerChatSendButton() {
     let streamError = null;
     if (mode === "mic" && !workerVoiceRecording) {
       if (shouldUseWorkerNativeVoiceCapture()) {
-        openWorkerNativeVoiceCaptureSync();
+        syncWorkerVoiceCaptureOverlay("mic");
         return;
       }
       try {
@@ -3408,7 +3470,7 @@ window.workerChatSendClick = function workerChatSendClick(event) {
   syncWorkerChatComposeRefs();
   const mode = resolveWorkerChatPrimaryMode();
   if (mode === "mic" && !workerVoiceRecording && shouldUseWorkerNativeVoiceCapture()) {
-    openWorkerNativeVoiceCaptureSync();
+    syncWorkerVoiceCaptureOverlay("mic");
     return false;
   }
   let streamPromise = null;
