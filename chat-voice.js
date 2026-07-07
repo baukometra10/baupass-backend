@@ -83,21 +83,7 @@
   }
 
   function shouldPreferNativeVoiceCapture() {
-    if (!isNativeCaptureAvailable()) {
-      return false;
-    }
-    if (isAppleLikeDevice()) {
-      return true;
-    }
-    if (isStandalonePwa()) {
-      return true;
-    }
-    try {
-      return !global.MediaRecorder?.isTypeSupported?.("audio/webm;codecs=opus")
-        && !global.MediaRecorder?.isTypeSupported?.("audio/mp4");
-    } catch {
-      return false;
-    }
+    return false;
   }
 
   function normalizeCaptureFile(file) {
