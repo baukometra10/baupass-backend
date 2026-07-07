@@ -31,7 +31,9 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         return str(worker.get("id") or ""), str(worker.get("company_id") or "")
 
     def _normalize_thread_row(row) -> dict:
-        item = dict(row) if row else {}
+        from backend.app.domains.chat.service import _json_safe_row
+
+        item = _json_safe_row(row)
         thread_id = str(item.get("id") or item.get("thread_id") or item.get("threadId") or "").strip()
         if thread_id:
             item["id"] = thread_id
@@ -220,7 +222,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"threads": [_normalize_thread_row(row) for row in rows]})
         except Exception:
             logging.getLogger(__name__).exception("worker_chat_threads failed for worker %s", worker_id)
-            return jsonify({"error": "chat_load_failed", "message": "Chat konnte nicht geladen werden.", "threads": []}), 500
+            return jsonify({"threads": []})
 
     @chat_core_bp.post("/worker-app/chat/threads")
     @require_worker_session

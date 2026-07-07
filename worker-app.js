@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707e";
+const WORKER_BUILD_TAG = "20260707f";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -4773,6 +4773,7 @@ function renderWorker(payload, options = {}) {
     workerE2EPublicKeysCacheAt = 0;
   }
   lastWorkerPayload = { ...payload, planFeatures };
+  applyWorkerChatBootstrap(payload);
   const company = payload.company || {};
   const subcompany = payload.subcompany || {};
   const workerBadgeId = String(worker.badgeId || worker.badge_id || "").trim();
@@ -10960,20 +10961,30 @@ async function refreshWorkerSecurityFromServer() {
   }
   try {
     const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
-    if (payload?.security) {
+    if (payload && typeof payload === "object") {
       lastWorkerPayload = {
         ...(lastWorkerPayload || {}),
         ...payload,
-        security: payload.security,
+        security: payload.security || lastWorkerPayload?.security,
         planFeatures: payload.planFeatures || lastWorkerPayload?.planFeatures,
+        chat: payload.chat || lastWorkerPayload?.chat,
       };
       wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(lastWorkerPayload));
-      return payload.security;
     }
+    applyWorkerChatBootstrap(payload);
+    return payload?.security || lastWorkerPayload?.security || null;
   } catch (error) {
     console.warn("[E2E] Worker security refresh failed:", error?.message || error);
   }
   return lastWorkerPayload?.security || null;
+}
+
+function applyWorkerChatBootstrap(payload = lastWorkerPayload) {
+  const tid = String(payload?.chat?.threadId || payload?.chat?.thread_id || "").trim();
+  if (tid) {
+    workerChatThreadId = tid;
+    workerChatThreadLastError = null;
+  }
 }
 
 function workerChatEncryptErrorMessage(error) {
@@ -11184,15 +11195,37 @@ async function ensureWorkerChatThread(forceRefresh = false) {
   if (!workerToken) {
     return "";
   }
+  applyWorkerChatBootstrap();
   const cachedThreadId = String(workerChatThreadId || "").trim();
   if (cachedThreadId && !forceRefresh) {
     return cachedThreadId;
   }
-  const authHeaders = buildWorkerAuthHeaders();
   let lastError = null;
+
+  async function tryCreateThread() {
+    const created = await fetchJson(`${API_BASE}/chat/threads`, {
+      method: "POST",
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ subject: "general" }),
+    });
+    return extractChatThreadId(created) || String(created?.threadId || created?.thread_id || "").trim();
+  }
+
+  try {
+    const resolvedId = await tryCreateThread();
+    if (resolvedId) {
+      workerChatThreadId = resolvedId;
+      workerChatThreadLastError = null;
+      return workerChatThreadId;
+    }
+  } catch (error) {
+    lastError = error;
+    console.warn("[chat] Worker thread create failed:", error?.message || error);
+  }
+
   try {
     const threadsPayload = await fetchJson(`${API_BASE}/chat/threads`, {
-      headers: authHeaders,
+      headers: buildWorkerAuthHeaders(),
     });
     const threads = Array.isArray(threadsPayload?.threads) ? threadsPayload.threads : [];
     if (threads.length) {
@@ -11213,22 +11246,7 @@ async function ensureWorkerChatThread(forceRefresh = false) {
     lastError = error;
     console.warn("[chat] Worker thread list failed:", error?.message || error);
   }
-  try {
-    const created = await fetchJson(`${API_BASE}/chat/threads`, {
-      method: "POST",
-      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ subject: "general" }),
-    });
-    const resolvedId = extractChatThreadId(created) || String(created?.threadId || created?.thread_id || "").trim();
-    if (resolvedId) {
-      workerChatThreadId = resolvedId;
-      workerChatThreadLastError = null;
-      return workerChatThreadId;
-    }
-  } catch (error) {
-    lastError = error;
-    console.warn("[chat] Worker thread create failed:", error?.message || error);
-  }
+
   workerChatThreadLastError = lastError;
   if (cachedThreadId) {
     workerChatThreadId = cachedThreadId;

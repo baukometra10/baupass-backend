@@ -17,6 +17,30 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _json_safe_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        text = value.isoformat()
+        return text.replace("+00:00", "Z") if value.tzinfo else f"{text}Z"
+    return value
+
+
+def _json_safe_row(row: Any) -> dict[str, Any]:
+    if row is None:
+        return {}
+    if isinstance(row, dict):
+        source = row
+    elif hasattr(row, "keys"):
+        try:
+            source = {key: row[key] for key in row.keys()}
+        except Exception:
+            return {}
+    else:
+        return {}
+    return {str(key): _json_safe_value(value) for key, value in source.items()}
+
+
 class ChatService:
     def __init__(self, db):
         self.db = db
@@ -142,7 +166,7 @@ class ChatService:
             """,
             tuple(params),
         ).fetchall()
-        return [dict(row) for row in rows]
+        return [_json_safe_row(row) for row in rows]
 
     def list_admin_chat_directory(self, company_id: str) -> list[dict[str, Any]]:
         """All active workers for admin chat, with optional existing thread metadata."""

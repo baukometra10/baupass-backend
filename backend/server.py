@@ -13706,6 +13706,17 @@ def worker_app_me():
     attendance = worker_may_auto_attend_today(db, worker)
     worker_lang = str(request.args.get("lang") or request.headers.get("X-Worker-Lang") or "de")[:2]
     company_payload = build_worker_app_company_payload(db, worker["company_id"], lang=worker_lang)
+    chat_thread_id = ""
+    try:
+        from backend.app.domains.chat.service import ChatService
+
+        chat_thread_id = ChatService(db).get_or_create_worker_thread(
+            company_id=str(worker["company_id"] or ""),
+            worker_id=str(worker["id"] or ""),
+            subject="general",
+        )
+    except Exception:
+        logging.getLogger(__name__).exception("worker_app_me chat thread bootstrap failed for %s", worker.get("id"))
     return jsonify(
         {
             "worker": serialize_worker_for_app(worker, db=db),
@@ -13768,6 +13779,9 @@ def worker_app_me():
                     "backend.app.platform.security.e2e_policy",
                     fromlist=["is_e2e_sensitive_required"],
                 ).is_e2e_sensitive_required(db, worker["company_id"]),
+            },
+            "chat": {
+                "threadId": chat_thread_id,
             },
         }
     )
