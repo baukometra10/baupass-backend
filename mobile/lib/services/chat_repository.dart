@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -12,6 +11,7 @@ class ChatRepository {
   final ApiClient _api;
   final E2eCryptoService _e2e;
   String? _workerId;
+  Map<String, dynamic>? _security;
 
   Future<void> bootstrapE2e(WorkerSession session, {required String workerId}) async {
     _workerId = workerId;
@@ -27,21 +27,7 @@ class ChatRepository {
     );
   }
 
-  Future<List<String>> _publicKeys(WorkerSession session) async {
-    final data = await _api.getJson(
-      '/api/e2e/identity/public-keys',
-      bearerToken: session.bearer,
-      deviceId: session.deviceId,
-    );
-    final rows = data['publicKeys'];
-    if (rows is! List) return <String>[];
-    return rows
-        .map((row) => (row as Map)['publicKeySpkiB64'] as String? ?? '')
-        .where((value) => value.trim().isNotEmpty)
-        .toList();
-  }
-
-  Future<void> ensureE2eReady(WorkerSession session) async {
+  Future<Map<String, dynamic>> _loadMe(WorkerSession session) async {
     final me = await _api.getJson(
       '/api/worker-app/me',
       bearerToken: session.bearer,
@@ -49,6 +35,54 @@ class ChatRepository {
     );
     final worker = me['worker'];
     final workerId = worker is Map ? (worker['id'] as String? ?? '') : '';
+    if (workerId.isNotEmpty) {
+      _workerId = workerId;
+    }
+    final security = me['security'];
+    if (security is Map) {
+      _security = Map<String, dynamic>.from(security);
+    }
+    return me;
+  }
+
+  bool _e2eChatRequired() => _security?['e2eChatRequired'] == true;
+
+  bool _e2eAttachmentsRequired() => _security?['e2eAttachmentsRequired'] == true;
+
+  Future<List<String>> _chatRecipientKeys(WorkerSession session) async {
+    final data = await _api.getJson(
+      '/api/e2e/identity/public-keys',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final rows = data['publicKeys'];
+    if (rows is! List) return <String>[];
+    final adminKeys = <String>[];
+    for (final row in rows) {
+      if (row is! Map) continue;
+      final entityType = String(row['entityType'] ?? row['entity_type'] ?? '').toLowerCase();
+      if (entityType != 'user') continue;
+      final key = String(row['publicKeySpkiB64'] ?? row['public_key_spki_b64'] ?? '').trim();
+      if (key.isNotEmpty) adminKeys.add(key);
+    }
+    if (adminKeys.isEmpty) return <String>[];
+    final workerId = _workerId ?? '';
+    if (workerId.isEmpty) return adminKeys;
+    try {
+      final identity = await _e2e.ensureLocalIdentity(entityType: 'worker', entityId: workerId);
+      final selfKey = String(identity['publicKeySpkiB64'] ?? '').trim();
+      if (selfKey.isNotEmpty) {
+        return {...adminKeys, selfKey}.toList();
+      }
+    } catch (_) {
+      // Admin keys alone are enough to send.
+    }
+    return adminKeys;
+  }
+
+  Future<void> ensureE2eReady(WorkerSession session) async {
+    await _loadMe(session);
+    final workerId = _workerId ?? '';
     if (workerId.isEmpty) return;
     await bootstrapE2e(session, workerId: workerId);
   }
@@ -75,6 +109,7 @@ class ChatRepository {
   }
 
   Future<List<Map<String, dynamic>>> listMessages(WorkerSession session, String threadId) async {
+    await _loadMe(session);
     final data = await _api.getJson(
       '/api/worker-app/chat/threads/$threadId/messages',
       bearerToken: session.bearer,
@@ -100,10 +135,11 @@ class ChatRepository {
     required String threadId,
     required String body,
   }) async {
+    await ensureE2eReady(session);
     final workerId = _workerId ?? '';
     var outbound = body;
-    if (workerId.isNotEmpty && !_e2e.isE2eEnvelope(body)) {
-      final keys = await _publicKeys(session);
+    if (workerId.isNotEmpty && _e2eChatRequired() && !_e2e.isE2eEnvelope(body)) {
+      final keys = await _chatRecipientKeys(session);
       if (keys.isEmpty) throw StateError('e2e_keys_missing');
       outbound = await _e2e.encryptUtf8(body, keys);
     }
@@ -121,30 +157,41 @@ class ChatRepository {
     required String messageId,
     required File file,
   }) async {
+    await ensureE2eReady(session);
     final workerId = _workerId ?? '';
-    final keys = workerId.isEmpty ? <String>[] : await _publicKeys(session);
-    if (keys.isEmpty) throw StateError('e2e_keys_missing');
-    final bytes = await file.readAsBytes();
-    final packed = await _e2e.encryptBlob(
-      Uint8List.fromList(bytes),
-      keys,
-      filename: file.path.split(Platform.pathSeparator).last,
-      mime: 'application/octet-stream',
-    );
-    final tempDir = Directory.systemTemp;
-    final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');
-    await tempFile.writeAsBytes(packed['blob'] as Uint8List, flush: true);
+    if (_e2eAttachmentsRequired()) {
+      final keys = await _chatRecipientKeys(session);
+      if (keys.isEmpty) throw StateError('e2e_keys_missing');
+      final bytes = await file.readAsBytes();
+      final packed = await _e2e.encryptBlob(
+        Uint8List.fromList(bytes),
+        keys,
+        filename: file.path.split(Platform.pathSeparator).last,
+        mime: 'application/octet-stream',
+      );
+      final tempDir = Directory.systemTemp;
+      final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');
+      await tempFile.writeAsBytes(packed['blob'] as Uint8List, flush: true);
+      return _api.postMultipart(
+        '/api/worker-app/chat/threads/$threadId/attachments',
+        bearerToken: session.bearer,
+        deviceId: session.deviceId,
+        file: tempFile,
+        fileField: 'file',
+        fields: <String, String>{
+          'message_id': messageId,
+          'e2e_meta': packed['meta'] as String,
+          'e2e_encrypted': '1',
+        },
+      );
+    }
     return _api.postMultipart(
       '/api/worker-app/chat/threads/$threadId/attachments',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
-      file: tempFile,
+      file: file,
       fileField: 'file',
-      fields: <String, String>{
-        'message_id': messageId,
-        'e2e_meta': packed['meta'] as String,
-        'e2e_encrypted': '1',
-      },
+      fields: <String, String>{'message_id': messageId},
     );
   }
 

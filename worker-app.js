@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707c";
+const WORKER_BUILD_TAG = "20260707d";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -4749,8 +4749,18 @@ function renderWorker(payload, options = {}) {
     : (previousPayload?.planFeatures && Object.keys(previousPayload.planFeatures).length
       ? previousPayload.planFeatures
       : (payload.planFeatures || {}));
-  lastWorkerPayload = { ...payload, planFeatures };
   const worker = payload.worker || {};
+  const prevWorkerId = String(previousPayload?.worker?.id || previousPayload?.worker?.workerId || "").trim();
+  const nextWorkerId = String(worker?.id || worker?.workerId || "").trim();
+  if (prevWorkerId && nextWorkerId && prevWorkerId !== nextWorkerId) {
+    workerChatThreadId = "";
+    workerChatThreadLastError = null;
+    workerE2EIdentityReady = false;
+    workerE2EPublicKeysCache = null;
+    workerE2EPublicKeyRowsCache = null;
+    workerE2EPublicKeysCacheAt = 0;
+  }
+  lastWorkerPayload = { ...payload, planFeatures };
   const company = payload.company || {};
   const subcompany = payload.subcompany || {};
   const workerBadgeId = String(worker.badgeId || worker.badge_id || "").trim();
@@ -8011,6 +8021,9 @@ function formatWorkerApiError(error) {
   if (code === "chat_send_failed" || code === "thread_not_found") {
     return t("workerChatSendFailed");
   }
+  if (code === "e2e_required") {
+    return t("workerChatE2EKeysMissing");
+  }
   if (code === "chat_load_failed" || code === "chat_thread_failed") {
     return t("workerChatUnavailable");
   }
@@ -10929,6 +10942,36 @@ function workerE2ESensitiveRequired() {
   return lastWorkerPayload?.security?.e2eSensitiveRequired === true;
 }
 
+async function refreshWorkerSecurityFromServer() {
+  if (!workerToken || offlineWorkerSessionActive) {
+    return lastWorkerPayload?.security || null;
+  }
+  try {
+    const payload = await fetchJson(`${API_BASE}/me?lang=${encodeURIComponent(currentLang || "de")}`);
+    if (payload?.security) {
+      lastWorkerPayload = {
+        ...(lastWorkerPayload || {}),
+        ...payload,
+        security: payload.security,
+        planFeatures: payload.planFeatures || lastWorkerPayload?.planFeatures,
+      };
+      wpSet(WORKER_CACHED_PAYLOAD_KEY, JSON.stringify(lastWorkerPayload));
+      return payload.security;
+    }
+  } catch (error) {
+    console.warn("[E2E] Worker security refresh failed:", error?.message || error);
+  }
+  return lastWorkerPayload?.security || null;
+}
+
+function workerChatEncryptErrorMessage(error) {
+  const code = String(error?.message || error?.code || "");
+  if (code === "e2e_keys_missing" || code === "e2e_recipients_required" || code === "e2e_crypto_unavailable") {
+    return t("workerChatE2EKeysMissing");
+  }
+  return t("workerChatUnavailable");
+}
+
 function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
@@ -11032,13 +11075,16 @@ async function encryptWorkerChatBody(plaintext) {
   if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
     return text;
   }
+  await refreshWorkerSecurityFromServer();
+  await window.E2ECrypto?.ensureCryptoSessionReady?.();
   if (!workerE2ECryptoAvailable()) {
     if (workerE2ERequired()) {
       throw new Error("e2e_crypto_unavailable");
     }
     return text;
   }
-  let keys = await fetchWorkerE2EChatRecipientKeys();
+  await ensureWorkerE2EIdentity(true);
+  let keys = await fetchWorkerE2EChatRecipientKeys(true);
   for (let attempt = 0; !keys.length && attempt < 3; attempt += 1) {
     await ensureWorkerE2EIdentity(true);
     if (attempt < 2) {
@@ -11052,7 +11098,15 @@ async function encryptWorkerChatBody(plaintext) {
     }
     return text;
   }
-  return await window.E2ECrypto.encryptUtf8(text, keys);
+  try {
+    return await window.E2ECrypto.encryptUtf8(text, keys);
+  } catch (error) {
+    console.warn("[E2E] Worker chat encrypt failed:", error?.message || error);
+    if (workerE2ERequired()) {
+      throw error;
+    }
+    return text;
+  }
 }
 
 async function encryptWorkerSensitiveField(plaintext) {
@@ -11315,6 +11369,8 @@ async function loadWorkerChat(options = {}) {
     elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatLoading")}</p>`;
   }
   try {
+    await refreshWorkerSecurityFromServer();
+    void ensureWorkerE2EIdentity(true);
     const threadId = await ensureWorkerChatThread();
     if (!threadId) {
       if (!quiet) {
@@ -11387,7 +11443,9 @@ async function sendWorkerChatMessage() {
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
   try {
-    let threadId = await ensureWorkerChatThread();
+    await refreshWorkerSecurityFromServer();
+    await ensureWorkerE2EIdentity(true);
+    let threadId = await ensureWorkerChatThread(true);
     if (!threadId) {
       showWorkerNotice(
         workerChatThreadLastError
@@ -11401,7 +11459,7 @@ async function sendWorkerChatMessage() {
     try {
       outboundBody = await encryptWorkerChatBody(body);
     } catch (error) {
-      showWorkerNotice(error?.message === "e2e_keys_missing" ? t("workerChatE2EKeysMissing") : t("workerChatUnavailable"));
+      showWorkerNotice(workerChatEncryptErrorMessage(error));
       setWorkerChatComposeEnabled(allowed);
       return;
     }
@@ -11453,7 +11511,7 @@ async function openWorkerChatScreen() {
     return;
   }
   switchToTab("chat");
-  void ensureWorkerE2EIdentity(true);
+  void refreshWorkerSecurityFromServer().then(() => ensureWorkerE2EIdentity(true));
   void fetchWorkerE2EPublicKeys(true);
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();

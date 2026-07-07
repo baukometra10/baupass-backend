@@ -54,6 +54,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
+      await widget.chat.ensureE2eReady(widget.session);
       final threads = await widget.chat.listThreads(widget.session);
       String threadId;
       if (threads.isNotEmpty) {
