@@ -10,8 +10,8 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" id="chatAppTouchIcon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <style>
-    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --accent-on:#111827; --input-bg:#0f1419; --item-bg:rgba(255,255,255,0.03); }
-    body.theme-white { --item-bg: rgba(15,23,42,0.04); --input-bg: #ffffff; --bg:#f1f5f9; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,0.12); }
+    :root { --bg:#050816; --panel:#141c28; --border:#2a3544; --text:#e8eef4; --muted:#94a3b8; --accent:#5eead4; --accent-on:#111827; --input-bg:#0f1419; --item-bg:rgba(255,255,255,0.03); --active-item:rgba(94,234,212,0.13); }
+    body.theme-white { --item-bg: rgba(15,23,42,0.04); --active-item:rgba(20,184,166,0.14); --input-bg: #ffffff; --bg:#f1f5f9; --panel:#ffffff; --text:#0f172a; --muted:#64748b; --border:rgba(15,23,42,0.12); }
     body.theme-black { --item-bg: rgba(255,255,255,0.03); --input-bg: #0f1419; }
     * { box-sizing:border-box; }
     html, body { height:100%; margin:0; overflow:hidden; }
@@ -21,18 +21,26 @@
     .brand-row { display:flex; align-items:center; gap:0.55rem; }
     .brand-logo { width:28px; height:28px; border-radius:6px; object-fit:contain; }
     .header-lang { font-size:0.78rem; padding:0.3rem 0.4rem; border-radius:8px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); }
-    .chat-shell { flex:1; min-height:0; display:grid; grid-template-columns:minmax(260px, 320px) minmax(0, 1fr); gap:0.85rem; padding:0.85rem 1rem 1rem; max-width:1280px; width:100%; margin:0 auto; }
+    .chat-shell { flex:1; min-height:0; display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:0.85rem; padding:0.85rem 1rem 1rem; max-width:1360px; width:100%; margin:0 auto; }
     @media (max-width: 980px) {
       .chat-shell { grid-template-columns:1fr; padding:0.65rem; }
       .chat-sidebar { max-height:38vh; }
     }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:0.85rem 1rem; min-height:0; }
-    .chat-sidebar { display:flex; flex-direction:column; gap:0.65rem; overflow:hidden; }
-    .chat-sidebar h3 { margin:0; font-size:1rem; }
-    .thread-list { display:grid; gap:0.45rem; flex:1; min-height:0; overflow-y:auto; padding-right:0.15rem; }
-    .thread-item { width:100%; text-align:left; background:var(--item-bg, rgba(255,255,255,0.03)); border:1px solid var(--border); color:var(--text); border-radius:10px; padding:0.7rem 0.75rem; cursor:pointer; }
-    .thread-item.is-active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(94,234,212,0.18); }
-    .thread-item:hover { border-color:var(--accent); }
+    .chat-sidebar { display:flex; flex-direction:column; gap:0.65rem; overflow:hidden; padding:0.7rem; }
+    .chat-sidebar h3 { margin:0; font-size:1.08rem; padding:0 0.15rem; }
+    .sidebar-hint { font-size:0.82rem; margin:0; padding:0 0.15rem; }
+    .thread-list { display:flex; flex-direction:column; gap:0.12rem; flex:1; min-height:0; overflow-y:auto; padding:0.15rem 0.15rem 0.15rem 0; }
+    .thread-item { width:100%; text-align:left; background:transparent; border:1px solid transparent; color:var(--text); border-radius:14px; padding:0.58rem 0.62rem; cursor:pointer; display:grid; grid-template-columns:42px minmax(0,1fr); gap:0.7rem; align-items:center; min-height:62px; transition:background .12s ease,border-color .12s ease,transform .12s ease; }
+    .thread-item.is-active { background:var(--active-item); border-color:rgba(94,234,212,0.34); }
+    .thread-item.is-loading { opacity:0.78; }
+    .thread-item:hover { background:var(--item-bg); border-color:rgba(94,234,212,0.24); }
+    .thread-avatar { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; letter-spacing:.02em; background:linear-gradient(135deg,#5eead4,#93c5fd); box-shadow:0 4px 14px rgba(15,23,42,.18); }
+    .thread-body { min-width:0; display:grid; gap:0.12rem; }
+    .thread-top { display:flex; align-items:center; justify-content:space-between; gap:0.55rem; min-width:0; }
+    .thread-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:750; }
+    .thread-badge { flex-shrink:0; font-size:.72rem; color:var(--muted); }
+    .thread-preview { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:.86rem; }
     .chat-main { display:flex; flex-direction:column; min-height:0; overflow:hidden; padding:0; }
     .chat-main-head { flex-shrink:0; padding:0.85rem 1rem 0.65rem; border-bottom:1px solid var(--border); }
     .chat-main-head h2 { margin:0 0 0.25rem; font-size:1.15rem; }
@@ -141,7 +149,7 @@
       <section class="panel chat-sidebar">
         <h3 data-aci18n="chatsTitle">Chats</h3>
         <input id="threadSearch" type="search" data-aci18n="searchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter oder Thema suchen" />
-        <p class="muted" style="font-size:0.85rem;margin:0;" data-aci18n="sidebarHint">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
+        <p class="muted sidebar-hint" data-aci18n="sidebarHint">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
         <div id="threadList" class="thread-list"></div>
       </section>
       <section class="panel chat-main">
@@ -164,7 +172,7 @@
       </section>
     </main>
   </div>
-  <script src="/admin-v2/chat-i18n.js?v=20260705f"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260707r"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -188,6 +196,8 @@
     let chatPollTimer = null;
     const CHAT_POLL_MS = 2000;
     let adminChatLastFingerprint = "";
+    let openingThreadWorkerId = "";
+    let chatLoadSequence = 0;
     let adminE2EReadinessAt = 0;
     const ADMIN_E2E_READINESS_TTL_MS = 60000;
     let lastThreadMetaName = "";
@@ -278,6 +288,22 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/"/g, "&quot;");
+    }
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/'/g, "&#39;");
+    }
+    function threadDisplayName(row) {
+      return `${row?.first_name || ""} ${row?.last_name || ""}`.trim()
+        || row?.badge_id
+        || row?.worker_id
+        || window.adminChatT("workerDefault");
+    }
+    function threadInitials(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "MA";
+      const first = parts[0]?.[0] || "";
+      const last = (parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1]) || "";
+      return `${first}${last}`.toUpperCase();
     }
     const ADMIN_E2E_KEYS_TTL_MS = 60000;
     function adminE2ECryptoAvailable() {
@@ -604,10 +630,21 @@
       const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
       host.innerHTML = rows.length
         ? rows.map((row) => {
-            const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || row.badge_id || window.adminChatT("workerDefault");
+            const name = threadDisplayName(row);
             const meta = row.hasThread ? (row.subject || "general") : window.adminChatT("newChat");
             const active = currentWorkerId && String(row.worker_id) === String(currentWorkerId) ? " is-active" : "";
-            return `<button type="button" class="thread-item${active}" data-id="${row.id || ''}" data-worker="${row.worker_id}"><strong>${name}</strong><br><span class="muted">${meta}</span></button>`;
+            const loading = openingThreadWorkerId && String(row.worker_id) === String(openingThreadWorkerId) ? " is-loading" : "";
+            const badge = row.badge_id ? `#${row.badge_id}` : "";
+            return `<button type="button" class="thread-item${active}${loading}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
+              <span class="thread-avatar" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
+              <span class="thread-body">
+                <span class="thread-top">
+                  <span class="thread-name">${escapeHtml(name)}</span>
+                  ${badge ? `<span class="thread-badge">${escapeHtml(badge)}</span>` : ""}
+                </span>
+                <span class="thread-preview">${escapeHtml(meta)}</span>
+              </span>
+            </button>`;
           }).join("")
         : `<p class="muted">${window.adminChatT("noWorkersFound")}</p>`;
       host.querySelectorAll("[data-worker]").forEach((btn) => {
@@ -624,20 +661,47 @@
       return res.threadId || "";
     }
     async function openThread(threadId, workerId, buttonEl) {
+      const requestedWorkerId = String(workerId || "").trim();
+      if (!requestedWorkerId) return;
+      const sequence = ++chatLoadSequence;
+      stopChatPolling();
+      openingThreadWorkerId = requestedWorkerId;
+      currentWorkerId = requestedWorkerId;
+      currentThreadId = threadId || "";
+      adminChatLastFingerprint = "";
+      const row = threads.find((item) => String(item.worker_id) === requestedWorkerId);
+      const name = row ? threadDisplayName(row) : requestedWorkerId;
+      lastThreadMetaName = name || "";
+      setThreadMeta(window.adminChatT("chatWith", { name }), { dynamic: true });
+      const list = document.getElementById("messageList");
+      if (list) {
+        list.innerHTML = `<p class="muted">${window.adminChatT("chatLoading") || "Lade Unterhaltung..."}</p>`;
+      }
+      renderThreads();
       try {
-        const resolvedId = await ensureThread(threadId, workerId);
+        const resolvedId = await ensureThread(threadId, requestedWorkerId);
+        if (sequence !== chatLoadSequence || currentWorkerId !== requestedWorkerId) {
+          return;
+        }
         if (!resolvedId) throw new Error(window.adminChatT("openThreadFailed"));
         if (buttonEl) buttonEl.setAttribute("data-id", resolvedId);
-        const row = threads.find((item) => String(item.worker_id) === String(workerId));
         if (row) {
           row.id = resolvedId;
           row.hasThread = true;
         }
-        await loadMessages(resolvedId, workerId);
+        currentThreadId = resolvedId;
+        await loadMessages(resolvedId, requestedWorkerId);
         startChatPolling();
         renderThreads();
       } catch (error) {
-        setThreadMeta(error.message || String(error), { dynamic: true });
+        if (sequence === chatLoadSequence) {
+          setThreadMeta(error.message || String(error), { dynamic: true });
+        }
+      } finally {
+        if (sequence === chatLoadSequence) {
+          openingThreadWorkerId = "";
+          renderThreads();
+        }
       }
     }
     async function loadThreads() {

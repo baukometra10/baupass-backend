@@ -25958,7 +25958,18 @@ def export_audit_logs():
 # ── Push-Benachrichtigungen (VAPID) ──────────────────────────────────
 def get_vapid_public_key():
     key = os.getenv("VAPID_PUBLIC_KEY", "").strip()
-    return jsonify({"publicKey": key or None, "vapidPublicKey": key or None})
+    private_key = os.getenv("VAPID_PRIVATE_KEY", "").strip()
+    email = os.getenv("VAPID_EMAIL", "").strip()
+    return jsonify(
+        {
+            "publicKey": key or None,
+            "vapidPublicKey": key or None,
+            "configured": bool(key and private_key and email),
+            "publicKeyConfigured": bool(key),
+            "privateKeyConfigured": bool(private_key),
+            "emailConfigured": bool(email),
+        }
+    )
 
 
 @require_worker_session

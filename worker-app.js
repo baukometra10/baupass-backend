@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707q";
+const WORKER_BUILD_TAG = "20260707r";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -2571,6 +2571,7 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-inline-start:12%}",
   "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
   "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
+  "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
   "#chatCard .worker-chat-row.is-pending .worker-chat-bubble{opacity:.72}",
   "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}",
   "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-end-end-radius:5px}",
