@@ -497,7 +497,7 @@ html[data-theme="dark"] .worker-chat-bubble.is-mine {
 #chatCard .worker-chat-compose {
   flex-shrink: 0;
   position: relative;
-  z-index: 130;
+  z-index: 1300;
   display: block;
   margin: 0;
   padding: 8px 10px max(8px, env(safe-area-inset-bottom, 0px));
@@ -592,6 +592,22 @@ html[data-theme="dark"] #chatCard .worker-chat-compose {
   color: #fff;
   cursor: pointer;
   box-shadow: 0 4px 12px rgba(10, 87, 192, 0.28);
+}
+
+#chatCard .worker-chat-send-slot {
+  position: relative;
+  z-index: 12;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+}
+
+#chatCard .worker-chat-send-btn svg,
+#chatCard .worker-chat-send-btn svg * {
+  pointer-events: none;
 }
 
 #chatCard .worker-chat-send-btn:disabled {

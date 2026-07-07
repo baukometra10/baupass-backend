@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice15";
+const WORKER_BUILD_TAG = "20260707voice16";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -86,7 +86,92 @@ function isWorkerTouchDevice() {
 }
 
 function workerVoiceCaptureAvailable() {
-  return Boolean(window.SUPPIXChatVoice?.isSupported?.());
+  window.SUPPIXChatVoice?.ensureMediaDevices?.();
+  return Boolean(
+    window.SUPPIXChatVoice?.isSupported?.()
+    || (window.isSecureContext && window.navigator?.mediaDevices?.getUserMedia)
+  );
+}
+
+function flashWorkerChatSendTapHint(mode = "") {
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  if (!hint) {
+    return;
+  }
+  hint.classList.remove("hidden");
+  if (mode === "mic") {
+    hint.textContent = t("chatVoiceStarting");
+  } else if (mode === "stop") {
+    hint.textContent = t("chatVoiceRecording");
+  } else {
+    hint.textContent = t("workerChatSend");
+  }
+}
+
+function isWorkerChatSendTapTarget(target) {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  const btn = target.closest("#workerChatSendBtn");
+  if (btn) {
+    return btn;
+  }
+  const slot = target.closest(".worker-chat-send-slot");
+  return slot?.querySelector("#workerChatSendBtn") || null;
+}
+
+function installWorkerChatComposeDelegation() {
+  if (window.__workerChatComposeDelegate === WORKER_BUILD_TAG) {
+    return;
+  }
+  window.__workerChatComposeDelegate = WORKER_BUILD_TAG;
+
+  let lastTouchBtn = null;
+  let lastTouchEndAt = 0;
+
+  document.addEventListener("touchstart", (event) => {
+    const btn = isWorkerChatSendTapTarget(event.target);
+    if (!btn || btn.disabled) {
+      lastTouchBtn = null;
+      return;
+    }
+    lastTouchBtn = btn;
+    elements.workerChatSendBtn = btn;
+    syncWorkerComposeAction();
+    if (resolveWorkerChatPrimaryMode() === "mic" && !workerVoiceRecording) {
+      armWorkerMicStreamInUserGesture();
+    }
+  }, { capture: true, passive: true });
+
+  document.addEventListener("touchend", (event) => {
+    const btn = isWorkerChatSendTapTarget(event.target) || lastTouchBtn;
+    if (!btn || btn.disabled) {
+      return;
+    }
+    lastTouchBtn = null;
+    lastTouchEndAt = Date.now();
+    elements.workerChatSendBtn = btn;
+    try {
+      event.preventDefault();
+    } catch {
+      /* ignore */
+    }
+    triggerWorkerChatPrimaryAction(event);
+  }, { capture: true, passive: false });
+
+  document.addEventListener("click", (event) => {
+    const btn = isWorkerChatSendTapTarget(event.target);
+    if (!btn || btn.disabled) {
+      return;
+    }
+    if (Date.now() - lastTouchEndAt < 700) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    elements.workerChatSendBtn = btn;
+    triggerWorkerChatPrimaryAction(event);
+  }, true);
 }
 
 let workerChatSendGestureUntil = 0;
@@ -97,18 +182,36 @@ function normalizeWorkerChatSendDom() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
   document.getElementById("workerChatVoiceCaptureInput")?.remove();
   if (!sendBtn) {
-    return;
+    return null;
   }
   const shell = sendBtn.closest(".worker-chat-send-shell");
   if (shell?.parentElement) {
     shell.parentElement.insertBefore(sendBtn, shell);
     shell.remove();
   }
-  sendBtn.removeAttribute("aria-hidden");
-  sendBtn.style.removeProperty("pointer-events");
-  sendBtn.style.removeProperty("opacity");
-  sendBtn.style.removeProperty("z-index");
-  sendBtn.classList.add("worker-chat-send-btn");
+  let btn = sendBtn;
+  if (btn.dataset.chatSendBound && btn.dataset.chatSendBound !== WORKER_BUILD_TAG) {
+    const replacement = btn.cloneNode(true);
+    btn.parentElement?.replaceChild(replacement, btn);
+    btn = replacement;
+  }
+  let slot = btn.closest(".worker-chat-send-slot");
+  if (!slot && btn.parentElement) {
+    slot = document.createElement("div");
+    slot.className = "worker-chat-send-slot";
+    btn.parentElement.insertBefore(slot, btn);
+    slot.appendChild(btn);
+  }
+  btn.removeAttribute("aria-hidden");
+  btn.style.removeProperty("pointer-events");
+  btn.style.removeProperty("opacity");
+  btn.style.removeProperty("z-index");
+  btn.classList.add("worker-chat-send-btn");
+  btn.querySelectorAll("svg, path").forEach((node) => {
+    node.style.pointerEvents = "none";
+  });
+  elements.workerChatSendBtn = btn;
+  return btn;
 }
 
 function consumeWorkerChatPendingMicStream() {
@@ -161,26 +264,7 @@ function pulseWorkerChatSendFeedback() {
 }
 
 function installWorkerChatSendGlobalHandler() {
-  if (window.__workerChatSendGlobalBound === WORKER_BUILD_TAG) {
-    return;
-  }
-  window.__workerChatSendGlobalBound = WORKER_BUILD_TAG;
-  document.addEventListener("click", (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    const btn = target?.closest?.("#workerChatSendBtn");
-    if (!btn || btn.dataset.chatSendHandlers === "1") {
-      return;
-    }
-    triggerWorkerChatPrimaryAction(event);
-  }, true);
-  document.addEventListener("touchstart", (event) => {
-    const target = event.target instanceof Element ? event.target : null;
-    const btn = target?.closest?.("#workerChatSendBtn");
-    if (!btn || btn.disabled || btn.dataset.chatSendHandlers !== "1") {
-      return;
-    }
-    armWorkerMicStreamInUserGesture();
-  }, { capture: true, passive: true });
+  installWorkerChatComposeDelegation();
 }
 
 function beginWorkerVoiceStreamRequest(mode) {
@@ -2766,9 +2850,12 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea::placeholder{color:#8696a0}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#00a884;color:#fff}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}",
-  "#chatCard .worker-chat-compose,#chatCard .worker-chat-compose-bar,#chatCard .worker-chat-send-btn{pointer-events:auto!important;touch-action:manipulation}",
+  "#chatCard .worker-chat-compose,#chatCard .worker-chat-compose-bar,#chatCard .worker-chat-send-btn,#chatCard .worker-chat-send-slot{pointer-events:auto!important;touch-action:manipulation}",
+  "#chatCard .worker-chat-send-slot{position:relative;z-index:12;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px}",
   "#chatCard .worker-chat-send-btn{position:relative;z-index:8;flex-shrink:0;-webkit-tap-highlight-color:transparent}",
+  "#chatCard .worker-chat-send-btn svg,#chatCard .worker-chat-send-btn svg *{pointer-events:none!important}",
   "#chatCard .worker-chat-send-btn.is-tapped,#chatCard .worker-chat-send-btn:active{transform:scale(0.94);filter:brightness(1.08)}",
+  "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose{position:relative;z-index:1300}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-file-label{color:#8696a0;background:#2a3942;border:1px solid rgba(134,150,160,.14)}",
   "#chatCard .chat-audio-player{display:flex;align-items:center;gap:8px;min-width:min(220px,100%)}",
   "#chatCard .chat-audio-play{width:32px;height:32px;border-radius:50%;border:none;background:rgba(233,237,239,.12);color:#e9edef;display:grid;place-items:center;cursor:pointer}",
@@ -2866,7 +2953,14 @@ function ensureWorkerChatComposeBar() {
     );
   }
   bar.appendChild(input);
-  bar.appendChild(sendBtn);
+  let sendSlot = sendBtn.closest(".worker-chat-send-slot");
+  if (!sendSlot) {
+    sendSlot = document.createElement("div");
+    sendSlot.className = "worker-chat-send-slot";
+    sendBtn.parentElement?.insertBefore(sendSlot, sendBtn);
+    sendSlot.appendChild(sendBtn);
+  }
+  bar.appendChild(sendSlot);
   compose.textContent = "";
   if (fileHint) {
     compose.appendChild(fileHint);
@@ -3011,11 +3105,13 @@ function ensureWorkerChatDom() {
             <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
           </label>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
-          <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <div class="worker-chat-send-slot">
+            <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     `;
@@ -3366,12 +3462,13 @@ function triggerWorkerChatPrimaryAction(event) {
   if (workerPrimaryActionBusy) {
     return false;
   }
-  pulseWorkerChatSendFeedback();
   if (workerVoiceRecording && !getWorkerVoiceRecorder()?.recording) {
     workerVoiceRecording = false;
     syncWorkerComposeAction();
   }
+  pulseWorkerChatSendFeedback();
   const mode = resolveWorkerChatPrimaryMode();
+  flashWorkerChatSendTapHint(mode);
   let streamPromise = null;
   let streamError = null;
   if (mode === "mic" && !workerVoiceRecording) {
@@ -3404,31 +3501,13 @@ function onWorkerChatSendButtonActivate(event) {
 
 function bindWorkerChatSendButton() {
   syncWorkerChatComposeRefs();
-  normalizeWorkerChatSendDom();
-  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  const sendBtn = normalizeWorkerChatSendDom();
   if (!sendBtn) {
     return;
   }
-  elements.workerChatSendBtn = sendBtn;
   sendBtn.type = "button";
   sendBtn.setAttribute("aria-disabled", sendBtn.disabled ? "true" : "false");
-  if (sendBtn._workerChatTouchStartHandler) {
-    sendBtn.removeEventListener("touchstart", sendBtn._workerChatTouchStartHandler, true);
-  }
-  sendBtn._workerChatTouchStartHandler = (event) => {
-    if (sendBtn.disabled || workerPrimaryActionBusy) {
-      return;
-    }
-    if (!isWorkerTouchDevice()) {
-      return;
-    }
-    const mode = resolveWorkerChatPrimaryMode();
-    if (mode === "mic" && !workerVoiceRecording) {
-      armWorkerMicStreamInUserGesture();
-      onWorkerChatSendButtonActivate(event);
-    }
-  };
-  sendBtn.addEventListener("touchstart", sendBtn._workerChatTouchStartHandler, { capture: true, passive: true });
+  sendBtn.setAttribute("onclick", "return window.workerChatSendClick(event)");
   sendBtn.onclick = (event) => onWorkerChatSendButtonActivate(event);
   sendBtn.dataset.chatSendHandlers = "1";
   sendBtn.dataset.chatSendBound = WORKER_BUILD_TAG;
@@ -3591,6 +3670,10 @@ async function init() {
     ensureWorkerChatNavDom();
     ensureWorkerChatDom();
     ensureWorkerChatComposeBar();
+    installWorkerChatComposeDelegation();
+    bindWorkerChatComposeEvents();
+    normalizeWorkerChatSendDom();
+    syncWorkerComposeAction();
   };
   if (typeof requestIdleCallback === "function") {
     requestIdleCallback(deferChatShell, { timeout: 1200 });
