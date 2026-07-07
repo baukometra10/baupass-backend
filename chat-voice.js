@@ -66,6 +66,63 @@
     }
   }
 
+  function isStandalonePwa() {
+    try {
+      return Boolean(
+        global.navigator?.standalone === true
+        || global.matchMedia?.("(display-mode: standalone)")?.matches
+        || global.matchMedia?.("(display-mode: fullscreen)")?.matches
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function isNativeCaptureAvailable() {
+    return Boolean(global.document && isTouchPrimaryDevice());
+  }
+
+  function shouldPreferNativeVoiceCapture() {
+    if (!isNativeCaptureAvailable()) {
+      return false;
+    }
+    if (isAppleLikeDevice()) {
+      return true;
+    }
+    if (isStandalonePwa()) {
+      return true;
+    }
+    try {
+      return !global.MediaRecorder?.isTypeSupported?.("audio/webm;codecs=opus")
+        && !global.MediaRecorder?.isTypeSupported?.("audio/mp4");
+    } catch {
+      return false;
+    }
+  }
+
+  function normalizeCaptureFile(file) {
+    if (!file) {
+      return null;
+    }
+    const rawType = String(file.type || "audio/mp4").toLowerCase().split(";")[0].trim() || "audio/mp4";
+    const ext = extensionForMime(rawType);
+    const fallbackName = `voice-${Date.now()}.${ext}`;
+    const currentName = String(file.name || "").trim();
+    const name = /voice-|\.(m4a|mp4|webm|ogg|aac|wav)$/i.test(currentName) ? currentName : fallbackName;
+    try {
+      const out = new File([file], name, { type: rawType });
+      return out;
+    } catch {
+      try {
+        const out = new Blob([file], { type: rawType });
+        out.name = name;
+        return out;
+      } catch {
+        return file;
+      }
+    }
+  }
+
   function isSupported() {
     ensureMediaDevices();
     return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
@@ -756,6 +813,10 @@
     isSupported,
     isAppleLikeDevice,
     isTouchPrimaryDevice,
+    isStandalonePwa,
+    isNativeCaptureAvailable,
+    shouldPreferNativeVoiceCapture,
+    normalizeCaptureFile,
     pickMimeType,
     formatDuration,
     isAudioAttachment,

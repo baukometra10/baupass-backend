@@ -77,12 +77,94 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice11";
+const WORKER_BUILD_TAG = "20260707voice12";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
   return window.SUPPIXChatVoice?.isTouchPrimaryDevice?.()
     ?? Boolean(window.matchMedia?.("(pointer: coarse)")?.matches || navigator.maxTouchPoints > 0);
+}
+
+function shouldUseWorkerNativeVoiceCapture() {
+  return workerVoicePreferNativeOverride
+    || window.SUPPIXChatVoice?.shouldPreferNativeVoiceCapture?.();
+}
+
+function workerVoiceCaptureAvailable() {
+  return shouldUseWorkerNativeVoiceCapture() || Boolean(window.SUPPIXChatVoice?.isSupported?.());
+}
+
+function ensureWorkerVoiceCaptureInput() {
+  let input = document.getElementById("workerChatVoiceCaptureInput");
+  if (input) {
+    return input;
+  }
+  input = document.createElement("input");
+  input.type = "file";
+  input.id = "workerChatVoiceCaptureInput";
+  input.accept = "audio/*";
+  input.setAttribute("capture", "");
+  input.className = "hidden-control";
+  input.style.cssText = "position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;";
+  const compose = document.querySelector("#chatCard .worker-chat-compose") || document.body;
+  compose.appendChild(input);
+  return input;
+}
+
+function openWorkerNativeVoiceCaptureSync() {
+  const input = ensureWorkerVoiceCaptureInput();
+  if (!input) {
+    showWorkerNotice(t("chatVoiceNotSupported"));
+    return;
+  }
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  if (hint) {
+    hint.classList.remove("hidden");
+    hint.textContent = t("chatVoiceNative");
+  }
+  if (input.dataset.voiceCapturePending === "1") {
+    return;
+  }
+  input.dataset.voiceCapturePending = "1";
+  input.value = "";
+  const onPick = () => {
+    input.dataset.voiceCapturePending = "0";
+    input.removeEventListener("change", onPick);
+    const file = input.files?.[0] || null;
+    if (hint) {
+      hint.classList.add("hidden");
+      hint.textContent = "";
+    }
+    if (file) {
+      void handleWorkerNativeVoiceFile(file);
+    }
+  };
+  input.addEventListener("change", onPick);
+  try {
+    input.click();
+  } catch (error) {
+    input.dataset.voiceCapturePending = "0";
+    input.removeEventListener("change", onPick);
+    showWorkerNotice(formatWorkerVoiceRecordError(error));
+  }
+}
+
+async function handleWorkerNativeVoiceFile(rawFile) {
+  if (!rawFile || !rawFile.size) {
+    showWorkerNotice(t("chatVoiceTooShort"));
+    return;
+  }
+  const file = window.SUPPIXChatVoice?.normalizeCaptureFile?.(rawFile) || rawFile;
+  try {
+    const duration = await window.SUPPIXChatVoice?.probeBlobDuration?.(file) || 0;
+    if (duration > 0) {
+      file.durationSec = duration;
+    }
+  } catch {
+    /* optional */
+  }
+  workerVoicePreferNativeOverride = false;
+  await sendWorkerChatMessage({ voiceFile: file });
 }
 
 function beginWorkerVoiceStreamRequest(mode) {
@@ -2902,6 +2984,7 @@ function ensureWorkerChatDom() {
       </div>
       <div class="worker-chat-compose">
         <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
+        <input type="file" id="workerChatVoiceCaptureInput" class="hidden-control" accept="audio/*" capture style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);pointer-events:none;" tabindex="-1" aria-hidden="true" />
         <div class="worker-chat-compose-bar">
           <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -2977,6 +3060,7 @@ function setWorkerChatComposeEnabled(enabled) {
 let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
 let workerVoiceStartedAt = 0;
+let workerVoicePreferNativeOverride = false;
 let workerPrimaryActionBusy = false;
 let workerSendLastPointerAt = 0;
 
@@ -3180,8 +3264,16 @@ async function handleWorkerPrimaryAction(options = {}) {
         return;
       }
       const activeRecorder = recorder || getWorkerVoiceRecorder();
-      if (!activeRecorder || !window.SUPPIXChatVoice?.isSupported?.()) {
+      if (!workerVoiceCaptureAvailable()) {
         showWorkerVoiceStartingHint();
+        showWorkerNotice(t("chatVoiceNotSupported"));
+        return;
+      }
+      if (shouldUseWorkerNativeVoiceCapture()) {
+        openWorkerNativeVoiceCaptureSync();
+        return;
+      }
+      if (!activeRecorder) {
         showWorkerNotice(t("chatVoiceNotSupported"));
         return;
       }
@@ -3207,6 +3299,11 @@ async function handleWorkerPrimaryAction(options = {}) {
         resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
         syncWorkerComposeAction();
+        if (isWorkerTouchDevice()) {
+          workerVoicePreferNativeOverride = true;
+          showWorkerNotice(t("chatVoiceTapAgainNative"));
+          return;
+        }
         showWorkerNotice(formatWorkerVoiceRecordError(error));
       }
       return;
@@ -3277,6 +3374,10 @@ function bindWorkerChatSendButton() {
     let streamPromise = null;
     let streamError = null;
     if (mode === "mic" && !workerVoiceRecording) {
+      if (shouldUseWorkerNativeVoiceCapture()) {
+        openWorkerNativeVoiceCaptureSync();
+        return;
+      }
       try {
         streamPromise = beginWorkerVoiceStreamRequest(mode);
       } catch (error) {
@@ -3306,6 +3407,10 @@ window.workerChatSendClick = function workerChatSendClick(event) {
   }
   syncWorkerChatComposeRefs();
   const mode = resolveWorkerChatPrimaryMode();
+  if (mode === "mic" && !workerVoiceRecording && shouldUseWorkerNativeVoiceCapture()) {
+    openWorkerNativeVoiceCaptureSync();
+    return false;
+  }
   let streamPromise = null;
   let streamError = null;
   if (mode === "mic" && !workerVoiceRecording) {
