@@ -22,6 +22,13 @@ def test_e2e_envelope_detection():
 
     assert is_e2e_envelope(_fake_envelope()) is True
     assert is_e2e_envelope("hello") is False
+    multi = json.dumps({
+        "e2e": True,
+        "v": 1,
+        "multi": True,
+        "envelopes": [json.loads(_fake_envelope()), json.loads(_fake_envelope())],
+    })
+    assert is_e2e_envelope(multi) is True
 
 
 def test_chat_rejects_plaintext_when_e2e_required(client_and_db, monkeypatch):

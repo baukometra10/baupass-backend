@@ -164,7 +164,7 @@
     </main>
   </div>
   <script src="/admin-v2/chat-i18n.js?v=20260705f"></script>
-  <script src="/e2e-crypto.js?v=20260705e2e2"></script>
+  <script src="/e2e-crypto.js?v=20260707e2e2"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -218,9 +218,12 @@
         return {};
       }
     }
-    const adminUserId = String(getAdminUser().id || "");
+    function getAdminUserId() {
+      return String(getAdminUser().id || "").trim();
+    }
     let adminE2EIdentityReady = false;
     let adminE2EPublicKeysCache = null;
+    let adminE2EPublicKeyRowsCache = null;
     let adminE2EPublicKeysCacheKey = "";
     let adminE2EPublicKeysCacheAt = 0;
     const ADMIN_E2E_REQUIRED = true;
@@ -247,8 +250,9 @@
         .replace(/</g, "&lt;")
         .replace(/"/g, "&quot;");
     }
+    const ADMIN_E2E_KEYS_TTL_MS = 60000;
     function adminE2ECryptoAvailable() {
-      return typeof window.E2ECrypto !== "undefined" && Boolean(adminUserId);
+      return typeof window.E2ECrypto !== "undefined" && Boolean(getAdminUserId());
     }
     async function ensureAdminE2EIdentity() {
       if (!adminE2ECryptoAvailable()) {
@@ -256,10 +260,21 @@
         return false;
       }
       try {
-        const identity = await window.E2ECrypto.ensureLocalIdentity("user", adminUserId);
-        await window.E2ECrypto.registerPublicKey("/api/e2e/identity/admin/me", identity.publicKeySpkiB64, {
-          headers: headers(),
+        const identity = await window.E2ECrypto.ensureLocalIdentity("user", getAdminUserId());
+        const registerBody = { publicKeySpkiB64: identity.publicKeySpkiB64 };
+        if (companyId) {
+          registerBody.company_id = companyId;
+          registerBody.companyId = companyId;
+        }
+        await fetch("/api/e2e/identity/admin/me", {
+          method: "PUT",
+          headers: { ...headers(), "Content-Type": "application/json" },
           credentials: "include",
+          body: JSON.stringify(registerBody),
+        }).then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          return data;
         });
         adminE2EIdentityReady = true;
         return true;
@@ -268,7 +283,10 @@
         return false;
       }
     }
-    async function fetchAdminE2EPublicKeys(workerId, force = false) {
+    function extractAdminE2EKeyMaterial(row) {
+      return String(row?.publicKeySpkiB64 || row?.public_key_spki_b64 || "").trim();
+    }
+    async function fetchAdminE2EPublicKeyRows(workerId, force = false) {
       if (!adminE2ECryptoAvailable() || !workerId) {
         return [];
       }
@@ -278,19 +296,39 @@
       const cacheKey = `${companyId}:${workerId}`;
       const now = Date.now();
       if (!force && adminE2EPublicKeysCache && adminE2EPublicKeysCacheKey === cacheKey && now - adminE2EPublicKeysCacheAt < ADMIN_E2E_KEYS_TTL_MS) {
-        return adminE2EPublicKeysCache;
+        return adminE2EPublicKeyRowsCache || [];
       }
       try {
         const data = await api(`/api/e2e/identity/admin/public-keys?company_id=${encodeURIComponent(companyId)}&worker_id=${encodeURIComponent(workerId)}`);
-        adminE2EPublicKeysCache = (data.publicKeys || [])
-          .map((row) => String(row.publicKeySpkiB64 || row.public_key_spki_b64 || "").trim())
+        adminE2EPublicKeyRowsCache = Array.isArray(data.publicKeys) ? data.publicKeys : [];
+        adminE2EPublicKeysCache = adminE2EPublicKeyRowsCache
+          .map((row) => extractAdminE2EKeyMaterial(row))
           .filter(Boolean);
         adminE2EPublicKeysCacheKey = cacheKey;
         adminE2EPublicKeysCacheAt = now;
-        return adminE2EPublicKeysCache;
+        return adminE2EPublicKeyRowsCache;
       } catch {
-        return adminE2EPublicKeysCache || [];
+        return adminE2EPublicKeyRowsCache || [];
       }
+    }
+    async function fetchAdminE2EChatRecipientKeys(workerId, force = false) {
+      const rows = await fetchAdminE2EPublicKeyRows(workerId, force);
+      const adminKeys = rows
+        .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "user")
+        .map((row) => extractAdminE2EKeyMaterial(row))
+        .filter(Boolean);
+      const workerKeys = rows
+        .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "worker")
+        .map((row) => extractAdminE2EKeyMaterial(row))
+        .filter(Boolean);
+      if (!workerKeys.length) {
+        return [];
+      }
+      return [...new Set([...workerKeys, ...adminKeys])];
+    }
+    async function fetchAdminE2EPublicKeys(workerId, force = false) {
+      await fetchAdminE2EPublicKeyRows(workerId, force);
+      return adminE2EPublicKeysCache || [];
     }
     async function encryptAdminChatBody(plaintext, workerId) {
       const text = String(plaintext || "");
@@ -301,7 +339,7 @@
         if (ADMIN_E2E_REQUIRED) throw new Error("e2e_crypto_unavailable");
         return text;
       }
-      const keys = await fetchAdminE2EPublicKeys(workerId);
+      const keys = await fetchAdminE2EChatRecipientKeys(workerId, true);
       if (!keys.length) {
         if (ADMIN_E2E_REQUIRED) throw new Error("e2e_keys_missing");
         return text;
@@ -310,17 +348,24 @@
     }
     async function decryptAdminChatBody(storedBody) {
       const text = String(storedBody || "");
-      if (!text || !adminE2ECryptoAvailable() || !window.E2ECrypto.isE2EEnvelope(text)) {
+      if (!text || !adminE2ECryptoAvailable()) {
+        return text;
+      }
+      if (!window.E2ECrypto.isE2EEnvelope(text)) {
+        return text;
+      }
+      const userId = getAdminUserId();
+      if (!userId) {
         return text;
       }
       try {
-        return await window.E2ECrypto.decryptUtf8WithArchive(text, "user", adminUserId);
+        return await window.E2ECrypto.decryptUtf8WithArchive(text, "user", userId);
       } catch {
         return window.adminChatT("e2eDecryptFailed");
       }
     }
     async function encryptAdminChatAttachment(file, workerId) {
-      const keys = await fetchAdminE2EPublicKeys(workerId);
+      const keys = await fetchAdminE2EChatRecipientKeys(workerId, true);
       if (!keys.length) throw new Error("e2e_keys_missing");
       const buffer = await file.arrayBuffer();
       const packed = await window.E2ECrypto.encryptBlob(new Uint8Array(buffer), keys, {
@@ -366,7 +411,7 @@
       const meta = adminChatAttachmentMetaById[attachmentId] || "";
       if (meta && adminE2ECryptoAvailable()) {
         const buffer = new Uint8Array(await blob.arrayBuffer());
-        const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", adminUserId);
+        const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", getAdminUserId());
         outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || contentType || "application/octet-stream" });
         outName = decrypted.filename || outName;
       }

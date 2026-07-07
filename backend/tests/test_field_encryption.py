@@ -36,6 +36,13 @@ class FieldEncryptionTests(unittest.TestCase):
         self.assertTrue(encrypted.startswith("enc:v2:"))
         self.assertEqual(fe.decrypt_chat_field("cmp-test", encrypted), "Hallo Chat")
 
+    def test_e2e_envelope_not_wrapped_again(self):
+        os.environ["BAUPASS_FIELD_ENCRYPTION_KEY"] = "unit-test-secret-key"
+        from backend.tests.e2e_test_helpers import fake_e2e_envelope
+
+        envelope = fake_e2e_envelope()
+        self.assertEqual(fe.maybe_encrypt_field(envelope, company_id="cmp-test"), envelope)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -301,7 +301,19 @@
     if (!trimmed.startsWith("{")) return false;
     try {
       const parsed = JSON.parse(trimmed);
-      return parsed && parsed.e2e === true && parsed.v === ENVELOPE_VERSION && parsed.ct;
+      if (!parsed || parsed.e2e !== true) return false;
+      if (parsed.v !== ENVELOPE_VERSION && parsed.v !== 2) return false;
+      const alg = String(parsed.alg || "X25519-AES-GCM");
+      const allowedAlg = alg === "X25519-AES-GCM" || alg === "X25519-AES-GCM-RATCHET";
+      if (parsed.ct && allowedAlg) return true;
+      if (parsed.multi === true && Array.isArray(parsed.envelopes)) {
+        return parsed.envelopes.length > 0 && parsed.envelopes.every((env) => {
+          if (!env || env.e2e !== true) return false;
+          const envAlg = String(env.alg || "X25519-AES-GCM");
+          return Boolean(env.ct) && (envAlg === "X25519-AES-GCM" || envAlg === "X25519-AES-GCM-RATCHET");
+        });
+      }
+      return false;
     } catch {
       return false;
     }

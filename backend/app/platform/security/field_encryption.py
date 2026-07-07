@@ -45,6 +45,13 @@ def maybe_encrypt_field(value: str, *, company_id: str = "") -> str:
     text = str(value or "")
     if not text or text.startswith(_PREFIX) or text.startswith(_PREFIX_V2):
         return text
+    try:
+        from backend.app.platform.security.e2e_envelope import is_e2e_envelope
+
+        if is_e2e_envelope(text):
+            return text
+    except Exception:
+        pass
     if company_id:
         return encrypt_chat_field(str(company_id), text)
     fernet = _get_fernet()
