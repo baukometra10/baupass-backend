@@ -2948,6 +2948,7 @@ function setWorkerChatComposeEnabled(enabled) {
 
 let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
+let workerVoiceMicGestureAt = 0;
 
 function getWorkerVoiceRecorder() {
   if (!workerVoiceRecorder && window.SUPPIXChatVoice?.createRecorder) {
@@ -3109,14 +3110,18 @@ function bindWorkerChatComposeEvents() {
       if (micOnly && mode !== "mic") {
         return;
       }
-      if (!micOnly && mode === "mic") {
+      if (!micOnly && mode === "mic" && Date.now() - workerVoiceMicGestureAt < 900) {
         return;
       }
       event.preventDefault();
+      if (mode === "mic") {
+        workerVoiceMicGestureAt = Date.now();
+      }
       void handleWorkerPrimaryAction();
     };
     compose.addEventListener("click", (event) => triggerPrimaryAction(event));
     compose.addEventListener("pointerdown", (event) => triggerPrimaryAction(event, { micOnly: true }));
+    compose.addEventListener("touchstart", (event) => triggerPrimaryAction(event, { micOnly: true }), { passive: false });
   }
   const input = elements.workerChatInput || chatCard?.querySelector("#workerChatInput");
   const fileInput = elements.workerChatFileInput || chatCard?.querySelector("#workerChatFileInput");
