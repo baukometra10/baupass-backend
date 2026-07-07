@@ -37,6 +37,9 @@ def register_e2e_blueprint(flask_app) -> None:
                 public_key_spki_b64=pub,
                 algorithm=str(data.get("algorithm") or "X25519"),
             )
+            from backend.app.platform.security.e2e_policy import clear_worker_e2e_client_unavailable
+
+            clear_worker_e2e_client_unavailable(get_db(), worker_id)
             return jsonify({"ok": True, "identity": record})
         except ValueError as exc:
             code = str(exc)

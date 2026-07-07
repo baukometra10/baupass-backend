@@ -5179,6 +5179,13 @@ def require_worker_session(handler):
         if device_error:
             return device_error
 
+        try:
+            from backend.app.platform.security.e2e_policy import track_worker_e2e_client_header
+
+            track_worker_e2e_client_header(db, worker["id"])
+        except Exception:
+            pass
+
         refreshed_expires_at = resolve_worker_session_expiry_iso(worker)
         if refreshed_expires_at != session["expires_at"]:
             db.execute(

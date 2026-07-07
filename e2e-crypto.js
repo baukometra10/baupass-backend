@@ -25,9 +25,79 @@
     }
   }
 
+  const LS_IDB_PREFIX = "suppix-e2e-idb:";
+  let _storageMode = null;
+
+  function localStorageUsable() {
+    try {
+      const testKey = `${LS_IDB_PREFIX}__probe__`;
+      global.localStorage.setItem(testKey, "1");
+      global.localStorage.removeItem(testKey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function lsGet(store, id) {
+    try {
+      const raw = global.localStorage.getItem(`${LS_IDB_PREFIX}${store}:${id}`);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function lsPut(store, record) {
+    if (!localStorageUsable()) {
+      throw new Error("e2e_storage_unavailable");
+    }
+    global.localStorage.setItem(`${LS_IDB_PREFIX}${store}:${record.id}`, JSON.stringify(record));
+    return record;
+  }
+
+  function lsGetAll(store) {
+    const prefix = `${LS_IDB_PREFIX}${store}:`;
+    const rows = [];
+    try {
+      for (let i = 0; i < global.localStorage.length; i += 1) {
+        const key = global.localStorage.key(i);
+        if (!key || !key.startsWith(prefix)) continue;
+        const raw = global.localStorage.getItem(key);
+        if (!raw) continue;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") rows.push(parsed);
+      }
+    } catch {
+      return [];
+    }
+    return rows;
+  }
+
+  async function resolveStorageMode() {
+    if (_storageMode) return _storageMode;
+    const idb = getIndexedDB();
+    if (idb) {
+      try {
+        await openDb();
+        _storageMode = "idb";
+        return _storageMode;
+      } catch {
+        /* fall through */
+      }
+    }
+    if (localStorageUsable()) {
+      _storageMode = "ls";
+      return _storageMode;
+    }
+    throw new Error("e2e_storage_unavailable");
+  }
+
   function isBrowserStorageAvailable() {
     try {
-      return Boolean(getIndexedDB() && global.crypto?.subtle);
+      if (!global.crypto?.subtle) return false;
+      if (getIndexedDB()) return true;
+      return localStorageUsable();
     } catch {
       return false;
     }
@@ -91,6 +161,17 @@
   }
 
   async function clearIdentityStore() {
+    const mode = await resolveStorageMode();
+    if (mode === "ls") {
+      const prefix = `${LS_IDB_PREFIX}${IDB_STORE}:`;
+      for (let i = global.localStorage.length - 1; i >= 0; i -= 1) {
+        const key = global.localStorage.key(i);
+        if (key && key.startsWith(prefix)) {
+          global.localStorage.removeItem(key);
+        }
+      }
+      return true;
+    }
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readwrite");
@@ -240,6 +321,10 @@
   }
 
   async function idbMetaGet(id) {
+    const mode = await resolveStorageMode();
+    if (mode === "ls") {
+      return lsGet(IDB_META, id);
+    }
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_META, "readonly");
@@ -251,6 +336,10 @@
   }
 
   async function idbMetaPut(record) {
+    const mode = await resolveStorageMode();
+    if (mode === "ls") {
+      return lsPut(IDB_META, record);
+    }
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_META, "readwrite");
@@ -262,6 +351,10 @@
   }
 
   async function idbGet(id) {
+    const mode = await resolveStorageMode();
+    if (mode === "ls") {
+      return lsGet(IDB_STORE, id);
+    }
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readonly");
@@ -273,6 +366,10 @@
   }
 
   async function idbPut(record) {
+    const mode = await resolveStorageMode();
+    if (mode === "ls") {
+      return lsPut(IDB_STORE, record);
+    }
     const db = await openDb();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readwrite");
@@ -663,18 +760,24 @@
     try {
       return await decryptUtf8(storedBody, entityType, entityId);
     } catch {
-      const db = await openDb();
-      const archived = await new Promise((resolve) => {
-        const tx = db.transaction(IDB_STORE, "readonly");
-        const store = tx.objectStore(IDB_STORE);
-        const req = store.getAll();
-        req.onsuccess = () => {
-          const prefix = `${String(entityType).toLowerCase()}:${String(entityId).trim()}:archived:`;
-          const rows = (req.result || []).filter((row) => String(row.id || "").startsWith(prefix));
-          resolve(rows);
-        };
-        req.onerror = () => resolve([]);
-      });
+      const mode = await resolveStorageMode().catch(() => "idb");
+      const archived = mode === "ls"
+        ? lsGetAll(IDB_STORE).filter((row) => String(row.id || "").startsWith(`${String(entityType).toLowerCase()}:${String(entityId).trim()}:archived:`))
+        : await new Promise((resolve) => {
+          openDb()
+            .then((db) => {
+              const tx = db.transaction(IDB_STORE, "readonly");
+              const store = tx.objectStore(IDB_STORE);
+              const req = store.getAll();
+              req.onsuccess = () => {
+                const prefix = `${String(entityType).toLowerCase()}:${String(entityId).trim()}:archived:`;
+                const rows = (req.result || []).filter((row) => String(row.id || "").startsWith(prefix));
+                resolve(rows);
+              };
+              req.onerror = () => resolve([]);
+            })
+            .catch(() => resolve([]));
+        });
       for (const row of archived) {
         try {
           const jwk = await decryptPrivateKeyJwk(row.privateKeyEnc);

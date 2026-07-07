@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707j";
+const WORKER_BUILD_TAG = "20260707k";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -391,7 +391,20 @@ function buildWorkerAuthHeaders(extraHeaders = {}) {
   if (deviceId && !headers["X-Device-Id"]) {
     headers["X-Device-Id"] = deviceId;
   }
+  if (shouldAdvertiseWorkerE2EClientUnavailable() && !headers["X-E2E-Client-Unavailable"]) {
+    headers["X-E2E-Client-Unavailable"] = "1";
+  }
   return headers;
+}
+
+function shouldAdvertiseWorkerE2EClientUnavailable() {
+  if (!workerToken) {
+    return false;
+  }
+  if (!workerE2ECryptoAvailable()) {
+    return true;
+  }
+  return Boolean(workerE2EDeviceMismatch);
 }
 
 function persistWorkerSessionCredentials(payload) {
@@ -11280,7 +11293,6 @@ async function decryptWorkerChatBody(storedBody) {
   }
   try {
     await window.E2ECrypto.ensureCryptoSessionReady?.();
-    await ensureWorkerE2EIdentity(true);
     return await window.E2ECrypto.decryptUtf8WithArchive(text, "worker", workerId);
   } catch (error) {
     console.warn("[E2E] Chat decrypt failed:", error?.message || error);
