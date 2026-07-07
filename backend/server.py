@@ -23870,6 +23870,7 @@ ALLOWED_UPLOAD_MIMETYPES = {
     "audio/wav",
     "audio/aac",
     "audio/x-m4a",
+    "audio/x-caf",
     "video/webm",
 }
 
@@ -23885,6 +23886,7 @@ _UPLOAD_MIMETYPE_BY_EXTENSION = {
     ".webm": "audio/webm",
     ".m4a": "audio/mp4",
     ".mp4": "audio/mp4",
+    ".caf": "audio/x-caf",
     ".ogg": "audio/ogg",
     ".mp3": "audio/mpeg",
     ".wav": "audio/wav",

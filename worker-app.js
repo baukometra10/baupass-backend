@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice18";
+const WORKER_BUILD_TAG = "20260707voice19";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3117,7 +3117,7 @@ function ensureWorkerChatDom() {
           </label>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <div class="worker-chat-send-slot">
-            <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input" accept="audio/x-m4a,audio/mp4,audio/mpeg,audio/*" capture="user" tabindex="-1" aria-hidden="true" />
+            <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input" accept="audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*" tabindex="-1" aria-hidden="true" />
             <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3253,11 +3253,13 @@ function ensureWorkerNativeVoiceCaptureInput(slot) {
     input = document.createElement("input");
     input.type = "file";
     input.id = "workerChatVoiceCaptureInput";
-    input.accept = "audio/x-m4a,audio/mp4,audio/mpeg,audio/*";
-    input.setAttribute("capture", "user");
+    input.accept = "audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*";
     input.className = "worker-chat-voice-capture-input";
     input.tabIndex = -1;
     slot.insertBefore(input, slot.firstChild);
+  } else {
+    input.removeAttribute("capture");
+    input.accept = "audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*";
   }
   if (input.dataset.nativeBound !== WORKER_BUILD_TAG) {
     input.dataset.nativeBound = WORKER_BUILD_TAG;
@@ -3294,7 +3296,7 @@ function syncWorkerNativeMicCaptureUi(mode = "") {
         const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
         if (hint) {
           hint.classList.remove("hidden");
-          hint.textContent = t("chatVoiceNative");
+          hint.textContent = t("chatVoiceNativePick");
         }
       });
       slot.appendChild(nativeLabel);
@@ -3322,12 +3324,20 @@ function syncWorkerNativeMicCaptureUi(mode = "") {
 
 async function handleWorkerNativeVoiceFile(file) {
   resetWorkerVoiceUi();
+  if (!window.SUPPIXChatVoice?.isLikelyVoiceCaptureFile?.(file)) {
+    showWorkerNotice(t("chatVoiceNotAudio"));
+    return;
+  }
   const normalized = window.SUPPIXChatVoice?.normalizeCaptureFile?.(file);
   if (!normalized) {
-    showWorkerNotice(t("chatVoiceTooShort"));
+    showWorkerNotice(t("chatVoiceNotAudio"));
     return;
   }
   try {
+    const duration = await window.SUPPIXChatVoice?.probeBlobDuration?.(normalized) || 0;
+    if (duration > 0) {
+      normalized.durationSec = duration;
+    }
     await sendWorkerChatMessage({ voiceFile: normalized });
   } catch (error) {
     showWorkerNotice(formatWorkerApiError(error));
@@ -12710,6 +12720,14 @@ async function sendWorkerChatMessage(options = {}) {
   if (!body && !file) {
     return;
   }
+  if (voiceFile && !window.SUPPIXChatVoice?.isLikelyVoiceCaptureFile?.(file)) {
+    showWorkerNotice(t("chatVoiceNotAudio"));
+    return;
+  }
+  if (file && workerE2EAttachmentsRequired() && !workerE2ECryptoAvailable()) {
+    showWorkerNotice(t("workerChatE2EKeysMissing"));
+    return;
+  }
   const postMessage = async (threadId, outboundBody, options = {}) => fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
     method: "POST",
     headers: buildWorkerAuthHeaders({
@@ -12780,11 +12798,7 @@ async function sendWorkerChatMessage(options = {}) {
     }
     removeOptimisticWorkerChatBubble(pendingId);
     if (file && messageId) {
-      try {
-        await uploadWorkerChatAttachment(threadId, messageId, file);
-      } catch (uploadError) {
-        showWorkerNotice(formatWorkerApiError(uploadError));
-      }
+      await uploadWorkerChatAttachment(threadId, messageId, file);
     }
     workerChatLastFingerprint = "";
     void loadWorkerChat({ quiet: true });
@@ -12794,7 +12808,9 @@ async function sendWorkerChatMessage(options = {}) {
     if (input && !input.value) {
       input.value = body;
     }
-    const message = formatWorkerApiError(error);
+    const message = voiceFile && file
+      ? `${t("chatVoiceUploadFailed")} ${formatWorkerApiError(error)}`
+      : formatWorkerApiError(error);
     showWorkerNotice(message);
     syncWorkerComposeAction();
   }

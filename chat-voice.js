@@ -83,24 +83,43 @@
   }
 
   function shouldPreferNativeVoiceCapture() {
-    return isAppleLikeDevice() && isTouchPrimaryDevice();
+    if (!isAppleLikeDevice() || !isTouchPrimaryDevice()) {
+      return false;
+    }
+    return !isSupported();
+  }
+
+  function isLikelyVoiceCaptureFile(file) {
+    if (!file) {
+      return false;
+    }
+    const type = String(file.type || "").toLowerCase().split(";")[0].trim();
+    if (type.startsWith("video/") || type.startsWith("image/")) {
+      return false;
+    }
+    if (type.startsWith("audio/")) {
+      return true;
+    }
+    const name = String(file.name || "").toLowerCase();
+    return /\.(m4a|aac|mp3|wav|ogg|webm|caf)$/i.test(name);
   }
 
   function normalizeCaptureFile(file) {
-    if (!file) {
+    if (!file || !isLikelyVoiceCaptureFile(file)) {
       return null;
     }
-    const rawType = String(file.type || "audio/mp4").toLowerCase().split(";")[0].trim() || "audio/mp4";
-    const ext = extensionForMime(rawType);
+    const rawType = String(file.type || "").toLowerCase().split(";")[0].trim();
+    const inferredType = rawType.startsWith("audio/") ? rawType : "audio/mp4";
+    const ext = extensionForMime(inferredType);
     const fallbackName = `voice-${Date.now()}.${ext}`;
     const currentName = String(file.name || "").trim();
-    const name = /voice-|\.(m4a|mp4|webm|ogg|aac|wav)$/i.test(currentName) ? currentName : fallbackName;
+    const name = /voice-|\.(m4a|mp4|webm|ogg|aac|wav|caf)$/i.test(currentName) ? currentName : fallbackName;
     try {
-      const out = new File([file], name, { type: rawType });
+      const out = new File([file], name, { type: inferredType });
       return out;
     } catch {
       try {
-        const out = new Blob([file], { type: rawType });
+        const out = new Blob([file], { type: inferredType });
         out.name = name;
         return out;
       } catch {
@@ -294,11 +313,12 @@
     const e2eMime = parseE2eAttachmentMime(e2eMeta);
     const mime = String(contentType || e2eMime || "").toLowerCase().split(";")[0].trim();
     const name = String(filename || "").toLowerCase();
+    if (/^video\//i.test(mime)) return false;
     if (/^audio\//i.test(mime)) return true;
     if (/^video\/webm$/i.test(mime) && /voice-/.test(name)) return true;
-    if (/voice-/.test(name) && /\.(webm|m4a|mp4|ogg|aac|wav)(\.e2e)?$/i.test(name)) return true;
+    if (/voice-/.test(name) && /\.(webm|m4a|mp4|ogg|aac|wav|caf)(\.e2e)?$/i.test(name)) return true;
     if ((name.endsWith(".e2e") || mime.includes("e2e")) && /^audio\//i.test(e2eMime)) return true;
-    return /\.(webm|m4a|mp4|ogg|mp3|wav|aac)$/i.test(name);
+    return /\.(webm|m4a|ogg|mp3|wav|aac|caf)$/i.test(name);
   }
 
   function isVoiceOnlyBody(body, voiceLabel) {
@@ -838,6 +858,7 @@
     isStandalonePwa,
     isNativeCaptureAvailable,
     shouldPreferNativeVoiceCapture,
+    isLikelyVoiceCaptureFile,
     normalizeCaptureFile,
     pickMimeType,
     formatDuration,
