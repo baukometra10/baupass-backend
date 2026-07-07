@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice8";
+const WORKER_BUILD_TAG = "20260707voice9";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -3104,6 +3104,9 @@ function showWorkerVoiceStartingHint() {
     hint.classList.remove("hidden");
     hint.textContent = t("chatVoiceStarting");
   }
+}
+
+function showWorkerVoiceRecordingUi() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
   if (sendBtn) {
     sendBtn.classList.add("is-recording");
@@ -3112,6 +3115,18 @@ function showWorkerVoiceStartingHint() {
     navigator.vibrate?.(12);
   } catch {
     /* optional */
+  }
+}
+
+function resetWorkerVoiceUi() {
+  const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
+  if (hint) {
+    hint.classList.add("hidden");
+    hint.textContent = "";
+  }
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  if (sendBtn) {
+    sendBtn.classList.remove("is-recording");
   }
 }
 
@@ -3142,13 +3157,17 @@ async function handleWorkerPrimaryAction() {
       }
       try {
         showWorkerVoiceStartingHint();
+        await activeRecorder.start();
+        if (!activeRecorder.recording) {
+          throw new Error("voice_record_failed");
+        }
         workerVoiceRecording = true;
         syncWorkerComposeAction();
-        await activeRecorder.start();
+        showWorkerVoiceRecordingUi();
         updateWorkerVoiceHint(0);
       } catch (error) {
         workerVoiceRecording = false;
-        updateWorkerVoiceHint(0);
+        resetWorkerVoiceUi();
         syncWorkerComposeAction();
         showWorkerNotice(formatWorkerVoiceRecordError(error));
       }
@@ -3159,21 +3178,13 @@ async function handleWorkerPrimaryAction() {
       workerVoiceRecording = false;
       syncWorkerComposeAction();
       const blob = await stopRecorder?.stop();
-      const voiceFile = stopRecorder?.toFile(blob, "voice");
+      const voiceFile = stopRecorder?.toFile(blob, "voice", stopRecorder?.lastDurationSec);
       if (!voiceFile) {
-        const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-        if (hint) {
-          hint.classList.add("hidden");
-          hint.textContent = "";
-        }
+        resetWorkerVoiceUi();
         showWorkerNotice(t("chatVoiceTooShort"));
         return;
       }
-      const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-      if (hint) {
-        hint.classList.add("hidden");
-        hint.textContent = "";
-      }
+      resetWorkerVoiceUi();
       await sendWorkerChatMessage({ voiceFile });
       return;
     }

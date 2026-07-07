@@ -99,6 +99,43 @@
     return "";
   }
 
+  function createMediaRecorder(stream, preferredMimeType = "") {
+    const candidates = preferredMimeType
+      ? [{ mimeType: preferredMimeType }, {}]
+      : [{}];
+    let lastError = null;
+    for (const options of candidates) {
+      try {
+        const recorder = Object.keys(options).length
+          ? new global.MediaRecorder(stream, options)
+          : new global.MediaRecorder(stream);
+        return {
+          recorder,
+          mimeType: recorder.mimeType || preferredMimeType || pickMimeType() || "audio/webm",
+        };
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError || new Error("voice_not_supported");
+  }
+
+  function flushRecorderData(activeRecorder) {
+    try {
+      if (activeRecorder?.state === "recording" && typeof activeRecorder.requestData === "function") {
+        activeRecorder.requestData();
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => {
+      global.setTimeout(resolve, ms);
+    });
+  }
+
   function extensionForMime(mime) {
     const clean = String(mime || "").toLowerCase();
     if (clean.includes("mp4") || clean.includes("aac")) return "m4a";
@@ -303,33 +340,34 @@
         mimeType = pickMimeType();
         lastDurationSec = 0;
         stream = await requestAudioStream();
-        const recorderCandidates = mimeType
-          ? [{ mimeType }, {}]
-          : [{}];
-        let lastError = null;
-        recorder = null;
-        for (const options of recorderCandidates) {
-          try {
-            recorder = Object.keys(options).length
-              ? new global.MediaRecorder(stream, options)
-              : new global.MediaRecorder(stream);
-            mimeType = recorder.mimeType || mimeType || pickMimeType() || "audio/webm";
-            break;
-          } catch (error) {
-            lastError = error;
-          }
-        }
-        if (!recorder) {
+        const audioTracks = stream?.getAudioTracks?.() || [];
+        if (!audioTracks.length || !audioTracks.some((track) => track.readyState === "live")) {
           cleanupStream();
-          throw lastError || new Error("voice_not_supported");
+          throw new Error("voice_device_busy");
         }
-        recorder.ondataavailable = (event) => {
-          if (event?.data?.size) chunks.push(event.data);
+        const created = createMediaRecorder(stream, mimeType);
+        recorder = created.recorder;
+        mimeType = created.mimeType;
+        const pushChunk = (event) => {
+          if (event?.data?.size) {
+            chunks.push(event.data);
+          }
         };
+        recorder.ondataavailable = pushChunk;
         recorder.onerror = (event) => {
           onError?.(event?.error || new Error("voice_record_failed"));
         };
-        recorder.start(250);
+        if (isAppleLikeDevice()) {
+          recorder.start();
+        } else {
+          recorder.start(250);
+        }
+        await wait(60);
+        if (!recorder || recorder.state !== "recording") {
+          cleanupStream();
+          recorder = null;
+          throw new Error("voice_record_failed");
+        }
         startedAt = Date.now();
         stopTimer();
         timer = global.setInterval(() => {
@@ -344,25 +382,54 @@
           return null;
         }
         const activeRecorder = recorder;
+        const pushChunk = (event) => {
+          if (event?.data?.size) {
+            chunks.push(event.data);
+          }
+        };
+        activeRecorder.ondataavailable = pushChunk;
         const result = await new Promise((resolve, reject) => {
-          activeRecorder.onstop = () => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
             const outMime = activeRecorder.mimeType || mimeType || "audio/webm";
             const blob = chunks.length ? new Blob(chunks, { type: outMime }) : null;
             resolve(blob);
           };
-          activeRecorder.onerror = (event) => reject(event?.error || new Error("voice_record_failed"));
-          try {
-            if (activeRecorder.state !== "inactive") activeRecorder.stop();
-          } catch (error) {
+          const fail = (error) => {
+            if (settled) return;
+            settled = true;
             reject(error);
+          };
+          const timeout = global.setTimeout(() => finish(), 4000);
+          activeRecorder.onstop = () => {
+            global.clearTimeout(timeout);
+            finish();
+          };
+          activeRecorder.onerror = (event) => {
+            global.clearTimeout(timeout);
+            fail(event?.error || new Error("voice_record_failed"));
+          };
+          try {
+            if (activeRecorder.state === "recording") {
+              flushRecorderData(activeRecorder);
+              activeRecorder.stop();
+            } else {
+              global.clearTimeout(timeout);
+              finish();
+            }
+          } catch (error) {
+            global.clearTimeout(timeout);
+            fail(error);
           }
         });
         stopTimer();
         cleanupStream();
         recorder = null;
-        chunks = [];
         lastDurationSec = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
-        if (!result || !result.size || result.size < 900) {
+        chunks = [];
+        if (!result || !result.size || (result.size < 512 && lastDurationSec < 1)) {
           lastDurationSec = 0;
           return null;
         }
