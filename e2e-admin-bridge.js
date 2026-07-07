@@ -80,6 +80,7 @@
       return false;
     }
     try {
+      await global.E2ECrypto?.ensureCryptoSessionReady?.();
       const identity = await global.E2ECrypto.ensureLocalIdentity("user", adminUserId);
       const companyId = getAdminCompanyId();
       const registerBody = { publicKeySpkiB64: identity.publicKeySpkiB64 };
@@ -109,11 +110,9 @@
     }
   }
 
-  async function fetchPublicKeys(workerId, companyId) {
+  async function fetchPublicKeyRows(workerId, companyId) {
     if (!cryptoReady()) return [];
     if (!identityReady) await ensureIdentity();
-    const cacheKey = `${companyId || ""}:${workerId || ""}`;
-    if (keyCache.has(cacheKey)) return keyCache.get(cacheKey);
     const qs = new URLSearchParams();
     if (companyId) qs.set("company_id", companyId);
     if (workerId) qs.set("worker_id", workerId);
@@ -123,20 +122,78 @@
         credentials: "include",
       });
       const data = await res.json().catch(() => ({}));
-      const keys = (data.publicKeys || [])
-        .map((row) => String(row.publicKeySpkiB64 || row.public_key_spki_b64 || "").trim())
-        .filter(Boolean);
-      keyCache.set(cacheKey, keys);
-      return keys;
+      return Array.isArray(data.publicKeys) ? data.publicKeys : [];
     } catch {
-      return keyCache.get(cacheKey) || [];
+      return [];
     }
   }
 
-  async function decryptField(storedBody) {
-    const text = String(storedBody || "");
-    if (!text || !cryptoReady() || !global.E2ECrypto.isE2EEnvelope(text)) return text;
+  function extractPublicKeyMaterial(row) {
+    return String(row?.publicKeySpkiB64 || row?.public_key_spki_b64 || "").trim();
+  }
+
+  async function fetchChatRecipientKeys(workerId, companyId) {
+    if (!cryptoReady()) return [];
+    await global.E2ECrypto?.ensureCryptoSessionReady?.();
+    if (!identityReady) await ensureIdentity();
+    const cacheKey = `chat:${companyId || ""}:${workerId || ""}`;
+    if (keyCache.has(cacheKey)) return keyCache.get(cacheKey);
+    const rows = await fetchPublicKeyRows(workerId, companyId);
+    const adminKeys = rows
+      .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "user")
+      .map(extractPublicKeyMaterial)
+      .filter(Boolean);
+    const workerKeys = rows
+      .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "worker")
+      .map(extractPublicKeyMaterial)
+      .filter(Boolean);
     try {
+      const adminId = getAdminUserId();
+      if (adminId) {
+        const local = await global.E2ECrypto.ensureLocalIdentity("user", adminId);
+        if (local?.publicKeySpkiB64) adminKeys.push(local.publicKeySpkiB64);
+      }
+    } catch {
+      // ignore
+    }
+    if (workerId) {
+      try {
+        const localWorker = rows.find((row) => String(row?.entityId || row?.entity_id || "") === String(workerId));
+        if (!localWorker && workerKeys.length === 0) {
+          // worker key not on server yet — still allow admin encrypt if worker keys empty
+        }
+      } catch {
+        // ignore
+      }
+    }
+    const keys = workerId
+      ? [...new Set([...workerKeys, ...adminKeys])]
+      : [...new Set(adminKeys)];
+    keyCache.set(cacheKey, keys);
+    return keys;
+  }
+
+  async function fetchPublicKeys(workerId, companyId) {
+    if (!cryptoReady()) return [];
+    if (workerId) {
+      return fetchChatRecipientKeys(workerId, companyId);
+    }
+    const cacheKey = `${companyId || ""}:${workerId || ""}`;
+    if (keyCache.has(cacheKey)) return keyCache.get(cacheKey);
+    const rows = await fetchPublicKeyRows(workerId, companyId);
+    const keys = rows.map(extractPublicKeyMaterial).filter(Boolean);
+    keyCache.set(cacheKey, keys);
+    return keys;
+  }
+
+  async function decryptField(storedBody) {
+    const text = String(storedBody || "").trim();
+    if (!text || !cryptoReady()) return text;
+    const looksE2E = global.E2ECrypto.looksLikeE2EPayload?.(text) || global.E2ECrypto.isE2EEnvelope(text);
+    if (!looksE2E) return text;
+    try {
+      await global.E2ECrypto.ensureCryptoSessionReady?.();
+      await ensureIdentity();
       return await global.E2ECrypto.decryptUtf8WithArchive(text, "user", getAdminUserId());
     } catch {
       return "[E2E — Entschlüsselung fehlgeschlagen]";
@@ -197,15 +254,6 @@
           <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeServer"></span>
         </div>
         <div id="e2ePinLockBanner" class="e2e-security-lock-banner hidden"></div>
-        <details class="e2e-security-advanced">
-          <summary data-e2e-i18n="e2eSecurityAdvancedTitle">Erweitert (optional)</summary>
-          <div class="e2e-security-pin-row">
-            <input type="password" id="e2ePinInput" autocomplete="off" data-e2e-i18n-placeholder="e2eSecurityPinPlaceholder" />
-            <button type="button" class="ghost small-btn" data-e2e-action="pin-set" data-e2e-i18n="e2eSecurityBtnPinSet"></button>
-            <button type="button" class="ghost small-btn" data-e2e-action="pin-unlock" data-e2e-i18n="e2eSecurityBtnPinUnlock"></button>
-          </div>
-          <p class="e2e-security-subtitle" style="padding:0 16px 10px;margin:0;" data-e2e-i18n="e2eSecurityPinHint"></p>
-        </details>
         <div class="e2e-security-actions">
           <button type="button" class="ghost small-btn" data-e2e-action="recovery-export" data-e2e-i18n="e2eSecurityBtnRecovery"></button>
           <button type="button" class="ghost small-btn" data-e2e-action="rotate" data-e2e-i18n="e2eSecurityBtnRotate"></button>

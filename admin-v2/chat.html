@@ -164,7 +164,7 @@
     </main>
   </div>
   <script src="/admin-v2/chat-i18n.js?v=20260705f"></script>
-  <script src="/e2e-crypto.js?v=20260707e2e2"></script>
+  <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -260,6 +260,7 @@
         return false;
       }
       try {
+        await window.E2ECrypto?.ensureCryptoSessionReady?.();
         const identity = await window.E2ECrypto.ensureLocalIdentity("user", getAdminUserId());
         const registerBody = { publicKeySpkiB64: identity.publicKeySpkiB64 };
         if (companyId) {
@@ -312,6 +313,8 @@
       }
     }
     async function fetchAdminE2EChatRecipientKeys(workerId, force = false) {
+      await window.E2ECrypto?.ensureCryptoSessionReady?.();
+      await ensureAdminE2EIdentity();
       const rows = await fetchAdminE2EPublicKeyRows(workerId, force);
       const adminKeys = rows
         .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "user")
@@ -321,6 +324,12 @@
         .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "worker")
         .map((row) => extractAdminE2EKeyMaterial(row))
         .filter(Boolean);
+      try {
+        const local = await window.E2ECrypto.ensureLocalIdentity("user", getAdminUserId());
+        if (local?.publicKeySpkiB64) adminKeys.push(local.publicKeySpkiB64);
+      } catch {
+        // ignore
+      }
       if (!workerKeys.length) {
         return [];
       }
@@ -347,11 +356,12 @@
       return await window.E2ECrypto.encryptUtf8(text, keys);
     }
     async function decryptAdminChatBody(storedBody) {
-      const text = String(storedBody || "");
+      const text = String(storedBody || "").trim();
       if (!text || !adminE2ECryptoAvailable()) {
         return text;
       }
-      if (!window.E2ECrypto.isE2EEnvelope(text)) {
+      const looksE2E = window.E2ECrypto.looksLikeE2EPayload?.(text) || window.E2ECrypto.isE2EEnvelope(text);
+      if (!looksE2E) {
         return text;
       }
       const userId = getAdminUserId();
@@ -359,8 +369,11 @@
         return text;
       }
       try {
+        await window.E2ECrypto.ensureCryptoSessionReady?.();
+        await ensureAdminE2EIdentity();
         return await window.E2ECrypto.decryptUtf8WithArchive(text, "user", userId);
-      } catch {
+      } catch (error) {
+        console.warn("[E2E] Admin chat decrypt failed:", error?.message || error);
         return window.adminChatT("e2eDecryptFailed");
       }
     }
@@ -669,7 +682,7 @@
     });
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
-    void ensureAdminE2EIdentity();
+    void window.E2ECrypto?.ensureCryptoSessionReady?.().then(() => ensureAdminE2EIdentity());
     loadThreads().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
   </script>
 </body>

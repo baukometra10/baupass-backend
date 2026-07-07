@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707b";
+const WORKER_BUILD_TAG = "20260707c";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -4628,7 +4628,7 @@ async function loadWorkerData(options = {}) {
     void syncOfflinePhotoQueue();
     void syncOfflineEventQueue();
     if (workerPlanAllowsFeature("worker_chat")) {
-      void ensureWorkerE2EIdentity();
+      void window.E2ECrypto?.ensureCryptoSessionReady?.().then(() => ensureWorkerE2EIdentity(true));
     }
     return true;
   } catch (error) {
@@ -10946,12 +10946,16 @@ async function ensureWorkerE2EIdentity(force = false) {
     return true;
   }
   try {
+    await window.E2ECrypto?.ensureCryptoSessionReady?.();
     const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
     await window.E2ECrypto.registerPublicKey(workerE2EEndpoint("me"), identity.publicKeySpkiB64, {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       credentials: "include",
     });
     workerE2EIdentityReady = true;
+    workerE2EPublicKeysCache = null;
+    workerE2EPublicKeyRowsCache = null;
+    workerE2EPublicKeysCacheAt = 0;
     return true;
   } catch (error) {
     console.warn("[E2E] Worker identity bootstrap failed:", error?.message || error);
@@ -10992,15 +10996,25 @@ async function fetchWorkerE2EPublicKeyRows(force = false) {
 }
 
 async function fetchWorkerE2EChatRecipientKeys(force = false) {
+  await window.E2ECrypto?.ensureCryptoSessionReady?.();
+  await ensureWorkerE2EIdentity(force);
   const rows = await fetchWorkerE2EPublicKeyRows(force);
   const adminKeys = rows
     .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "user")
     .map((row) => extractWorkerE2EKeyMaterial(row))
     .filter(Boolean);
-  const selfKeys = rows
-    .filter((row) => String(row?.entityType || row?.entity_type || "").toLowerCase() === "worker")
-    .map((row) => extractWorkerE2EKeyMaterial(row))
-    .filter(Boolean);
+  const selfKeys = [];
+  const workerId = getWorkerE2EEntityId();
+  if (workerId) {
+    try {
+      const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
+      if (identity?.publicKeySpkiB64) {
+        selfKeys.push(identity.publicKeySpkiB64);
+      }
+    } catch {
+      // ignore — admin keys alone are enough to send
+    }
+  }
   if (!adminKeys.length) {
     return [];
   }
@@ -11056,8 +11070,12 @@ async function encryptWorkerSensitiveField(plaintext) {
 }
 
 async function decryptWorkerChatBody(storedBody) {
-  const text = String(storedBody || "");
-  if (!text || !workerE2ECryptoAvailable() || !window.E2ECrypto.isE2EEnvelope(text)) {
+  const text = String(storedBody || "").trim();
+  if (!text || !workerE2ECryptoAvailable()) {
+    return text;
+  }
+  const looksE2E = window.E2ECrypto.looksLikeE2EPayload?.(text) || window.E2ECrypto.isE2EEnvelope(text);
+  if (!looksE2E) {
     return text;
   }
   const workerId = getWorkerE2EEntityId();
@@ -11065,8 +11083,11 @@ async function decryptWorkerChatBody(storedBody) {
     return text;
   }
   try {
+    await window.E2ECrypto.ensureCryptoSessionReady?.();
+    await ensureWorkerE2EIdentity(true);
     return await window.E2ECrypto.decryptUtf8WithArchive(text, "worker", workerId);
-  } catch {
+  } catch (error) {
+    console.warn("[E2E] Chat decrypt failed:", error?.message || error);
     return t("workerChatE2EDecryptFailed");
   }
 }

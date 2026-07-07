@@ -6,7 +6,7 @@
     de: {
       e2eSecurityEyebrow: "Verschlüsselung",
       e2eSecurityTitle: "E2E-Sicherheit",
-      e2eSecuritySubtitle: "Private Schlüssel werden nur in dieser App erzeugt und verbleiben auf diesem Gerät. Verschlüsselung läuft automatisch — kein manueller Schritt nötig.",
+      e2eSecuritySubtitle: "Private Schlüssel werden automatisch auf diesem Gerät erzeugt. Kein Passwort, kein manueller Schritt — Chat und Dokumente laufen im Hintergrund verschlüsselt.",
       e2eSecurityBadgeLocal: "Private Key: nur dieses Gerät",
       e2eSecurityBadgeAlgo: "AES-256-GCM + X25519",
       e2eSecurityBadgeServer: "Server: nur Public Key",
@@ -32,7 +32,7 @@
     en: {
       e2eSecurityEyebrow: "Encryption",
       e2eSecurityTitle: "E2E Security",
-      e2eSecuritySubtitle: "Private keys are generated in this app only and stay on this device. Encryption runs automatically — no manual step required.",
+      e2eSecuritySubtitle: "Private keys are created automatically on this device. No password, no manual step — chat and documents are encrypted in the background.",
       e2eSecurityBadgeLocal: "Private key: this device only",
       e2eSecurityBadgeAlgo: "AES-256-GCM + X25519",
       e2eSecurityBadgeServer: "Server: public key only",

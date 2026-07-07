@@ -300,7 +300,11 @@ function persistAdminSessionUser(user, { bootstrapE2E = false } = {}) {
   } catch {
     // ignore storage failures
   }
-  if (bootstrapE2E && snapshot?.id && window.E2EAdminBridge?.ensureIdentity) {
+  if (bootstrapE2E && snapshot?.id && window.E2ECrypto?.ensureCryptoSessionReady) {
+    void window.E2ECrypto.ensureCryptoSessionReady().then(() => {
+      window.E2EAdminBridge?.ensureIdentity?.();
+    });
+  } else if (bootstrapE2E && snapshot?.id && window.E2EAdminBridge?.ensureIdentity) {
     void window.E2EAdminBridge.ensureIdentity();
   }
 }

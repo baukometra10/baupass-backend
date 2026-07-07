@@ -44,42 +44,58 @@
   async function getOrCreateMasterKey() {
     if (_sessionMasterKey) return _sessionMasterKey;
 
-    const pinConfig = await idbMetaGet("device-pin");
-    if (pinConfig?.enabled) {
-      if (!_sessionPinUnlocked) {
-        throw new Error("e2e_pin_required");
-      }
-    }
-
-    let raw = null;
-    const wrapped = await idbMetaGet("master-key-wrapped");
-    if (pinConfig?.enabled && wrapped?.iv && wrapped?.ct) {
-      throw new Error("e2e_pin_required");
-    }
-
     const metaMaster = await idbMetaGet("master-key");
     if (metaMaster?.seedB64) {
-      raw = metaMaster.seedB64;
-    } else {
-      try {
-        raw = localStorage.getItem(MASTER_KEY_STORAGE);
-      } catch {
-        raw = null;
-      }
-      if (!raw) {
-        const seed = crypto.getRandomValues(new Uint8Array(32));
-        raw = b64Encode(seed);
-      }
-      await idbMetaPut({ id: "master-key", seedB64: raw });
-      try {
-        localStorage.removeItem(MASTER_KEY_STORAGE);
-      } catch {
-        /* ignore */
-      }
+      const material = await sha256(b64Decode(metaMaster.seedB64));
+      _sessionMasterKey = await crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
+      return _sessionMasterKey;
     }
+
+    try {
+      const legacy = localStorage.getItem(MASTER_KEY_STORAGE);
+      if (legacy) {
+        await idbMetaPut({ id: "master-key", seedB64: legacy });
+        localStorage.removeItem(MASTER_KEY_STORAGE);
+        const material = await sha256(b64Decode(legacy));
+        _sessionMasterKey = await crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
+        return _sessionMasterKey;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const seed = crypto.getRandomValues(new Uint8Array(32));
+    const raw = b64Encode(seed);
+    await idbMetaPut({ id: "master-key", seedB64: raw });
     const material = await sha256(b64Decode(raw));
     _sessionMasterKey = await crypto.subtle.importKey("raw", material, "AES-GCM", false, ["encrypt", "decrypt"]);
     return _sessionMasterKey;
+  }
+
+  async function clearIdentityStore() {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).clear();
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+
+  /** Session bootstrap — no PIN/password prompts; heals broken PIN-locked stores. */
+  async function ensureCryptoSessionReady() {
+    _sessionPinUnlocked = true;
+    const pinConfig = await idbMetaGet("device-pin");
+    const metaMaster = await idbMetaGet("master-key");
+    const wrapped = await idbMetaGet("master-key-wrapped");
+    const pinLocked = Boolean(pinConfig?.enabled && wrapped?.iv && wrapped?.ct && !metaMaster?.seedB64);
+    if (pinLocked) {
+      await idbMetaPut({ id: "device-pin", enabled: false });
+      await clearIdentityStore();
+      _sessionMasterKey = null;
+    }
+    await getOrCreateMasterKey();
+    return true;
   }
 
   async function derivePinAesKey(pin, saltBytes) {
@@ -323,12 +339,17 @@
     const id = identityStorageId(entityType, entityId);
     const existing = await idbGet(id);
     if (existing?.publicKeySpkiB64 && existing?.privateKeyEnc) {
-      return {
-        entityType,
-        entityId,
-        publicKeySpkiB64: existing.publicKeySpkiB64,
-        algorithm: ALGORITHM,
-      };
+      try {
+        await decryptPrivateKeyJwk(existing.privateKeyEnc);
+        return {
+          entityType,
+          entityId,
+          publicKeySpkiB64: existing.publicKeySpkiB64,
+          algorithm: ALGORITHM,
+        };
+      } catch {
+        // Broken or PIN-rotated store — regenerate identity below.
+      }
     }
     const keyPair = await generateIdentityKeyPair();
     const publicKeySpkiB64 = await exportPublicKeySpkiB64(keyPair.publicKey);
@@ -431,8 +452,20 @@
     return JSON.stringify({ e2e: true, v: ENVELOPE_VERSION, multi: true, envelopes });
   }
 
+  function looksLikeE2EPayload(value) {
+    if (isE2EEnvelope(value)) return true;
+    const trimmed = String(value || "").trim();
+    if (!trimmed.startsWith("{")) return false;
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed?.e2e === true && (parsed.ct || (parsed.multi && Array.isArray(parsed.envelopes)));
+    } catch {
+      return false;
+    }
+  }
+
   async function decryptUtf8(storedBody, entityType, entityId) {
-    if (!isE2EEnvelope(storedBody)) {
+    if (!looksLikeE2EPayload(storedBody)) {
       return storedBody;
     }
     const parsed = JSON.parse(storedBody);
@@ -676,7 +709,9 @@
   global.E2ECrypto = Object.freeze({
     ALGORITHM,
     ENVELOPE_VERSION,
-    init: async () => true,
+    init: async () => ensureCryptoSessionReady(),
+    ensureCryptoSessionReady,
+    looksLikeE2EPayload,
     isE2EEnvelope,
     ensureLocalIdentity,
     registerPublicKey,
