@@ -40,6 +40,7 @@
     .message-list { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding:0.85rem 1rem; }
     .bubble { padding:0.75rem; border-radius:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); max-width:min(92%, 560px); }
     .bubble.admin { align-self:flex-end; background:rgba(22,78,99,0.24); border-color:rgba(94,234,212,0.18); }
+    .bubble.admin.is-pending { opacity: 0.72; }
     .bubble.worker { align-self:flex-start; }
     .bubble-meta { display:flex; justify-content:flex-end; gap:0.4rem; margin-top:0.45rem; font-size:0.75rem; color:var(--muted); }
     .bubble-read.is-read { color:#5eead4; font-weight:600; }
@@ -185,6 +186,10 @@
     let currentThreadId = "";
     let currentWorkerId = "";
     let chatPollTimer = null;
+    const CHAT_POLL_MS = 2000;
+    let adminChatLastFingerprint = "";
+    let adminE2EReadinessAt = 0;
+    const ADMIN_E2E_READINESS_TTL_MS = 60000;
     let lastThreadMetaName = "";
     function chatLocale() {
       const lang = window.getAdminChatLang?.() || "de";
@@ -278,16 +283,21 @@
     function adminE2ECryptoAvailable() {
       return typeof window.E2ECrypto !== "undefined" && Boolean(getAdminUserId());
     }
-    async function refreshAdminE2EReadiness(workerId) {
+    async function refreshAdminE2EReadiness(workerId, force = false) {
       if (!companyId || !workerId) {
         adminE2ERequired = false;
         return false;
+      }
+      const now = Date.now();
+      if (!force && now - adminE2EReadinessAt < ADMIN_E2E_READINESS_TTL_MS) {
+        return adminE2ERequired;
       }
       try {
         const data = await api(
           `/api/e2e/identity/chat-readiness?company_id=${encodeURIComponent(companyId)}&worker_id=${encodeURIComponent(workerId)}`
         );
         adminE2ERequired = Boolean(data?.e2eRequired);
+        adminE2EReadinessAt = now;
         return Boolean(data?.keysReady);
       } catch {
         adminE2ERequired = false;
@@ -384,7 +394,7 @@
       if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
         return text;
       }
-      await refreshAdminE2EReadiness(workerId);
+      await refreshAdminE2EReadiness(workerId, false);
       if (!adminE2ERequired) {
         return text;
       }
@@ -392,9 +402,13 @@
       if (!adminE2ECryptoAvailable()) {
         throw new Error("e2e_keys_missing");
       }
-      const keys = await fetchAdminE2EChatRecipientKeys(workerId, true);
+      const keys = await fetchAdminE2EChatRecipientKeys(workerId, false);
       if (!keys.length) {
-        throw new Error("e2e_keys_missing");
+        const retryKeys = await fetchAdminE2EChatRecipientKeys(workerId, true);
+        if (!retryKeys.length) {
+          throw new Error("e2e_keys_missing");
+        }
+        return await window.E2ECrypto.encryptUtf8(text, retryKeys);
       }
       return await window.E2ECrypto.encryptUtf8(text, keys);
     }
@@ -438,14 +452,15 @@
       };
     }
     async function prepareAdminChatMessagesForDisplay(messages) {
-      const prepared = [];
-      for (const msg of messages || []) {
-        prepared.push({
-          ...msg,
-          body: await decryptAdminChatBody(msg.body),
-        });
-      }
-      return prepared;
+      return Promise.all((messages || []).map(async (msg) => ({
+        ...msg,
+        body: await decryptAdminChatBody(msg.body),
+      })));
+    }
+    function adminChatMessagesFingerprint(messages) {
+      if (!Array.isArray(messages) || !messages.length) return "empty";
+      const last = messages[messages.length - 1];
+      return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}`;
     }
     function isImageAttachment(filename, contentType) {
       const mime = String(contentType || "").toLowerCase();
@@ -635,14 +650,20 @@
       currentThreadId = threadId || "";
       currentWorkerId = workerId || "";
       try {
-        if (workerId) {
-          await refreshAdminE2EReadiness(workerId);
+        if (workerId && !quiet) {
+          await refreshAdminE2EReadiness(workerId, false);
           void ensureAdminE2EIdentity();
         }
         const row = threads.find((item) => String(item.worker_id) === String(workerId));
         const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
         const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
-        const messages = await prepareAdminChatMessagesForDisplay(data.messages || []);
+        const rawMessages = data.messages || [];
+        const fingerprint = adminChatMessagesFingerprint(rawMessages);
+        if (quiet && fingerprint === adminChatLastFingerprint) {
+          return;
+        }
+        adminChatLastFingerprint = fingerprint;
+        const messages = await prepareAdminChatMessagesForDisplay(rawMessages);
         if (!quiet) {
           lastThreadMetaName = name || "";
           setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
@@ -679,7 +700,7 @@
       chatPollTimer = setInterval(() => {
         if (!currentThreadId || !currentWorkerId) return;
         loadMessages(currentThreadId, currentWorkerId, { quiet: true }).catch(() => {});
-      }, 5000);
+      }, CHAT_POLL_MS);
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
     document.getElementById("messageList").addEventListener("click", (event) => {
@@ -709,8 +730,24 @@
       if (!body && !file) return;
       const sendBtn = document.getElementById("sendReplyBtn");
       sendBtn.disabled = true;
+      const replyInput = document.getElementById("chatReply");
+      const draftBody = body || (file ? `📎 ${file.name}` : "");
+      const list = document.getElementById("messageList");
+      const pendingId = `pending-${Date.now()}`;
+      replyInput.value = "";
+      document.getElementById("chatFile").value = "";
+      if (!file && draftBody) {
+        list.insertAdjacentHTML("beforeend", renderChatBubble({
+          id: pendingId,
+          senderType: "admin",
+          body: draftBody,
+          createdAt: new Date().toISOString(),
+          readByRecipient: false,
+        }).replace('class="bubble admin"', 'class="bubble admin is-pending"'));
+        list.scrollTop = list.scrollHeight;
+      }
       try {
-        const outboundBody = await encryptAdminChatBody(body || (file ? `📎 ${file.name}` : ""), currentWorkerId);
+        const outboundBody = await encryptAdminChatBody(draftBody, currentWorkerId);
         const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -729,9 +766,9 @@
             file: uploadFile,
           });
         }
-        document.getElementById("chatReply").value = "";
-        document.getElementById("chatFile").value = "";
-        await loadMessages(currentThreadId, currentWorkerId);
+        list.querySelector(".bubble.admin.is-pending")?.remove();
+        adminChatLastFingerprint = "";
+        void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
         const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
         if (row) {
           row.hasThread = true;
@@ -739,6 +776,10 @@
         }
         renderThreads();
       } catch (error) {
+        list.querySelector(".bubble.admin.is-pending")?.remove();
+        if (!replyInput.value) {
+          replyInput.value = draftBody;
+        }
         const msg = String(error?.message || error || "");
         if (msg === "e2e_keys_missing") {
           setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });

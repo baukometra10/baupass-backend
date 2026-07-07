@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707p";
+const WORKER_BUILD_TAG = "20260707q";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1758,6 +1758,10 @@ let workerChatThreadId = "";
 let workerChatThreadLastError = null;
 const WORKER_CHAT_THREAD_STORAGE_KEY = "worker-chat-thread-id";
 let workerChatPollTimer = null;
+const WORKER_CHAT_POLL_MS = 2000;
+const WORKER_CHAT_E2E_SYNC_TTL_MS = 120000;
+let workerChatLastFingerprint = "";
+let workerChatE2ELastSyncAt = 0;
 let workerE2EIdentityReady = false;
 let workerE2EDeviceMismatch = false;
 const WORKER_E2E_MISMATCH_NOTICE_KEY = "worker-e2e-mismatch-noticed";
@@ -2567,7 +2571,7 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-inline-start:12%}",
   "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
   "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
-  "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
+  "#chatCard .worker-chat-row.is-pending .worker-chat-bubble{opacity:.72}",
   "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}",
   "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-end-end-radius:5px}",
   "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-end-start-radius:5px}",
@@ -11393,23 +11397,75 @@ async function fetchWorkerE2EPublicKeys(force = false) {
   return workerE2EPublicKeysCache || [];
 }
 
+async function ensureWorkerChatE2EReady(force = false) {
+  if (!workerE2ERequired() || !workerE2ECryptoAvailable()) {
+    return false;
+  }
+  const now = Date.now();
+  if (!force && workerE2EIdentityReady && now - workerChatE2ELastSyncAt < WORKER_CHAT_E2E_SYNC_TTL_MS) {
+    return true;
+  }
+  await syncWorkerE2EIdentityWithServer();
+  workerChatE2ELastSyncAt = Date.now();
+  return workerE2EIdentityReady;
+}
+
+function workerChatMessagesFingerprint(messages) {
+  if (!Array.isArray(messages) || !messages.length) {
+    return "empty";
+  }
+  const last = messages[messages.length - 1];
+  return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}`;
+}
+
+function appendOptimisticWorkerChatBubble(text, pendingId) {
+  if (!elements.workerChatMessages) {
+    return;
+  }
+  const emptyHint = elements.workerChatMessages.querySelector(".muted-info");
+  if (emptyHint) {
+    emptyHint.remove();
+  }
+  const body = escapeHtmlBasic(String(text || ""));
+  const bubble = document.createElement("div");
+  bubble.className = "worker-chat-row is-mine is-pending";
+  bubble.dataset.pendingId = pendingId;
+  bubble.innerHTML = `
+    <span class="worker-chat-sender">${escapeHtmlBasic(t("workerChatFromYou"))}</span>
+    <div class="worker-chat-bubble is-mine">
+      <div class="worker-chat-body">${body}</div>
+      <div class="worker-chat-meta">
+        <span class="worker-chat-time">${escapeHtmlBasic(t("workerChatSending") || "…")}</span>
+      </div>
+    </div>
+  `;
+  elements.workerChatMessages.appendChild(bubble);
+  elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+}
+
+function removeOptimisticWorkerChatBubble(pendingId) {
+  if (!elements.workerChatMessages || !pendingId) {
+    return;
+  }
+  const row = elements.workerChatMessages.querySelector(`[data-pending-id="${pendingId}"]`);
+  if (row) {
+    row.remove();
+  }
+}
+
 async function encryptWorkerChatBody(plaintext) {
   const text = String(plaintext || "");
   if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
     return text;
   }
-  await refreshWorkerSecurityFromServer();
   if (!workerE2ECryptoAvailable()) {
     return text;
   }
   await window.E2ECrypto?.ensureCryptoSessionReady?.();
-  await syncWorkerE2EIdentityWithServer();
-  let keys = await fetchWorkerE2EChatRecipientKeys(true);
-  for (let attempt = 0; !keys.length && attempt < 3; attempt += 1) {
+  await ensureWorkerChatE2EReady(false);
+  let keys = await fetchWorkerE2EChatRecipientKeys(false);
+  if (!keys.length) {
     await ensureWorkerE2EIdentity(true);
-    if (attempt < 2) {
-      await new Promise((resolve) => setTimeout(resolve, 700 * (attempt + 1)));
-    }
     keys = await fetchWorkerE2EChatRecipientKeys(true);
   }
   if (!keys.length) {
@@ -11480,14 +11536,10 @@ async function prepareWorkerChatMessagesForDisplay(messages) {
   if (!Array.isArray(messages) || !messages.length) {
     return [];
   }
-  const prepared = [];
-  for (const msg of messages) {
-    prepared.push({
-      ...msg,
-      body: await decryptWorkerChatBody(msg.body),
-    });
-  }
-  return prepared;
+  return Promise.all((messages || []).map(async (msg) => ({
+    ...msg,
+    body: await decryptWorkerChatBody(msg.body),
+  })));
 }
 
 function extractChatThreadId(row) {
@@ -11725,10 +11777,10 @@ async function loadWorkerChat(options = {}) {
   }
   try {
     applyWorkerChatBootstrap();
-    await refreshWorkerSecurityFromServer();
-    if (workerE2ERequired() && workerE2ECryptoAvailable()) {
+    if (!quiet) {
+      await refreshWorkerSecurityFromServer();
       try {
-        await syncWorkerE2EIdentityWithServer();
+        await ensureWorkerChatE2EReady(false);
       } catch (error) {
         console.warn("[chat] Worker E2E sync skipped:", error?.message || error);
       }
@@ -11749,7 +11801,13 @@ async function loadWorkerChat(options = {}) {
     const payload = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
       headers: buildWorkerAuthHeaders(),
     });
-    renderWorkerChatMessages(payload?.messages || []);
+    const messages = payload?.messages || [];
+    const fingerprint = workerChatMessagesFingerprint(messages);
+    if (quiet && fingerprint === workerChatLastFingerprint) {
+      return;
+    }
+    workerChatLastFingerprint = fingerprint;
+    renderWorkerChatMessages(messages);
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";
@@ -11778,7 +11836,7 @@ function startWorkerChatPolling() {
       return;
     }
     void loadWorkerChat({ quiet: true });
-  }, 5000);
+  }, WORKER_CHAT_POLL_MS);
 }
 
 async function sendWorkerChatMessage() {
@@ -11816,16 +11874,9 @@ async function sendWorkerChatMessage() {
     body: JSON.stringify({ body: outboundBody }),
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
+  const pendingId = `pending-${Date.now()}`;
   try {
     applyWorkerChatBootstrap();
-    await refreshWorkerSecurityFromServer();
-    if (workerE2ERequired() && workerE2ECryptoAvailable()) {
-      try {
-        await syncWorkerE2EIdentityWithServer();
-      } catch (error) {
-        console.warn("[chat] Worker E2E sync skipped:", error?.message || error);
-      }
-    }
     let threadId = String(workerChatThreadId || "").trim();
     if (!threadId) {
       threadId = await ensureWorkerChatThread();
@@ -11841,7 +11892,14 @@ async function sendWorkerChatMessage() {
       );
       return;
     }
-    setWorkerChatComposeEnabled(false);
+    input.value = "";
+    if (fileInput) {
+      fileInput.value = "";
+      updateWorkerChatFileHint();
+    }
+    if (!file) {
+      appendOptimisticWorkerChatBubble(body, pendingId);
+    }
     let outboundBody = body;
     let e2eClientUnavailable = workerE2ERequired() && !workerE2ECryptoAvailable();
     try {
@@ -11851,8 +11909,9 @@ async function sendWorkerChatMessage() {
         e2eClientUnavailable = true;
         outboundBody = body;
       } else {
+        removeOptimisticWorkerChatBubble(pendingId);
+        input.value = body;
         showWorkerNotice(workerChatEncryptErrorMessage(error));
-        setWorkerChatComposeEnabled(allowed);
         return;
       }
     }
@@ -11874,24 +11933,21 @@ async function sendWorkerChatMessage() {
         throw error;
       }
     }
+    removeOptimisticWorkerChatBubble(pendingId);
     if (file && messageId) {
-      await uploadWorkerChatAttachment(threadId, messageId, file);
+      void uploadWorkerChatAttachment(threadId, messageId, file).then(() => {
+        void loadWorkerChat({ quiet: true });
+      });
     }
-    input.value = "";
-    if (fileInput) {
-      fileInput.value = "";
-      updateWorkerChatFileHint();
-    }
-    await loadWorkerChat();
-    showWorkerNotice(file ? t("workerChatDocumentSubmitted") : t("workerChatSent"));
+    workerChatLastFingerprint = "";
+    void loadWorkerChat({ quiet: true });
   } catch (error) {
+    removeOptimisticWorkerChatBubble(pendingId);
+    if (input && !input.value) {
+      input.value = body;
+    }
     const message = formatWorkerApiError(error);
     showWorkerNotice(message);
-    if (elements.workerChatMessages) {
-      elements.workerChatMessages.innerHTML = `<p class="muted-info worker-chat-error">${escapeHtmlBasic(message)}</p>`;
-    }
-  } finally {
-    setWorkerChatComposeEnabled(allowed);
   }
 }
 
