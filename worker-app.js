@@ -2330,8 +2330,49 @@ function bindWorkerChatMessageActions() {
   });
 }
 
+async function clearWorkerChatMessages(scope) {
+  const threadId = String(workerChatThreadId || "").trim();
+  if (!threadId || !workerToken) {
+    return;
+  }
+  const cleanScope = scope === "all" ? "all" : "own";
+  await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages?scope=${encodeURIComponent(cleanScope)}`, {
+    method: "DELETE",
+    headers: buildWorkerAuthHeaders(),
+  });
+  workerChatLastFingerprint = "";
+  await loadWorkerChat();
+  showWorkerNotice(t("chatCleared"));
+}
+
+function bindWorkerChatClearActions() {
+  const ownBtn = document.getElementById("workerChatClearOwnBtn");
+  const allBtn = document.getElementById("workerChatClearAllBtn");
+  const actions = document.getElementById("workerChatHeadActions");
+  if (actions) {
+    actions.classList.toggle("hidden", !workerChatThreadId);
+  }
+  if (ownBtn && !ownBtn.dataset.bound) {
+    ownBtn.dataset.bound = "1";
+    ownBtn.addEventListener("click", () => {
+      if (!window.confirm(t("chatClearOwnConfirm"))) return;
+      void clearWorkerChatMessages("own").catch((error) => showWorkerNotice(formatWorkerApiError(error)));
+    });
+  }
+  if (allBtn && !allBtn.dataset.bound) {
+    allBtn.dataset.bound = "1";
+    allBtn.addEventListener("click", () => {
+      if (!window.confirm(t("chatClearAllConfirm"))) return;
+      void clearWorkerChatMessages("all").catch((error) => showWorkerNotice(formatWorkerApiError(error)));
+    });
+  }
+}
+
 async function deleteWorkerChatMessage(messageId) {
   if (!workerToken || !messageId) {
+    return;
+  }
+  if (!window.confirm(t("workerChatDeleteConfirm"))) {
     return;
   }
   try {
@@ -2818,7 +2859,13 @@ function ensureWorkerChatDom() {
       <p id="chatLayoutVersion" class="chat-layout-version" aria-live="polite">Chat-Layout v${WORKER_BUILD_TAG}</p>
       <div class="section-head compact-head">
         <p class="section-kicker" data-i18n="workerChatKicker">Kommunikation</p>
-        <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
+          <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
+          <div id="workerChatHeadActions" class="chat-head-actions hidden">
+            <button type="button" id="workerChatClearOwnBtn" data-i18n="chatClearOwn">Meine Nachrichten löschen</button>
+            <button type="button" id="workerChatClearAllBtn" data-i18n="chatClearAll">Chat leeren</button>
+          </div>
+        </div>
       </div>
       <div id="workerChatMessages" class="worker-chat-messages">
         <p class="muted-info" data-i18n="workerChatEmpty">Noch keine Nachrichten.</p>
@@ -11809,10 +11856,11 @@ async function ensureWorkerChatThread(forceRefresh = false) {
 
 let workerChatAttachmentMetaById = {};
 
-function renderWorkerChatAttachmentHtml(attachments) {
+function renderWorkerChatAttachmentHtml(attachments, options = {}) {
   if (!Array.isArray(attachments) || !attachments.length) {
     return "";
   }
+  const voiceSide = options.side === "mine" ? "mine" : "them";
   return `<div class="worker-chat-attachments">${attachments
     .map((attachment) => {
       const id = String(attachment.id || "");
@@ -11823,8 +11871,11 @@ function renderWorkerChatAttachmentHtml(attachments) {
       const safeId = escapeHtmlBasic(id);
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
       const contentType = String(attachment.contentType || attachment.content_type || "");
-      if (window.SUPPIXChatVoice?.isAudioAttachment?.(attachment.filename, contentType)) {
-        return window.SUPPIXChatVoice.renderAudioPlayerHtml(attachment, { voice: t("chatVoiceMessage") });
+      if (window.SUPPIXChatVoice?.isAudioAttachment?.(attachment.filename, contentType, meta)) {
+        return window.SUPPIXChatVoice.renderAudioPlayerHtml(attachment, {
+          voice: t("chatVoiceMessage"),
+          side: voiceSide,
+        });
       }
       return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${safeId}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
@@ -11858,18 +11909,26 @@ function renderWorkerChatMessages(messages, options = {}) {
       const grouped = shouldGroupWorkerChatMessages(displayMessages[i - 1], msg);
       const tail = !shouldGroupWorkerChatMessages(msg, displayMessages[i + 1]);
       const senderLabel = side === "mine" ? t("workerChatFromYou") : getWorkerBrandTitle();
-      const body = escapeHtmlBasic(String(msg.body || ""));
-      const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
+      const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments, { side });
+      const hasVoice = Boolean(
+        Array.isArray(msg.attachments)
+        && msg.attachments.some((attachment) => {
+          const meta = String(attachment.e2eMeta || attachment.e2e_meta || "").trim();
+          const contentType = String(attachment.contentType || attachment.content_type || "");
+          return window.SUPPIXChatVoice?.isAudioAttachment?.(attachment.filename, contentType, meta);
+        }),
+      );
+      const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, t("chatVoiceMessage"));
+      const body = voiceOnly ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
       const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
       const ticksHtml = workerChatReadTicks(msg, side);
-      const read = msg.readByRecipient === true || msg.read_by_recipient === true;
       const messageId = String(msg.id || "");
-      const deleteHtml = side === "mine" && messageId && !read
+      const deleteHtml = side === "mine" && messageId
         ? `<button type="button" class="worker-chat-delete-btn" data-chat-delete-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("workerChatDelete"))}">🗑</button>`
         : "";
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
-      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
+      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
       html += `
         <div class="${rowClasses}">
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
@@ -12014,6 +12073,7 @@ async function loadWorkerChat(options = {}) {
     }
     workerChatLastFingerprint = fingerprint;
     renderWorkerChatMessages(messages, { quiet });
+    bindWorkerChatClearActions();
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";

@@ -668,27 +668,52 @@ class ChatService:
         else:
             raise ValueError("forbidden")
 
-        thread_row = self.db.execute(
-            """
-            SELECT last_worker_read_at, last_admin_read_at
-            FROM chat_threads
-            WHERE id = ? AND company_id = ?
-            """,
-            (str(row["thread_id"]), company_id),
-        ).fetchone()
-        created = str(row["created_at"] or "")
-        if sender_type == "worker":
-            admin_read = str(thread_row["last_admin_read_at"] or "") if thread_row else ""
-            if admin_read and created and admin_read >= created:
-                raise ValueError("message_already_read")
-        else:
-            worker_read = str(thread_row["last_worker_read_at"] or "") if thread_row else ""
-            if worker_read and created and worker_read >= created:
-                raise ValueError("message_already_read")
-
         self.db.execute("DELETE FROM chat_attachments WHERE message_id = ?", (message_id,))
         self.db.execute("DELETE FROM chat_messages WHERE id = ? AND company_id = ?", (message_id, company_id))
         self.db.commit()
+
+    def clear_thread_messages(
+        self,
+        thread_id: str,
+        company_id: str,
+        *,
+        actor_type: str,
+        actor_worker_id: str | None = None,
+        actor_user_id: str | None = None,
+        scope: str = "own",
+    ) -> int:
+        clean_scope = str(scope or "own").strip().lower()
+        if clean_scope not in {"own", "all"}:
+            raise ValueError("invalid_scope")
+        if clean_scope == "all" and actor_type not in {"admin", "worker"}:
+            raise ValueError("forbidden")
+        rows = self.db.execute(
+            """
+            SELECT id, sender_type, sender_worker_id, sender_user_id
+            FROM chat_messages
+            WHERE thread_id = ? AND company_id = ?
+            """,
+            (thread_id, company_id),
+        ).fetchall()
+        deleted = 0
+        for row in rows:
+            sender_type = str(row["sender_type"] or "")
+            if clean_scope == "all":
+                allowed = True
+            elif actor_type == "worker":
+                allowed = sender_type == "worker" and str(row["sender_worker_id"] or "") == str(actor_worker_id or "")
+            elif actor_type == "admin":
+                allowed = sender_type == "admin" and str(row["sender_user_id"] or "") == str(actor_user_id or "")
+            else:
+                allowed = False
+            if not allowed:
+                continue
+            message_id = str(row["id"])
+            self.db.execute("DELETE FROM chat_attachments WHERE message_id = ?", (message_id,))
+            self.db.execute("DELETE FROM chat_messages WHERE id = ? AND company_id = ?", (message_id, company_id))
+            deleted += 1
+        self.db.commit()
+        return deleted
 
     def _notify_company_side(self, company_id: str, worker_id: str, body: str) -> None:
         try:

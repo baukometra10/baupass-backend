@@ -351,6 +351,30 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             }
             return jsonify({"error": code, "message": messages.get(code, code)}), status
 
+    @chat_core_bp.delete("/worker-app/chat/threads/<thread_id>/messages")
+    @require_worker_session
+    def worker_chat_clear_messages(thread_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        scope = str(request.args.get("scope") or "own").strip().lower() or "own"
+        try:
+            deleted = ChatService(get_db()).clear_thread_messages(
+                thread_id,
+                company_id,
+                actor_type="worker",
+                actor_worker_id=worker_id,
+                scope=scope,
+            )
+            return jsonify({"ok": True, "deleted": deleted, "threadId": thread_id})
+        except ValueError as exc:
+            code = str(exc)
+            status = 403 if code == "forbidden" else 400
+            return jsonify({"error": code, "message": code}), status
+
     @chat_core_bp.delete("/chat/messages/<message_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -381,6 +405,29 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 "forbidden": "Keine Berechtigung zum Loeschen.",
             }
             return jsonify({"error": code, "message": messages.get(code, code)}), status
+
+    @chat_core_bp.delete("/chat/threads/<thread_id>/messages")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_clear_messages(thread_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        scope = str(request.args.get("scope") or "own").strip().lower() or "own"
+        try:
+            deleted = ChatService(get_db()).clear_thread_messages(
+                thread_id,
+                cid,
+                actor_type="admin",
+                actor_user_id=str(g.current_user.get("id") or ""),
+                scope=scope,
+            )
+            return jsonify({"ok": True, "deleted": deleted, "threadId": thread_id})
+        except ValueError as exc:
+            code = str(exc)
+            status = 403 if code == "forbidden" else 400
+            return jsonify({"error": code, "message": code}), status
 
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/attachments")
     @require_worker_session

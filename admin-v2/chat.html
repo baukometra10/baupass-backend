@@ -190,6 +190,10 @@
             <div style="min-width:0;">
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
+              <div id="chatHeadActions" class="chat-head-actions hidden">
+                <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
+                <button type="button" id="chatClearAllBtn" data-aci18n="chatClearAll">Chat leeren</button>
+              </div>
             </div>
           </div>
         </div>
@@ -213,8 +217,8 @@
       </section>
     </main>
   </div>
-  <script src="/chat-voice.js?v=20260707voice1"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260707voice1"></script>
+  <script src="/chat-voice.js?v=20260707voice2"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260707voice2"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -536,8 +540,8 @@
       if (/^image\//i.test(mime)) return true;
       return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
     }
-    function isAudioAttachment(filename, contentType) {
-      return window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType) || false;
+    function isAudioAttachment(filename, contentType, e2eMeta) {
+      return window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType, e2eMeta) || false;
     }
     function downloadHeaders() {
       return token ? { Authorization: `Bearer ${token}` } : {};
@@ -747,9 +751,13 @@
     function updateChatHead(name) {
       const avatar = document.getElementById("chatHeadAvatar");
       const title = document.getElementById("chatHeadTitle");
+      const actions = document.getElementById("chatHeadActions");
       const clean = String(name || "").trim();
       if (title) {
         title.textContent = clean || window.adminChatT("conversationTitle");
+      }
+      if (actions) {
+        actions.classList.toggle("hidden", !clean || !currentThreadId);
       }
       if (avatar) {
         if (clean) {
@@ -800,7 +808,7 @@
     function canDeleteAdminMessage(msg) {
       const sender = String(msg.senderType || "");
       const senderUserId = String(msg.senderUserId || msg.sender_user_id || "");
-      return sender === "admin" && !msg.readByRecipient && messageIdPresent(msg) && senderUserId === getAdminUserId();
+      return sender === "admin" && messageIdPresent(msg) && senderUserId === getAdminUserId();
     }
     function messageIdPresent(msg) {
       return Boolean(String(msg.id || "").trim());
@@ -810,8 +818,9 @@
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
       const time = formatBubbleTime(msg.createdAt);
       const ticks = chatReadTicks(msg);
+      let hasVoice = false;
       const attach = Array.isArray(msg.attachments) && msg.attachments.length
-        ? `<div class="muted" style="margin-top:0.35rem;">${msg.attachments.map((a) => {
+        ? `<div class="chat-attach-wrap">${msg.attachments.map((a) => {
             const rawId = String(a.id || "");
             const meta = String(a.e2eMeta || a.e2e_meta || "").trim();
             if (rawId && meta) adminChatAttachmentMetaById[rawId] = meta;
@@ -819,9 +828,14 @@
             const name = escapeHtml(a.filename || window.adminChatT("attachment"));
             const type = escapeHtml(a.contentType || "");
             const image = isImageAttachment(a.filename, a.contentType);
-            const audio = isAudioAttachment(a.filename, a.contentType);
+            const audio = isAudioAttachment(a.filename, a.contentType, meta);
             if (audio) {
-              return window.SUPPIXChatVoice.renderAudioPlayerHtml(a, { voice: window.adminChatT("chatVoiceMessage") });
+              hasVoice = true;
+              const side = msg.senderType === "admin" ? "mine" : "them";
+              return window.SUPPIXChatVoice.renderAudioPlayerHtml(a, {
+                voice: window.adminChatT("chatVoiceMessage"),
+                side,
+              });
             }
             if (image) {
               return `<div class="chat-image-actions">
@@ -830,16 +844,27 @@
               <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" />`;
             }
             return `<button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">📎 ${name}</button>`;
-          }).join("<br>")}</div>`
+          }).join("")}</div>`
         : "";
-      const body = escapeHtml(msg.body || "");
+      const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, window.adminChatT("chatVoiceMessage"));
+      const body = voiceOnly ? "" : escapeHtml(msg.body || "");
       const messageId = escapeHtml(String(msg.id || ""));
       const deleteBtn = canDeleteAdminMessage(msg)
         ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
         : "";
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
-      const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
-      return `<div class="${classes}"><strong class="bubble-sender">${who}</strong><span class="bubble-body">${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${deleteBtn}</div></div>`;
+      const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
+      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${deleteBtn}</div></div>`;
+    }
+    async function clearAdminChatMessages(scope) {
+      if (!currentThreadId) return;
+      const cleanScope = scope === "all" ? "all" : "own";
+      await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}&scope=${encodeURIComponent(cleanScope)}`, {
+        method: "DELETE",
+      });
+      adminChatLastFingerprint = "";
+      await loadMessages(currentThreadId, currentWorkerId);
+      await loadThreads();
     }
     async function deleteAdminChatMessage(messageId) {
       if (!messageId || !currentWorkerId) return;
@@ -1145,6 +1170,14 @@
     });
     document.getElementById("sendReplyBtn").addEventListener("click", () => {
       void handleAdminPrimaryAction();
+    });
+    document.getElementById("chatClearOwnBtn")?.addEventListener("click", () => {
+      if (!window.confirm(window.adminChatT("chatClearOwnConfirm"))) return;
+      clearAdminChatMessages("own").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
+    });
+    document.getElementById("chatClearAllBtn")?.addEventListener("click", () => {
+      if (!window.confirm(window.adminChatT("chatClearAllConfirm"))) return;
+      clearAdminChatMessages("all").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
     });
     syncAdminComposeAction();
     window.applyAdminChatI18n?.();
