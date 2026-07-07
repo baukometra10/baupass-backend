@@ -31433,8 +31433,16 @@ async function loadBillingOverview(options = {}) {
     portal.classList.add("hidden");
     return;
   }
+  if (role === "superadmin" && !superadminUiPreviewCompanyId) {
+    portal.classList.add("hidden");
+    return;
+  }
   try {
-    const overview = await apiRequest(`${API_BASE}/api/v2/billing/overview`);
+    let overviewUrl = `${API_BASE}/api/v2/billing/overview`;
+    if (role === "superadmin" && superadminUiPreviewCompanyId) {
+      overviewUrl += `?company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    }
+    const overview = await apiRequest(overviewUrl);
     state.billingOverview = overview;
     portal.classList.remove("hidden");
     renderBillingPortal(overview);

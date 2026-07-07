@@ -92,6 +92,7 @@
   <script src="/ops-realtime.js"></script>
   <script>
     const UI_LANG_KEY = "baupass-ui-lang";
+    const OPS_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     function getUiLang() {
       const code = (
         localStorage.getItem("baupass-admin-v2-lang")
@@ -283,7 +284,6 @@
       },
     };
     Object.assign(OPS_I18N, window.OpsCenterI18nExtra || {});
-    const OPS_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     const tr = (key, vars = {}) => {
       let text = (OPS_I18N[OPS_LANG] || OPS_I18N.de)[key] || (OPS_I18N.de[key] || key);
       Object.entries(vars).forEach(([k, v]) => {

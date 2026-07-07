@@ -337,6 +337,7 @@
     })();
 
     const UI_LANG_KEY = "baupass-ui-lang";
+    const AI_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     function getUiLang() {
       const code = (
         localStorage.getItem("baupass-admin-v2-lang")
@@ -529,7 +530,6 @@
       },
     };
     Object.assign(I18N, window.AiCenterI18nExtra || {});
-    const AI_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
     const TOPIC_I18N_KEYS = {
       security: "topicSecurity",
       compliance: "topicCompliance",
