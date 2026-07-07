@@ -217,8 +217,8 @@
       </section>
     </main>
   </div>
-  <script src="/chat-voice.js?v=20260707voice3"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260707voice3"></script>
+  <script src="/chat-voice.js?v=20260707voice4"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -518,6 +518,7 @@
       const packed = await window.E2ECrypto.encryptBlob(new Uint8Array(buffer), keys, {
         filename: file.name || "upload.bin",
         mime: file.type || "application/octet-stream",
+        durationSec: Number(file.durationSec || 0),
       });
       return {
         file: new Blob([packed.blob], { type: "application/vnd.suppix.e2e+binary" }),
@@ -638,22 +639,9 @@
       } else if (!String(outBlob.type || "").startsWith("audio/")) {
         outBlob = new Blob([await outBlob.arrayBuffer()], { type: "audio/webm" });
       }
-      let duration = 0;
-      try {
-        const probe = new Audio(URL.createObjectURL(outBlob));
-        await new Promise((resolve) => {
-          probe.addEventListener("loadedmetadata", () => {
-            duration = Number(probe.duration || 0);
-            URL.revokeObjectURL(probe.src);
-            resolve();
-          }, { once: true });
-          probe.addEventListener("error", () => {
-            URL.revokeObjectURL(probe.src);
-            resolve();
-          }, { once: true });
-        });
-      } catch {
-        /* optional */
+      let duration = window.SUPPIXChatVoice?.parseE2eAttachmentDuration?.(meta) || 0;
+      if (!duration) {
+        duration = await window.SUPPIXChatVoice?.probeBlobDuration?.(outBlob) || 0;
       }
       return { blob: outBlob, duration };
     }

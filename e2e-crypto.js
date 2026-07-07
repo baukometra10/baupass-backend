@@ -670,6 +670,9 @@
       keyEnvelopes.push(await sealForRecipient(keyB64, pub));
     }
     fileEnvelope.keyEnvelopes = keyEnvelopes.length === 1 ? keyEnvelopes[0] : { multi: true, envelopes: keyEnvelopes };
+    if (Number(meta?.durationSec) > 0) {
+      fileEnvelope.durationSec = Math.round(Number(meta.durationSec));
+    }
     return {
       blob: new Uint8Array(ct),
       meta: JSON.stringify(fileEnvelope),

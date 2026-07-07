@@ -45,15 +45,61 @@
     return `${mins}:${String(secs).padStart(2, "0")}`;
   }
 
-  function parseE2eAttachmentMime(e2eMeta) {
+  function parseE2eAttachmentMeta(e2eMeta) {
     const raw = String(e2eMeta || "").trim();
-    if (!raw) return "";
+    if (!raw) return null;
     try {
-      const meta = JSON.parse(raw);
-      return String(meta?.mime || "");
+      return JSON.parse(raw);
     } catch {
-      return "";
+      return null;
     }
+  }
+
+  function parseE2eAttachmentMime(e2eMeta) {
+    return String(parseE2eAttachmentMeta(e2eMeta)?.mime || "");
+  }
+
+  function parseE2eAttachmentDuration(e2eMeta) {
+    const sec = Number(parseE2eAttachmentMeta(e2eMeta)?.durationSec || 0);
+    return Number.isFinite(sec) && sec > 0 ? Math.round(sec) : 0;
+  }
+
+  async function probeBlobDuration(blob) {
+    if (!blob) return 0;
+    try {
+      const probe = new Audio(URL.createObjectURL(blob));
+      const fromMeta = await new Promise((resolve) => {
+        const finish = (value) => {
+          URL.revokeObjectURL(probe.src);
+          resolve(value);
+        };
+        probe.addEventListener("loadedmetadata", () => {
+          const value = Number(probe.duration || 0);
+          if (Number.isFinite(value) && value > 0 && value !== Infinity) {
+            finish(Math.round(value));
+            return;
+          }
+          finish(0);
+        }, { once: true });
+        probe.addEventListener("error", () => finish(0), { once: true });
+      });
+      if (fromMeta > 0) return fromMeta;
+    } catch {
+      /* fallback below */
+    }
+    try {
+      if (global.AudioContext || global.webkitAudioContext) {
+        const Ctx = global.AudioContext || global.webkitAudioContext;
+        const ctx = new Ctx();
+        const buffer = await blob.arrayBuffer();
+        const audioBuffer = await ctx.decodeAudioData(buffer.slice(0));
+        await ctx.close?.();
+        return Math.max(1, Math.round(audioBuffer.duration || 0));
+      }
+    } catch {
+      /* ignore */
+    }
+    return 0;
   }
 
   function isAudioAttachment(filename, contentType, e2eMeta) {
@@ -152,6 +198,7 @@
     let mimeType = "";
     let startedAt = 0;
     let timer = null;
+    let lastDurationSec = 0;
 
     const cleanupStream = () => {
       if (stream) {
@@ -177,12 +224,16 @@
       get recording() {
         return Boolean(recorder && recorder.state === "recording");
       },
+      get lastDurationSec() {
+        return lastDurationSec;
+      },
       async start() {
         if (!isSupported()) {
           throw new Error("voice_not_supported");
         }
         chunks = [];
         mimeType = pickMimeType();
+        lastDurationSec = 0;
         stream = await global.navigator.mediaDevices.getUserMedia({ audio: true });
         try {
           recorder = mimeType ? new global.MediaRecorder(stream, { mimeType }) : new global.MediaRecorder(stream);
@@ -228,7 +279,9 @@
         cleanupStream();
         recorder = null;
         chunks = [];
+        lastDurationSec = startedAt ? Math.max(1, Math.round((Date.now() - startedAt) / 1000)) : 0;
         if (!result || !result.size || result.size < 900) {
+          lastDurationSec = 0;
           return null;
         }
         return result;
@@ -244,14 +297,19 @@
         chunks = [];
         cleanupStream();
       },
-      toFile(blob, filenamePrefix) {
+      toFile(blob, filenamePrefix, durationSec) {
         if (!blob) return null;
         const ext = extensionForMime(blob.type);
         const name = `${filenamePrefix || "voice"}-${Date.now()}.${ext}`;
+        const duration = Math.max(0, Math.round(Number(durationSec || lastDurationSec) || 0));
         try {
-          return new File([blob], name, { type: blob.type || "audio/webm" });
+          const file = new File([blob], name, { type: blob.type || "audio/webm" });
+          if (duration > 0) file.durationSec = duration;
+          return file;
         } catch {
-          return new Blob([blob], { type: blob.type || "audio/webm" });
+          const out = new Blob([blob], { type: blob.type || "audio/webm" });
+          if (duration > 0) out.durationSec = duration;
+          return out;
         }
       },
     };
@@ -263,10 +321,13 @@
     const contentType = escapeAttr(attachment?.contentType || attachment?.content_type || "audio/webm");
     const voiceLabel = escapeAttr(labels.voice || "Voice message");
     const side = escapeAttr(labels.side || "mine");
-    return `<div class="chat-voice-note is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}">
+    const e2eRaw = attachment?.e2eMeta || attachment?.e2e_meta || labels.e2eMeta || "";
+    const knownDuration = Number(labels.durationSec || attachment?.durationSec || parseE2eAttachmentDuration(e2eRaw) || 0);
+    const durationLabel = knownDuration > 0 ? formatDuration(knownDuration) : "0:00";
+    return `<div class="chat-voice-note is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}"${knownDuration > 0 ? ` data-duration-sec="${knownDuration}"` : ""}>
       <button type="button" class="chat-voice-play" aria-label="${voiceLabel}">${PLAY_SVG}</button>
       ${voiceWaveformHtml(id || filename)}
-      <span class="chat-voice-duration">0:00</span>
+      <span class="chat-voice-duration">${durationLabel}</span>
     </div>`;
   }
 
@@ -292,8 +353,12 @@
     if (!payload?.blob || (!mime.startsWith("audio/") && !mime.startsWith("video/webm") && isEncryptedBlob(payload.blob))) {
       throw new Error("voice_playback_failed");
     }
+    let duration = Number(payload.duration || 0);
+    if (!duration) {
+      duration = await probeBlobDuration(payload.blob);
+    }
     const url = global.URL.createObjectURL(payload.blob);
-    audioCache.set(cacheKey, { url, duration: payload.duration || 0, mime: payload.blob.type || "audio/webm" });
+    audioCache.set(cacheKey, { url, duration, mime: payload.blob.type || "audio/webm" });
     return audioCache.get(cacheKey);
   }
 
@@ -389,6 +454,32 @@
     }
   }
 
+  function prefetchVoiceDurations(root, { downloadFn } = {}) {
+    if (!root || typeof downloadFn !== "function") return;
+    root.querySelectorAll(".chat-voice-note[data-attachment-id]").forEach((player) => {
+      const attachmentId = player.getAttribute("data-attachment-id") || "";
+      const durationEl = player.querySelector(".chat-voice-duration");
+      const preset = Number(player.getAttribute("data-duration-sec") || 0);
+      if (!attachmentId || !durationEl || durationEl.dataset.durationReady === "1") return;
+      if (preset > 0) {
+        durationEl.textContent = formatDuration(preset);
+        durationEl.dataset.durationReady = "1";
+        return;
+      }
+      void resolveAudioUrl(attachmentId, downloadFn)
+        .then((cached) => {
+          if (cached?.duration) {
+            durationEl.textContent = formatDuration(cached.duration);
+            player.setAttribute("data-duration-sec", String(Math.round(cached.duration)));
+          }
+          durationEl.dataset.durationReady = "1";
+        })
+        .catch(() => {
+          durationEl.dataset.durationReady = "1";
+        });
+    });
+  }
+
   function hydrateAudioPlayers(root, { downloadFn, onError } = {}) {
     if (!root || typeof downloadFn !== "function") return;
     root.querySelectorAll(".chat-voice-note:not([data-audio-bound])").forEach((player) => {
@@ -419,6 +510,7 @@
         });
       }
     });
+    prefetchVoiceDurations(root, { downloadFn });
   }
 
   function injectVoiceStyles() {
@@ -469,6 +561,8 @@
     formatDuration,
     isAudioAttachment,
     isVoiceOnlyBody,
+    parseE2eAttachmentDuration,
+    probeBlobDuration,
     composeHasText,
     updateComposePrimaryAction,
     createRecorder,

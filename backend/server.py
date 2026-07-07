@@ -1896,6 +1896,7 @@ def apply_security_headers(response):
         "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; "
         "font-src 'self' https://fonts.gstatic.com data:; "
         "img-src 'self' data: blob: https:; "
+        "media-src 'self' blob:; "
         "manifest-src 'self' blob:; "
         "connect-src 'self' https: "
         "wss://localhost:49494 wss://127.0.0.1:49494 "
@@ -1924,6 +1925,7 @@ def apply_security_headers(response):
             "/worker-manifest.json",
             "/worker-sw.js",
             "/worker-build.json",
+            "/chat-voice.js",
             "/worker-layout-v2.css",
             "/worker-polish.css",
             "/worker-login.css",

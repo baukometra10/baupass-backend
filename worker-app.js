@@ -3015,22 +3015,9 @@ async function downloadWorkerChatAudioBlob(attachmentId) {
   } else if (!String(outBlob.type || "").startsWith("audio/")) {
     outBlob = new Blob([await outBlob.arrayBuffer()], { type: "audio/webm" });
   }
-  let duration = 0;
-  try {
-    const probe = new Audio(URL.createObjectURL(outBlob));
-    await new Promise((resolve) => {
-      probe.addEventListener("loadedmetadata", () => {
-        duration = Number(probe.duration || 0);
-        URL.revokeObjectURL(probe.src);
-        resolve();
-      }, { once: true });
-      probe.addEventListener("error", () => {
-        URL.revokeObjectURL(probe.src);
-        resolve();
-      }, { once: true });
-    });
-  } catch {
-    /* optional */
+  let duration = window.SUPPIXChatVoice?.parseE2eAttachmentDuration?.(meta) || 0;
+  if (!duration) {
+    duration = await window.SUPPIXChatVoice?.probeBlobDuration?.(outBlob) || 0;
   }
   return { blob: outBlob, duration };
 }
@@ -12028,6 +12015,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
     const packed = await window.E2ECrypto.encryptBlob(new Uint8Array(buffer), keys, {
       filename: file.name || "upload.bin",
       mime: file.type || "application/octet-stream",
+      durationSec: Number(file.durationSec || 0),
     });
     form.append("e2e_meta", packed.meta);
     form.append("e2e_encrypted", "1");
