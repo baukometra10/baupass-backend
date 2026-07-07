@@ -13755,22 +13755,19 @@ def worker_app_me():
                 "e2eChatRequired": __import__(
                     "backend.app.platform.security.e2e_policy",
                     fromlist=["is_e2e_chat_required"],
-                ).is_e2e_chat_required(db, worker["company_id"]),
+                ).is_e2e_chat_required(db, worker["company_id"], worker_id=str(worker["id"] or "")),
+                "e2eChatReady": __import__(
+                    "backend.app.platform.security.e2e_policy",
+                    fromlist=["company_chat_e2e_keys_ready"],
+                ).company_chat_e2e_keys_ready(db, worker["company_id"], worker_id=str(worker["id"] or "")),
                 "e2eAttachmentsRequired": __import__(
                     "backend.app.platform.security.e2e_policy",
                     fromlist=["is_e2e_attachment_required"],
-                ).is_e2e_attachment_required(db, worker["company_id"]),
+                ).is_e2e_attachment_required(db, worker["company_id"], worker_id=str(worker["id"] or "")),
                 "e2eSensitiveRequired": __import__(
                     "backend.app.platform.security.e2e_policy",
                     fromlist=["is_e2e_sensitive_required"],
                 ).is_e2e_sensitive_required(db, worker["company_id"]),
-                "e2eAdminKeysReady": len([
-                    row for row in __import__(
-                        "backend.app.platform.security.e2e_identity",
-                        fromlist=["E2EIdentityService"],
-                    ).E2EIdentityService(db).list_company_chat_keys(str(worker["company_id"] or ""), worker_id=str(worker["id"] or ""))
-                    if str(row.get("entityType") or "").lower() == "user"
-                ]) > 0,
             },
         }
     )

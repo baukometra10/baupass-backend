@@ -172,8 +172,9 @@
   <script>
     const WP = window.WorkPassStorage;
     const wpGet = (key) => (WP?.getItem ? WP.getItem(key) : localStorage.getItem(key));
+    const wpSet = (key, val) => (WP?.setItem ? WP.setItem(key, val) : localStorage.setItem(key, val));
     const params = new URLSearchParams(location.search);
-    const companyId = params.get("company_id") || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "";
+    let companyId = params.get("company_id") || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "";
     const token = wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token") || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token") || "";
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
@@ -218,15 +219,38 @@
         return {};
       }
     }
+    async function ensureAdminSession() {
+      if (getAdminUserId()) return true;
+      try {
+        const res = await fetch("/api/session/bootstrap", {
+          headers: headers(),
+          credentials: "include",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data?.user?.id) return false;
+        wpSet(WP?.KEYS?.ADMIN_USER || "workpass-admin-user", JSON.stringify(data.user));
+        if (data.token) wpSet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token", data.token);
+        const cid = String(
+          data.user.preview_company_id || data.user.company_id || companyId || ""
+        ).trim();
+        if (cid) {
+          companyId = cid;
+          wpSet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company", cid);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    }
     function getAdminUserId() {
       return String(getAdminUser().id || "").trim();
     }
     let adminE2EIdentityReady = false;
+    let adminE2ERequired = false;
     let adminE2EPublicKeysCache = null;
     let adminE2EPublicKeyRowsCache = null;
     let adminE2EPublicKeysCacheKey = "";
     let adminE2EPublicKeysCacheAt = 0;
-    const ADMIN_E2E_REQUIRED = true;
     let adminChatAttachmentMetaById = {};
     const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
     const api = async (path, options = {}) => {
@@ -253,6 +277,22 @@
     const ADMIN_E2E_KEYS_TTL_MS = 60000;
     function adminE2ECryptoAvailable() {
       return typeof window.E2ECrypto !== "undefined" && Boolean(getAdminUserId());
+    }
+    async function refreshAdminE2EReadiness(workerId) {
+      if (!companyId || !workerId) {
+        adminE2ERequired = false;
+        return false;
+      }
+      try {
+        const data = await api(
+          `/api/e2e/identity/chat-readiness?company_id=${encodeURIComponent(companyId)}&worker_id=${encodeURIComponent(workerId)}`
+        );
+        adminE2ERequired = Boolean(data?.e2eRequired);
+        return Boolean(data?.keysReady);
+      } catch {
+        adminE2ERequired = false;
+        return false;
+      }
     }
     async function ensureAdminE2EIdentity() {
       if (!adminE2ECryptoAvailable()) {
@@ -330,10 +370,10 @@
       } catch {
         // ignore
       }
-      if (!workerKeys.length) {
+      if (!adminKeys.length) {
         return [];
       }
-      return [...new Set([...workerKeys, ...adminKeys])];
+      return [...new Set([...adminKeys, ...workerKeys])];
     }
     async function fetchAdminE2EPublicKeys(workerId, force = false) {
       await fetchAdminE2EPublicKeyRows(workerId, force);
@@ -344,14 +384,17 @@
       if (!text || window.E2ECrypto?.isE2EEnvelope?.(text)) {
         return text;
       }
-      if (!adminE2ECryptoAvailable()) {
-        if (ADMIN_E2E_REQUIRED) throw new Error("e2e_crypto_unavailable");
+      await refreshAdminE2EReadiness(workerId);
+      if (!adminE2ERequired) {
         return text;
+      }
+      await ensureAdminSession();
+      if (!adminE2ECryptoAvailable()) {
+        throw new Error("e2e_keys_missing");
       }
       const keys = await fetchAdminE2EChatRecipientKeys(workerId, true);
       if (!keys.length) {
-        if (ADMIN_E2E_REQUIRED) throw new Error("e2e_keys_missing");
-        return text;
+        throw new Error("e2e_keys_missing");
       }
       return await window.E2ECrypto.encryptUtf8(text, keys);
     }
@@ -378,6 +421,9 @@
       }
     }
     async function encryptAdminChatAttachment(file, workerId) {
+      if (!adminE2ERequired) {
+        return { file, fields: {}, filename: file.name || "upload.bin" };
+      }
       const keys = await fetchAdminE2EChatRecipientKeys(workerId, true);
       if (!keys.length) throw new Error("e2e_keys_missing");
       const buffer = await file.arrayBuffer();
@@ -588,6 +634,10 @@
       const quiet = Boolean(options.quiet);
       currentThreadId = threadId || "";
       currentWorkerId = workerId || "";
+      if (workerId) {
+        await refreshAdminE2EReadiness(workerId);
+        void ensureAdminE2EIdentity();
+      }
       const row = threads.find((item) => String(item.worker_id) === String(workerId));
       const name = row ? `${row.first_name || ''} ${row.last_name || ''}`.trim() : workerId;
       const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}?company_id=${encodeURIComponent(companyId)}`);
@@ -655,7 +705,7 @@
         if (file && res?.message?.id) {
           let uploadFile = file;
           let extraFields = { message_id: String(res.message.id), worker_id: currentWorkerId };
-          if (ADMIN_E2E_REQUIRED && adminE2ECryptoAvailable()) {
+          if (adminE2ERequired && adminE2ECryptoAvailable()) {
             const packed = await encryptAdminChatAttachment(file, currentWorkerId);
             uploadFile = new File([packed.file], packed.filename, { type: "application/vnd.suppix.e2e+binary" });
             extraFields = { ...extraFields, ...packed.fields };
@@ -675,15 +725,24 @@
         }
         renderThreads();
       } catch (error) {
-        setThreadMeta(error.message || String(error), { dynamic: true });
+        const msg = String(error?.message || error || "");
+        if (msg === "e2e_keys_missing") {
+          setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });
+        } else {
+          setThreadMeta(msg, { dynamic: true });
+        }
       } finally {
         sendBtn.disabled = false;
       }
     });
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
-    void window.E2ECrypto?.ensureCryptoSessionReady?.().then(() => ensureAdminE2EIdentity());
-    loadThreads().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
+    void (async () => {
+      await ensureAdminSession();
+      await window.E2ECrypto?.ensureCryptoSessionReady?.();
+      await ensureAdminE2EIdentity();
+      await loadThreads();
+    })().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
   </script>
 </body>
 </html>

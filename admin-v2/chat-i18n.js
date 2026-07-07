@@ -28,6 +28,7 @@ window.AdminChatI18n = {
     uiLang: "Sprache",
     yesterday: "Gestern",
     e2eDecryptFailed: "Verschlüsselte Nachricht — Entschlüsselung fehlgeschlagen.",
+    e2eKeysMissing: "E2E-Schlüssel werden vorbereitet — Mitarbeiter-App einmal öffnen, dann erneut senden.",
   },
   en: {
     pageSubtitle: "Employee chat",
@@ -57,6 +58,7 @@ window.AdminChatI18n = {
     uiLang: "Language",
     yesterday: "Yesterday",
     e2eDecryptFailed: "Encrypted message — decryption failed.",
+    e2eKeysMissing: "E2E keys are being prepared — open the employee app once, then try again.",
   },
   ar: {
     pageSubtitle: "دردشة الموظفين",

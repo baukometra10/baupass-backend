@@ -109,10 +109,45 @@ def register_e2e_blueprint(flask_app) -> None:
     def admin_list_e2e_public_keys():
         cid = company_id_from_user()
         if not cid:
+            cid = str(request.args.get("company_id") or request.args.get("companyId") or "").strip() or None
+        if not cid:
             return forbidden_company()
         worker_id = str(request.args.get("worker_id") or "").strip() or None
         keys = E2EIdentityService(get_db()).list_company_chat_keys(cid, worker_id=worker_id)
         return jsonify({"publicKeys": keys})
+
+    @e2e_bp.get("/e2e/identity/chat-readiness")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_e2e_readiness():
+        from backend.app.platform.security.e2e_policy import (
+            company_chat_e2e_keys_ready,
+            is_e2e_chat_required,
+        )
+
+        cid = company_id_from_user()
+        if not cid:
+            cid = str(request.args.get("company_id") or request.args.get("companyId") or "").strip() or None
+        if not cid:
+            return forbidden_company()
+        worker_id = str(request.args.get("worker_id") or "").strip() or None
+        db = get_db()
+        keys = E2EIdentityService(db).list_company_chat_keys(cid, worker_id=worker_id)
+        admin_count = sum(1 for k in keys if str(k.get("entityType") or "").lower() == "user")
+        worker_count = sum(
+            1 for k in keys
+            if str(k.get("entityType") or "").lower() == "worker"
+            and (not worker_id or str(k.get("entityId") or "") == worker_id)
+        )
+        ready = company_chat_e2e_keys_ready(db, cid, worker_id=worker_id)
+        return jsonify({
+            "companyId": cid,
+            "workerId": worker_id or "",
+            "keysReady": ready,
+            "e2eRequired": is_e2e_chat_required(db, cid, worker_id=worker_id),
+            "adminKeyCount": admin_count,
+            "workerKeyCount": worker_count,
+        })
 
     @e2e_bp.post("/e2e/identity/me/rotate")
     @require_worker_session

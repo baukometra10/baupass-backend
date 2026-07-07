@@ -1749,6 +1749,7 @@ let gateEventPollTimeout = null;
 let gateEventPollInFlight = false;
 let gateLastSeenEventId = "";
 let workerChatThreadId = "";
+let workerChatThreadLastError = null;
 let workerChatPollTimer = null;
 let workerE2EIdentityReady = false;
 let workerE2EPublicKeysCache = null;
@@ -10917,15 +10918,15 @@ function workerE2ECryptoAvailable() {
 }
 
 function workerE2ERequired() {
-  return lastWorkerPayload?.security?.e2eChatRequired !== false;
+  return lastWorkerPayload?.security?.e2eChatRequired === true;
 }
 
 function workerE2EAttachmentsRequired() {
-  return lastWorkerPayload?.security?.e2eAttachmentsRequired !== false;
+  return lastWorkerPayload?.security?.e2eAttachmentsRequired === true;
 }
 
 function workerE2ESensitiveRequired() {
-  return lastWorkerPayload?.security?.e2eSensitiveRequired !== false;
+  return lastWorkerPayload?.security?.e2eSensitiveRequired === true;
 }
 
 function getWorkerE2EEntityId() {
@@ -11114,6 +11115,7 @@ async function ensureWorkerChatThread(forceRefresh = false) {
     return workerChatThreadId;
   }
   const authHeaders = buildWorkerAuthHeaders();
+  let lastError = null;
   try {
     const threadsPayload = await fetchJson(`${API_BASE}/chat/threads`, {
       headers: authHeaders,
@@ -11131,8 +11133,9 @@ async function ensureWorkerChatThread(forceRefresh = false) {
         return workerChatThreadId;
       }
     }
-  } catch {
-    // fall back to creating a thread
+  } catch (error) {
+    lastError = error;
+    console.warn("[chat] Worker thread list failed:", error?.message || error);
   }
   try {
     const created = await fetchJson(`${API_BASE}/chat/threads`, {
@@ -11140,13 +11143,15 @@ async function ensureWorkerChatThread(forceRefresh = false) {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ subject: "general" }),
     });
-    workerChatThreadId = String(created?.threadId || "");
+    workerChatThreadId = String(created?.threadId || created?.thread_id || "");
     if (workerChatThreadId) {
       return workerChatThreadId;
     }
-  } catch {
-    // ignore create errors
+  } catch (error) {
+    lastError = error;
+    console.warn("[chat] Worker thread create failed:", error?.message || error);
   }
+  workerChatThreadLastError = lastError;
   return workerChatThreadId;
 }
 
@@ -11313,7 +11318,10 @@ async function loadWorkerChat(options = {}) {
     const threadId = await ensureWorkerChatThread();
     if (!threadId) {
       if (!quiet) {
-        elements.workerChatMessages.innerHTML = `<p class="muted-info">${t("workerChatUnavailable")}</p>`;
+        const hint = workerChatThreadLastError
+          ? formatWorkerApiError(workerChatThreadLastError)
+          : t("workerChatUnavailable");
+        elements.workerChatMessages.innerHTML = `<p class="muted-info">${escapeHtmlBasic(hint)}</p>`;
       }
       return;
     }
@@ -11381,7 +11389,11 @@ async function sendWorkerChatMessage() {
   try {
     let threadId = await ensureWorkerChatThread();
     if (!threadId) {
-      showWorkerNotice(t("workerChatUnavailable"));
+      showWorkerNotice(
+        workerChatThreadLastError
+          ? formatWorkerApiError(workerChatThreadLastError)
+          : t("workerChatUnavailable")
+      );
       return;
     }
     setWorkerChatComposeEnabled(false);

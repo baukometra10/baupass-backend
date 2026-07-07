@@ -339,7 +339,7 @@ class ChatService:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
-        if is_e2e_chat_required(self.db, company_id):
+        if is_e2e_chat_required(self.db, company_id, worker_id=worker_id):
             assert_e2e_message_body(plain_body)
         stored_body = maybe_encrypt_field(plain_body, company_id=company_id)
         encrypted_preview = is_e2e_envelope(plain_body)
@@ -438,7 +438,7 @@ class ChatService:
     ) -> dict[str, Any]:
         from backend.server import CHAT_UPLOAD_DIR, _stored_file_path
 
-        if is_e2e_attachment_required(self.db, company_id):
+        if is_e2e_attachment_required(self.db, company_id, worker_id=worker_id):
             assert_e2e_attachment(
                 e2e_meta=str(e2e_meta or ""),
                 content_type=str(content_type or ""),

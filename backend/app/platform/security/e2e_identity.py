@@ -167,7 +167,7 @@ class E2EIdentityService:
             FROM {self.TABLE} e
             INNER JOIN users u ON e.entity_type = 'user' AND e.entity_id = u.id
             WHERE u.company_id = ?
-              AND lower(trim(coalesce(u.role, ''))) IN ('company-admin', 'admin', 'manager')
+              AND lower(trim(coalesce(u.role, ''))) IN ('company-admin', 'admin', 'manager', 'superadmin')
             """,
             (cid,),
         ).fetchall()
@@ -204,7 +204,9 @@ class E2EIdentityService:
                 f"""
                 SELECT id, entity_type, entity_id, company_id, public_key_spki_b64, algorithm, created_at, updated_at
                 FROM {self.TABLE}
-                WHERE entity_type = 'worker' AND entity_id = ? AND company_id = ?
+                WHERE entity_type = 'worker' AND entity_id = ?
+                ORDER BY CASE WHEN company_id = ? THEN 0 ELSE 1 END
+                LIMIT 1
                 """,
                 (wid, cid),
             ).fetchone()

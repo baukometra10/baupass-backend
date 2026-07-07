@@ -45,22 +45,45 @@ def company_e2e_settings(db, company_id: str) -> dict[str, Any]:
         return {}
 
 
-def is_e2e_chat_required(db, company_id: str) -> bool:
+def company_chat_e2e_keys_ready(db, company_id: str, worker_id: str | None = None) -> bool:
+    """True when admin + worker public keys exist so client E2E can work."""
+    cid = str(company_id or "").strip()
+    if not cid or db is None:
+        return False
+    from .e2e_identity import E2EIdentityService
+
+    keys = E2EIdentityService(db).list_company_chat_keys(cid, worker_id=worker_id)
+    has_user = any(str(k.get("entityType") or "").lower() == "user" for k in keys)
+    if not worker_id:
+        return has_user
+    wid = str(worker_id or "").strip()
+    has_worker = any(
+        str(k.get("entityType") or "").lower() == "worker"
+        and str(k.get("entityId") or "") == wid
+        for k in keys
+    )
+    return has_user and has_worker
+
+
+def is_e2e_chat_required(db, company_id: str, worker_id: str | None = None) -> bool:
     overrides = company_e2e_settings(db, company_id)
     if overrides.get("e2e_chat_enabled") is False:
         return False
-    if overrides.get("e2e_chat_enabled") is True:
-        return True
-    return e2e_chat_required()
+    policy_on = True if overrides.get("e2e_chat_enabled") is True else e2e_chat_required()
+    if not policy_on:
+        return False
+    # Enforce client E2E only when both sides have registered keys (no chicken-and-egg).
+    return company_chat_e2e_keys_ready(db, company_id, worker_id=worker_id)
 
 
-def is_e2e_attachment_required(db, company_id: str) -> bool:
+def is_e2e_attachment_required(db, company_id: str, worker_id: str | None = None) -> bool:
     overrides = company_e2e_settings(db, company_id)
     if overrides.get("e2e_attachments_required") is False:
         return False
-    if overrides.get("e2e_attachments_required") is True:
-        return True
-    return e2e_attachments_required()
+    policy_on = True if overrides.get("e2e_attachments_required") is True else e2e_attachments_required()
+    if not policy_on:
+        return False
+    return company_chat_e2e_keys_ready(db, company_id, worker_id=worker_id)
 
 
 def is_e2e_sensitive_required(db, company_id: str) -> bool:
