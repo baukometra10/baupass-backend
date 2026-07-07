@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260707m";
+const WORKER_BUILD = "20260707n";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -173,6 +173,25 @@ function resolvePushTargetUrl(data, tag) {
   return "/emp-app.html";
 }
 
+function buildPushNotificationOptions(data, tag, targetUrl) {
+  const displayTag = String(data.notificationTag || data.tag || `baupass-${Date.now()}`).trim();
+  const logicalTag = String(data.tag || tag || "baupass-notification").trim();
+  return {
+    body: data.body || "",
+    tag: displayTag,
+    icon: "/branding/suppix-icon-192.png",
+    badge: "/branding/suppix-icon-192.png",
+    lang: "de",
+    dir: "auto",
+    silent: false,
+    renotify: true,
+    requireInteraction: logicalTag === "worker-chat" || logicalTag.startsWith("leave-"),
+    vibrate: [200, 100, 200],
+    timestamp: Number(data.timestamp) || Date.now(),
+    data: { url: targetUrl, tag: logicalTag },
+  };
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -183,15 +202,7 @@ self.addEventListener("push", (event) => {
   const title = data.title || "SUPPIX";
   const tag = data.tag || "baupass-notification";
   const defaultUrl = resolvePushTargetUrl(data, tag);
-  const options = {
-    body: data.body || "",
-    tag,
-    icon: "/branding/suppix-icon-192.png",
-    badge: "/branding/suppix-icon-192.png",
-    vibrate: [200, 100, 200],
-    data: { url: defaultUrl },
-    actions: data.actions || []
-  };
+  const options = buildPushNotificationOptions(data, tag, defaultUrl);
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
@@ -241,9 +252,11 @@ self.addEventListener("message", (event) => {
     setTimeout(() => {
       self.registration.showNotification("Vergessen auszustempeln?", {
         body: `${workerName || "Hallo"} – deine Schicht endet gleich. Bitte auschecken!`,
-        tag: "checkout-reminder",
+        tag: `checkout-reminder-${Date.now()}`,
         icon: "/branding/suppix-icon-192.png",
         badge: "/branding/suppix-icon-192.png",
+        silent: false,
+        renotify: true,
         vibrate: [300, 150, 300],
         data: { url: "/worker-install.html?launch=1" }
       });

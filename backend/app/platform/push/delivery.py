@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import os
+import secrets
+import time
 from typing import Any
 
 
@@ -83,6 +85,7 @@ def deliver_worker_push(
                 ).fetchall()
                 for sub in subs:
                     try:
+                        notification_tag = f"{tag}-{secrets.token_hex(6)}"
                         webpush(
                             subscription_info={
                                 "endpoint": sub["endpoint"],
@@ -93,6 +96,8 @@ def deliver_worker_push(
                                     "title": title,
                                     "body": body,
                                     "tag": tag,
+                                    "notificationTag": notification_tag,
+                                    "timestamp": int(time.time() * 1000),
                                     "route": payload.get("route"),
                                     "deeplink": payload.get("deeplink"),
                                     "url": payload.get("url"),
@@ -100,6 +105,10 @@ def deliver_worker_push(
                             ),
                             vapid_private_key=vapid_private_key,
                             vapid_claims={"sub": vapid_email},
+                            headers={
+                                "Urgency": "high",
+                                "TTL": "86400",
+                            },
                         )
                         web_push += 1
                     except Exception:
