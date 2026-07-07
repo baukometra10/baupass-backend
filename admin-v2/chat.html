@@ -45,17 +45,39 @@
     .chat-main-head { flex-shrink:0; padding:0.85rem 1rem 0.65rem; border-bottom:1px solid var(--border); }
     .chat-main-head h2 { margin:0 0 0.25rem; font-size:1.15rem; }
     .chat-main-head p { margin:0; }
-    .message-list { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding:0.85rem 1rem; }
-    .bubble { padding:0.75rem; border-radius:14px; background:rgba(255,255,255,0.04); border:1px solid var(--border); max-width:min(92%, 560px); }
-    .bubble.admin { align-self:flex-end; background:rgba(22,78,99,0.24); border-color:rgba(94,234,212,0.18); }
+    .message-list { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:0.12rem; padding:0.75rem 1rem; background:linear-gradient(180deg, rgba(8,12,18,.35), rgba(8,12,18,.12)); }
+    .chat-date-sep { display:flex; justify-content:center; margin:0.45rem 0 0.25rem; }
+    .chat-date-sep span { font-size:0.72rem; color:var(--muted); background:rgba(20,28,40,.92); border:1px solid var(--border); padding:0.24rem 0.7rem; border-radius:999px; }
+    .bubble { padding:0.42rem 0.62rem 0.34rem; border-radius:12px; border:1px solid transparent; max-width:min(78%, 520px); box-shadow:0 1px 1px rgba(0,0,0,.12); }
+    .bubble.grouped { margin-top:-0.12rem; border-radius:10px; }
+    .bubble.admin { align-self:flex-end; background:#0f766e; border-color:rgba(94,234,212,.22); color:#ecfeff; }
+    .bubble.admin.tail { border-end-end-radius:4px; }
     .bubble.admin.is-pending { opacity: 0.72; }
-    .bubble.worker { align-self:flex-start; }
-    .bubble-meta { display:flex; justify-content:flex-end; gap:0.4rem; margin-top:0.45rem; font-size:0.75rem; color:var(--muted); }
-    .bubble-read.is-read { color:#5eead4; font-weight:600; }
+    .bubble.worker { align-self:flex-start; background:#1e293b; border-color:rgba(148,163,184,.18); }
+    .bubble.worker.tail { border-end-start-radius:4px; }
+    .bubble-sender { display:none; }
+    .bubble-body { white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+    .bubble-meta { display:flex; justify-content:flex-end; align-items:center; gap:0.28rem; margin-top:0.22rem; font-size:0.68rem; color:rgba(226,232,240,.72); }
+    .bubble.admin .bubble-meta { color:rgba(236,254,255,.78); }
+    .chat-ticks { letter-spacing:-0.14em; font-size:0.78rem; line-height:1; }
+    .chat-ticks.is-read { color:#7dd3fc; }
+    .thread-time { flex-shrink:0; font-size:0.68rem; color:var(--muted); }
+    .thread-unread { flex-shrink:0; min-width:1.2rem; height:1.2rem; padding:0 0.35rem; border-radius:999px; background:#0d9488; color:#fff; font-size:0.66rem; font-weight:800; display:grid; place-items:center; }
+    .thread-item.has-unread .thread-name { font-weight:800; }
+    .thread-item.has-unread .thread-preview { color:var(--text); font-weight:600; }
+    .chat-main-head-inner { display:flex; align-items:center; gap:0.75rem; min-width:0; }
+    .chat-head-avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; background:linear-gradient(135deg,#5eead4,#93c5fd); flex-shrink:0; }
+    .chat-head-avatar.hidden { display:none; }
+    .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); }
+    .chat-compose-bar { display:flex; align-items:flex-end; gap:0.45rem; }
+    .chat-compose-attach { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--muted); cursor:pointer; flex-shrink:0; }
+    .chat-compose-attach:hover { color:var(--accent); border-color:rgba(94,234,212,.35); }
+    .chat-compose-bar textarea { flex:1; min-width:0; min-height:42px; max-height:120px; resize:none; border-radius:22px; padding:0.62rem 0.85rem; }
+    .chat-send-btn { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; border:none; background:#0f766e; color:#ecfeff; cursor:pointer; flex-shrink:0; }
+    .chat-send-btn:disabled { opacity:0.55; cursor:not-allowed; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
     textarea, input, button { font:inherit; }
     textarea, input[type="search"], input[type="text"] { width:100%; padding:0.65rem 0.75rem; border-radius:10px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); }
-    .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.75rem 1rem 0.85rem; display:grid; gap:0.65rem; background:var(--panel); }
-    .chat-compose textarea { min-height:72px; max-height:120px; resize:none; }
     .actions { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center; }
     button { padding:0.65rem 0.9rem; border-radius:10px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; }
     button.primary { background:#164e63; border-color:#5eead4; }
@@ -154,25 +176,34 @@
       </section>
       <section class="panel chat-main">
         <div class="chat-main-head">
-          <h2 data-aci18n="conversationTitle">Unterhaltung</h2>
-          <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
+          <div class="chat-main-head-inner">
+            <span id="chatHeadAvatar" class="chat-head-avatar hidden" aria-hidden="true"></span>
+            <div style="min-width:0;">
+              <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
+              <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
+            </div>
+          </div>
         </div>
         <div id="messageList" class="message-list">
           <p class="muted" id="pickWorkerHint" data-aci18n="pickWorkerHint">Wählen Sie links einen Mitarbeiter aus.</p>
         </div>
         <div class="chat-compose">
-          <div class="actions">
-            <input id="chatFile" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-          </div>
-          <textarea id="chatReply" data-aci18n="replyPh" data-aci18n-attr="placeholder" placeholder="Antwort schreiben…" rows="3"></textarea>
-          <div class="actions">
-            <button type="button" class="primary" id="sendReplyBtn" data-aci18n="send">Senden</button>
+          <div class="chat-compose-bar">
+            <label class="chat-compose-attach" for="chatFile" title="Anhang">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="sr-only">Anhang</span>
+            </label>
+            <input id="chatFile" class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+            <textarea id="chatReply" data-aci18n="replyPh" data-aci18n-attr="placeholder" placeholder="Antwort schreiben…" rows="1"></textarea>
+            <button type="button" class="chat-send-btn" id="sendReplyBtn" data-aci18n="send" data-aci18n-attr="aria-label" aria-label="Senden">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
         </div>
       </section>
     </main>
   </div>
-  <script src="/admin-v2/chat-i18n.js?v=20260707r"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260707wa"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -215,6 +246,7 @@
     window.refreshAdminChatDynamicUi = function refreshAdminChatDynamicUi() {
       renderThreads();
       if (!currentThreadId) {
+        updateChatHead("");
         const list = document.getElementById("messageList");
         if (list && !currentWorkerId) {
           list.innerHTML = `<p class="muted" id="pickWorkerHint">${window.adminChatT("pickWorkerHint")}</p>`;
@@ -556,27 +588,117 @@
         loadChatImagePreview(img);
       });
     }
-    function formatChatTimestamp(value) {
+    function formatBubbleTime(value) {
       const raw = String(value || "").trim();
       if (!raw) return "";
       const date = new Date(raw);
       if (Number.isNaN(date.getTime())) return raw;
-      const timeStr = date.toLocaleTimeString(chatLocale(), { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleTimeString(chatLocale(), { hour: "2-digit", minute: "2-digit" });
+    }
+    function chatDayKey(value) {
+      const date = new Date(String(value || ""));
+      if (Number.isNaN(date.getTime())) return "";
+      return date.toDateString();
+    }
+    function formatChatDayLabel(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return raw;
       const now = new Date();
-      if (date.toDateString() === now.toDateString()) return timeStr;
+      if (date.toDateString() === now.toDateString()) return window.adminChatT("chatToday");
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
-      if (date.toDateString() === yesterday.toDateString()) return `${window.adminChatT("yesterday")}, ${timeStr}`;
-      return `${date.toLocaleDateString(chatLocale(), { day: "2-digit", month: "2-digit", year: "numeric" })}, ${timeStr}`;
+      if (date.toDateString() === yesterday.toDateString()) return window.adminChatT("yesterday");
+      return date.toLocaleDateString(chatLocale(), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
+    }
+    function formatThreadListTime(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return "";
+      const now = new Date();
+      if (date.toDateString() === now.toDateString()) {
+        return date.toLocaleTimeString(chatLocale(), { hour: "2-digit", minute: "2-digit" });
+      }
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      if (date.toDateString() === yesterday.toDateString()) return window.adminChatT("yesterday");
+      return date.toLocaleDateString(chatLocale(), { day: "2-digit", month: "2-digit", year: "2-digit" });
+    }
+    function shouldGroupChatMessages(prev, next) {
+      if (!prev || !next) return false;
+      if (String(prev.senderType || "") !== String(next.senderType || "")) return false;
+      const a = new Date(prev.createdAt || 0).getTime();
+      const b = new Date(next.createdAt || 0).getTime();
+      if (Number.isNaN(a) || Number.isNaN(b)) return false;
+      return Math.abs(b - a) < 5 * 60 * 1000;
+    }
+    function chatReadTicks(msg) {
+      if (String(msg.senderType || "") !== "admin") return "";
+      const read = Boolean(msg.readByRecipient);
+      const label = read ? window.adminChatT("read") : window.adminChatT("delivered");
+      return `<span class="chat-ticks${read ? " is-read" : ""}" aria-label="${escapeAttr(label)}">${read ? "✓✓" : "✓"}</span>`;
+    }
+    function threadPreviewText(row) {
+      if (!row?.hasThread) return window.adminChatT("newChat");
+      const preview = String(row.last_message_preview || "").trim();
+      if (!preview) return row.subject || "general";
+      if (preview === "encrypted") return window.adminChatT("encryptedPreview");
+      const prefix = row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ` : "";
+      return `${prefix}${preview.replace(/\s+/g, " ").slice(0, 72)}`;
+    }
+    function updateChatHead(name) {
+      const avatar = document.getElementById("chatHeadAvatar");
+      const title = document.getElementById("chatHeadTitle");
+      const clean = String(name || "").trim();
+      if (title) {
+        title.textContent = clean || window.adminChatT("conversationTitle");
+      }
+      if (avatar) {
+        if (clean) {
+          avatar.textContent = threadInitials(clean);
+          avatar.classList.remove("hidden");
+        } else {
+          avatar.textContent = "";
+          avatar.classList.add("hidden");
+        }
+      }
+    }
+    function scrollMessageListToBottom(force = false) {
+      const list = document.getElementById("messageList");
+      if (!list) return;
+      const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 120;
+      if (force || nearBottom) list.scrollTop = list.scrollHeight;
+    }
+    function renderMessageListHtml(messages) {
+      if (!Array.isArray(messages) || !messages.length) {
+        return `<p class="muted">${window.adminChatT("noMessages")}</p>`;
+      }
+      let html = "";
+      let lastDay = "";
+      for (let i = 0; i < messages.length; i += 1) {
+        const msg = messages[i];
+        const day = chatDayKey(msg.createdAt);
+        if (day && day !== lastDay) {
+          html += `<div class="chat-date-sep"><span>${escapeHtml(formatChatDayLabel(msg.createdAt))}</span></div>`;
+          lastDay = day;
+        }
+        const grouped = shouldGroupChatMessages(messages[i - 1], msg);
+        const tail = !shouldGroupChatMessages(msg, messages[i + 1]);
+        try {
+          html += renderChatBubble(msg, { grouped, tail });
+        } catch (error) {
+          console.warn("[admin-chat] bubble render failed:", error);
+          html += `<div class="bubble worker tail"><span class="bubble-body muted">${escapeHtml(String(error?.message || error))}</span></div>`;
+        }
+      }
+      return html;
+    }
+    function formatChatTimestamp(value) {
+      return formatBubbleTime(value);
     }
     function chatReadLabel(msg) {
-      const sender = String(msg.senderType || "");
-      if (sender === "admin") {
-        return msg.readByRecipient ? window.adminChatT("read") : window.adminChatT("delivered");
-      }
-      if (sender === "worker" && msg.readByRecipient) {
-        return window.adminChatT("read");
-      }
       return "";
     }
     function canDeleteAdminMessage(msg) {
@@ -587,12 +709,13 @@
     function messageIdPresent(msg) {
       return Boolean(String(msg.id || "").trim());
     }
-    function renderChatBubble(msg) {
+    function renderChatBubble(msg, options = {}) {
+      const { grouped = false, tail = true } = options;
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
-      const time = formatChatTimestamp(msg.createdAt);
-      const read = chatReadLabel(msg);
+      const time = formatBubbleTime(msg.createdAt);
+      const ticks = chatReadTicks(msg);
       const attach = Array.isArray(msg.attachments) && msg.attachments.length
-        ? `<div class="muted" style="margin-top:0.5rem;">${msg.attachments.map((a) => {
+        ? `<div class="muted" style="margin-top:0.35rem;">${msg.attachments.map((a) => {
             const rawId = String(a.id || "");
             const meta = String(a.e2eMeta || a.e2e_meta || "").trim();
             if (rawId && meta) adminChatAttachmentMetaById[rawId] = meta;
@@ -615,7 +738,8 @@
         ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
         : "";
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
-      return `<div class="bubble ${sideClass}"><strong>${who}</strong><br><span>${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${read ? `<span class="bubble-read${msg.readByRecipient ? " is-read" : ""}">${read}</span>` : ""}${deleteBtn}</div></div>`;
+      const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
+      return `<div class="${classes}"><strong class="bubble-sender">${who}</strong><span class="bubble-body">${body}</span>${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${deleteBtn}</div></div>`;
     }
     async function deleteAdminChatMessage(messageId) {
       if (!messageId || !currentWorkerId) return;
@@ -631,18 +755,24 @@
       host.innerHTML = rows.length
         ? rows.map((row) => {
             const name = threadDisplayName(row);
-            const meta = row.hasThread ? (row.subject || "general") : window.adminChatT("newChat");
+            const preview = threadPreviewText(row);
+            const time = formatThreadListTime(row.last_message_at || row.updated_at);
+            const unread = Number(row.unread_count || 0);
             const active = currentWorkerId && String(row.worker_id) === String(currentWorkerId) ? " is-active" : "";
             const loading = openingThreadWorkerId && String(row.worker_id) === String(openingThreadWorkerId) ? " is-loading" : "";
+            const unreadClass = unread > 0 ? " has-unread" : "";
             const badge = row.badge_id ? `#${row.badge_id}` : "";
-            return `<button type="button" class="thread-item${active}${loading}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
+            return `<button type="button" class="thread-item${active}${loading}${unreadClass}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
               <span class="thread-avatar" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
               <span class="thread-body">
                 <span class="thread-top">
                   <span class="thread-name">${escapeHtml(name)}</span>
-                  ${badge ? `<span class="thread-badge">${escapeHtml(badge)}</span>` : ""}
+                  <span style="display:flex;align-items:center;gap:0.35rem;">
+                    ${time ? `<span class="thread-time">${escapeHtml(time)}</span>` : ""}
+                    ${unread > 0 ? `<span class="thread-unread">${unread > 99 ? "99+" : unread}</span>` : (badge ? `<span class="thread-badge">${escapeHtml(badge)}</span>` : "")}
+                  </span>
                 </span>
-                <span class="thread-preview">${escapeHtml(meta)}</span>
+                <span class="thread-preview">${escapeHtml(preview)}</span>
               </span>
             </button>`;
           }).join("")
@@ -672,6 +802,7 @@
       const row = threads.find((item) => String(item.worker_id) === requestedWorkerId);
       const name = row ? threadDisplayName(row) : requestedWorkerId;
       lastThreadMetaName = name || "";
+      updateChatHead(name);
       setThreadMeta(window.adminChatT("chatWith", { name }), { dynamic: true });
       const list = document.getElementById("messageList");
       if (list) {
@@ -730,21 +861,15 @@
         const messages = await prepareAdminChatMessagesForDisplay(rawMessages);
         if (!quiet) {
           lastThreadMetaName = name || "";
+          updateChatHead(name);
           setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
         }
         const list = document.getElementById("messageList");
-        list.innerHTML = messages.length
-          ? messages.map((msg) => {
-              try {
-                return renderChatBubble(msg);
-              } catch (error) {
-                console.warn("[admin-chat] bubble render failed:", error);
-                return `<div class="bubble worker"><strong>${window.adminChatT("senderWorker")}</strong><br><span class="muted">${escapeHtml(String(error?.message || error))}</span></div>`;
-              }
-            }).join("")
-          : `<p class="muted">${window.adminChatT("noMessages")}</p>`;
-        list.scrollTop = list.scrollHeight;
+        list.innerHTML = renderMessageListHtml(messages);
+        scrollMessageListToBottom(!quiet);
         hydrateChatImagePreviews();
+        const activeRow = threads.find((item) => String(item.worker_id) === String(workerId));
+        if (activeRow) activeRow.unread_count = 0;
         renderThreads();
       } catch (error) {
         if (!quiet) {
@@ -767,6 +892,16 @@
       }, CHAT_POLL_MS);
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
+    const chatReplyInput = document.getElementById("chatReply");
+    if (chatReplyInput && !chatReplyInput.dataset.bound) {
+      chatReplyInput.dataset.bound = "1";
+      chatReplyInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          document.getElementById("sendReplyBtn")?.click();
+        }
+      });
+    }
     document.getElementById("messageList").addEventListener("click", (event) => {
       const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
       if (deleteBtn) {
@@ -807,8 +942,8 @@
           body: draftBody,
           createdAt: new Date().toISOString(),
           readByRecipient: false,
-        }).replace('class="bubble admin"', 'class="bubble admin is-pending"'));
-        list.scrollTop = list.scrollHeight;
+        }, { grouped: false, tail: true }).replace('class="bubble admin tail"', 'class="bubble admin tail is-pending"'));
+        scrollMessageListToBottom(true);
       }
       try {
         const outboundBody = await encryptAdminChatBody(draftBody, currentWorkerId);
@@ -837,6 +972,9 @@
         if (row) {
           row.hasThread = true;
           row.id = currentThreadId;
+          row.last_message_preview = draftBody.slice(0, 120);
+          row.last_message_sender_type = "admin";
+          row.last_message_at = new Date().toISOString();
         }
         renderThreads();
       } catch (error) {

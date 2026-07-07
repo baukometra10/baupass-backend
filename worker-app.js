@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707r";
+const WORKER_BUILD_TAG = "20260707wa";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -1125,34 +1125,70 @@ function formatNotificationTimestamp(value) {
 }
 
 function formatChatTimestamp(value) {
+  return formatWorkerBubbleTime(value);
+}
+
+function formatWorkerBubbleTime(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
   const date = new Date(raw);
   if (Number.isNaN(date.getTime())) return raw;
   const locale = getWorkerLang() === "en" ? "en-GB" : "de-DE";
-  const timeStr = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+}
+
+function workerChatDayKey(value) {
+  const date = new Date(String(value || ""));
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toDateString();
+}
+
+function formatWorkerChatDayLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
   const now = new Date();
   if (date.toDateString() === now.toDateString()) {
-    return timeStr;
+    return t("chatToday");
   }
   const yesterday = new Date(now);
   yesterday.setDate(yesterday.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) {
-    return `${t("chatYesterday")}, ${timeStr}`;
+    return t("chatYesterday");
   }
-  const dateStr = date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" });
-  return `${dateStr}, ${timeStr}`;
+  const locale = getWorkerLang() === "en" ? "en-GB" : "de-DE";
+  return date.toLocaleDateString(locale, { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function workerChatReadLabel(msg, side) {
+function shouldGroupWorkerChatMessages(prev, next) {
+  if (!prev || !next) return false;
+  if (workerChatSenderSide(prev) !== workerChatSenderSide(next)) return false;
+  const a = new Date(prev.createdAt || prev.created_at || 0).getTime();
+  const b = new Date(next.createdAt || next.created_at || 0).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return Math.abs(b - a) < 5 * 60 * 1000;
+}
+
+function workerChatReadTicks(msg, side) {
   if (side !== "mine") {
     return "";
   }
   const read = msg.readByRecipient === true || msg.read_by_recipient === true;
-  if (read) {
-    return `✓✓ ${t("workerChatRead")}`;
+  return `<span class="worker-chat-ticks${read ? " is-read" : ""}" aria-hidden="true">${read ? "✓✓" : "✓"}</span>`;
+}
+
+function scrollWorkerChatToBottom(force = false) {
+  const host = elements.workerChatMessages;
+  if (!host) return;
+  const nearBottom = host.scrollHeight - host.scrollTop - host.clientHeight < 120;
+  if (force || nearBottom) {
+    host.scrollTop = host.scrollHeight;
   }
-  return `✓ ${t("workerChatDelivered")}`;
+}
+
+function workerChatReadLabel(msg, side) {
+  return "";
 }
 
 function workerChatSenderSide(msg) {
@@ -2565,17 +2601,24 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar{display:flex;align-items:flex-end;gap:8px}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-compose-bar textarea{flex:1;min-width:0;min-height:46px;max-height:120px;border-radius:22px;font-size:1rem}",
   "body.worker-loaded.worker-feature-tab-active #chatCard .worker-chat-send-btn{display:inline-flex;align-items:center;justify-content:center;width:46px;height:46px;border:none;border-radius:50%;background:#0a57c0;color:#fff}",
-  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:12px}",
+  "#chatCard .worker-chat-messages{display:flex;flex-direction:column;gap:4px;padding:8px 10px;background:linear-gradient(180deg,#f8fafc,#eef2f7)}",
+  "#chatCard .worker-chat-date-sep{display:flex;justify-content:center;margin:8px 0 4px}",
+  "#chatCard .worker-chat-date-sep span{font-size:.72rem;color:#64748b;background:#fff;border:1px solid rgba(100,116,139,.22);padding:.22rem .7rem;border-radius:999px}",
   "#chatCard .worker-chat-row{display:flex;flex-direction:column;width:100%;gap:4px}",
+  "#chatCard .worker-chat-row.is-grouped{margin-top:-4px}",
+  "#chatCard .worker-chat-row.is-grouped .worker-chat-sender{display:none}",
   "#chatCard .worker-chat-row.is-company{align-items:flex-start;padding-inline-end:12%}",
   "#chatCard .worker-chat-row.is-mine{align-items:flex-end;padding-inline-start:12%}",
   "#chatCard .worker-chat-sender{font-size:.72rem;font-weight:800;letter-spacing:.03em;text-transform:uppercase;padding:0 6px}",
   "#chatCard .worker-chat-row.is-company .worker-chat-sender{color:#c2410c}",
   "#chatCard .worker-chat-row.is-mine .worker-chat-sender{color:#1d4ed8}",
   "#chatCard .worker-chat-row.is-pending .worker-chat-bubble{opacity:.72}",
-  "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:12px 14px 10px;border-radius:16px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 2px 10px rgba(15,23,42,.06)}",
-  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12;border-end-end-radius:5px}",
-  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a;border-end-start-radius:5px}",
+  "#chatCard .worker-chat-bubble{max-width:min(92%,340px);width:fit-content;padding:10px 12px 8px;border-radius:14px;border-width:1.5px;word-break:break-word;font-size:.98rem;line-height:1.45;box-shadow:0 1px 2px rgba(15,23,42,.08)}",
+  "#chatCard .worker-chat-bubble.is-grouped{border-radius:10px}",
+  "#chatCard .worker-chat-bubble.is-company{background:#fff7ed;border:1.5px solid #fdba74;color:#7c2d12}",
+  "#chatCard .worker-chat-bubble.is-company.is-tail{border-end-end-radius:4px}",
+  "#chatCard .worker-chat-bubble.is-mine{background:#eff6ff;border:1.5px solid #93c5fd;color:#1e3a8a}",
+  "#chatCard .worker-chat-bubble.is-mine.is-tail{border-end-start-radius:4px}",
   "#chatCard .worker-chat-body{font-size:1rem;line-height:1.5;font-weight:500;unicode-bidi:plaintext}",
   "#chatCard.worker-chat-rtl .worker-chat-messages,#chatCard.worker-chat-rtl .worker-chat-compose{direction:rtl}",
   "#chatCard.worker-chat-rtl .worker-chat-body{text-align:right}",
@@ -2583,10 +2626,11 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard.worker-chat-rtl .worker-chat-meta{justify-content:flex-start}",
   "#chatCard.worker-chat-rtl .worker-chat-compose-bar{direction:rtl}",
   "#chatCard.worker-chat-rtl .worker-chat-attachment-btn{text-align:right}",
-  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;gap:6px;margin-top:8px;font-size:.78rem;color:#64748b}",
+  "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:6px;font-size:.72rem;color:#64748b}",
   "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:#9a3412}",
   "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:#2563eb}",
-  "#chatCard .worker-chat-read.is-read{color:#059669;font-weight:700}",
+  "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1}",
+  "#chatCard .worker-chat-ticks.is-read{color:#059669;font-weight:700}",
   "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%}",
   "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#e8f4ff;color:#0a57c0;font-size:.72rem;font-weight:700;text-align:center}",
   "body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}",
@@ -11429,19 +11473,20 @@ function appendOptimisticWorkerChatBubble(text, pendingId) {
   }
   const body = escapeHtmlBasic(String(text || ""));
   const bubble = document.createElement("div");
-  bubble.className = "worker-chat-row is-mine is-pending";
+  bubble.className = "worker-chat-row is-mine is-pending is-tail";
   bubble.dataset.pendingId = pendingId;
   bubble.innerHTML = `
     <span class="worker-chat-sender">${escapeHtmlBasic(t("workerChatFromYou"))}</span>
-    <div class="worker-chat-bubble is-mine">
+    <div class="worker-chat-bubble is-mine is-tail">
       <div class="worker-chat-body">${body}</div>
       <div class="worker-chat-meta">
         <span class="worker-chat-time">${escapeHtmlBasic(t("workerChatSending") || "…")}</span>
+        <span class="worker-chat-ticks" aria-hidden="true">✓</span>
       </div>
     </div>
   `;
   elements.workerChatMessages.appendChild(bubble);
-  elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+  scrollWorkerChatToBottom(true);
 }
 
 function removeOptimisticWorkerChatBubble(pendingId) {
@@ -11636,7 +11681,8 @@ function renderWorkerChatAttachmentHtml(attachments) {
     .join("")}</div>`;
 }
 
-function renderWorkerChatMessages(messages) {
+function renderWorkerChatMessages(messages, options = {}) {
+  const quiet = Boolean(options.quiet);
   if (!elements.workerChatMessages) {
     return;
   }
@@ -11649,42 +11695,50 @@ function renderWorkerChatMessages(messages) {
     if (!elements.workerChatMessages) {
       return;
     }
-    elements.workerChatMessages.innerHTML = displayMessages
-    .map((msg) => {
+    let html = "";
+    let lastDay = "";
+    for (let i = 0; i < displayMessages.length; i += 1) {
+      const msg = displayMessages[i];
+      const day = workerChatDayKey(msg.createdAt || msg.created_at);
+      if (day && day !== lastDay) {
+        html += `<div class="worker-chat-date-sep"><span>${escapeHtmlBasic(formatWorkerChatDayLabel(msg.createdAt || msg.created_at))}</span></div>`;
+        lastDay = day;
+      }
       const side = workerChatSenderSide(msg);
+      const grouped = shouldGroupWorkerChatMessages(displayMessages[i - 1], msg);
+      const tail = !shouldGroupWorkerChatMessages(msg, displayMessages[i + 1]);
       const senderLabel = side === "mine" ? t("workerChatFromYou") : getWorkerBrandTitle();
       const body = escapeHtmlBasic(String(msg.body || ""));
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments);
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
-      const time = formatChatTimestamp(msg.createdAt || msg.created_at);
-      const readLabel = workerChatReadLabel(msg, side);
+      const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
+      const ticksHtml = workerChatReadTicks(msg, side);
       const read = msg.readByRecipient === true || msg.read_by_recipient === true;
       const messageId = String(msg.id || "");
       const deleteHtml = side === "mine" && messageId && !read
         ? `<button type="button" class="worker-chat-delete-btn" data-chat-delete-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("workerChatDelete"))}">🗑</button>`
         : "";
-      const readHtml = readLabel
-        ? `<span class="worker-chat-read${read ? " is-read" : ""}">${escapeHtmlBasic(readLabel)}</span>`
-        : "";
-      return `
-        <div class="worker-chat-row is-${side}">
+      const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
+      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
+      html += `
+        <div class="${rowClasses}">
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
-          <div class="worker-chat-bubble is-${side}">
+          <div class="${bubbleClasses}">
             ${bodyHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
-              ${readHtml}
+              ${ticksHtml}
               ${deleteHtml}
             </div>
           </div>
         </div>
       `;
-    })
-    .join("");
+    }
+    elements.workerChatMessages.innerHTML = html;
     bindWorkerChatMessageActions();
     applyWorkerChatDirection();
-    elements.workerChatMessages.scrollTop = elements.workerChatMessages.scrollHeight;
+    scrollWorkerChatToBottom(!quiet);
   })();
 }
 
@@ -11808,7 +11862,7 @@ async function loadWorkerChat(options = {}) {
       return;
     }
     workerChatLastFingerprint = fingerprint;
-    renderWorkerChatMessages(messages);
+    renderWorkerChatMessages(messages, { quiet });
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";

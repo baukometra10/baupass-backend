@@ -167,6 +167,54 @@ class ChatService:
         ).fetchall()
         return [_json_safe_row(row) for row in rows]
 
+    def _message_preview_text(self, body: Any, company_id: str) -> str:
+        raw = maybe_decrypt_field(body, company_id=company_id) if body else ""
+        text = str(raw or "").strip()
+        if not text:
+            return ""
+        if is_e2e_envelope(text):
+            return "encrypted"
+        return text[:120]
+
+    def _fetch_thread_summaries(self, company_id: str) -> dict[str, dict[str, Any]]:
+        rows = self.db.execute(
+            """
+            SELECT
+                t.id AS thread_id,
+                (
+                    SELECT COUNT(*)
+                    FROM chat_messages wm
+                    WHERE wm.thread_id = t.id
+                      AND wm.sender_type = 'worker'
+                      AND wm.created_at > COALESCE(NULLIF(t.last_admin_read_at, ''), '1970-01-01T00:00:00Z')
+                ) AS unread_count,
+                lm.body AS last_body,
+                lm.sender_type AS last_sender_type,
+                lm.created_at AS last_message_at
+            FROM chat_threads t
+            LEFT JOIN chat_messages lm ON lm.thread_id = t.id
+                AND lm.created_at = (
+                    SELECT MAX(m2.created_at)
+                    FROM chat_messages m2
+                    WHERE m2.thread_id = t.id
+                )
+            WHERE t.company_id = ?
+            """,
+            (company_id,),
+        ).fetchall()
+        summaries: dict[str, dict[str, Any]] = {}
+        for row in rows:
+            thread_id = str(row["thread_id"] or "")
+            if not thread_id:
+                continue
+            summaries[thread_id] = {
+                "last_message_preview": self._message_preview_text(row["last_body"], company_id),
+                "last_message_sender_type": str(row["last_sender_type"] or ""),
+                "last_message_at": row["last_message_at"],
+                "unread_count": int(row["unread_count"] or 0),
+            }
+        return summaries
+
     def list_admin_chat_directory(self, company_id: str) -> list[dict[str, Any]]:
         """All active workers for admin chat, with optional existing thread metadata."""
         workers = self.db.execute(
@@ -181,6 +229,7 @@ class ChatService:
             (company_id,),
         ).fetchall()
         threads = self.list_threads(company_id)
+        summaries = self._fetch_thread_summaries(company_id)
         thread_by_worker: dict[str, dict[str, Any]] = {}
         for thread in threads:
             wid = str(thread.get("worker_id") or "")
@@ -199,6 +248,7 @@ class ChatService:
         for worker in workers:
             wid = str(worker["id"])
             thread = thread_by_worker.get(wid)
+            summary = summaries.get(str(thread["id"])) if thread else {}
             directory.append(
                 {
                     "id": str(thread["id"]) if thread else "",
@@ -208,8 +258,12 @@ class ChatService:
                     "badge_id": worker["badge_id"],
                     "status": worker["status"],
                     "subject": str(thread["subject"]) if thread else "general",
-                    "last_message_at": thread.get("last_message_at") if thread else None,
+                    "last_message_at": summary.get("last_message_at")
+                    or (thread.get("last_message_at") if thread else None),
                     "updated_at": thread.get("updated_at") if thread else None,
+                    "last_message_preview": summary.get("last_message_preview"),
+                    "last_message_sender_type": summary.get("last_message_sender_type"),
+                    "unread_count": int(summary.get("unread_count") or 0),
                     "hasThread": bool(thread),
                 }
             )

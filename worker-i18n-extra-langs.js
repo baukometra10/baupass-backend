@@ -74,6 +74,7 @@
     compactShowMore: "Daha fazla göster",
     compactShowLess: "Daha az göster",
     chatYesterday: "Dün",
+    chatToday: "Bugün",
   };
 
   const DEPLOYMENT_FR = {
