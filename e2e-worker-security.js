@@ -2,6 +2,15 @@
  * Worker PWA E2E security panel (recovery, rotation, QR transfer, device PIN).
  */
 (function (global) {
+  function workerE2EUrl(subpath) {
+    if (typeof global.workerE2EEndpoint === "function") {
+      return global.workerE2EEndpoint(subpath);
+    }
+    const root = String(global.API_ROOT || "").replace(/\/$/, "");
+    const clean = String(subpath || "").replace(/^\/+/, "").replace(/^e2e\/identity\//, "");
+    return `${root}/api/e2e/identity/${clean}`;
+  }
+
   function e2eT(key) {
     if (typeof global.E2EI18n?.t === "function") {
       const lang = global.WorkerI18N?.getCurrentLang?.() || "de";
@@ -27,12 +36,15 @@
           <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeServer"></span>
         </div>
         <div id="workerE2ePinLockBanner" class="e2e-security-lock-banner hidden"></div>
-        <div class="e2e-security-pin-row">
-          <input type="password" id="workerE2ePinInput" autocomplete="off" data-e2e-i18n-placeholder="e2eSecurityPinPlaceholder" />
-          <button type="button" class="ghost small-btn" data-worker-e2e="pin-set" data-e2e-i18n="e2eSecurityBtnPinSet"></button>
-          <button type="button" class="ghost small-btn" data-worker-e2e="pin-unlock" data-e2e-i18n="e2eSecurityBtnPinUnlock"></button>
-        </div>
-        <p class="e2e-security-subtitle" style="padding:0 16px 10px;margin:0;" data-e2e-i18n="e2eSecurityPinHint"></p>
+        <details class="e2e-security-advanced">
+          <summary data-e2e-i18n="e2eSecurityAdvancedTitle">Erweitert (optional)</summary>
+          <div class="e2e-security-pin-row">
+            <input type="password" id="workerE2ePinInput" autocomplete="off" data-e2e-i18n-placeholder="e2eSecurityPinPlaceholder" />
+            <button type="button" class="ghost small-btn" data-worker-e2e="pin-set" data-e2e-i18n="e2eSecurityBtnPinSet"></button>
+            <button type="button" class="ghost small-btn" data-worker-e2e="pin-unlock" data-e2e-i18n="e2eSecurityBtnPinUnlock"></button>
+          </div>
+          <p class="e2e-security-subtitle" style="padding:0 16px 10px;margin:0;" data-e2e-i18n="e2eSecurityPinHint"></p>
+        </details>
         <div class="e2e-security-actions">
           <button type="button" class="ghost small-btn" data-worker-e2e="recovery" data-e2e-i18n="e2eSecurityBtnRecovery"></button>
           <button type="button" class="ghost small-btn" data-worker-e2e="rotate" data-e2e-i18n="e2eSecurityBtnRotate"></button>
@@ -112,7 +124,7 @@
       const { workerId, headersFn } = getCtx();
       if (!workerId) return;
       try {
-        await global.E2ECrypto.rotateIdentity("worker", workerId, `${global.API_BASE || "/api"}/e2e/identity/me`, {
+        await global.E2ECrypto.rotateIdentity("worker", workerId, workerE2EUrl("me"), {
           headers: headersFn({ "Content-Type": "application/json" }),
           credentials: "include",
         });
@@ -142,7 +154,7 @@
       try {
         await global.E2ECrypto.importIdentityQrPayload(text, "worker", workerId);
         const identity = await global.E2ECrypto.ensureLocalIdentity("worker", workerId);
-        await global.E2ECrypto.registerPublicKey(`${global.API_BASE || "/api"}/e2e/identity/me`, identity.publicKeySpkiB64, {
+        await global.E2ECrypto.registerPublicKey(workerE2EUrl("me"), identity.publicKeySpkiB64, {
           headers: headersFn({ "Content-Type": "application/json" }),
           credentials: "include",
         });

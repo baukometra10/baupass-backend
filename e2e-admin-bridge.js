@@ -50,11 +50,6 @@
       return false;
     }
     try {
-      if (global.E2ECrypto.isDevicePinEnabled && await global.E2ECrypto.isDevicePinEnabled()) {
-        if (!global.E2ECrypto.isDevicePinUnlocked?.()) {
-          return false;
-        }
-      }
       const identity = await global.E2ECrypto.ensureLocalIdentity("user", adminUserId);
       await global.E2ECrypto.registerPublicKey("/api/e2e/identity/admin/me", identity.publicKeySpkiB64, {
         headers: authHeaders({ "Content-Type": "application/json" }),
@@ -156,12 +151,15 @@
           <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeServer"></span>
         </div>
         <div id="e2ePinLockBanner" class="e2e-security-lock-banner hidden"></div>
-        <div class="e2e-security-pin-row">
-          <input type="password" id="e2ePinInput" autocomplete="off" data-e2e-i18n-placeholder="e2eSecurityPinPlaceholder" />
-          <button type="button" class="ghost small-btn" data-e2e-action="pin-set" data-e2e-i18n="e2eSecurityBtnPinSet"></button>
-          <button type="button" class="ghost small-btn" data-e2e-action="pin-unlock" data-e2e-i18n="e2eSecurityBtnPinUnlock"></button>
-        </div>
-        <p class="e2e-security-subtitle" style="padding:0 16px 10px;margin:0;" data-e2e-i18n="e2eSecurityPinHint"></p>
+        <details class="e2e-security-advanced">
+          <summary data-e2e-i18n="e2eSecurityAdvancedTitle">Erweitert (optional)</summary>
+          <div class="e2e-security-pin-row">
+            <input type="password" id="e2ePinInput" autocomplete="off" data-e2e-i18n-placeholder="e2eSecurityPinPlaceholder" />
+            <button type="button" class="ghost small-btn" data-e2e-action="pin-set" data-e2e-i18n="e2eSecurityBtnPinSet"></button>
+            <button type="button" class="ghost small-btn" data-e2e-action="pin-unlock" data-e2e-i18n="e2eSecurityBtnPinUnlock"></button>
+          </div>
+          <p class="e2e-security-subtitle" style="padding:0 16px 10px;margin:0;" data-e2e-i18n="e2eSecurityPinHint"></p>
+        </details>
         <div class="e2e-security-actions">
           <button type="button" class="ghost small-btn" data-e2e-action="recovery-export" data-e2e-i18n="e2eSecurityBtnRecovery"></button>
           <button type="button" class="ghost small-btn" data-e2e-action="rotate" data-e2e-i18n="e2eSecurityBtnRotate"></button>

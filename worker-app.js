@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260705b";
+const WORKER_BUILD_TAG = "20260707a";
 const WORKER_DEBUG = (() => {
   try {
     return new URLSearchParams(window.location.search).get("debug") === "1"
@@ -6319,6 +6319,14 @@ function apiPath(path) {
   return clean.startsWith("api/") ? `${root}/${clean}` : `${root}/api/${clean}`;
 }
 
+function workerE2EEndpoint(subpath) {
+  const clean = String(subpath || "").replace(/^\/+/, "").replace(/^e2e\/identity\//, "");
+  return apiPath(`e2e/identity/${clean}`);
+}
+if (typeof window !== "undefined") {
+  window.workerE2EEndpoint = workerE2EEndpoint;
+}
+
 function buildQrImageUrl(payload, size = 280) {
   const text = String(payload || "").trim();
   if (!text) {
@@ -10920,7 +10928,7 @@ function getWorkerE2EEntityId() {
   return String(lastWorkerPayload?.worker?.id || "").trim();
 }
 
-async function ensureWorkerE2EIdentity() {
+async function ensureWorkerE2EIdentity(force = false) {
   if (!workerE2ECryptoAvailable()) {
     workerE2EIdentityReady = false;
     return false;
@@ -10930,21 +10938,19 @@ async function ensureWorkerE2EIdentity() {
     workerE2EIdentityReady = false;
     return false;
   }
+  if (workerE2EIdentityReady && !force) {
+    return true;
+  }
   try {
-    if (window.E2ECrypto?.isDevicePinEnabled && await window.E2ECrypto.isDevicePinEnabled()) {
-      if (!window.E2ECrypto.isDevicePinUnlocked?.()) {
-        workerE2EIdentityReady = false;
-        return false;
-      }
-    }
     const identity = await window.E2ECrypto.ensureLocalIdentity("worker", workerId);
-    await window.E2ECrypto.registerPublicKey(`${API_BASE}/e2e/identity/me`, identity.publicKeySpkiB64, {
+    await window.E2ECrypto.registerPublicKey(workerE2EEndpoint("me"), identity.publicKeySpkiB64, {
       headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
       credentials: "include",
     });
     workerE2EIdentityReady = true;
     return true;
-  } catch {
+  } catch (error) {
+    console.warn("[E2E] Worker identity bootstrap failed:", error?.message || error);
     workerE2EIdentityReady = false;
     return false;
   }
@@ -10962,7 +10968,7 @@ async function fetchWorkerE2EPublicKeys(force = false) {
     return workerE2EPublicKeysCache;
   }
   try {
-    const payload = await fetchJson(`${API_BASE}/e2e/identity/public-keys`, {
+    const payload = await fetchJson(workerE2EEndpoint("public-keys"), {
       headers: buildWorkerAuthHeaders(),
     });
     workerE2EPublicKeysCache = (payload?.publicKeys || [])
@@ -10986,7 +10992,11 @@ async function encryptWorkerChatBody(plaintext) {
     }
     return text;
   }
-  const keys = await fetchWorkerE2EPublicKeys();
+  let keys = await fetchWorkerE2EPublicKeys();
+  if (!keys.length) {
+    await ensureWorkerE2EIdentity(true);
+    keys = await fetchWorkerE2EPublicKeys(true);
+  }
   if (!keys.length) {
     if (workerE2ERequired()) {
       throw new Error("e2e_keys_missing");
@@ -11376,7 +11386,8 @@ async function openWorkerChatScreen() {
     return;
   }
   switchToTab("chat");
-  void ensureWorkerE2EIdentity();
+  void ensureWorkerE2EIdentity(true);
+  void fetchWorkerE2EPublicKeys(true);
   if (elements.workerChatInput) {
     elements.workerChatInput.focus();
   }

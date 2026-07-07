@@ -19558,6 +19558,9 @@ async function restoreSessionFromBootstrap() {
           companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
         }
       }
+      if (window.E2EAdminBridge?.ensureIdentity) {
+        void window.E2EAdminBridge.ensureIdentity();
+      }
     }
     return bootstrap;
   })();

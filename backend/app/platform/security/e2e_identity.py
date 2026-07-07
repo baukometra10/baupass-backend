@@ -152,7 +152,29 @@ class E2EIdentityService:
         if not cid:
             return []
         keys: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        def _add_row(row) -> None:
+            item = self._row_to_dict(row)
+            row_id = str(item.get("id") or "")
+            if row_id and row_id not in seen_ids:
+                seen_ids.add(row_id)
+                keys.append(item)
+
         admin_rows = self.db.execute(
+            f"""
+            SELECT e.id, e.entity_type, e.entity_id, e.company_id, e.public_key_spki_b64, e.algorithm, e.created_at, e.updated_at
+            FROM {self.TABLE} e
+            INNER JOIN users u ON e.entity_type = 'user' AND e.entity_id = u.id
+            WHERE u.company_id = ?
+              AND lower(trim(coalesce(u.role, ''))) IN ('company-admin', 'admin', 'manager')
+            """,
+            (cid,),
+        ).fetchall()
+        for row in admin_rows:
+            _add_row(row)
+
+        legacy_admin_rows = self.db.execute(
             f"""
             SELECT id, entity_type, entity_id, company_id, public_key_spki_b64, algorithm, created_at, updated_at
             FROM {self.TABLE}
@@ -160,7 +182,22 @@ class E2EIdentityService:
             """,
             (cid,),
         ).fetchall()
-        keys.extend(self._row_to_dict(row) for row in admin_rows)
+        for row in legacy_admin_rows:
+            _add_row(row)
+
+        if not any(str(k.get("entityType") or "").lower() == "user" for k in keys):
+            super_rows = self.db.execute(
+                f"""
+                SELECT e.id, e.entity_type, e.entity_id, e.company_id, e.public_key_spki_b64, e.algorithm, e.created_at, e.updated_at
+                FROM {self.TABLE} e
+                INNER JOIN users u ON e.entity_type = 'user' AND e.entity_id = u.id
+                WHERE lower(trim(coalesce(u.role, ''))) = 'superadmin'
+                LIMIT 5
+                """
+            ).fetchall()
+            for row in super_rows:
+                _add_row(row)
+
         wid = str(worker_id or "").strip()
         if wid:
             worker_row = self.db.execute(
@@ -172,7 +209,7 @@ class E2EIdentityService:
                 (wid, cid),
             ).fetchone()
             if worker_row:
-                keys.append(self._row_to_dict(worker_row))
+                _add_row(worker_row)
         return keys
 
     @staticmethod
