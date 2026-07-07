@@ -261,10 +261,9 @@
     const id = escapeAttr(attachment?.id || "");
     const filename = escapeAttr(attachment?.filename || labels.voice || "voice.webm");
     const contentType = escapeAttr(attachment?.contentType || attachment?.content_type || "audio/webm");
-    const e2eMeta = escapeAttr(attachment?.e2eMeta || attachment?.e2e_meta || "");
     const voiceLabel = escapeAttr(labels.voice || "Voice message");
     const side = escapeAttr(labels.side || "mine");
-    return `<div class="chat-voice-note is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}" data-e2e-meta="${e2eMeta}">
+    return `<div class="chat-voice-note is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}">
       <button type="button" class="chat-voice-play" aria-label="${voiceLabel}">${PLAY_SVG}</button>
       ${voiceWaveformHtml(id || filename)}
       <span class="chat-voice-duration">0:00</span>
@@ -275,14 +274,26 @@
   let activeAudio = null;
   let activePlayer = null;
 
-  async function resolveAudioUrl(attachmentId, meta, downloadFn) {
-    const cacheKey = `${attachmentId}:${meta || ""}`;
+  function isEncryptedBlob(blob) {
+    const mime = String(blob?.type || "").toLowerCase();
+    return mime.includes("e2e") || mime === "application/octet-stream";
+  }
+
+  async function resolveAudioUrl(attachmentId, downloadFn) {
+    const cacheKey = String(attachmentId || "");
+    if (!cacheKey) {
+      throw new Error("voice_attachment_missing");
+    }
     if (audioCache.has(cacheKey)) {
       return audioCache.get(cacheKey);
     }
-    const payload = await downloadFn(attachmentId, meta);
+    const payload = await downloadFn(attachmentId);
+    const mime = String(payload?.blob?.type || "").toLowerCase();
+    if (!payload?.blob || (!mime.startsWith("audio/") && !mime.startsWith("video/webm") && isEncryptedBlob(payload.blob))) {
+      throw new Error("voice_playback_failed");
+    }
     const url = global.URL.createObjectURL(payload.blob);
-    audioCache.set(cacheKey, { url, duration: payload.duration || 0 });
+    audioCache.set(cacheKey, { url, duration: payload.duration || 0, mime: payload.blob.type || "audio/webm" });
     return audioCache.get(cacheKey);
   }
 
@@ -308,7 +319,6 @@
     const progressWave = player.querySelector(".chat-voice-wave");
     const durationEl = player.querySelector(".chat-voice-duration");
     const attachmentId = player.getAttribute("data-attachment-id") || "";
-    const meta = player.getAttribute("data-e2e-meta") || "";
     if (!playBtn || !attachmentId) return;
 
     if (activePlayer === player && activeAudio && !activeAudio.paused) {
@@ -323,10 +333,27 @@
     resetActiveAudio();
     player.classList.add("is-loading");
     try {
-      const cached = await resolveAudioUrl(attachmentId, meta, downloadFn);
-      const audio = new Audio(cached.url);
+      const cached = await resolveAudioUrl(attachmentId, downloadFn);
+      const audio = new Audio();
+      audio.preload = "auto";
+      audio.src = cached.url;
       activeAudio = audio;
       activePlayer = player;
+      await new Promise((resolve, reject) => {
+        const onReady = () => {
+          audio.removeEventListener("loadedmetadata", onReady);
+          audio.removeEventListener("error", onFail);
+          resolve();
+        };
+        const onFail = () => {
+          audio.removeEventListener("loadedmetadata", onReady);
+          audio.removeEventListener("error", onFail);
+          reject(new Error("voice_playback_failed"));
+        };
+        audio.addEventListener("loadedmetadata", onReady, { once: true });
+        audio.addEventListener("error", onFail, { once: true });
+        audio.load();
+      });
       player.classList.remove("is-loading");
       player.classList.add("is-playing");
       playBtn.innerHTML = PAUSE_SVG;

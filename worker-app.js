@@ -2985,7 +2985,10 @@ function updateWorkerVoiceHint(seconds) {
   hint.textContent = `${t("chatVoiceRecording")} ${window.SUPPIXChatVoice.formatDuration(seconds)}`;
 }
 
-async function downloadWorkerChatAudioBlob(attachmentId, e2eMeta) {
+async function downloadWorkerChatAudioBlob(attachmentId) {
+  if (!workerToken || !attachmentId) {
+    throw new Error("voice_attachment_missing");
+  }
   const response = await fetch(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
     headers: buildWorkerAuthHeaders(),
   });
@@ -2994,12 +2997,23 @@ async function downloadWorkerChatAudioBlob(attachmentId, e2eMeta) {
   }
   const blob = await response.blob();
   let outBlob = blob;
-  const meta = String(e2eMeta || "").trim();
-  if (meta && workerE2ECryptoAvailable()) {
+  const meta = String(workerChatAttachmentMetaById[attachmentId] || "").trim();
+  const needsDecrypt = Boolean(meta) || String(blob.type || "").includes("e2e") || /\.e2e$/i.test(String(workerChatAttachmentNameById[attachmentId] || ""));
+  if (needsDecrypt) {
+    if (!meta) {
+      throw new Error("e2e_attachment_meta_invalid");
+    }
+    if (!workerE2ECryptoAvailable()) {
+      throw new Error("e2e_crypto_unavailable");
+    }
+    await window.E2ECrypto?.ensureCryptoSessionReady?.();
+    await ensureWorkerChatE2EReady(false);
     const workerId = getWorkerE2EEntityId();
     const buffer = new Uint8Array(await blob.arrayBuffer());
     const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
-    outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || blob.type || "audio/webm" });
+    outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "audio/webm" });
+  } else if (!String(outBlob.type || "").startsWith("audio/")) {
+    outBlob = new Blob([await outBlob.arrayBuffer()], { type: "audio/webm" });
   }
   let duration = 0;
   try {
@@ -3023,7 +3037,7 @@ async function downloadWorkerChatAudioBlob(attachmentId, e2eMeta) {
 
 function hydrateWorkerChatAudioPlayers() {
   window.SUPPIXChatVoice?.hydrateAudioPlayers?.(elements.workerChatMessages, {
-    downloadFn: async (attachmentId, meta) => downloadWorkerChatAudioBlob(attachmentId, meta),
+    downloadFn: async (attachmentId) => downloadWorkerChatAudioBlob(attachmentId),
     onError: (error) => showWorkerNotice(formatWorkerApiError(error)),
   });
 }
@@ -11855,6 +11869,7 @@ async function ensureWorkerChatThread(forceRefresh = false) {
 }
 
 let workerChatAttachmentMetaById = {};
+let workerChatAttachmentNameById = {};
 
 function renderWorkerChatAttachmentHtml(attachments, options = {}) {
   if (!Array.isArray(attachments) || !attachments.length) {
@@ -11865,8 +11880,10 @@ function renderWorkerChatAttachmentHtml(attachments, options = {}) {
     .map((attachment) => {
       const id = String(attachment.id || "");
       const meta = String(attachment.e2eMeta || attachment.e2e_meta || "").trim();
-      if (id && meta) {
-        workerChatAttachmentMetaById[id] = meta;
+      const filename = String(attachment.filename || "");
+      if (id) {
+        if (meta) workerChatAttachmentMetaById[id] = meta;
+        if (filename) workerChatAttachmentNameById[id] = filename;
       }
       const safeId = escapeHtmlBasic(id);
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
@@ -11966,8 +11983,17 @@ async function downloadWorkerChatAttachment(attachmentId, filename, e2eMeta) {
     const blob = await response.blob();
     let outBlob = blob;
     let outName = filename || "download";
-    const meta = String(e2eMeta || "").trim();
-    if (meta && workerE2ECryptoAvailable()) {
+    const meta = String(workerChatAttachmentMetaById[attachmentId] || e2eMeta || "").trim();
+    const needsDecrypt = Boolean(meta) || String(blob.type || "").includes("e2e") || /\.e2e$/i.test(String(filename || workerChatAttachmentNameById[attachmentId] || ""));
+    if (needsDecrypt) {
+      if (!meta) {
+        throw new Error("e2e_attachment_meta_invalid");
+      }
+      if (!workerE2ECryptoAvailable()) {
+        throw new Error("e2e_crypto_unavailable");
+      }
+      await window.E2ECrypto?.ensureCryptoSessionReady?.();
+      await ensureWorkerChatE2EReady(false);
       const workerId = getWorkerE2EEntityId();
       const buffer = new Uint8Array(await blob.arrayBuffer());
       const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
