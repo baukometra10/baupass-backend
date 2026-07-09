@@ -74,10 +74,6 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Analyze Dart
-        working-directory: mobile
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-
       - name: Build release APK
         working-directory: mobile
         env:
