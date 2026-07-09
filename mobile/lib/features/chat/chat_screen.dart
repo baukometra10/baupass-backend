@@ -156,7 +156,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (_sending) return;
     if (!_recording) {
       if (!await _recorder.hasPermission()) {
-        if (!mounted) return;
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -197,7 +197,7 @@ class _ChatScreenState extends State<ChatScreen> {
       } catch (_) {
         /* ignore */
       }
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Aufnahme zu kurz — bitte erneut versuchen.')),
       );

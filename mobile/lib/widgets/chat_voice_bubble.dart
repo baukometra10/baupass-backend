@@ -73,8 +73,9 @@ class _ChatVoiceBubbleState extends State<ChatVoiceBubble> {
       return;
     }
     if (_tempPath != null) {
-      await _player.resume();
-      if (mounted) setState(() => _playing = true);
+      await _player.play(DeviceFileSource(_tempPath!));
+      if (!context.mounted) return;
+      setState(() => _playing = true);
       return;
     }
     setState(() => _loading = true);
@@ -88,7 +89,7 @@ class _ChatVoiceBubbleState extends State<ChatVoiceBubble> {
       await _player.play(DeviceFileSource(path));
       if (mounted) setState(() => _playing = true);
     } catch (_) {
-      if (!mounted) return;
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sprachnachricht konnte nicht abgespielt werden.')),
       );
