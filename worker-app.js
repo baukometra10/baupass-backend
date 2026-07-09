@@ -3318,7 +3318,7 @@ function isWorkerIosPwa() {
   );
 }
 
-function isWorkerIosPwa() {
+function appendWorkerVoicePwaHelp(message, code = "") {
   if (!isWorkerIosPwa()) {
     return message;
   }
