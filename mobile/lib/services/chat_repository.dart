@@ -73,9 +73,9 @@ class ChatRepository {
     final adminKeys = <String>[];
     for (final row in rows) {
       if (row is! Map) continue;
-      final entityType = String(row['entityType'] ?? row['entity_type'] ?? '').toLowerCase();
+      final entityType = (row['entityType'] ?? row['entity_type'] ?? '').toString().toLowerCase();
       if (entityType != 'user') continue;
-      final key = String(row['publicKeySpkiB64'] ?? row['public_key_spki_b64'] ?? '').trim();
+      final key = (row['publicKeySpkiB64'] ?? row['public_key_spki_b64'] ?? '').toString().trim();
       if (key.isNotEmpty) adminKeys.add(key);
     }
     if (adminKeys.isEmpty) return <String>[];
@@ -83,9 +83,9 @@ class ChatRepository {
     if (workerId.isEmpty) return adminKeys;
     try {
       final identity = await _e2e.ensureLocalIdentity(entityType: 'worker', entityId: workerId);
-      final selfKey = String(identity['publicKeySpkiB64'] ?? '').trim();
+      final selfKey = (identity['publicKeySpkiB64'] ?? '').toString().trim();
       if (selfKey.isNotEmpty) {
-        return {...adminKeys, selfKey}.toList();
+        return <String>[...adminKeys, selfKey];
       }
     } catch (_) {
       // Admin keys alone are enough to send.

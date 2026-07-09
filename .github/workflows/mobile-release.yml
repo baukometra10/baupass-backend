@@ -76,10 +76,31 @@ jobs:
         run: flutter pub get
 
       - name: Build release APK
+        id: build_apk
         working-directory: mobile
         env:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
-        run: flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL"
+        run: |
+          set -o pipefail
+          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+            echo "::error title=APK build failed::$(grep -E 'FAILURE:|error:|Error:|Exception' build-apk.log | tail -n 5 | tr '\n' ' ')"
+            {
+              echo "### Build failed"
+              echo '```'
+              cat build-apk.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          }
+
+      - name: Upload build log on failure
+        if: failure() && steps.build_apk.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-apk-log
+          path: mobile/build-apk.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

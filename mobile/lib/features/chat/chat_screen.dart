@@ -6,6 +6,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
@@ -27,9 +28,13 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _message = TextEditingController();
+  final AudioRecorder _recorder = AudioRecorder();
   bool _loading = true;
   bool _sending = false;
+  bool _recording = false;
   String? _threadId;
+  String? _recordPath;
+  DateTime? _recordStartedAt;
   List<Map<String, dynamic>> _messages = <Map<String, dynamic>>[];
   bool _silentRefresh = false;
   Timer? _pollTimer;
@@ -37,9 +42,10 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _message.addListener(_onComposeChanged);
     _boot();
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
-      if (!_sending && !_silentRefresh && mounted) {
+      if (!_sending && !_silentRefresh && !_recording && mounted) {
         _boot(silent: true);
       }
     });
@@ -48,8 +54,14 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _message.removeListener(_onComposeChanged);
     _message.dispose();
+    _recorder.dispose();
     super.dispose();
+  }
+
+  void _onComposeChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _boot({bool silent = false}) async {
@@ -74,9 +86,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages = messages;
         _loading = false;
       });
-      if (_messages.isNotEmpty && mounted) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {});
-      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -108,9 +117,97 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _attach() async {
+  Future<void> _sendVoiceFile(String filePath) async {
     final threadId = _threadId;
     if (threadId == null || _sending) return;
+    final file = File(filePath);
+    if (!await file.exists()) return;
+    setState(() => _sending = true);
+    try {
+      final res = await widget.chat.sendMessage(
+        session: widget.session,
+        threadId: threadId,
+        body: 'Sprachnachricht',
+      );
+      final msg = Map<String, dynamic>.from(res['message'] as Map);
+      await widget.chat.uploadAttachment(
+        session: widget.session,
+        threadId: threadId,
+        messageId: msg['id'] as String,
+        file: file,
+      );
+      if (!mounted) return;
+      setState(() {
+        _messages = [..._messages, msg];
+      });
+      await _boot(silent: true);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+      try {
+        await file.delete();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }
+
+  Future<void> _toggleVoice() async {
+    if (_sending) return;
+    if (!_recording) {
+      if (!await _recorder.hasPermission()) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Mikrofon-Berechtigung erforderlich. Bitte in den iPhone-Einstellungen für die Mitarbeiter-App erlauben.',
+            ),
+          ),
+        );
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      _recordPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000),
+        path: _recordPath!,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordStartedAt = DateTime.now();
+      });
+      return;
+    }
+
+    final path = await _recorder.stop();
+    if (!mounted) return;
+    final startedAt = _recordStartedAt;
+    setState(() {
+      _recording = false;
+      _recordStartedAt = null;
+    });
+    final filePath = path ?? _recordPath;
+    _recordPath = null;
+    if (filePath == null || filePath.isEmpty) return;
+    final elapsed = startedAt == null ? Duration.zero : DateTime.now().difference(startedAt);
+    if (elapsed < const Duration(milliseconds: 800)) {
+      try {
+        await File(filePath).delete();
+      } catch (_) {
+        /* ignore */
+      }
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aufnahme zu kurz — bitte erneut versuchen.')),
+      );
+      return;
+    }
+    await _sendVoiceFile(filePath);
+  }
+
+  Future<void> _attach() async {
+    final threadId = _threadId;
+    if (threadId == null || _sending || _recording) return;
     final picked = await FilePicker.platform.pickFiles(withData: false);
     if (picked == null || picked.files.isEmpty) return;
     final file = picked.files.single.path;
@@ -158,11 +255,29 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   bool _isWorkerMessage(Map<String, dynamic> item) {
-    final sender = String(item['senderType'] ?? item['sender_type'] ?? '').toLowerCase();
-    if (sender == 'worker') return true;
-    final senderWorkerId = String(item['senderWorkerId'] ?? item['sender_worker_id'] ?? '').trim();
-    // Worker session id is not stored on screen; senderType is authoritative.
-    return false;
+    final sender = (item['senderType'] ?? item['sender_type'] ?? '').toString().toLowerCase();
+    return sender == 'worker';
+  }
+
+  bool _isAudioAttachment(Map<String, dynamic> attachment) {
+    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? '')
+        .toString()
+        .toLowerCase();
+    final filename = (attachment['filename'] ?? '').toString().toLowerCase();
+    if (contentType.startsWith('audio/')) return true;
+    return filename.endsWith('.m4a')
+        || filename.endsWith('.mp4')
+        || filename.endsWith('.wav')
+        || filename.endsWith('.webm')
+        || filename.endsWith('.aac');
+  }
+
+  bool _isVoiceOnlyBody(String? body) {
+    final text = (body ?? '').trim().toLowerCase();
+    if (text.isEmpty) return true;
+    return text == 'sprachnachricht'
+        || text.contains('voice message')
+        || text.startsWith('🎤');
   }
 
   String _readStatusLabel(Map<String, dynamic> item) {
@@ -178,6 +293,38 @@ class _ChatScreenState extends State<ChatScreen> {
     final h = date.hour.toString().padLeft(2, '0');
     final m = date.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  Widget _buildPrimaryAction() {
+    final hasText = _message.text.trim().isNotEmpty;
+    if (_recording) {
+      return FilledButton(
+        onPressed: _sending ? null : _toggleVoice,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFEA4335),
+          minimumSize: const Size(52, 52),
+          padding: EdgeInsets.zero,
+          shape: const CircleBorder(),
+        ),
+        child: const Icon(Icons.stop),
+      );
+    }
+    if (!hasText) {
+      return FilledButton(
+        onPressed: _sending ? null : _toggleVoice,
+        style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFF00A884),
+          minimumSize: const Size(52, 52),
+          padding: EdgeInsets.zero,
+          shape: const CircleBorder(),
+        ),
+        child: const Icon(Icons.mic),
+      );
+    }
+    return FilledButton(
+      onPressed: _sending ? null : _send,
+      child: const Text('Senden'),
+    );
   }
 
   @override
@@ -207,6 +354,12 @@ class _ChatScreenState extends State<ChatScreen> {
                             final item = _messages[index];
                             final isWorker = _isWorkerMessage(item);
                             final attachments = (item['attachments'] as List?) ?? const [];
+                            final audioAttachments = attachments
+                                .map((att) => Map<String, dynamic>.from(att as Map))
+                                .where(_isAudioAttachment)
+                                .toList();
+                            final showBody = !_isVoiceOnlyBody(item['body'] as String?)
+                                || audioAttachments.isEmpty;
                             final read = item['readByRecipient'] == true || item['read_by_recipient'] == true;
                             final readLabel = _readStatusLabel(item);
                             final timeLabel = _formatTime(item['createdAt'] as String?);
@@ -271,15 +424,48 @@ class _ChatScreenState extends State<ChatScreen> {
                                                     ),
                                               ),
                                             const SizedBox(height: 4),
-                                            if ((item['body'] as String? ?? '').trim().isNotEmpty)
+                                            if (showBody && (item['body'] as String? ?? '').trim().isNotEmpty)
                                               Text(
                                                 item['body'] as String? ?? '',
                                                 style: Theme.of(context).textTheme.bodyMedium,
                                               ),
+                                            if (audioAttachments.isNotEmpty) ...[
+                                              if (showBody) const SizedBox(height: 6),
+                                              ...audioAttachments.map((att) {
+                                                final map = Map<String, dynamic>.from(att);
+                                                return Padding(
+                                                  padding: const EdgeInsets.only(top: 4),
+                                                  child: InkWell(
+                                                    onTap: () => _openAttachment(map),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.mic,
+                                                          size: 18,
+                                                          color: isWorker
+                                                              ? const Color(0xFF0F766E)
+                                                              : const Color(0xFF1D4ED8),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          'Sprachnachricht abspielen',
+                                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                decoration: TextDecoration.underline,
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              }),
+                                            ],
                                             if (attachments.isNotEmpty) ...[
                                               const SizedBox(height: 6),
                                               ...attachments.map((att) {
                                                 final map = Map<String, dynamic>.from(att as Map);
+                                                if (_isAudioAttachment(map)) return const SizedBox.shrink();
                                                 return InkWell(
                                                   onTap: () => _openAttachment(map),
                                                   child: Padding(
@@ -331,6 +517,19 @@ class _ChatScreenState extends State<ChatScreen> {
                           },
                         ),
                 ),
+                if (_recording)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                    child: Row(
+                      children: [
+                        Icon(Icons.mic, color: Theme.of(context).colorScheme.error),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text('Aufnahme läuft — erneut tippen zum Senden'),
+                        ),
+                      ],
+                    ),
+                  ),
                 SafeArea(
                   top: false,
                   child: Padding(
@@ -338,7 +537,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Row(
                       children: [
                         IconButton(
-                          onPressed: _sending ? null : _attach,
+                          onPressed: (_sending || _recording) ? null : _attach,
                           icon: const Icon(Icons.attach_file),
                         ),
                         Expanded(
@@ -352,10 +551,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: _sending ? null : _send,
-                          child: const Text('Senden'),
-                        ),
+                        _buildPrimaryAction(),
                       ],
                     ),
                   ),
