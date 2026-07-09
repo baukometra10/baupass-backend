@@ -111,6 +111,51 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
+  Future<void> _tapManualGps(String direction) async {
+    setState(() {
+      _busy = true;
+      _status = 'Standort wird ermittelt…';
+    });
+    try {
+      final location = await widget.location.captureForAttendance();
+      if (location == null) {
+        if (!mounted) return;
+        setState(() => _status = 'GPS erforderlich — Standortfreigabe aktivieren.');
+        return;
+      }
+      final clientEventId =
+          'gps-${DateTime.now().toUtc().millisecondsSinceEpoch}-${direction.hashCode.abs()}';
+      final result = await widget.attendance.recordManualGpsAttendance(
+        session: widget.session,
+        direction: direction,
+        location: location,
+        clientEventId: clientEventId,
+      );
+      if (!mounted) return;
+      final recordedDirection = result['direction'] as String? ?? direction;
+      final open = result['openCheckInToday'] == true || result['attendanceOpen'] == true;
+      await widget.workerCache.setOpenCheckInToday(open);
+      setState(() {
+        _lastDirection = recordedDirection;
+        _status = result['duplicate'] == true
+            ? 'Bereits erfasst ($recordedDirection).'
+            : 'Anwesenheit gespeichert: $recordedDirection';
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      if (e.errorCode == 'outside_geofence') {
+        setState(() => _status = 'Außerhalb der Baustelle — Check-in nur vor Ort möglich.');
+        return;
+      }
+      setState(() => _status = e.message ?? e.toString());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _status = e.toString());
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _tapAttendance() async {
     setState(() {
       _busy = true;
@@ -222,6 +267,43 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           children: [
             if (name.isNotEmpty)
               Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('GPS ohne NFC', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Manuell ein- oder ausstempeln, wenn Sie bereits auf der Baustelle sind '
+                      '(ohne NFC-Karte am Gate).',
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _busy ? null : () => _tapManualGps('check-in'),
+                            icon: const Icon(Icons.login),
+                            label: const Text('Ein'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _busy ? null : () => _tapManualGps('check-out'),
+                            icon: const Icon(Icons.logout),
+                            label: const Text('Aus'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
             Card(
               child: Padding(

@@ -1065,7 +1065,7 @@ function formatAccessTimeLocal(value) {
   }).format(parsed);
 }
 
-function extractTodayTimesheetSummary(rows) {
+function extractTodayTimesheetSummary(rows, meta = {}) {
   if (!Array.isArray(rows) || rows.length === 0) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
@@ -1075,16 +1075,23 @@ function extractTodayTimesheetSummary(rows) {
     .filter((row) => getLocalIsoDateFromTimestamp(row.timestamp) === today)
     .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
 
-  if (todayRows.length === 0) {
+  if (todayRows.length === 0 && !meta.attendanceOpen) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
 
-  const sessions = pairWorkerPresenceSessions(todayRows, rows);
-  const totalMin = summarizeWorkerPresenceMinutes(todayRows, rows);
-  const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
+  const openCheckInAt = String(meta.openSession?.checkInAt || "");
+  const attendanceOpen = Boolean(meta.attendanceOpen);
+  const sessions = pairWorkerPresenceSessions(todayRows, rows, { workHoursOnly: true });
+  const totalMin = Number.isFinite(Number(meta.todayWorkMinutes))
+    ? Number(meta.todayWorkMinutes)
+    : summarizeWorkerPresenceMinutes(todayRows, rows, {
+        includeOpenDuration: attendanceOpen,
+        openCheckInAt,
+      });
+  const isOpen = attendanceOpen || sessions.some((session) => session.checkIn && !session.checkOut);
 
   return {
-    hasRows: true,
+    hasRows: todayRows.length > 0 || attendanceOpen,
     totalMin,
     isOpen,
   };
@@ -1730,7 +1737,7 @@ function updateSmartWorkHub(payload = lastWorkerPayload, rows = lastTimesheetRow
   if (companyPreset === "industry") focusText = t("smartHubFocusIndustry");
   if (companyPreset === "premium") focusText = t("smartHubFocusPremium");
 
-  const summary = extractTodayTimesheetSummary(rows);
+  const summary = extractTodayTimesheetSummary(rows, lastTimesheetMeta);
   const hoursLabel = formatHoursFromMinutes(summary.totalMin);
   const momentumText = summary.hasRows
     ? summary.isOpen
@@ -1991,6 +1998,7 @@ let batteryLevelPct = null;
 let batteryCharging = null;
 let lastWorkerPayload = null;
 let lastTimesheetRows = [];
+let lastTimesheetMeta = {};
 let lastDocumentRows = [];
 // ── Dynamic QR state ─────────────────────────────────────────────────────────
 let dqrCountdownInterval = null; // setInterval for per-second countdown
@@ -8607,6 +8615,16 @@ async function fetchJsonWithTimeout(url, options = {}, timeoutMs = DEPLOYMENT_AP
   }
 }
 
+function isWorkAttendanceCheckIn(direction) {
+  const value = String(direction || "").trim().toLowerCase();
+  return value === "in" || value === "check-in" || value === "check_in" || value === "entry";
+}
+
+function isWorkAttendanceCheckOut(direction) {
+  const value = String(direction || "").trim().toLowerCase();
+  return value === "out" || value === "check-out" || value === "check_out" || value === "exit";
+}
+
 function isAccessLogCheckIn(direction) {
   const value = String(direction || "").trim().toLowerCase();
   return value === "in" || value === "check-in" || value === "check_in" || value === "entry" || value === "app-login";
@@ -8628,22 +8646,24 @@ function minutesBetweenWorkerAccessTimestamps(start, end) {
   return Math.min(Math.max(1, Math.ceil(seconds / 60)), 1439);
 }
 
-function pairWorkerPresenceSessions(events, allEvents = null) {
+function pairWorkerPresenceSessions(events, allEvents = null, { workHoursOnly = true } = {}) {
+  const checkIn = workHoursOnly ? isWorkAttendanceCheckIn : isAccessLogCheckIn;
+  const checkOut = workHoursOnly ? isWorkAttendanceCheckOut : isAccessLogCheckOut;
   const ordered = [...(events || [])].sort((left, right) =>
     String(left.timestamp || "").localeCompare(String(right.timestamp || ""))
   );
   const checkoutPool = [...(allEvents || events || [])]
-    .filter((ev) => isAccessLogCheckOut(ev.direction))
+    .filter((ev) => checkOut(ev.direction))
     .sort((left, right) => String(left.timestamp || "").localeCompare(String(right.timestamp || "")));
   const sessions = [];
   let pendingIn = null;
 
   for (const ev of ordered) {
-    if (isAccessLogCheckIn(ev.direction)) {
+    if (checkIn(ev.direction)) {
       if (!pendingIn) pendingIn = ev;
       continue;
     }
-    if (!isAccessLogCheckOut(ev.direction)) continue;
+    if (!checkOut(ev.direction)) continue;
 
     if (pendingIn) {
       sessions.push({
@@ -8670,7 +8690,7 @@ function pairWorkerPresenceSessions(events, allEvents = null) {
       sessions.push({
         checkIn: pendingIn,
         checkOut: null,
-        durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, new Date().toISOString()),
+        durationMinutes: null,
       });
     }
   }
@@ -8678,11 +8698,22 @@ function pairWorkerPresenceSessions(events, allEvents = null) {
   return sessions;
 }
 
-function summarizeWorkerPresenceMinutes(events, allEvents = null) {
-  return pairWorkerPresenceSessions(events, allEvents).reduce((sum, session) => {
+function summarizeWorkerPresenceMinutes(events, allEvents = null, options = {}) {
+  const {
+    workHoursOnly = true,
+    openCheckInAt = "",
+    includeOpenDuration = false,
+  } = options;
+  const sessions = pairWorkerPresenceSessions(events, allEvents, { workHoursOnly });
+  let total = sessions.reduce((sum, session) => {
     const minutes = Number(session.durationMinutes) || 0;
     return sum + (minutes > 0 ? minutes : 0);
   }, 0);
+  if (includeOpenDuration && openCheckInAt) {
+    const openMinutes = minutesBetweenWorkerAccessTimestamps(openCheckInAt, new Date().toISOString());
+    if (openMinutes) total += openMinutes;
+  }
+  return total;
 }
 
 function workerPlanAllowsFeature(featureKey, planFeaturesOverride) {
@@ -8965,13 +8996,34 @@ function normalizeWorkerTimesheetPayload(data) {
     return {
       month: getCurrentMonthKey(),
       monthTotalMinutes: summarizeWorkerPresenceMinutes(data),
+      todayWorkMinutes: null,
+      attendanceOpen: false,
+      openSession: null,
       rows: data,
     };
   }
   const rows = Array.isArray(data?.rows) ? data.rows : [];
+  const openCheckInAt = String(data?.openSession?.checkInAt || "");
+  const attendanceOpen = Boolean(data?.attendanceOpen);
+  const fallbackMonthTotal = summarizeWorkerPresenceMinutes(rows, rows, {
+    includeOpenDuration: attendanceOpen,
+    openCheckInAt,
+  });
+  const today = getLocalIsoDate();
+  const todayRows = rows.filter((row) => getLocalIsoDateFromTimestamp(row.timestamp) === today);
+  const fallbackTodayTotal = summarizeWorkerPresenceMinutes(todayRows, rows, {
+    includeOpenDuration: attendanceOpen,
+    openCheckInAt,
+  });
   return {
     month: String(data?.month || getCurrentMonthKey()).slice(0, 7),
-    monthTotalMinutes: Number(data?.monthTotalMinutes) || summarizeWorkerPresenceMinutes(rows),
+    monthTotalMinutes: Number(data?.monthTotalMinutes) || fallbackMonthTotal,
+    todayWorkMinutes: Number.isFinite(Number(data?.todayWorkMinutes))
+      ? Number(data.todayWorkMinutes)
+      : fallbackTodayTotal,
+    attendanceOpen,
+    openSession: data?.openSession || null,
+    autoAttendanceBlockedToday: Boolean(data?.autoAttendanceBlockedToday),
     rows,
   };
 }
@@ -10716,30 +10768,40 @@ function syncDashboardQrCountdown() {
   }
 }
 
-function updateDailyInsightsFromTimesheets(rows) {
+function updateDailyInsightsFromTimesheets(rows, meta = lastTimesheetMeta) {
   lastTimesheetRows = Array.isArray(rows) ? rows : [];
+  lastTimesheetMeta = meta && typeof meta === "object" ? meta : {};
   if (!Array.isArray(rows) || rows.length === 0) {
-    resetDailyInsights();
-    updateSmartWorkHub(lastWorkerPayload, []);
-    return;
+    if (!lastTimesheetMeta.attendanceOpen) {
+      resetDailyInsights();
+      updateSmartWorkHub(lastWorkerPayload, []);
+      return;
+    }
   }
 
   const today = getLocalIsoDate();
-  const todayRows = rows
+  const todayRows = (rows || [])
     .filter((row) => getLocalIsoDateFromTimestamp(row.timestamp) === today)
     .sort((a, b) => String(a.timestamp || "") > String(b.timestamp || "") ? 1 : -1);
 
-  if (todayRows.length === 0) {
+  if (todayRows.length === 0 && !lastTimesheetMeta.attendanceOpen) {
     resetDailyInsights();
     updateSmartWorkHub(lastWorkerPayload, rows);
     return;
   }
 
-  const sessions = pairWorkerPresenceSessions(todayRows, rows);
-  const totalMin = summarizeWorkerPresenceMinutes(todayRows, rows);
-  const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
-  const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
-  const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
+  const openCheckInAt = String(lastTimesheetMeta.openSession?.checkInAt || "");
+  const attendanceOpen = Boolean(lastTimesheetMeta.attendanceOpen);
+  const sessions = pairWorkerPresenceSessions(todayRows, rows, { workHoursOnly: true });
+  const totalMin = Number.isFinite(Number(lastTimesheetMeta.todayWorkMinutes))
+    ? Number(lastTimesheetMeta.todayWorkMinutes)
+    : summarizeWorkerPresenceMinutes(todayRows, rows, {
+        includeOpenDuration: attendanceOpen,
+        openCheckInAt,
+      });
+  const checkins = todayRows.filter((row) => isWorkAttendanceCheckIn(row.direction));
+  const checkouts = todayRows.filter((row) => isWorkAttendanceCheckOut(row.direction));
+  const isOpen = attendanceOpen || sessions.some((session) => session.checkIn && !session.checkOut);
   const hours = Math.floor(totalMin / 60);
   const minutes = totalMin % 60;
 
@@ -10760,6 +10822,12 @@ async function loadMyTimesheets() {
     });
     const payload = normalizeWorkerTimesheetPayload(data);
     const rows = payload.rows;
+    lastTimesheetMeta = {
+      attendanceOpen: payload.attendanceOpen,
+      openSession: payload.openSession,
+      todayWorkMinutes: payload.todayWorkMinutes,
+      autoAttendanceBlockedToday: payload.autoAttendanceBlockedToday,
+    };
     if (!Array.isArray(rows) || rows.length === 0) {
       elements.timesheetList.innerHTML = `
         <div class="timesheet-month-summary">
@@ -10770,10 +10838,11 @@ async function loadMyTimesheets() {
         <p class="muted-info">${t("timesheetEmpty")}</p>`;
       resetDailyInsights();
       lastTimesheetRows = [];
+      lastTimesheetMeta = {};
       updateSmartWorkHub(lastWorkerPayload, []);
       return;
     }
-    updateDailyInsightsFromTimesheets(rows);
+    updateDailyInsightsFromTimesheets(rows, lastTimesheetMeta);
     // Group by date
     const byDate = {};
     for (const row of rows) {
@@ -10795,8 +10864,13 @@ async function loadMyTimesheets() {
       </div>`;
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
-        const sessions = pairWorkerPresenceSessions(entries, rows);
-        const totalMin = summarizeWorkerPresenceMinutes(entries, rows);
+        const sessions = pairWorkerPresenceSessions(entries, rows, { workHoursOnly: true });
+        const totalMin = Number.isFinite(Number(lastTimesheetMeta.todayWorkMinutes)) && date === getLocalIsoDate()
+          ? Number(lastTimesheetMeta.todayWorkMinutes)
+          : summarizeWorkerPresenceMinutes(entries, rows, {
+              includeOpenDuration: Boolean(lastTimesheetMeta.attendanceOpen) && date === getLocalIsoDate(),
+              openCheckInAt: String(lastTimesheetMeta.openSession?.checkInAt || ""),
+            });
         const totalLabel = totalMin > 0 ? `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, "0")} h` : "";
         const sessionDurationByOut = new Map(
           sessions

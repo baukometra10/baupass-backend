@@ -6,6 +6,24 @@ class AttendanceRepository {
 
   final ApiClient _api;
 
+  Future<Map<String, dynamic>> recordManualGpsAttendance({
+    required WorkerSession session,
+    required String direction,
+    required Map<String, dynamic> location,
+    String? clientEventId,
+  }) {
+    return _api.postJson(
+      '/api/worker-app/attendance/manual',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{
+        'direction': direction,
+        'location': location,
+        if (clientEventId != null) 'clientEventId': clientEventId,
+      },
+    );
+  }
+
   Future<Map<String, dynamic>> recordNfcAttendance({
     required WorkerSession session,
     required String nfcUid,

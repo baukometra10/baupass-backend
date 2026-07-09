@@ -16,6 +16,16 @@ def today_prefix() -> str:
 
 ON_SITE_DIRECTIONS = ("check-in", "app-login")
 OFF_SITE_DIRECTIONS = ("check-out", "app-logout")
+WORK_CHECKIN_DIRECTIONS = ("check-in",)
+WORK_CHECKOUT_DIRECTIONS = ("check-out",)
+
+
+def is_work_checkin(direction: str | None) -> bool:
+    return str(direction or "").strip().lower() in WORK_CHECKIN_DIRECTIONS
+
+
+def is_work_checkout(direction: str | None) -> bool:
+    return str(direction or "").strip().lower() in WORK_CHECKOUT_DIRECTIONS
 
 
 def is_on_site_direction(direction: str | None) -> bool:
@@ -101,6 +111,90 @@ def pair_presence_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]
         )
 
     return sessions
+
+
+def pair_work_attendance_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pair only formal check-in / check-out for billable work hours."""
+    ordered = sorted(events, key=lambda item: str(item.get("timestamp") or ""))
+    sessions: list[dict[str, Any]] = []
+    pending_in: dict[str, Any] | None = None
+
+    for ev in ordered:
+        direction = str(ev.get("direction") or "").strip().lower()
+        if is_work_checkin(direction):
+            if pending_in is None:
+                pending_in = ev
+            continue
+        if not is_work_checkout(direction):
+            continue
+
+        duration = None
+        if pending_in:
+            duration = minutes_between_access_timestamps(
+                pending_in.get("timestamp"), ev.get("timestamp")
+            )
+            sessions.append(
+                {
+                    "checkIn": pending_in.get("timestamp"),
+                    "checkOut": ev.get("timestamp"),
+                    "gateIn": pending_in.get("gate") or "",
+                    "gateOut": ev.get("gate") or "",
+                    "durationMinutes": duration,
+                }
+            )
+            pending_in = None
+
+    if pending_in:
+        sessions.append(
+            {
+                "checkIn": pending_in.get("timestamp"),
+                "checkOut": None,
+                "gateIn": pending_in.get("gate") or "",
+                "gateOut": "",
+                "durationMinutes": None,
+            }
+        )
+
+    return sessions
+
+
+def total_work_attendance_minutes(
+    events: list[dict[str, Any]],
+    *,
+    open_checkin_at: str | None = None,
+) -> int:
+    """Billable minutes from closed check-in/out pairs plus one open check-in when provided."""
+    total = 0
+    for session in pair_work_attendance_sessions(events):
+        minutes = session.get("durationMinutes")
+        if isinstance(minutes, int) and minutes > 0:
+            total += minutes
+    if open_checkin_at:
+        extra = minutes_between_access_timestamps(open_checkin_at, now_iso())
+        if isinstance(extra, int) and extra > 0:
+            total += extra
+    return total
+
+
+def today_work_minutes(
+    events: list[dict[str, Any]],
+    *,
+    open_checkin_at: str | None = None,
+    day_prefix: str | None = None,
+) -> int:
+    """Work minutes for a calendar day, including an overnight open check-in from yesterday."""
+    day = day_prefix or today_prefix()
+    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    day_events = [ev for ev in events if str(ev.get("timestamp") or "")[:10] == day]
+    open_for_day = None
+    if open_checkin_at:
+        open_day = open_checkin_at[:10]
+        if open_day == day:
+            open_for_day = open_checkin_at
+        elif open_day == yesterday and day == today_prefix():
+            day_events = [{"direction": "check-in", "timestamp": open_checkin_at, "gate": ""}] + day_events
+            open_for_day = open_checkin_at
+    return total_work_attendance_minutes(day_events, open_checkin_at=open_for_day)
 
 
 def total_presence_minutes(events: list[dict[str, Any]]) -> int:

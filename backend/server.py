@@ -11549,6 +11549,49 @@ def worker_has_open_checkin_today(db, worker_id):
     return checkin_ts in {today, yesterday}
 
 
+def get_open_work_checkin_row(db, worker_id):
+    """Return the latest unmatched formal check-in row, if any."""
+    return db.execute(
+        """
+        SELECT al.timestamp, al.gate, al.note
+        FROM access_logs al
+        WHERE al.worker_id = ?
+          AND al.direction = 'check-in'
+          AND NOT EXISTS (
+              SELECT 1 FROM access_logs al2
+              WHERE al2.worker_id = al.worker_id
+                AND al2.timestamp > al.timestamp
+                AND al2.direction = 'check-out'
+          )
+        ORDER BY al.timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id,),
+    ).fetchone()
+
+
+def worker_auto_attendance_blocked_today(db, worker_id):
+    """Block automatic GPS check-in/login after today's checkout until manual check-in."""
+    if worker_has_open_checkin(db, worker_id):
+        return False
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    row = db.execute(
+        """
+        SELECT direction
+        FROM access_logs
+        WHERE worker_id = ?
+          AND timestamp LIKE ?
+          AND direction IN ('check-in', 'check-out', 'app-login', 'app-logout')
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id, f"{today_prefix}%"),
+    ).fetchone()
+    if not row:
+        return False
+    return str(row["direction"] or "").strip().lower() in ("check-out", "app-logout")
+
+
 def _work_time_to_minutes(value):
     normalized = str(value or "").strip()
     if not normalized or ":" not in normalized:
@@ -11741,25 +11784,22 @@ def _append_geofence_id_to_note(note, geofence_id):
 
 
 def _get_active_checkin_geofence_id(db, worker_id):
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
     row = db.execute(
         """
         SELECT note
-        FROM access_logs
-        WHERE worker_id = ?
-          AND timestamp LIKE ?
-          AND direction IN ('check-in', 'app-login')
+        FROM access_logs al
+        WHERE al.worker_id = ?
+          AND al.direction = 'check-in'
           AND NOT EXISTS (
               SELECT 1 FROM access_logs al_out
-              WHERE al_out.worker_id = access_logs.worker_id
-                AND al_out.timestamp > access_logs.timestamp
-                AND al_out.timestamp LIKE ?
-                AND al_out.direction IN ('check-out', 'app-logout')
+              WHERE al_out.worker_id = al.worker_id
+                AND al_out.timestamp > al.timestamp
+                AND al_out.direction = 'check-out'
           )
-        ORDER BY timestamp DESC
+        ORDER BY al.timestamp DESC
         LIMIT 1
         """,
-        (worker_id, f"{today_prefix}%", f"{today_prefix}%"),
+        (worker_id,),
     ).fetchone()
     if not row:
         return ""
@@ -11859,6 +11899,8 @@ def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note="",
 
 
 def _sync_off_site_polls_and_maybe_leave(db, worker, session_token, measured_for_leave, site_cfg):
+    if not site_cfg.get("siteAutoLogoutOnLeave", True):
+        return None
     if not measured_for_leave or measured_for_leave.get("onSite"):
         if session_token:
             db.execute(
@@ -11981,6 +12023,8 @@ def worker_has_site_app_login_today(db, worker_id):
 
 def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung", geofence_id=None):
     """Visible in admin recent access and dashboard on-site counts."""
+    if worker_auto_attendance_blocked_today(db, worker["id"]):
+        return None
     if worker_has_open_checkin_today(db, worker["id"]):
         return None
     if worker_has_open_site_app_session_today(db, worker["id"]):
@@ -12078,6 +12122,8 @@ def maybe_site_app_auto_checkin(db, worker, *, via_proximity: bool = False, geof
     company_id = worker["company_id"]
     site_cfg = get_company_site_access_config(db, company_id)
     if site_cfg["accessMode"] != "site_app" or not site_cfg["siteAutoCheckin"]:
+        return None
+    if worker_auto_attendance_blocked_today(db, worker["id"]):
         return None
     try:
         from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
@@ -14027,6 +14073,7 @@ def worker_app_site_presence():
             "accessMode": site_cfg["accessMode"],
             "openCheckInToday": worker_has_open_checkin_today(db, worker["id"]),
             "siteSessionOpen": worker_has_open_site_app_session_today(db, worker["id"]),
+            "autoAttendanceBlockedToday": worker_auto_attendance_blocked_today(db, worker["id"]),
             "siteAutoLogoutOnLeave": site_cfg["siteAutoLogoutOnLeave"],
             "autoCheckInLogId": auto_checkin_log_id,
             "siteLoginLogId": site_login_log_id,
@@ -14269,6 +14316,192 @@ def record_worker_app_nfc_attendance(
         "gate": gate_label,
         "clientEventId": client_event_id,
     }
+
+
+def record_worker_app_manual_attendance(
+    db,
+    worker,
+    *,
+    direction_requested="auto",
+    location=None,
+    gate=None,
+    note=None,
+    timestamp_value=None,
+    client_event_id=None,
+):
+    """Manual GPS check-in/out from the native app (no NFC card required)."""
+    if str(worker.get("status") or "").strip().lower() not in {"aktiv", "active"}:
+        return {"ok": False, "error": "worker_not_active", "status": 403}
+
+    company_error = get_company_access_error(db, worker["company_id"])
+    if company_error:
+        return {"ok": False, "error": company_error.get("error", "company_blocked"), "status": 403, "message": company_error.get("message")}
+
+    doc_block = worker_document_access_block(db, worker)
+    if doc_block:
+        return {"ok": False, "error": doc_block["error"], "status": 403, "message": doc_block.get("message")}
+
+    if client_event_id and _access_log_has_client_event_id(db, worker["id"], client_event_id):
+        return {
+            "ok": True,
+            "duplicate": True,
+            "replay": True,
+            "clientEventId": client_event_id,
+            "message": "Attendance event already recorded.",
+        }
+
+    site_cfg = get_company_site_access_config(db, worker["company_id"])
+    if not isinstance(location, dict):
+        return {
+            "ok": False,
+            "error": "worker_geolocation_required",
+            "status": 400,
+            "message": "Location is required for manual GPS attendance.",
+        }
+    try:
+        measured = measure_worker_site_distance(db, worker, location)
+    except ValueError as error:
+        error_code = str(error)
+        if error_code == "worker_geolocation_inaccurate":
+            return {"ok": False, "error": error_code, "status": 400}
+        return {"ok": False, "error": "worker_geolocation_required", "status": 400}
+    if not measured:
+        return {"ok": False, "error": "site_location_unavailable", "status": 403}
+    radius = int(site_cfg["siteGeofenceRadiusMeters"])
+    if not measured.get("onSite"):
+        return {
+            "ok": False,
+            "error": "outside_geofence",
+            "status": 403,
+            "distanceMeters": measured["distanceMeters"],
+            "radiusMeters": radius,
+            "allowedRadiusMeters": measured.get("allowedRadiusMeters", radius),
+        }
+
+    requested_direction = str(direction_requested or "auto").strip().lower()
+    if requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
+        return {"ok": False, "error": "invalid_direction", "status": 400}
+
+    if requested_direction in {"auto", "toggle", ""}:
+        direction = "check-out" if worker_has_open_checkin(db, worker["id"]) else "check-in"
+    else:
+        direction = requested_direction
+
+    if direction == "check-in" and worker_has_open_checkin(db, worker["id"]):
+        return {"ok": False, "error": "already_checked_in", "status": 409}
+    if direction == "check-out" and not worker_has_open_checkin(db, worker["id"]):
+        return {"ok": False, "error": "not_checked_in", "status": 409}
+
+    if direction == "check-in":
+        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+        attendance = worker_may_auto_attend_today(db, worker)
+        if not attendance.get("ok"):
+            return {
+                "ok": False,
+                "error": str(attendance.get("reason") or "attendance_blocked"),
+                "status": 403,
+                "message": str(attendance.get("message") or "Check-in nicht erlaubt."),
+            }
+
+    gate_label = str(gate or "Mitarbeiter-App (GPS manuell)").strip() or "Mitarbeiter-App (GPS manuell)"
+    note_text = str(note or "Manual GPS attendance via employee app").strip()
+    if client_event_id:
+        note_text = f"{note_text} | clientEventId={client_event_id}"
+    geofence_id = measured.get("geofenceId")
+    if geofence_id:
+        note_text = _append_geofence_id_to_note(note_text, geofence_id)
+
+    debounce_row = db.execute(
+        """
+        SELECT id, direction, timestamp
+        FROM access_logs
+        WHERE worker_id = ?
+        ORDER BY timestamp DESC, id DESC
+        LIMIT 1
+        """,
+        (worker["id"],),
+    ).fetchone()
+    if debounce_row:
+        last_direction = str(debounce_row["direction"] or "").strip().lower()
+        last_ts = str(debounce_row["timestamp"] or "")
+        if last_direction == direction:
+            try:
+                last_dt = datetime.fromisoformat(last_ts.replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                age_seconds = (utc_now() - last_dt.astimezone(timezone.utc)).total_seconds()
+                if age_seconds < 45:
+                    return {
+                        "ok": True,
+                        "duplicate": True,
+                        "logId": str(debounce_row["id"]),
+                        "direction": direction,
+                        "timestamp": last_ts,
+                    }
+            except Exception:
+                pass
+
+    log_id = create_access_log_entry(
+        db,
+        worker["id"],
+        direction,
+        gate_label,
+        note_text,
+        timestamp_value=timestamp_value,
+        worker_type=worker["worker_type"],
+    )
+    return {
+        "ok": True,
+        "duplicate": False,
+        "logId": log_id,
+        "direction": direction,
+        "timestamp": timestamp_value or now_iso(),
+        "gate": gate_label,
+        "clientEventId": client_event_id,
+    }
+
+
+@require_worker_session
+def worker_app_attendance_manual():
+    """Record manual GPS check-in/check-out without NFC (native Flutter app)."""
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid_payload"}), 400
+
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else None
+    result = record_worker_app_manual_attendance(
+        db,
+        worker,
+        direction_requested=payload.get("direction") or "auto",
+        location=location,
+        gate=payload.get("gate"),
+        note=payload.get("note"),
+        client_event_id=clean_id_input(payload.get("clientEventId"), max_len=80),
+    )
+    if not result.get("ok"):
+        status = int(result.get("status") or 400)
+        body = {k: v for k, v in result.items() if k not in {"ok", "status"}}
+        body["error"] = result.get("error")
+        return jsonify(body), status
+
+    if not result.get("duplicate"):
+        db.commit()
+        log_audit(
+            "worker_app.attendance_manual",
+            f"Manual GPS {result.get('direction')} for {worker['first_name']} {worker['last_name']}",
+            target_type="worker",
+            target_id=worker["id"],
+            company_id=worker["company_id"],
+        )
+    else:
+        db.commit()
+
+    result["openCheckInToday"] = worker_has_open_checkin_today(db, worker["id"])
+    result["attendanceOpen"] = worker_has_open_checkin(db, worker["id"])
+    return jsonify(result)
 
 
 @require_worker_session
@@ -26703,7 +26936,10 @@ def export_leave_request_pdf(req_id):
 
 @require_worker_session
 def worker_app_my_timesheets():
-    from backend.app.platform.physical_operations._common import total_presence_minutes
+    from backend.app.platform.physical_operations._common import (
+        today_work_minutes,
+        total_work_attendance_minutes,
+    )
 
     db = get_db()
     worker = g.worker
@@ -26727,10 +26963,31 @@ def worker_app_my_timesheets():
         (worker["id"], f"{month_prefix}%"),
     ).fetchall()
     events = [dict(r) for r in rows]
+    open_row = get_open_work_checkin_row(db, worker["id"])
+    open_checkin_at = str(open_row["timestamp"] or "") if open_row else ""
+    open_session = None
+    if open_row:
+        open_session = {
+            "checkInAt": open_checkin_at,
+            "gate": str(open_row["gate"] or ""),
+            "note": str(open_row["note"] or ""),
+        }
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
     return jsonify(
         {
             "month": month_prefix,
-            "monthTotalMinutes": total_presence_minutes(events),
+            "monthTotalMinutes": total_work_attendance_minutes(
+                events,
+                open_checkin_at=open_checkin_at or None,
+            ),
+            "todayWorkMinutes": today_work_minutes(
+                events,
+                open_checkin_at=open_checkin_at or None,
+                day_prefix=today_prefix,
+            ),
+            "attendanceOpen": bool(open_session),
+            "openSession": open_session,
+            "autoAttendanceBlockedToday": worker_auto_attendance_blocked_today(db, worker["id"]),
             "rows": events,
         }
     )
