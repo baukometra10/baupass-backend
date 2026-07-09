@@ -27,6 +27,7 @@ class AuthRepository {
     required String badgePin,
     Map<String, dynamic>? location,
     String? pushToken,
+    bool qrLaunch = false,
   }) async {
     final device = await _deviceIdentity.loginPayload(pushToken: pushToken);
     final body = await _api.postJson(
@@ -35,10 +36,18 @@ class AuthRepository {
         'badgeId': badgeId.trim().toUpperCase(),
         'badgePin': badgePin.trim(),
         if (location != null) 'location': location,
+        if (qrLaunch) 'qrLaunch': true,
         'device': device,
       },
     );
     return _sessionFromLoginBody(body);
+  }
+
+  Future<Map<String, dynamic>> previewJoin(String accessToken) async {
+    return _api.postJson(
+      '/api/worker-app/join-preview',
+      body: <String, dynamic>{'accessToken': accessToken.trim()},
+    );
   }
 
   Future<WorkerSession> loginWithAccessToken(String accessToken, {String? pushToken}) async {

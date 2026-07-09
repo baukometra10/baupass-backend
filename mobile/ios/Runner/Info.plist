@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Mitarbeiter</string>
+	<string>SUPPIX</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -37,6 +37,8 @@
 	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Die Kamera wird zum Scannen des Aktivierungs-QR-Codes benötigt.</string>
 	<key>NFCReaderUsageDescription</key>
 	<string>Die App nutzt NFC, um deine Anwesenheit per Mitarbeiterkarte zu erfassen.</string>
 	<key>NSMicrophoneUsageDescription</key>

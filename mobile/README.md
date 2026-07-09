@@ -1,4 +1,4 @@
-﻿# WorkPass Worker — Flutter Hybrid App (Enterprise)
+﻿# SUPPIX Worker — Flutter Hybrid App (Enterprise)
 
 **Sole employee UI** for WorkPass: hybrid Flutter (Android + iOS) talking to the existing `/api/worker-app/*` backend on PostgreSQL/Railway — no backend rewrite.
 

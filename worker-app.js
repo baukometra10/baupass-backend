@@ -572,11 +572,98 @@ function getOrCreateWorkerDeviceFingerprint() {
 }
 
 function buildWorkerDevicePayload() {
+  const android = typeof isAndroidDevice === "function" && isAndroidDevice();
+  const ios = typeof isIosDevice === "function" && isIosDevice();
+  let platform = "web";
+  let name = isStandaloneDisplay() ? "PWA Fallback" : "Mobile Web";
+  if (ios) {
+    platform = "ios";
+    name = "iPhone (PWA Fallback)";
+  } else if (android) {
+    platform = "android";
+    name = "Android (PWA Fallback)";
+  }
   return {
     fingerprint: getOrCreateWorkerDeviceFingerprint(),
-    name: isIosDevice() ? "iPhone" : (isStandaloneDisplay() ? "Installed PWA" : "Mobile Web"),
-    platform: isIosDevice() ? "ios" : "web",
+    name,
+    platform,
+    channel: "pwa_fallback",
   };
+}
+
+let workerLoginQrStop = null;
+
+function stopWorkerLoginQrScanner() {
+  if (typeof workerLoginQrStop === "function") {
+    workerLoginQrStop();
+    workerLoginQrStop = null;
+  }
+}
+
+async function startWorkerLoginQrScanner() {
+  stopWorkerLoginQrScanner();
+  const wrap = document.getElementById("workerQrScanner");
+  const video = document.getElementById("workerQrScannerVideo");
+  const status = document.getElementById("workerQrScannerStatus");
+  if (!wrap || !video || !window.WorkerQrScanner) {
+    return;
+  }
+  const currentAccess = String(
+    elements.workerAccessToken?.value || readBootstrapAccessToken(new URLSearchParams(window.location.search)) || ""
+  ).trim();
+  if (currentAccess && looksLikeAccessToken(currentAccess)) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  if (!window.WorkerQrScanner.supported()) {
+    wrap.classList.add("hidden");
+    return;
+  }
+  wrap.classList.remove("hidden");
+  if (status) {
+    status.textContent = t("qrScannerActive") || "Kamera aktiv – QR-Code scannen";
+    status.classList.remove("is-error");
+  }
+  workerLoginQrStop = await window.WorkerQrScanner.start({
+    videoEl: video,
+    onScan: async (payload) => {
+      stopWorkerLoginQrScanner();
+      wrap.classList.add("hidden");
+      if (payload.access) {
+        if (elements.workerAccessToken) {
+          elements.workerAccessToken.value = payload.access;
+        }
+        try {
+          await loginWithAccessToken(payload.access, { keepUrlToken: false, silent: false });
+        } catch (error) {
+          showLoginError(error?.message || t("qrLinkInvalidRescan"));
+          showLogin(true);
+        }
+        return;
+      }
+      if (payload.badge) {
+        document.body.classList.add("qr-fast-login");
+        if (elements.workerAccessToken) {
+          elements.workerAccessToken.value = payload.badge;
+          wpSet(WORKER_BADGE_LOGIN_KEY, payload.badge);
+        }
+        syncLoginPinFieldVisibility(payload.badge);
+        const loginCopy = document.querySelector(".login-copy-sparkasse");
+        if (loginCopy) {
+          loginCopy.textContent = `Badge ${payload.badge} erkannt – nur noch PIN eingeben.`;
+        }
+        const pinInput = document.querySelector("#workerBadgePin");
+        pinInput?.focus?.();
+      }
+    },
+    onError: (code) => {
+      wrap.classList.add("hidden");
+      if (status && code && code !== "qr_scanner_unsupported") {
+        status.textContent = String(code);
+        status.classList.add("is-error");
+      }
+    },
+  });
 }
 
 function getWorkerAuthorizationValue() {
@@ -5788,6 +5875,7 @@ function renderWorker(payload, options = {}) {
   }
 
   if (elements.loginCard) elements.loginCard.classList.add("hidden");
+  stopWorkerLoginQrScanner();
   document.body.classList.add("worker-loaded");
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
@@ -6030,6 +6118,7 @@ function showLogin(force = false) {
     resumeRow.classList.add("hidden");
   }
   startProximityLoginWatcher();
+  startWorkerLoginQrScanner();
 }
 
 function updateConnectionState() {

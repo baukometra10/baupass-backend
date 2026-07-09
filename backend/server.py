@@ -11315,8 +11315,8 @@ def _compose_worker_app_access_response(
     return {
         "accessToken": access_token,
         "badgeId": badge_lookup or None,
-        "link": pwa_link,
-        "joinLink": pwa_link,
+        "link": native_link,
+        "joinLink": native_link,
         "pwaLink": pwa_link,
         "nativeJoinLink": native_link,
         "deepLink": f"baupass://join?access={access_token}",

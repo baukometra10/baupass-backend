@@ -205,7 +205,7 @@ class _WorkerAppState extends State<WorkerApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
-      title: _appBranding.displayName,
+      title: _session != null ? _appBranding.displayName : 'SUPPIX',
       theme: _appBranding.themeData(),
       home: _bootstrapping
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))

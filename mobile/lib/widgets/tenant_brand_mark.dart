@@ -21,6 +21,17 @@ class TenantBrandMark extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = branding.accentColor ?? Theme.of(context).colorScheme.primary;
     final logo = branding.logoData?.trim() ?? '';
+    if (logo.isEmpty && branding.displayName == 'SUPPIX') {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: Image.asset(
+          'assets/branding/suppix-icon-192.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+        ),
+      );
+    }
     if (logo.isNotEmpty) {
       final image = _logoImage(logo);
       if (image != null) {

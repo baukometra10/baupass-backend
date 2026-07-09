@@ -14,6 +14,26 @@ class TenantBranding {
 
   static const TenantBranding fallback = TenantBranding(displayName: 'Mitarbeiter');
 
+  static const TenantBranding suppixShell = TenantBranding(
+    displayName: 'SUPPIX',
+    accentColor: Color(0xFF06B6D4),
+  );
+
+  bool get hasVisualIdentity =>
+      (logoData != null && logoData!.isNotEmpty) ||
+      accentColor != null ||
+      (displayName.isNotEmpty && displayName != fallback.displayName && displayName != 'SUPPIX');
+
+  TenantBranding mergeHostHints(TenantBranding host) {
+    if (!hasVisualIdentity && host.accentColor != null) {
+      return TenantBranding(
+        displayName: 'SUPPIX',
+        accentColor: host.accentColor,
+      );
+    }
+    return this;
+  }
+
   String get aiAssistantTitle => '$displayName Assistent';
 
   Map<String, dynamic> toCacheJson() => {

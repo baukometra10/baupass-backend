@@ -213,7 +213,15 @@
       const buildMeta = await loadBuildMeta();
 
       if (launch && accessToken) {
-        redirectToPwa(buildMeta);
+        if (shouldTryNativeDeepLink(cfg, platform)) {
+          showStatus(window.joinT("openingApp") || "Öffne SUPPIX-App…");
+          window.location.href = deepLinkUrl();
+          window.setTimeout(() => {
+            document.getElementById("hint").textContent = window.joinT("hintActive");
+          }, 1800);
+        } else {
+          redirectToPwa(buildMeta);
+        }
         return;
       }
 

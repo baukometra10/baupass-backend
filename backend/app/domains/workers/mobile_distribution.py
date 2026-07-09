@@ -56,8 +56,9 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
             "pushRegister": "/api/worker-app/push/register",
         },
         "pwaInstall": {
-            "label": "Veraltete Browser-App — bitte Flutter-App verwenden",
+            "label": "SUPPIX Browser-Fallback (Notfall)",
             "deprecated": True,
+            "fallbackOnly": True,
             "entry": f"{base}{entry}?worker=1",
             "launcher": f"{base}{launcher}?v={build_tag}",
         },

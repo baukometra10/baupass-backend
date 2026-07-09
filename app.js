@@ -24454,7 +24454,9 @@ function bindWorkerRowActions() {
     button.onclick = async () => {
       try {
         const payload = await apiRequest(`${API_BASE}/api/workers/${button.dataset.workerAppLink}/app-access`, { method: "POST" });
-        const absoluteLink = normalizeWorkerAppLink(payload.link);
+        const absoluteLink = normalizeWorkerAppLink(
+          payload?.nativeJoinLink || payload?.joinLink || payload?.link || ""
+        );
         const worker = state.workers.find((entry) => entry.id === button.dataset.workerAppLink) || null;
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
@@ -27740,7 +27742,9 @@ window.triggerWorkerAccess = triggerWorkerAccess;
     button.addEventListener("click", async () => {
       try {
         const payload = await apiRequest(API_BASE + `/api/workers/${button.dataset.workerAppLink}/app-access`, { method: "POST" });
-        const absoluteLink = normalizeWorkerAppLink(payload.link);
+        const absoluteLink = normalizeWorkerAppLink(
+          payload?.nativeJoinLink || payload?.joinLink || payload?.link || ""
+        );
         const worker = state.workers.find((entry) => entry.id === button.dataset.workerAppLink) || null;
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
@@ -28072,7 +28076,9 @@ function renderBadge() {
       elements.appLinkBadgeButton.textContent = runtimeText("appLinkCreating");
       try {
         const payload = await apiRequest(`${API_BASE}/api/workers/${worker.id}/app-access`, { method: "POST" });
-        const absoluteLink = normalizeWorkerAppLink(payload.link);
+        const absoluteLink = normalizeWorkerAppLink(
+          payload?.nativeJoinLink || payload?.joinLink || payload?.link || ""
+        );
         showWorkerAppQrDialog(worker, absoluteLink, payload);
       } catch (error) {
         showToast(uiT("alertAppLinkCreateFailed").replace("{error}", mapWorkerAppLinkError(error)));
@@ -28113,7 +28119,9 @@ async function renderWorkerBadgeAppQr(workerId, qrId, fallbackBadgeId) {
       }
       payload = await apiRequest(`${API_BASE}/api/workers/${workerId}/app-access`, { method: "POST" });
     }
-    const appLink = normalizeWorkerAppLink(payload?.link || "");
+    const appLink = normalizeWorkerAppLink(
+      payload?.nativeJoinLink || payload?.joinLink || payload?.link || ""
+    );
     if (!appLink) {
       throw new Error("missing_app_link");
     }

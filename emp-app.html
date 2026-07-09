@@ -89,7 +89,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Mitarbeiter" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Fallback" />
   <meta name="application-name" content="Mitarbeiter-App" />
   <meta name="format-detection" content="telephone=no" />
   <meta http-equiv="Permissions-Policy" content="microphone=(self), camera=(self), geolocation=(self)" />
@@ -97,7 +97,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="./branding/suppix-icon-192.png" id="workerAppFavicon" />
   <link rel="apple-touch-icon" sizes="192x192" href="./branding/suppix-icon-192.png" id="workerAppTouchIcon" />
   <link rel="manifest" href="./emp-app-manifest.json?v=20260704d" />
-  <title>Mitarbeiter-App</title>
+  <title>SUPPIX Fallback</title>
   <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="pragma" content="no-cache" />
   <meta http-equiv="expires" content="0" />
@@ -107,6 +107,7 @@
   <link rel="stylesheet" href="./worker-polish.css?v=20260704d" />
   <link rel="stylesheet" href="./worker-layout-v2.css?v=20260704d" />
   <link rel="stylesheet" href="./worker-login.css?v=20260704d" />
+  <link rel="stylesheet" href="./worker-qr-scanner.css?v=20260709qr1" />
   <link rel="stylesheet" href="./worker-ui-enhance.css?v=20260704d" />
   <link rel="stylesheet" href="./worker-readability.css?v=20260704d" />
   <link rel="stylesheet" href="./e2e-security.css?v=20260707e2e1" />
@@ -271,6 +272,17 @@
 
       <!-- Main Login Content -->
       <div class="login-content-sparkasse">
+        <p class="worker-fallback-banner" role="status">
+          SUPPIX Browser-Fallback — empfohlen ist die native SUPPIX-App. Diese PWA dient nur als Notfall-Modus.
+        </p>
+        <div id="workerQrScanner" class="worker-qr-scanner hidden" aria-live="polite">
+          <div class="worker-qr-scanner__frame">
+            <video id="workerQrScannerVideo" class="worker-qr-scanner__video" playsinline muted></video>
+            <div class="worker-qr-scanner__overlay"><div class="worker-qr-scanner__box"></div></div>
+          </div>
+          <p class="worker-qr-scanner__hint">Aktivierungs-QR des Administrators in den Rahmen halten</p>
+          <p id="workerQrScannerStatus" class="worker-qr-scanner__status"></p>
+        </div>
         <div class="login-welcome">
           <h2 class="login-title-sparkasse" data-i18n="loginTitle">Digitalen Ausweis aktivieren</h2>
           <p class="login-copy-sparkasse" data-i18n="loginCopy">Gib deinen Link-Code oder deine Badge-ID ein, um deinen Ausweis zu laden.</p>
@@ -1515,6 +1527,7 @@
   <script src="./e2e-crypto.js?v=20260707o"></script>
   <script src="./e2e-worker-security.js?v=20260707o"></script>
   <script src="./chat-voice.js?v=20260707voice22"></script>
+  <script src="./worker-qr-scanner.js?v=20260709qr1"></script>
   <script src="./worker-app.js?v=20260707voice22" defer></script>
   <script defer>
     window.addEventListener("DOMContentLoaded", function () {
