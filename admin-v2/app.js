@@ -1316,31 +1316,31 @@ function initCommandPalette() {
 }
 
 function renderQuickLinks() {
-  const items = [
+  const primary = [
     { tab: "enterprise", title: t("quick.enterprise.title"), desc: t("quick.enterprise.desc") },
     { tab: "workers", title: t("quick.workers.title"), desc: t("quick.workers.desc") },
     { tab: "access", title: t("quick.access.title"), desc: t("quick.access.desc") },
     { tab: "mobile", title: t("quick.mobile.title"), desc: t("quick.mobile.desc") },
     { tab: "inbox", title: t("tab.inbox"), desc: t("section.inbox.desc") },
-    { tab: "copilot", title: t("section.copilot.title"), desc: t("section.copilot.desc") },
-    { tab: "operations", title: t("quick.operations.title"), desc: t("quick.operations.desc") },
-    { tab: "tools", title: t("quick.tools.title"), desc: t("quick.tools.desc") },
     { tab: "platform", title: t("quick.platform.title"), desc: t("quick.platform.desc") },
+  ];
+  const legacy = [
     { legacy: "invoices", title: t("feature.invoices"), desc: t("quick.legacy.invoiceDesc") },
     { legacy: "devices", title: t("feature.devices"), desc: t("quick.legacy.devicesDesc") },
     { legacy: "admin", title: t("feature.settings"), desc: t("quick.legacy.settingsDesc") },
   ];
-  $("quickLinks").innerHTML = items
-    .map((item) => {
-      if (item.legacy) {
-        return `<button type="button" class="feature-card" data-legacy-dashboard="${item.legacy}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
-      }
-      if (item.href) {
-        return `<a class="feature-card" href="${item.href}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></a>`;
-      }
-      return `<button type="button" class="feature-card" data-goto-tab="${item.tab}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
-    })
-    .join("");
+  const renderCard = (item) => {
+    if (item.legacy) {
+      return `<button type="button" class="feature-card" data-legacy-dashboard="${item.legacy}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
+    }
+    return `<button type="button" class="feature-card" data-goto-tab="${item.tab}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
+  };
+  $("quickLinks").innerHTML = `
+    <div class="quick-links-primary">${primary.map(renderCard).join("")}</div>
+    <details class="quick-links-more muted small">
+      <summary>${t("quick.moreTools") || "Weitere Tools"}</summary>
+      <div class="quick-links-grid">${legacy.map(renderCard).join("")}</div>
+    </details>`;
   bindLegacyDashboardLinks($("quickLinks"));
   $("quickLinks").querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -2092,7 +2092,7 @@ async function loadPlatform() {
       api("/api/platform/entitlements").catch(() => null),
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
-      fetch("/api/platform/setup-status").then((r) => r.json()).catch(() => null),
+      api("/api/platform/setup-status").catch(() => null),
       api("/api/platform/push/status").catch(() => null),
       api("/api/v2/mobile/distribution").catch(() => null),
       cid
@@ -2171,13 +2171,17 @@ async function loadPlatform() {
       <div class="panel-block">
         <h3>${t("platform.infrastructure")}</h3>
         <p>${t("platform.runtime")}: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
-        <p class="muted small">Path: ${caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—"}</p>
         <p>${t("platform.readiness")}: ${statusBadge(ready.ready)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"} · ${t("platform.rqWorkers")}: <strong>${bgJobs.workers?.active ?? health.checks?.workers?.active ?? "—"}</strong></p>
         ${
           bgJobRows
             ? `<h4 class="muted small">${t("platform.backgroundJobs")}</h4><div class="table-wrap"><table><thead><tr><th>Job</th><th>${t("common.lastRun") || "Last run"}</th><th>${t("common.status") || "Status"}</th></tr></thead><tbody>${bgJobRows}</tbody></table></div>${bgDegraded}`
             : ""
         }
+        <details class="platform-tech-details muted small">
+          <summary>${t("platform.techDetails") || "Technische Details"}</summary>
+          <p>DB: ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")} · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}</p>
+          <p class="mono">${escapeHtml(caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—")}</p>
+        </details>
       </div>
       <div class="panel-block">
         <h3>${t("platform.attendanceCaps")}</h3>
@@ -2230,7 +2234,7 @@ async function loadPlatform() {
       </div>
       <div class="panel-block">
         <h3>${t("platform.wallet")}</h3>
-        <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : t("platform.walletLoading")}</p>
+        <p class="muted small">${wallet?.configured ? statusBadge(true) : statusBadge(false)} ${wallet?.mode || wallet?.status || t("platform.walletLoading")}</p>
       </div>
       </div>
       <div class="link-row">

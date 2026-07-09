@@ -31743,9 +31743,10 @@ async function loadAndRenderInvoices(options = {}) {
     const hadSeenInvoices = Object.keys(state.invoiceSeenIds || {}).length > 0;
     const previousSeen = { ...(state.invoiceSeenIds || {}) };
     const query = String(q ?? getActiveInvoiceSearchQuery()).trim();
+    const previewCompanyId = String(superadminUiPreviewCompanyId || "").trim();
     const invoiceListUrl = query
-      ? `${API_BASE}/api/invoices?q=${encodeURIComponent(query)}`
-      : `${API_BASE}/api/invoices`;
+      ? `${API_BASE}/api/invoices?q=${encodeURIComponent(query)}${previewCompanyId ? `&company_id=${encodeURIComponent(previewCompanyId)}` : ""}`
+      : `${API_BASE}/api/invoices${previewCompanyId ? `?company_id=${encodeURIComponent(previewCompanyId)}` : ""}`;
 
     const billingPromise = loadBillingOverview({ silent: true }).catch(() => null);
     const invoiceResponse = await apiRequest(invoiceListUrl);
@@ -32426,10 +32427,7 @@ function renderInvoiceManagementList() {
         !isPaid &&
         state.billingOverview?.stripe?.configured &&
         (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
-      const canMarkPaid =
-        !isPaid &&
-        (getCurrentUser()?.role === "superadmin" ||
-          (getCurrentUser()?.role === "company-admin" && inv.company_id === getCurrentUser()?.company_id));
+      const canMarkPaid = !isPaid && getCurrentUser()?.role === "superadmin";
       const canRetrySend = !isPaid && statusKey === "send_failed" && getCurrentUser()?.role === "superadmin";
       const canViewHistory = getCurrentUser()?.role === "superadmin";
       const canDownloadReminder =

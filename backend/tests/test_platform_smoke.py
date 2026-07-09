@@ -57,11 +57,14 @@ def test_enterprise_catalog_i18n_eight_langs(client_and_db):
     assert pro["taglineI18n"]["tr"]
 
 
-def test_setup_status_public(client_and_db):
+def test_setup_status_requires_superadmin(client_and_db):
     client, _ = client_and_db
     r = client.get("/api/platform/setup-status")
-    assert r.status_code == 200
-    assert "redis" in r.get_json()
+    assert r.status_code in (401, 403)
+    h = _superadmin_headers(client)
+    r2 = client.get("/api/platform/setup-status", headers=h)
+    assert r2.status_code == 200
+    assert "redis" in r2.get_json()
 
 
 def test_geofence_crud(client_and_db):

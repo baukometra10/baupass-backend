@@ -44,6 +44,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String? _lastDirection;
   Map<String, dynamic>? _profile;
   int _pendingOffline = 0;
+  String? _timesheetSummary;
+
+  String _formatMinutes(int minutes) {
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    return '${h}:${m.toString().padLeft(2, '0')} h';
+  }
+
+  Future<void> _loadTimesheetSummary() async {
+    try {
+      final data = await widget.attendance.fetchMyTimesheets(session: widget.session);
+      final todayMin = (data['todayWorkMinutes'] as num?)?.toInt() ?? 0;
+      final open = data['attendanceOpen'] == true;
+      if (!mounted) return;
+      setState(() {
+        _timesheetSummary = open
+            ? 'Heute: ${_formatMinutes(todayMin)} (eingestempelt)'
+            : 'Heute: ${_formatMinutes(todayMin)}';
+      });
+    } catch (_) {
+      // optional summary — ignore transient errors
+    }
+  }
 
   @override
   void initState() {
@@ -54,6 +77,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _bootstrap() async {
     await _refreshPendingCount();
     await _loadProfile();
+    await _loadTimesheetSummary();
     await widget.offlineSync.syncNow();
     await _refreshPendingCount();
   }
@@ -141,6 +165,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ? 'Bereits erfasst ($recordedDirection).'
             : 'Anwesenheit gespeichert: $recordedDirection';
       });
+      await _loadTimesheetSummary();
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.errorCode == 'outside_geofence') {
@@ -194,6 +219,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ? 'Bereits erfasst ($recordedDirection).'
               : 'Anwesenheit gespeichert: $recordedDirection';
         });
+        await _loadTimesheetSummary();
       } on ApiException catch (e) {
         if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {
           await _queueOfflineAttendance(scan.uid, direction, location: location);
@@ -267,6 +293,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           children: [
             if (name.isNotEmpty)
               Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
+            if (_timesheetSummary != null) ...[
+              const SizedBox(height: 8),
+              Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
+            ],
             const SizedBox(height: 12),
             Card(
               child: Padding(

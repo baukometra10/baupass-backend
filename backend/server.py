@@ -5041,15 +5041,18 @@ def require_roles(*roles):
 
 
 def require_admin_session(handler):
-    """Decorator: real session auth + legacy g.admin_user alias for analytics routes."""
+    """Decorator: session auth for analytics/admin routes (superadmin or company-admin only)."""
 
     @require_auth
     @wraps(handler)
     def wrapper(*args, **kwargs):
         user = dict(g.current_user or {})
+        role = str(user.get("role") or "").strip().lower()
+        if role not in {"superadmin", "company-admin"}:
+            return jsonify({"error": "forbidden"}), 403
         preview_id = str(getattr(g, "preview_company_id", "") or "").strip()
         company_id = str(user.get("company_id") or "").strip()
-        if str(user.get("role") or "").lower() == "superadmin":
+        if role == "superadmin":
             qs_company = str(request.args.get("company_id") or "").strip()
             company_id = qs_company or preview_id or company_id
         g.admin_user = {
@@ -22228,7 +22231,46 @@ def list_invoices():
         plan_value = get_company_plan(db, g.current_user.get("company_id"))
         if not company_has_feature(plan_value, "invoicing"):
             return feature_not_available_response("invoicing", plan_value)
+    preview_company_id = ""
     if g.current_user["role"] == "superadmin":
+        preview_company_id = str(
+            getattr(g, "preview_company_id", None)
+            or request.args.get("company_id")
+            or ""
+        ).strip()
+    if g.current_user["role"] == "superadmin" and preview_company_id:
+        if query_text:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                WHERE invoices.company_id = ?
+                  AND (
+                    lower(invoices.invoice_number) LIKE ?
+                    OR lower(companies.name) LIKE ?
+                    OR lower(invoices.recipient_email) LIKE ?
+                  )
+                ORDER BY
+                    CASE WHEN lower(invoices.invoice_number) = ? THEN 0 ELSE 1 END,
+                    invoices.created_at DESC
+                LIMIT 1000
+                """,
+                (preview_company_id, query_like, query_like, query_like, query_text.lower()),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """
+                SELECT invoices.*, companies.name AS company_name
+                FROM invoices
+                JOIN companies ON companies.id = invoices.company_id
+                WHERE invoices.company_id = ?
+                ORDER BY invoices.created_at DESC
+                LIMIT 300
+                """,
+                (preview_company_id,),
+            ).fetchall()
+    elif g.current_user["role"] == "superadmin":
         if query_text:
             rows = db.execute(
                 """
@@ -23052,7 +23094,7 @@ def export_invoice_incidents_csv():
 
 
 @require_auth
-@require_roles("superadmin", "company-admin")
+@require_roles("superadmin")
 def mark_invoice_paid(invoice_id):
     """Mark an invoice as paid, optionally lifting company suspension if all invoices are now paid."""
     payload = request.get_json(silent=True) or {}

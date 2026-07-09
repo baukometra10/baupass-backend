@@ -170,7 +170,12 @@ def register_security_middleware(app: Flask) -> None:
         """Validate Origin header for JSON API requests."""
         origin = request.headers.get("Origin", "").strip().rstrip("/")
         if not origin:
-            return None  # no Origin (curl, server-to-server) — allowed
+            if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
+                if request.cookies.get("session") or request.cookies.get("baupass_session"):
+                    return jsonify(
+                        {"error": "csrf_origin_required", "message": "Origin header required for cookie auth"}
+                    ), 403
+            return None  # curl / server-to-server in non-Railway dev
 
         host = request.host.split(":")[0]
         allowed_origins = app.config.get("CORS_ORIGINS", [])
@@ -189,4 +194,4 @@ def register_security_middleware(app: Flask) -> None:
         )
         if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
             return jsonify({"error": "csrf_origin_mismatch", "message": "Invalid Origin header"}), 403
-        return None
+        return jsonify({"error": "csrf_origin_mismatch", "message": "Invalid Origin header"}), 403

@@ -55,4 +55,16 @@ class AttendanceRepository {
       body: <String, dynamic>{'events': events},
     );
   }
+
+  Future<Map<String, dynamic>> fetchMyTimesheets({
+    required WorkerSession session,
+    String? month,
+  }) {
+    final query = month != null && month.isNotEmpty ? '?month=$month' : '';
+    return _api.getJson(
+      '/api/worker-app/my-timesheets$query',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+  }
 }

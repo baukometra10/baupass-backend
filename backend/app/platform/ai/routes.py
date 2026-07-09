@@ -237,7 +237,9 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     def ai_predictive_attendance():
         from .intelligence import predictive_attendance
 
-        cid = str(request.args.get("company_id") or g.current_user.get("company_id") or "")
+        cid = _resolve_company_id_from_request()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
         return jsonify(predictive_attendance(get_db(), cid))
 
     @ai_bp.get("/ai/fraud-detection")
@@ -247,7 +249,9 @@ def register_ai_blueprint(flask_app: Flask) -> None:
     def ai_fraud():
         from .intelligence import fraud_signals
 
-        cid = str(request.args.get("company_id") or g.current_user.get("company_id") or "")
+        cid = _resolve_company_id_from_request()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
         return jsonify(fraud_signals(get_db(), cid))
 
     @ai_bp.get("/ai/agents")

@@ -93,7 +93,15 @@ def register_support_assist_blueprint(flask_app) -> None:
         row = get_active_session(company_id)
         if not row:
             return jsonify({"active": False})
-        return jsonify(row)
+        return jsonify(
+            {
+                "active": True,
+                "sessionId": row.get("sessionId"),
+                "companyId": row.get("companyId"),
+                "actorName": row.get("actorName"),
+                "startedAt": row.get("startedAt"),
+            }
+        )
 
     flask_app.register_blueprint(support_assist_bp, url_prefix="/api")
     print("[baupass] platform/support_assist: spectator routes registered", flush=True)

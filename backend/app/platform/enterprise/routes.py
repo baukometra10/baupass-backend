@@ -888,6 +888,8 @@ def register_enterprise_routes(flask_app):
         return jsonify(collect_platform_capabilities(Path(DB_PATH)))
 
     @enterprise_bp.get("/platform/setup-status")
+    @require_auth
+    @require_roles("superadmin")
     def platform_setup_status():
         from backend.app.platform.setup_status import collect_setup_status
 
@@ -1065,10 +1067,32 @@ def register_enterprise_routes(flask_app):
     # ── IoT device ping ───────────────────────────────────────────────────────
     @enterprise_bp.post("/iot/devices/<device_id>/telemetry")
     def iot_telemetry(device_id: str):
+        import secrets as _secrets
+
         from backend.server import get_db
         from backend.app.platform.events.bus import publish_event
 
+        bridge_token = (
+            os.getenv("BAUPASS_IOT_BRIDGE_TOKEN")
+            or os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN")
+            or ""
+        ).strip()
+        if not bridge_token:
+            if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
+                return jsonify({"error": "iot_bridge_not_configured"}), 503
+        else:
+            supplied = (
+                (request.headers.get("Authorization") or "").replace("Bearer ", "", 1).strip()
+                or request.headers.get("X-Baupass-Bridge-Token")
+                or ""
+            ).strip()
+            if not _secrets.compare_digest(supplied, bridge_token):
+                return jsonify({"error": "forbidden"}), 403
+
         data = request.get_json(silent=True) or {}
+        company_id = str(data.get("company_id") or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
         get_db().execute(
             """
             INSERT INTO iot_telemetry (id, device_id, payload_json, received_at)
@@ -1077,7 +1101,7 @@ def register_enterprise_routes(flask_app):
             (f"iot-{uuid.uuid4().hex[:10]}", device_id, json.dumps(data), _now_iso()),
         )
         get_db().commit()
-        publish_event("iot.telemetry", data.get("company_id"), {"device_id": device_id, "payload": data})
+        publish_event("iot.telemetry", company_id, {"device_id": device_id, "payload": data})
         return jsonify({"ok": True})
 
     # ── Live dashboard (extends operations snapshot) ──────────────────────────

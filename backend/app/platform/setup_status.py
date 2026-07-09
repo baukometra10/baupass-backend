@@ -163,7 +163,7 @@ def _billing_block() -> dict[str, Any]:
         "stripePricesConfigured": prices_ok,
         "priceIds": price_ids,
         "checkoutTrialDays": checkout_trial_days(),
-        "webhookUrl": f"{base}/api/billing/stripe/webhook" if base else "",
+        "webhookUrl": f"{base}/api/v2/billing/stripe/webhook" if base else "",
         "bootstrapScript": "python backend/ops/setup_stripe_products.py",
         "readyForCheckout": secret_ok and prices_ok,
         "readyForWebhooks": secret_ok and webhook_ok,

@@ -40,6 +40,8 @@ export const EXT_STRINGS = {
     "platform.readiness": "Bereitschaft",
     "platform.backgroundJobs": "Hintergrundjobs",
     "platform.rqWorkers": "RQ-Worker aktiv",
+    "platform.techDetails": "Technische Details",
+    "quick.moreTools": "Weitere Tools",
     "mobile.kicker": "Mitarbeiter-App",
     "mobile.title": "SUPPIX Mitarbeiter-App",
     "mobile.subtitle": "Native App für Check-in, Badge, Push und Baustellen-Zutritt — Android & iOS (Flutter).",
