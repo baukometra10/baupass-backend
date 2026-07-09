@@ -7,7 +7,7 @@ on:
       api_base_url:
         description: Backend URL baked into APK
         required: false
-        default: https://baupass-production.up.railway.app
+        default: https://suppix-workpass-ai.up.railway.app
   push:
     branches: [main]
     paths:
@@ -81,7 +81,7 @@ jobs:
       - name: Build release APK
         working-directory: mobile
         env:
-          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
         run: flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL"
 
       - name: Upload APK artifact
@@ -102,7 +102,7 @@ jobs:
 
       - name: Release summary
         env:
-          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
           RELEASE_TAG: worker-apk-${{ github.run_number }}
         run: |
           REPO="${{ github.repository }}"
@@ -116,7 +116,7 @@ jobs:
             echo ""
             echo "### Railway"
             echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above **or** your CDN/stable host."
-            echo "Production base: \`https://baupass-production.up.railway.app\`"
+            echo "Production base: \`https://suppix-workpass-ai.up.railway.app\`"
             echo ""
             echo "Update \`worker-build.json\` on deploy:"
             echo '  {"build":"'${{ github.run_number }}'","apkUrl":"'"${APK_URL}"'","apiBase":"'"${API_URL}"'"}'

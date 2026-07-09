@@ -9,7 +9,7 @@ on:
       api_base_url:
         description: Backend base URL baked into the APK
         required: false
-        default: https://baupass-production.up.railway.app
+        default: https://suppix-workpass-ai.up.railway.app
   push:
     branches: [main]
     paths:
@@ -66,15 +66,9 @@ jobs:
             mobile/android/app/src/main/res/drawable/ic_launcher_foreground.xml \
             mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml \
             mobile/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml \
-            mobile/lib/firebase_bootstrap.dart \
-            mobile/lib/services/push_foreground_listener.dart \
-            mobile/lib/services/push_navigation.dart \
-            mobile/lib/services/push_notification_service.dart \
-            mobile/lib/features/auth/login_screen.dart \
-            mobile/lib/app.dart \
-            mobile/lib/main.dart \
+            mobile/lib \
             mobile/pubspec.yaml \
-            mobile/test/widget_test.dart
+            mobile/test
 
       - name: Resolve dependencies
         working-directory: mobile
@@ -88,7 +82,7 @@ jobs:
         id: build_apk
         working-directory: mobile
         env:
-          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
         run: |
           set -o pipefail
           flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
@@ -122,7 +116,7 @@ jobs:
       - name: Job summary
         if: success()
         env:
-          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
         run: |
           {
             echo "## Mitarbeiter-App (APK)"
