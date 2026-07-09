@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.baupass.worker"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -17,7 +17,7 @@ android {
     defaultConfig {
         applicationId = "com.baupass.worker"
         minSdk = 24
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
