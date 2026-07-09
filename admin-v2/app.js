@@ -2132,6 +2132,18 @@ async function loadPlatform() {
     const attRows = Object.entries(attendance)
       .map(([k, v]) => `<tr><td>${k}</td><td>${statusBadge(!!v)}</td></tr>`)
       .join("");
+    const bgJobs = setup?.backgroundJobs || health.checks?.backgroundJobs || {};
+    const bgJobRows = Object.entries(bgJobs.jobs || {})
+      .map(([name, snap]) => {
+        const ok = snap?.ok === true || snap?.status === "ok";
+        const fails = Number(snap?.consecutiveFailures || 0);
+        const last = snap?.lastRunAt ? String(snap.lastRunAt).slice(0, 19) : "—";
+        return `<tr><td>${escapeHtml(name)}</td><td>${last}</td><td>${statusBadge(ok)}${fails >= 3 ? ` <span class="badge badge-warn">${fails}×</span>` : ""}</td></tr>`;
+      })
+      .join("");
+    const bgDegraded = (bgJobs.degraded || []).length
+      ? `<p class="muted small warn">${escapeHtml((bgJobs.degraded || []).join(", "))}</p>`
+      : "";
     panel.innerHTML = `
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       ${dbBanner}
@@ -2160,7 +2172,12 @@ async function loadPlatform() {
         <h3>${t("platform.infrastructure")}</h3>
         <p>${t("platform.runtime")}: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
         <p class="muted small">Path: ${caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—"}</p>
-        <p>${t("platform.readiness")}: ${statusBadge(ready.ready)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"}</p>
+        <p>${t("platform.readiness")}: ${statusBadge(ready.ready)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"} · ${t("platform.rqWorkers")}: <strong>${bgJobs.workers?.active ?? health.checks?.workers?.active ?? "—"}</strong></p>
+        ${
+          bgJobRows
+            ? `<h4 class="muted small">${t("platform.backgroundJobs")}</h4><div class="table-wrap"><table><thead><tr><th>Job</th><th>${t("common.lastRun") || "Last run"}</th><th>${t("common.status") || "Status"}</th></tr></thead><tbody>${bgJobRows}</tbody></table></div>${bgDegraded}`
+            : ""
+        }
       </div>
       <div class="panel-block">
         <h3>${t("platform.attendanceCaps")}</h3>

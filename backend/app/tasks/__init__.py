@@ -184,14 +184,6 @@ def enqueue_in(
     description: Optional[str] = None,
     **kwargs,
 ) -> Optional[Any]:
-    """
-    يُجدول مهمة للتنفيذ بعد تأخير.
-
-    Args:
-        delay_seconds: ثواني الانتظار قبل التنفيذ
-        queue_name: اسم الـ queue
-        func: الدالة
-    """
     queue = _rq_queues.get(queue_name)
 
     if queue is None:
@@ -218,6 +210,43 @@ def enqueue_in(
     except Exception as exc:
         logger.error("Failed to schedule task: %s", exc)
         return None
+
+
+def scheduled_job_pending(job_id: str) -> bool:
+    """True when an RQ job with this id is already queued or scheduled."""
+    if not job_id or _redis_conn is None:
+        return False
+    try:
+        from rq.job import Job
+
+        job = Job.fetch(job_id, connection=_redis_conn)
+        return job.get_status(refresh=False) in {"scheduled", "queued", "started", "deferred"}
+    except Exception:
+        return False
+
+
+def enqueue_in_deduped(
+    delay_seconds: int,
+    queue_name: str,
+    func: Callable,
+    *args,
+    job_id: str,
+    description: Optional[str] = None,
+    **kwargs,
+) -> Optional[Any]:
+    """Schedule a delayed task once — skip if the same job_id is already pending."""
+    if scheduled_job_pending(job_id):
+        logger.debug("Skip duplicate scheduled job %s", job_id)
+        return None
+    return enqueue_in(
+        delay_seconds,
+        queue_name,
+        func,
+        *args,
+        job_id=job_id,
+        description=description,
+        **kwargs,
+    )
 
 
 def task_queues_ready() -> bool:

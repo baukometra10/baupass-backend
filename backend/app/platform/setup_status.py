@@ -105,17 +105,17 @@ def _database_block() -> dict[str, Any]:
 
 def collect_setup_status() -> dict[str, Any]:
     from backend.app.tasks import task_queues_ready
+    from backend.app.tasks.job_health import collect_background_jobs_health, get_rq_mode_summary
 
     redis_url = (os.getenv("REDIS_URL") or "").strip()
+    background_jobs = collect_background_jobs_health()
     return {
         "database": _database_block(),
         "redis": {"configured": bool(redis_url), "queuesReady": task_queues_ready()},
+        "backgroundJobs": background_jobs,
         "workerService": {
             "recommendedCommand": "python -m backend.app.tasks.worker",
-            "jobModes": {
-                "daily": os.getenv("BAUPASS_DAILY_JOBS_MODE", "inline"),
-                "dunning": os.getenv("BAUPASS_DUNNING_MODE", "inline"),
-            },
+            "jobModes": get_rq_mode_summary(),
         },
         "mobile": {
             "apkUrl": bool((os.getenv("BAUPASS_WORKER_APK_URL") or "").strip()),

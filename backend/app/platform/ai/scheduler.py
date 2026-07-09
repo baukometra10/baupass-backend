@@ -120,13 +120,14 @@ def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
     }
 
     if reschedule and _cron_enabled():
-        from backend.app.tasks import enqueue_in
+        from backend.app.tasks import enqueue_in_deduped
 
         delay = seconds_until_next_briefing()
-        enqueue_in(
+        enqueue_in_deduped(
             delay,
             "scheduled",
             run_ai_briefing_cycle_once_task,
+            job_id="baupass:scheduled:ai.briefing",
             reschedule=True,
             description="ai.briefing.cycle",
         )
@@ -137,7 +138,15 @@ def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
 
 def run_ai_briefing_cycle_once_task(*, reschedule: bool = True) -> dict[str, Any]:
     """RQ entrypoint."""
-    return run_ai_briefing_cycle_once(reschedule=reschedule)
+    from backend.app.tasks.job_health import record_job_run
+
+    try:
+        result = run_ai_briefing_cycle_once(reschedule=reschedule)
+        record_job_run("ai_briefing", ok=bool(result.get("ok", True)), details=result)
+        return result
+    except Exception as exc:
+        record_job_run("ai_briefing", ok=False, error=str(exc))
+        raise
 
 
 def bootstrap_ai_briefing_scheduler() -> bool:
@@ -146,25 +155,31 @@ def bootstrap_ai_briefing_scheduler() -> bool:
         return False
     import time
 
-    from backend.app.tasks import enqueue_in
+    from backend.app.tasks import enqueue_in_deduped, scheduled_job_pending
 
     redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     lock_key = "baupass:rq:ai:briefing:bootstrap"
+    job_id = "baupass:scheduled:ai.briefing"
     delay = seconds_until_next_briefing()
+
+    if scheduled_job_pending(job_id):
+        logger.info("AI briefing scheduler already has a pending RQ job")
+        return False
 
     try:
         import redis
 
         conn = redis.Redis.from_url(redis_url, decode_responses=True)
-        lock_acquired = bool(conn.set(lock_key, str(int(time.time())), nx=True, ex=max(600, delay)))
+        lock_acquired = bool(conn.set(lock_key, str(int(time.time())), nx=True, ex=max(3600, delay)))
         if not lock_acquired:
             logger.info("AI briefing scheduler already bootstrapped")
             return False
 
-        enqueue_in(
+        enqueue_in_deduped(
             min(delay, 120),
             "scheduled",
             run_ai_briefing_cycle_once_task,
+            job_id=job_id,
             reschedule=True,
             description="ai.briefing.bootstrap",
         )

@@ -14,6 +14,18 @@ from flask import current_app, jsonify, request
 from . import health_bp
 from backend.app.database import get_database_health
 from backend.app.tasks import get_dead_letter_stats, get_queue_stats, get_worker_heartbeat_stats
+from backend.app.tasks.job_health import collect_background_jobs_health, get_rq_mode_summary
+
+
+def _apply_rq_worker_degradation(checks: dict, status: str) -> str:
+    """Mark health degraded when any job mode uses RQ but no worker heartbeat is active."""
+    rq_modes = get_rq_mode_summary()
+    checks["rqModes"] = rq_modes
+    any_rq = any(mode == "rq" for mode in rq_modes.values())
+    workers = checks.get("workers") or {}
+    if any_rq and int(workers.get("active") or 0) < 1:
+        return "degraded"
+    return status
 
 
 @health_bp.get("/health")
@@ -64,20 +76,19 @@ def api_health():
     try:
         workers = get_worker_heartbeat_stats()
         checks["workers"] = workers
-
-        rq_modes_enabled = any(
-            str(os.getenv(name, "thread")).strip().lower() == "rq"
-            for name in (
-                "BAUPASS_INVOICE_RETRY_MODE",
-                "BAUPASS_WORKER_SESSION_CLEANUP_MODE",
-                "BAUPASS_DAILY_JOBS_MODE",
-            )
-        )
-        if rq_modes_enabled and int(workers.get("active", 0)) < 1:
-            status = "degraded"
+        status = _apply_rq_worker_degradation(checks, status)
     except Exception:
         checks["workers"] = {"status": "unavailable"}
         status = "degraded"
+
+    # ── Background job snapshots (IMAP, daily, dunning, …) ─────────────────
+    try:
+        bg_jobs = collect_background_jobs_health()
+        checks["backgroundJobs"] = bg_jobs
+        if bg_jobs.get("degraded"):
+            status = "degraded"
+    except Exception as exc:
+        checks["backgroundJobs"] = {"status": "unavailable", "error": str(exc)}
 
     # ── Response ──────────────────────────────────────────────────────────────
     duration_ms = int((time.monotonic() - start) * 1000)
@@ -92,11 +103,25 @@ def api_health():
 
 @health_bp.get("/health/ready")
 def readiness():
-    """Kubernetes readiness probe — يتحقق أن التطبيق جاهز لاستقبال الطلبات."""
+    """Kubernetes readiness probe — DB + optional RQ worker when rq modes are enabled."""
     db_health = get_database_health()
-    if db_health.get("status") == "ok":
-        return jsonify({"ready": True}), 200
-    return jsonify({"ready": False, "error": db_health.get("error", "database_unhealthy")}), 503
+    if db_health.get("status") != "ok":
+        return jsonify({"ready": False, "error": db_health.get("error", "database_unhealthy")}), 503
+
+    try:
+        bg_jobs = collect_background_jobs_health()
+        if bg_jobs.get("anyRqMode") and int((bg_jobs.get("workers") or {}).get("active") or 0) < 1:
+            return jsonify(
+                {
+                    "ready": False,
+                    "error": "rq_worker_missing",
+                    "rqModes": bg_jobs.get("rqModes"),
+                }
+            ), 503
+    except Exception:
+        pass
+
+    return jsonify({"ready": True}), 200
 
 
 @health_bp.get("/health/live")
@@ -119,11 +144,13 @@ def platform_health():
 @health_bp.get("/health/queues")
 def queue_health():
     """Queue-focused health endpoint for operations dashboards."""
+    bg_jobs = collect_background_jobs_health()
     return jsonify(
         {
             "queues": get_queue_stats(),
             "dead_letter": get_dead_letter_stats(),
             "workers": get_worker_heartbeat_stats(),
+            "backgroundJobs": bg_jobs,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     ), 200

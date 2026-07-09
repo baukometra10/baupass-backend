@@ -7829,14 +7829,37 @@ def run_daily_jobs_cycle_once():
                 )
         except Exception as backup_exc:
             backup_result = {"ok": False, "error": str(backup_exc)}
-        return {
+        summary = {
             "ok": True,
             "monthly": monthly_result,
             "autopilot": autopilot_result,
             "databaseBackup": backup_result,
             "cameraDigest": camera_digest_result,
         }
+        try:
+            from backend.app.tasks.job_health import record_job_run
+
+            record_job_run("daily_jobs", ok=True, details=summary)
+        except Exception:
+            pass
+        return summary
     except Exception as exc:
+        try:
+            with app.app_context():
+                db = get_db()
+                create_system_alert(
+                    db,
+                    code="daily_jobs_cycle_failed",
+                    severity="critical",
+                    message="Täglicher Hintergrundlauf fehlgeschlagen.",
+                    details={"error": str(exc)},
+                    dedup_minutes=60,
+                )
+                from backend.app.tasks.job_health import record_job_run
+
+                record_job_run("daily_jobs", ok=False, error=str(exc))
+        except Exception:
+            pass
         return {"ok": False, "error": str(exc)}
 
 
@@ -24540,6 +24563,12 @@ def poll_imap_inbox():
                 newEmails=new_email_count,
                 totalMessages=total_messages,
             )
+            try:
+                from backend.app.tasks.job_health import record_job_run
+
+                record_job_run("imap_poller", ok=True, details=_result)
+            except Exception:
+                pass
     except Exception as exc:
         emit_structured_log(
             "imap_poll_failed",
@@ -24550,6 +24579,12 @@ def poll_imap_inbox():
             totalMessages=total_messages,
         )
         _result = {"status": "error", "newEmails": 0, "error": str(exc)}
+        try:
+            from backend.app.tasks.job_health import record_job_run
+
+            record_job_run("imap_poller", ok=False, error=str(exc), details=_result)
+        except Exception:
+            pass
         try:
             with app.app_context():
                 inner_db = get_db()
@@ -24593,12 +24628,37 @@ _imap_poll_interval = max(60, int(os.getenv("BAUPASS_IMAP_POLL_SECONDS", "180"))
 def _start_imap_thread():
     def imap_loop():
         time.sleep(10)
+        consecutive_failures = 0
         while True:
             try:
-                poll_imap_inbox()
-            except Exception:
-                pass
+                result = poll_imap_inbox() or {}
+                if str(result.get("status") or "").lower() == "error":
+                    consecutive_failures += 1
+                else:
+                    consecutive_failures = 0
+            except Exception as exc:
+                consecutive_failures += 1
+                print(f"[baupass] WARNING: IMAP poll loop failed: {exc}", flush=True)
+                try:
+                    with app.app_context():
+                        from backend.app.tasks.job_health import record_job_run
+
+                        record_job_run("imap_poller", ok=False, error=str(exc))
+                        if consecutive_failures >= 3:
+                            db = get_db()
+                            create_system_alert(
+                                db,
+                                code="imap_poll_loop_error",
+                                severity="warning",
+                                message="IMAP-Poller mehrfach fehlgeschlagen.",
+                                details={"error": str(exc), "consecutiveFailures": consecutive_failures},
+                                dedup_minutes=30,
+                            )
+                            db.commit()
+                except Exception:
+                    pass
             time.sleep(_imap_poll_interval)
+
     threading.Thread(target=imap_loop, name="baupass-imap-poller", daemon=True).start()
 
 
