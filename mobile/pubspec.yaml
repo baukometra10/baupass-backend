@@ -1,4 +1,4 @@
-﻿name: baupass_worker
+name: baupass_worker
 description: White-label employee app — hybrid Flutter with native NFC.
 publish_to: "none"
 version: 0.1.2+7
