@@ -91,6 +91,28 @@
     return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia);
   }
 
+  function hasMediaRecorder() {
+    return Boolean(global.MediaRecorder);
+  }
+
+  function hasWebAudioRecording() {
+    try {
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      return Boolean(
+        Ctx
+        && Ctx.prototype
+        && typeof Ctx.prototype.createMediaStreamSource === "function"
+        && typeof Ctx.prototype.createScriptProcessor === "function"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  function canRecordVoice() {
+    return micInputAvailable() && (hasMediaRecorder() || hasWebAudioRecording());
+  }
+
   function isLikelyVoiceCaptureFile(file) {
     if (!file) {
       return false;
@@ -144,8 +166,7 @@
   }
 
   function isSupported() {
-    ensureMediaDevices();
-    return micInputAvailable() && Boolean(global.MediaRecorder);
+    return canRecordVoice();
   }
 
   function describeVoiceError(error) {
@@ -242,9 +263,60 @@
 
   function extensionForMime(mime) {
     const clean = String(mime || "").toLowerCase();
+    if (clean.includes("wav")) return "wav";
     if (clean.includes("mp4") || clean.includes("aac")) return "m4a";
     if (clean.includes("ogg")) return "ogg";
     return "webm";
+  }
+
+  function mergeFloat32Chunks(chunks) {
+    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const merged = new Float32Array(total);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    });
+    return merged;
+  }
+
+  function float32ToPcm16(float32) {
+    const out = new Int16Array(float32.length);
+    for (let i = 0; i < float32.length; i += 1) {
+      const sample = Math.max(-1, Math.min(1, float32[i]));
+      out[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+    }
+    return out;
+  }
+
+  function encodeWavBlob(float32Samples, sampleRate) {
+    const pcm = float32ToPcm16(float32Samples);
+    const dataLength = pcm.length * 2;
+    const buffer = new ArrayBuffer(44 + dataLength);
+    const view = new DataView(buffer);
+    const writeString = (offset, text) => {
+      for (let i = 0; i < text.length; i += 1) {
+        view.setUint8(offset + i, text.charCodeAt(i));
+      }
+    };
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataLength, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataLength, true);
+    let offset = 44;
+    for (let i = 0; i < pcm.length; i += 1, offset += 2) {
+      view.setInt16(offset, pcm[i], true);
+    }
+    return new Blob([buffer], { type: "audio/wav" });
   }
 
   function formatDuration(seconds) {
@@ -409,6 +481,14 @@
     let startedAt = 0;
     let timer = null;
     let lastDurationSec = 0;
+    let recordingBackend = "";
+    let audioContext = null;
+    let audioProcessor = null;
+    let audioSource = null;
+    let silentGain = null;
+    let wavChunks = [];
+    let wavSampleRate = 44100;
+    let wavCapturing = false;
 
     const cleanupStream = () => {
       if (stream) {
@@ -423,6 +503,44 @@
       stream = null;
     };
 
+    const cleanupWebAudio = async () => {
+      wavCapturing = false;
+      if (audioProcessor) {
+        try {
+          audioProcessor.onaudioprocess = null;
+          audioProcessor.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (audioSource) {
+        try {
+          audioSource.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      if (silentGain) {
+        try {
+          silentGain.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }
+      audioProcessor = null;
+      audioSource = null;
+      silentGain = null;
+      if (audioContext) {
+        try {
+          await audioContext.close?.();
+        } catch {
+          /* ignore */
+        }
+      }
+      audioContext = null;
+      wavChunks = [];
+    };
+
     const stopTimer = () => {
       if (timer) {
         global.clearInterval(timer);
@@ -430,8 +548,82 @@
       }
     };
 
+    const beginRecordingTimer = () => {
+      startedAt = Date.now();
+      stopTimer();
+      timer = global.setInterval(() => {
+        const seconds = (Date.now() - startedAt) / 1000;
+        onTick?.(seconds);
+      }, 250);
+    };
+
+    const startWebAudioRecording = async (activeStream) => {
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) {
+        throw new Error("voice_not_supported");
+      }
+      audioContext = new Ctx();
+      if (audioContext.state === "suspended") {
+        await audioContext.resume();
+      }
+      wavSampleRate = Number(audioContext.sampleRate) || 44100;
+      audioSource = audioContext.createMediaStreamSource(activeStream);
+      silentGain = audioContext.createGain();
+      silentGain.gain.value = 0;
+      audioProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+      wavChunks = [];
+      wavCapturing = true;
+      audioProcessor.onaudioprocess = (event) => {
+        if (!wavCapturing) {
+          return;
+        }
+        const channel = event.inputBuffer.getChannelData(0);
+        wavChunks.push(new Float32Array(channel));
+      };
+      audioSource.connect(audioProcessor);
+      audioProcessor.connect(silentGain);
+      silentGain.connect(audioContext.destination);
+      recordingBackend = "webaudio";
+      mimeType = "audio/wav";
+      beginRecordingTimer();
+    };
+
+    const startMediaRecorder = async (activeStream) => {
+      mimeType = pickMimeType();
+      const created = createMediaRecorder(activeStream, mimeType);
+      recorder = created.recorder;
+      mimeType = created.mimeType;
+      const pushChunk = (event) => {
+        if (event?.data?.size) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.ondataavailable = pushChunk;
+      recorder.onerror = (event) => {
+        onError?.(event?.error || new Error("voice_record_failed"));
+      };
+      if (isAppleLikeDevice()) {
+        try {
+          recorder.start();
+        } catch {
+          recorder.start(1000);
+        }
+      } else {
+        recorder.start(250);
+      }
+      await wait(isAppleLikeDevice() ? 250 : 80);
+      if (!recorder || recorder.state !== "recording") {
+        throw new Error("voice_record_failed");
+      }
+      recordingBackend = "mediarecorder";
+      beginRecordingTimer();
+    };
+
     return {
       get recording() {
+        if (recordingBackend === "webaudio") {
+          return wavCapturing;
+        }
         return Boolean(recorder && recorder.state === "recording");
       },
       get lastDurationSec() {
@@ -441,7 +633,7 @@
         return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
       },
       async start(options = null) {
-        if (!isSupported()) {
+        if (!canRecordVoice()) {
           throw new Error("voice_not_supported");
         }
         const opts = options && typeof options === "object" ? options : {};
@@ -453,10 +645,12 @@
             /* ignore */
           }
         }
+        await cleanupWebAudio();
         cleanupStream();
         recorder = null;
         chunks = [];
-        mimeType = pickMimeType();
+        recordingBackend = "";
+        mimeType = "";
         lastDurationSec = 0;
         startedAt = 0;
         if (opts.stream instanceof global.MediaStream) {
@@ -474,41 +668,47 @@
         audioTracks.forEach((track) => {
           track.enabled = true;
         });
-        const created = createMediaRecorder(stream, mimeType);
-        recorder = created.recorder;
-        mimeType = created.mimeType;
-        const pushChunk = (event) => {
-          if (event?.data?.size) {
-            chunks.push(event.data);
-          }
-        };
-        recorder.ondataavailable = pushChunk;
-        recorder.onerror = (event) => {
-          onError?.(event?.error || new Error("voice_record_failed"));
-        };
-        if (isAppleLikeDevice()) {
+        if (hasMediaRecorder()) {
           try {
-            recorder.start();
-          } catch {
-            recorder.start(1000);
+            await startMediaRecorder(stream);
+            return;
+          } catch (error) {
+            recorder = null;
+            chunks = [];
+            if (!hasWebAudioRecording()) {
+              cleanupStream();
+              throw error;
+            }
           }
-        } else {
-          recorder.start(250);
         }
-        await wait(isAppleLikeDevice() ? 250 : 80);
-        if (!recorder || recorder.state !== "recording") {
+        if (!hasWebAudioRecording()) {
           cleanupStream();
-          recorder = null;
-          throw new Error("voice_record_failed");
+          throw new Error("voice_not_supported");
         }
-        startedAt = Date.now();
-        stopTimer();
-        timer = global.setInterval(() => {
-          const seconds = (Date.now() - startedAt) / 1000;
-          onTick?.(seconds);
-        }, 250);
+        await startWebAudioRecording(stream);
       },
       async stop() {
+        if (recordingBackend === "webaudio") {
+          stopTimer();
+          wavCapturing = false;
+          const samples = mergeFloat32Chunks(wavChunks);
+          const durationMs = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+          lastDurationSec = durationMs ? Math.max(1, Math.round(durationMs / 1000)) : 0;
+          startedAt = 0;
+          await cleanupWebAudio();
+          cleanupStream();
+          recordingBackend = "";
+          if (!samples.length || durationMs < 300) {
+            lastDurationSec = 0;
+            return null;
+          }
+          const blob = encodeWavBlob(samples, wavSampleRate);
+          if (!blob.size) {
+            lastDurationSec = 0;
+            return null;
+          }
+          return blob;
+        }
         if (!recorder) {
           cleanupStream();
           stopTimer();
@@ -579,6 +779,7 @@
         stopTimer();
         startedAt = 0;
         lastDurationSec = 0;
+        wavCapturing = false;
         try {
           if (recorder && recorder.state !== "inactive") {
             recorder.stop();
@@ -588,6 +789,8 @@
         }
         recorder = null;
         chunks = [];
+        recordingBackend = "";
+        void cleanupWebAudio();
         cleanupStream();
       },
       toFile(blob, filenamePrefix, durationSec) {
@@ -855,6 +1058,9 @@
     requestAudioStream,
     withTimeout,
     micInputAvailable,
+    hasMediaRecorder,
+    hasWebAudioRecording,
+    canRecordVoice,
     isSupported,
     isAppleLikeDevice,
     isTouchPrimaryDevice,
