@@ -49,6 +49,19 @@ class ChatRepository {
 
   bool _e2eAttachmentsRequired() => _security?['e2eAttachmentsRequired'] == true;
 
+  String _guessAttachmentMime(String filename) {
+    final lower = filename.toLowerCase();
+    if (lower.endsWith('.m4a') || lower.endsWith('.mp4')) return 'audio/mp4';
+    if (lower.endsWith('.wav')) return 'audio/wav';
+    if (lower.endsWith('.webm')) return 'audio/webm';
+    if (lower.endsWith('.ogg')) return 'audio/ogg';
+    if (lower.endsWith('.aac')) return 'audio/aac';
+    if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.pdf')) return 'application/pdf';
+    return 'application/octet-stream';
+  }
+
   Future<List<String>> _chatRecipientKeys(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/e2e/identity/public-keys',
@@ -163,11 +176,12 @@ class ChatRepository {
       final keys = await _chatRecipientKeys(session);
       if (keys.isEmpty) throw StateError('e2e_keys_missing');
       final bytes = await file.readAsBytes();
+      final filename = file.path.split(Platform.pathSeparator).last;
       final packed = await _e2e.encryptBlob(
         Uint8List.fromList(bytes),
         keys,
-        filename: file.path.split(Platform.pathSeparator).last,
-        mime: 'application/octet-stream',
+        filename: filename,
+        mime: _guessAttachmentMime(filename),
       );
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');

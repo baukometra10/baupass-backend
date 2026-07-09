@@ -1,7 +1,7 @@
 ﻿name: baupass_worker
 description: White-label employee app — hybrid Flutter with native NFC.
 publish_to: "none"
-version: 0.1.1+2
+version: 0.1.2+3
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -16,6 +16,7 @@ dependencies:
   qr_flutter: ^4.1.0
   path_provider: ^2.1.4
   record: ^6.0.0
+  audioplayers: ^6.1.0
   shared_preferences: ^2.3.2
   cryptography: ^2.7.0
   flutter_secure_storage: ^9.2.2

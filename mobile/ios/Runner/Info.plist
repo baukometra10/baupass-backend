@@ -40,7 +40,7 @@
 	<key>NFCReaderUsageDescription</key>
 	<string>Die App nutzt NFC, um deine Anwesenheit per Mitarbeiterkarte zu erfassen.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Das Mikrofon wird für Sprachfragen an den Assistenten vor Ort genutzt.</string>
+	<string>Das Mikrofon wird für Sprachnachrichten im Chat und Sprachfragen an den Assistenten genutzt.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Der Standort wird genutzt, um zu prüfen, ob du dich auf der Baustelle befindest.</string>
 	<key>UIApplicationSceneManifest</key>
