@@ -11,7 +11,6 @@ import 'package:record/record.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
-import '../../widgets/chat_voice_bubble.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -433,16 +432,30 @@ class _ChatScreenState extends State<ChatScreen> {
                                             if (audioAttachments.isNotEmpty) ...[
                                               if (showBody) const SizedBox(height: 6),
                                               ...audioAttachments.map((att) {
-                                                final id = att['id'] as String? ?? '';
+                                                final map = Map<String, dynamic>.from(att);
                                                 return Padding(
                                                   padding: const EdgeInsets.only(top: 4),
-                                                  child: ChatVoiceBubble(
-                                                    isWorker: isWorker,
-                                                    loadBytes: () => widget.chat.downloadAttachment(
-                                                      session: widget.session,
-                                                      attachmentId: id,
-                                                      e2eMeta: att['e2eMeta'] as String? ?? att['e2e_meta'] as String?,
-                                                      filename: att['filename'] as String?,
+                                                  child: InkWell(
+                                                    onTap: () => _openAttachment(map),
+                                                    child: Row(
+                                                      mainAxisSize: MainAxisSize.min,
+                                                      children: [
+                                                        Icon(
+                                                          Icons.mic,
+                                                          size: 18,
+                                                          color: isWorker
+                                                              ? const Color(0xFF0F766E)
+                                                              : const Color(0xFF1D4ED8),
+                                                        ),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          'Sprachnachricht abspielen',
+                                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                decoration: TextDecoration.underline,
+                                                                fontWeight: FontWeight.w600,
+                                                              ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
                                                 );

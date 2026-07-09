@@ -64,6 +64,7 @@ jobs:
             mobile/android/app/google-services.json \
             mobile/android/settings.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             mobile/android/app/src/main/AndroidManifest.xml \
             mobile/lib \
