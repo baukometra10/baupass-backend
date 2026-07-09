@@ -1,6 +1,7 @@
 """Send system satisfaction survey invites after sufficient product usage."""
 from __future__ import annotations
 
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -79,6 +80,58 @@ def _recent_survey_submission(db, user_id: str) -> bool:
     return row is not None
 
 
+def _resolve_survey_email(db, user: dict[str, Any]) -> tuple[str, str]:
+    """Resolve outbound survey recipient: user email, then company billing/document email."""
+    email = str(user.get("email") or "").strip()
+    if email:
+        return email, "user"
+    company_id = str(user.get("company_id") or "").strip()
+    if not company_id:
+        return "", ""
+    row = db.execute(
+        "SELECT billing_email, document_email FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (company_id,),
+    ).fetchone()
+    if not row:
+        return "", ""
+    billing = str(row["billing_email"] or "").strip()
+    if billing and "@" in billing:
+        return billing, "billing"
+    document = str(row["document_email"] or "").strip()
+    if document and "@" in document:
+        return document, "document"
+    return "", ""
+
+
+def _recent_survey_invite_for_user(db, user_id: str, *, days: int = 30) -> bool:
+    since = _since_iso(days)
+    row = db.execute(
+        """
+        SELECT id FROM audit_logs
+        WHERE actor_user_id = ? AND event_type = 'survey.invite.sent'
+          AND created_at >= ?
+        LIMIT 1
+        """,
+        (user_id, since),
+    ).fetchone()
+    return row is not None
+
+
+def _company_survey_prompt_enabled(db, company_id: str) -> bool:
+    if not company_id:
+        return False
+    row = db.execute(
+        "SELECT survey_prompt_enabled FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (company_id,),
+    ).fetchone()
+    if not row:
+        return False
+    try:
+        return int(row["survey_prompt_enabled"] or 0) == 1
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def _survey_url() -> str:
     try:
         from backend.server import get_public_base_url
@@ -115,7 +168,7 @@ def check_mail_provider_ready(db) -> dict[str, Any]:
         pass
 
     settings_row = db.execute(
-        "SELECT smtp_sender_email, smtp_host, smtp_password FROM settings WHERE id = 1"
+        "SELECT smtp_sender_email, smtp_host, smtp_password, imap_host, imap_username, imap_password FROM settings WHERE id = 1"
     ).fetchone()
     settings = dict(settings_row) if settings_row else {}
     smtp_ready = bool(
@@ -125,10 +178,20 @@ def check_mail_provider_ready(db) -> dict[str, Any]:
     if smtp_ready:
         providers.append("smtp")
 
+    imap_host = str(settings.get("imap_host") or os.getenv("BAUPASS_IMAP_HOST") or os.getenv("IMAP_HOST") or "").strip()
+    imap_user = str(settings.get("imap_username") or os.getenv("BAUPASS_IMAP_USERNAME") or os.getenv("IMAP_USERNAME") or "").strip()
+    imap_pass = str(settings.get("imap_password") or os.getenv("BAUPASS_IMAP_PASSWORD") or os.getenv("IMAP_PASSWORD") or "").strip()
+    imap_configured = bool(imap_host and imap_user and imap_pass)
+
     configured = bool(providers)
     hint = "Noch nicht bereit — bitte Resend- oder Brevo-API-Key in den Einstellungen hinterlegen (oder SMTP konfigurieren)."
     if configured:
         hint = "Bereit — Umfrage-E-Mails können versendet werden."
+    elif imap_configured:
+        hint = (
+            "IMAP-Postfach (Dokumenteingang) ist aktiv. "
+            "Für ausgehende E-Mails (Umfragen, Berichte) bitte zusätzlich SMTP oder Resend/Brevo konfigurieren."
+        )
     elif brevo_invalid:
         hint = (
             "Brevo-API-Key ungültig (xkeysib-… erforderlich, nicht SMTP-Key) — "
@@ -136,6 +199,8 @@ def check_mail_provider_ready(db) -> dict[str, Any]:
         )
     return {
         "configured": configured,
+        "outboundConfigured": configured,
+        "imapConfigured": imap_configured,
         "providers": providers,
         "primaryProvider": providers[0] if providers else None,
         "hint": hint,
@@ -188,7 +253,7 @@ def send_survey_invite_email(
     skip_cooldown: bool = False,
 ) -> dict[str, Any]:
     user_id = str(user.get("id") or "").strip()
-    email = str(user.get("email") or "").strip()
+    email, email_source = _resolve_survey_email(db, user)
     role = str(user.get("role") or "").strip()
     company_id = str(user.get("company_id") or "").strip()
 
@@ -198,7 +263,8 @@ def send_survey_invite_email(
         return {"ok": False, "skipped": True, "reason": "missing_user_or_email"}
 
     usage_days = _user_usage_age_days(db, user_id, company_id)
-    if not skip_usage_check and usage_days < USAGE_DAYS_BEFORE_INVITE:
+    prompt_enabled = _company_survey_prompt_enabled(db, company_id)
+    if not skip_usage_check and not prompt_enabled and usage_days < USAGE_DAYS_BEFORE_INVITE:
         return {"ok": False, "skipped": True, "reason": "usage_too_short", "usageDays": usage_days}
     if _recent_survey_submission(db, user_id):
         return {"ok": False, "skipped": True, "reason": "recent_submission"}
@@ -288,6 +354,7 @@ def send_survey_invite_email(
     return {
         "ok": True,
         "email": email,
+        "emailSource": email_source,
         "usageDays": usage_days,
         "provider": provider,
         "surveyUrl": survey_link,
@@ -303,10 +370,12 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
 
     rows = db.execute(
         f"""
-        SELECT id, username, name, role, company_id, email
-        FROM users
+        SELECT u.id, u.username, u.name, u.role, u.company_id, u.email,
+               c.billing_email, c.document_email, c.survey_prompt_enabled
+        FROM users u
+        LEFT JOIN companies c ON c.id = u.company_id
         {where}
-        ORDER BY role, username
+        ORDER BY u.role, u.username
         LIMIT 100
         """,
         tuple(params),
@@ -316,10 +385,12 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
     for row in rows:
         user = dict(row)
         uid = str(user.get("id") or "")
+        resolved_email, email_source = _resolve_survey_email(db, user)
         usage_days = _user_usage_age_days(db, uid, str(user.get("company_id") or ""))
         eligible = True
         reason = ""
-        if not str(user.get("email") or "").strip():
+        prompt_enabled = int(user.get("survey_prompt_enabled") or 0) == 1
+        if not resolved_email:
             eligible = False
             reason = "missing_email"
         elif _recent_survey_submission(db, uid):
@@ -328,7 +399,7 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
         elif _recent_survey_invite(db, uid):
             eligible = False
             reason = "recent_invite"
-        elif usage_days < USAGE_DAYS_BEFORE_INVITE:
+        elif not prompt_enabled and usage_days < USAGE_DAYS_BEFORE_INVITE:
             eligible = False
             reason = "usage_too_short"
 
@@ -337,9 +408,11 @@ def list_invite_candidates(db, company_id: str | None = None) -> dict[str, Any]:
                 "id": uid,
                 "username": user.get("username") or "",
                 "name": user.get("name") or "",
-                "email": user.get("email") or "",
+                "email": resolved_email,
+                "emailSource": email_source,
                 "role": user.get("role") or "",
                 "usageDays": usage_days,
+                "surveyPromptEnabled": prompt_enabled,
                 "eligible": eligible,
                 "ineligibleReason": reason,
             }
@@ -393,14 +466,20 @@ def send_survey_invites_batch(
                     (c["id"],),
                 ).fetchone()
                 if row:
-                    targets.append(dict(row))
+                    user = dict(row)
+                    if c.get("email"):
+                        user["email"] = c["email"]
+                    targets.append(user)
             elif c.get("eligible"):
                 row = db.execute(
                     "SELECT id, username, name, role, company_id, email FROM users WHERE id = ?",
                     (c["id"],),
                 ).fetchone()
                 if row:
-                    targets.append(dict(row))
+                    user = dict(row)
+                    if c.get("email"):
+                        user["email"] = c["email"]
+                    targets.append(user)
 
     if not targets:
         return {"ok": False, "error": "no_recipients", "mail": mail_status}

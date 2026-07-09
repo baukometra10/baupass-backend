@@ -8,7 +8,8 @@ class AccessRepository:
     def recent_logs(self, db, company_id: str, limit: int = 50) -> list[dict[str, Any]]:
         rows = db.execute(
             """
-            SELECT al.id, al.worker_id, al.direction, al.gate, al.timestamp, w.badge_id, w.first_name, w.last_name
+            SELECT al.id, al.worker_id, al.direction, al.gate, al.timestamp, al.checked_in_late,
+                   w.badge_id, w.first_name, w.last_name
             FROM access_logs al
             JOIN workers w ON w.id = al.worker_id
             WHERE w.company_id = ?

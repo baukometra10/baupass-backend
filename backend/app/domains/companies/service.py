@@ -1265,6 +1265,27 @@ class CompaniesService:
             }
         }
 
+    def toggle_survey_prompt(self, db, company_id: str) -> dict[str, Any]:
+        company = self.companies.get_survey_prompt_row(db, company_id)
+        if not company:
+            return {"error": "Firma nicht gefunden", "status": 404}
+        new_state = 0 if int(company.get("survey_prompt_enabled") or 0) else 1
+        self.companies.set_survey_prompt_enabled(db, company_id, enabled=new_state)
+        db.commit()
+        try:
+            from backend.server import get_public_base_url
+
+            base = str(get_public_base_url() or "").rstrip("/")
+            survey_url = f"{base}/satisfaction-survey.html" if base else "/satisfaction-survey.html"
+        except Exception:
+            survey_url = "/satisfaction-survey.html"
+        return {
+            "body": {
+                "survey_prompt_enabled": new_state,
+                "surveyUrl": survey_url,
+            }
+        }
+
     def get_plan_features(self, db, user: dict[str, Any], company_id: str) -> dict[str, Any]:
         from backend.server import PLAN_RANK, get_plan_features
 

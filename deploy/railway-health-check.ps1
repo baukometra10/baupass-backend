@@ -55,7 +55,7 @@ if ($platform) {
         Write-Host ('    {0}: {1} ({2} ms)' -f $probe.id, $probe.detail, $probe.latencyMs) -ForegroundColor $color
     }
 } else {
-    Write-Host "  Platform health: not deployed yet (push latest code + redeploy)" -ForegroundColor Yellow
+    Write-Host '  Platform health: not deployed yet (deploy latest code + redeploy)' -ForegroundColor Yellow
 }
 Test-Endpoint "/api/health/queues" | Out-Null
 $dr = Test-Endpoint "/api/health/dr"
@@ -85,6 +85,43 @@ if ($preview -and $preview.layerCount -ge 16) {
 $setup = Test-Endpoint "/api/platform/setup-status"
 if ($setup) {
     Write-Host "  Setup score: $($setup.readyScore.percent)% (missing: $($setup.readyScore.missing.Count))" -ForegroundColor $(if ($setup.readyScore.percent -ge 80) { "Green" } else { "Yellow" })
+    $db = $setup.database
+    if ($db) {
+        $loginColor = if ($db.loginReady) { "Green" } else { "Red" }
+        Write-Host "  DB login ready: $($db.loginReady) | file exists: $($db.sqliteFileExists) | size: $($db.sqliteSizeBytes) B | persistent: $($db.persistent)" -ForegroundColor $loginColor
+        if ($db.railwayHints -and $db.railwayHints.Count -gt 0) {
+            foreach ($hint in $db.railwayHints) {
+                Write-Host "    -> $hint" -ForegroundColor Yellow
+            }
+        }
+        if (-not $db.loginReady) {
+            Write-Host "  FIX: Railway -> Service -> Volume mount /data -> Variables:" -ForegroundColor Cyan
+            Write-Host "       BAUPASS_PG_RUNTIME=0" -ForegroundColor Cyan
+            Write-Host "       BAUPASS_DB_PATH=/data/baupass.db" -ForegroundColor Cyan
+            Write-Host "       Then Redeploy and re-run this script." -ForegroundColor Cyan
+        }
+    }
+}
+
+# Login probe — should not return database_not_ready when DB is healthy.
+try {
+    $loginProbe = Invoke-RestMethod -Uri "$BaseUrl/api/login" -Method Post -ContentType "application/json" -Body '{"username":"__health_probe__","password":"x"}' -TimeoutSec 20
+}
+catch {
+    $loginProbe = $null
+    $statusCode = $null
+    if ($_.Exception.Response) {
+        $statusCode = [int]$_.Exception.Response.StatusCode
+    }
+    if ($statusCode -eq 503) {
+        Write-Host '[FAIL] /api/login returns 503 (database_not_ready) - fix Volume + BAUPASS_DB_PATH' -ForegroundColor Red
+    }
+    elseif ($statusCode -eq 401 -or $statusCode -eq 400) {
+        Write-Host '[OK] /api/login reachable (auth rejected as expected)' -ForegroundColor Green
+    }
+    else {
+        Write-Host ('[WARN] /api/login probe: HTTP ' + $statusCode) -ForegroundColor Yellow
+    }
 }
 
 Write-Host "Done." -ForegroundColor Cyan

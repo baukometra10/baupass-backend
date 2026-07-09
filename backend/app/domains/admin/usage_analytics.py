@@ -167,6 +167,19 @@ def build_usage_stats(db, company_id: str, *, period: str = "day") -> dict[str, 
         (company_id, f"{today_prefix}T00:00:00", f"{today_prefix}T00:00:00"),
     )
 
+    late_checkins = _scalar(
+        db,
+        """
+        SELECT COUNT(*) FROM access_logs al
+        JOIN workers w ON w.id = al.worker_id
+        WHERE w.company_id = ? AND w.deleted_at IS NULL
+          AND al.direction = 'check-in'
+          AND al.checked_in_late = 1
+          AND al.timestamp >= ?
+        """,
+        (company_id, since),
+    )
+
     return {
         "period": "week" if days == 7 else "day",
         "days": days,
@@ -174,6 +187,7 @@ def build_usage_stats(db, company_id: str, *, period: str = "day") -> dict[str, 
         "activeUsers": active_users,
         "logins": logins,
         "attendanceCheckIns": attendance,
+        "lateCheckIns": late_checkins,
         "contractsCreated": contracts_created,
         "documentsCreated": documents_created,
         "internalMessagesSent": messages_sent,
@@ -434,16 +448,28 @@ def survey_pending_for_user(db, user: dict[str, Any], *, cooldown_days: int = 90
         return {"pending": False, "reason": "no_user"}
 
     usage_days = None
+    prompt_enabled = False
+    invited_recently = False
+    usage_required = 30
     try:
-        from .survey_dispatch import USAGE_DAYS_BEFORE_INVITE, _user_usage_age_days
+        from .survey_dispatch import (
+            USAGE_DAYS_BEFORE_INVITE,
+            _company_survey_prompt_enabled,
+            _recent_survey_invite_for_user,
+            _user_usage_age_days,
+        )
 
+        usage_required = USAGE_DAYS_BEFORE_INVITE
         usage_days = _user_usage_age_days(db, user_id, company_id)
-        if usage_days < USAGE_DAYS_BEFORE_INVITE:
+        prompt_enabled = _company_survey_prompt_enabled(db, company_id)
+        invited_recently = _recent_survey_invite_for_user(db, user_id, days=30)
+        if not prompt_enabled and not invited_recently and usage_days < USAGE_DAYS_BEFORE_INVITE:
             return {
                 "pending": False,
                 "reason": "usage_too_short",
                 "usageDays": usage_days,
                 "usageDaysRequired": USAGE_DAYS_BEFORE_INVITE,
+                "surveyPromptEnabled": prompt_enabled,
             }
     except Exception:
         pass
@@ -457,10 +483,28 @@ def survey_pending_for_user(db, user: dict[str, Any], *, cooldown_days: int = 90
         """,
         (user_id, since),
     ).fetchone()
-    payload: dict[str, Any] = {
-        "pending": row is None,
-        "lastSubmittedAt": (row["created_at"] if row else "") or "",
+    if row is not None:
+        payload = {
+            "pending": False,
+            "reason": "recent_submission",
+            "lastSubmittedAt": row["created_at"] or "",
+            "surveyPromptEnabled": prompt_enabled,
+            "invitedRecently": invited_recently,
+        }
+        if usage_days is not None:
+            payload["usageDays"] = usage_days
+        return payload
+
+    eligible = bool(prompt_enabled or invited_recently or usage_days is None or usage_days >= usage_required)
+    payload = {
+        "pending": eligible,
+        "lastSubmittedAt": "",
+        "surveyPromptEnabled": prompt_enabled,
+        "invitedRecently": invited_recently,
     }
+    if not eligible:
+        payload["reason"] = "usage_too_short"
+        payload["usageDaysRequired"] = usage_required
     if usage_days is not None:
         payload["usageDays"] = usage_days
     return payload

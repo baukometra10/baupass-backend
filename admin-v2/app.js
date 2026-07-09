@@ -552,11 +552,18 @@ function canAccessAnalyticsTab() {
 
 function applyRoleNavigation() {
   const showAnalytics = canAccessAnalyticsTab();
+  const showPlatform = isSuperadminUser();
   document.querySelectorAll('.tab[data-tab="analytics"]').forEach((el) => {
     el.classList.toggle("hidden", !showAnalytics);
   });
+  document.querySelectorAll('.tab[data-tab="platform"]').forEach((el) => {
+    el.classList.toggle("hidden", !showPlatform);
+  });
   $("enterpriseAnalyticsShortcut")?.classList.toggle("hidden", !showAnalytics);
   if (!showAnalytics && document.querySelector('.tab.active[data-tab="analytics"]')) {
+    switchToTab("overview");
+  }
+  if (!showPlatform && document.querySelector('.tab.active[data-tab="platform"]')) {
     switchToTab("overview");
   }
 }
@@ -1990,6 +1997,10 @@ function bindAutopilotPanel(host, settings) {
 }
 
 async function loadPlatform() {
+  if (!isSuperadminUser()) {
+    switchToTab("overview");
+    return;
+  }
   const panel = $("platformPanel");
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const cid = activeCompanyId();
@@ -3373,6 +3384,7 @@ async function loadAnalytics() {
     ["analytics.activeUsers", usage.activeUsers],
     ["analytics.logins", usage.logins],
     ["analytics.attendance", usage.attendanceCheckIns],
+    ["analytics.lateCheckIns", usage.lateCheckIns],
     ["analytics.contracts", usage.contractsCreated],
     ["analytics.documents", usage.documentsCreated],
     ["analytics.messages", usage.internalMessagesSent],
@@ -3462,10 +3474,13 @@ async function loadSurveyInvitePanel(q) {
     const mail = data.mail || {};
     const candidates = data.candidates || [];
     const mailReady = Boolean(mail.configured);
+    const imapOnly = Boolean(mail.imapConfigured && !mail.configured);
     const withEmail = candidates.filter((c) => String(c.email || "").trim());
     const mailBanner = mailReady
       ? `<p class="survey-mail-banner survey-mail-ok">${t("survey.mailReady", { provider: (mail.providers || []).join(", ") || "—" })}</p>`
-      : `<p class="survey-mail-banner survey-mail-pending">${t("survey.mailPending")}</p>`;
+      : imapOnly
+        ? `<p class="survey-mail-banner survey-mail-pending">${escapeHtml(mail.hint || "IMAP aktiv — ausgehende E-Mails (SMTP/Resend) fehlen noch.")}</p>`
+        : `<p class="survey-mail-banner survey-mail-pending">${t("survey.mailPending")}</p>`;
 
     const reasonLabel = (c) => {
       if (c.eligible) return t("survey.eligible");
@@ -3483,8 +3498,8 @@ async function loadSurveyInvitePanel(q) {
       ? candidates
           .map(
             (c) => `<tr>
-              <td>${escapeHtml(c.name || c.username || "—")}</td>
-              <td>${escapeHtml(c.email || "—")}</td>
+              <td>${escapeHtml(c.name || c.username || "—")}${c.surveyPromptEnabled ? ` <span class="badge badge-ok">${t("survey.promptOn")}</span>` : ""}</td>
+              <td>${escapeHtml(c.email || "—")}${c.emailSource && c.emailSource !== "user" ? ` <span class="muted small">(${escapeHtml(c.emailSource)})</span>` : ""}</td>
               <td>${c.usageDays ?? 0}d</td>
               <td class="muted small">${escapeHtml(reasonLabel(c))}</td>
               <td>
@@ -3681,9 +3696,21 @@ function renderModuleAlerts(alerts) {
 
 async function maybePromptSatisfactionSurvey() {
   try {
+    const dismissUntil = Number(wpGet("wp-survey-dismiss-until") || 0);
+    if (dismissUntil > Date.now()) return;
     const pending = await api("/api/v2/satisfaction-survey/pending");
     if (!pending?.pending) return;
     const modal = $("satisfactionSurveyModal");
+    const intro = $("satisfactionSurveyIntro");
+    if (intro) {
+      if (pending.invitedRecently) {
+        intro.textContent = t("survey.modalInvited");
+      } else if (pending.surveyPromptEnabled) {
+        intro.textContent = t("survey.modalPromptEnabled");
+      } else {
+        intro.textContent = t("survey.modalDefault");
+      }
+    }
     if (modal) modal.classList.remove("hidden");
   } catch {
     // no-op
@@ -4150,17 +4177,20 @@ async function loadAccess() {
     const hourly = Array.isArray(summary.hourly) ? summary.hourly : [];
     const checkIns = hourly.reduce((n, h) => n + (h.checkIn || 0), 0);
     const checkOuts = hourly.reduce((n, h) => n + (h.checkOut || 0), 0);
+    const lateToday = Number(summary.lateCheckInsToday || 0);
     $("accessSummary").innerHTML = `
       <div class="card"><span class="muted">${t("access.checkIns")}</span><strong>${checkIns}</strong></div>
       <div class="card"><span class="muted">${t("access.checkOuts")}</span><strong>${checkOuts}</strong></div>
       <div class="card"><span class="muted">${t("access.openSessions")}</span><strong>${open}</strong></div>
+      <div class="card"><span class="muted">${t("access.lateCheckIns")}</span><strong>${lateToday}</strong></div>
     `;
   } catch {
     $("accessSummary").innerHTML = "";
   }
   const exportLink = $("exportCsvLink");
   if (exportLink) {
-    exportLink.href = `/api/access-logs/export.csv${q}`;
+    const csvQuery = q ? `${q}&format=csv` : "?format=csv";
+    exportLink.href = `/api/access-logs/export.csv${csvQuery}`;
     exportLink.onclick = (e) => {
       const token = wpGet(TOKEN_KEY);
       if (!token) return;
@@ -4184,6 +4214,13 @@ async function loadAccess() {
     { label: t("table.direction"), render: (r) => formatAccessDirection(r.direction) },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
     { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
+    {
+      label: t("access.late"),
+      render: (r) =>
+        r.direction === "check-in" && Number(r.checked_in_late || 0) === 1
+          ? `<span class="badge badge-warn">${t("access.lateYes")}</span>`
+          : "—",
+    },
   ]);
 }
 
@@ -4439,6 +4476,7 @@ window.addEventListener("baupass-admin-lang", (event) => {
 applyI18n();
 
 $("satisfactionSurveyLater")?.addEventListener("click", () => {
+  wpSet("wp-survey-dismiss-until", String(Date.now() + 7 * 24 * 60 * 60 * 1000));
   $("satisfactionSurveyModal")?.classList.add("hidden");
 });
 

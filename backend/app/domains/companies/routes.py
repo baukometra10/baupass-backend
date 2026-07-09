@@ -38,6 +38,7 @@ def _register_core_company_routes() -> None:
         test_company_mail_inbound_endpoint,
         test_company_mail_outbound_endpoint,
         toggle_company_review_access,
+        toggle_company_survey_prompt,
         toggle_turnstile_active,
         update_company,
         update_company_mail_settings_endpoint,
@@ -90,6 +91,7 @@ def _register_core_company_routes() -> None:
         ("/companies/<company_id>/repair", repair_company, ("POST",)),
         ("/companies/<company_id>/restore", restore_company, ("POST",)),
         ("/companies/<company_id>/review-access", toggle_company_review_access, ("PUT",)),
+        ("/companies/<company_id>/survey-prompt", toggle_company_survey_prompt, ("PUT",)),
         ("/companies/<company_id>/worker-hours-summary", company_worker_hours_summary, ("GET",)),
         (
             "/companies/<company_id>/workers/<worker_id>/timeline",

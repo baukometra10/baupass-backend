@@ -1079,8 +1079,8 @@ function extractTodayTimesheetSummary(rows) {
     return { hasRows: false, totalMin: 0, isOpen: false };
   }
 
-  const sessions = pairWorkerPresenceSessions(todayRows);
-  const totalMin = summarizeWorkerPresenceMinutes(todayRows);
+  const sessions = pairWorkerPresenceSessions(todayRows, rows);
+  const totalMin = summarizeWorkerPresenceMinutes(todayRows, rows);
   const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
 
   return {
@@ -4746,7 +4746,21 @@ function queueOfflineEvent(eventPayload) {
   const queue = readStoredJson(OFFLINE_EVENT_QUEUE_KEY, []);
   queue.push(eventPayload);
   writeStoredJson(OFFLINE_EVENT_QUEUE_KEY, queue.slice(-50));
+  requestOfflineQueueBackgroundSync();
   updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
+}
+
+function requestOfflineQueueBackgroundSync() {
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.ready) {
+    return;
+  }
+  navigator.serviceWorker.ready
+    .then((registration) => {
+      if (registration.sync && typeof registration.sync.register === "function") {
+        return registration.sync.register("baupass-offline-queue");
+      }
+    })
+    .catch(() => {});
 }
 
 async function tryOfflineBadgeLogin(badgeId, badgePin, locationPayload) {
@@ -4908,6 +4922,9 @@ function registerWorkerSw() {
   navigator.serviceWorker.addEventListener("message", (event) => {
     if (event.data?.type === "NAVIGATE_WORKER_APP") {
       navigateWorkerAppFromNotification(event.data.url);
+    }
+    if (event.data?.type === "SW_FLUSH_OFFLINE_QUEUE" && workerToken) {
+      void syncOfflineEventQueue();
     }
   });
 
@@ -8223,8 +8240,9 @@ async function handleSiteLeaveDetected() {
   const leaveGuard = setTimeout(() => {
     siteGeofenceLeaveInProgress = false;
   }, SITE_GEOFENCE_LEAVE_GUARD_MS);
+  let locationPayload = null;
   try {
-    const locationPayload = await resolveSiteLocation({ preferFast: false });
+    locationPayload = await resolveSiteLocation({ preferFast: false });
     await fetchJson(`${API_BASE}/site-leave`, {
       method: "POST",
       headers: {
@@ -8237,6 +8255,14 @@ async function handleSiteLeaveDetected() {
     const quietSiteLeave = new Set(["still_on_site", "worker_geolocation_required", "not_site_app_mode"]);
     if (!quietSiteLeave.has(error?.code)) {
       console.warn("[site-leave]", error);
+    }
+    if (locationPayload) {
+      queueOfflineEvent({
+        type: "site_leave",
+        occurredAt: new Date().toISOString(),
+        location: locationPayload,
+        clientEventId: `site-leave-${Date.now()}`,
+      });
     }
   } finally {
     clearTimeout(leaveGuard);
@@ -8602,10 +8628,13 @@ function minutesBetweenWorkerAccessTimestamps(start, end) {
   return Math.min(Math.max(1, Math.ceil(seconds / 60)), 1439);
 }
 
-function pairWorkerPresenceSessions(events) {
+function pairWorkerPresenceSessions(events, allEvents = null) {
   const ordered = [...(events || [])].sort((left, right) =>
     String(left.timestamp || "").localeCompare(String(right.timestamp || ""))
   );
+  const checkoutPool = [...(allEvents || events || [])]
+    .filter((ev) => isAccessLogCheckOut(ev.direction))
+    .sort((left, right) => String(left.timestamp || "").localeCompare(String(right.timestamp || "")));
   const sessions = [];
   let pendingIn = null;
 
@@ -8627,18 +8656,30 @@ function pairWorkerPresenceSessions(events) {
   }
 
   if (pendingIn) {
-    sessions.push({
-      checkIn: pendingIn,
-      checkOut: null,
-      durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, new Date().toISOString()),
-    });
+    const checkInTs = String(pendingIn.timestamp || "");
+    const matchingCheckout = checkoutPool.find(
+      (ev) => String(ev.timestamp || "") > checkInTs
+    );
+    if (matchingCheckout) {
+      sessions.push({
+        checkIn: pendingIn,
+        checkOut: matchingCheckout,
+        durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, matchingCheckout.timestamp),
+      });
+    } else {
+      sessions.push({
+        checkIn: pendingIn,
+        checkOut: null,
+        durationMinutes: minutesBetweenWorkerAccessTimestamps(pendingIn.timestamp, new Date().toISOString()),
+      });
+    }
   }
 
   return sessions;
 }
 
-function summarizeWorkerPresenceMinutes(events) {
-  return pairWorkerPresenceSessions(events).reduce((sum, session) => {
+function summarizeWorkerPresenceMinutes(events, allEvents = null) {
+  return pairWorkerPresenceSessions(events, allEvents).reduce((sum, session) => {
     const minutes = Number(session.durationMinutes) || 0;
     return sum + (minutes > 0 ? minutes : 0);
   }, 0);
@@ -10694,8 +10735,8 @@ function updateDailyInsightsFromTimesheets(rows) {
     return;
   }
 
-  const sessions = pairWorkerPresenceSessions(todayRows);
-  const totalMin = summarizeWorkerPresenceMinutes(todayRows);
+  const sessions = pairWorkerPresenceSessions(todayRows, rows);
+  const totalMin = summarizeWorkerPresenceMinutes(todayRows, rows);
   const checkins = todayRows.filter((row) => isAccessLogCheckIn(row.direction));
   const checkouts = todayRows.filter((row) => isAccessLogCheckOut(row.direction));
   const isOpen = sessions.some((session) => session.checkIn && !session.checkOut);
@@ -10754,8 +10795,8 @@ async function loadMyTimesheets() {
       </div>`;
 
     const dayMarkup = visibleDayGroups.map(([date, entries]) => {
-        const sessions = pairWorkerPresenceSessions(entries);
-        const totalMin = summarizeWorkerPresenceMinutes(entries);
+        const sessions = pairWorkerPresenceSessions(entries, rows);
+        const totalMin = summarizeWorkerPresenceMinutes(entries, rows);
         const totalLabel = totalMin > 0 ? `${Math.floor(totalMin / 60)}:${String(totalMin % 60).padStart(2, "0")} h` : "";
         const sessionDurationByOut = new Map(
           sessions

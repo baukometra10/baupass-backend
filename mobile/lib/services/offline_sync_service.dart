@@ -40,10 +40,14 @@ class OfflineSyncService {
       if (results is List) {
         final syncedIds = <String>{};
         for (final item in results) {
-          if (item is Map && item['stored'] == true) {
-            final id = item['clientEventId'] as String?;
-            if (id != null) syncedIds.add(id);
-          }
+          if (item is! Map) continue;
+          final id = item['clientEventId'] as String?;
+          if (id == null) continue;
+          final synced = item['stored'] == true ||
+              item['ok'] == true ||
+              item['checkoutLogId'] != null ||
+              item['siteLeaveLogId'] != null;
+          if (synced) syncedIds.add(id);
         }
         if (syncedIds.isNotEmpty) {
           await _store.removeByClientEventIds(syncedIds);

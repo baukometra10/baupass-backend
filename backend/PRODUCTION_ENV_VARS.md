@@ -75,6 +75,18 @@ Nicht erforderlich, aber stark empfohlen für Sicherheit:
 |----------|-------------|---------|
 | `BAUPASS_DB_PATH` | SQLite DB Datei | `./backend/baupass.db` |
 
+### Railway.app (SQLite + Volume)
+
+Für Login auf Railway ohne PostgreSQL:
+
+| Variable | Wert | Hinweis |
+|----------|------|---------|
+| `BAUPASS_PG_RUNTIME` | `0` | Kein PG-Schema-Check beim Login |
+| `BAUPASS_DB_PATH` | `/data/baupass.db` | Pfad auf dem gemounteten Volume |
+| Volume | Mount `/data` | Persistent — sonst leere DB bei jedem Deploy |
+
+**Fehler «Datenbank-Schema ist unvollständig … SQLite-Prüfung fehlgeschlagen»:** Die Datei unter `BAUPASS_DB_PATH` fehlt oder ist leer (< 4 KB). Prüfen: Volume an Service gebunden, Env gesetzt, Redeploy, dann Deploy-Logs auf `[baupass] init_db` prüfen.
+
 ---
 
 ## 🚀 Startup-Verhalten

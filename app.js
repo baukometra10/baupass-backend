@@ -9609,6 +9609,7 @@ function normalizeLog(entry) {
     gate: entry?.gate || "",
     note: entry?.note || "",
     timestamp: entry?.timestamp || "",
+    checked_in_late: entry?.checked_in_late ?? entry?.checkedInLate ?? 0,
     presentOnSite: typeof entry?.presentOnSite === "boolean"
       ? entry.presentOnSite
       : typeof entry?.present_on_site === "boolean"
@@ -23773,6 +23774,29 @@ async function sendReportingPdfByEmail() {
   showToast(`${uiT("reportingEmailSentOk")}${datevHint}`);
 }
 
+function resolveReportingCompanyId() {
+  const user = getCurrentUser();
+  if (!user) return "";
+  if (String(user.role || "").toLowerCase() !== "superadmin") {
+    return String(user.companyId || user.company_id || "").trim();
+  }
+  return String(superadminUiPreviewCompanyId || "").trim();
+}
+
+async function ensureReportingCompanyId() {
+  let companyId = resolveReportingCompanyId();
+  if (companyId) return companyId;
+  const user = getCurrentUser();
+  if (String(user?.role || "").toLowerCase() !== "superadmin") {
+    return companyId;
+  }
+  companyId = window.prompt("Firma-ID für den Bericht (Vorschau-Firma wählen oder ID eingeben):", "");
+  if (companyId === null) {
+    throw new Error("Abgebrochen");
+  }
+  return String(companyId).trim();
+}
+
 async function sendReportingEnterprisePdfByEmail() {
   const email = window.prompt(`${uiT("reportingEmailEnterpriseBtn")}:`, String(getCurrentUser()?.email || "").trim());
   if (email === null) return;
@@ -23780,12 +23804,9 @@ async function sendReportingEnterprisePdfByEmail() {
     showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
     return;
   }
-  const user = getCurrentUser();
+  const companyId = await ensureReportingCompanyId();
   const body = { email, attachDatevCsv: true };
-  if (user?.role === "superadmin") {
-    const previewId = String(superadminUiPreviewCompanyId || "").trim();
-    if (previewId) body.companyId = previewId;
-  }
+  if (companyId) body.companyId = companyId;
   const result = await apiRequest(`${API_BASE}/api/reporting/email-enterprise-pdf`, { method: "POST", body });
   const datevHint = result?.datevCsvAttached ? " + DATEV" : "";
   showToast(`${uiT("reportingEmailSentOk")}${datevHint}`);
@@ -23820,9 +23841,12 @@ async function sendReportingDatevCsvByEmail() {
     showToast(uiT("toastInvalidEmail"));
     return;
   }
+  const companyId = await ensureReportingCompanyId();
+  const body = { email };
+  if (companyId) body.companyId = companyId;
   await apiRequest(`${API_BASE}/api/reporting/email-datev-csv`, {
     method: "POST",
-    body: { email },
+    body,
   });
   showToast(uiT("reportingEmailSentOk"));
 }
@@ -24831,10 +24855,16 @@ function renderCompanyList() {
                 <button type="button" class="ghost-button small-button" data-company-change-status="${escapeHtml(companyId)}" ${canToggleLock && !deleted ? "" : "disabled"}>🧭 ${escapeHtml(runtimeText("labelCompanyStatus"))}</button>
                 <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
                 <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
+                <button type="button" class="ghost-button small-button ${company.survey_prompt_enabled ? "btn-success" : ""}" data-company-survey-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.survey_prompt_enabled ? "📋 System-Bewertung aus" : "📋 System-Bewertung an"}</button>
                 <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
               </div>
             </div>
           </details>
+          ${company.survey_prompt_enabled ? `
+          <div class="meta-box" style="background:rgba(219,234,254,0.55);border-color:#3b82f6;margin-top:8px;">
+            <p>System-Bewertung aktiv — Firmen-Admins sehen die Bewertungsmaske direkt im Dashboard.</p>
+            <p style="font-size:0.8em;word-break:break-all;color:#555;margin:4px 0;">${window.location.origin}/satisfaction-survey.html</p>
+          </div>` : ""}
           ${company.review_enabled && company.review_token ? `
           <div class="meta-box" style="background:rgba(253,251,210,0.6);border-color:#d4ac0d;margin-top:8px;">
             <p>${escapeHtml(runtimeText("companyReviewLinkActive"))}</p>
@@ -25903,6 +25933,33 @@ function bindCompanyRowActions() {
         refreshAll();
       } catch (error) {
         showToast(uiT("alertTurnstileToggleFailed").replace("{error}", error.message));
+      }
+      return;
+    }
+
+    // ── System-Bewertung (Survey Prompt) Toggle ──
+    const surveyToggleBtn = event.target.closest("[data-company-survey-toggle]");
+    if (surveyToggleBtn && !surveyToggleBtn.disabled && elements.companyList.contains(surveyToggleBtn)) {
+      const companyId = surveyToggleBtn.dataset.companySurveyToggle;
+      const company = state.companies.find((c) => c.id === companyId);
+      if (!companyId || !company) return;
+      const enabling = !Boolean(company.survey_prompt_enabled);
+      const confirmMsg = enabling
+        ? `System-Bewertung für "${company.name}" aktivieren? Firmen-Admins sehen die Bewertung sofort im Dashboard.`
+        : `System-Bewertung für "${company.name}" deaktivieren?`;
+      if (!(await showConfirmDialog(confirmMsg))) return;
+      try {
+        const result = await apiRequest(`${API_BASE}/api/companies/${companyId}/survey-prompt`, { method: "PUT" });
+        const idx = state.companies.findIndex((c) => c.id === companyId);
+        if (idx >= 0) {
+          state.companies[idx].survey_prompt_enabled = result.survey_prompt_enabled;
+        }
+        renderCompanyList();
+        if (result.survey_prompt_enabled && result.surveyUrl) {
+          showToast("System-Bewertung aktiviert — Link: " + result.surveyUrl);
+        }
+      } catch (err) {
+        showToast("Fehler: " + err.message);
       }
       return;
     }
@@ -29634,7 +29691,7 @@ async function exportAccessCsv() {
     if (state.accessFilter.gate) {
       query.set("gate", state.accessFilter.gate);
     }
-    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const suffix = query.toString() ? `?${query.toString()}&format=csv` : "?format=csv";
 
     const response = await fetch(`${API_BASE}/api/access-logs/export.csv${suffix}`, {
       headers: {
@@ -29650,7 +29707,7 @@ async function exportAccessCsv() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `zutrittsjournal-${new Date().toISOString().slice(0, 10)}.pdf`;
+    link.download = `zutrittsjournal-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   } catch (error) {
@@ -31041,11 +31098,43 @@ function renderInvoiceHtml(invoice) {
           <tr><td>${escapeHtml(uiT("invoiceTotalGross"))}</td><td>${formatCurrency(invoice.totalAmount)}</td></tr>
         </table>
 
-        <p class="footer">${escapeHtml(uiT("invoiceFooter"))}</p>
+        ${buildInvoiceFooterHtml(invoice)}
       </div>
     </body>
     </html>
   `;
+}
+
+function buildInvoiceFooterHtml(invoice) {
+  const settings = state.settings || {};
+  const operator = String(invoice?.operatorName || settings.operatorName || "").trim();
+  const street = String(settings.invoiceOperatorStreet || "").trim();
+  const zipCity = String(settings.invoiceOperatorZipCity || "").trim();
+  const phone = String(settings.invoiceOperatorPhone || "").trim();
+  const email = String(settings.invoiceOperatorEmail || "").trim();
+  const website = String(settings.invoiceOperatorWebsite || "").trim();
+  const iban = String(settings.invoiceIban || "").trim();
+  const bic = String(settings.invoiceBic || "").trim();
+  const bankName = String(settings.invoiceBankName || "").trim();
+  const taxId = String(settings.invoiceTaxId || "").trim();
+  const vatId = String(settings.invoiceVatId || "").trim();
+  const lines = [];
+  if (operator) lines.push(`<strong>${escapeHtml(operator)}</strong>`);
+  if (street || zipCity) lines.push(escapeHtml([street, zipCity].filter(Boolean).join(", ")));
+  const contact = [phone ? `Tel: ${phone}` : "", email ? `E-Mail: ${email}` : "", website].filter(Boolean);
+  if (contact.length) lines.push(escapeHtml(contact.join(" · ")));
+  const bank = [
+    bankName ? `Bank: ${bankName}` : "",
+    iban ? `IBAN: ${iban}` : "",
+    bic ? `BIC: ${bic}` : "",
+  ].filter(Boolean);
+  if (bank.length) lines.push(escapeHtml(bank.join(" · ")));
+  const tax = [taxId ? `St.-Nr.: ${taxId}` : "", vatId ? `USt-ID: ${vatId}` : ""].filter(Boolean);
+  if (tax.length) lines.push(escapeHtml(tax.join(" · ")));
+  if (!lines.length) {
+    return `<p class="footer">${escapeHtml(uiT("invoiceFooter"))}</p>`;
+  }
+  return `<div class="footer" style="border-top:1px solid #e0e0ea;margin-top:22px;padding-top:12px;font-size:0.85rem;color:#555;line-height:1.5;">${lines.join("<br>")}</div>`;
 }
 
 async function refreshInvoicePreview(options = {}) {
@@ -36649,6 +36738,7 @@ bindReportingEmailEnterpriseButton("#reportingEmailEnterprisePdfBtn");
 bindReportingEmailEnterpriseButton("#enterpriseHubEmailPdfBtn");
 bindReportingEmailEnterpriseButton("#opsCenterEmailPdfBtn");
 bindReportingEmailCompaniesButton();
+bindReportingEmailIncidentsVisitsButton();
 bindReportingDailyPdfRunButton();
 bindDecisionsTodayPanel();
 

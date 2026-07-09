@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
@@ -163,15 +164,32 @@ class WorkerShellState extends State<WorkerShell> {
       bearer: widget.session.bearer,
       deviceId: widget.session.deviceId,
       siteAppMode: accessMode == 'site_app',
-      autoLogout: siteAccess?['autoLogout'] == true,
-      onAutoLogout: () {
+      autoLogout: siteAccess?['autoLogout'] != false,
+      onNotify: (message) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Automatischer Check-out — Baustelle verlassen')),
+          SnackBar(content: Text(message)),
         );
-        widget.onLogout();
       },
     );
+    _maybeWarnBackgroundLocation(accessMode == 'site_app');
+  }
+
+  Future<void> _maybeWarnBackgroundLocation(bool siteAppMode) async {
+    if (!siteAppMode || !mounted) return;
+    final permission = await widget.location.requestLocationPermission();
+    if (!mounted) return;
+    if (widget.location.isBackgroundCapable(permission)) return;
+    if (permission == LocationPermission.whileInUse) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Für automatische Anwesenheit im Hintergrund: Standort «Immer erlauben» in den Systemeinstellungen aktivieren.',
+          ),
+          duration: Duration(seconds: 8),
+        ),
+      );
+    }
   }
 
   @override

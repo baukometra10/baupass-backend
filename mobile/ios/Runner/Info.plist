@@ -43,6 +43,8 @@
 	<string>Das Mikrofon wird für Sprachnachrichten im Chat und Sprachfragen an den Assistenten genutzt.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Der Standort wird genutzt, um zu prüfen, ob du dich auf der Baustelle befindest.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Der Standort wird im Hintergrund genutzt, um An- und Abwesenheit auf der Baustelle automatisch zu erfassen.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
@@ -68,6 +70,7 @@
 	<array>
 		<string>remote-notification</string>
 		<string>fetch</string>
+		<string>location</string>
 	</array>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>

@@ -7,7 +7,7 @@ Set-Location $Root
 
 Write-Host ""
 Write-Host "=== BauPass Railway: Login + Link ===" -ForegroundColor Cyan
-Write-Host "Production: https://baupass-production.up.railway.app"
+Write-Host "Production: https://suppix-workpass-ai.up.railway.app"
 Write-Host ""
 
 Remove-Item Env:RAILWAY_TOKEN -ErrorAction SilentlyContinue

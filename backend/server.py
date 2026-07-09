@@ -4566,6 +4566,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN review_enabled INTEGER NOT NULL DEFAULT 0")
     if "review_token" not in company_review_cols:
         cur.execute("ALTER TABLE companies ADD COLUMN review_token TEXT NOT NULL DEFAULT ''")
+    if "survey_prompt_enabled" not in company_review_cols:
+        cur.execute("ALTER TABLE companies ADD COLUMN survey_prompt_enabled INTEGER NOT NULL DEFAULT 0")
 
     # ── Nutzungsanalyse & System-Zufriedenheit ─────────────────────────────────
     cur.execute(
@@ -7315,7 +7317,15 @@ def _resolve_monthly_invoice_creator_user_id(db):
     return str(row["id"] or "") if row else ""
 
 
-def _build_monthly_invoice_html(company_name, invoice_number, period_label, platform_label, operator_label, total_amount):
+def _build_monthly_invoice_html(
+    company_name,
+    invoice_number,
+    period_label,
+    platform_label,
+    operator_label,
+    total_amount,
+    settings_row=None,
+):
     company_safe = html.escape(str(company_name or "Firma"))
     number_safe = html.escape(str(invoice_number or "-"))
     period_safe = html.escape(str(period_label or "-"))
@@ -7324,6 +7334,41 @@ def _build_monthly_invoice_html(company_name, invoice_number, period_label, plat
     amount_val = float(total_amount or 0)
     amount_safe = html.escape(f"{amount_val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
     today_safe = html.escape(datetime.now().strftime("%d.%m.%Y"))
+
+    def _setting(key, fallback=""):
+        if not settings_row:
+            return fallback
+        try:
+            return str(settings_row[key] or "").strip()
+        except (KeyError, IndexError, TypeError):
+            return fallback
+
+    street = html.escape(_setting("invoice_operator_street"))
+    zip_city = html.escape(_setting("invoice_operator_zip_city"))
+    phone = html.escape(_setting("invoice_operator_phone"))
+    email = html.escape(_setting("invoice_operator_email"))
+    website = html.escape(_setting("invoice_operator_website"))
+    iban = html.escape(_setting("invoice_iban"))
+    bic = html.escape(_setting("invoice_bic"))
+    bank_name = html.escape(_setting("invoice_bank_name"))
+    tax_id = html.escape(_setting("invoice_tax_id"))
+    vat_id = html.escape(_setting("invoice_vat_id"))
+    footer_lines = []
+    if street or zip_city:
+        footer_lines.append(f"{street}{', ' if street and zip_city else ''}{zip_city}")
+    contact_bits = [f"Tel: {phone}" if phone else "", f"E-Mail: {email}" if email else "", website]
+    contact_line = " · ".join(bit for bit in contact_bits if bit)
+    if contact_line:
+        footer_lines.append(contact_line)
+    bank_bits = [f"Bank: {bank_name}" if bank_name else "", f"IBAN: {iban}" if iban else "", f"BIC: {bic}" if bic else ""]
+    bank_line = " · ".join(bit for bit in bank_bits if bit)
+    if bank_line:
+        footer_lines.append(bank_line)
+    tax_bits = [f"St.-Nr.: {tax_id}" if tax_id else "", f"USt-ID: {vat_id}" if vat_id else ""]
+    tax_line = " · ".join(bit for bit in tax_bits if bit)
+    if tax_line:
+        footer_lines.append(tax_line)
+    footer_html = "".join(f"<div>{line}</div>" for line in footer_lines)
     return f"""<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"><title>Rechnung {number_safe}</title>
@@ -7353,8 +7398,11 @@ def _build_monthly_invoice_html(company_name, invoice_number, period_label, plat
     <tr><td class="label">Rechnungsdatum</td><td>{today_safe}</td></tr>
     <tr class="total-row"><td>Gesamtbetrag inkl. USt.</td><td>{amount_safe}</td></tr>
   </table>
-  <p style="color:#555;font-size:12px;">Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer. Den vollständigen Rechnungsanhang finden Sie im beigefügten PDF.</p>
-  <div class="footer">Erstellt durch {operator_safe} · {platform_safe}</div>
+  <p style="color:#555;font-size:12px;">Bitte überweisen Sie den Betrag unter Angabe der Rechnungsnummer <strong>{number_safe}</strong>.{f" Bankverbindung: {bank_line}." if bank_line else ""}</p>
+  <div class="footer">
+    <div><strong>{operator_safe}</strong> · {platform_safe}</div>
+    {footer_html}
+  </div>
 </body>
 </html>"""
 
@@ -7547,7 +7595,15 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
                 "draft",
                 "",
                 None,
-                _build_monthly_invoice_html(company["name"], invoice_number, period_label, platform_label, operator_label, total_amount),
+                _build_monthly_invoice_html(
+                    company["name"],
+                    invoice_number,
+                    period_label,
+                    platform_label,
+                    operator_label,
+                    total_amount,
+                    settings_row,
+                ),
                 created_by_user_id,
                 now_iso(),
                 due_date,
@@ -8801,23 +8857,21 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
         FROM workers w
         JOIN access_logs al ON al.worker_id = w.id
         WHERE w.deleted_at IS NULL
-          AND al.timestamp LIKE ?
           AND al.direction = 'check-in'
           AND NOT EXISTS (
               SELECT 1 FROM access_logs al_out
               WHERE al_out.worker_id = al.worker_id
                 AND al_out.timestamp > al.timestamp
-                AND al_out.timestamp LIKE ?
                 AND al_out.direction = 'check-out'
           )
         """,
-        (f"{today_prefix}%", f"{today_prefix}%"),
     ).fetchall()
 
     auto_closed = []
     for row in rows:
+        work_start = get_effective_work_start_time(db, row["worker_id"])
         work_end = get_effective_work_end_time(db, row["worker_id"])
-        if not work_end or current_hm < work_end:
+        if not work_end or not _is_past_work_end_time(work_start, work_end, current_hm):
             continue
         log_id = create_access_log_entry(
             db,
@@ -11428,28 +11482,78 @@ def is_company_workday_today():
     return datetime.now().weekday() < 5
 
 
-def worker_has_open_checkin_today(db, worker_id):
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+def worker_has_open_checkin(db, worker_id):
+    """True when the worker has any unclosed check-in (including overnight shifts)."""
     open_row = db.execute(
         """
         SELECT al.id
         FROM access_logs al
         WHERE al.worker_id = ?
-          AND al.timestamp LIKE ?
           AND al.direction = 'check-in'
           AND NOT EXISTS (
               SELECT 1 FROM access_logs al2
               WHERE al2.worker_id = al.worker_id
                 AND al2.timestamp > al.timestamp
-                AND al2.timestamp LIKE ?
                 AND al2.direction = 'check-out'
           )
         ORDER BY al.timestamp DESC
         LIMIT 1
         """,
-        (worker_id, f"{today_prefix}%", f"{today_prefix}%"),
+        (worker_id,),
     ).fetchone()
     return bool(open_row)
+
+
+def worker_has_open_checkin_today(db, worker_id):
+    """Open check-in for today's session, including overnight shifts from yesterday."""
+    if not worker_has_open_checkin(db, worker_id):
+        return False
+    open_row = db.execute(
+        """
+        SELECT al.timestamp
+        FROM access_logs al
+        WHERE al.worker_id = ?
+          AND al.direction = 'check-in'
+          AND NOT EXISTS (
+              SELECT 1 FROM access_logs al2
+              WHERE al2.worker_id = al.worker_id
+                AND al2.timestamp > al.timestamp
+                AND al2.direction = 'check-out'
+          )
+        ORDER BY al.timestamp DESC
+        LIMIT 1
+        """,
+        (worker_id,),
+    ).fetchone()
+    if not open_row:
+        return False
+    checkin_ts = str(open_row["timestamp"] or "")[:10]
+    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    return checkin_ts in {today, yesterday}
+
+
+def _work_time_to_minutes(value):
+    normalized = str(value or "").strip()
+    if not normalized or ":" not in normalized:
+        return None
+    try:
+        hours, minutes = normalized.split(":", 1)
+        return int(hours) * 60 + int(minutes)
+    except ValueError:
+        return None
+
+
+def _is_past_work_end_time(work_start, work_end, current_hm):
+    end_minutes = _work_time_to_minutes(work_end)
+    current_minutes = _work_time_to_minutes(current_hm)
+    if end_minutes is None or current_minutes is None:
+        return False
+    start_minutes = _work_time_to_minutes(work_start)
+    if start_minutes is not None and end_minutes <= start_minutes:
+        # Overnight shift (e.g. 17:00–01:30): past end when between end and next start.
+        return current_minutes > end_minutes and current_minutes < start_minutes
+    return current_minutes >= end_minutes
 
 
 def get_effective_work_end_time(db, worker_id):
@@ -11692,16 +11796,17 @@ def measure_worker_presence_for_leave(db, worker, location, active_geofence_id=N
     return _measure_worker_at_geofence_zone(db, worker, location, zone, default_radius)
 
 
-def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note=""):
+def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note="", timestamp_value=None):
     checkout_log_id = None
     leave_log_id = None
-    if worker_has_open_checkin_today(db, worker["id"]):
+    if worker_has_open_checkin(db, worker["id"]):
         checkout_log_id = create_access_log_entry(
             db,
             worker["id"],
             "check-out",
             "Mitarbeiter-App (Standort)",
             note or "Automatischer Check-out beim Verlassen des Standorts",
+            timestamp_value=timestamp_value,
             worker_type=worker["worker_type"],
         )
         _publish_site_checkout_event(db, worker, checkout_log_id, via_leave=True)
@@ -13865,12 +13970,21 @@ def worker_app_site_presence():
                 }
         if not auto_checkin_log_id and not worker_has_open_checkin_today(db, worker["id"]):
             if not attendance_blocked:
-                site_login_log_id = record_site_app_login_activity(
-                    db,
-                    worker,
-                    note="Standort erkannt (GPS)",
-                    geofence_id=geofence_id,
-                )
+                from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+                login_eligibility = worker_may_auto_attend_today(db, worker)
+                if login_eligibility.get("ok"):
+                    site_login_log_id = record_site_app_login_activity(
+                        db,
+                        worker,
+                        note="Standort erkannt (GPS)",
+                        geofence_id=geofence_id,
+                    )
+                else:
+                    attendance_blocked = {
+                        "reason": login_eligibility.get("reason"),
+                        "message": login_eligibility.get("message"),
+                    }
         if auto_checkin_log_id or site_login_log_id or site_leave_result:
             db.commit()
     elif site_leave_result:
@@ -14062,9 +14176,21 @@ def record_worker_app_nfc_attendance(
         return {"ok": False, "error": "invalid_direction", "status": 400}
 
     if requested_direction in {"auto", "toggle", ""}:
-        direction = "check-out" if worker_has_open_checkin_today(db, worker["id"]) else "check-in"
+        direction = "check-out" if worker_has_open_checkin(db, worker["id"]) else "check-in"
     else:
         direction = requested_direction
+
+    if direction == "check-in":
+        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+        attendance = worker_may_auto_attend_today(db, worker)
+        if not attendance.get("ok"):
+            return {
+                "ok": False,
+                "error": str(attendance.get("reason") or "attendance_blocked"),
+                "status": 403,
+                "message": str(attendance.get("message") or "Check-in nicht erlaubt."),
+            }
 
     gate_label = str(gate or "Mitarbeiter-App (NFC)").strip() or "Mitarbeiter-App (NFC)"
     if offline_sync:
@@ -14287,6 +14413,37 @@ def worker_app_sync_offline_events():
         client_event_id = clean_id_input(event.get("clientEventId"), max_len=80)
         distance_meters = _normalize_float(event.get("distanceMeters"))
 
+        if event_type == "site_leave":
+            location = event.get("location") if isinstance(event.get("location"), dict) else None
+            if location is not None:
+                try:
+                    _validate_worker_location_accuracy_or_raise(location)
+                except ValueError as exc:
+                    results.append({"ok": False, "type": event_type, "error": str(exc)})
+                    continue
+            site_cfg = get_company_site_access_config(db, worker["company_id"])
+            leave_result = _apply_worker_site_leave(
+                db,
+                worker,
+                site_cfg,
+                note=f"Offline GPS-Austritt nachsynchronisiert ({occurred_at})",
+                timestamp_value=occurred_at,
+            )
+            if leave_result.get("checkoutLogId") or leave_result.get("siteLeaveLogId"):
+                stored_count += 1
+                log_audit(
+                    "worker_app.site_leave_offline",
+                    f"Offline site-leave replayed at {occurred_at}",
+                    target_type="worker",
+                    target_id=worker["id"],
+                    company_id=worker["company_id"],
+                )
+            leave_result["type"] = event_type
+            if client_event_id:
+                leave_result["clientEventId"] = client_event_id
+            results.append(leave_result)
+            continue
+
         if event_type == "nfc_attendance":
             location = event.get("location") if isinstance(event.get("location"), dict) else None
             if distance_meters is not None and location is not None:
@@ -14341,8 +14498,15 @@ def worker_app_sync_offline_events():
 def worker_app_logout():
     db = get_db()
     worker = g.worker
-    if worker_has_open_checkin_today(db, worker["id"]):
-        pass
+    if worker_has_open_checkin(db, worker["id"]):
+        create_access_log_entry(
+            db,
+            worker["id"],
+            "check-out",
+            "Mitarbeiter-App",
+            "Automatischer Check-out bei App-Abmeldung",
+            worker_type=worker["worker_type"],
+        )
     elif worker_has_open_site_app_session_today(db, worker["id"]):
         record_site_app_leave_activity(db, worker, note="Abmeldung über App")
     db.execute("DELETE FROM worker_app_sessions WHERE token = ?", (g.worker_token,))
@@ -17360,7 +17524,7 @@ def list_latest_access_logs():
 
     rows = db.execute(
         f"""
-        SELECT id, worker_id, direction, gate, note, timestamp
+        SELECT id, worker_id, direction, gate, note, timestamp, checked_in_late
         FROM (
             SELECT access_logs.id,
                    access_logs.worker_id,
@@ -17368,6 +17532,7 @@ def list_latest_access_logs():
                    access_logs.gate,
                    access_logs.note,
                    access_logs.timestamp,
+                   access_logs.checked_in_late,
                    ROW_NUMBER() OVER (
                        PARTITION BY access_logs.worker_id
                        ORDER BY access_logs.timestamp DESC, access_logs.id DESC
@@ -17462,13 +17627,15 @@ def export_access_csv():
     gate = (request.args.get("gate") or "").strip()
     from_date = (request.args.get("from") or "").strip()
     to_date = (request.args.get("to") or "").strip()
+    export_format = (request.args.get("format") or "pdf").strip().lower()
 
     conditions, params = build_access_filters(g.current_user, direction, gate, from_date, to_date)
 
     where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
     rows = get_db().execute(
         f"""
-        SELECT access_logs.id, access_logs.direction, access_logs.gate, access_logs.note, access_logs.timestamp,
+        SELECT access_logs.id, access_logs.direction, access_logs.gate, access_logs.note,
+               access_logs.timestamp, access_logs.checked_in_late,
                workers.first_name, workers.last_name, workers.badge_id
         FROM access_logs
         JOIN workers ON workers.id = access_logs.worker_id
@@ -17478,6 +17645,30 @@ def export_access_csv():
         """,
         params,
     ).fetchall()
+
+    if export_format == "csv":
+        import csv
+
+        buffer = io.StringIO()
+        writer = csv.writer(buffer, delimiter=";")
+        writer.writerow(["Name", "Badge-ID", "Richtung", "Tor", "Zeitstempel", "Verspätet", "Notiz"])
+        for row in rows:
+            name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip()
+            writer.writerow([
+                name,
+                row["badge_id"] or "",
+                row["direction"] or "",
+                row["gate"] or "",
+                row["timestamp"] or "",
+                "ja" if int(row["checked_in_late"] or 0) == 1 else "nein",
+                row["note"] or "",
+            ])
+        payload = buffer.getvalue().encode("utf-8-sig")
+        return Response(
+            payload,
+            mimetype="text/csv; charset=utf-8",
+            headers={"Content-Disposition": 'attachment; filename="zutrittsjournal.csv"'},
+        )
 
     try:
         from reportlab.lib.pagesizes import A4, landscape
@@ -17552,6 +17743,7 @@ def access_summary():
     rows = get_db().execute(
         f"""
         SELECT access_logs.worker_id, access_logs.direction, access_logs.gate, access_logs.timestamp,
+               access_logs.checked_in_late,
                workers.first_name, workers.last_name, workers.badge_id
         FROM access_logs
         JOIN workers ON workers.id = access_logs.worker_id
@@ -17564,6 +17756,7 @@ def access_summary():
 
     hourly = [{"hour": f"{hour:02d}:00", "checkIn": 0, "checkOut": 0} for hour in range(24)]
     now_dt = datetime.now(timezone.utc)
+    late_check_ins_today = 0
 
     for row in rows:
         ts = parse_iso_utc(row["timestamp"])
@@ -17571,6 +17764,8 @@ def access_summary():
             hour = ts.hour
             if row["direction"] == "check-in":
                 hourly[hour]["checkIn"] += 1
+                if int(row["checked_in_late"] or 0) == 1 and ts.date() == now_dt.date():
+                    late_check_ins_today += 1
             elif row["direction"] == "check-out":
                 hourly[hour]["checkOut"] += 1
 
@@ -17580,6 +17775,7 @@ def access_summary():
         {
             "hourly": hourly,
             "openEntries": open_entries[:150],
+            "lateCheckInsToday": late_check_ins_today,
         }
     )
 
@@ -20149,6 +20345,7 @@ def send_invoice_email(invoice_row, company_row, settings_row):
         pdf.setFillColor(c_mid)
         for ln in [f"St.-Nr.: {op_tax_id}" if op_tax_id else "",
                    f"USt-ID: {op_vat_id}" if op_vat_id else "",
+                   f"Bank: {op_bank}" if op_bank else "",
                    f"IBAN: {op_iban}" if op_iban else "",
                    f"BIC: {op_bic}" if op_bic else ""]:
             if ln:
@@ -21661,6 +21858,18 @@ def toggle_company_review_access(company_id):
     return jsonify(result["body"])
 
 
+@require_auth
+@require_roles("superadmin")
+def toggle_company_survey_prompt(company_id):
+    from backend.app.domains.companies.service import CompaniesService
+
+    result = CompaniesService().toggle_survey_prompt(get_db(), company_id)
+    if "error" in result:
+        err = result["error"]
+        return (jsonify({"error": err}), result.get("status", 404)) if isinstance(err, str) else (jsonify(err), result.get("status", 404))
+    return jsonify(result["body"])
+
+
 def get_review_form_info():
     """Gibt Firmenname zurück wenn Token gültig und Bewertung aktiviert ist."""
     token = (request.args.get("token") or "").strip()
@@ -22744,226 +22953,28 @@ def invoice_reminder_letter_pdf(invoice_id):
         return jsonify({"error": "invoice_not_found"}), 404
 
     settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
-
-    try:
-        from reportlab.lib.pagesizes import A4
-        from reportlab.pdfgen import canvas as rl_canvas
-        from reportlab.platypus import Paragraph
-        from reportlab.lib.styles import getSampleStyleSheet
-    except Exception:
-        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (invoice["company_id"],)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
 
     reminder_stage = int(invoice["reminder_stage"] or 0)
-    # Determine dunning level labels
-    if reminder_stage == 0:
-        letter_type = "Zahlungserinnerung"
-        deadline_days = 14
-        warning_text = ""
-    elif reminder_stage == 1:
-        letter_type = "1. Mahnung"
-        deadline_days = 10
-        warning_text = "Bitte beachten Sie, dass bei Nichtzahlung weitere Mahnschritte folgen."
-    elif reminder_stage == 2:
-        letter_type = "2. Mahnung"
-        deadline_days = 7
-        warning_text = "Dies ist unsere zweite Zahlungsaufforderung. Wir behalten uns rechtliche Schritte vor."
-    else:
-        letter_type = "Letzte Mahnung vor rechtlichen Schritten"
-        deadline_days = 5
-        warning_text = "Wir werden ohne Zahlungseingang innerhalb der gesetzten Frist ein Inkassobüro beauftragen."
-
-    new_due_date = (utc_now() + timedelta(days=deadline_days)).strftime("%d.%m.%Y")
-    invoice_date_str = str(invoice["invoice_date"] or "")
-    original_due_str = str(invoice["due_date"] or "")
-    total_amount = float(invoice["total_amount"] or 0)
-
-    operator_name = str(settings["operator_name"] or settings["platform_name"] or "WorkPass").strip() if settings else "WorkPass"
-    operator_street = str(settings["invoice_operator_street"] or "").strip() if settings else ""
-    operator_zip_city = str(settings["invoice_operator_zip_city"] or "").strip() if settings else ""
-    operator_phone = str(settings["invoice_operator_phone"] or "").strip() if settings else ""
-    operator_email = str(settings["invoice_operator_email"] or "").strip() if settings else ""
-    primary_color = str(settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip() if settings else DEFAULT_BRAND_PRIMARY
-
-    def hex_to_rgb(h):
-        h = h.lstrip("#")
-        return tuple(int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-
+    stage_map = {0: 1, 1: 2, 2: 2}
+    stage = stage_map.get(reminder_stage, 3)
     try:
-        pr, pg, pb = hex_to_rgb(primary_color)
+        due_raw = str(invoice["due_date"] or "")[:10]
+        if due_raw:
+            due_dt = datetime.strptime(due_raw, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            days_until_due = (due_dt - datetime.now(timezone.utc)).days
+        else:
+            days_until_due = 0
     except Exception:
-        pr, pg, pb = 0.059, 0.298, 0.361
+        days_until_due = 0
 
-    buffer = io.BytesIO()
-    page_width, page_height = A4
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
+    pdf_bytes = _generate_reminder_pdf_bytes(invoice, company, settings, stage, days_until_due)
+    if not pdf_bytes:
+        return jsonify({"error": "pdf_dependency_missing", "message": "Bitte reportlab installieren."}), 503
 
-    # ── Header band ──
-    pdf.setFillColorRGB(pr, pg, pb)
-    pdf.rect(0, page_height - 50, page_width, 50, fill=1, stroke=0)
-    pdf.setFillColorRGB(1, 1, 1)
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(36, page_height - 30, letter_type.upper())
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(36, page_height - 44, operator_name)
-    # Draw logo in header band if available
-    if settings:
-        _logo_raw = str(settings["invoice_logo_data"] or "").strip()
-        if _logo_raw.startswith("data:image") and "," in _logo_raw:
-            try:
-                import base64 as _b64
-                _, _enc = _logo_raw.split(",", 1)
-                _lb = _b64.b64decode(_enc)
-                from reportlab.lib.utils import ImageReader as _IR
-                _ir = _IR(io.BytesIO(_lb))
-                pdf.drawImage(_ir, page_width - 120, page_height - 48, width=80, height=40,
-                              preserveAspectRatio=True, mask="auto")
-            except Exception:
-                pass
-
-    # ── Sender address block (small above recipient) ──
-    y = page_height - 80
-    pdf.setFillColorRGB(0.5, 0.5, 0.5)
-    pdf.setFont("Helvetica", 7)
-    sender_parts = [p for p in [operator_name, operator_street, operator_zip_city] if p]
-    sender_line = "  ·  ".join(sender_parts)
-    pdf.drawString(36, y, sender_line[:120])
-    contact_parts = [p for p in [
-        f"Tel: {operator_phone}" if operator_phone else "",
-        operator_email if operator_email else "",
-    ] if p]
-    if contact_parts:
-        y -= 10
-        pdf.drawString(36, y, "  ·  ".join(contact_parts)[:120])
-
-    # ── Recipient address block ──
-    y -= 18
-    pdf.setFillColorRGB(0.1, 0.1, 0.1)
-    pdf.setFont("Helvetica", 10)
-    pdf.drawString(36, y, str(invoice["company_name"] or ""))
-    if invoice["company_contact"]:
-        y -= 14
-        pdf.drawString(36, y, str(invoice["company_contact"] or ""))
-    _rec_street = str(invoice["company_billing_street"] or "").strip() if "company_billing_street" in invoice.keys() else ""
-    _rec_zip_city = str(invoice["company_billing_zip_city"] or "").strip() if "company_billing_zip_city" in invoice.keys() else ""
-    if _rec_street:
-        y -= 13
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(36, y, _rec_street)
-    if _rec_zip_city:
-        y -= 13
-        pdf.setFont("Helvetica", 9)
-        pdf.drawString(36, y, _rec_zip_city)
-    if invoice["company_billing_email"]:
-        y -= 14
-        pdf.setFont("Helvetica", 9)
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        pdf.drawString(36, y, str(invoice["company_billing_email"] or ""))
-        pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-    # ── Date / Ref block right-aligned ──
-    ref_y = page_height - 98
-    pdf.setFont("Helvetica", 9)
-    pdf.setFillColorRGB(0.4, 0.4, 0.4)
-    pdf.drawRightString(page_width - 36, ref_y, f"Datum: {datetime.now().strftime('%d.%m.%Y')}")
-    ref_y -= 13
-    pdf.drawRightString(page_width - 36, ref_y, f"Rechnungs-Nr.: {invoice['invoice_number']}")
-    ref_y -= 13
-    pdf.drawRightString(page_width - 36, ref_y, f"Urspr. Fälligkeit: {original_due_str}")
-
-    # ── Subject line ──
-    y = page_height - 200
-    pdf.setFillColorRGB(pr, pg, pb)
-    pdf.setFont("Helvetica-Bold", 12)
-    pdf.drawString(36, y, f"{letter_type}: Rechnung {invoice['invoice_number']}")
-    y -= 18
-    pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-    # ── Body text ──
-    pdf.setFont("Helvetica", 10)
-    salutation = f"Sehr geehrte Damen und Herren,"
-    pdf.drawString(36, y, salutation)
-    y -= 18
-    pdf.setFont("Helvetica", 9)
-    body_lines = [
-        f"für nachfolgend aufgeführte Rechnung haben wir bis heute keinen Zahlungseingang",
-        f"verzeichnet. Wir bitten Sie, den ausstehenden Betrag bis zum {new_due_date} zu begleichen.",
-    ]
-    for line in body_lines:
-        pdf.drawString(36, y, line)
-        y -= 13
-
-    # ── Invoice detail box ──
-    y -= 8
-    box_y = y - 58
-    pdf.setFillColorRGB(0.97, 0.97, 0.97)
-    pdf.rect(36, box_y, page_width - 72, 60, fill=1, stroke=0)
-    pdf.setFillColorRGB(pr, pg, pb)
-    pdf.setFont("Helvetica-Bold", 9)
-    pdf.drawString(44, box_y + 44, "Rechnungs-Nr.")
-    pdf.drawString(160, box_y + 44, "Datum")
-    pdf.drawString(240, box_y + 44, "Zeitraum")
-    pdf.drawString(380, box_y + 44, "Betrag (brutto)")
-    pdf.setFillColorRGB(0.1, 0.1, 0.1)
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(44, box_y + 26, str(invoice["invoice_number"] or ""))
-    pdf.drawString(160, box_y + 26, str(invoice_date_str)[:10])
-    pdf.drawString(240, box_y + 26, str(invoice["invoice_period"] or "")[:22])
-    pdf.drawString(380, box_y + 26, f"{total_amount:,.2f} EUR".replace(",", "X").replace(".", ",").replace("X", "."))
-    y = box_y - 18
-
-    if warning_text:
-        pdf.setFillColorRGB(0.75, 0.1, 0.1)
-        pdf.setFont("Helvetica-Bold", 9)
-        pdf.drawString(36, y, warning_text[:110])
-        y -= 16
-        pdf.setFillColorRGB(0.1, 0.1, 0.1)
-
-    # ── Payment reference ──
-    y -= 6
-    pdf.setFont("Helvetica", 9)
-    iban = str(settings["invoice_iban"] or "").strip() if settings else ""
-    bic = str(settings["invoice_bic"] or "").strip() if settings else ""
-    bank_name = str(settings["invoice_bank_name"] or "").strip() if settings else ""
-    if iban:
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        pdf.drawString(36, y, f"Bitte überweisen Sie auf: IBAN {iban}" + (f" | BIC {bic}" if bic else "") + (f" ({bank_name})" if bank_name else ""))
-        y -= 13
-        pdf.drawString(36, y, f"Verwendungszweck: {invoice['invoice_number']}")
-        y -= 13
-
-    # ── Closing ──
-    y -= 8
-    pdf.setFillColorRGB(0.1, 0.1, 0.1)
-    pdf.setFont("Helvetica", 9)
-    pdf.drawString(36, y, "Mit freundlichen Grüßen")
-    y -= 14
-    pdf.setFont("Helvetica-Bold", 9)
-    pdf.drawString(36, y, operator_name)
-    if operator_phone or operator_email:
-        y -= 12
-        pdf.setFont("Helvetica", 8)
-        pdf.setFillColorRGB(0.4, 0.4, 0.4)
-        contact_parts = []
-        if operator_phone:
-            contact_parts.append(f"Tel: {operator_phone}")
-        if operator_email:
-            contact_parts.append(f"E-Mail: {operator_email}")
-        pdf.drawString(36, y, "  |  ".join(contact_parts))
-
-    # ── Footer ──
-    pdf.setFillColorRGB(pr, pg, pb)
-    pdf.rect(0, 0, page_width, 24, fill=1, stroke=0)
-    pdf.setFillColorRGB(1, 1, 1)
-    pdf.setFont("Helvetica", 7)
-    footer_parts = [operator_name]
-    if operator_street:
-        footer_parts.append(operator_street)
-    if operator_zip_city:
-        footer_parts.append(operator_zip_city)
-    pdf.drawString(36, 8, "  |  ".join(footer_parts)[:120])
-
-    pdf.save()
-    buffer.seek(0)
+    buffer = io.BytesIO(pdf_bytes)
 
     stage_label = {0: "zahlungserinnerung", 1: "mahnung-1", 2: "mahnung-2"}.get(reminder_stage, "letzte-mahnung")
     filename = f"RE-{invoice['invoice_number']}-{stage_label}.pdf"

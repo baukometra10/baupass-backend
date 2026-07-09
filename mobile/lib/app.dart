@@ -67,8 +67,8 @@ class _WorkerAppState extends State<WorkerApp> {
     _chat = ChatRepository(_api);
     _nfc = NfcService();
     _location = LocationService();
-    _geofence = GeofenceService(_api, _location);
     _offlineStore = OfflineAttendanceStore();
+    _geofence = GeofenceService(_api, _location, _offlineStore);
     _offlineSync = OfflineSyncService(_attendance, _offlineStore);
     _workerCache = WorkerCache();
     _tasks = TasksRepository(_api);

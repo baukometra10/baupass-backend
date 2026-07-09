@@ -241,6 +241,19 @@ class CompaniesRepository:
             (review_enabled, review_token, company_id),
         )
 
+    def get_survey_prompt_row(self, db, company_id: str) -> dict[str, Any] | None:
+        row = db.execute(
+            "SELECT id, name, survey_prompt_enabled FROM companies WHERE id = ?",
+            (company_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def set_survey_prompt_enabled(self, db, company_id: str, *, enabled: int) -> None:
+        db.execute(
+            "UPDATE companies SET survey_prompt_enabled = ? WHERE id = ?",
+            (enabled, company_id),
+        )
+
     def get_plan(self, db, company_id: str) -> str | None:
         row = db.execute(
             "SELECT plan FROM companies WHERE id = ? AND deleted_at IS NULL",
