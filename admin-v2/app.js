@@ -2027,8 +2027,20 @@ async function loadPlatform() {
           <span>${t(AUTOPILOT_LABEL_KEYS[key])}</span>
         </label>`,
     ).join("");
+    const db = setup?.database || {};
+    const dbBannerClass = db.loginReady === false ? "warn" : "ok";
+    const dbBanner = setup
+      ? `<div class="platform-setup-banner ${dbBannerClass}">
+        <strong>${t("platform.dbHealth")}</strong>
+        <p class="muted small">${db.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
+        · ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")}
+        · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}
+        ${db.sqliteSizeBytes ? ` · ${Math.round(Number(db.sqliteSizeBytes) / 1024)} KB` : ""}</p>
+        ${(db.railwayHints || []).map((h) => `<p class="muted small">${escapeHtml(h)}</p>`).join("")}
+      </div>`
+      : "";
     const setupLines = (setup?.readyScore?.missing || [])
-      .map((m) => `<li class="miss">○ ${m}</li>`)
+      .map((m) => `<li class="miss">○ ${escapeHtml(m)}</li>`)
       .join("");
     const setupOk = setup
       ? `<p>${t("platform.setup.railway")}: <strong>${setup.readyScore?.percent ?? 0}%</strong></p><ul class="setup-checklist">${setupLines || `<li class="ok">${t("platform.setup.allOk")}</li>`}</ul>`
@@ -2041,6 +2053,9 @@ async function loadPlatform() {
       .map(([k, v]) => `<tr><td>${k}</td><td>${statusBadge(!!v)}</td></tr>`)
       .join("");
     panel.innerHTML = `
+      <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
+      ${dbBanner}
+      <div class="platform-panel-grid">
       <div class="panel-block" id="workTimesPanel"></div>
       ${
         cid
@@ -2119,6 +2134,7 @@ async function loadPlatform() {
       <div class="panel-block">
         <h3>${t("platform.wallet")}</h3>
         <p class="muted small">${wallet ? JSON.stringify(wallet, null, 2) : t("platform.walletLoading")}</p>
+      </div>
       </div>
       <div class="link-row">
         <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>

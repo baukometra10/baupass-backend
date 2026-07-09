@@ -112,9 +112,9 @@ _access_maintenance_state = {
 # ──────────────────────────────────────────────
 _icon_png_cache: dict[int, bytes] = {}
 
-WORKER_ICON_PRIMARY_RGB = (199, 134, 82)   # #c78652
-WORKER_ICON_SECONDARY_RGB = (138, 82, 48)  # #8a5230
-WORKER_ICON_TEXT_RGBA = (246, 239, 226, 255)  # #f6efe2
+WORKER_ICON_PRIMARY_RGB = (5, 8, 22)       # #050816 Suppix dark
+WORKER_ICON_SECONDARY_RGB = (99, 102, 241)  # #6366f1 accent
+WORKER_ICON_TEXT_RGBA = (255, 255, 255, 255)
 
 
 def _generate_icon_png(size: int) -> bytes:
@@ -182,7 +182,7 @@ def _generate_icon_png(size: int) -> bytes:
     result.paste(img_raw, mask=mask)
 
     draw = ImageDraw.Draw(result)
-    text = "WP"
+    text = "AI"
     font_size = max(48, int(size * 0.375))
     font = None
     for fp in ["segoeuib.ttf", "arialbd.ttf", "arial.ttf", "DejaVuSans-Bold.ttf",
@@ -3404,7 +3404,8 @@ def init_db():
         cur.execute(
             "UPDATE settings SET invoice_logo_data = ? WHERE id = 1 AND ("
             "LOWER(invoice_logo_data) LIKE '%baukometra%' OR LOWER(invoice_logo_data) LIKE '%baupass%'"
-            " OR LOWER(invoice_logo_data) LIKE '%>bk<%')",
+            " OR LOWER(invoice_logo_data) LIKE '%>bk<%' OR LOWER(invoice_logo_data) LIKE '%worker-icon%'"
+            " OR LOWER(invoice_logo_data) LIKE '%>wp<%')",
             (default_logo,),
         )
     cur.execute(
@@ -25501,22 +25502,13 @@ def _build_worker_icon_svg(icon_size: int) -> str:
 def worker_icon_svg(icon_size: int):
     if icon_size not in (192, 512):
         return jsonify({"error": "not_found"}), 404
-    svg = _build_worker_icon_svg(icon_size)
-    response = Response(svg.encode("utf-8"), mimetype="image/svg+xml")
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return response
+    return redirect("/branding/suppix-ai-mark.svg", code=301)
 
 
 def worker_icon_png(icon_size: int):
     if icon_size not in (192, 512):
         return jsonify({"error": "not_found"}), 404
-
-    data = _generate_icon_png(icon_size)
-    if not data:
-        return jsonify({"error": "icon_generation_failed"}), 500
-    response = Response(data, mimetype="image/png")
-    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-    return response
+    return redirect(f"/branding/suppix-icon-{icon_size}.png", code=301)
 
 
 def favicon_ico():

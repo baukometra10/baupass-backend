@@ -658,6 +658,8 @@
     const displayName = String(title || "").trim();
     const accent = String(accentColor || "").trim();
     let iconHref = String(logoData || "").trim();
+    const legacyLogo = /baukometra|baupass|worker-icon|>bk<|>wp<|bp worker/i.test(iconHref);
+    if (legacyLogo) iconHref = "";
     if (!iconHref) {
       iconHref = displayName && global.TenantBrandIcon
         ? global.TenantBrandIcon.resolveTenantIconHref({

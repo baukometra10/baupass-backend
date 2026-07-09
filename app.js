@@ -18125,9 +18125,22 @@ function resolveSidebarBrandLogo(logoSrc) {
   return src;
 }
 
+function isLegacyBrandLogoData(value) {
+  const lower = String(value || "").toLowerCase();
+  return (
+    lower.includes("baukometra")
+    || lower.includes("baupass")
+    || lower.includes("worker-icon")
+    || lower.includes(">bk<")
+    || lower.includes(">wp<")
+    || lower.includes("bp worker")
+  );
+}
+
 function normalizeWebsiteLogoSrc(raw) {
   const value = String(raw || "").trim();
   if (!value) return "";
+  if (isLegacyBrandLogoData(value)) return "";
   if (value.startsWith("data:image/")) return value;
   if (value.startsWith("/branding/")) return value;
   try {
@@ -30498,7 +30511,7 @@ function renderProductReadinessPanel(statusPayload) {
   const googleOk = Boolean(wallet?.runtime?.google?.ok);
   const installUrl = String(statusPayload.workerInstallUrl || "").trim();
   panel.innerHTML = `
-    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;">
+    <div class="superadmin-readiness-row">
       ${renderReadinessPill(uiT("readinessAppleWallet"), appleOk)}
       ${renderReadinessPill(uiT("readinessGoogleWallet"), googleOk)}
       ${renderReadinessPill(uiT("readinessSmtp"), Boolean(statusPayload.smtpConfigured))}
@@ -30506,7 +30519,7 @@ function renderProductReadinessPanel(statusPayload) {
       ${renderReadinessPill(uiT("readinessDbBackups"), Number(statusPayload.dbBackupCount || 0) > 0)}
     </div>
     <p class="helper-text" style="margin:0 0 6px;"><strong>${escapeHtml(uiT("readinessWorkerInstall"))}</strong></p>
-    <p style="margin:0 0 8px;font-size:0.82rem;word-break:break-all;">${escapeHtml(installUrl || "-")}</p>
+    <p class="superadmin-install-url">${escapeHtml(installUrl || "-")}</p>
     ${installUrl ? `<button type="button" class="ghost-button small-button" id="copyWorkerInstallUrlBtn">${escapeHtml(uiT("readinessCopyInstall"))}</button>` : ""}
   `;
   const copyBtn = panel.querySelector("#copyWorkerInstallUrlBtn");
@@ -30541,13 +30554,33 @@ function renderSystemStatusPanel(statusPayload) {
   const warningLines = warnings.slice(0, 5).map((w) => `<li>${escapeHtml(w.message || w.code || "")}</li>`).join("");
 
   panel.innerHTML = `
-    <p><strong>${escapeHtml(runtimeText("systemStatusServerTime"))}:</strong> ${escapeHtml(serverTime)}</p>
-    <p><strong>${escapeHtml(runtimeText("systemStatusActiveAdminSessions"))}:</strong> ${activeSessions}</p>
-    <p><strong>${escapeHtml(runtimeText("systemStatusActiveWorkerSessions"))}:</strong> ${activeWorkerSessions}</p>
-    <p><strong>${escapeHtml(runtimeText("systemStatusOpenEntries"))}:</strong> ${openEntries}</p>
-    <p><strong>${escapeHtml(runtimeText("systemStatusLoginLocks"))}:</strong> ${loginLocks}</p>
-    <p><strong>${escapeHtml(runtimeText("systemStatusRecentIssues"))}:</strong> ${recentIssues}</p>
-    ${warningLines ? `<ul class="helper-text" style="margin:8px 0 0;padding-left:18px;">${warningLines}</ul>` : ""}
+    <div class="superadmin-metric-grid">
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusServerTime"))}</span>
+        <span class="superadmin-metric-value">${escapeHtml(serverTime)}</span>
+      </div>
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusActiveAdminSessions"))}</span>
+        <span class="superadmin-metric-value">${activeSessions}</span>
+      </div>
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusActiveWorkerSessions"))}</span>
+        <span class="superadmin-metric-value">${activeWorkerSessions}</span>
+      </div>
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusOpenEntries"))}</span>
+        <span class="superadmin-metric-value">${openEntries}</span>
+      </div>
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusLoginLocks"))}</span>
+        <span class="superadmin-metric-value">${loginLocks}</span>
+      </div>
+      <div class="superadmin-metric">
+        <span class="superadmin-metric-label">${escapeHtml(runtimeText("systemStatusRecentIssues"))}</span>
+        <span class="superadmin-metric-value">${recentIssues}</span>
+      </div>
+    </div>
+    ${warningLines ? `<ul class="helper-text" style="margin:0;padding-left:18px;">${warningLines}</ul>` : ""}
   `;
   renderProductReadinessPanel(statusPayload);
 }

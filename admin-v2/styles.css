@@ -1768,8 +1768,50 @@ h2 {
   border-radius: 8px;
 }
 
+.sidebar-logo .tenant-logo-img:not(.hidden) + .sidebar-brand-mark,
 .sidebar-logo .tenant-logo-img:not(.hidden) + [data-tenant-logo-fallback] {
   display: none;
+}
+
+.sidebar-brand-mark {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.platform-panel-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.platform-panel-grid .panel-block {
+  margin: 0;
+}
+
+.platform-setup-banner {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+  background: var(--panel-2);
+}
+
+.platform-setup-banner.ok {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.platform-setup-banner.warn {
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.admin-superadmin-banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
+  font-size: 0.92rem;
 }
 
 .sidebar-nav {

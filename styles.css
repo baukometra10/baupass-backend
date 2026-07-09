@@ -6549,6 +6549,126 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   margin-top: 4px;
 }
 
+/* ── Super-Admin zone (legacy admin panel) ── */
+.superadmin-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.superadmin-intro-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--radius-md, 14px);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(168, 85, 247, 0.1), transparent 50%),
+    rgba(8, 12, 24, 0.42);
+}
+
+.superadmin-intro-mark {
+  flex-shrink: 0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.superadmin-intro-banner h3 {
+  margin: 2px 0 6px;
+}
+
+.superadmin-block {
+  padding: 16px 18px;
+  border: 1px solid var(--line, rgba(148, 163, 184, 0.22));
+  border-radius: var(--radius-md, 14px);
+  background: rgba(8, 12, 24, 0.28);
+}
+
+.superadmin-block-heading {
+  margin-bottom: 12px;
+}
+
+.superadmin-status-card {
+  margin-bottom: 12px;
+}
+
+.superadmin-actions {
+  margin-top: 4px;
+}
+
+.superadmin-settings-form {
+  margin-top: 4px;
+}
+
+.superadmin-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.superadmin-metric {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.superadmin-metric-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted, #94a3b8);
+  margin-bottom: 4px;
+}
+
+.superadmin-metric-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text, #e2e8f0);
+}
+
+.superadmin-readiness-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.superadmin-install-url {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  opacity: 0.9;
+}
+
+body.theme-white .superadmin-intro-banner,
+body.theme-white .superadmin-block {
+  background: rgba(248, 250, 252, 0.95);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+body.theme-white .superadmin-metric {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.theme-black .superadmin-intro-banner {
+  border-color: rgba(129, 173, 240, 0.22);
+  background:
+    radial-gradient(circle at top right, rgba(129, 173, 240, 0.14), transparent 55%),
+    rgba(12, 17, 26, 0.82);
+}
+
+body.theme-black .superadmin-block {
+  background: rgba(12, 17, 26, 0.72);
+  border-color: rgba(129, 173, 240, 0.16);
+}
+
 .view-admin .meta-box,
 .view-admin .card-item,
 .view-admin .card-list .list-item {

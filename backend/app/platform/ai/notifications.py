@@ -49,7 +49,7 @@ def teams_payload(text: str, *, title: str = "Suppix AI") -> dict[str, Any]:
         "@type": "MessageCard",
         "@context": "https://schema.org/extensions",
         "summary": title,
-        "themeColor": "0f4c5c",
+        "themeColor": "050816",
         "title": title,
         "text": text[:3000],
     }

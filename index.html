@@ -81,10 +81,10 @@
     }
   </style>
   <link rel="manifest" href="./control-manifest.json?v=workpass20260624" />
-  <link rel="shortcut icon" href="data:," id="earlyAppFavicon" />
-  <link rel="apple-touch-icon" sizes="192x192" href="data:," id="earlyAppTouchIcon" />
-  <link rel="icon" type="image/svg+xml" sizes="192x192" href="data:," id="earlyAppFaviconSvg" />
-  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="data:," />
+  <link rel="shortcut icon" href="./branding/suppix-icon-192.png" id="earlyAppFavicon" />
+  <link rel="apple-touch-icon" sizes="192x192" href="./branding/suppix-icon-192.png" id="earlyAppTouchIcon" />
+  <link rel="icon" type="image/svg+xml" href="./branding/suppix-ai-mark.svg" id="earlyAppFaviconSvg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="./branding/suppix-icon-192.png" />
   <script src="./tenant-brand-icon.js?v=20260630d"></script>
   <script>
     (function bootstrapCachedEmployerFavicon() {
@@ -1628,57 +1628,55 @@
 
         <div class="panel-grid two-columns admin-system-grid">
           <article class="panel admin-system-panel">
-            <div data-superadmin-only>
-            <div class="panel-heading">
+            <div data-superadmin-only class="superadmin-zone">
+            <div class="superadmin-intro-banner">
+              <img class="superadmin-intro-mark" src="./branding/suppix-ai-mark.svg" width="40" height="40" alt="" aria-hidden="true" />
               <div>
                 <p class="eyebrow" data-ui-i18n="adminEyebrow">Admin-Zentrale</p>
                 <h3 data-ui-i18n="adminH3">System &amp; Konfiguration</h3>
-              </div>
-            </div>
-            <div class="meta-box">
-              <p data-ui-i18n-html="adminSuperAdminHint">Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.</p>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow" data-ui-i18n="sysStatusEyebrow">Systemstatus</p>
-                <h3 data-ui-i18n="sysStatusH3">Notfallzugriff &amp; Reparatur</h3>
-              </div>
-            </div>
-            <div id="systemStatusPanel" class="card-item">
-              <p data-ui-i18n="statusLoading">Status wird geladen...</p>
-            </div>
-            <div class="button-row">
-              <button id="refreshSystemStatusButton" type="button" class="ghost-button" data-ui-i18n="btnRefreshStatus">Status neu laden</button>
-              <button id="repairSystemButton" type="button" class="ghost-button" data-ui-i18n="btnRepairSessions">Sitzungen reparieren</button>
-              <button id="databaseBackupButton" type="button" class="ghost-button" data-ui-i18n="opsBackupDb">Datenbank-Backup</button>
-            </div>
-            <p id="databaseBackupResult" class="helper-text"></p>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow" data-ui-i18n="readinessEyebrow">Produkt</p>
-                <h3 data-ui-i18n="readinessH3">Wallet &amp; Mitarbeiter-App</h3>
-              </div>
-            </div>
-            <div id="productReadinessPanel" class="card-item">
-              <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen...</p>
-            </div>
-
-            <div class="divider"></div>
-
-            <div class="panel-heading">
-              <div>
-                <p class="eyebrow" data-ui-i18n="superAdminEyebrow">Systemhoheit</p>
-                <h3 data-ui-i18n="superAdminH3">Super-Admin Einstellungen</h3>
+                <p class="helper-text" data-ui-i18n-html="adminSuperAdminHint">Nur <strong>Super-Admin</strong> kann globale Einstellungen ändern. Firmen-Admins sehen ausschließlich ihre erlaubten Daten.</p>
               </div>
             </div>
 
-            <form id="settingsForm" class="form-grid compact-grid">
+            <section class="superadmin-block">
+              <div class="panel-heading superadmin-block-heading">
+                <div>
+                  <p class="eyebrow" data-ui-i18n="sysStatusEyebrow">Systemstatus</p>
+                  <h3 data-ui-i18n="sysStatusH3">Notfallzugriff &amp; Reparatur</h3>
+                </div>
+              </div>
+              <div id="systemStatusPanel" class="card-item superadmin-status-card">
+                <p data-ui-i18n="statusLoading">Status wird geladen...</p>
+              </div>
+              <div class="button-row superadmin-actions">
+                <button id="refreshSystemStatusButton" type="button" class="ghost-button" data-ui-i18n="btnRefreshStatus">Status neu laden</button>
+                <button id="repairSystemButton" type="button" class="ghost-button" data-ui-i18n="btnRepairSessions">Sitzungen reparieren</button>
+                <button id="databaseBackupButton" type="button" class="ghost-button" data-ui-i18n="opsBackupDb">Datenbank-Backup</button>
+              </div>
+              <p id="databaseBackupResult" class="helper-text"></p>
+            </section>
+
+            <section class="superadmin-block">
+              <div class="panel-heading superadmin-block-heading">
+                <div>
+                  <p class="eyebrow" data-ui-i18n="readinessEyebrow">Produkt</p>
+                  <h3 data-ui-i18n="readinessH3">Wallet &amp; Mitarbeiter-App</h3>
+                </div>
+              </div>
+              <div id="productReadinessPanel" class="card-item superadmin-status-card">
+                <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen...</p>
+              </div>
+            </section>
+
+            <section class="superadmin-block superadmin-settings-block">
+              <div class="panel-heading superadmin-block-heading">
+                <div>
+                  <p class="eyebrow" data-ui-i18n="superAdminEyebrow">Systemhoheit</p>
+                  <h3 data-ui-i18n="superAdminH3">Super-Admin Einstellungen</h3>
+                </div>
+              </div>
+
+            <form id="settingsForm" class="form-grid compact-grid superadmin-settings-form">
 
               <!-- ── Plattform ── -->
               <div class="form-section">
@@ -2055,16 +2053,16 @@
 
               <button type="submit" class="primary-button full-width" data-ui-i18n="btnSaveAdmin">Admin-Einstellungen speichern</button>
             </form>
+            </section>
 
-            <div class="divider"></div>
-
-            <div class="panel-heading">
+            <section class="superadmin-block superadmin-company-block">
+            <div class="panel-heading superadmin-block-heading">
               <div>
                 <p class="eyebrow" data-ui-i18n="companyNewEyebrow">Mandanten</p>
                 <h3 data-ui-i18n="companyNewH3">Neue Firma anlegen</h3>
               </div>
             </div>
-            <form id="companyForm" class="form-grid compact-grid">
+            <form id="companyForm" class="form-grid compact-grid superadmin-settings-form">
               <label class="full-width">
                 <span data-ui-i18n="labelTurnstileEp">Drehkreuz-API Endpoint</span>
                 <input id="companyTurnstileEndpoint" type="url" placeholder="https://api.dein-gateway.de/access" />
@@ -2162,7 +2160,8 @@
               </label>
               <button type="submit" class="ghost-button full-width" data-ui-i18n="btnCreateCompany">Firma anlegen</button>
             </form>
-            </div><!-- /data-superadmin-only -->
+            </section>
+            </div><!-- /data-superadmin-only superadmin-zone -->
 
             <div class="divider"></div>
 

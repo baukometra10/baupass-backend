@@ -2,16 +2,8 @@ $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 $iconPairs = @(
-  @("/worker-icon-192-20260511f.png", "/branding/suppix-icon-192.png"),
-  @("/worker-icon-512-20260511f.png", "/branding/suppix-icon-512.png"),
-  @("/worker-icon-192.png", "/branding/suppix-icon-192.png"),
-  @("/worker-icon-512.png", "/branding/suppix-icon-512.png"),
-  @("./worker-icon-192.png", "./branding/suppix-icon-192.png"),
-  @("./worker-icon-512.png", "./branding/suppix-icon-512.png"),
-  @("/worker-icon-192.svg", "/branding/suppix-ai-mark.svg"),
-  @("/worker-icon-512.svg", "/branding/suppix-ai-mark.svg"),
-  @("./worker-icon-192.svg", "./branding/suppix-ai-mark.svg"),
-  @("./worker-icon-512.svg", "./branding/suppix-ai-mark.svg")
+  @("/branding/suppix-icon-192.png", "/branding/suppix-icon-192.png"),
+  @("/branding/suppix-ai-mark.svg", "/branding/suppix-ai-mark.svg")
 )
 $textPairs = @(
   @("WorkPass", "SUPPIX")
