@@ -225,7 +225,7 @@ class WorkerShellState extends State<WorkerShell> {
     return TenantBrandingScope(
       branding: _branding,
       child: Theme(
-        data: _branding.themeData(Theme.of(context)),
+        data: _branding.themeData(base: Theme.of(context)),
         child: Scaffold(
           body: IndexedStack(index: _index, children: pages),
           bottomNavigationBar: NavigationBar(
