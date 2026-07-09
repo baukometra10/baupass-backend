@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice19";
+const WORKER_BUILD_TAG = "20260707voice20";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -86,12 +86,15 @@ function isWorkerTouchDevice() {
 }
 
 function shouldUseWorkerNativeVoiceCapture() {
-  return Boolean(window.SUPPIXChatVoice?.shouldPreferNativeVoiceCapture?.());
+  return false;
 }
 
 function workerVoiceCaptureAvailable() {
   window.SUPPIXChatVoice?.ensureMediaDevices?.();
-  return Boolean(window.SUPPIXChatVoice?.isSupported?.());
+  return Boolean(
+    window.SUPPIXChatVoice?.micInputAvailable?.()
+    || window.SUPPIXChatVoice?.isSupported?.()
+  );
 }
 
 function flashWorkerChatSendTapHint(mode = "") {
@@ -185,10 +188,8 @@ let workerChatPendingMicStreamAt = 0;
 function normalizeWorkerChatSendDom() {
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
   let slot = sendBtn?.closest(".worker-chat-send-slot");
-  document.querySelectorAll("#workerChatVoiceCaptureInput").forEach((input) => {
-    if (!slot?.contains(input)) {
-      input.remove();
-    }
+  document.querySelectorAll("#workerChatVoiceCaptureInput, .worker-chat-native-mic-label").forEach((node) => {
+    node.remove();
   });
   if (!sendBtn) {
     return null;
@@ -3117,7 +3118,6 @@ function ensureWorkerChatDom() {
           </label>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <div class="worker-chat-send-slot">
-            <input type="file" id="workerChatVoiceCaptureInput" class="worker-chat-voice-capture-input" accept="audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*" tabindex="-1" aria-hidden="true" />
             <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -3240,107 +3240,19 @@ function syncWorkerComposeAction() {
     }
   }
   normalizeWorkerChatSendDom();
-  syncWorkerNativeMicCaptureUi(mode);
+  clearWorkerNativeVoiceCaptureUi();
   return mode;
 }
 
-function ensureWorkerNativeVoiceCaptureInput(slot) {
-  if (!slot) {
-    return null;
-  }
-  let input = slot.querySelector("#workerChatVoiceCaptureInput");
-  if (!input) {
-    input = document.createElement("input");
-    input.type = "file";
-    input.id = "workerChatVoiceCaptureInput";
-    input.accept = "audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*";
-    input.className = "worker-chat-voice-capture-input";
-    input.tabIndex = -1;
-    slot.insertBefore(input, slot.firstChild);
-  } else {
-    input.removeAttribute("capture");
-    input.accept = "audio/x-m4a,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/*";
-  }
-  if (input.dataset.nativeBound !== WORKER_BUILD_TAG) {
-    input.dataset.nativeBound = WORKER_BUILD_TAG;
-    input.addEventListener("change", () => {
-      const file = input.files?.[0] || null;
-      input.value = "";
-      resetWorkerVoiceUi();
-      if (file) {
-        void handleWorkerNativeVoiceFile(file);
-      }
-    });
-  }
-  return input;
-}
-
-function syncWorkerNativeMicCaptureUi(mode = "") {
-  const slot = document.querySelector("#chatCard .worker-chat-send-slot");
+function clearWorkerNativeVoiceCaptureUi() {
+  document.querySelectorAll("#chatCard .worker-chat-native-mic-label, #chatCard #workerChatVoiceCaptureInput").forEach((node) => {
+    node.remove();
+  });
   const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  if (!slot || !sendBtn) {
-    return false;
-  }
-  const activeMode = mode || sendBtn.dataset.mode || "send";
-  const useNative = activeMode === "mic" && !workerVoiceRecording && shouldUseWorkerNativeVoiceCapture();
-  let nativeLabel = slot.querySelector(".worker-chat-native-mic-label");
-  const input = ensureWorkerNativeVoiceCaptureInput(slot);
-  if (useNative) {
-    if (!nativeLabel) {
-      nativeLabel = document.createElement("label");
-      nativeLabel.className = "worker-chat-send-btn worker-chat-native-mic-label";
-      nativeLabel.setAttribute("for", "workerChatVoiceCaptureInput");
-      nativeLabel.setAttribute("aria-label", t("chatVoiceMic"));
-      nativeLabel.innerHTML = window.SUPPIXChatVoice?.MIC_SVG || sendBtn.innerHTML;
-      nativeLabel.addEventListener("click", () => {
-        const hint = elements.workerChatFileHint || document.getElementById("workerChatFileHint");
-        if (hint) {
-          hint.classList.remove("hidden");
-          hint.textContent = t("chatVoiceNativePick");
-        }
-      });
-      slot.appendChild(nativeLabel);
-    }
-    sendBtn.hidden = true;
-    sendBtn.style.display = "none";
-    nativeLabel.hidden = false;
-    nativeLabel.style.display = "inline-flex";
-    if (input) {
-      input.style.removeProperty("display");
-    }
-    return true;
-  }
-  sendBtn.hidden = false;
-  sendBtn.style.display = "inline-flex";
-  if (nativeLabel) {
-    nativeLabel.hidden = true;
-    nativeLabel.style.display = "none";
-  }
-  if (input) {
-    input.style.display = "none";
-  }
-  return false;
-}
-
-async function handleWorkerNativeVoiceFile(file) {
-  resetWorkerVoiceUi();
-  if (!window.SUPPIXChatVoice?.isLikelyVoiceCaptureFile?.(file)) {
-    showWorkerNotice(t("chatVoiceNotAudio"));
-    return;
-  }
-  const normalized = window.SUPPIXChatVoice?.normalizeCaptureFile?.(file);
-  if (!normalized) {
-    showWorkerNotice(t("chatVoiceNotAudio"));
-    return;
-  }
-  try {
-    const duration = await window.SUPPIXChatVoice?.probeBlobDuration?.(normalized) || 0;
-    if (duration > 0) {
-      normalized.durationSec = duration;
-    }
-    await sendWorkerChatMessage({ voiceFile: normalized });
-  } catch (error) {
-    showWorkerNotice(formatWorkerApiError(error));
+  if (sendBtn) {
+    sendBtn.hidden = false;
+    sendBtn.style.display = "inline-flex";
+    sendBtn.removeAttribute("aria-hidden");
   }
 }
 
@@ -3483,10 +3395,6 @@ async function handleWorkerPrimaryAction(options = {}) {
     }
     const mode = resolveWorkerChatPrimaryMode();
     if (mode === "mic") {
-      if (shouldUseWorkerNativeVoiceCapture()) {
-        resetWorkerVoiceUi();
-        return;
-      }
       if (workerVoiceRecording) {
         resetWorkerVoiceUi();
         return;
@@ -3594,9 +3502,6 @@ function triggerWorkerChatPrimaryAction(event) {
   }
   pulseWorkerChatSendFeedback();
   const mode = resolveWorkerChatPrimaryMode();
-  if (mode === "mic" && shouldUseWorkerNativeVoiceCapture()) {
-    return false;
-  }
   flashWorkerChatSendTapHint(mode);
   let streamPromise = null;
   let streamError = null;
@@ -3625,6 +3530,7 @@ function onWorkerChatSendButtonActivate(event) {
 
 function bindWorkerChatSendButton() {
   syncWorkerChatComposeRefs();
+  clearWorkerNativeVoiceCaptureUi();
   const sendBtn = normalizeWorkerChatSendDom();
   if (!sendBtn) {
     return;
@@ -3797,6 +3703,7 @@ async function init() {
     installWorkerChatComposeDelegation();
     bindWorkerChatComposeEvents();
     normalizeWorkerChatSendDom();
+    clearWorkerNativeVoiceCaptureUi();
     syncWorkerComposeAction();
   };
   if (typeof requestIdleCallback === "function") {
@@ -8785,6 +8692,7 @@ function refreshWorkerChatPanel(options = {}) {
   }
   bindWorkerChatComposeEvents();
   normalizeWorkerChatSendDom();
+  clearWorkerNativeVoiceCaptureUi();
   applyWorkerChatTabLayout(chatCard);
 }
 

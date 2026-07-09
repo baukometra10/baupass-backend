@@ -83,10 +83,12 @@
   }
 
   function shouldPreferNativeVoiceCapture() {
-    if (!isAppleLikeDevice() || !isTouchPrimaryDevice()) {
-      return false;
-    }
-    return !isSupported();
+    return false;
+  }
+
+  function micInputAvailable() {
+    ensureMediaDevices();
+    return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia);
   }
 
   function isLikelyVoiceCaptureFile(file) {
@@ -143,7 +145,7 @@
 
   function isSupported() {
     ensureMediaDevices();
-    return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia && global.MediaRecorder);
+    return micInputAvailable() && Boolean(global.MediaRecorder);
   }
 
   function describeVoiceError(error) {
@@ -852,6 +854,7 @@
     ensureMediaDevices,
     requestAudioStream,
     withTimeout,
+    micInputAvailable,
     isSupported,
     isAppleLikeDevice,
     isTouchPrimaryDevice,
