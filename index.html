@@ -1241,9 +1241,9 @@
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue" data-ui-i18n="invoiceQuickFilterOverdue">Überfällig</button>
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed" data-ui-i18n="invoiceQuickFilterError">Fehler</button>
               <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="" data-ui-i18n="invoiceQuickFilterAll">Alle</button>
-              <button type="button" class="ghost-button" id="triggerDunningBtn" data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
-              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
-              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
+              <button type="button" class="ghost-button" id="triggerDunningBtn" data-superadmin-only hidden data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
+              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-superadmin-only hidden data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
+              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-superadmin-only hidden data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
             </div>
 
             <div id="invoiceBulkBar" class="bulk-action-bar hidden">
@@ -1271,6 +1271,7 @@
             </div>
             </div>
 
+            <div data-superadmin-only hidden class="invoice-superadmin-zone">
             <div class="divider"></div>
 
             <div class="panel-heading">
@@ -1356,6 +1357,7 @@
             </div>
             <div id="collectionsKpiGrid" class="list invoice-kpi-grid"></div>
             <div id="collectionsList" class="list"></div>
+            </div><!-- /invoice-superadmin-zone -->
           </article>
         </div>
       </section>

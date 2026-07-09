@@ -1686,8 +1686,8 @@ const UI_TRANSLATIONS = {
     optRetryTodayFailed: "Heute fehlgeschlagen",
     invoiceRetryTopIssuesOnly: "Nur meine Top-Probleme",
     btnRetryCriticalSend: "Nur kritische jetzt senden",
-    btnRetryExportCsv: "Queue CSV",
-    btnIncidentExportCsv: "Incident CSV",
+    btnRetryExportCsv: "Queue PDF",
+    btnIncidentExportCsv: "Incident PDF",
     btnRetryBulkSend: "Ausgewaehlte erneut senden",
     invoiceApprovalsEyebrow: "Freigaben",
     invoiceApprovalsH3: "4-Augen-Pruefung fuer kritische Aktionen",
@@ -2879,8 +2879,8 @@ const UI_TRANSLATIONS = {
     optRetryTodayFailed: "Failed today",
     invoiceRetryTopIssuesOnly: "Only my top issues",
     btnRetryCriticalSend: "Send critical only now",
-    btnRetryExportCsv: "Queue CSV",
-    btnIncidentExportCsv: "Incident CSV",
+    btnRetryExportCsv: "Queue PDF",
+    btnIncidentExportCsv: "Incident PDF",
     btnRetryBulkSend: "Resend selected",
     invoiceApprovalsEyebrow: "Approvals",
     invoiceApprovalsH3: "Four-eyes check for critical actions",
@@ -4681,8 +4681,8 @@ const UI_TRANSLATIONS = {
     optRetryTodayFailed: "فشل اليوم",
     invoiceRetryTopIssuesOnly: "فقط أهم مشاكلي",
     btnRetryCriticalSend: "إرسال الحرجة الآن فقط",
-    btnRetryExportCsv: "CSV قائمة الانتظار",
-    btnIncidentExportCsv: "CSV الحوادث",
+    btnRetryExportCsv: "PDF قائمة الانتظار",
+    btnIncidentExportCsv: "PDF الحوادث",
     btnRetryBulkSend: "إعادة إرسال المحدد",
     invoiceApprovalsEyebrow: "الموافقات",
     invoiceApprovalsH3: "مراجعة الأربعة أعين للإجراءات الحرجة",
@@ -19283,6 +19283,7 @@ function setView(viewName) {
     markCurrentInvoicesAsSeen();
     startInvoiceAutoRefresh();
     startInvoiceApprovalAutoRefresh();
+    void loadAndRenderInvoices({ silent: true });
   } else {
     stopInvoiceAutoRefresh();
     stopInvoiceApprovalAutoRefresh();
@@ -21780,6 +21781,10 @@ const _deviceRefreshTimers = {};
 async function loadDevices() {
   const user = state.currentUser;
   if (!user || !["superadmin", "company-admin"].includes(user.role)) return;
+  const list = elements.deviceStatusList;
+  if (list) {
+    list.innerHTML = `<p class="helper-text muted" style="padding:1rem;">${escapeHtml(runtimeText("statusLoading") || "…")}</p>`;
+  }
   try {
     const data = await apiRequest(`${API_BASE}/api/admin/devices`);
     state.devices = Array.isArray(data) ? data : (data.devices || []);
@@ -21787,6 +21792,9 @@ async function loadDevices() {
     await refreshCamerasPanel();
   } catch (e) {
     console.warn("loadDevices failed", e);
+    if (list) {
+      list.innerHTML = `<p class="empty-state" style="padding:1rem;color:var(--danger,#dc2626);">${escapeHtml(e.message || runtimeText("genericUnknownError"))}</p>`;
+    }
   }
 }
 
@@ -31730,6 +31738,7 @@ async function createInvoicePaymentLink(invoiceId) {
 
 async function loadAndRenderInvoices(options = {}) {
   const { silent = false, q } = options;
+  const isSuperadmin = String(getEffectiveUiRole() || "").toLowerCase() === "superadmin";
   try {
     const hadSeenInvoices = Object.keys(state.invoiceSeenIds || {}).length > 0;
     const previousSeen = { ...(state.invoiceSeenIds || {}) };
@@ -31737,23 +31746,41 @@ async function loadAndRenderInvoices(options = {}) {
     const invoiceListUrl = query
       ? `${API_BASE}/api/invoices?q=${encodeURIComponent(query)}`
       : `${API_BASE}/api/invoices`;
-    const [invoiceResponse, opsResponse, deadLetterResponse, approvalResponse, monthlyStatusResponse] = await Promise.all([
-      apiRequest(invoiceListUrl),
-      apiRequest(API_BASE + "/api/invoices/ops-metrics"),
-      apiRequest(API_BASE + "/api/invoices/dead-letters"),
-      apiRequest(API_BASE + "/api/invoices/approvals/pending"),
-      apiRequest(API_BASE + "/api/invoices/monthly-cycle-status"),
-    ]);
+
+    const billingPromise = loadBillingOverview({ silent: true }).catch(() => null);
+    const invoiceResponse = await apiRequest(invoiceListUrl);
+
     state.invoices = invoiceResponse || [];
-    state.invoiceOpsMetrics = opsResponse || {
+    state.invoiceOpsMetrics = {
       avgFirstSuccessMinutes: 0,
       criticalOver24h: 0,
       retryVolume7d: [],
       topErrorReasons: [],
     };
-    state.monthlyInvoiceStatus = monthlyStatusResponse || null;
-    state.invoiceDeadLetters = Array.isArray(deadLetterResponse) ? deadLetterResponse : [];
-    state.invoiceApprovalRequests = Array.isArray(approvalResponse) ? approvalResponse : [];
+    state.monthlyInvoiceStatus = null;
+    state.invoiceDeadLetters = [];
+    state.invoiceApprovalRequests = [];
+
+    if (isSuperadmin) {
+      const [opsResult, deadLetterResult, approvalResult, monthlyResult] = await Promise.allSettled([
+        apiRequest(API_BASE + "/api/invoices/ops-metrics"),
+        apiRequest(API_BASE + "/api/invoices/dead-letters"),
+        apiRequest(API_BASE + "/api/invoices/approvals/pending"),
+        apiRequest(API_BASE + "/api/invoices/monthly-cycle-status"),
+      ]);
+      if (opsResult.status === "fulfilled") {
+        state.invoiceOpsMetrics = opsResult.value || state.invoiceOpsMetrics;
+      }
+      if (monthlyResult.status === "fulfilled") {
+        state.monthlyInvoiceStatus = monthlyResult.value || null;
+      }
+      if (deadLetterResult.status === "fulfilled") {
+        state.invoiceDeadLetters = Array.isArray(deadLetterResult.value) ? deadLetterResult.value : [];
+      }
+      if (approvalResult.status === "fulfilled") {
+        state.invoiceApprovalRequests = Array.isArray(approvalResult.value) ? approvalResult.value : [];
+      }
+    }
 
     const nextSeen = { ...previousSeen };
     const nextNew = {};
@@ -31778,7 +31805,7 @@ async function loadAndRenderInvoices(options = {}) {
     });
 
     renderInvoiceManagementList();
-    await loadBillingOverview({ silent: true });
+    await billingPromise;
   } catch (error) {
     if (!silent) {
       console.error("Failed to load invoices:", error);
@@ -32401,7 +32428,8 @@ function renderInvoiceManagementList() {
         (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
       const canMarkPaid =
         !isPaid &&
-        (getCurrentUser()?.role === "superadmin" || inv.company_id === getCurrentUser()?.company_id);
+        (getCurrentUser()?.role === "superadmin" ||
+          (getCurrentUser()?.role === "company-admin" && inv.company_id === getCurrentUser()?.company_id));
       const canRetrySend = !isPaid && statusKey === "send_failed" && getCurrentUser()?.role === "superadmin";
       const canViewHistory = getCurrentUser()?.role === "superadmin";
       const canDownloadReminder =
@@ -37148,6 +37176,10 @@ if (downloadPdfPreviewBtn) {
     const element = document.querySelector("#invoicePdfFrame");
     if (element && element.srcdoc) {
       const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        showToast(runtimeText("popupBlockedAllow") || "Pop-up blockiert — bitte erlauben.", "warning", 6000);
+        return;
+      }
       printWindow.document.write(element.srcdoc);
       printWindow.document.close();
       printWindow.print();

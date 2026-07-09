@@ -5041,33 +5041,25 @@ def require_roles(*roles):
 
 
 def require_admin_session(handler):
-    """Decorator to require admin/user session with company context."""
+    """Decorator: real session auth + legacy g.admin_user alias for analytics routes."""
+
+    @require_auth
     @wraps(handler)
     def wrapper(*args, **kwargs):
-        # Get Authorization header or cookie
-        auth_header = request.headers.get("Authorization", "").strip()
-        token = None
-        
-        if auth_header.startswith("Bearer "):
-            token = auth_header[7:]
-        
-        if not token:
-            return jsonify({"error": "unauthorized"}), 401
-        
-        # For now, accept any non-empty token (admin endpoints in existing code use session context)
-        # In production, validate token against actual admin sessions
-        db = get_db()
-        
-        # Set g.admin_user and g.admin_token for handler access
+        user = dict(g.current_user or {})
+        preview_id = str(getattr(g, "preview_company_id", "") or "").strip()
+        company_id = str(user.get("company_id") or "").strip()
+        if str(user.get("role") or "").lower() == "superadmin":
+            qs_company = str(request.args.get("company_id") or "").strip()
+            company_id = qs_company or preview_id or company_id
         g.admin_user = {
-            "id": "admin-" + secrets.token_hex(8),
-            "company_id": request.args.get("company_id", "default-company"),
-            "role": "company-admin"
+            "id": user.get("id"),
+            "company_id": company_id,
+            "role": user.get("role"),
         }
-        g.admin_token = token
-        
+        g.admin_token = getattr(g, "token", "")
         return handler(*args, **kwargs)
-    
+
     return wrapper
 
 
@@ -22804,7 +22796,7 @@ def export_invoice_incidents_csv():
 
 
 @require_auth
-@require_roles("superadmin")
+@require_roles("superadmin", "company-admin")
 def mark_invoice_paid(invoice_id):
     """Mark an invoice as paid, optionally lifting company suspension if all invoices are now paid."""
     payload = request.get_json(silent=True) or {}

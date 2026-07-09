@@ -6638,7 +6638,13 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   margin-bottom: 12px;
 }
 
-.superadmin-install-url {
+.invoice-superadmin-zone {
+  margin-top: 8px;
+}
+
+.invoice-superadmin-zone .divider:first-child {
+  margin-top: 0;
+}
   margin: 0 0 8px;
   font-size: 0.82rem;
   word-break: break-all;

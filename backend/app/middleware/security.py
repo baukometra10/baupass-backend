@@ -187,5 +187,6 @@ def register_security_middleware(app: Flask) -> None:
             "Origin mismatch (potential CSRF): origin=%s host=%s path=%s",
             origin, host, request.path,
         )
-        # Log only; CORS handles rejection
+        if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
+            return jsonify({"error": "csrf_origin_mismatch", "message": "Invalid Origin header"}), 403
         return None
