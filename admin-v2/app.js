@@ -143,6 +143,10 @@ async function activateCommandItem(item) {
   if (item.tab === "enterprise" && requestEnterpriseHubInShell()) {
     return;
   }
+  if (item.legacyView) {
+    openLegacyDashboard(item.legacyView);
+    return;
+  }
   if (item.href) {
     if (item.href.includes("enterprise-hub.html")) {
       if (requestEnterpriseHubInShell()) {
@@ -150,6 +154,10 @@ async function activateCommandItem(item) {
       }
       switchToTab("enterprise");
       syncEnterpriseFrame();
+      return;
+    }
+    if (item.href.includes("/index.html")) {
+      openLegacyDashboard("auto");
       return;
     }
     if (isEmbedMode()) {
@@ -546,6 +554,68 @@ function isSuperadminUser() {
   return String(getUser()?.role || "").toLowerCase() === "superadmin";
 }
 
+/** Legacy SUPPIX dashboard (index.html) — invoices, devices, platform settings. */
+function resolveLegacyDashboardView(preset) {
+  const requested = String(preset || "").trim().toLowerCase();
+  if (requested && requested !== "auto") {
+    return requested;
+  }
+  const role = String(getUser()?.role || "").toLowerCase();
+  if (role === "superadmin") {
+    return "admin";
+  }
+  if (role === "company-admin") {
+    return "invoices";
+  }
+  return "dashboard";
+}
+
+function buildLegacyDashboardUrl(view = "auto") {
+  const targetView = resolveLegacyDashboardView(view);
+  const params = new URLSearchParams();
+  params.set("view", targetView);
+  const cid = activeCompanyId();
+  if (cid) {
+    params.set("company_id", cid);
+  }
+  return `/index.html?${params.toString()}#${targetView}`;
+}
+
+function openLegacyDashboard(view = "auto") {
+  const targetView = resolveLegacyDashboardView(view);
+  if (isEmbedMode() && window.parent && window.parent !== window) {
+    try {
+      window.parent.postMessage(
+        {
+          type: "baupass-navigate",
+          view: targetView,
+          companyId: activeCompanyId() || undefined,
+        },
+        window.location.origin,
+      );
+      return;
+    } catch {
+      // fall through to top navigation
+    }
+  }
+  const url = buildLegacyDashboardUrl(view);
+  const topWin = window.top && window.top !== window ? window.top : window;
+  topWin.location.href = url;
+}
+
+function bindLegacyDashboardLinks(root = document) {
+  root.querySelectorAll("[data-legacy-dashboard]").forEach((el) => {
+    if (el.dataset.legacyBound === "1") {
+      return;
+    }
+    el.dataset.legacyBound = "1";
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      openLegacyDashboard(el.getAttribute("data-legacy-dashboard") || "auto");
+    });
+  });
+}
+
 function canAccessAnalyticsTab() {
   return isSuperadminUser();
 }
@@ -729,6 +799,7 @@ function showDashboard() {
   bindDeploymentModalOnce();
   bindDeploymentMonthBarOnce();
   ensureEmbedQuickNav();
+  bindLegacyDashboardLinks();
 }
 
 function setupCompanyPicker(user) {
@@ -1035,7 +1106,7 @@ const COMMAND_NAV = [
   { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
   { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
   { tab: "enterprise", titleKey: "common.enterpriseHub", groupKey: "nav.group.enterprise", searchTerms: "enterprise hub funktionen 16 ebenen layers katalog" },
-  { href: "/index.html", titleKey: "common.legacyDashboard", groupKey: "nav.group.ops" },
+  { legacyView: "auto", titleKey: "common.legacyDashboard", groupKey: "nav.group.ops" },
 ];
 
 let commandPaletteIndex = 0;
@@ -1177,6 +1248,9 @@ function renderCommandPaletteList(query) {
       const title = t(item.titleKey);
       const group = t(item.groupKey || "");
       const active = i === commandPaletteIndex ? " command-item-active" : "";
+      if (item.legacyView) {
+        return `<li><button type="button" class="command-item${active}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></button></li>`;
+      }
       if (item.href) {
         return `<li><a class="command-item${active}" href="${item.href}" data-cmd-idx="${i}"><span>${title}</span><span class="muted small">${group}</span></a></li>`;
       }
@@ -1252,16 +1326,22 @@ function renderQuickLinks() {
     { tab: "operations", title: t("quick.operations.title"), desc: t("quick.operations.desc") },
     { tab: "tools", title: t("quick.tools.title"), desc: t("quick.tools.desc") },
     { tab: "platform", title: t("quick.platform.title"), desc: t("quick.platform.desc") },
-    { tab: null, title: t("quick.legacy.title"), desc: t("quick.legacy.desc"), href: "/index.html" },
+    { legacy: "invoices", title: t("feature.invoices"), desc: t("quick.legacy.invoiceDesc") },
+    { legacy: "devices", title: t("feature.devices"), desc: t("quick.legacy.devicesDesc") },
+    { legacy: "admin", title: t("feature.settings"), desc: t("quick.legacy.settingsDesc") },
   ];
   $("quickLinks").innerHTML = items
     .map((item) => {
+      if (item.legacy) {
+        return `<button type="button" class="feature-card" data-legacy-dashboard="${item.legacy}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
+      }
       if (item.href) {
         return `<a class="feature-card" href="${item.href}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></a>`;
       }
       return `<button type="button" class="feature-card" data-goto-tab="${item.tab}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
     })
     .join("");
+  bindLegacyDashboardLinks($("quickLinks"));
   $("quickLinks").querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       switchToTab(btn.getAttribute("data-goto-tab"));
@@ -2139,11 +2219,12 @@ async function loadPlatform() {
       <div class="link-row">
         <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
         <a href="/enterprise-hub.html?v=20260528a">${t("common.enterpriseHub")}</a>
-        <a href="/index.html">${t("common.legacyDashboard")}</a>
+        <a href="/index.html" class="legacy-dashboard-link" data-legacy-dashboard="auto">${t("common.legacyDashboard")}</a>
       </div>
     `;
     await loadCompanyWorkTimesForm(cid);
     bindAutopilotPanel($("autopilotPanel"), ap);
+    bindLegacyDashboardLinks(panel);
     panel.querySelectorAll("[data-goto-tab]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         switchToTab(btn.getAttribute("data-goto-tab"));
@@ -4539,6 +4620,7 @@ $("satisfactionSurveyForm")?.addEventListener("submit", async (ev) => {
 });
 
 bootSession();
+bindLegacyDashboardLinks();
 if (window.BaupassAuth?.loadPublicTenantBranding) {
   void window.BaupassAuth.loadPublicTenantBranding();
 }

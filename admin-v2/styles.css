@@ -1780,7 +1780,15 @@ h2 {
   border-radius: 10px;
 }
 
-.platform-panel-grid {
+.feature-card[data-legacy-dashboard],
+.legacy-dashboard-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.legacy-dashboard-link:hover {
+  text-decoration: underline;
+}
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

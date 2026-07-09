@@ -28,7 +28,8 @@
           const url = new URL(window.location.href);
           const hasCurrentVersion = url.searchParams.get("v") === buildTag;
           const seenBuild = wpGet(storageKey);
-          if (!hasCurrentVersion && seenBuild !== buildTag) {
+          const inEmbedFrame = window.self !== window.top;
+          if (!inEmbedFrame && !hasCurrentVersion && seenBuild !== buildTag) {
             url.searchParams.set("v", buildTag);
             wpSet(storageKey, buildTag);
             window.location.replace(url.toString());
