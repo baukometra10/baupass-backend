@@ -279,6 +279,10 @@ def create_invoice_payment_link(db, invoice_id: str) -> dict[str, Any]:
             "line_items[0][quantity]": "1",
             "metadata[invoice_id]": invoice_id,
             "metadata[company_id]": company_id,
+            "metadata[baupass_invoice_id]": invoice_id,
+            "payment_intent_data[metadata][invoice_id]": invoice_id,
+            "payment_intent_data[metadata][company_id]": company_id,
+            "payment_intent_data[metadata][baupass_invoice_id]": invoice_id,
             "after_completion[type]": "redirect",
             "after_completion[redirect][url]": f"{_public_base_url()}/?billing=invoice_paid",
         },
@@ -400,7 +404,16 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
         billing_cycle = str((data_obj.get("metadata") or {}).get("billing_cycle") or "monthly")
         customer_id = str(data_obj.get("customer") or "")
         mode = str(data_obj.get("mode") or "subscription")
-        invoice_id = str((data_obj.get("metadata") or {}).get("invoice_id") or "")
+        invoice_id = str((data_obj.get("metadata") or {}).get("invoice_id") or (data_obj.get("metadata") or {}).get("baupass_invoice_id") or "")
+        if mode == "payment" and not invoice_id:
+            pi_id = str(data_obj.get("payment_intent") or "")
+            if pi_id:
+                try:
+                    pi = _stripe_request("GET", f"/payment_intents/{pi_id}", None)
+                    pi_meta = pi.get("metadata") or {}
+                    invoice_id = str(pi_meta.get("invoice_id") or pi_meta.get("baupass_invoice_id") or "")
+                except Exception:
+                    pass
         if mode == "payment" and invoice_id:
             _mark_invoice_paid_from_stripe(
                 db,

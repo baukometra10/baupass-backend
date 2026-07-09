@@ -4,6 +4,7 @@ import '../../core/api_client.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/attendance_repository.dart';
+import 'timesheets_screen.dart';
 import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
@@ -296,6 +297,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             if (_timesheetSummary != null) ...[
               const SizedBox(height: 8),
               Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => TimesheetsScreen(
+                          session: widget.session,
+                          attendance: widget.attendance,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.schedule),
+                  label: const Text('Stundennachweis öffnen'),
+                ),
+              ),
             ],
             const SizedBox(height: 12),
             Card(

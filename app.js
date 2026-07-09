@@ -9979,6 +9979,8 @@ function getRuntimeUiTexts() {
     invoiceDueDateLabel: "Due date",
     invoiceAutoSuspendedLabel: "Auto suspension triggered",
     invoicePreviewBtn: "Preview",
+    invoiceDownloadBtn: "PDF",
+    invoiceDocumentLoadFailed: "Invoice PDF failed: {error}",
     invoiceMarkPaidBtn: "Mark as paid",
     invoiceRetryBtn: "Send again",
     invoiceReminderDownloadBtn: "Download reminder",
@@ -10839,6 +10841,8 @@ function getRuntimeUiTexts() {
       invoiceDueDateLabel: "Faelligkeitsdatum",
       invoiceAutoSuspendedLabel: "Auto-Sperrung ausgeloest",
       invoicePreviewBtn: "Vorschau",
+      invoiceDownloadBtn: "PDF",
+      invoiceDocumentLoadFailed: "Rechnungs-PDF fehlgeschlagen: {error}",
       invoiceMarkPaidBtn: "Als bezahlt markieren",
       invoiceRetryBtn: "Erneut senden",
       invoiceReminderDownloadBtn: "Mahnung herunterladen",
@@ -23338,6 +23342,8 @@ function renderDashboardExpiringDocs() {
 function renderOperationsSnapshot() {
   const container = document.getElementById("operationsSnapshotGrid");
   if (!container) return;
+  container.removeAttribute("aria-busy");
+  container.classList.remove("dashboard-panel-loading");
   const snap = state.operationsSnapshot;
   if (!snap) {
     container.innerHTML = `<p class="helper-text muted">${escapeHtml(uiT("statusLoading"))}</p>`;
@@ -23372,6 +23378,8 @@ function renderOperationsSnapshot() {
 
 function renderStats() {
   if (!elements.statsGrid) return;
+  elements.statsGrid.removeAttribute("aria-busy");
+  elements.statsGrid.classList.remove("dashboard-panel-loading");
   const texts = getRuntimeUiTexts();
   const isDarkTheme = document.body.classList.contains("theme-black");
   const visibleWorkers = getUiVisibleWorkers();
@@ -23413,11 +23421,16 @@ function renderStats() {
 async function renderComplianceKpi() {
   const container = document.querySelector("#complianceKpiGrid");
   if (!container) return;
+  container.removeAttribute("aria-busy");
+  container.classList.remove("dashboard-panel-loading");
   const isDarkTheme = document.body.classList.contains("theme-black");
   
   try {
     const data = await apiRequest(`${API_BASE}/api/compliance/overview`);
-    if (!Array.isArray(data)) return;
+    if (!Array.isArray(data) || data.length === 0) {
+      container.innerHTML = `<p class="helper-text muted">${escapeHtml(runtimeText("complianceKpiEmpty") || uiT("statusLoading"))}</p>`;
+      return;
+    }
     
     const summary = {
       totalCompanies: data.length,
@@ -23658,9 +23671,11 @@ async function loadReportingGuidance() {
 async function loadDecisionsTodayPanel() {
   const container = document.querySelector("#decisionsTodayList");
   if (!container) return;
+  container.removeAttribute("aria-busy");
+  container.classList.remove("dashboard-panel-loading");
   const role = String(getEffectiveUiRole() || "").toLowerCase();
   if (role !== "superadmin" && role !== "company-admin") {
-    container.innerHTML = "";
+    container.innerHTML = `<p class="helper-text muted">${escapeHtml(runtimeText("decisionsRoleHint") || "")}</p>`;
     return;
   }
   try {
@@ -23682,8 +23697,8 @@ async function loadDecisionsTodayPanel() {
         <p class="helper-text">${escapeHtml(guidanceLocalizedText(item, "detail"))}</p>
       </article>
     `).join("");
-  } catch {
-    container.innerHTML = "";
+  } catch (error) {
+    container.innerHTML = `<p class="helper-text muted">${escapeHtml(error?.message || uiT("alertGenericError").replace("{error}", "—"))}</p>`;
   }
 }
 
@@ -32432,6 +32447,9 @@ function renderInvoiceManagementList() {
       const canViewHistory = getCurrentUser()?.role === "superadmin";
       const canDownloadReminder =
         !isPaid && ["sent", "overdue"].includes(statusKey) && getCurrentUser()?.role === "superadmin";
+      const canDownloadInvoice =
+        getCurrentUser()?.role === "superadmin" ||
+        String(inv.company_id || "") === String(getCurrentUser()?.company_id || "");
       const justPaidClass =
         state.invoiceJustPaidId && state.invoiceJustPaidId === inv.id ? " invoice-row-just-paid" : "";
       const newBadge = state.invoiceNewIds?.[inv.id]
@@ -32466,7 +32484,10 @@ function renderInvoiceManagementList() {
           ? `<button type="button" class="ms-invoice-action-btn" data-invoice-history-toggle-id="${escapeHtml(inv.id)}">Hist.</button>`
           : "",
         canDownloadReminder
-          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-reminder-id="${escapeHtml(inv.id)}">PDF</button>`
+          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-reminder-id="${escapeHtml(inv.id)}">Mahnung</button>`
+          : "",
+        canDownloadInvoice
+          ? `<button type="button" class="ms-invoice-action-btn" data-invoice-document-id="${escapeHtml(inv.id)}">${escapeHtml(runtimeText("invoiceDownloadBtn") || "PDF")}</button>`
           : "",
       ]
         .filter(Boolean)
@@ -32616,6 +32637,34 @@ function renderInvoiceManagementList() {
         URL.revokeObjectURL(url);
       } catch (error) {
         showToast(runtimeTextTemplate("invoiceReminderLoadFailed", { error: error.message }), "error", 3600);
+      } finally {
+        event.target.disabled = false;
+      }
+    });
+  });
+
+  container.querySelectorAll("[data-invoice-document-id]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      const invId = String(event.target.dataset.invoiceDocumentId || "").trim();
+      if (!invId) return;
+      event.target.disabled = true;
+      try {
+        const response = await fetch(`${API_BASE}/api/invoices/${invId}/document.pdf`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error(`API Fehler ${response.status}`);
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `rechnung-${invId}.pdf`;
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        showToast(runtimeTextTemplate("invoiceDocumentLoadFailed", { error: error.message }), "error", 3600);
       } finally {
         event.target.disabled = false;
       }

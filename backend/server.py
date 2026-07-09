@@ -20320,7 +20320,7 @@ def get_device_event_dead_letter(event_uid):
     return jsonify({"deadLetter": result})
 
 
-def send_invoice_email(invoice_row, company_row, settings_row):
+def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False):
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
     if not smtp_sender:
@@ -20916,6 +20916,11 @@ def send_invoice_email(invoice_row, company_row, settings_row):
             })
     except Exception as exc:
         app.logger.warning(f"[INVOICE-MAIL] PDF-Anhang konnte nicht erzeugt werden: {exc}")
+
+    if pdf_only:
+        if attachment_payload and attachment_payload[0].get("raw"):
+            return attachment_payload[0]["raw"]
+        return None
 
     # Rechnungen sollen immer mit PDF-Anhang rausgehen.
     if not attachment_payload:
@@ -23279,6 +23284,45 @@ def invoice_reminder_letter_pdf(invoice_id):
     )
     return Response(
         buffer.getvalue(),
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def invoice_document_pdf(invoice_id):
+    """Rechnungs-PDF (identisch zum E-Mail-Anhang) herunterladen."""
+    db = get_db()
+    invoice = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
+    if not invoice:
+        return jsonify({"error": "invoice_not_found"}), 404
+    if g.current_user["role"] != "superadmin" and str(invoice["company_id"]) != str(g.current_user.get("company_id") or ""):
+        return jsonify({"error": "forbidden"}), 403
+
+    company = db.execute("SELECT * FROM companies WHERE id = ?", (invoice["company_id"],)).fetchone()
+    if not company:
+        return jsonify({"error": "company_not_found"}), 404
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    if not settings:
+        return jsonify({"error": "settings_not_found"}), 500
+
+    pdf_bytes = send_invoice_email(invoice, company, settings, pdf_only=True)
+    if not pdf_bytes:
+        return jsonify({"error": "pdf_generation_failed", "message": "PDF konnte nicht erzeugt werden."}), 503
+
+    safe_invoice_no = re.sub(r"[^A-Za-z0-9._-]+", "-", str(invoice["invoice_number"] or "rechnung")).strip("-") or "rechnung"
+    filename = f"rechnung-{safe_invoice_no}.pdf"
+    log_audit(
+        "invoice.document_downloaded",
+        f"Rechnungs-PDF {invoice['invoice_number']} heruntergeladen",
+        target_type="invoice",
+        target_id=invoice_id,
+        company_id=invoice["company_id"],
+        actor=g.current_user,
+    )
+    return Response(
+        pdf_bytes,
         mimetype="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -30,6 +30,7 @@ def _register_core_billing_routes() -> None:
         get_next_invoice_number,
         invoice_access_line_items,
         invoice_reminder_letter_pdf,
+        invoice_document_pdf,
         list_invoice_dead_letters,
         list_invoices,
         list_pending_invoice_approvals_endpoint,
@@ -66,6 +67,7 @@ def _register_core_billing_routes() -> None:
         ("/invoices/trigger-monthly-cycle", trigger_monthly_invoice_cycle_endpoint, ("POST",)),
         ("/invoices/simulate-monthly-cycle", simulate_monthly_invoice_cycle_endpoint, ("POST",)),
         ("/invoices/<invoice_id>/reminder-letter.pdf", invoice_reminder_letter_pdf, ("GET",)),
+        ("/invoices/<invoice_id>/document.pdf", invoice_document_pdf, ("GET",)),
     )
     for path, view_func, methods in rules:
         billing_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))

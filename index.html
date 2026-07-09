@@ -436,7 +436,9 @@
               <h3 data-ui-i18n="dashOverviewH3">Stammdaten &amp; Status</h3>
             </div>
           </div>
-          <div class="stats-grid" id="statsGrid"></div>
+          <div class="stats-grid dashboard-panel-loading" id="statsGrid" aria-busy="true">
+            <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen…</p>
+          </div>
         </article>
 
         <article class="panel">
@@ -447,7 +449,9 @@
             </div>
             <button type="button" id="operationsSnapshotRefreshBtn" class="ghost-button small-button" data-ui-i18n="operationsRefreshBtn">Aktualisieren</button>
           </div>
-          <div id="operationsSnapshotGrid" class="stats-grid"></div>
+          <div id="operationsSnapshotGrid" class="stats-grid dashboard-panel-loading" aria-busy="true">
+            <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen…</p>
+          </div>
         </article>
 
         <article class="panel dashboard-compliance-panel">
@@ -457,7 +461,9 @@
               <h3 data-ui-i18n="complianceH3">Dokumentenstatus Übersicht</h3>
             </div>
           </div>
-          <div id="complianceKpiGrid" class="list"></div>
+          <div id="complianceKpiGrid" class="list dashboard-panel-loading" aria-busy="true">
+            <p class="helper-text muted" data-ui-i18n="statusLoading">Status wird geladen…</p>
+          </div>
           <hr class="dashboard-compliance-divider" />
           <div class="panel-heading dashboard-compliance-subhead">
             <div>
@@ -476,7 +482,9 @@
             </div>
             <button type="button" id="decisionsTodayRefreshBtn" class="ghost-button small-button" data-ui-i18n="decisionsRefreshBtn">Aktualisieren</button>
           </div>
-          <div id="decisionsTodayList" class="list"></div>
+          <div id="decisionsTodayList" class="list dashboard-panel-loading" aria-busy="true">
+            <p class="helper-text muted" data-ui-i18n="decisionsLoading">Empfehlungen werden geladen…</p>
+          </div>
         </article>
 
         <div class="panel-grid two-columns" id="reportingPanels">

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/api_client.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
@@ -32,6 +34,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   bool _pushEnabled = false;
   Map<String, dynamic>? _pushServerStatus;
+  Map<String, dynamic>? _distribution;
 
   @override
   void initState() {
@@ -39,6 +42,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _load();
     _loadPushPref();
     _loadPushServerStatus();
+    _loadDistribution();
+  }
+
+  Future<void> _loadDistribution() async {
+    try {
+      final api = ApiClient();
+      final data = await api.getJson('/api/v2/mobile/distribution');
+      if (!mounted) return;
+      setState(() => _distribution = data);
+    } catch (_) {
+      // optional — store links hidden when unavailable
+    }
+  }
+
+  Future<void> _openStoreUrl(String? url) async {
+    final trimmed = (url ?? '').trim();
+    if (trimmed.isEmpty) return;
+    final uri = Uri.parse(trimmed);
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Store-Link konnte nicht geöffnet werden.')),
+      );
+    }
   }
 
   Future<void> _loadPushServerStatus() async {
@@ -82,6 +109,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final worker = _profile?['worker'] as Map<String, dynamic>?;
     final leave = _profile?['leaveStats'] as Map<String, dynamic>?;
     final team = _profile?['teamSnapshot'] as Map<String, dynamic>?;
+    final install = _distribution?['install'] as Map<String, dynamic>? ?? {};
+    final playStoreUrl = (install['playStoreUrl'] as String?)?.trim() ?? '';
+    final appStoreUrl = (install['appStoreUrl'] as String?)?.trim() ?? '';
+    final apkUrl = (install['apkUrl'] as String?)?.trim() ?? '';
+    final testFlightUrl = (install['testFlightUrl'] as String?)?.trim() ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -156,6 +188,53 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
                 const SizedBox(height: 8),
+                if (playStoreUrl.isNotEmpty ||
+                    appStoreUrl.isNotEmpty ||
+                    apkUrl.isNotEmpty ||
+                    testFlightUrl.isNotEmpty)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('App-Updates', style: Theme.of(context).textTheme.titleMedium),
+                          const SizedBox(height: 8),
+                          if (playStoreUrl.isNotEmpty)
+                            OutlinedButton.icon(
+                              onPressed: () => _openStoreUrl(playStoreUrl),
+                              icon: const Icon(Icons.shop),
+                              label: const Text('Google Play'),
+                            ),
+                          if (appStoreUrl.isNotEmpty) ...[
+                            if (playStoreUrl.isNotEmpty) const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _openStoreUrl(appStoreUrl),
+                              icon: const Icon(Icons.apple),
+                              label: const Text('App Store'),
+                            ),
+                          ],
+                          if (apkUrl.isNotEmpty) ...[
+                            if (playStoreUrl.isNotEmpty || appStoreUrl.isNotEmpty)
+                              const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _openStoreUrl(apkUrl),
+                              icon: const Icon(Icons.android),
+                              label: const Text('Android APK'),
+                            ),
+                          ],
+                          if (testFlightUrl.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _openStoreUrl(testFlightUrl),
+                              icon: const Icon(Icons.flight_takeoff),
+                              label: const Text('TestFlight (iOS)'),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
                 SwitchListTile(
                   title: const Text('Push-Benachrichtigungen'),
                   subtitle: Text(

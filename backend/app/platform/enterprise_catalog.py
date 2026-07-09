@@ -299,7 +299,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Enterprise SaaS & Business",
             "titleAr": "الأعمال والـ SaaS",
             "items": [
-                _item("billing", "Enterprise Billing", "الفوترة", "legacy", apis=["GET /api/invoices"], ui=_cp_view("invoices")),
+                _item("billing", "Enterprise Billing", "الفوترة", "legacy", apis=["GET /api/invoices", "GET /api/invoices/<id>/document.pdf", "POST /api/v2/billing/invoices/<id>/payment-link"], ui=_cp_view("invoices")),
                 _item("dunning_b", "Dunning Automation", "تحصيل آلي", "api", note="خلفية"),
                 _item("plans", "Multi-Plan SaaS", "خطط اشتراك", "legacy", ui="/index.html"),
             ],

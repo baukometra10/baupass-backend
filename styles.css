@@ -2408,6 +2408,12 @@ body.theme-black .ui-lang-select {
   margin-bottom: 14px;
 }
 
+.dashboard-panel-loading {
+  min-height: 3.5rem;
+  display: flex;
+  align-items: center;
+}
+
 .panel .stats-grid {
   margin-bottom: 0;
 }

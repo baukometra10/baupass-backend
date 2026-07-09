@@ -109,17 +109,57 @@ def collect_setup_status() -> dict[str, Any]:
 
     redis_url = (os.getenv("REDIS_URL") or "").strip()
     background_jobs = collect_background_jobs_health()
+    rq_modes = get_rq_mode_summary()
+    any_rq = any(mode == "rq" for mode in rq_modes.values())
+    workers = background_jobs.get("workers") or {}
+    worker_active = int(workers.get("active") or 0)
+    worker_checklist: list[dict[str, Any]] = [
+        {
+            "id": "redis",
+            "label": "REDIS_URL",
+            "ok": bool(redis_url),
+            "hint": "Redis für RQ-Queues und Job-Status.",
+        },
+        {
+            "id": "rq_worker",
+            "label": "RQ Worker-Prozess",
+            "ok": (not any_rq) or worker_active >= 1,
+            "hint": "Separater Railway-Service: python -m backend.app.tasks.worker",
+            "activeWorkers": worker_active,
+        },
+    ]
+    for name, mode in rq_modes.items():
+        if mode == "rq":
+            job_ok = str((background_jobs.get("jobs") or {}).get(name, {}).get("status") or "") != "error"
+            worker_checklist.append(
+                {
+                    "id": f"job_{name}",
+                    "label": f"Job {name} (RQ)",
+                    "ok": job_ok and worker_active >= 1,
+                    "mode": mode,
+                }
+            )
     return {
         "database": _database_block(),
         "redis": {"configured": bool(redis_url), "queuesReady": task_queues_ready()},
         "backgroundJobs": background_jobs,
         "workerService": {
             "recommendedCommand": "python -m backend.app.tasks.worker",
-            "jobModes": get_rq_mode_summary(),
+            "railwayServiceType": "worker",
+            "startCommand": "python -m backend.app.tasks.worker",
+            "healthEndpoint": "/api/health",
+            "jobModes": rq_modes,
+            "anyRqMode": any_rq,
+            "activeWorkers": worker_active,
+            "checklist": worker_checklist,
+            "ready": all(item.get("ok") for item in worker_checklist),
         },
         "mobile": {
             "apkUrl": bool((os.getenv("BAUPASS_WORKER_APK_URL") or "").strip()),
             "testflightUrl": bool((os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip()),
+            "playStoreUrl": bool((os.getenv("BAUPASS_PLAY_STORE_URL") or "").strip()),
+            "appStoreUrl": bool((os.getenv("BAUPASS_APP_STORE_URL") or "").strip()),
+            "distributionApi": "/api/v2/mobile/distribution",
             "jwtSecretStrong": not _worker_jwt_secret_weak(),
             "setupReport": "/api/worker-app/mobile-setup",
         },
