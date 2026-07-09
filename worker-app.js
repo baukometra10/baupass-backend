@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice21";
+const WORKER_BUILD_TAG = "20260707voice22";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3311,6 +3311,33 @@ function hydrateWorkerChatAudioPlayers() {
   });
 }
 
+function isWorkerIosPwa() {
+  return Boolean(
+    window.SUPPIXChatVoice?.isStandalonePwa?.()
+    && window.SUPPIXChatVoice?.isAppleLikeDevice?.()
+  );
+}
+
+function isWorkerIosPwa() {
+  if (!isWorkerIosPwa()) {
+    return message;
+  }
+  if (code === "voice_permission_denied" || code === "voice_permission_timeout" || code === "voice_not_supported") {
+    return `${message} ${t("chatVoicePwaHelp")}`;
+  }
+  return message;
+}
+
+function showWorkerVoiceNotice(errorOrCode) {
+  const code = typeof errorOrCode === "string"
+    ? errorOrCode
+    : (window.SUPPIXChatVoice?.describeVoiceError?.(errorOrCode) || String(errorOrCode?.message || errorOrCode || ""));
+  const message = appendWorkerVoicePwaHelp(formatWorkerVoiceRecordError(
+    typeof errorOrCode === "string" ? { message: errorOrCode } : errorOrCode
+  ), code);
+  showWorkerNotice(message);
+}
+
 function formatWorkerVoiceRecordError(error) {
   const code = window.SUPPIXChatVoice?.describeVoiceError?.(error) || String(error?.message || error || "");
   if (code === "voice_permission_denied") return t("chatVoiceMicDenied");
@@ -3399,12 +3426,12 @@ async function handleWorkerPrimaryAction(options = {}) {
       const activeRecorder = recorder || getWorkerVoiceRecorder();
       if (!workerVoiceCaptureAvailable()) {
         resetWorkerVoiceUi();
-        showWorkerNotice(t("chatVoiceNotSupported"));
+        showWorkerVoiceNotice("voice_not_supported");
         return;
       }
       if (!activeRecorder) {
         resetWorkerVoiceUi();
-        showWorkerNotice(t("chatVoiceNotSupported"));
+        showWorkerVoiceNotice("voice_not_supported");
         return;
       }
       try {
@@ -3434,7 +3461,7 @@ async function handleWorkerPrimaryAction(options = {}) {
         resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
         syncWorkerComposeAction();
-        showWorkerNotice(formatWorkerVoiceRecordError(error));
+        showWorkerVoiceNotice(error);
       }
       return;
     }
@@ -3454,7 +3481,7 @@ async function handleWorkerPrimaryAction(options = {}) {
       } catch (error) {
         resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
-        showWorkerNotice(formatWorkerVoiceRecordError(error));
+        showWorkerVoiceNotice(error);
         return;
       }
       const voiceFile = stopRecorder?.toFile(blob, "voice", stopRecorder?.lastDurationSec);
@@ -3512,7 +3539,7 @@ function triggerWorkerChatPrimaryAction(event) {
       secure: globalThis.isSecureContext,
     });
     if (!workerVoiceCaptureAvailable()) {
-      showWorkerNotice(t("chatVoiceNotSupported"));
+      showWorkerVoiceNotice("voice_not_supported");
       return false;
     }
     try {

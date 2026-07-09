@@ -88,7 +88,14 @@
 
   function micInputAvailable() {
     ensureMediaDevices();
-    return Boolean(global.isSecureContext && global.navigator?.mediaDevices?.getUserMedia);
+    const nav = global.navigator;
+    if (!global.isSecureContext || !nav) {
+      return false;
+    }
+    if (nav.mediaDevices?.getUserMedia) {
+      return true;
+    }
+    return Boolean(nav.getUserMedia || nav.webkitGetUserMedia || nav.mozGetUserMedia);
   }
 
   function hasMediaRecorder() {
@@ -98,19 +105,27 @@
   function hasWebAudioRecording() {
     try {
       const Ctx = global.AudioContext || global.webkitAudioContext;
-      return Boolean(
-        Ctx
-        && Ctx.prototype
-        && typeof Ctx.prototype.createMediaStreamSource === "function"
-        && typeof Ctx.prototype.createScriptProcessor === "function"
-      );
+      if (!Ctx?.prototype?.createMediaStreamSource) {
+        return false;
+      }
+      if (typeof Ctx.prototype.createScriptProcessor === "function") {
+        return true;
+      }
+      return Boolean(Ctx.prototype.audioWorklet);
     } catch {
       return false;
     }
   }
 
   function canRecordVoice() {
-    return micInputAvailable() && (hasMediaRecorder() || hasWebAudioRecording());
+    if (!micInputAvailable()) {
+      return false;
+    }
+    if (hasMediaRecorder() || hasWebAudioRecording()) {
+      return true;
+    }
+    // iOS home-screen web apps may expose capture APIs only after a user gesture.
+    return isAppleLikeDevice();
   }
 
   function isLikelyVoiceCaptureFile(file) {
