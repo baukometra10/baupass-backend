@@ -52,9 +52,23 @@ jobs:
             echo "FIREBASE_GOOGLE_SERVICES_JSON not set — using placeholder google-services.json."
           fi
 
+      - name: Refresh Android platform (Flutter-compatible Gradle)
+        working-directory: mobile
+        run: |
+          flutter create . --org com.baupass --project-name worker --platforms=android
+          git checkout HEAD -- \
+            android/app/src/main/AndroidManifest.xml \
+            android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
+            android/app/google-services.json \
+            android/app/src/main/res
+
       - name: Resolve dependencies
         working-directory: mobile
-        run: flutter pub get
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos
 
       - name: Build release APK
         id: build_apk
@@ -64,6 +78,8 @@ jobs:
         run: |
           set -o pipefail
           flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+            echo "----- build-apk.log -----"
+            cat build-apk.log || true
             echo "::error title=APK build failed::$(grep -E 'error:|FAILURE:|What went wrong' build-apk.log | tail -n 20 | tr '\n' ' ')"
             {
               echo "### Build failed (last lines)"
