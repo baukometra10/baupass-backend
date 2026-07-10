@@ -1,4 +1,4 @@
-# Next launch steps: APK build + RQ worker — checks production and prints exact actions.
+# Next launch steps: APK build + RQ worker - checks production and prints exact actions.
 param(
     [string]$BaseUrl = "https://suppix-workpass-ai.up.railway.app",
     [switch]$TriggerApkBuild,
@@ -10,8 +10,10 @@ $ErrorActionPreference = "Continue"
 $base = $BaseUrl.TrimEnd("/")
 $repo = "baukometra10/baupass-backend"
 
-Write-Host "`n=== SUPPIX Launch — Naechste Schritte ===" -ForegroundColor Yellow
-Write-Host "Production: $base`n"
+Write-Host ""
+Write-Host "=== SUPPIX Launch - Naechste Schritte ===" -ForegroundColor Yellow
+Write-Host "Production: $base"
+Write-Host ""
 
 & "$PSScriptRoot\railway-launch-verify.ps1" -BaseUrl $base
 
@@ -26,34 +28,50 @@ catch {
     exit 1
 }
 
-Write-Host "`n--- Mobile Distribution ---" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "--- Mobile Distribution ---" -ForegroundColor Cyan
 $apkOk = [bool]($join.apkUrl)
 $tfOk = [bool]($join.testFlightUrl)
-Write-Host ("  APK (BAUPASS_WORKER_APK_URL): " + $(if ($apkOk) { "OK $($join.apkUrl)" } else { "FEHLT" })) `
-    -ForegroundColor $(if ($apkOk) { "Green" } else { "Yellow" })
-Write-Host ("  TestFlight: " + $(if ($tfOk) { "OK" } else { "FEHLT (iPhone intern)" })) `
-    -ForegroundColor $(if ($tfOk) { "Green" } else { "DarkYellow" })
+if ($apkOk) {
+    Write-Host "  APK (BAUPASS_WORKER_APK_URL): OK $($join.apkUrl)" -ForegroundColor Green
+}
+else {
+    Write-Host "  APK (BAUPASS_WORKER_APK_URL): FEHLT" -ForegroundColor Yellow
+}
+if ($tfOk) {
+    Write-Host "  TestFlight: OK" -ForegroundColor Green
+}
+else {
+    Write-Host "  TestFlight: FEHLT (iPhone intern)" -ForegroundColor DarkYellow
+}
 
 if (-not $apkOk) {
-    Write-Host "`n[A] APK bauen und verlinken" -ForegroundColor Yellow
-    Write-Host "  Option 1 — GitHub Actions (empfohlen):"
+    Write-Host ""
+    Write-Host "[A] APK bauen und verlinken" -ForegroundColor Yellow
+    Write-Host "  Option 1 - GitHub Actions (empfohlen):"
     Write-Host "    .\deploy\trigger-mobile-release.ps1 -OpenBrowser"
     Write-Host "    oder: https://github.com/$repo/actions/workflows/mobile-release.yml"
-    Write-Host "  Option 2 — Lokal:"
+    Write-Host "  Option 2 - Lokal:"
     Write-Host "    cd mobile; flutter build apk --release --dart-define=BAUPASS_API_URL=$base"
     Write-Host "  Danach Railway setzen:"
     Write-Host "    BAUPASS_WORKER_APK_URL=https://github.com/$repo/releases/download/worker-apk-NNN/app-release.apk"
 }
 
-Write-Host "`n--- RQ Worker Service ---" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "--- RQ Worker Service ---" -ForegroundColor Cyan
 $redisOk = $false
 foreach ($k in $mobile.envKeys) {
     if ($k.id -eq "REDIS_URL" -and $k.configured) { $redisOk = $true }
 }
-Write-Host ("  REDIS_URL: " + $(if ($redisOk) { "konfiguriert" } else { "FEHLT" })) `
-    -ForegroundColor $(if ($redisOk) { "Green" } else { "Red" })
+if ($redisOk) {
+    Write-Host "  REDIS_URL: konfiguriert" -ForegroundColor Green
+}
+else {
+    Write-Host "  REDIS_URL: FEHLT" -ForegroundColor Red
+}
 
-Write-Host "`n[B] Railway Worker (zweiter Service)" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[B] Railway Worker (zweiter Service)" -ForegroundColor Yellow
 Write-Host "  1. railway login; railway link  (oder deploy\railway-login-link.ps1)"
 Write-Host "  2. Railway Dashboard -> New Service -> gleiches Repo"
 Write-Host "  3. Start Command: python -m backend.app.tasks.worker"
@@ -64,10 +82,12 @@ Write-Host "  Referenz: deploy/railway-worker.json + deploy/railway-worker.servi
 
 $whoami = (railway whoami 2>&1 | Out-String).Trim()
 if ($whoami -match "Unauthorized") {
-    Write-Host "`n  Railway CLI: nicht eingeloggt -> .\deploy\railway-login-link.ps1" -ForegroundColor DarkYellow
+    Write-Host ""
+    Write-Host "  Railway CLI: nicht eingeloggt -> .\deploy\railway-login-link.ps1" -ForegroundColor DarkYellow
 }
 else {
-    Write-Host "`n  Railway CLI: $whoami" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Railway CLI: $whoami" -ForegroundColor Green
 }
 
 if ($TriggerApkBuild) {
@@ -81,5 +101,7 @@ if ($OpenGitHubActions -and -not $TriggerApkBuild) {
     Start-Process "https://github.com/$repo/actions/workflows/mobile-release.yml"
 }
 
-Write-Host "`nMaster-Checkliste: docs/LAUNCH-SEQUENCE-DE.md" -ForegroundColor Green
-Write-Host "E2E nach APK: docs/qr-worker-e2e-checklist-DE.md`n"
+Write-Host ""
+Write-Host "Master-Checkliste: docs/LAUNCH-SEQUENCE-DE.md" -ForegroundColor Green
+Write-Host "E2E nach APK: docs/qr-worker-e2e-checklist-DE.md"
+Write-Host ""
