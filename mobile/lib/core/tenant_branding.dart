@@ -36,11 +36,17 @@ class TenantBranding {
 
   String get aiAssistantTitle => '$displayName Assistent';
 
+  static int argb32(Color color) {
+    // Compatible across Flutter stable versions (value deprecated in 3.27+, toARGB32 not on older SDKs).
+    // ignore: deprecated_member_use
+    return color.value;
+  }
+
   Map<String, dynamic> toCacheJson() => {
         'displayName': displayName,
         if (logoData != null && logoData!.isNotEmpty) 'logoData': logoData,
         if (accentColor != null)
-          'accentColor': '#${accentColor!.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
+          'accentColor': '#${argb32(accentColor!).toRadixString(16).padLeft(8, '0').substring(2)}',
       };
 
   static TenantBranding fromCacheJson(Map<String, dynamic> json) {

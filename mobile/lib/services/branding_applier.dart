@@ -16,7 +16,9 @@ class BrandingApplier {
     BrandingStore.instance.value = branding;
     await _cache.saveBranding(branding);
 
-    final accent = branding.accentColor?.toARGB32() ?? TenantBranding.defaultSeed.toARGB32();
+    final accent = branding.accentColor != null
+        ? TenantBranding.argb32(branding.accentColor!)
+        : TenantBranding.argb32(TenantBranding.defaultSeed);
     await SystemChrome.setApplicationSwitcherDescription(
       ApplicationSwitcherDescription(
         label: branding.displayName,
