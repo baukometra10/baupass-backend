@@ -9,12 +9,12 @@ Distribution without store dependency: **APK sideload** + **TestFlight internal*
 
 ### CI pipeline (Android)
 
-1. Push to `main` (changes under `mobile/`)
-2. GitHub Actions → **Build worker APK**
-3. Download artifact `baupass-worker-apk`
-4. `.\deploy\install-worker-apk.ps1 -ApkPath ...`
+1. Push to `main` (changes under `mobile/`) **or** run workflow **mobile-release** manually
+2. GitHub Actions → **mobile-release** → Artifact `baupass-worker-release` + GitHub Release `worker-apk-<run>`
+3. Railway: `BAUPASS_WORKER_APK_URL` = Release-URL der `app-release.apk`
+4. `.\deploy\install-worker-apk.ps1 -ApkPath ...` (USB-Test)
 5. Field test: [docs/mobile-field-test-DE.md](../docs/mobile-field-test-DE.md)
-6. Later: Firebase Push (`mobile/docs/firebase-push-setup.md`)
+6. Launch sequence: [docs/LAUNCH-SEQUENCE-DE.md](../docs/LAUNCH-SEQUENCE-DE.md)
 
 
 Platform architecture: [docs/enterprise-hybrid-platform-AR.md](../docs/enterprise-hybrid-platform-AR.md)
