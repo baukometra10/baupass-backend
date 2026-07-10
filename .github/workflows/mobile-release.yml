@@ -40,16 +40,26 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Refresh Android platform (Flutter-compatible Gradle)
+      - name: Complete Flutter platform scaffolding
         working-directory: mobile
+        run: flutter create . --org com.baupass --project-name worker
+
+      - name: Restore native customizations
         run: |
-          flutter create . --org com.baupass --project-name worker --platforms=android
+          rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
-            android/app/src/main/AndroidManifest.xml \
-            android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
-            android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
-            android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
-            android/app/src/main/res
+            mobile/android/app/build.gradle.kts \
+            mobile/android/settings.gradle.kts \
+            mobile/android/gradle.properties \
+            mobile/android/gradle/wrapper/gradle-wrapper.properties \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/android/app/src/main/res \
+            mobile/lib \
+            mobile/pubspec.yaml \
+            mobile/test
 
       - name: Configure Firebase google-services.json (optional)
         working-directory: mobile/android/app
@@ -78,11 +88,11 @@ jobs:
           flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
             echo "----- build-apk.log -----"
             cat build-apk.log || true
-            echo "::error title=APK build failed::$(grep -E 'error:|FAILURE:|What went wrong' build-apk.log | tail -n 20 | tr '\n' ' ')"
+            echo "::error title=APK build failed::$(grep -E 'error:|FAILURE:|What went wrong|Error:' build-apk.log | tail -n 20 | tr '\n' ' ')"
             {
               echo "### Build failed (last lines)"
               echo '```'
-              tail -n 60 build-apk.log
+              tail -n 80 build-apk.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
@@ -130,7 +140,4 @@ jobs:
             echo "### Railway"
             echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above **or** your CDN/stable host."
             echo "Production base: \`https://suppix-workpass-ai.up.railway.app\`"
-            echo ""
-            echo "Update \`worker-build.json\` on deploy:"
-            echo '  {"build":"'${{ github.run_number }}'","apkUrl":"'"${APK_URL}"'","apiBase":"'"${API_URL}"'"}'
           } >> "$GITHUB_STEP_SUMMARY"
