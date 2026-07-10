@@ -620,7 +620,7 @@ function canAccessAnalyticsTab() {
   return isSuperadminUser();
 }
 
-def applyRoleNavigation() {
+function applyRoleNavigation() {
   const showAnalytics = canAccessAnalyticsTab();
   const showPlatform = isSuperadminUser();
   const showLegacy = isSuperadminUser();

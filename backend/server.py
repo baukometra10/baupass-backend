@@ -2820,6 +2820,14 @@ def get_ssl_context_from_env():
     raise RuntimeError(f"Unsupported BAUPASS_SSL_MODE: {ssl_mode}")
 
 
+def get_admin_ip_whitelist(db):
+  """Platform superadmin IP rules. Disabled when env BAUPASS_ADMIN_IP_WHITELIST_DISABLED=1."""
+  if str(os.getenv("BAUPASS_ADMIN_IP_WHITELIST_DISABLED", "")).strip().lower() in {"1", "true", "yes", "on"}:
+    return []
+  settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
+  return parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
+
+
 def get_client_ip():
     forwarded = (request.headers.get("X-Forwarded-For") or "").strip()
     return forwarded.split(",", 1)[0].strip() if forwarded else (request.remote_addr or "local")
@@ -4966,11 +4974,11 @@ def require_auth(handler):
             if company_error:
                 return jsonify(company_error), 403
 
-        if user_payload.get("role") in ["superadmin", "company-admin"]:
-            settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
-            whitelist = parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
-            if whitelist and not ip_allowed(get_client_ip(), whitelist):
-                return jsonify({"error": "admin_ip_not_allowed"}), 403
+        if user_payload.get("role") == "superadmin":
+            whitelist = get_admin_ip_whitelist(db)
+            client_ip = get_client_ip()
+            if whitelist and not ip_allowed(client_ip, whitelist):
+                return jsonify({"error": "admin_ip_not_allowed", "clientIp": client_ip}), 403
 
         if is_read_only_support_session(session) and not is_read_only_support_request_allowed():
             return jsonify({"error": "support_session_read_only"}), 403
@@ -9309,11 +9317,11 @@ def session_bootstrap():
             company_access_blocked = company_error
 
     try:
-        if user.get("role") in ["superadmin", "company-admin"]:
-            settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
-            whitelist = parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
-            if whitelist and not ip_allowed(get_client_ip(), whitelist):
-                return jsonify({"error": "admin_ip_not_allowed"}), 403
+        if user.get("role") == "superadmin":
+            whitelist = get_admin_ip_whitelist(db)
+            client_ip = get_client_ip()
+            if whitelist and not ip_allowed(client_ip, whitelist):
+                return jsonify({"error": "admin_ip_not_allowed", "clientIp": client_ip}), 403
 
         db.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (expiry_iso(), token))
         db.commit()
