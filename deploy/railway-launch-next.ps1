@@ -10,7 +10,7 @@ $ErrorActionPreference = "Continue"
 $base = $BaseUrl.TrimEnd("/")
 $repo = "baukometra10/baupass-backend"
 
-Write-Host "`n=== SUPPIX Launch — Nächste Schritte ===" -ForegroundColor Yellow
+Write-Host "`n=== SUPPIX Launch — Naechste Schritte ===" -ForegroundColor Yellow
 Write-Host "Production: $base`n"
 
 & "$PSScriptRoot\railway-launch-verify.ps1" -BaseUrl $base
@@ -35,11 +35,12 @@ Write-Host ("  TestFlight: " + $(if ($tfOk) { "OK" } else { "FEHLT (iPhone inter
     -ForegroundColor $(if ($tfOk) { "Green" } else { "DarkYellow" })
 
 if (-not $apkOk) {
-    Write-Host "`n[A] APK bauen & verlinken" -ForegroundColor Yellow
+    Write-Host "`n[A] APK bauen und verlinken" -ForegroundColor Yellow
     Write-Host "  Option 1 — GitHub Actions (empfohlen):"
     Write-Host "    .\deploy\trigger-mobile-release.ps1 -OpenBrowser"
     Write-Host "    oder: https://github.com/$repo/actions/workflows/mobile-release.yml"
-    Write-Host "  Option 2 — Lokal: cd mobile && flutter build apk --release --dart-define=BAUPASS_API_URL=$base"
+    Write-Host "  Option 2 — Lokal:"
+    Write-Host "    cd mobile; flutter build apk --release --dart-define=BAUPASS_API_URL=$base"
     Write-Host "  Danach Railway setzen:"
     Write-Host "    BAUPASS_WORKER_APK_URL=https://github.com/$repo/releases/download/worker-apk-NNN/app-release.apk"
 }
@@ -53,17 +54,17 @@ Write-Host ("  REDIS_URL: " + $(if ($redisOk) { "konfiguriert" } else { "FEHLT" 
     -ForegroundColor $(if ($redisOk) { "Green" } else { "Red" })
 
 Write-Host "`n[B] Railway Worker (zweiter Service)" -ForegroundColor Yellow
-Write-Host "  1. railway login && railway link  (oder deploy\railway-login-link.ps1)"
-Write-Host "  2. Railway Dashboard → New Service → gleiches Repo"
+Write-Host "  1. railway login; railway link  (oder deploy\railway-login-link.ps1)"
+Write-Host "  2. Railway Dashboard -> New Service -> gleiches Repo"
 Write-Host "  3. Start Command: python -m backend.app.tasks.worker"
 Write-Host "  4. Volume /data + Variablen von API-Service referenzieren:"
 Write-Host "     REDIS_URL, BAUPASS_DB_PATH=/data/baupass.db, BAUPASS_SECRET_KEY, BAUPASS_WORKER_JWT_SECRET"
-Write-Host "  5. Optional RQ-Modi: BAUPASS_DAILY_JOBS_MODE=rq, BAUPASS_DUNNING_MODE=rq, …"
+Write-Host "  5. Optional RQ-Modi: BAUPASS_DAILY_JOBS_MODE=rq, BAUPASS_DUNNING_MODE=rq, ..."
 Write-Host "  Referenz: deploy/railway-worker.json + deploy/railway-worker.service.md"
 
 $whoami = (railway whoami 2>&1 | Out-String).Trim()
 if ($whoami -match "Unauthorized") {
-    Write-Host "`n  Railway CLI: nicht eingeloggt → .\deploy\railway-login-link.ps1" -ForegroundColor DarkYellow
+    Write-Host "`n  Railway CLI: nicht eingeloggt -> .\deploy\railway-login-link.ps1" -ForegroundColor DarkYellow
 }
 else {
     Write-Host "`n  Railway CLI: $whoami" -ForegroundColor Green
