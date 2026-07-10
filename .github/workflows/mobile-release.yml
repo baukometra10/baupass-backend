@@ -63,12 +63,12 @@ jobs:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
         run: |
           set -o pipefail
-          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" --verbose 2>&1 | tee build-apk.log || {
-            echo "::error title=APK build failed::$(tail -n 40 build-apk.log | tr '\n' ' ')"
+          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+            echo "::error title=APK build failed::$(grep -E 'error:|FAILURE:|What went wrong' build-apk.log | tail -n 20 | tr '\n' ' ')"
             {
-              echo "### Build failed"
+              echo "### Build failed (last lines)"
               echo '```'
-              cat build-apk.log
+              tail -n 60 build-apk.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
