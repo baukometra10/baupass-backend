@@ -620,14 +620,18 @@ function canAccessAnalyticsTab() {
   return isSuperadminUser();
 }
 
-function applyRoleNavigation() {
+def applyRoleNavigation() {
   const showAnalytics = canAccessAnalyticsTab();
   const showPlatform = isSuperadminUser();
+  const showLegacy = isSuperadminUser();
   document.querySelectorAll('.tab[data-tab="analytics"]').forEach((el) => {
     el.classList.toggle("hidden", !showAnalytics);
   });
   document.querySelectorAll('.tab[data-tab="platform"]').forEach((el) => {
     el.classList.toggle("hidden", !showPlatform);
+  });
+  document.querySelectorAll(".legacy-dashboard-link, .sidebar-legacy-link").forEach((el) => {
+    el.classList.toggle("hidden", !showLegacy);
   });
   $("enterpriseAnalyticsShortcut")?.classList.toggle("hidden", !showAnalytics);
   if (!showAnalytics && document.querySelector('.tab.active[data-tab="analytics"]')) {
@@ -1234,6 +1238,9 @@ function renderCommandPaletteList(query) {
     if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
       return false;
     }
+    if (item.legacyView && !isSuperadminUser()) {
+      return false;
+    }
     const title = t(item.titleKey).toLowerCase();
     const group = t(item.groupKey || "").toLowerCase();
     const extra = String(item.searchTerms || "").toLowerCase();
@@ -1324,11 +1331,13 @@ function renderQuickLinks() {
     { tab: "inbox", title: t("tab.inbox"), desc: t("section.inbox.desc") },
     { tab: "platform", title: t("quick.platform.title"), desc: t("quick.platform.desc") },
   ];
-  const legacy = [
-    { legacy: "invoices", title: t("feature.invoices"), desc: t("quick.legacy.invoiceDesc") },
-    { legacy: "devices", title: t("feature.devices"), desc: t("quick.legacy.devicesDesc") },
-    { legacy: "admin", title: t("feature.settings"), desc: t("quick.legacy.settingsDesc") },
-  ];
+  const legacy = isSuperadminUser()
+    ? [
+        { legacy: "invoices", title: t("feature.invoices"), desc: t("quick.legacy.invoiceDesc") },
+        { legacy: "devices", title: t("feature.devices"), desc: t("quick.legacy.devicesDesc") },
+        { legacy: "admin", title: t("feature.settings"), desc: t("quick.legacy.settingsDesc") },
+      ]
+    : [];
   const renderCard = (item) => {
     if (item.legacy) {
       return `<button type="button" class="feature-card" data-legacy-dashboard="${item.legacy}"><h3>${item.title}</h3><p class="muted small">${item.desc}</p></button>`;
@@ -1337,10 +1346,10 @@ function renderQuickLinks() {
   };
   $("quickLinks").innerHTML = `
     <div class="quick-links-primary">${primary.map(renderCard).join("")}</div>
-    <details class="quick-links-more muted small">
+    ${legacy.length ? `<details class="quick-links-more muted small">
       <summary>${t("quick.moreTools") || "Weitere Tools"}</summary>
       <div class="quick-links-grid">${legacy.map(renderCard).join("")}</div>
-    </details>`;
+    </details>` : ""}`;
   bindLegacyDashboardLinks($("quickLinks"));
   $("quickLinks").querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {

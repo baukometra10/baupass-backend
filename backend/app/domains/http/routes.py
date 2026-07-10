@@ -25,6 +25,8 @@ def _register_http_routes() -> None:
         worker_icon_png,
         worker_icon_svg,
         worker_join_config_public,
+        android_assetlinks_json,
+        apple_app_site_association,
     )
 
     mount_rules_once(
@@ -40,6 +42,9 @@ def _register_http_routes() -> None:
             ("/worker.html", worker_entry_redirect, ("GET",)),
             ("/review.html", review_page, ("GET",)),
             ("/worker-join-config.json", worker_join_config_public, ("GET",)),
+            ("/.well-known/assetlinks.json", android_assetlinks_json, ("GET",)),
+            ("/.well-known/apple-app-site-association", apple_app_site_association, ("GET",)),
+            ("/apple-app-site-association", apple_app_site_association, ("GET",)),
             ("/phone-test", phone_test_page, ("GET",)),
             ("/worker-icon-<int:icon_size>.svg", worker_icon_svg, ("GET",)),
             ("/worker-icon-<int:icon_size>.png", worker_icon_png, ("GET",)),

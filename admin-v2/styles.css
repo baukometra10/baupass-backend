@@ -1786,6 +1786,11 @@ h2 {
   text-decoration: none;
 }
 
+.admin-v2 .legacy-dashboard-link.hidden,
+.admin-v2 .sidebar-legacy-link.hidden {
+  display: none !important;
+}
+
 .legacy-dashboard-link:hover {
   text-decoration: underline;
 }

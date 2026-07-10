@@ -89,7 +89,24 @@
     .worker-row { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); cursor: pointer; }
     .worker-row:hover { background: #14202c; }
     #status { font-size: 0.8rem; color: #94a3b8; }
-    @media (max-width: 800px) { .side { display: none; } }
+    @media (max-width: 800px) {
+      .side {
+        display: block;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: none;
+        max-height: 36vh;
+        border-inline-start: none;
+        border-top: 1px solid var(--border);
+        z-index: 600;
+        box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.35);
+      }
+      .legend { bottom: calc(36vh + 12px); }
+      #map { padding-bottom: 0; }
+    }
   </style>
 </head>
 <body class="ops-app">

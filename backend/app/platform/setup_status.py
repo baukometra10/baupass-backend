@@ -179,6 +179,13 @@ def collect_setup_status() -> dict[str, Any]:
         },
         "readyScore": _score(redis_url),
         "enterprise": _enterprise_block(),
+        "launchDocs": {
+            "sequence": "/docs/LAUNCH-SEQUENCE-DE.md",
+            "e2e": "/docs/qr-worker-e2e-checklist-DE.md",
+            "store": "/docs/store-listing-DE.md",
+            "workerService": "/deploy/railway-worker.service.md",
+            "verifyScript": "deploy/railway-launch-verify.ps1",
+        },
     }
 
 

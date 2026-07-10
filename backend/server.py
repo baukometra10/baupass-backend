@@ -13300,12 +13300,64 @@ def worker_join_config_public():
         {
             "workerAppKind": "hybrid_native",
             "primaryChannel": "flutter_fcm",
+            "pwaFallbackOnly": True,
             "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or install.get("apkUrl") or "").strip(),
             "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or install.get("testFlightUrl") or "").strip(),
             "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or install.get("playStoreUrl") or "").strip(),
             "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or install.get("appStoreUrl") or "").strip(),
             "joinPage": install.get("joinPage") or f"{get_public_base_url()}/join.html",
             "deepLinkScheme": "baupass://join",
+        }
+    )
+
+
+def _public_host_from_base() -> str:
+    base = (get_public_base_url() or "").strip().rstrip("/")
+    try:
+        from urllib.parse import urlparse
+
+        return (urlparse(base).hostname or "").strip()
+    except Exception:
+        return ""
+
+
+def android_assetlinks_json():
+    """Android App Links verification (optional — set BAUPASS_ANDROID_APP_LINK_SHA256)."""
+    sha = (os.getenv("BAUPASS_ANDROID_APP_LINK_SHA256") or "").strip()
+    if not sha:
+        return jsonify([]), 404
+    package = (os.getenv("BAUPASS_ANDROID_APP_PACKAGE") or "com.baupass.worker").strip()
+    payload = [
+        {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": package,
+                "sha256_cert_fingerprints": [sha],
+            },
+        }
+    ]
+    return jsonify(payload)
+
+
+def apple_app_site_association():
+    """Universal Links for iOS (optional — set BAUPASS_IOS_TEAM_ID)."""
+    team_id = (os.getenv("BAUPASS_IOS_TEAM_ID") or "").strip()
+    bundle = (os.getenv("BAUPASS_IOS_BUNDLE_ID") or "com.baupass.worker").strip()
+    if not team_id:
+        return jsonify({"applinks": {"apps": [], "details": []}}), 404
+    app_id = f"{team_id}.{bundle}"
+    return jsonify(
+        {
+            "applinks": {
+                "apps": [],
+                "details": [
+                    {
+                        "appID": app_id,
+                        "paths": ["/join.html", "/join.html/*"],
+                    }
+                ],
+            }
         }
     )
 

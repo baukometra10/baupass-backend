@@ -156,5 +156,8 @@ def collect_worker_mobile_setup() -> dict[str, Any]:
         "docs": {
             "arabic": "/docs/iphone-testflight-railway-AR.md",
             "envTemplate": "/.env.worker-mobile.example",
+            "launchSequence": "/docs/LAUNCH-SEQUENCE-DE.md",
+            "e2eChecklist": "/docs/qr-worker-e2e-checklist-DE.md",
+            "storeListing": "/docs/store-listing-DE.md",
         },
     }
