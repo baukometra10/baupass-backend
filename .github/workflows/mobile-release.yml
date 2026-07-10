@@ -40,18 +40,6 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
-      - name: Inject Firebase google-services.json (optional)
-        working-directory: mobile/android/app
-        env:
-          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$FIREBASE_JSON" ]; then
-            printf '%s' "$FIREBASE_JSON" > google-services.json
-            echo "Firebase config injected from secret."
-          else
-            echo "FIREBASE_GOOGLE_SERVICES_JSON not set — using placeholder google-services.json."
-          fi
-
       - name: Refresh Android platform (Flutter-compatible Gradle)
         working-directory: mobile
         run: |
@@ -61,8 +49,20 @@ jobs:
             android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
             android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
-            android/app/google-services.json \
             android/app/src/main/res
+
+      - name: Configure Firebase google-services.json (optional)
+        working-directory: mobile/android/app
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$FIREBASE_JSON" ]; then
+            printf '%s' "$FIREBASE_JSON" > google-services.json
+            echo "Firebase config injected from secret."
+          else
+            rm -f google-services.json
+            echo "No FIREBASE_GOOGLE_SERVICES_JSON — build without google-services plugin."
+          fi
 
       - name: Resolve dependencies
         working-directory: mobile
