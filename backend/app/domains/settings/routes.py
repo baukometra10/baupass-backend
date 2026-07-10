@@ -14,6 +14,7 @@ def _register_core_settings_routes() -> None:
     if routes_already_mounted("settings"):
         return
     from backend.server import (
+        admin_ip_status,
         get_settings,
         list_imap_folders,
         otp_test_send,
@@ -27,6 +28,7 @@ def _register_core_settings_routes() -> None:
     rules = (
         ("/settings", get_settings, ("GET",)),
         ("/settings", update_settings, ("PUT",)),
+        ("/settings/admin-ip-status", admin_ip_status, ("GET",)),
         ("/settings/smtp-test", smtp_test, ("POST",)),
         ("/settings/smtp-diagnose", smtp_diagnose, ("POST",)),
         ("/settings/resend-test", resend_test, ("POST",)),

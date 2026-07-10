@@ -2821,39 +2821,36 @@ def get_ssl_context_from_env():
 
 
 def get_admin_ip_whitelist(db):
-  """Platform superadmin IP rules. Disabled when env BAUPASS_ADMIN_IP_WHITELIST_DISABLED=1."""
-  if str(os.getenv("BAUPASS_ADMIN_IP_WHITELIST_DISABLED", "")).strip().lower() in {"1", "true", "yes", "on"}:
-    return []
-  settings_row = db.execute("SELECT admin_ip_whitelist FROM settings WHERE id = 1").fetchone()
-  return parse_ip_whitelist(settings_row["admin_ip_whitelist"] if settings_row else "")
+    from backend.app.platform.security.admin_ip_access import get_admin_ip_whitelist as _get_admin_ip_whitelist
+
+    return _get_admin_ip_whitelist(db)
 
 
 def get_client_ip():
-    forwarded = (request.headers.get("X-Forwarded-For") or "").strip()
-    return forwarded.split(",", 1)[0].strip() if forwarded else (request.remote_addr or "local")
+    from backend.app.platform.security.client_ip import resolve_client_ip
+
+    return resolve_client_ip()
 
 
 def parse_ip_whitelist(raw):
-    return [item.strip() for item in (raw or "").replace(";", ",").split(",") if item.strip()]
+    from backend.app.platform.security.admin_ip_access import parse_ip_whitelist as _parse_ip_whitelist
+
+    return _parse_ip_whitelist(raw)
 
 
 def ip_allowed(ip_value, whitelist):
-    if not whitelist:
-        return True
-    try:
-        ip_obj = ipaddress.ip_address(ip_value)
-    except ValueError:
-        return False
-    for rule in whitelist:
-        try:
-            if "/" in rule:
-                if ip_obj in ipaddress.ip_network(rule, strict=False):
-                    return True
-            elif ip_obj == ipaddress.ip_address(rule):
-                return True
-        except ValueError:
-            continue
-    return False
+    from backend.app.platform.security.admin_ip_access import ip_allowed as _ip_allowed
+
+    return _ip_allowed(ip_value, whitelist)
+
+
+def assert_superadmin_ip_access(db):
+    from backend.app.platform.security.admin_ip_access import check_superadmin_ip_access
+
+    allowed, client_ip, payload = check_superadmin_ip_access(db)
+    if allowed:
+        return None
+    return jsonify(payload), 403
 
 
 def init_db():
@@ -2929,6 +2926,7 @@ def init_db():
             brevo_api_key TEXT NOT NULL DEFAULT '',
             brevo_from_email TEXT NOT NULL DEFAULT '',
             admin_ip_whitelist TEXT NOT NULL DEFAULT '',
+            enforce_admin_ip_whitelist INTEGER NOT NULL DEFAULT 0,
             enforce_tenant_domain INTEGER NOT NULL DEFAULT 0,
             card_print_offset_x_mm REAL NOT NULL DEFAULT 0,
             card_print_offset_y_mm REAL NOT NULL DEFAULT 0,
@@ -3377,6 +3375,8 @@ def init_db():
         cur.execute("ALTER TABLE settings ADD COLUMN smtp_use_tls INTEGER NOT NULL DEFAULT 1")
     if "admin_ip_whitelist" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN admin_ip_whitelist TEXT NOT NULL DEFAULT ''")
+    if "enforce_admin_ip_whitelist" not in settings_columns:
+        cur.execute("ALTER TABLE settings ADD COLUMN enforce_admin_ip_whitelist INTEGER NOT NULL DEFAULT 0")
     if "enforce_tenant_domain" not in settings_columns:
         cur.execute("ALTER TABLE settings ADD COLUMN enforce_tenant_domain INTEGER NOT NULL DEFAULT 0")
     if "card_print_offset_x_mm" not in settings_columns:
@@ -4623,6 +4623,13 @@ def init_db():
         """
     )
 
+    try:
+        from backend.app.platform.security.admin_ip_access import apply_startup_ip_policy
+
+        apply_startup_ip_policy(db)
+    except Exception:
+        pass
+
     db.commit()
     db.close()
 
@@ -4975,10 +4982,9 @@ def require_auth(handler):
                 return jsonify(company_error), 403
 
         if user_payload.get("role") == "superadmin":
-            whitelist = get_admin_ip_whitelist(db)
-            client_ip = get_client_ip()
-            if whitelist and not ip_allowed(client_ip, whitelist):
-                return jsonify({"error": "admin_ip_not_allowed", "clientIp": client_ip}), 403
+            blocked = assert_superadmin_ip_access(db)
+            if blocked is not None:
+                return blocked
 
         if is_read_only_support_session(session) and not is_read_only_support_request_allowed():
             return jsonify({"error": "support_session_read_only"}), 403
@@ -9318,10 +9324,9 @@ def session_bootstrap():
 
     try:
         if user.get("role") == "superadmin":
-            whitelist = get_admin_ip_whitelist(db)
-            client_ip = get_client_ip()
-            if whitelist and not ip_allowed(client_ip, whitelist):
-                return jsonify({"error": "admin_ip_not_allowed", "clientIp": client_ip}), 403
+            blocked = assert_superadmin_ip_access(db)
+            if blocked is not None:
+                return blocked
 
         db.execute("UPDATE sessions SET expires_at = ? WHERE token = ?", (expiry_iso(), token))
         db.commit()
@@ -9499,6 +9504,48 @@ def system_recover_admin():
         target_id=user["id"],
     )
     return jsonify({"ok": True, "username": username, "role": user["role"]})
+
+
+def system_clear_admin_ip_whitelist():
+    configured_secret = (os.getenv("BAUPASS_RECOVERY_SECRET") or "").strip()
+    if not configured_secret:
+        return jsonify({"ok": False, "error": "recovery_disabled"}), 503
+
+    payload = request.get_json(silent=True) or {}
+    provided_secret = (payload.get("recoverySecret") or request.headers.get("X-Recovery-Secret") or "").strip()
+    if not provided_secret or not secrets.compare_digest(provided_secret, configured_secret):
+        log_audit("system.ip_whitelist_recovery_failed", "IP-Whitelist Recovery mit ungueltigem Secret")
+        return jsonify({"ok": False, "error": "invalid_recovery_secret"}), 401
+
+    db = get_db()
+    from backend.app.platform.security.admin_ip_access import clear_admin_ip_policy
+
+    clear_admin_ip_policy(db)
+    log_audit("system.ip_whitelist_cleared", "Superadmin IP-Whitelist per Recovery-Secret zurueckgesetzt")
+    return jsonify({"ok": True, "enforceAdminIpWhitelist": False, "adminIpWhitelist": ""})
+
+
+@require_auth
+@require_roles("superadmin")
+def admin_ip_status():
+    from backend.app.platform.security.admin_ip_access import (
+        check_superadmin_ip_access,
+        get_admin_ip_whitelist,
+        should_enforce_admin_ip,
+    )
+
+    db = get_db()
+    allowed, client_ip, _ = check_superadmin_ip_access(db)
+    return jsonify(
+        {
+            "clientIp": client_ip,
+            "allowed": allowed,
+            "enforced": should_enforce_admin_ip(db),
+            "whitelist": get_admin_ip_whitelist(db),
+            "disabledByEnv": str(os.getenv("BAUPASS_ADMIN_IP_WHITELIST_DISABLED", "")).strip().lower()
+            in {"1", "true", "yes", "on"},
+        }
+    )
 
 
 @require_auth
@@ -9743,6 +9790,7 @@ def get_settings():
             "smtpSenderName": row["smtp_sender_name"],
             "smtpUseTls": int(row["smtp_use_tls"]) == 1,
             "adminIpWhitelist": row["admin_ip_whitelist"],
+            "enforceAdminIpWhitelist": int(row["enforce_admin_ip_whitelist"] if "enforce_admin_ip_whitelist" in row.keys() else 0) == 1,
             "enforceTenantDomain": int(row["enforce_tenant_domain"]) == 1,
             "workerAppEnabled": int(row["worker_app_enabled"]) == 1,
             "workerPassLockEnabled": int(row["worker_pass_lock_enabled"]) == 1 if "worker_pass_lock_enabled" in row.keys() else False,
@@ -10060,7 +10108,7 @@ def update_settings():
             invoice_email_body_template = ?, dunning_stage1_days = ?, dunning_stage2_days = ?,
             smtp_host = ?, smtp_port = ?, smtp_username = ?, smtp_password = ?,
             smtp_sender_email = ?, smtp_sender_name = ?, smtp_use_tls = ?,
-            admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?,
+            admin_ip_whitelist = ?, enforce_admin_ip_whitelist = ?, enforce_tenant_domain = ?, worker_app_enabled = ?, worker_pass_lock_enabled = ?, worker_expiry_warn_days = ?,
             work_start_time = ?, work_end_time = ?
         WHERE id = 1
         """,
@@ -10098,6 +10146,7 @@ def update_settings():
             payload.get("smtpSenderName", DEFAULT_PLATFORM_NAME),
             1 if payload.get("smtpUseTls", True) else 0,
             payload.get("adminIpWhitelist", ""),
+            1 if payload.get("enforceAdminIpWhitelist", False) else 0,
             1 if payload.get("enforceTenantDomain", False) else 0,
             1 if payload.get("workerAppEnabled", True) else 0,
             1 if payload.get("workerPassLockEnabled", False) else 0,

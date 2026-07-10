@@ -27270,6 +27270,7 @@ function renderAdminSettingsForm() {
   const smtpSenderName = document.querySelector("#smtpSenderName");
   const smtpUseTls = document.querySelector("#smtpUseTls");
   const adminIpWhitelist = document.querySelector("#adminIpWhitelist");
+  const enforceAdminIpWhitelist = document.querySelector("#enforceAdminIpWhitelist");
   const enforceTenantDomain = document.querySelector("#enforceTenantDomain");
   const supportPhone = document.querySelector("#supportPhone");
   const workerAppEnabled = document.querySelector("#workerAppEnabled");
@@ -27290,6 +27291,7 @@ function renderAdminSettingsForm() {
   if (smtpSenderName) smtpSenderName.value = state.settings.smtpSenderName || "";
   if (smtpUseTls) smtpUseTls.value = state.settings.smtpUseTls === false ? "0" : "1";
   if (adminIpWhitelist) adminIpWhitelist.value = state.settings.adminIpWhitelist || "";
+  if (enforceAdminIpWhitelist) enforceAdminIpWhitelist.value = state.settings.enforceAdminIpWhitelist ? "1" : "0";
   if (enforceTenantDomain) enforceTenantDomain.value = state.settings.enforceTenantDomain ? "1" : "0";
   if (supportPhone) supportPhone.value = getSupportPhoneForLockScreen();
   if (workerAppEnabled) workerAppEnabled.value = state.settings.workerAppEnabled === false ? "0" : "1";
@@ -30093,6 +30095,7 @@ async function handleSettingsSubmit(event) {
       smtpSenderName: document.querySelector("#smtpSenderName").value.trim(),
       smtpUseTls: document.querySelector("#smtpUseTls").value === "1",
       adminIpWhitelist: document.querySelector("#adminIpWhitelist").value.trim(),
+      enforceAdminIpWhitelist: document.querySelector("#enforceAdminIpWhitelist")?.value === "1",
       enforceTenantDomain: document.querySelector("#enforceTenantDomain").value === "1",
       workerAppEnabled: document.querySelector("#workerAppEnabled").value !== "0",
       workerPassLockEnabled: document.querySelector("#workerPassLockEnabled")?.value === "1",
@@ -37613,6 +37616,33 @@ if (settingsForm) {
   });
   // Sofort beim Laden anwenden (nach kurzem Timeout damit renderAdminSettingsForm die Werte gesetzt hat)
   setTimeout(applySettingsFieldColors, 200);
+}
+
+const useCurrentAdminIpBtn = document.querySelector("#useCurrentAdminIpBtn");
+if (useCurrentAdminIpBtn) {
+  useCurrentAdminIpBtn.addEventListener("click", async () => {
+    const hint = document.querySelector("#currentAdminIpHint");
+    try {
+      const res = await apiRequest(API_BASE + "/api/settings/admin-ip-status");
+      const ip = String(res?.clientIp || "").trim();
+      if (!ip || ip === "local") {
+        if (hint) hint.textContent = "Aktuelle IP konnte nicht ermittelt werden.";
+        return;
+      }
+      const input = document.querySelector("#adminIpWhitelist");
+      if (input) {
+        const existing = String(input.value || "")
+          .split(/[,;]/)
+          .map((part) => part.trim())
+          .filter(Boolean);
+        if (!existing.includes(ip)) existing.push(ip);
+        input.value = existing.join(", ");
+      }
+      if (hint) hint.textContent = `Übernommen: ${ip}`;
+    } catch (error) {
+      if (hint) hint.textContent = `IP-Status nicht verfügbar: ${error?.message || error}`;
+    }
+  });
 }
 
 const companyForm = document.querySelector("#companyForm");

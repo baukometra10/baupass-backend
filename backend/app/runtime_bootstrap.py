@@ -95,6 +95,14 @@ def integrate_server_runtime(
             print(f"[baupass] WARNING: schema migrations failed: {exc}", flush=True)
             logger.exception("Schema migration failed")
 
+    try:
+        import backend.server as srv
+        from backend.app.platform.security.admin_ip_access import apply_startup_ip_policy
+
+        apply_startup_ip_policy(srv.get_db())
+    except Exception as exc:
+        print(f"[baupass] WARNING: admin IP startup policy skipped: {exc}", flush=True)
+
     from backend.app.config import BaseConfig
     from backend.app.extensions import init_extensions
     from backend.app.middleware.rate_limiting import build_rate_limiter

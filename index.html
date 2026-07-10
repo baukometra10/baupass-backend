@@ -1994,6 +1994,17 @@
                 <input id="adminIpWhitelist" type="text" placeholder="203.0.113.10, 203.0.113.0/24" />
               </label>
               <label>
+                <span>IP-Whitelist erzwingen (nur Superadmin)</span>
+                <select id="enforceAdminIpWhitelist">
+                  <option value="0">Nein (empfohlen für Cloud)</option>
+                  <option value="1">Ja</option>
+                </select>
+              </label>
+              <div class="form-actions">
+                <button type="button" id="useCurrentAdminIpBtn" class="secondary-btn">Aktuelle IP übernehmen</button>
+                <span id="currentAdminIpHint" class="muted-hint"></span>
+              </div>
+              <label>
                 <span data-ui-i18n="labelEnforceDomain">Firmen-Domain erzwingen</span>
                 <select id="enforceTenantDomain">
                   <option value="0" data-ui-i18n="optNo">Nein</option>

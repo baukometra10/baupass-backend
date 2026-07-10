@@ -1225,6 +1225,17 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="035",
+        name="settings_enforce_admin_ip_whitelist",
+        up_sql="""
+            ALTER TABLE settings ADD COLUMN enforce_admin_ip_whitelist INTEGER NOT NULL DEFAULT 0;
+        """,
+        down_sql="""
+            -- SQLite cannot drop columns in older builds; no-op downgrade.
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))
