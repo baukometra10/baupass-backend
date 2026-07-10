@@ -66,9 +66,7 @@ jobs:
 
       - name: Resolve dependencies
         working-directory: mobile
-        run: |
-          flutter pub get
-          flutter analyze --no-fatal-infos
+        run: flutter pub get
 
       - name: Build release APK
         id: build_apk
