@@ -40,6 +40,18 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
+      - name: Inject Firebase google-services.json (optional)
+        working-directory: mobile/android/app
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$FIREBASE_JSON" ]; then
+            printf '%s' "$FIREBASE_JSON" > google-services.json
+            echo "Firebase config injected from secret."
+          else
+            echo "FIREBASE_GOOGLE_SERVICES_JSON not set — using repo placeholder if present."
+          fi
+
       - name: Complete Flutter platform scaffolding
         working-directory: mobile
         run: flutter create . --org com.baupass --project-name worker
@@ -49,9 +61,11 @@ jobs:
           rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
             mobile/android/app/build.gradle.kts \
+            mobile/android/app/google-services.json \
             mobile/android/settings.gradle.kts \
             mobile/android/gradle.properties \
             mobile/android/gradle/wrapper/gradle-wrapper.properties \
+            mobile/android/build.gradle.kts \
             mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
             mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
@@ -60,19 +74,6 @@ jobs:
             mobile/lib \
             mobile/pubspec.yaml \
             mobile/test
-
-      - name: Configure Firebase google-services.json (optional)
-        working-directory: mobile/android/app
-        env:
-          FIREBASE_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
-        run: |
-          if [ -n "$FIREBASE_JSON" ]; then
-            printf '%s' "$FIREBASE_JSON" > google-services.json
-            echo "Firebase config injected from secret."
-          else
-            rm -f google-services.json
-            echo "No FIREBASE_GOOGLE_SERVICES_JSON — build without google-services plugin."
-          fi
 
       - name: Resolve dependencies
         working-directory: mobile
@@ -86,15 +87,9 @@ jobs:
         run: |
           set -o pipefail
           flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
-            echo "----- build-apk.log -----"
-            cat build-apk.log || true
-            echo "::error title=APK build failed::$(grep -E 'error:|FAILURE:|What went wrong|Error:' build-apk.log | tail -n 20 | tr '\n' ' ')"
-            {
-              echo "### Build failed (last lines)"
-              echo '```'
-              tail -n 80 build-apk.log
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
+            echo "----- build-apk.log (last 120 lines) -----"
+            tail -n 120 build-apk.log || true
+            echo "::error title=APK build failed::$(grep -E 'What went wrong|Execution failed|error:|Error:' build-apk.log | tail -n 15 | tr '\n' ' ')"
             exit 1
           }
 
@@ -138,6 +133,5 @@ jobs:
             echo "- GitHub Release APK: \`${APK_URL}\`"
             echo ""
             echo "### Railway"
-            echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above **or** your CDN/stable host."
-            echo "Production base: \`https://suppix-workpass-ai.up.railway.app\`"
+            echo "Set \`BAUPASS_WORKER_APK_URL\` to the Release URL above."
           } >> "$GITHUB_STEP_SUMMARY"

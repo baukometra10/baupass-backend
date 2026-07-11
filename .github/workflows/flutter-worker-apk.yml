@@ -46,6 +46,29 @@ jobs:
       - name: Accept Android licenses
         run: yes | flutter doctor --android-licenses || true
 
+      - name: Complete Flutter platform scaffolding
+        working-directory: mobile
+        run: flutter create . --org com.baupass --project-name worker
+
+      - name: Restore native customizations
+        run: |
+          rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
+          git checkout HEAD -- \
+            mobile/android/app/build.gradle.kts \
+            mobile/android/app/google-services.json \
+            mobile/android/settings.gradle.kts \
+            mobile/android/gradle.properties \
+            mobile/android/gradle/wrapper/gradle-wrapper.properties \
+            mobile/android/build.gradle.kts \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/android/app/src/main/res \
+            mobile/lib \
+            mobile/pubspec.yaml \
+            mobile/test
+
       - name: Resolve dependencies
         working-directory: mobile
         run: flutter pub get
