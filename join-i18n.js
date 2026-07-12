@@ -9,7 +9,10 @@ window.JoinPageI18n = {
     noToken: "Kein Zugangstoken im Link. Bitte QR erneut vom Administrator anfordern.",
     configError: "Konfiguration konnte nicht geladen werden.",
     openingPwa: "Ausweis wird in der App geöffnet…",
-    openApp: "In SUPPIX-App öffnen",
+    openingApp: "Versuche SUPPIX-App zu öffnen…",
+    appNotInstalled: "App noch nicht installiert? Zuerst APK herunterladen und installieren (nicht „Zum Startbildschirm hinzufügen“).",
+    installSteps: "1. „APK installieren“ tippen → 2. Datei öffnen → 3. „Unbekannte Apps“ erlauben → 4. Installieren → 5. QR erneut scannen.",
+    openApp: "In SUPPIX-App öffnen (bereits installiert)",
     androidApk: "Android: APK installieren",
     testFlight: "iPhone: TestFlight",
     playStore: "Google Play",
@@ -27,7 +30,10 @@ window.JoinPageI18n = {
     noToken: "No access token in link. Please request a new QR code from your administrator.",
     configError: "Could not load configuration.",
     openingPwa: "Opening pass in app…",
-    openApp: "Open in SUPPIX app",
+    openingApp: "Trying to open SUPPIX app…",
+    appNotInstalled: "App not installed yet? Download and install the APK first (do not use “Add to home screen”).",
+    installSteps: "1. Tap “Install APK” → 2. Open file → 3. Allow unknown apps → 4. Install → 5. Scan QR again.",
+    openApp: "Open in SUPPIX app (already installed)",
     androidApk: "Android: install APK",
     testFlight: "iPhone: TestFlight",
     playStore: "Google Play",
@@ -45,7 +51,10 @@ window.JoinPageI18n = {
     noToken: "لا يوجد رمز وصول في الرابط. اطلب QR جديداً من المسؤول.",
     configError: "تعذّر تحميل الإعدادات.",
     openingPwa: "جاري فتح البطاقة في التطبيق…",
-    openApp: "فتح في تطبيق SUPPIX",
+    openingApp: "جاري محاولة فتح تطبيق SUPPIX…",
+    appNotInstalled: "التطبيق غير مثبت؟ حمّل APK وثبّته أولاً (لا تستخدم «إضافة إلى الشاشة الرئيسية»).",
+    installSteps: "1. اضغط «تثبيت APK» → 2. افتح الملف → 3. اسمح بالتطبيقات غير المعروفة → 4. ثبّت → 5. امسح QR مرة أخرى.",
+    openApp: "فتح في تطبيق SUPPIX (مثبت مسبقاً)",
     androidApk: "Android: تثبيت APK",
     testFlight: "iPhone: TestFlight",
     playStore: "Google Play",
@@ -170,6 +179,10 @@ window.applyJoinI18n = function applyJoinI18n() {
     const key = el.getAttribute("data-joini18n");
     if (key) el.textContent = window.joinT(key);
   });
+  const banner = document.getElementById("installBanner");
+  if (banner && !banner.classList.contains("hidden")) {
+    banner.textContent = window.joinT("installSteps");
+  }
   const sel = document.getElementById("joinLangSelect");
   if (sel) {
     sel.value = lang;

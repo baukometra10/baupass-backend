@@ -48,6 +48,15 @@
     }
     .primary { background: linear-gradient(135deg, #1b5e8c, #06b6d4); color: #fff; }
     .secondary { background: #eef4f8; color: #1b3d52; border: 1px solid rgba(0,0,0,0.08); }
+    .install-banner {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: #fff7ed;
+      border: 1px solid #fdba74;
+      color: #9a3412;
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
     .muted { font-size: 0.88rem; color: #5f6f7a; }
     .hidden { display: none !important; }
     .status { padding: 10px 12px; border-radius: 10px; background: #f3faf6; color: #166534; font-size: 0.9rem; }
@@ -65,10 +74,11 @@
     <p id="subtitle" data-joini18n="subtitle">Native App (Flutter) installieren — dann mit diesem Einmal-Link anmelden.</p>
     <p class="muted" id="hybridBadge" style="font-weight:600;color:#1b5e8c" data-joini18n="hybridBadge">Empfohlen: Flutter-App (Android / iPhone)</p>
     <p id="hint" class="muted"></p>
+    <div id="installBanner" class="install-banner hidden" data-joini18n="installSteps"></div>
     <div id="statusBox" class="status hidden"></div>
     <div class="actions">
-      <a id="openAppBtn" class="btn primary hidden" href="#" data-joini18n="openApp">In SUPPIX-App öffnen</a>
-      <a id="androidApkBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="androidApk">Android: APK installieren</a>
+      <a id="androidApkBtn" class="btn primary hidden" href="#" rel="noopener" download="suppix-worker.apk" data-joini18n="androidApk">Android: APK installieren</a>
+      <a id="openAppBtn" class="btn secondary hidden" href="#" data-joini18n="openApp">In SUPPIX-App öffnen</a>
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="testFlight">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="playStore">Google Play</a>
       <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="appStore">App Store</a>
@@ -77,7 +87,7 @@
     <p class="muted" id="footerNote" data-joini18n="footerNote">Nach der Installation erneut den QR-Code scannen oder „In App öffnen“ wählen.</p>
   </main>
 
-  <script src="/join-i18n.js?v=20260705g"></script>
+  <script src="/join-i18n.js?v=20260712a"></script>
   <script>
     const PENDING_KEY = "baupass-pending-access-token";
     const API_BASE_KEY = "baupass-api-base";
@@ -206,30 +216,29 @@
       return {};
     }
 
-    async function boot() {
-      storePending();
-      const platform = detectPlatform();
-      const cfg = await loadConfig();
-      const buildMeta = await loadBuildMeta();
-
-      if (launch && accessToken) {
-        if (shouldTryNativeDeepLink(cfg, platform)) {
-          showStatus(window.joinT("openingApp") || "Öffne SUPPIX-App…");
-          window.location.href = deepLinkUrl();
-          window.setTimeout(() => {
-            document.getElementById("hint").textContent = window.joinT("hintActive");
-          }, 1800);
-        } else {
-          redirectToPwa(buildMeta);
+    function tryNativeDeepLink(onLikelyFailed) {
+      const started = Date.now();
+      let hiddenAt = 0;
+      const onHide = () => { hiddenAt = Date.now(); };
+      document.addEventListener("visibilitychange", onHide, { once: true });
+      window.addEventListener("pagehide", onHide, { once: true });
+      showStatus(window.joinT("openingApp"));
+      window.location.href = deepLinkUrl();
+      window.setTimeout(() => {
+        document.removeEventListener("visibilitychange", onHide);
+        window.removeEventListener("pagehide", onHide);
+        const leftPage = hiddenAt > 0 && hiddenAt - started < 2500;
+        if (!leftPage && typeof onLikelyFailed === "function") {
+          onLikelyFailed();
         }
-        return;
-      }
+      }, 2200);
+    }
 
+    function renderJoinActions(cfg, buildMeta, platform) {
       const openApp = document.getElementById("openAppBtn");
       openApp.href = deepLinkUrl();
 
       if (accessToken) {
-        setVisible("openAppBtn", true);
         document.getElementById("hint").textContent = window.joinT("hintActive");
       } else {
         showStatus(window.joinT("noToken"), true);
@@ -239,11 +248,15 @@
       const testFlight = (cfg.testFlightUrl || "").trim();
       const play = (cfg.playStoreUrl || "").trim();
       const appStore = (cfg.appStoreUrl || "").trim();
+      let needsInstallFirst = false;
 
       if (platform === "android") {
         if (apk) {
-          document.getElementById("androidApkBtn").href = apk;
+          const apkBtn = document.getElementById("androidApkBtn");
+          apkBtn.href = apk;
           setVisible("androidApkBtn", true);
+          setVisible("installBanner", true);
+          needsInstallFirst = true;
         }
         if (play) {
           document.getElementById("playStoreBtn").href = play;
@@ -269,8 +282,45 @@
         }
       }
 
+      if (accessToken && !needsInstallFirst) {
+        setVisible("openAppBtn", true);
+      } else if (accessToken) {
+        setVisible("openAppBtn", true);
+      }
+
       document.getElementById("pwaBtn").href = pwaFallbackUrl(buildMeta);
-      setVisible("pwaBtn", true);
+      setVisible("pwaBtn", !needsInstallFirst);
+
+      return { apk, needsInstallFirst };
+    }
+
+    async function boot() {
+      storePending();
+      const platform = detectPlatform();
+      const cfg = await loadConfig();
+      const buildMeta = await loadBuildMeta();
+      const { apk, needsInstallFirst } = renderJoinActions(cfg, buildMeta, platform);
+
+      if (launch && accessToken) {
+        if (platform === "android" && apk) {
+          showStatus(window.joinT("appNotInstalled"), false);
+          document.getElementById("statusBox").classList.add("error");
+          document.getElementById("statusBox").style.background = "#fff7ed";
+          document.getElementById("statusBox").style.color = "#9a3412";
+          return;
+        }
+        if (shouldTryNativeDeepLink(cfg, platform)) {
+          tryNativeDeepLink(() => {
+            showStatus(window.joinT("appNotInstalled"), false);
+            const box = document.getElementById("statusBox");
+            box.classList.add("error");
+            box.style.background = "#fff7ed";
+            box.style.color = "#9a3412";
+          });
+          return;
+        }
+        redirectToPwa(buildMeta);
+      }
     }
 
     window.initJoinLangSync?.();
