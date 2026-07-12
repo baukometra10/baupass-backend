@@ -6,7 +6,7 @@ class AppConfig {
     'SUPPIX_API_URL',
     defaultValue: String.fromEnvironment(
       'BAUPASS_API_URL',
-      defaultValue: 'http://10.0.2.2:5000',
+      defaultValue: 'https://suppix-workpass-ai.up.railway.app',
     ),
   );
 

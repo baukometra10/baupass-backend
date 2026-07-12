@@ -12,6 +12,25 @@ class ChatRepository {
   final E2eCryptoService _e2e;
   String? _workerId;
   Map<String, dynamic>? _security;
+  String? _cachedThreadId;
+
+  String? _extractThreadId(Map<String, dynamic>? row) {
+    if (row == null) return null;
+    for (final key in ['id', 'threadId', 'thread_id', 'ID']) {
+      final value = row[key]?.toString().trim() ?? '';
+      if (value.isNotEmpty) return value;
+    }
+    return null;
+  }
+
+  String? _threadIdFromMe(Map<String, dynamic> me) {
+    final chat = me['chat'];
+    if (chat is Map) {
+      final tid = (chat['threadId'] ?? chat['thread_id'])?.toString().trim() ?? '';
+      if (tid.isNotEmpty) return tid;
+    }
+    return null;
+  }
 
   Future<void> bootstrapE2e(WorkerSession session, {required String workerId}) async {
     _workerId = workerId;
@@ -41,6 +60,10 @@ class ChatRepository {
     final security = me['security'];
     if (security is Map) {
       _security = Map<String, dynamic>.from(security);
+    }
+    final threadId = _threadIdFromMe(me);
+    if (threadId != null && threadId.isNotEmpty) {
+      _cachedThreadId = threadId;
     }
     return me;
   }
@@ -97,7 +120,11 @@ class ChatRepository {
     await _loadMe(session);
     final workerId = _workerId ?? '';
     if (workerId.isEmpty) return;
-    await bootstrapE2e(session, workerId: workerId);
+    try {
+      await bootstrapE2e(session, workerId: workerId);
+    } catch (_) {
+      // Identity upload is best-effort; chat may still work with plaintext fallback.
+    }
   }
 
   Future<List<Map<String, dynamic>>> listThreads(WorkerSession session) async {
@@ -118,7 +145,67 @@ class ChatRepository {
       deviceId: session.deviceId,
       body: <String, dynamic>{'subject': subject},
     );
-    return data['threadId'] as String;
+    final threadId = _extractThreadId(data) ??
+        data['threadId']?.toString().trim() ??
+        data['thread_id']?.toString().trim() ??
+        '';
+    if (threadId.isEmpty) {
+      throw StateError('chat_thread_missing');
+    }
+    _cachedThreadId = threadId;
+    return threadId;
+  }
+
+  /// Resolve chat thread like PWA ensureWorkerChatThread (prefers /me chat.threadId).
+  Future<String> resolveThread(WorkerSession session, {bool forceRefresh = false}) async {
+    final cached = _cachedThreadId?.trim() ?? '';
+    if (cached.isNotEmpty && !forceRefresh) return cached;
+
+    await _loadMe(session);
+    final fromMe = _cachedThreadId?.trim() ?? '';
+    if (fromMe.isNotEmpty && !forceRefresh) return fromMe;
+
+    try {
+      final created = await ensureThread(session);
+      if (created.isNotEmpty) return created;
+    } catch (_) {
+      // Fall back to listing existing threads.
+    }
+
+    final threads = await listThreads(session);
+    if (threads.isNotEmpty) {
+      final sorted = [...threads]
+        ..sort((left, right) {
+          final leftTs = (left['last_message_at'] ??
+                  left['updated_at'] ??
+                  left['lastMessageAt'] ??
+                  '')
+              .toString();
+          final rightTs = (right['last_message_at'] ??
+                  right['updated_at'] ??
+                  right['lastMessageAt'] ??
+                  '')
+              .toString();
+          return rightTs.compareTo(leftTs);
+        });
+      Map<String, dynamic>? selected;
+      for (final row in sorted) {
+        if ((row['subject'] ?? 'general').toString() == 'general') {
+          selected = row;
+          break;
+        }
+      }
+      selected ??= sorted.first;
+      final resolved = _extractThreadId(selected);
+      if (resolved != null && resolved.isNotEmpty) {
+        _cachedThreadId = resolved;
+        return resolved;
+      }
+    }
+
+    if (fromMe.isNotEmpty) return fromMe;
+    if (cached.isNotEmpty) return cached;
+    throw StateError('chat_thread_unavailable');
   }
 
   Future<List<Map<String, dynamic>>> listMessages(WorkerSession session, String threadId) async {
@@ -143,25 +230,74 @@ class ChatRepository {
     return out;
   }
 
+  Future<({String outbound, bool e2eClientUnavailable})> _prepareOutboundBody(
+    WorkerSession session,
+    String body,
+  ) async {
+    final workerId = _workerId ?? '';
+    if (workerId.isEmpty || !_e2eChatRequired() || _e2e.isE2eEnvelope(body)) {
+      return (outbound: body, e2eClientUnavailable: false);
+    }
+
+    try {
+      final keys = await _chatRecipientKeys(session);
+      if (keys.isEmpty) {
+        throw StateError('e2e_keys_missing');
+      }
+      final encrypted = await _e2e.encryptUtf8(body, keys);
+      return (outbound: encrypted, e2eClientUnavailable: false);
+    } on StateError catch (e) {
+      if (e.message == 'e2e_keys_missing' || e.message == 'e2e_recipients_required') {
+        rethrow;
+      }
+      return (outbound: body, e2eClientUnavailable: true);
+    } catch (_) {
+      return (outbound: body, e2eClientUnavailable: true);
+    }
+  }
+
+  Future<Map<String, dynamic>> _postMessage({
+    required WorkerSession session,
+    required String threadId,
+    required String outbound,
+    required bool e2eClientUnavailable,
+  }) {
+    return _api.postJson(
+      '/api/worker-app/chat/threads/$threadId/messages',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{'body': outbound},
+      extraHeaders: e2eClientUnavailable ? {'X-E2E-Client-Unavailable': '1'} : null,
+    );
+  }
+
   Future<Map<String, dynamic>> sendMessage({
     required WorkerSession session,
     required String threadId,
     required String body,
   }) async {
     await ensureE2eReady(session);
-    final workerId = _workerId ?? '';
-    var outbound = body;
-    if (workerId.isNotEmpty && _e2eChatRequired() && !_e2e.isE2eEnvelope(body)) {
-      final keys = await _chatRecipientKeys(session);
-      if (keys.isEmpty) throw StateError('e2e_keys_missing');
-      outbound = await _e2e.encryptUtf8(body, keys);
+    final prepared = await _prepareOutboundBody(session, body);
+    try {
+      return await _postMessage(
+        session: session,
+        threadId: threadId,
+        outbound: prepared.outbound,
+        e2eClientUnavailable: prepared.e2eClientUnavailable,
+      );
+    } on ApiException catch (e) {
+      if (e.errorCode == 'thread_not_found' || e.errorCode == 'chat_send_failed') {
+        _cachedThreadId = null;
+        final freshThreadId = await resolveThread(session, forceRefresh: true);
+        return _postMessage(
+          session: session,
+          threadId: freshThreadId,
+          outbound: prepared.outbound,
+          e2eClientUnavailable: prepared.e2eClientUnavailable,
+        );
+      }
+      rethrow;
     }
-    return _api.postJson(
-      '/api/worker-app/chat/threads/$threadId/messages',
-      bearerToken: session.bearer,
-      deviceId: session.deviceId,
-      body: <String, dynamic>{'body': outbound},
-    );
   }
 
   Future<Map<String, dynamic>> uploadAttachment({

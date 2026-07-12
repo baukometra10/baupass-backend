@@ -56,13 +56,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
     if (!silent) setState(() => _loading = true);
     try {
       await widget.chat.ensureE2eReady(widget.session);
-      final threads = await widget.chat.listThreads(widget.session);
-      String threadId;
-      if (threads.isNotEmpty) {
-        threadId = threads.first['id'] as String;
-      } else {
-        threadId = await widget.chat.ensureThread(widget.session);
-      }
+      final threadId = await widget.chat.resolveThread(widget.session);
       final messages = await widget.chat.listMessages(widget.session, threadId);
       if (!mounted) return;
       setState(() {

@@ -222,7 +222,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         throw NfcUnavailableException('NFC nicht verfügbar — in den Einstellungen aktivieren.');
       }
       final scan = await widget.nfc.scanTag();
-      final direction = _resolveDirectionForQueue();
+      const direction = 'auto';
       final clientEventId =
           'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${scan.uid.hashCode.abs()}';
 

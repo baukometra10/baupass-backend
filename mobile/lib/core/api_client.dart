@@ -34,6 +34,7 @@ class ApiClient {
     String? bearerToken,
     String? deviceId,
     bool jsonBody = false,
+    Map<String, String>? extraHeaders,
   }) {
     final headers = <String, String>{'Accept': 'application/json'};
     if (jsonBody) headers['Content-Type'] = 'application/json';
@@ -43,14 +44,24 @@ class ApiClient {
     if (deviceId != null && deviceId.isNotEmpty) {
       headers['X-Device-Id'] = deviceId;
     }
+    if (extraHeaders != null && extraHeaders.isNotEmpty) {
+      headers.addAll(extraHeaders);
+    }
     return headers;
   }
 
   void _maybeNotifySessionExpired(int statusCode, String? errorCode) {
-    if (statusCode == 401 &&
-        (errorCode == 'invalid_worker_session' ||
-            errorCode == 'worker_session_expired' ||
-            errorCode == 'worker_not_available')) {
+    final reloginCodes = {
+      'invalid_worker_session',
+      'worker_session_expired',
+      'worker_not_available',
+      'missing_device_id',
+      'device_not_bound',
+      'device_not_active',
+    };
+    if ((statusCode == 401 || statusCode == 403) &&
+        errorCode != null &&
+        reloginCodes.contains(errorCode)) {
       onSessionExpired?.call();
     }
   }
@@ -60,13 +71,19 @@ class ApiClient {
     Map<String, dynamic>? body,
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final http.Response response;
     try {
       response = await _http.post(
         uri,
-        headers: _headers(bearerToken: bearerToken, deviceId: deviceId, jsonBody: true),
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          jsonBody: true,
+          extraHeaders: extraHeaders,
+        ),
         body: jsonEncode(body ?? <String, dynamic>{}),
       );
     } on Exception catch (e) {
@@ -94,13 +111,19 @@ class ApiClient {
     Map<String, dynamic>? body,
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final http.Response response;
     try {
       response = await _http.put(
         uri,
-        headers: _headers(bearerToken: bearerToken, deviceId: deviceId, jsonBody: true),
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          jsonBody: true,
+          extraHeaders: extraHeaders,
+        ),
         body: jsonEncode(body ?? <String, dynamic>{}),
       );
     } on Exception catch (e) {
@@ -127,13 +150,18 @@ class ApiClient {
     String path, {
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final http.Response response;
     try {
       response = await _http.get(
         uri,
-        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          extraHeaders: extraHeaders,
+        ),
       );
     } on Exception catch (e) {
       throw ApiException(0, 'network_error', e.toString());
@@ -162,13 +190,18 @@ class ApiClient {
     String path, {
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final http.Response response;
     try {
       response = await _http.get(
         uri,
-        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          extraHeaders: extraHeaders,
+        ),
       );
     } on Exception catch (e) {
       throw ApiException(0, 'network_error', e.toString());
@@ -194,13 +227,18 @@ class ApiClient {
     String path, {
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse(path.startsWith('http') ? path : '$_baseUrl$path');
     final http.Response response;
     try {
       response = await _http.get(
         uri,
-        headers: _headers(bearerToken: bearerToken, deviceId: deviceId),
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          extraHeaders: extraHeaders,
+        ),
       );
     } on Exception catch (e) {
       throw ApiException(0, 'network_error', e.toString());
@@ -218,10 +256,15 @@ class ApiClient {
     required String fileField,
     String? bearerToken,
     String? deviceId,
+    Map<String, String>? extraHeaders,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final request = http.MultipartRequest('POST', uri);
-    request.headers.addAll(_headers(bearerToken: bearerToken, deviceId: deviceId));
+    request.headers.addAll(_headers(
+      bearerToken: bearerToken,
+      deviceId: deviceId,
+      extraHeaders: extraHeaders,
+    ));
     request.fields.addAll(fields);
     request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
     http.StreamedResponse streamed;

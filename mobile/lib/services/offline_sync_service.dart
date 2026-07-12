@@ -16,7 +16,7 @@ class OfflineSyncService {
 
   WorkerSession? _session;
 
-  void bindSession(WorkerSession session) {
+  void bindSession(WorkerSession? session) {
     _session = session;
   }
 

@@ -12,8 +12,13 @@ class WorkerSession {
   final String? jwt;
   final String? deviceId;
 
-  /// Prefer signed JWT for API calls when available.
-  String get bearer => (jwt != null && jwt!.isNotEmpty) ? jwt! : token;
+  /// Prefer opaque session token (matches PWA worker-app.js auth order).
+  String get bearer {
+    if (token.isNotEmpty) return token;
+    final signed = jwt?.trim() ?? '';
+    if (signed.contains('.')) return signed;
+    return token;
+  }
 
   bool get hasDeviceBinding => deviceId != null && deviceId!.isNotEmpty;
 }

@@ -141,7 +141,15 @@ class _WorkerAppState extends State<WorkerApp> {
 
   void _onSessionExpired() {
     if (!mounted) return;
+    _auth.clearToken();
+    _offlineSync.bindSession(null);
     setState(() => _session = null);
+    _messengerKey.currentState?.showSnackBar(
+      const SnackBar(
+        content: Text('Sitzung abgelaufen — bitte erneut anmelden.'),
+        duration: Duration(seconds: 5),
+      ),
+    );
   }
 
   void _listenDeepLinks() {
