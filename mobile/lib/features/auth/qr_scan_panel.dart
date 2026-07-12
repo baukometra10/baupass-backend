@@ -83,7 +83,7 @@ class _QrScanPanelState extends State<QrScanPanel> {
             MobileScanner(
               controller: _controller,
               onDetect: _onDetect,
-              errorBuilder: (context, error) {
+              errorBuilder: (context, error, child) {
                 return ColoredBox(
                   color: Colors.black87,
                   child: Center(
