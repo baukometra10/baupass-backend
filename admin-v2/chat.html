@@ -143,6 +143,62 @@
     .chat-delete-btn:hover { opacity: 1; }
     .chat-voice-hint { font-size: 0.78rem; color: #f87171; margin: 0 0 0.35rem; padding: 0 0.15rem; }
     .chat-voice-hint.hidden { display: none; }
+    .broadcast-all-btn {
+      width: 100%;
+      margin: 0.5rem 0 0.75rem;
+      padding: 0.55rem 0.75rem;
+      border-radius: 10px;
+      border: 1px solid rgba(96, 165, 250, 0.35);
+      background: rgba(30, 64, 175, 0.25);
+      color: #dbeafe;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .broadcast-all-btn:hover { background: rgba(30, 64, 175, 0.4); }
+    .broadcast-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1200;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0, 0, 0, 0.55);
+      padding: 1rem;
+    }
+    .broadcast-modal.hidden { display: none; }
+    .broadcast-modal-inner {
+      width: min(480px, 100%);
+      background: #111827;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 1rem 1.1rem;
+      display: grid;
+      gap: 0.65rem;
+    }
+    .broadcast-modal-inner h4 { margin: 0; font-size: 1rem; }
+    .broadcast-modal-inner input,
+    .broadcast-modal-inner textarea {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0b1220;
+      color: #f3f4f6;
+      padding: 0.55rem 0.65rem;
+      font: inherit;
+    }
+    .broadcast-modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+    .broadcast-modal-actions button {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+    }
+    .broadcast-modal-actions button.primary {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
     .chat-send-btn.is-recording { background: #b91c1c; color: #fff; }
     .chat-audio-player { display:flex; align-items:center; gap:0.45rem; min-width:min(220px, 100%); margin-top:0.25rem; }
     .chat-audio-play { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:inherit; cursor:pointer; display:grid; place-items:center; flex-shrink:0; }
@@ -181,6 +237,7 @@
         <h3 data-aci18n="chatsTitle">Chats</h3>
         <input id="threadSearch" type="search" data-aci18n="searchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter oder Thema suchen" />
         <p class="muted sidebar-hint" data-aci18n="sidebarHint">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
+        <button type="button" id="broadcastAllBtn" class="broadcast-all-btn" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</button>
         <div id="threadList" class="thread-list"></div>
       </section>
       <section class="panel chat-main">
@@ -217,6 +274,17 @@
       </section>
     </main>
   </div>
+  <div id="broadcastModal" class="broadcast-modal hidden" role="dialog" aria-modal="true" aria-labelledby="broadcastModalTitle">
+    <div class="broadcast-modal-inner">
+      <h4 id="broadcastModalTitle" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</h4>
+      <input id="broadcastTitle" type="text" data-aci18n="broadcastAllTitlePh" data-aci18n-attr="placeholder" placeholder="Betreff" />
+      <textarea id="broadcastMessage" rows="4" data-aci18n="broadcastAllMessagePh" data-aci18n-attr="placeholder" placeholder="Nachricht an alle Mitarbeiter…"></textarea>
+      <div class="broadcast-modal-actions">
+        <button type="button" id="broadcastCancelBtn">Abbrechen</button>
+        <button type="button" id="broadcastSendBtn" class="primary" data-aci18n="send">Senden</button>
+      </div>
+    </div>
+  </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
@@ -237,6 +305,7 @@
       void window.BaupassAuth.resolveTenantBranding({ companyId: companyId || undefined });
     }
     let threads = [];
+    let adminThreadRows = [];
     let currentThreadId = "";
     let currentWorkerId = "";
     let chatPollTimer = null;
@@ -254,9 +323,25 @@
     }
     function setThreadMeta(text, { dynamic = false } = {}) {
       const el = document.getElementById("threadMeta");
-      el.textContent = text;
+      if (!el) return;
+      const raw = String(text || "").trim();
+      let display = raw;
+      if (raw === "DataError" || /operation\s*failed/i.test(raw)) {
+        display = window.adminChatT("chatVoiceDecryptFailed") || "Sprachnachricht konnte nicht entschlüsselt werden.";
+      }
+      el.textContent = display;
       if (dynamic) el.dataset.dynamic = "1";
       else delete el.dataset.dynamic;
+    }
+    function showVoicePlaybackError(error) {
+      const msg = String(error?.message || error || "").trim();
+      if (!msg || msg === "voice_playback_failed") return;
+      setThreadMeta(msg, { dynamic: true });
+      window.setTimeout(() => {
+        if (lastThreadMetaName) {
+          setThreadMeta(window.adminChatT("chatWith", { name: lastThreadMetaName }), { dynamic: true });
+        }
+      }, 5000);
     }
     window.refreshAdminChatDynamicUi = function refreshAdminChatDynamicUi() {
       renderThreads();
@@ -648,7 +733,7 @@
     function hydrateChatAudioPreviews() {
       window.SUPPIXChatVoice?.hydrateAudioPlayers?.(document.getElementById("messageList"), {
         downloadFn: async (attachmentId) => downloadChatAudioBlob(attachmentId),
-        onError: (error) => setThreadMeta(error.message || String(error), { dynamic: true }),
+        onError: (error) => showVoicePlaybackError(error),
       });
     }
     const adminVoiceRecorder = window.SUPPIXChatVoice?.createRecorder?.({
@@ -970,6 +1055,7 @@
     async function loadThreads() {
       const data = await api(`/api/chat/threads?company_id=${encodeURIComponent(companyId)}`);
       threads = data.threads || [];
+      adminThreadRows = threads;
       renderThreads();
     }
     async function loadMessages(threadId, workerId, options = {}) {
@@ -1185,6 +1271,49 @@
     document.getElementById("chatClearAllBtn")?.addEventListener("click", () => {
       if (!window.confirm(window.adminChatT("chatClearAllConfirm"))) return;
       clearAdminChatMessages("all").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
+    });
+    function openBroadcastModal() {
+      const modal = document.getElementById("broadcastModal");
+      const titleInput = document.getElementById("broadcastTitle");
+      const messageInput = document.getElementById("broadcastMessage");
+      if (!modal || !titleInput || !messageInput) return;
+      titleInput.value = window.adminChatT("broadcastAllDefaultTitle") || "Mitteilung";
+      messageInput.value = "";
+      modal.classList.remove("hidden");
+      messageInput.focus();
+    }
+    function closeBroadcastModal() {
+      document.getElementById("broadcastModal")?.classList.add("hidden");
+    }
+    async function sendBroadcastToAllWorkers() {
+      const title = String(document.getElementById("broadcastTitle")?.value || "").trim();
+      const message = String(document.getElementById("broadcastMessage")?.value || "").trim();
+      if (!message) return;
+      const workerCount = adminThreadRows.length;
+      const confirmText = window.adminChatT("broadcastAllConfirm", { count: String(workerCount || "alle") });
+      if (!window.confirm(confirmText)) return;
+      try {
+        const data = await api("/api/chat/broadcast", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, message, company_id: companyId }),
+        });
+        closeBroadcastModal();
+        setThreadMeta(
+          window.adminChatT("broadcastAllSuccess", { count: String(data.notified || data.total || workerCount || 0) }),
+          { dynamic: true },
+        );
+      } catch (error) {
+        setThreadMeta(error.message || window.adminChatT("broadcastAllFailed"), { dynamic: true });
+      }
+    }
+    document.getElementById("broadcastAllBtn")?.addEventListener("click", openBroadcastModal);
+    document.getElementById("broadcastCancelBtn")?.addEventListener("click", closeBroadcastModal);
+    document.getElementById("broadcastSendBtn")?.addEventListener("click", () => {
+      void sendBroadcastToAllWorkers();
+    });
+    document.getElementById("broadcastModal")?.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.id === "broadcastModal") closeBroadcastModal();
     });
     syncAdminComposeAction();
     window.applyAdminChatI18n?.();

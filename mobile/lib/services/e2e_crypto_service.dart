@@ -16,7 +16,38 @@ class E2eCryptoService {
   String _identityKey(String entityType, String entityId) =>
       'suppix-e2e:$entityType:$entityId';
 
-  Future<Map<String, String>> ensureLocalIdentity({
+  static const _macLength = 16;
+
+  Uint8List _gcmWireBytes(SecretBox box) {
+    return Uint8List.fromList([...box.cipherText, ...box.mac.bytes]);
+  }
+
+  SecretBox _secretBoxFromWire(Uint8List wire, List<int> nonce) {
+    if (wire.length <= _macLength) {
+      throw StateError('e2e_attachment_ciphertext_invalid');
+    }
+    return SecretBox(
+      wire.sublist(0, wire.length - _macLength),
+      nonce: nonce,
+      mac: Mac(wire.sublist(wire.length - _macLength)),
+    );
+  }
+
+  Future<List<int>> _decryptGcmBytes(Uint8List cipherBytes, SecretKey aesKey, List<int> nonce) async {
+    try {
+      return await _aesGcm.decrypt(
+        _secretBoxFromWire(cipherBytes, nonce),
+        secretKey: aesKey,
+      );
+    } catch (_) {
+      return await _aesGcm.decrypt(
+        SecretBox(cipherBytes, nonce: nonce, mac: Mac.empty),
+        secretKey: aesKey,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> ensureIdentity({
     required String entityType,
     required String entityId,
   }) async {
@@ -92,10 +123,12 @@ class E2eCryptoService {
     List<String> recipientPublicKeysSpkiB64, {
     required String filename,
     required String mime,
+    int? durationSec,
   }) async {
     final secretKey = await _aesGcm.newSecretKey();
     final nonce = _aesGcm.newNonce();
     final secretBox = await _aesGcm.encrypt(fileBytes, secretKey: secretKey, nonce: nonce);
+    final wireBytes = _gcmWireBytes(secretBox);
     final keyBytes = await secretKey.extractBytes();
     final keyB64 = base64Encode(keyBytes);
     final wrappedKey = await encryptUtf8(keyB64, recipientPublicKeysSpkiB64);
@@ -106,11 +139,12 @@ class E2eCryptoService {
       'alg': 'X25519-AES-GCM',
       'filename': filename,
       'mime': mime,
+      if (durationSec != null && durationSec > 0) 'durationSec': durationSec,
       'iv': base64Encode(nonce),
-      'ct': base64Encode(secretBox.cipherText),
+      'ct': base64Encode(wireBytes),
       'wrappedKey': wrappedKey,
     };
-    return {'blob': Uint8List.fromList(secretBox.cipherText), 'meta': jsonEncode(meta)};
+    return {'blob': wireBytes, 'meta': jsonEncode(meta)};
   }
 
   Future<({Uint8List bytes, String filename, String mime})> decryptBlob(
@@ -123,10 +157,7 @@ class E2eCryptoService {
     final keyB64 = await decryptUtf8(meta['wrappedKey'] as String, entityType, entityId);
     final secretKey = SecretKey(base64Decode(keyB64));
     final nonce = base64Decode(meta['iv'] as String);
-    final clear = await _aesGcm.decrypt(
-      SecretBox(cipherBytes, nonce: nonce, mac: Mac.empty),
-      secretKey: secretKey,
-    );
+    final clear = await _decryptGcmBytes(cipherBytes, secretKey, nonce);
     return (
       bytes: Uint8List.fromList(clear),
       filename: meta['filename'] as String? ?? 'download.bin',
@@ -172,7 +203,7 @@ class E2eCryptoService {
       'alg': 'X25519-AES-GCM',
       'epk': base64Encode(ephemeralPublic.bytes),
       'iv': base64Encode(nonce),
-      'ct': base64Encode(secretBox.cipherText),
+      'ct': base64Encode(_gcmWireBytes(secretBox)),
     };
   }
 
@@ -188,10 +219,7 @@ class E2eCryptoService {
     final aesKey = SecretKey(await shared.extractBytes().then((b) => b.sublist(0, 32)));
     final nonce = base64Decode(envelope['iv'] as String);
     final cipherText = base64Decode(envelope['ct'] as String);
-    final clear = await _aesGcm.decrypt(
-      SecretBox(cipherText, nonce: nonce, mac: Mac.empty),
-      secretKey: aesKey,
-    );
+    final clear = await _decryptGcmBytes(Uint8List.fromList(cipherText), aesKey, nonce);
     return utf8.decode(clear);
   }
 }

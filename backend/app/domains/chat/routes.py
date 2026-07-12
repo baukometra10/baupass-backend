@@ -485,5 +485,57 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             logging.getLogger(__name__).exception("worker_chat_attachment failed for thread %s", thread_id)
             return jsonify({"error": "attachment_upload_failed", "message": "Anhang konnte nicht hochgeladen werden."}), 500
 
+    @chat_core_bp.post("/chat/broadcast")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_broadcast():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        title = str(data.get("title") or "Mitteilung").strip()[:200] or "Mitteilung"
+        message = str(data.get("message") or "").strip()
+        if not message:
+            return jsonify({"error": "message_required", "message": "Nachricht fehlt."}), 400
+        message = message[:1000]
+        send_email = str(data.get("send_email") or "false").strip().lower() in ("1", "true", "yes")
+        db = get_db()
+        workers = db.execute(
+            """
+            SELECT id FROM workers
+            WHERE company_id = ?
+              AND deleted_at IS NULL
+              AND worker_type = 'worker'
+            """,
+            (cid,),
+        ).fetchall()
+        from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+
+        notified = 0
+        for row in workers:
+            wid = str(row["id"] or "").strip()
+            if not wid:
+                continue
+            try:
+                notify_worker_mitteilung(
+                    db,
+                    wid,
+                    notif_type="company_broadcast",
+                    title=title,
+                    message=message,
+                    action_url="chat",
+                    push_tag="company-broadcast",
+                    send_email=send_email,
+                )
+                notified += 1
+            except Exception:
+                logging.getLogger(__name__).exception("broadcast notify failed worker %s", wid)
+        try:
+            db.commit()
+        except Exception:
+            pass
+        return jsonify({"ok": True, "notified": notified, "total": len(workers)})
+
     register_blueprint_once(flask_app, chat_core_bp, url_prefix="/api")
     print("[baupass] domain/chat: worker-company chat routes registered", flush=True)

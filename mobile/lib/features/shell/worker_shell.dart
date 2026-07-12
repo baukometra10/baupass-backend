@@ -29,6 +29,8 @@ import '../chat/chat_screen.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
 import '../../services/deep_link_service.dart';
+import '../../core/privacy_consent_store.dart';
+import '../legal/privacy_consent_dialog.dart';
 
 /// Unified post-login shell — sole employee UI for Android and iOS.
 class WorkerShell extends StatefulWidget {
@@ -90,6 +92,20 @@ class WorkerShellState extends State<WorkerShell> {
       bearerToken: widget.session.bearer,
       deviceId: widget.session.deviceId,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowPrivacyConsent());
+  }
+
+  Future<void> _maybeShowPrivacyConsent() async {
+    final store = PrivacyConsentStore();
+    if (await store.hasAccepted()) return;
+    if (!mounted) return;
+    final accepted = await showPrivacyConsentDialog(context);
+    if (!mounted) return;
+    if (accepted == true) {
+      await store.accept();
+      return;
+    }
+    widget.onLogout();
   }
 
   void navigateTo(WorkerAppRoute route) {

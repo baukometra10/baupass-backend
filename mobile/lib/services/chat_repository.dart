@@ -305,6 +305,7 @@ class ChatRepository {
     required String threadId,
     required String messageId,
     required File file,
+    int? durationSec,
   }) async {
     await ensureE2eReady(session);
     final workerId = _workerId ?? '';
@@ -318,6 +319,7 @@ class ChatRepository {
         keys,
         filename: filename,
         mime: _guessAttachmentMime(filename),
+        durationSec: durationSec,
       );
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');

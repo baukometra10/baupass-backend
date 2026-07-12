@@ -133,7 +133,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _sendVoiceFile(String filePath) async {
+  Future<void> _sendVoiceFile(String filePath, {int? durationSec}) async {
     final threadId = _threadId;
     if (threadId == null || _sending) return;
     final file = File(filePath);
@@ -151,6 +151,7 @@ class _ChatScreenState extends State<ChatScreen> {
         threadId: threadId,
         messageId: msg['id'] as String,
         file: file,
+        durationSec: durationSec,
       );
       if (!mounted) return;
       setState(() {
@@ -218,7 +219,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       return;
     }
-    await _sendVoiceFile(filePath);
+    await _sendVoiceFile(filePath, durationSec: elapsed.inSeconds.clamp(1, 3600));
   }
 
   Future<void> _attach() async {
