@@ -84,6 +84,7 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
     try {
       var answer = '';
       Map<String, dynamic> doneMeta = {};
+      var streamFailed = false;
       await for (final ev in widget.ai.askStream(widget.session, question: q)) {
         if (!mounted) return;
         final t = ev['type'] as String?;
@@ -98,7 +99,16 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
           doneMeta = ev;
           answer = (ev['answer'] as String?) ?? answer;
         } else if (t == 'error') {
+          streamFailed = true;
           answer = ev['hint'] as String? ?? 'Fehler';
+        }
+      }
+      if (streamFailed || answer.isEmpty) {
+        final res = await widget.ai.ask(widget.session, question: q);
+        answer = (res['answer'] as String?)?.trim() ?? '';
+        doneMeta = res;
+        if (answer.isEmpty) {
+          answer = (res['hint'] as String?)?.trim() ?? 'Keine Antwort — KI ist nicht konfiguriert.';
         }
       }
       _messages[botIdx] = _ChatMsg(

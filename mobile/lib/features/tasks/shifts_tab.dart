@@ -84,27 +84,29 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Schicht tauschen'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              decoration: const InputDecoration(labelText: 'Kollege'),
-              items: coworkers
-                  .map(
-                    (c) => DropdownMenuItem(
-                      value: c['id'] as String?,
-                      child: Text((c['name'] as String?) ?? c['id'] as String? ?? ''),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (v) => pickId = v,
-            ),
-            TextField(
-              controller: reasonCtrl,
-              decoration: const InputDecoration(labelText: 'Grund (optional)'),
-              maxLines: 2,
-            ),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Kollege'),
+                items: coworkers
+                    .map(
+                      (c) => DropdownMenuItem(
+                        value: (c['id'] ?? '').toString(),
+                        child: Text((c['name'] as String?) ?? (c['id'] ?? '').toString()),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (v) => pickId = v,
+              ),
+              TextField(
+                controller: reasonCtrl,
+                decoration: const InputDecoration(labelText: 'Grund (optional)'),
+                maxLines: 2,
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -112,11 +114,11 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         ],
       ),
     );
-    if (ok != true || pickId == null) return;
+    if (ok != true || pickId == null || pickId!.isEmpty) return;
     try {
       await widget.tasks.proposeShiftSwap(
         session: widget.session,
-        assignmentId: assignment['id'] as String,
+        assignmentId: (assignment['id'] ?? '').toString(),
         toWorkerId: pickId!,
         reason: reasonCtrl.text.trim(),
       );
@@ -271,12 +273,12 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
                   Row(
                     children: [
                       FilledButton(
-                        onPressed: () => _respondSwap(s['id'] as String, 'accepted'),
+                        onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'accepted'),
                         child: const Text('Annehmen'),
                       ),
                       const SizedBox(width: 8),
                       OutlinedButton(
-                        onPressed: () => _respondSwap(s['id'] as String, 'rejected'),
+                        onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'rejected'),
                         child: const Text('Ablehnen'),
                       ),
                     ],

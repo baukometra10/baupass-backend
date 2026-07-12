@@ -138,6 +138,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (threadId == null || _sending) return;
     final file = File(filePath);
     if (!await file.exists()) return;
+    final voiceName = 'voice-${DateTime.now().millisecondsSinceEpoch}.m4a';
     setState(() => _sending = true);
     try {
       final res = await widget.chat.sendMessage(
@@ -152,12 +153,31 @@ class _ChatScreenState extends State<ChatScreen> {
         messageId: msg['id'] as String,
         file: file,
         durationSec: durationSec,
+        displayFilename: voiceName,
       );
       if (!mounted) return;
-      setState(() {
-        _messages = [..._messages, msg];
-      });
       await _boot(silent: true);
+    } on StateError catch (e) {
+      if (!mounted) return;
+      final text = e.message == 'e2e_keys_missing'
+          ? 'Sprachnachricht: Chat-Verschlüsselung nicht bereit.'
+          : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(text), duration: const Duration(seconds: 6)),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Sprachnachricht fehlgeschlagen'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sprachnachricht fehlgeschlagen: $e')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
       try {

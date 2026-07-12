@@ -69,7 +69,17 @@ class AiAssistantService {
       final res = await client.send(req);
       if (res.statusCode >= 400) {
         final body = await res.stream.bytesToString();
-        yield {'type': 'error', 'hint': body};
+        try {
+          final parsed = jsonDecode(body);
+          if (parsed is Map) {
+            yield {
+              'type': 'error',
+              'hint': parsed['message'] ?? parsed['error'] ?? parsed['hint'] ?? body,
+            };
+            return;
+          }
+        } catch (_) {}
+        yield {'type': 'error', 'hint': body.isNotEmpty ? body : 'HTTP ${res.statusCode}'};
         return;
       }
       var buf = '';

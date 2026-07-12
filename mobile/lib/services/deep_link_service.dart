@@ -31,7 +31,7 @@ class DeepLinkService {
         return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
       case 'shifts':
       case 'shift':
-        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 3);
+        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 4);
       case 'chat':
       case 'messages':
         return const WorkerAppRoute(tabIndex: 3);

@@ -116,7 +116,7 @@ class WorkerShellState extends State<WorkerShell> {
     }
     setState(() {
       _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
-      _tasksSubTab = route.tasksSubTab.clamp(0, 3);
+      _tasksSubTab = route.tasksSubTab.clamp(0, 4);
     });
     if (route.openChat && mounted) {
       widget.usage.trackFeature(

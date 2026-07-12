@@ -320,116 +320,133 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ],
             )
           : AppBar(title: const Text('Check-in')),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (name.isNotEmpty)
-              Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
-            if (_timesheetSummary != null) ...[
-              const SizedBox(height: 8),
-              Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => TimesheetsScreen(
-                          session: widget.session,
-                          attendance: widget.attendance,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (name.isNotEmpty)
+                      Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
+                    if (_timesheetSummary != null) ...[
+                      const SizedBox(height: 8),
+                      Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => TimesheetsScreen(
+                                  session: widget.session,
+                                  attendance: widget.attendance,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.schedule),
+                          label: const Text('Stundennachweis öffnen'),
                         ),
                       ),
-                    );
-                  },
-                  icon: const Icon(Icons.schedule),
-                  label: const Text('Stundennachweis öffnen'),
-                ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('GPS ohne NFC', style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Manuell ein- oder ausstempeln, wenn Sie bereits auf der Baustelle sind '
-                      '(ohne NFC-Karte am Gate).',
+                    ],
+                    const SizedBox(height: 12),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('GPS ohne NFC', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Manuell ein- oder ausstempeln, wenn Sie bereits auf der Baustelle sind '
+                              '(ohne NFC-Karte am Gate).',
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _busy ? null : () => _tapManualGps('check-in'),
+                                    icon: const Icon(Icons.login),
+                                    label: const Text('Ein'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _busy ? null : () => _tapManualGps('check-out'),
+                                    icon: const Icon(Icons.logout),
+                                    label: const Text('Aus'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _busy ? null : () => _tapManualGps('check-in'),
-                            icon: const Icon(Icons.login),
-                            label: const Text('Ein'),
-                          ),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('NFC am Bauzaun', style: Theme.of(context).textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            const Text(
+                              '1. Physische Karte am Gate-Reader (empfohlen bei schlechtem Netz).\n'
+                              '2. Oder NFC hier scannen — offline zwischengespeichert, später synchronisiert.',
+                            ),
+                            if (badgeId != null && badgeId.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text('Badge-ID: $badgeId', style: const TextStyle(fontFamily: 'monospace')),
+                            ],
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _busy ? null : () => _tapManualGps('check-out'),
-                            icon: const Icon(Icons.logout),
-                            label: const Text('Aus'),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('NFC am Bauzaun', style: Theme.of(context).textTheme.titleSmall),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '1. Physische Karte am Gate-Reader (empfohlen bei schlechtem Netz).\n'
-                      '2. Oder NFC hier scannen — offline zwischengespeichert, später synchronisiert.',
-                    ),
-                    if (badgeId != null && badgeId.isNotEmpty) ...[
+                    if (_lastDirection != null) ...[
                       const SizedBox(height: 8),
-                      Text('Badge-ID: $badgeId', style: const TextStyle(fontFamily: 'monospace')),
+                      Text('Letzte Aktion: $_lastDirection'),
                     ],
                   ],
                 ),
               ),
             ),
-            if (_lastDirection != null) ...[
-              const SizedBox(height: 8),
-              Text('Letzte Aktion: $_lastDirection'),
-            ],
-            const Spacer(),
-            SizedBox(
-              height: 120,
-              child: FilledButton.icon(
-                onPressed: _busy ? null : _tapAttendance,
-                icon: _busy
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Icon(Icons.nfc, size: 36),
-                label: Text(_busy ? 'Scanne…' : 'NFC — Check-in/out'),
-                style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 18)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : _tapAttendance,
+                  icon: _busy
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Icon(Icons.nfc, size: 28),
+                  label: Text(_busy ? 'Scanne…' : 'NFC — Check-in/out'),
+                  style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 16)),
+                ),
               ),
             ),
-            const SizedBox(height: 24),
             if (_status != null)
-              Text(_status!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
-            const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Text(
+                  _status!,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
           ],
         ),
       ),

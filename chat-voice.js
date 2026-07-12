@@ -398,16 +398,22 @@
     return 0;
   }
 
+  function parseE2eAttachmentFilename(e2eMeta) {
+    return String(parseE2eAttachmentMeta(e2eMeta)?.filename || "");
+  }
+
   function isAudioAttachment(filename, contentType, e2eMeta) {
+    const metaFilename = parseE2eAttachmentFilename(e2eMeta).toLowerCase();
     const e2eMime = parseE2eAttachmentMime(e2eMeta);
     const mime = String(contentType || e2eMime || "").toLowerCase().split(";")[0].trim();
     const name = String(filename || "").toLowerCase();
+    const voiceName = metaFilename || name;
     if (/^video\//i.test(mime)) return false;
     if (/^audio\//i.test(mime)) return true;
-    if (/^video\/webm$/i.test(mime) && /voice-/.test(name)) return true;
-    if (/voice-/.test(name) && /\.(webm|m4a|mp4|ogg|aac|wav|caf)(\.e2e)?$/i.test(name)) return true;
+    if (/^video\/webm$/i.test(mime) && /voice[-_]/.test(voiceName)) return true;
+    if (/voice[-_]/.test(voiceName) && /\.(webm|m4a|mp4|ogg|aac|wav|caf)(\.e2e)?$/i.test(voiceName)) return true;
     if ((name.endsWith(".e2e") || mime.includes("e2e")) && /^audio\//i.test(e2eMime)) return true;
-    return /\.(webm|m4a|ogg|mp3|wav|aac|caf)$/i.test(name);
+    return /\.(webm|m4a|ogg|mp3|wav|aac|caf)$/i.test(name) || /\.(webm|m4a|ogg|mp3|wav|aac|caf)$/i.test(metaFilename);
   }
 
   function isVoiceOnlyBody(body, voiceLabel) {

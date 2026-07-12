@@ -306,36 +306,46 @@ class ChatRepository {
     required String messageId,
     required File file,
     int? durationSec,
+    String? displayFilename,
   }) async {
     await ensureE2eReady(session);
     final workerId = _workerId ?? '';
+    final originalName = displayFilename ??
+        file.path.split(Platform.pathSeparator).last;
     if (_e2eAttachmentsRequired()) {
       final keys = await _chatRecipientKeys(session);
       if (keys.isEmpty) throw StateError('e2e_keys_missing');
       final bytes = await file.readAsBytes();
-      final filename = file.path.split(Platform.pathSeparator).last;
       final packed = await _e2e.encryptBlob(
         Uint8List.fromList(bytes),
         keys,
-        filename: filename,
-        mime: _guessAttachmentMime(filename),
+        filename: originalName,
+        mime: _guessAttachmentMime(originalName),
         durationSec: durationSec,
       );
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');
       await tempFile.writeAsBytes(packed['blob'] as Uint8List, flush: true);
-      return _api.postMultipart(
-        '/api/worker-app/chat/threads/$threadId/attachments',
-        bearerToken: session.bearer,
-        deviceId: session.deviceId,
-        file: tempFile,
-        fileField: 'file',
-        fields: <String, String>{
-          'message_id': messageId,
-          'e2e_meta': packed['meta'] as String,
-          'e2e_encrypted': '1',
-        },
-      );
+      try {
+        return await _api.postMultipart(
+          '/api/worker-app/chat/threads/$threadId/attachments',
+          bearerToken: session.bearer,
+          deviceId: session.deviceId,
+          file: tempFile,
+          fileField: 'file',
+          fields: <String, String>{
+            'message_id': messageId,
+            'e2e_meta': packed['meta'] as String,
+            'e2e_encrypted': '1',
+            'original_filename': originalName,
+          },
+          extraHeaders: const {'X-E2E-Attachment': '1'},
+        );
+      } finally {
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+      }
     }
     return _api.postMultipart(
       '/api/worker-app/chat/threads/$threadId/attachments',
@@ -343,7 +353,11 @@ class ChatRepository {
       deviceId: session.deviceId,
       file: file,
       fileField: 'file',
-      fields: <String, String>{'message_id': messageId},
+      fields: <String, String>{
+        'message_id': messageId,
+        if (displayFilename != null && displayFilename.isNotEmpty)
+          'original_filename': displayFilename,
+      },
     );
   }
 
