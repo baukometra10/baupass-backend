@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../core/api_client.dart';
 import '../../core/auth_repository.dart';
@@ -136,6 +137,35 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     });
   }
 
+  void _showFeedback(String message, {bool isError = false}) {
+    setState(() => _status = message);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
+        duration: const Duration(seconds: 5),
+      ),
+    );
+  }
+
+  String _attendanceErrorMessage(ApiException e) {
+    switch (e.errorCode) {
+      case 'outside_geofence':
+        return 'Außerhalb der Baustelle — Check-in nur vor Ort möglich.';
+      case 'site_location_unavailable':
+        return 'Baustelle hat keinen GPS-Standort — Admin muss Standort in Firmeneinstellungen setzen.';
+      case 'worker_geolocation_inaccurate':
+        return 'GPS zu ungenau — kurz warten und erneut versuchen.';
+      case 'device_not_bound':
+        return 'Gerät nicht freigegeben — bitte erneut anmelden.';
+      case 'network_error':
+        return 'Keine Verbindung zum Server — Internet prüfen.';
+      default:
+        return e.message ?? e.toString();
+    }
+  }
+
   Future<void> _tapManualGps(String direction) async {
     setState(() {
       _busy = true;
@@ -144,8 +174,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       final location = await widget.location.captureForAttendance();
       if (location == null) {
-        if (!mounted) return;
-        setState(() => _status = 'GPS erforderlich — Standortfreigabe aktivieren.');
+        _showFeedback('GPS erforderlich — Standortfreigabe aktivieren.', isError: true);
         return;
       }
       final clientEventId =
@@ -166,17 +195,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ? 'Bereits erfasst ($recordedDirection).'
             : 'Anwesenheit gespeichert: $recordedDirection';
       });
+      _showFeedback(_status!);
       await _loadTimesheetSummary();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      if (e.errorCode == 'outside_geofence') {
-        setState(() => _status = 'Außerhalb der Baustelle — Check-in nur vor Ort möglich.');
-        return;
+    } on LocationCaptureException catch (e) {
+      if (e.openSettings) {
+        await Geolocator.openLocationSettings();
       }
-      setState(() => _status = e.message ?? e.toString());
+      _showFeedback(e.message, isError: true);
+    } on ApiException catch (e) {
+      _showFeedback(_attendanceErrorMessage(e), isError: true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _status = e.toString());
+      _showFeedback(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -198,7 +227,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${scan.uid.hashCode.abs()}';
 
       setState(() => _status = 'Standort wird ermittelt…');
-      final location = await widget.location.captureForAttendance();
+      Map<String, dynamic>? location;
+      try {
+        location = await widget.location.captureForAttendance();
+      } on LocationCaptureException catch (e) {
+        if (e.openSettings) await Geolocator.openLocationSettings();
+        _showFeedback(e.message, isError: true);
+        return;
+      }
 
       setState(() => _status = 'Check-in wird gesendet…');
       try {
@@ -227,23 +263,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           return;
         }
         if (e.errorCode == 'worker_geolocation_required' && location == null) {
-          if (!mounted) return;
-          setState(() => _status = 'GPS erforderlich — Standortfreigabe aktivieren.');
+          _showFeedback('GPS erforderlich — Standortfreigabe aktivieren.', isError: true);
           return;
         }
         if (e.errorCode == 'device_not_bound') {
-          if (!mounted) return;
-          setState(() => _status = 'Gerät nicht freigegeben — bitte erneut anmelden.');
+          _showFeedback('Gerät nicht freigegeben — bitte erneut anmelden.', isError: true);
           return;
         }
-        rethrow;
+        _showFeedback(_attendanceErrorMessage(e), isError: true);
+        return;
       }
     } on NfcUnavailableException catch (e) {
-      if (!mounted) return;
-      setState(() => _status = e.message);
+      _showFeedback(e.message, isError: true);
     } catch (e) {
-      if (!mounted) return;
-      setState(() => _status = e.toString());
+      _showFeedback(e.toString(), isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }

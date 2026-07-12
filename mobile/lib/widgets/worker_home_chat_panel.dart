@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../core/api_client.dart';
 import '../core/session_store.dart';
 import '../core/tenant_branding.dart';
 import '../services/chat_repository.dart';
@@ -91,6 +92,27 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
       if (!mounted) return;
       setState(() => _messages = [..._messages, msg]);
       await _load(silent: true);
+    } on StateError catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.message == 'e2e_keys_missing'
+                ? 'Chat-Verschlüsselung nicht bereit.'
+                : e.toString(),
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.message ?? e.toString())),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Senden fehlgeschlagen: $e')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }

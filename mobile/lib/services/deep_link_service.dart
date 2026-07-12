@@ -46,7 +46,11 @@ class DeepLinkService {
 
   static String? accessTokenFromUri(Uri? uri) {
     if (uri == null) return null;
-    final access = (uri.queryParameters['access'] ?? '').trim();
+    final access = _firstNonEmpty([
+      uri.queryParameters['access'],
+      uri.queryParameters['accessToken'],
+      uri.queryParameters['token'],
+    ]);
     if (access.isEmpty) return null;
 
     final host = uri.host.toLowerCase();
@@ -58,6 +62,14 @@ class DeepLinkService {
       return access;
     }
     return null;
+  }
+
+  static String _firstNonEmpty(List<String?> values) {
+    for (final value in values) {
+      final text = (value ?? '').trim();
+      if (text.isNotEmpty) return text;
+    }
+    return '';
   }
 
   Future<Uri?> getInitialUri() async {

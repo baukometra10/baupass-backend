@@ -27,6 +27,7 @@ class _QrScanPanelState extends State<QrScanPanel> {
     formats: const [BarcodeFormat.qrCode],
   );
   bool _handled = false;
+  String? _cameraError;
 
   @override
   void dispose() {
@@ -41,12 +42,29 @@ class _QrScanPanelState extends State<QrScanPanel> {
         .firstWhere((v) => v.isNotEmpty, orElse: () => '');
     if (raw.isEmpty) return;
     final payload = QrActivationParser.parse(raw);
-    if (payload == null) return;
+    if (payload == null) {
+      if (mounted) {
+        setState(() => _cameraError = 'QR-Code nicht erkannt — Admin-QR erneut scannen.');
+      }
+      return;
+    }
     _handled = true;
+    setState(() => _cameraError = null);
     await widget.onScanned(payload);
     if (mounted) {
       await Future<void>.delayed(const Duration(milliseconds: 900));
       _handled = false;
+    }
+  }
+
+  String _errorText(MobileScannerException error) {
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        return 'Kamera blockiert — in Einstellungen für SUPPIX erlauben.';
+      case MobileScannerErrorCode.unsupported:
+        return 'Kamera auf diesem Gerät nicht unterstützt.';
+      default:
+        return 'Kamera-Fehler — App neu starten oder Manuell-Login nutzen.';
     }
   }
 
@@ -65,6 +83,21 @@ class _QrScanPanelState extends State<QrScanPanel> {
             MobileScanner(
               controller: _controller,
               onDetect: _onDetect,
+              errorBuilder: (context, error) {
+                return ColoredBox(
+                  color: Colors.black87,
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        _errorText(error),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
             Container(
               decoration: BoxDecoration(
@@ -101,10 +134,11 @@ class _QrScanPanelState extends State<QrScanPanel> {
               right: 16,
               bottom: 16,
               child: Text(
-                'QR-Code des Administrators in den Rahmen halten',
+                _cameraError ??
+                    'QR-Code des Administrators in den Rahmen halten',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white,
+                      color: _cameraError != null ? Colors.orangeAccent : Colors.white,
                       fontWeight: FontWeight.w600,
                       shadows: const [Shadow(color: Colors.black54, blurRadius: 8)],
                     ),

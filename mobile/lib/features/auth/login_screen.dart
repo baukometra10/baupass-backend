@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/config.dart';
 import '../../core/branding_store.dart';
 import '../../core/qr_activation_parser.dart';
 import '../../core/session_store.dart';
@@ -86,6 +87,11 @@ class _LoginScreenState extends State<LoginScreen> {
   TenantBranding get _visibleBranding =>
       _companyBranding.hasVisualIdentity ? _companyBranding : _shellBranding;
 
+  bool get _badApiBuild {
+    final url = AppConfig.apiBaseUrl.toLowerCase();
+    return url.contains('10.0.2.2') || url.contains('localhost') || url.contains('127.0.0.1');
+  }
+
   Future<void> _loginBadge({bool qrLaunch = false}) async {
     final badgeId = _badgeIdController.text.trim();
     final pin = _pinController.text.trim();
@@ -94,7 +100,12 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
     await _runLogin(() async {
-      final gps = await widget.location.captureForAttendance();
+      Map<String, dynamic>? gps;
+      try {
+        gps = await widget.location.captureForAttendance();
+      } on LocationCaptureException {
+        gps = null;
+      }
       final pushToken = await widget.push.tokenForDeviceBinding();
       return widget.auth.loginWithBadge(
         badgeId: badgeId,
@@ -207,6 +218,18 @@ class _LoginScreenState extends State<LoginScreen> {
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            if (_badApiBuild)
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    'Falsche Server-URL in dieser APK (${AppConfig.apiBaseUrl}). '
+                    'Bitte aktuelle APK von join.html installieren.',
+                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                ),
+              ),
             if (_companyBranding.hasVisualIdentity) ...[
               Card(
                 child: ListTile(
@@ -224,8 +247,9 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Öffne die Kamera und scanne den QR-Code vom Administrator. '
-                'Gerät (iPhone/Android) wird beim Login gebunden.',
+                'Nach APK-Installation: Admin-QR hier scannen. '
+                'Alternativ „Manuell“ → Einmal-Link einfügen (aus Browser kopieren). '
+                'Kamera-Berechtigung für SUPPIX erlauben.',
               ),
               const SizedBox(height: 16),
               QrScanPanel(

@@ -79,6 +79,7 @@
     <div class="actions">
       <a id="androidApkBtn" class="btn primary hidden" href="#" rel="noopener" download="suppix-worker.apk" data-joini18n="androidApk">Android: APK installieren</a>
       <a id="openAppBtn" class="btn secondary hidden" href="#" data-joini18n="openApp">In SUPPIX-App öffnen</a>
+      <button type="button" id="copyTokenBtn" class="btn secondary hidden" data-joini18n="copyToken">Einmal-Link kopieren (für Manuell-Login)</button>
       <a id="testFlightBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="testFlight">iPhone: TestFlight</a>
       <a id="playStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="playStore">Google Play</a>
       <a id="appStoreBtn" class="btn secondary hidden" href="#" rel="noopener" data-joini18n="appStore">App Store</a>
@@ -240,6 +241,19 @@
 
       if (accessToken) {
         document.getElementById("hint").textContent = window.joinT("hintActive");
+        setVisible("copyTokenBtn", true);
+        const copyBtn = document.getElementById("copyTokenBtn");
+        if (!copyBtn.dataset.bound) {
+          copyBtn.dataset.bound = "1";
+          copyBtn.addEventListener("click", async () => {
+            try {
+              await navigator.clipboard.writeText(accessToken);
+              showStatus(window.joinT("tokenCopied"));
+            } catch {
+              showStatus(window.joinT("copyFailed"), true);
+            }
+          });
+        }
       } else {
         showStatus(window.joinT("noToken"), true);
       }
@@ -307,6 +321,7 @@
           document.getElementById("statusBox").classList.add("error");
           document.getElementById("statusBox").style.background = "#fff7ed";
           document.getElementById("statusBox").style.color = "#9a3412";
+          setVisible("openAppBtn", true);
           return;
         }
         if (shouldTryNativeDeepLink(cfg, platform)) {

@@ -8,6 +8,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
+import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
@@ -112,6 +113,27 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages = [..._messages, msg];
       });
       await _boot(silent: true);
+    } on StateError catch (e) {
+      if (!mounted) return;
+      final text = e.message == 'e2e_keys_missing'
+          ? 'Chat-Verschlüsselung nicht bereit — Admin muss E2E-Schlüssel hinterlegen.'
+          : e.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(text), duration: const Duration(seconds: 6)),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      final text = e.errorCode == 'e2e_required'
+          ? 'Verschlüsselter Chat erforderlich — bitte kurz warten und erneut senden.'
+          : (e.message ?? e.toString());
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(text), duration: const Duration(seconds: 6)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nachricht fehlgeschlagen: $e')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }

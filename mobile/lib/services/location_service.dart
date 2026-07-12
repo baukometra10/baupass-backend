@@ -38,22 +38,21 @@ class LocationService {
 
   LocationSettings _captureSettings() {
     if (Platform.isAndroid) {
+      // One-shot GPS: no foreground service — avoids silent failures on some devices.
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 12),
-        foregroundNotificationConfig: _foregroundNotification,
+        timeLimit: const Duration(seconds: 25),
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 12),
-        allowBackgroundLocationUpdates: true,
+        timeLimit: const Duration(seconds: 25),
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 12),
+      timeLimit: Duration(seconds: 25),
     );
   }
 
@@ -74,15 +73,6 @@ class LocationService {
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
     }
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return permission;
-    }
-
-    // Android 11+: second prompt may offer «Allow all the time» for background GPS.
-    if (permission == LocationPermission.whileInUse) {
-      permission = await Geolocator.requestPermission();
-    }
     return permission;
   }
 
@@ -94,18 +84,48 @@ class LocationService {
     return Geolocator.getPositionStream(locationSettings: _watchSettings());
   }
 
+  /// Returns null when GPS unavailable; throws [LocationCaptureException] with user hint.
   Future<Map<String, dynamic>?> captureForAttendance() async {
-    final permission = await requestLocationPermission();
-    if (permission == LocationPermission.denied ||
-        permission == LocationPermission.deniedForever) {
-      return null;
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw LocationCaptureException(
+        'GPS ist am Handy aus — bitte Standort aktivieren.',
+        openSettings: true,
+      );
     }
 
-    final position = await Geolocator.getCurrentPosition(
-      locationSettings: _captureSettings(),
-    );
+    final permission = await requestLocationPermission();
+    if (permission == LocationPermission.denied) {
+      throw LocationCaptureException(
+        'Standortfreigabe fehlt — bitte „Beim Verwenden der App“ erlauben.',
+      );
+    }
+    if (permission == LocationPermission.deniedForever) {
+      throw LocationCaptureException(
+        'Standort dauerhaft blockiert — in Android-Einstellungen für SUPPIX erlauben.',
+        openSettings: true,
+      );
+    }
 
-    return _positionPayload(position);
+    try {
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: _captureSettings(),
+      );
+      return _positionPayload(position);
+    } on LocationServiceDisabledException {
+      throw LocationCaptureException(
+        'GPS ist aus — bitte Standortdienst aktivieren.',
+        openSettings: true,
+      );
+    } on PermissionDeniedException {
+      throw LocationCaptureException(
+        'Standortfreigabe verweigert — bitte erneut erlauben.',
+      );
+    } catch (e) {
+      throw LocationCaptureException(
+        'Standort konnte nicht ermittelt werden: $e',
+      );
+    }
   }
 
   Map<String, dynamic> _positionPayload(Position position) {
@@ -116,4 +136,14 @@ class LocationService {
       'capturedAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
+}
+
+class LocationCaptureException implements Exception {
+  LocationCaptureException(this.message, {this.openSettings = false});
+
+  final String message;
+  final bool openSettings;
+
+  @override
+  String toString() => message;
 }
