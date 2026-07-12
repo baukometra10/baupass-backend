@@ -23,6 +23,7 @@ import 'services/push_notification_service.dart';
 import 'services/tasks_repository.dart';
 import 'services/usage_repository.dart';
 import 'services/worker_cache.dart';
+import 'core/worker_auth_errors.dart';
 
 class WorkerApp extends StatefulWidget {
   const WorkerApp({super.key});
@@ -105,8 +106,14 @@ class _WorkerAppState extends State<WorkerApp> {
   Future<void> _boot() async {
     final existing = await _auth.loadSession();
     if (existing != null) {
-      _bindSession(existing);
-      _finishBoot(existing);
+      try {
+        await _auth.validateSession(existing);
+        _bindSession(existing);
+        _finishBoot(existing);
+      } on ApiException catch (e) {
+        await _auth.clearToken();
+        _finishBoot(null, error: formatWorkerAuthError(e));
+      }
       _listenDeepLinks();
       return;
     }
@@ -177,7 +184,8 @@ class _WorkerAppState extends State<WorkerApp> {
       _bindSession(session);
       _finishBoot(session);
     } catch (e) {
-      _finishBoot(null, error: e.toString());
+      final message = e is ApiException ? formatWorkerAuthError(e) : e.toString();
+      _finishBoot(null, error: message);
     }
   }
 
@@ -206,6 +214,8 @@ class _WorkerAppState extends State<WorkerApp> {
 
   void _onLogout() {
     _geofence.stop();
+    _auth.clearToken();
+    _offlineSync.bindSession(null);
     setState(() => _session = null);
   }
 

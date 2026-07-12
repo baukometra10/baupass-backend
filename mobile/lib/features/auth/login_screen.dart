@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/worker_auth_errors.dart';
 import '../../core/branding_store.dart';
 import '../../core/qr_activation_parser.dart';
 import '../../core/session_store.dart';
@@ -40,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _tokenController = TextEditingController();
   bool _loading = false;
   bool _manualMode = false;
+  bool _qrBadgeLaunch = false;
   String? _error;
   TenantBranding _shellBranding = TenantBranding.suppixShell;
   TenantBranding _companyBranding = TenantBranding.fallback;
@@ -152,6 +155,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (payload.hasBadgeId) {
         setState(() {
           _manualMode = true;
+          _qrBadgeLaunch = true;
           _badgeIdController.text = payload.badgeId!;
         });
         _error = 'Badge erkannt — bitte PIN eingeben.';
@@ -160,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'QR-Code nicht erkannt.');
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      _showAuthError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -177,10 +181,36 @@ class _LoginScreenState extends State<LoginScreen> {
       widget.onLoggedIn(session);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _error = e.toString());
+      _showAuthError(e);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _showAuthError(Object e) {
+    if (e is ApiException) {
+      if (e.errorCode == 'access_token_already_used') {
+        final badge = badgeIdFromAuthError(e);
+        setState(() {
+          _manualMode = true;
+          if (badge != null) _badgeIdController.text = badge;
+          _error = '${formatWorkerAuthError(e)} Badge-ID ist vorausgefüllt — PIN eingeben.';
+        });
+        return;
+      }
+      if (e.errorCode == 'access_token_expired' || e.errorCode == 'invalid_access_token') {
+        final badge = badgeIdFromAuthError(e);
+        setState(() {
+          _manualMode = true;
+          if (badge != null) _badgeIdController.text = badge;
+          _error = formatWorkerAuthError(e);
+        });
+        return;
+      }
+      setState(() => _error = formatWorkerAuthError(e));
+      return;
+    }
+    setState(() => _error = e.toString());
   }
 
   @override
@@ -315,7 +345,8 @@ class _LoginScreenState extends State<LoginScreen> {
                     await _applyCompanyBranding(preview);
                     await _loginToken(token);
                   } else {
-                    await _loginBadge(qrLaunch: true);
+                    await _loginBadge(qrLaunch: _qrBadgeLaunch);
+                    _qrBadgeLaunch = false;
                   }
                 },
           child: _loading

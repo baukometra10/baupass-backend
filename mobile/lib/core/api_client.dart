@@ -7,11 +7,12 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 
 class ApiException implements Exception {
-  ApiException(this.statusCode, this.errorCode, [this.message]);
+  ApiException(this.statusCode, this.errorCode, [this.message, this.payload]);
 
   final int statusCode;
   final String? errorCode;
   final String? message;
+  final Map<String, dynamic>? payload;
 
   @override
   String toString() => message ?? 'ApiException($statusCode, $errorCode)';
@@ -50,7 +51,10 @@ class ApiClient {
     return headers;
   }
 
-  void _maybeNotifySessionExpired(int statusCode, String? errorCode) {
+  void _maybeNotifySessionExpired(int statusCode, String? errorCode, String path) {
+    if (path.contains('/worker-app/login') || path.contains('/join-preview')) {
+      return;
+    }
     final reloginCodes = {
       'invalid_worker_session',
       'worker_session_expired',
@@ -64,6 +68,17 @@ class ApiClient {
         reloginCodes.contains(errorCode)) {
       onSessionExpired?.call();
     }
+  }
+
+  ApiException _apiException(int statusCode, Map<String, dynamic> decoded, String path) {
+    final errorCode = decoded['error'] as String?;
+    _maybeNotifySessionExpired(statusCode, errorCode, path);
+    return ApiException(
+      statusCode,
+      errorCode,
+      decoded['message'] as String?,
+      decoded,
+    );
   }
 
   Future<Map<String, dynamic>> postJson(
@@ -95,13 +110,7 @@ class ApiClient {
       if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
-      final errorCode = decoded['error'] as String?;
-      _maybeNotifySessionExpired(response.statusCode, errorCode);
-      throw ApiException(
-        response.statusCode,
-        errorCode,
-        decoded['message'] as String?,
-      );
+      throw _apiException(response.statusCode, decoded, path);
     }
     return decoded;
   }
@@ -135,13 +144,7 @@ class ApiClient {
       if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
-      final errorCode = decoded['error'] as String?;
-      _maybeNotifySessionExpired(response.statusCode, errorCode);
-      throw ApiException(
-        response.statusCode,
-        errorCode,
-        decoded['message'] as String?,
-      );
+      throw _apiException(response.statusCode, decoded, path);
     }
     return decoded;
   }
@@ -172,13 +175,7 @@ class ApiClient {
         final parsed = jsonDecode(response.body);
         if (parsed is Map<String, dynamic>) decoded = parsed;
       }
-      final errorCode = decoded['error'] as String?;
-      _maybeNotifySessionExpired(response.statusCode, errorCode);
-      throw ApiException(
-        response.statusCode,
-        errorCode,
-        decoded['message'] as String?,
-      );
+      throw _apiException(response.statusCode, decoded, path);
     }
     if (response.body.isEmpty) return <Map<String, dynamic>>[];
     final parsed = jsonDecode(response.body);
@@ -212,13 +209,7 @@ class ApiClient {
       if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
-      final errorCode = decoded['error'] as String?;
-      _maybeNotifySessionExpired(response.statusCode, errorCode);
-      throw ApiException(
-        response.statusCode,
-        errorCode,
-        decoded['message'] as String?,
-      );
+      throw _apiException(response.statusCode, decoded, path);
     }
     return decoded;
   }
@@ -280,13 +271,7 @@ class ApiClient {
       if (parsed is Map<String, dynamic>) decoded = parsed;
     }
     if (response.statusCode >= 400) {
-      final errorCode = decoded['error'] as String?;
-      _maybeNotifySessionExpired(response.statusCode, errorCode);
-      throw ApiException(
-        response.statusCode,
-        errorCode,
-        decoded['message'] as String?,
-      );
+      throw _apiException(response.statusCode, decoded, path);
     }
     return decoded;
   }

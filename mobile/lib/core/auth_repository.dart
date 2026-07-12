@@ -1,6 +1,7 @@
 import 'api_client.dart';
 import 'session_store.dart';
 import '../services/device_identity_service.dart';
+import 'worker_auth_errors.dart';
 
 class AuthRepository {
   AuthRepository(this._api, {SessionStore? sessionStore, DeviceIdentityService? deviceIdentity})
@@ -67,13 +68,27 @@ class AuthRepository {
     if (token == null || token.isEmpty) {
       throw ApiException(500, 'missing_token', 'Login response did not include a session token.');
     }
+    final deviceId = (body['deviceId'] as String?)?.trim();
+    final deviceBindingRequired = body['deviceBindingRequired'] == true;
+    if (deviceBindingRequired && (deviceId == null || deviceId.isEmpty)) {
+      throw ApiException(
+        500,
+        'device_binding_failed',
+        'Geräteregistrierung fehlgeschlagen — bitte App neu starten und erneut anmelden.',
+      );
+    }
     final session = WorkerSession(
       token: token,
       jwt: body['jwt'] as String?,
-      deviceId: body['deviceId'] as String?,
+      deviceId: deviceId,
     );
     await _sessionStore.save(session);
     return session;
+  }
+
+  /// Validates stored session against /me (device binding + expiry).
+  Future<Map<String, dynamic>> validateSession(WorkerSession session) {
+    return fetchProfile(session);
   }
 
   Future<Map<String, dynamic>> fetchProfile(WorkerSession session) {

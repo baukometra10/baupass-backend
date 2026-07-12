@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
+import '../../core/api_client.dart';
 import '../../core/session_store.dart';
+import '../../core/tenant_branding.dart';
+import '../../core/worker_auth_errors.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/attendance_repository.dart';
 import '../../services/branding_applier.dart';
@@ -144,6 +146,27 @@ class WorkerShellState extends State<WorkerShell> {
       setState(() => _branding = branding);
       await _brandingApplier.apply(branding);
       _startGeofence(me);
+    } on ApiException catch (e) {
+      if (isWorkerSessionAuthError(e.errorCode)) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(formatWorkerAuthError(e)), duration: const Duration(seconds: 6)),
+        );
+        widget.onLogout();
+        return;
+      }
+      final cached = await widget.workerCache.loadProfile();
+      if (!mounted) return;
+      if (cached != null) {
+        final branding = TenantBranding.fromMePayload(cached);
+        setState(() => _branding = branding);
+        await _brandingApplier.apply(branding);
+        _startGeofence(cached);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(formatWorkerAuthError(e)), duration: const Duration(seconds: 6)),
+        );
+      }
     } catch (_) {
       final cached = await widget.workerCache.loadProfile();
       if (!mounted) return;

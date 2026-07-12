@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/auth_repository.dart';
+import '../../core/api_client.dart';
 import '../../core/session_store.dart';
+import '../../core/worker_auth_errors.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/chat_repository.dart';
 import '../../services/digital_card_repository.dart';
@@ -53,6 +55,7 @@ class _HomeScreenState extends State<HomeScreen> {
   DynamicQrPayload? _dynamicQr;
   Timer? _qrTimer;
   int _unreadNotifications = 0;
+  String? _loadError;
 
   @override
   void initState() {
@@ -67,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _load() async {
+    setState(() => _loadError = null);
     try {
       final me = await widget.auth.fetchProfile(widget.session);
       await widget.workerCache.saveProfile(me);
@@ -74,9 +78,19 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _profile = me);
       await _refreshQr();
       await _refreshNotifications();
-    } catch (_) {
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _loadError = formatWorkerAuthError(e));
       final cached = await widget.workerCache.loadProfile();
       if (mounted) setState(() => _profile = cached);
+    } catch (_) {
+      final cached = await widget.workerCache.loadProfile();
+      if (mounted) {
+        setState(() {
+          _profile = cached;
+          _loadError = 'Profil konnte nicht geladen werden — nach unten ziehen zum Aktualisieren.';
+        });
+      }
     }
   }
 
@@ -234,6 +248,17 @@ class _HomeScreenState extends State<HomeScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
+            if (_loadError != null)
+              Card(
+                color: Theme.of(context).colorScheme.errorContainer,
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    _loadError!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                ),
+              ),
             if (worker != null)
               DigitalPassCard(
                 firstName: worker['firstName'] as String? ?? '',
