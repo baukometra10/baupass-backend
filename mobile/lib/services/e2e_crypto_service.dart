@@ -82,6 +82,12 @@ class E2eCryptoService {
     };
   }
 
+  Future<Map<String, dynamic>> ensureLocalIdentity({
+    required String entityType,
+    required String entityId,
+  }) =>
+      ensureIdentity(entityType: entityType, entityId: entityId);
+
   bool isE2eEnvelope(String value) {
     try {
       final parsed = jsonDecode(value);
