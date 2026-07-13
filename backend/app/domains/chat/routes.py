@@ -530,14 +530,41 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         ).fetchall()
         if len(workers) > 20000:
             return jsonify({"error": "broadcast_too_large", "message": "Zu viele Mitarbeiter für Broadcast."}), 413
-        from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+        from flask import g
+
+        worker_ids = [str(row["id"] or "").strip() for row in workers if str(row["id"] or "").strip()]
+        chat = ChatService(db)
+        messages_sent = chat.broadcast_to_workers(
+            company_id=cid,
+            worker_ids=worker_ids,
+            title=title,
+            message=message,
+            sender_user_id=str(g.current_user.get("id") or ""),
+        )
+        if send_email and messages_sent:
+            from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+
+            for wid in worker_ids:
+                try:
+                    notify_worker_mitteilung(
+                        db,
+                        wid,
+                        notif_type="company_broadcast",
+                        title=title,
+                        message=message,
+                        action_url="chat",
+                        push_tag="company-broadcast",
+                        send_email=True,
+                        skip_push=True,
+                    )
+                except Exception:
+                    logging.getLogger(__name__).exception("broadcast email failed worker %s", wid)
         try:
-            from flask import g
             from backend.server import log_audit
 
             log_audit(
                 "chat.broadcast",
-                f"Broadcast an {len(workers)} Mitarbeiter (excluded={len(excluded_ids)}, send_email={1 if send_email else 0})",
+                f"Broadcast an {messages_sent} Mitarbeiter (excluded={len(excluded_ids)}, send_email={1 if send_email else 0})",
                 target_type="company",
                 target_id=str(cid),
                 company_id=str(cid),
@@ -546,30 +573,19 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         except Exception:
             pass
 
-        notified = 0
-        for row in workers:
-            wid = str(row["id"] or "").strip()
-            if not wid:
-                continue
-            try:
-                notify_worker_mitteilung(
-                    db,
-                    wid,
-                    notif_type="company_broadcast",
-                    title=title,
-                    message=message,
-                    action_url="chat",
-                    push_tag="company-broadcast",
-                    send_email=send_email,
-                )
-                notified += 1
-            except Exception:
-                logging.getLogger(__name__).exception("broadcast notify failed worker %s", wid)
         try:
             db.commit()
         except Exception:
             pass
-        return jsonify({"ok": True, "notified": notified, "total": len(workers), "excluded": len(excluded_ids)})
+        return jsonify(
+            {
+                "ok": True,
+                "notified": messages_sent,
+                "messagesSent": messages_sent,
+                "total": len(worker_ids),
+                "excluded": len(excluded_ids),
+            }
+        )
 
     def _voice_call_error(exc: ValueError):
         code = str(exc)
@@ -713,6 +729,26 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             updated = service.end_call(call_id, role="admin", reason=str(data.get("reason") or "hangup"))
             get_db().commit()
             return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.get("/worker-app/chat/calls/<call_id>")
+    @require_worker_session
+    def worker_chat_call_get(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            return jsonify({"call": call})
         except ValueError as exc:
             return _voice_call_error(exc)
 

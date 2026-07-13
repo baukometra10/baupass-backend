@@ -279,33 +279,136 @@
       z-index: 1300;
       display: grid;
       place-items: center;
-      background: rgba(2, 6, 23, 0.72);
       padding: 1rem;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(6, 182, 212, 0.22), transparent 42%),
+        linear-gradient(180deg, #020617 0%, #0b1220 45%, #000 100%);
+      animation: voiceCallFadeIn 0.35s ease;
+    }
+    @keyframes voiceCallFadeIn {
+      from { opacity: 0; transform: scale(1.02); }
+      to { opacity: 1; transform: scale(1); }
     }
     .voice-call-overlay.hidden { display: none; }
-    .voice-call-card {
-      width: min(360px, 100%);
-      border-radius: 18px;
-      border: 1px solid rgba(94, 234, 212, 0.25);
-      background: linear-gradient(180deg, #0f172a, #111827);
-      padding: 1.2rem 1.1rem 1rem;
+    .voice-call-stage {
+      width: min(420px, 100%);
       text-align: center;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+      position: relative;
+      padding: 1.5rem 1.25rem 1.25rem;
     }
-    .voice-call-card h4 { margin: 0 0 0.35rem; font-size: 1.05rem; }
-    .voice-call-card p { margin: 0 0 1rem; color: rgba(226, 232, 240, 0.82); font-size: 0.9rem; }
-    .voice-call-actions { display: flex; gap: 0.65rem; justify-content: center; flex-wrap: wrap; }
-    .voice-call-actions button {
-      min-width: 110px;
+    .voice-call-secure-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.35rem 0.75rem;
       border-radius: 999px;
-      padding: 0.55rem 0.9rem;
+      border: 1px solid rgba(94, 234, 212, 0.35);
+      background: rgba(15, 23, 42, 0.65);
+      color: rgba(226, 232, 240, 0.92);
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 1.4rem;
+    }
+    .voice-call-rings {
+      position: absolute;
+      left: 50%;
+      top: 4.6rem;
+      width: 120px;
+      height: 120px;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+    .voice-call-rings span {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 1px solid rgba(45, 212, 191, 0.45);
+      animation: voiceCallPulse 2.2s ease-out infinite;
+    }
+    .voice-call-rings span:nth-child(2) { animation-delay: 0.45s; }
+    .voice-call-rings span:nth-child(3) { animation-delay: 0.9s; }
+    @keyframes voiceCallPulse {
+      0% { transform: scale(0.85); opacity: 0.65; }
+      100% { transform: scale(1.55); opacity: 0; }
+    }
+    .voice-call-avatar {
+      width: 120px;
+      height: 120px;
+      margin: 0 auto 1rem;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #ecfeff;
+      background: linear-gradient(145deg, rgba(6, 182, 212, 0.95), rgba(14, 116, 144, 0.55));
+      box-shadow: 0 18px 48px rgba(6, 182, 212, 0.28);
+      position: relative;
+      z-index: 1;
+    }
+    .voice-call-stage h4 {
+      margin: 0 0 0.35rem;
+      font-size: 1.45rem;
+      letter-spacing: -0.02em;
+    }
+    .voice-call-stage p {
+      margin: 0;
+      color: rgba(226, 232, 240, 0.82);
+      font-size: 0.95rem;
+    }
+    .voice-call-timer {
+      margin-top: 0.55rem !important;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.05rem !important;
+      color: #99f6e4 !important;
+      font-weight: 600;
+    }
+    .voice-call-timer.hidden { display: none; }
+    .voice-call-wave {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 0.28rem;
+      height: 34px;
+      margin: 1.1rem auto 0.2rem;
+    }
+    .voice-call-wave.hidden { display: none; }
+    .voice-call-wave span {
+      width: 4px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #5eead4, #0891b2);
+      animation: voiceCallWave 0.9s ease-in-out infinite alternate;
+    }
+    .voice-call-wave span:nth-child(2) { animation-delay: 0.08s; }
+    .voice-call-wave span:nth-child(3) { animation-delay: 0.16s; }
+    .voice-call-wave span:nth-child(4) { animation-delay: 0.24s; }
+    .voice-call-wave span:nth-child(5) { animation-delay: 0.32s; }
+    .voice-call-wave span:nth-child(6) { animation-delay: 0.4s; }
+    @keyframes voiceCallWave {
+      from { height: 8px; opacity: 0.45; }
+      to { height: 28px; opacity: 1; }
+    }
+    .voice-call-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1.35rem;
+    }
+    .voice-call-actions button {
+      min-width: 118px;
+      border-radius: 999px;
+      padding: 0.62rem 1rem;
       border: 1px solid rgba(255, 255, 255, 0.12);
       background: #1f2937;
       color: #f8fafc;
       cursor: pointer;
+      font-weight: 600;
     }
+    .voice-call-actions button.ghost { background: rgba(255, 255, 255, 0.08); }
     .voice-call-actions button.danger { background: #b91c1c; border-color: #ef4444; }
     .voice-call-actions button.primary { background: #059669; border-color: #34d399; }
+    .voice-call-actions button.hidden { display: none; }
     .chat-send-btn.is-recording { background: #b91c1c; color: #fff; }
     .chat-audio-player { display:flex; align-items:center; gap:0.45rem; min-width:min(220px, 100%); margin-top:0.25rem; }
     .chat-audio-play { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:inherit; cursor:pointer; display:grid; place-items:center; flex-shrink:0; }
@@ -400,16 +503,24 @@
     </div>
   </div>
   <div id="voiceCallOverlay" class="voice-call-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
-    <div class="voice-call-card">
+    <div class="voice-call-stage">
+      <div class="voice-call-secure-badge" data-aci18n="voiceCallSecure">🔒 Sicherer Sprachkanal · DTLS-SRTP</div>
+      <div class="voice-call-rings" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div id="voiceCallAvatar" class="voice-call-avatar" aria-hidden="true">AG</div>
       <h4 id="voiceCallTitle" data-aci18n="voiceCallTitle">Sprachanruf</h4>
       <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
+      <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
+      <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span>
+      </div>
       <div class="voice-call-actions">
+        <button type="button" id="voiceCallMuteBtn" class="ghost hidden" data-aci18n="voiceCallMute">Stumm</button>
         <button type="button" id="voiceCallHangupBtn" class="danger" data-aci18n="voiceCallHangup">Auflegen</button>
       </div>
     </div>
   </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260713voice1"></script>
+  <script src="/chat-voice-call.js?v=20260713voice2"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -1437,8 +1548,9 @@
           body: JSON.stringify({ title, message, company_id: companyId, excludeWorkerIds }),
         });
         closeBroadcastModal();
+        await loadThreads();
         setThreadMeta(
-          window.adminChatT("broadcastAllSuccess", { count: String(data.notified || data.total || targetCount || 0) }),
+          window.adminChatT("broadcastAllSuccess", { count: String(data.messagesSent || data.notified || data.total || targetCount || 0) }),
           { dynamic: true },
         );
       } catch (error) {
@@ -1455,11 +1567,64 @@
     });
 
     let activeVoiceCallSession = null;
-    function setVoiceCallOverlay(visible, statusText) {
+    let voiceCallTimerInterval = null;
+    let voiceCallStartedAt = 0;
+    function voiceCallInitials(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
+      return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "AG";
+    }
+    function formatVoiceCallDuration(ms) {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      const h = Math.floor(total / 3600);
+      const m = Math.floor((total % 3600) / 60);
+      const s = total % 60;
+      const mm = String(m).padStart(2, "0");
+      const ss = String(s).padStart(2, "0");
+      return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+    }
+    function stopVoiceCallTimer() {
+      if (voiceCallTimerInterval) clearInterval(voiceCallTimerInterval);
+      voiceCallTimerInterval = null;
+      voiceCallStartedAt = 0;
+      document.getElementById("voiceCallTimer")?.classList.add("hidden");
+      document.getElementById("voiceCallWave")?.classList.add("hidden");
+    }
+    function startVoiceCallTimer() {
+      stopVoiceCallTimer();
+      voiceCallStartedAt = Date.now();
+      const timerEl = document.getElementById("voiceCallTimer");
+      const waveEl = document.getElementById("voiceCallWave");
+      timerEl?.classList.remove("hidden");
+      waveEl?.classList.remove("hidden");
+      voiceCallTimerInterval = setInterval(() => {
+        if (!voiceCallStartedAt || !timerEl) return;
+        timerEl.textContent = formatVoiceCallDuration(Date.now() - voiceCallStartedAt);
+      }, 1000);
+      if (timerEl) timerEl.textContent = "00:00";
+    }
+    function setVoiceCallOverlay(visible, statusText, state) {
       const overlay = document.getElementById("voiceCallOverlay");
       const status = document.getElementById("voiceCallStatus");
+      const muteBtn = document.getElementById("voiceCallMuteBtn");
+      const rings = overlay?.querySelector(".voice-call-rings");
       if (status && statusText) status.textContent = statusText;
       overlay?.classList.toggle("hidden", !visible);
+      if (!visible) {
+        stopVoiceCallTimer();
+        muteBtn?.classList.add("hidden");
+        rings?.classList.remove("hidden");
+        return;
+      }
+      const connected = state === "connected" || state === "accepted";
+      if (connected) {
+        rings?.classList.add("hidden");
+        muteBtn?.classList.remove("hidden");
+        startVoiceCallTimer();
+      } else {
+        rings?.classList.remove("hidden");
+        muteBtn?.classList.add("hidden");
+        stopVoiceCallTimer();
+      }
     }
     function voiceCallStatusLabel(state) {
       const map = {
@@ -1483,8 +1648,9 @@
       }
       const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
       const name = row ? threadDisplayName(row) : currentWorkerId;
-      document.getElementById("voiceCallTitle").textContent = `${window.adminChatT("voiceCallTitle")} — ${name}`;
-      setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"));
+      document.getElementById("voiceCallTitle").textContent = name;
+      document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
+      setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing");
       activeVoiceCallSession = window.SUPPIXVoiceCall.createSession({
         api,
         role: "admin",
@@ -1494,7 +1660,7 @@
             activeVoiceCallSession = null;
             return;
           }
-          setVoiceCallOverlay(true, voiceCallStatusLabel(state));
+          setVoiceCallOverlay(true, voiceCallStatusLabel(state), state);
         },
         onError: (error) => {
           setVoiceCallOverlay(false);
@@ -1519,6 +1685,16 @@
         activeVoiceCallSession = null;
         setVoiceCallOverlay(false);
       })();
+    });
+    document.getElementById("voiceCallMuteBtn")?.addEventListener("click", () => {
+      if (!activeVoiceCallSession) return;
+      const muted = activeVoiceCallSession.toggleMute();
+      const btn = document.getElementById("voiceCallMuteBtn");
+      if (btn) {
+        btn.textContent = muted
+          ? (window.adminChatT("voiceCallUnmute") || "Ton an")
+          : (window.adminChatT("voiceCallMute") || "Stumm");
+      }
     });
 
     syncAdminComposeAction();

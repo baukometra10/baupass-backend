@@ -35,6 +35,11 @@ class DeepLinkService {
       case 'chat':
       case 'messages':
         return const WorkerAppRoute(tabIndex: 3);
+      case 'voice-call':
+        return WorkerAppRoute(
+          tabIndex: 3,
+          incomingCallId: uri.queryParameters['callId'] ?? uri.queryParameters['call_id'],
+        );
       case 'contract-sign':
         return WorkerAppRoute(tabIndex: 0, externalUrl: uri.queryParameters['url']);
       case 'profile':
@@ -101,6 +106,7 @@ class WorkerAppRoute {
     this.openChat = false,
     this.tasksSubTab = 0,
     this.externalUrl,
+    this.incomingCallId,
   });
 
   final int tabIndex;
@@ -108,4 +114,5 @@ class WorkerAppRoute {
   final bool openChat;
   final int tasksSubTab;
   final String? externalUrl;
+  final String? incomingCallId;
 }

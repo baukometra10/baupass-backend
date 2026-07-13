@@ -94,6 +94,7 @@ def notify_worker_mitteilung(
     action_url: str = "",
     push_tag: str | None = None,
     send_email: bool = True,
+    skip_push: bool = False,
 ) -> dict[str, Any]:
     """
     Store a Mitteilung in ``notifications``, optional e-mail, and push if subscribed.
@@ -114,16 +115,17 @@ def notify_worker_mitteilung(
             action_url=str(action_url or "")[:500],
         )
         tag = str(push_tag or notif_type or "notification").replace("_", "-")
-        push_sent = int(
-            _send_push_to_worker(
-                db,
-                str(worker_id),
-                str(title or "WorkPass")[:120],
-                str(message or "")[:240],
-                tag=tag,
+        if not skip_push:
+            push_sent = int(
+                _send_push_to_worker(
+                    db,
+                    str(worker_id),
+                    str(title or "WorkPass")[:120],
+                    str(message or "")[:240],
+                    tag=tag,
+                )
+                or 0
             )
-            or 0
-        )
         if send_email:
             email_sent = _send_worker_mitteilung_email(
                 db,

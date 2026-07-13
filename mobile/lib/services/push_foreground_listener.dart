@@ -11,15 +11,27 @@ class PushForegroundListener {
   static void attach({
     required GlobalKey<ScaffoldMessengerState> messengerKey,
     void Function(WorkerAppRoute route)? onRoute,
+    void Function(String callId)? onVoiceCall,
   }) {
     if (!FirebaseBootstrap.isReady) return;
 
     void openFromMessage(RemoteMessage message) {
+      final tag = (message.data['tag'] ?? '').trim();
+      final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
+      if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
+        onVoiceCall(callId);
+      }
       final route = PushNavigation.routeFromMessage(message);
       if (route != null && onRoute != null) onRoute(route);
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final tag = (message.data['tag'] ?? '').trim();
+      final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
+      if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
+        onVoiceCall(callId);
+        return;
+      }
       final title = message.notification?.title ??
           message.data['title'] ??
           BrandingStore.instance.value.displayName;

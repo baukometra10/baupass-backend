@@ -493,6 +493,48 @@ class ChatService:
             "attachments": [],
         }
 
+    def broadcast_to_workers(
+        self,
+        *,
+        company_id: str,
+        worker_ids: list[str],
+        title: str,
+        message: str,
+        sender_user_id: str,
+    ) -> int:
+        """Post one admin chat message per worker thread (plus push via create_message)."""
+        title = (title or "").strip()
+        message = (message or "").strip()
+        if not message:
+            return 0
+        if title and title.lower() not in {"mitteilung", "message from employer", "nachricht vom arbeitgeber"}:
+            body = f"{title}\n\n{message}"
+        else:
+            body = message
+        sent = 0
+        for worker_id in worker_ids:
+            try:
+                thread_id = self.get_or_create_worker_thread(
+                    company_id=company_id,
+                    worker_id=worker_id,
+                    subject="general",
+                    created_by_user_id=sender_user_id,
+                )
+                self.create_message(
+                    thread_id=thread_id,
+                    company_id=company_id,
+                    worker_id=worker_id,
+                    sender_type="admin",
+                    sender_user_id=sender_user_id,
+                    sender_worker_id=None,
+                    body=body,
+                    allow_plaintext_e2e_fallback=True,
+                )
+                sent += 1
+            except Exception:
+                continue
+        return sent
+
     def save_attachment(
         self,
         *,

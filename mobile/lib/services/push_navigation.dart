@@ -35,7 +35,11 @@ class PushNavigation {
         return const WorkerAppRoute(tabIndex: 4);
       case 'worker-chat':
       case 'voice-call':
-        return const WorkerAppRoute(tabIndex: 3);
+        final callId = (data['callId'] ?? data['call_id'] ?? '').trim();
+        return WorkerAppRoute(
+          tabIndex: 3,
+          incomingCallId: callId.isNotEmpty ? callId : null,
+        );
       case 'contract-sign':
         final signUrl = (data['signUrl'] ?? data['sign_url'] ?? '').trim();
         if (signUrl.isNotEmpty) {

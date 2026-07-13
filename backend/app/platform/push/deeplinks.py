@@ -16,7 +16,7 @@ _TAG_ROUTES: dict[str, str] = {
     "worker-document": "baupass://app/documents",
     "notification": "baupass://app/profile",
     "worker-chat": "baupass://app/chat",
-    "voice-call": "baupass://app/chat",
+    "voice-call": "baupass://app/voice-call",
     "contract-sign": "baupass://app/contract-sign",
 }
 
@@ -41,6 +41,10 @@ def pwa_path_for_tag(tag: str) -> str:
 
 def push_data_payload(*, tag: str, worker_id: str, extra: dict | None = None) -> dict[str, str]:
     route = _TAG_ROUTES.get(tag, "baupass://app/profile")
+    if tag == "voice-call" and extra:
+        call_id = str(extra.get("callId") or extra.get("call_id") or "").strip()
+        if call_id:
+            route = f"baupass://app/voice-call?callId={call_id}"
     data = {
         "tag": tag,
         "workerId": str(worker_id),

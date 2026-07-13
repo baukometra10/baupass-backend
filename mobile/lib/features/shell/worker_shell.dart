@@ -29,6 +29,8 @@ import '../chat/chat_screen.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
 import '../../services/deep_link_service.dart';
+import '../../services/voice_call_controller.dart';
+import '../voice_call/voice_call_overlay.dart';
 import '../../core/privacy_consent_store.dart';
 import '../legal/privacy_consent_dialog.dart';
 
@@ -81,10 +83,13 @@ class WorkerShellState extends State<WorkerShell> {
   int _offlinePending = 0;
   TenantBranding _branding = TenantBranding.fallback;
   final _brandingApplier = BrandingApplier();
+  late final VoiceCallController _voiceCall;
 
   @override
   void initState() {
     super.initState();
+    _voiceCall = VoiceCallController(repo: widget.chat.voiceCalls);
+    _voiceCall.bind(widget.session);
     _loadProfileAndGeofence();
     _refreshBadges();
     widget.usage.trackTab(
@@ -113,6 +118,10 @@ class WorkerShellState extends State<WorkerShell> {
     if (external.isNotEmpty) {
       launchUrl(Uri.parse(external), mode: LaunchMode.externalApplication);
       return;
+    }
+    final callId = (route.incomingCallId ?? '').trim();
+    if (callId.isNotEmpty) {
+      _voiceCall.wakeForCall(callId);
     }
     setState(() {
       _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
@@ -147,8 +156,13 @@ class WorkerShellState extends State<WorkerShell> {
     if (mounted) setState(() => _offlinePending = n);
   }
 
+  void wakeForVoiceCall(String callId) {
+    _voiceCall.wakeForCall(callId);
+  }
+
   @override
   void dispose() {
+    _voiceCall.dispose();
     widget.geofence.stop();
     super.dispose();
   }
@@ -284,7 +298,19 @@ class WorkerShellState extends State<WorkerShell> {
       child: Theme(
         data: _branding.themeData(base: Theme.of(context)),
         child: Scaffold(
-          body: IndexedStack(index: _index, children: pages),
+          body: Stack(
+            fit: StackFit.expand,
+            children: [
+              IndexedStack(index: _index, children: pages),
+              ListenableBuilder(
+                listenable: _voiceCall,
+                builder: (context, _) => VoiceCallOverlay(
+                  controller: _voiceCall,
+                  branding: _branding,
+                ),
+              ),
+            ],
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (i) {

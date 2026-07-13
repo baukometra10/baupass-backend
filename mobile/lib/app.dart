@@ -86,6 +86,13 @@ class _WorkerAppState extends State<WorkerApp> {
           });
         }
       },
+      onVoiceCall: (callId) {
+        if (_session != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _shellKey.currentState?.wakeForVoiceCall(callId);
+          });
+        }
+      },
     );
     _boot();
     _restoreBranding();

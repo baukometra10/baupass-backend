@@ -330,3 +330,76 @@ def test_worker_chat_send_persists_message(client_and_db):
         assert message["id"]
         rows = service.list_messages(thread_id, company_id)
         assert any(row.get("body") == "Antwort vom Mitarbeiter" for row in rows)
+
+
+def test_chat_broadcast_creates_messages(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "BroadcastChatCo")
+    worker_a = _create_worker_direct(db_path, company_id)
+    worker_b = "wrk-chat-2"
+    with closing(sqlite3.connect(db_path)) as db:
+        db.execute(
+            """
+            INSERT INTO workers (
+                id, company_id, subcompany_id, first_name, last_name, insurance_number, role, site, valid_until,
+                status, photo_data, badge_id, badge_id_lookup, badge_pin_hash, worker_type
+            ) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', 'worker')
+            """,
+            (
+                worker_b,
+                company_id,
+                "Max",
+                "Excluded",
+                "98 765432 B 666",
+                "Maler",
+                "Testsite",
+                "2026-12-31",
+                "aktiv",
+                "",
+                "CHT-200",
+                "CHT200",
+            ),
+        )
+        db.commit()
+
+    resp = client.post(
+        "/api/chat/broadcast",
+        json={
+            "company_id": company_id,
+            "title": "Team-Info",
+            "message": "Morgen Einsatz um 7 Uhr.",
+            "excludeWorkerIds": [worker_b],
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    payload = resp.get_json() or {}
+    assert payload.get("messagesSent") == 1
+    assert payload.get("total") == 1
+    assert payload.get("excluded") == 1
+
+    threads = client.get(f"/api/chat/threads?company_id={company_id}", headers=headers)
+    assert threads.status_code == 200
+    thread_rows = threads.get_json().get("threads") or []
+    assert any(str(row.get("workerId") or row.get("worker_id")) == worker_a for row in thread_rows)
+
+    thread_id = next(
+        str(row.get("id") or row.get("threadId"))
+        for row in thread_rows
+        if str(row.get("workerId") or row.get("worker_id")) == worker_a
+    )
+    msgs = client.get(
+        f"/api/chat/threads/{thread_id}/messages?company_id={company_id}&worker_id={worker_a}",
+        headers=headers,
+    )
+    assert msgs.status_code == 200
+    bodies = [str(row.get("body") or "") for row in (msgs.get_json().get("messages") or [])]
+    assert any("Morgen Einsatz um 7 Uhr." in body for body in bodies)
+
+    with closing(sqlite3.connect(db_path)) as db:
+        excluded_count = db.execute(
+            "SELECT COUNT(*) FROM chat_messages WHERE worker_id = ?",
+            (worker_b,),
+        ).fetchone()[0]
+    assert int(excluded_count) == 0

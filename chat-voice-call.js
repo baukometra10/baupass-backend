@@ -2,8 +2,18 @@
  * SUPPIX voice call — WebRTC audio + HTTP signaling (admin + worker web).
  */
 (function (global) {
-  const POLL_MS = 900;
+  const POLL_MS = 700;
   const RING_TIMEOUT_MS = 45000;
+  const AUDIO_CONSTRAINTS = {
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+      channelCount: 1,
+      sampleRate: 48000,
+    },
+    video: false,
+  };
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -72,11 +82,22 @@
       this.ringtone = null;
       this.ended = false;
       this.ringDeadline = 0;
+      this.muted = false;
+    }
+
+    toggleMute() {
+      this.muted = !this.muted;
+      if (this.localStream) {
+        this.localStream.getAudioTracks().forEach((track) => {
+          track.enabled = !this.muted;
+        });
+      }
+      return this.muted;
     }
 
     async _ensureMedia() {
       if (this.localStream) return this.localStream;
-      this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      this.localStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
       return this.localStream;
     }
 
@@ -93,7 +114,10 @@
 
     async _createPeer() {
       if (this.pc) return this.pc;
-      this.pc = new RTCPeerConnection({ iceServers: buildIceServers(this.iceServers) });
+      this.pc = new RTCPeerConnection({
+        iceServers: buildIceServers(this.iceServers),
+        iceCandidatePoolSize: 4,
+      });
       const stream = await this._ensureMedia();
       stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
       this.pc.ontrack = (event) => {

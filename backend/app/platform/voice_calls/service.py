@@ -19,7 +19,19 @@ def utc_now_iso() -> str:
 
 
 def ice_servers() -> list[dict[str, Any]]:
-    servers: list[dict[str, Any]] = [{"urls": "stun:stun.l.google.com:19302"}]
+    raw_json = (os.getenv("BAUPASS_ICE_SERVERS_JSON") or os.getenv("SUPPIX_ICE_SERVERS_JSON") or "").strip()
+    if raw_json:
+        try:
+            parsed = json.loads(raw_json)
+            if isinstance(parsed, list) and parsed:
+                return parsed
+        except Exception:
+            pass
+    servers: list[dict[str, Any]] = [
+        {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"},
+        {"urls": "stun:stun.cloudflare.com:3478"},
+    ]
     turn_url = (os.getenv("BAUPASS_TURN_URL") or os.getenv("SUPPIX_TURN_URL") or "").strip()
     if turn_url:
         entry: dict[str, Any] = {"urls": turn_url}
@@ -30,6 +42,10 @@ def ice_servers() -> list[dict[str, Any]]:
         if password:
             entry["credential"] = password
         servers.append(entry)
+        if turn_url.startswith("turn:") and not turn_url.startswith("turns:"):
+            tls_entry = dict(entry)
+            tls_entry["urls"] = "turns:" + turn_url[5:]
+            servers.append(tls_entry)
     return servers
 
 
@@ -107,6 +123,39 @@ class VoiceCallService:
             "endReason": row["end_reason"] if "end_reason" in keys else "",
         }
 
+    def _enrich_call(self, payload: dict[str, Any]) -> dict[str, Any]:
+        if not payload:
+            return payload
+        payload = dict(payload)
+        payload["iceServers"] = ice_servers()
+        caller_id = str(payload.get("callerUserId") or "").strip()
+        if caller_id:
+            try:
+                user = self.db.execute(
+                    "SELECT name, username FROM users WHERE id = ?",
+                    (caller_id,),
+                ).fetchone()
+                if user:
+                    name = str(user["name"] or user["username"] or "").strip()
+                    if name:
+                        payload["callerName"] = name
+            except Exception:
+                pass
+        company_id = str(payload.get("companyId") or "").strip()
+        if company_id:
+            try:
+                company = self.db.execute(
+                    "SELECT name FROM companies WHERE id = ?",
+                    (company_id,),
+                ).fetchone()
+                if company:
+                    cname = str(company["name"] or "").strip()
+                    if cname:
+                        payload["companyName"] = cname
+            except Exception:
+                pass
+        return payload
+
     def expire_stale_calls(self) -> int:
         cutoff = (datetime.now(timezone.utc) - timedelta(seconds=RING_TIMEOUT_SECONDS)).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self.db.execute(
@@ -180,7 +229,7 @@ class VoiceCallService:
                 self.db,
                 worker_id,
                 title="Eingehender Anruf",
-                body="Ihr Arbeitgeber ruft an — bitte in der App annehmen.",
+                body="Ihr Arbeitgeber ruft an — sicherer Sprachkanal.",
                 tag="voice-call",
                 company_id=company_id,
                 extra={"callId": call_id, "type": "voice_call_incoming"},
@@ -196,12 +245,13 @@ class VoiceCallService:
             )
         except Exception:
             pass
-        return {
-            **self._row_to_call(
-                self.db.execute("SELECT * FROM chat_voice_calls WHERE id = ?", (call_id,)).fetchone()
-            ),
-            "iceServers": ice_servers(),
-        }
+        return self._enrich_call(
+            {
+                **self._row_to_call(
+                    self.db.execute("SELECT * FROM chat_voice_calls WHERE id = ?", (call_id,)).fetchone()
+                ),
+            }
+        )
 
     def get_call(self, call_id: str) -> dict[str, Any]:
         self.expire_stale_calls()
@@ -209,8 +259,7 @@ class VoiceCallService:
         if not row:
             raise ValueError("call_not_found")
         payload = self._row_to_call(row)
-        payload["iceServers"] = ice_servers()
-        return payload
+        return self._enrich_call(payload)
 
     def get_incoming_for_worker(self, worker_id: str) -> dict[str, Any] | None:
         self.expire_stale_calls()
@@ -226,8 +275,7 @@ class VoiceCallService:
         if not row:
             return None
         payload = self._row_to_call(row)
-        payload["iceServers"] = ice_servers()
-        return payload
+        return self._enrich_call(payload)
 
     def accept_call(self, call_id: str, *, role: str) -> dict[str, Any]:
         call = self.get_call(call_id)

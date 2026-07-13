@@ -12,7 +12,6 @@ import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
-import '../../services/voice_call_repository.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -40,10 +39,6 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _messages = <Map<String, dynamic>>[];
   bool _silentRefresh = false;
   Timer? _pollTimer;
-  Timer? _voicePollTimer;
-  WorkerVoiceCallSession? _voiceSession;
-  bool _incomingDialogVisible = false;
-  String? _incomingCallId;
 
   @override
   void initState() {
@@ -55,18 +50,11 @@ class _ChatScreenState extends State<ChatScreen> {
         _boot(silent: true);
       }
     });
-    _voicePollTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      if (mounted && _voiceSession == null) {
-        unawaited(_pollIncomingVoiceCall());
-      }
-    });
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
-    _voicePollTimer?.cancel();
-    unawaited(_voiceSession?.end('dispose'));
     _message.removeListener(_onComposeChanged);
     _message.dispose();
     _recorder.dispose();
@@ -75,91 +63,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   void _onComposeChanged() {
     if (mounted) setState(() {});
-  }
-
-  Future<void> _pollIncomingVoiceCall() async {
-    if (_incomingDialogVisible || _voiceSession != null) return;
-    try {
-      final call = await widget.chat.voiceCalls.incomingCall(widget.session);
-      if (!mounted || call == null) return;
-      final callId = (call['id'] ?? '').toString();
-      if (callId.isEmpty || callId == _incomingCallId) return;
-      _incomingCallId = callId;
-      await _showIncomingVoiceCall(call);
-    } catch (_) {
-      /* ignore polling errors */
-    }
-  }
-
-  Future<void> _showIncomingVoiceCall(Map<String, dynamic> call) async {
-    if (_incomingDialogVisible || !mounted) return;
-    _incomingDialogVisible = true;
-    final accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Eingehender Anruf'),
-        content: const Text('Ihr Arbeitgeber ruft an.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Ablehnen'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Annehmen'),
-          ),
-        ],
-      ),
-    );
-    _incomingDialogVisible = false;
-    if (!mounted) return;
-    final callId = (call['id'] ?? '').toString();
-    if (accepted != true) {
-      await widget.chat.voiceCalls.declineCall(widget.session, callId);
-      _incomingCallId = null;
-      return;
-    }
-    _voiceSession = WorkerVoiceCallSession(
-      repo: widget.chat.voiceCalls,
-      session: widget.session,
-      call: call,
-      onState: (state) {
-        if (!mounted) return;
-        if (state == 'ended') {
-          setState(() {
-            _voiceSession = null;
-            _incomingCallId = null;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Anruf beendet')),
-          );
-        } else if (state == 'connected') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Sprachverbindung aktiv')),
-          );
-        }
-      },
-    );
-    await _voiceSession!.acceptAndConnect();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Sprachanruf'),
-        content: const Text('Verbunden — Gespräch läuft.'),
-        actions: [
-          FilledButton(
-            onPressed: () async {
-              await _voiceSession?.end('hangup');
-              if (ctx.mounted) Navigator.of(ctx).pop();
-            },
-            child: const Text('Auflegen'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _boot({bool silent = false}) async {

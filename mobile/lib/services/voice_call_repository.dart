@@ -10,9 +10,32 @@ class VoiceCallRepository {
 
   final ApiClient _api;
 
+  static const Map<String, dynamic> hdAudioConstraints = {
+    'audio': {
+      'echoCancellation': true,
+      'noiseSuppression': true,
+      'autoGainControl': true,
+      'channelCount': 1,
+      'sampleRate': 48000,
+    },
+    'video': false,
+  };
+
   Future<Map<String, dynamic>?> incomingCall(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/worker-app/chat/calls/incoming',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final call = data['call'];
+    if (call is Map<String, dynamic>) return call;
+    if (call is Map) return Map<String, dynamic>.from(call);
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> fetchCall(WorkerSession session, String callId) async {
+    final data = await _api.getJson(
+      '/api/worker-app/chat/calls/${Uri.encodeComponent(callId)}',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
     );
@@ -86,12 +109,21 @@ class VoiceCallRepository {
     if (raw is! List) {
       return const [
         {'urls': 'stun:stun.l.google.com:19302'},
+        {'urls': 'stun:stun1.l.google.com:19302'},
       ];
     }
     return raw.map((item) {
       if (item is Map) return Map<String, dynamic>.from(item);
       return {'urls': item.toString()};
     }).toList();
+  }
+
+  Map<String, dynamic> peerConfig(Map<String, dynamic> call) {
+    return {
+      'iceServers': iceServersFromCall(call),
+      'sdpSemantics': 'unified-plan',
+      'iceCandidatePoolSize': 4,
+    };
   }
 }
 
@@ -101,12 +133,14 @@ class WorkerVoiceCallSession {
     required this.session,
     required this.call,
     required this.onState,
+    this.onRemoteStream,
   });
 
   final VoiceCallRepository repo;
   final WorkerSession session;
   final Map<String, dynamic> call;
   final void Function(String state) onState;
+  final void Function(MediaStream stream)? onRemoteStream;
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
@@ -114,21 +148,22 @@ class WorkerVoiceCallSession {
   Timer? _pollTimer;
   String _lastSignalId = '';
   bool _ended = false;
+  bool _muted = false;
 
   String get callId => (call['id'] ?? call['callId'] ?? '').toString();
 
   Future<void> acceptAndConnect() async {
     onState('connecting');
     await repo.acceptCall(session, callId);
-    final config = {'iceServers': repo.iceServersFromCall(call)};
-    _pc = await createPeerConnection(config);
-    _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+    _pc = await createPeerConnection(repo.peerConfig(call));
+    _localStream = await navigator.mediaDevices.getUserMedia(VoiceCallRepository.hdAudioConstraints);
     for (final track in _localStream!.getTracks()) {
       await _pc!.addTrack(track, _localStream!);
     }
     _pc!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         _remoteStream = event.streams.first;
+        onRemoteStream?.call(_remoteStream!);
         onState('connected');
       }
     };
@@ -141,8 +176,32 @@ class WorkerVoiceCallSession {
         payload: candidate.toMap(),
       ));
     };
+    _pc!.onConnectionState = (state) {
+      if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
+        onState('connected');
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
+          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+        onState('ended');
+      }
+    };
     _startPolling();
-    onState('ringing');
+  }
+
+  Future<void> setMuted(bool muted) async {
+    _muted = muted;
+    final stream = _localStream;
+    if (stream == null) return;
+    for (final track in stream.getAudioTracks()) {
+      track.enabled = !muted;
+    }
+  }
+
+  Future<void> setSpeakerphone(bool enabled) async {
+    try {
+      await Helper.setSpeakerphoneOn(enabled);
+    } catch (_) {
+      /* platform may not support */
+    }
   }
 
   Future<void> _applySignal(Map<String, dynamic> signal) async {
@@ -155,7 +214,11 @@ class WorkerVoiceCallSession {
         : <String, dynamic>{};
     if (type == 'offer') {
       await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'offer'));
-      final answer = await pc.createAnswer();
+      final answer = await pc.createAnswer({
+        'offerToReceiveAudio': true,
+        'offerToReceiveVideo': false,
+        'voiceActivityDetection': true,
+      });
       await pc.setLocalDescription(answer);
       await repo.sendSignal(
         session,
@@ -184,7 +247,7 @@ class WorkerVoiceCallSession {
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 900), (_) async {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 700), (_) async {
       if (_ended) return;
       try {
         final signals = await repo.pollSignals(session, callId, sinceId: _lastSignalId);
@@ -221,4 +284,5 @@ class WorkerVoiceCallSession {
   }
 
   MediaStream? get remoteStream => _remoteStream;
+  bool get isMuted => _muted;
 }
