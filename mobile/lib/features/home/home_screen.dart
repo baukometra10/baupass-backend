@@ -273,23 +273,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 dynamicQr: _dynamicQr,
                 branding: branding,
               ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                _infoTile('Status', status),
-                const SizedBox(width: 8),
-                _infoTile('Standort', worker?['site'] as String? ?? '–'),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _infoTile('Firma', brandLabel),
-                const SizedBox(width: 8),
-                _infoTile('Gültig bis', worker?['validUntil'] as String? ?? '–'),
-              ],
-            ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             Card(
               child: ListTile(
                 leading: Icon(
