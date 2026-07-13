@@ -199,6 +199,67 @@
       background: #2563eb;
       border-color: #2563eb;
     }
+    .broadcast-exclude {
+      display: grid;
+      gap: 0.4rem;
+    }
+    .broadcast-exclude-label {
+      font-size: 0.78rem;
+      color: rgba(226, 232, 240, 0.82);
+    }
+    .broadcast-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      padding: 0.35rem;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(11, 18, 32, 0.85);
+      min-height: 44px;
+      align-items: center;
+    }
+    .broadcast-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.24rem 0.45rem;
+      border-radius: 999px;
+      background: rgba(96, 165, 250, 0.18);
+      border: 1px solid rgba(96, 165, 250, 0.28);
+      color: #dbeafe;
+      font-size: 0.78rem;
+      max-width: 100%;
+    }
+    .broadcast-chip button {
+      border: none;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      opacity: 0.85;
+      cursor: pointer;
+    }
+    .broadcast-chip button:hover { opacity: 1; }
+    .broadcast-suggest {
+      max-height: 160px;
+      overflow: auto;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(11, 18, 32, 0.92);
+    }
+    .broadcast-suggest.hidden { display: none; }
+    .broadcast-suggest button {
+      width: 100%;
+      text-align: left;
+      border: none;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0;
+      background: transparent;
+      padding: 0.55rem 0.65rem;
+      color: #f3f4f6;
+      cursor: pointer;
+    }
+    .broadcast-suggest button:hover { background: rgba(255, 255, 255, 0.06); }
+    .broadcast-suggest small { color: rgba(148, 163, 184, 0.9); }
     .chat-send-btn.is-recording { background: #b91c1c; color: #fff; }
     .chat-audio-player { display:flex; align-items:center; gap:0.45rem; min-width:min(220px, 100%); margin-top:0.25rem; }
     .chat-audio-play { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:inherit; cursor:pointer; display:grid; place-items:center; flex-shrink:0; }
@@ -279,6 +340,12 @@
       <h4 id="broadcastModalTitle" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</h4>
       <input id="broadcastTitle" type="text" data-aci18n="broadcastAllTitlePh" data-aci18n-attr="placeholder" placeholder="Betreff" />
       <textarea id="broadcastMessage" rows="4" data-aci18n="broadcastAllMessagePh" data-aci18n-attr="placeholder" placeholder="Nachricht an alle Mitarbeiter…"></textarea>
+      <div class="broadcast-exclude">
+        <div class="broadcast-exclude-label" data-aci18n="broadcastExcludeLabel">Ausnahme (nicht senden an)</div>
+        <input id="broadcastExcludeSearch" type="search" data-aci18n="broadcastExcludeSearchPh" data-aci18n-attr="placeholder" placeholder="Name oder #Badge suchen…" />
+        <div id="broadcastExcludeChips" class="broadcast-chip-row" aria-label="Ausnahmen"></div>
+        <div id="broadcastExcludeSuggest" class="broadcast-suggest hidden" aria-label="Vorschläge"></div>
+      </div>
       <div class="broadcast-modal-actions">
         <button type="button" id="broadcastCancelBtn">Abbrechen</button>
         <button type="button" id="broadcastSendBtn" class="primary" data-aci18n="send">Senden</button>
@@ -1279,6 +1346,17 @@
       if (!modal || !titleInput || !messageInput) return;
       titleInput.value = window.adminChatT("broadcastAllDefaultTitle") || "Mitteilung";
       messageInput.value = "";
+      try {
+        ensureBroadcastExclusionsState();
+        window.__broadcastExcludeWorkerIds.clear();
+        window.__broadcastExcludeWorkerMeta.clear();
+        const search = document.getElementById("broadcastExcludeSearch");
+        if (search) search.value = "";
+        renderBroadcastExcludeChips();
+        renderBroadcastExcludeSuggest();
+      } catch (e) {
+        // ignore
+      }
       modal.classList.remove("hidden");
       messageInput.focus();
     }
@@ -1288,19 +1366,22 @@
     async function sendBroadcastToAllWorkers() {
       const title = String(document.getElementById("broadcastTitle")?.value || "").trim();
       const message = String(document.getElementById("broadcastMessage")?.value || "").trim();
+      const excludeSet = window.__broadcastExcludeWorkerIds instanceof Set ? window.__broadcastExcludeWorkerIds : new Set();
+      const excludeWorkerIds = Array.from(excludeSet);
       if (!message) return;
       const workerCount = adminThreadRows.length;
-      const confirmText = window.adminChatT("broadcastAllConfirm", { count: String(workerCount || "alle") });
+      const targetCount = Math.max(0, workerCount - excludeWorkerIds.length);
+      const confirmText = window.adminChatT("broadcastAllConfirm", { count: String(targetCount || workerCount || "alle") });
       if (!window.confirm(confirmText)) return;
       try {
         const data = await api("/api/chat/broadcast", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title, message, company_id: companyId }),
+          body: JSON.stringify({ title, message, company_id: companyId, excludeWorkerIds }),
         });
         closeBroadcastModal();
         setThreadMeta(
-          window.adminChatT("broadcastAllSuccess", { count: String(data.notified || data.total || workerCount || 0) }),
+          window.adminChatT("broadcastAllSuccess", { count: String(data.notified || data.total || targetCount || 0) }),
           { dynamic: true },
         );
       } catch (error) {
@@ -1318,6 +1399,116 @@
     syncAdminComposeAction();
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
+
+    function broadcastWorkerLabel(row) {
+      const name = threadDisplayName(row);
+      const badge = row?.badge_id ? ` #${String(row.badge_id).trim()}` : "";
+      return `${name}${badge}`;
+    }
+
+    function ensureBroadcastExclusionsState() {
+      if (!(window.__broadcastExcludeWorkerIds instanceof Set)) window.__broadcastExcludeWorkerIds = new Set();
+      if (!(window.__broadcastExcludeWorkerMeta instanceof Map)) window.__broadcastExcludeWorkerMeta = new Map();
+    }
+
+    function renderBroadcastExcludeChips() {
+      ensureBroadcastExclusionsState();
+      const host = document.getElementById("broadcastExcludeChips");
+      if (!host) return;
+      const ids = Array.from(window.__broadcastExcludeWorkerIds);
+      if (!ids.length) {
+        host.innerHTML = `<span class="muted" style="font-size:0.82rem;">${escapeHtml(window.adminChatT("broadcastExcludeNone") || "Keine Ausnahmen gewählt.")}</span>`;
+        return;
+      }
+      host.innerHTML = ids
+        .map((id) => {
+          const meta = window.__broadcastExcludeWorkerMeta.get(id) || {};
+          const label = String(meta.label || id);
+          return `<span class="broadcast-chip" data-exclude-id="${escapeAttr(id)}"><span>${escapeHtml(label)}</span><button type="button" aria-label="remove">✕</button></span>`;
+        })
+        .join("");
+      host.querySelectorAll(".broadcast-chip button").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          const chip = event.target instanceof Element ? event.target.closest(".broadcast-chip") : null;
+          const id = chip?.getAttribute("data-exclude-id") || "";
+          if (!id) return;
+          window.__broadcastExcludeWorkerIds.delete(id);
+          window.__broadcastExcludeWorkerMeta.delete(id);
+          renderBroadcastExcludeChips();
+          renderBroadcastExcludeSuggest();
+        });
+      });
+    }
+
+    function renderBroadcastExcludeSuggest() {
+      ensureBroadcastExclusionsState();
+      const host = document.getElementById("broadcastExcludeSuggest");
+      const input = document.getElementById("broadcastExcludeSearch");
+      if (!host || !input) return;
+      const q = String(input.value || "").trim().toLowerCase();
+      if (!q) {
+        host.classList.add("hidden");
+        host.innerHTML = "";
+        return;
+      }
+      const rows = (Array.isArray(adminThreadRows) ? adminThreadRows : [])
+        .filter((row) => {
+          const wid = String(row?.worker_id || "").trim();
+          if (!wid) return false;
+          if (window.__broadcastExcludeWorkerIds.has(wid)) return false;
+          const hay = `${row?.first_name || ""} ${row?.last_name || ""} ${row?.badge_id || ""} ${row?.subject || ""}`.toLowerCase();
+          return hay.includes(q);
+        })
+        .slice(0, 10);
+      if (!rows.length) {
+        host.classList.add("hidden");
+        host.innerHTML = "";
+        return;
+      }
+      host.classList.remove("hidden");
+      host.innerHTML = rows
+        .map((row) => {
+          const wid = String(row.worker_id || "").trim();
+          const label = broadcastWorkerLabel(row);
+          return `<button type="button" data-add-exclude="${escapeAttr(wid)}">${escapeHtml(label)}<br/><small>${escapeHtml(window.adminChatT("broadcastExcludeClick") || "Zum Ausschließen klicken")}</small></button>`;
+        })
+        .join("");
+      host.querySelectorAll("[data-add-exclude]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const wid = btn.getAttribute("data-add-exclude") || "";
+          if (!wid) return;
+          const row = adminThreadRows.find((r) => String(r?.worker_id || "").trim() === wid);
+          window.__broadcastExcludeWorkerIds.add(wid);
+          window.__broadcastExcludeWorkerMeta.set(wid, { label: row ? broadcastWorkerLabel(row) : wid });
+          input.value = "";
+          renderBroadcastExcludeChips();
+          renderBroadcastExcludeSuggest();
+          input.focus();
+        });
+      });
+    }
+
+    document.getElementById("broadcastExcludeSearch")?.addEventListener("input", () => {
+      renderBroadcastExcludeSuggest();
+    });
+
+    document.getElementById("broadcastModal")?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeBroadcastModal();
+    });
+
+    const broadcastModalInner = document.getElementById("broadcastModal");
+    if (broadcastModalInner && !broadcastModalInner.dataset.excludeBound) {
+      broadcastModalInner.dataset.excludeBound = "1";
+      broadcastModalInner.addEventListener("click", (event) => {
+        const chip = event.target instanceof Element ? event.target.closest(".broadcast-chip") : null;
+        if (chip) return;
+        const suggest = event.target instanceof Element ? event.target.closest("#broadcastExcludeSuggest") : null;
+        if (suggest) return;
+        const input = document.getElementById("broadcastExcludeSearch");
+        if (input && event.target === input) return;
+        document.getElementById("broadcastExcludeSuggest")?.classList.add("hidden");
+      });
+    }
     void (async () => {
       await ensureAdminSession();
       await window.E2ECrypto?.ensureCryptoSessionReady?.();

@@ -500,17 +500,51 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": "message_required", "message": "Nachricht fehlt."}), 400
         message = message[:1000]
         send_email = str(data.get("send_email") or "false").strip().lower() in ("1", "true", "yes")
+        raw_excluded = data.get("excludeWorkerIds") or data.get("exclude_worker_ids") or []
+        if raw_excluded is None:
+            raw_excluded = []
+        if not isinstance(raw_excluded, list):
+            return jsonify({"error": "invalid_exclusions", "message": "excludeWorkerIds muss eine Liste sein."}), 400
+        excluded_ids = []
+        for item in raw_excluded[:400]:
+            wid = str(item or "").strip()
+            if not wid:
+                continue
+            excluded_ids.append(wid[:64])
+        excluded_ids = sorted(set(excluded_ids))
         db = get_db()
+        params = [cid]
+        exclusion_sql = ""
+        if excluded_ids:
+            exclusion_sql = " AND id NOT IN ({})".format(",".join(["?"] * len(excluded_ids)))
+            params.extend(excluded_ids)
         workers = db.execute(
-            """
+            f"""
             SELECT id FROM workers
             WHERE company_id = ?
               AND deleted_at IS NULL
               AND worker_type = 'worker'
+              {exclusion_sql}
             """,
-            (cid,),
+            tuple(params),
         ).fetchall()
+        if len(workers) > 20000:
+            return jsonify({"error": "broadcast_too_large", "message": "Zu viele Mitarbeiter für Broadcast."}), 413
         from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
+        try:
+            from flask import g
+            from backend.server import log_audit
+
+            log_audit(
+                "chat.broadcast",
+                f"Broadcast an {len(workers)} Mitarbeiter (excluded={len(excluded_ids)}, send_email={1 if send_email else 0})",
+                target_type="company",
+                target_id=str(cid),
+                company_id=str(cid),
+                actor=getattr(g, "current_user", None),
+            )
+        except Exception:
+            pass
 
         notified = 0
         for row in workers:
@@ -535,7 +569,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             db.commit()
         except Exception:
             pass
-        return jsonify({"ok": True, "notified": notified, "total": len(workers)})
+        return jsonify({"ok": True, "notified": notified, "total": len(workers), "excluded": len(excluded_ids)})
 
     register_blueprint_once(flask_app, chat_core_bp, url_prefix="/api")
     print("[baupass] domain/chat: worker-company chat routes registered", flush=True)
