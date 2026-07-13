@@ -1,0 +1,107 @@
+"""Voice call signaling tests."""
+from __future__ import annotations
+
+from backend import server
+
+
+def _admin_headers(client):
+    resp = client.post(
+        "/api/login",
+        json={"username": "superadmin", "password": "1234", "loginScope": "server-admin"},
+    )
+    assert resp.status_code == 200
+    return {"Authorization": f"Bearer {resp.get_json()['token']}"}
+
+
+def _create_company_and_worker(client, headers):
+    res = client.post(
+        "/api/companies",
+        json={
+            "name": "VoiceCallCo",
+            "contact": "boss",
+            "adminPassword": "1234",
+            "turnstilePassword": "1234",
+            "turnstileCount": 0,
+        },
+        headers=headers,
+    )
+    assert res.status_code == 200
+    company = res.get_json().get("company") or {}
+    company_id = company.get("id")
+    workers = client.get(f"/api/companies/{company_id}/workers", headers=headers)
+    worker_rows = workers.get_json().get("workers") or []
+    assert worker_rows
+    return company_id, worker_rows[0]["id"]
+
+
+def _worker_session_headers(client, worker_id):
+    res = client.post(
+        "/api/worker-app/login",
+        json={"workerId": worker_id, "pin": "1234", "platform": "android"},
+    )
+    assert res.status_code == 200
+    payload = res.get_json()
+    token = payload.get("token") or payload.get("bearer")
+    device_id = payload.get("deviceId") or payload.get("device_id") or "test-device"
+    return {"Authorization": f"Bearer {token}", "X-Device-Id": device_id}
+
+
+def test_admin_can_start_voice_call(client_and_db):
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    company_id, worker_id = _create_company_and_worker(client, headers)
+
+    preview = client.post(
+        "/api/superadmin/preview-session",
+        json={"company_id": company_id},
+        headers=headers,
+    )
+    assert preview.status_code == 200
+
+    res = client.post(
+        "/api/chat/calls",
+        json={"worker_id": worker_id},
+        headers=headers,
+    )
+    assert res.status_code == 200
+    call = res.get_json().get("call") or {}
+    assert call.get("id")
+    assert call.get("status") == "ringing"
+    assert call.get("workerId") == worker_id
+    assert isinstance(call.get("iceServers"), list)
+
+
+def test_worker_can_accept_and_exchange_signals(client_and_db):
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    company_id, worker_id = _create_company_and_worker(client, headers)
+    client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
+
+    start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
+    call_id = start.get_json()["call"]["id"]
+    worker_headers = _worker_session_headers(client, worker_id)
+
+    incoming = client.get("/api/worker-app/chat/calls/incoming", headers=worker_headers)
+    assert incoming.status_code == 200
+    assert (incoming.get_json().get("call") or {}).get("id") == call_id
+
+    accepted = client.post(f"/api/worker-app/chat/calls/{call_id}/accept", headers=worker_headers)
+    assert accepted.status_code == 200
+    assert accepted.get_json()["call"]["status"] == "accepted"
+
+    offer = client.post(
+        f"/api/chat/calls/{call_id}/signal",
+        json={"type": "offer", "payload": {"type": "offer", "sdp": "v=0"}},
+        headers=headers,
+    )
+    assert offer.status_code == 200
+
+    signals = client.get(f"/api/worker-app/chat/calls/{call_id}/signals", headers=worker_headers)
+    assert signals.status_code == 200
+    rows = signals.get_json().get("signals") or []
+    assert len(rows) == 1
+    assert rows[0]["signalType"] == "offer"
+
+    end = client.post(f"/api/chat/calls/{call_id}/end", json={"reason": "test"}, headers=headers)
+    assert end.status_code == 200
+    assert end.get_json()["call"]["status"] == "ended"

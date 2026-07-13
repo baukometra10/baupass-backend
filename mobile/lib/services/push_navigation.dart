@@ -34,6 +34,7 @@ class PushNavigation {
       case 'ops-notify':
         return const WorkerAppRoute(tabIndex: 4);
       case 'worker-chat':
+      case 'voice-call':
         return const WorkerAppRoute(tabIndex: 3);
       case 'contract-sign':
         final signUrl = (data['signUrl'] ?? data['sign_url'] ?? '').trim();

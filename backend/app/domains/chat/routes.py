@@ -571,5 +571,282 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             pass
         return jsonify({"ok": True, "notified": notified, "total": len(workers), "excluded": len(excluded_ids)})
 
+    def _voice_call_error(exc: ValueError):
+        code = str(exc)
+        status_map = {
+            "worker_not_found": 404,
+            "call_not_found": 404,
+            "worker_busy": 409,
+            "call_not_ringing": 409,
+            "call_not_active": 409,
+            "forbidden": 403,
+            "invalid_signal_type": 400,
+            "invalid_sender_role": 400,
+        }
+        messages = {
+            "worker_not_found": "Mitarbeiter nicht gefunden.",
+            "call_not_found": "Anruf nicht gefunden.",
+            "worker_busy": "Mitarbeiter ist bereits in einem Anruf.",
+            "call_not_ringing": "Anruf klingelt nicht mehr.",
+            "call_not_active": "Anruf ist nicht mehr aktiv.",
+            "forbidden": "Keine Berechtigung.",
+            "invalid_signal_type": "Ungueltiger Signaltyp.",
+            "invalid_sender_role": "Ungueltige Rolle.",
+        }
+        return jsonify({"error": code, "message": messages.get(code, code)}), status_map.get(code, 400)
+
+    def _assert_admin_call_access(call: dict, company_id: str) -> bool:
+        return str(call.get("companyId") or "") == str(company_id or "")
+
+    def _assert_worker_call_access(call: dict, worker_id: str) -> bool:
+        return str(call.get("workerId") or "") == str(worker_id or "")
+
+    @chat_core_bp.post("/chat/calls")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_start():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        worker_id = str(data.get("worker_id") or data.get("workerId") or "").strip()
+        if not worker_id:
+            return jsonify({"error": "worker_required"}), 400
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.start_call(
+                company_id=cid,
+                worker_id=worker_id,
+                caller_user_id=str(g.current_user.get("id") or ""),
+            )
+            get_db().commit()
+            return jsonify({"ok": True, "call": call})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.get("/chat/calls/<call_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_get(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            return jsonify({"call": call})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/chat/calls/<call_id>/signal")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_signal(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            signal = service.add_signal(
+                call_id,
+                sender_role="admin",
+                signal_type=str(data.get("type") or data.get("signalType") or ""),
+                payload=data.get("payload") or data.get("sdp") or data.get("candidate"),
+            )
+            get_db().commit()
+            return jsonify({"ok": True, "signal": signal})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.get("/chat/calls/<call_id>/signals")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_signals(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        since_id = str(request.args.get("since_id") or request.args.get("sinceId") or "").strip()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            signals = service.list_signals(call_id, for_role="admin", since_id=since_id)
+            return jsonify({"signals": signals, "call": call})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/chat/calls/<call_id>/end")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_end(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.end_call(call_id, role="admin", reason=str(data.get("reason") or "hangup"))
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.get("/worker-app/chat/calls/incoming")
+    @require_worker_session
+    def worker_chat_call_incoming():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        call = service.get_incoming_for_worker(worker_id)
+        return jsonify({"call": call})
+
+    @chat_core_bp.post("/worker-app/chat/calls/<call_id>/accept")
+    @require_worker_session
+    def worker_chat_call_accept(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.accept_call(call_id, role="worker")
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/worker-app/chat/calls/<call_id>/decline")
+    @require_worker_session
+    def worker_chat_call_decline(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.decline_call(call_id, role="worker")
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/worker-app/chat/calls/<call_id>/signal")
+    @require_worker_session
+    def worker_chat_call_signal(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            signal = service.add_signal(
+                call_id,
+                sender_role="worker",
+                signal_type=str(data.get("type") or data.get("signalType") or ""),
+                payload=data.get("payload") or data.get("sdp") or data.get("candidate"),
+            )
+            get_db().commit()
+            return jsonify({"ok": True, "signal": signal})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.get("/worker-app/chat/calls/<call_id>/signals")
+    @require_worker_session
+    def worker_chat_call_signals(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        since_id = str(request.args.get("since_id") or request.args.get("sinceId") or "").strip()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            signals = service.list_signals(call_id, for_role="worker", since_id=since_id)
+            return jsonify({"signals": signals, "call": call})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/worker-app/chat/calls/<call_id>/end")
+    @require_worker_session
+    def worker_chat_call_end(call_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_worker_call_access(call, worker_id):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.end_call(call_id, role="worker", reason=str(data.get("reason") or "hangup"))
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
     register_blueprint_once(flask_app, chat_core_bp, url_prefix="/api")
     print("[baupass] domain/chat: worker-company chat routes registered", flush=True)

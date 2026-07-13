@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../core/api_client.dart';
 import '../core/session_store.dart';
 import 'e2e_crypto_service.dart';
+import 'voice_call_repository.dart';
 
 class ChatRepository {
   ChatRepository(this._api, {E2eCryptoService? e2e}) : _e2e = e2e ?? E2eCryptoService();
@@ -380,4 +381,8 @@ class ChatRepository {
     }
     return bytes;
   }
+
+  VoiceCallRepository? _voiceCalls;
+
+  VoiceCallRepository get voiceCalls => _voiceCalls ??= VoiceCallRepository(_api);
 }

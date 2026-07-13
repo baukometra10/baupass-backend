@@ -260,6 +260,52 @@
     }
     .broadcast-suggest button:hover { background: rgba(255, 255, 255, 0.06); }
     .broadcast-suggest small { color: rgba(148, 163, 184, 0.9); }
+    .chat-voice-call-btn {
+      border-radius: 999px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(94, 234, 212, 0.35);
+      background: rgba(15, 118, 110, 0.25);
+      color: #ecfeff;
+      cursor: pointer;
+    }
+    .chat-voice-call-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .voice-call-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1300;
+      display: grid;
+      place-items: center;
+      background: rgba(2, 6, 23, 0.72);
+      padding: 1rem;
+    }
+    .voice-call-overlay.hidden { display: none; }
+    .voice-call-card {
+      width: min(360px, 100%);
+      border-radius: 18px;
+      border: 1px solid rgba(94, 234, 212, 0.25);
+      background: linear-gradient(180deg, #0f172a, #111827);
+      padding: 1.2rem 1.1rem 1rem;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    .voice-call-card h4 { margin: 0 0 0.35rem; font-size: 1.05rem; }
+    .voice-call-card p { margin: 0 0 1rem; color: rgba(226, 232, 240, 0.82); font-size: 0.9rem; }
+    .voice-call-actions { display: flex; gap: 0.65rem; justify-content: center; flex-wrap: wrap; }
+    .voice-call-actions button {
+      min-width: 110px;
+      border-radius: 999px;
+      padding: 0.55rem 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1f2937;
+      color: #f8fafc;
+      cursor: pointer;
+    }
+    .voice-call-actions button.danger { background: #b91c1c; border-color: #ef4444; }
+    .voice-call-actions button.primary { background: #059669; border-color: #34d399; }
     .chat-send-btn.is-recording { background: #b91c1c; color: #fff; }
     .chat-audio-player { display:flex; align-items:center; gap:0.45rem; min-width:min(220px, 100%); margin-top:0.25rem; }
     .chat-audio-play { width:32px; height:32px; border-radius:50%; border:none; background:rgba(255,255,255,.12); color:inherit; cursor:pointer; display:grid; place-items:center; flex-shrink:0; }
@@ -309,6 +355,7 @@
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
               <div id="chatHeadActions" class="chat-head-actions hidden">
+                <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" title="Anrufen" aria-label="Anrufen">📞</button>
                 <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
                 <button type="button" id="chatClearAllBtn" data-aci18n="chatClearAll">Chat leeren</button>
               </div>
@@ -352,7 +399,17 @@
       </div>
     </div>
   </div>
+  <div id="voiceCallOverlay" class="voice-call-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
+    <div class="voice-call-card">
+      <h4 id="voiceCallTitle" data-aci18n="voiceCallTitle">Sprachanruf</h4>
+      <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
+      <div class="voice-call-actions">
+        <button type="button" id="voiceCallHangupBtn" class="danger" data-aci18n="voiceCallHangup">Auflegen</button>
+      </div>
+    </div>
+  </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
+  <script src="/chat-voice-call.js?v=20260713voice1"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -1396,6 +1453,74 @@
     document.getElementById("broadcastModal")?.addEventListener("click", (event) => {
       if (event.target instanceof Element && event.target.id === "broadcastModal") closeBroadcastModal();
     });
+
+    let activeVoiceCallSession = null;
+    function setVoiceCallOverlay(visible, statusText) {
+      const overlay = document.getElementById("voiceCallOverlay");
+      const status = document.getElementById("voiceCallStatus");
+      if (status && statusText) status.textContent = statusText;
+      overlay?.classList.toggle("hidden", !visible);
+    }
+    function voiceCallStatusLabel(state) {
+      const map = {
+        dialing: window.adminChatT("voiceCallDialing"),
+        ringing: window.adminChatT("voiceCallRinging"),
+        accepted: window.adminChatT("voiceCallConnected"),
+        connected: window.adminChatT("voiceCallConnected"),
+        ended: window.adminChatT("voiceCallEnded"),
+      };
+      return map[state] || state || "";
+    }
+    async function startVoiceCallToCurrentWorker() {
+      if (!currentWorkerId) return;
+      if (!window.SUPPIXVoiceCall?.isSupported?.()) {
+        setThreadMeta(window.adminChatT("voiceCallUnsupported"), { dynamic: true });
+        return;
+      }
+      if (activeVoiceCallSession) {
+        await activeVoiceCallSession.end("busy");
+        activeVoiceCallSession = null;
+      }
+      const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
+      const name = row ? threadDisplayName(row) : currentWorkerId;
+      document.getElementById("voiceCallTitle").textContent = `${window.adminChatT("voiceCallTitle")} — ${name}`;
+      setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"));
+      activeVoiceCallSession = window.SUPPIXVoiceCall.createSession({
+        api,
+        role: "admin",
+        onState: (state) => {
+          if (state === "ended") {
+            setVoiceCallOverlay(false);
+            activeVoiceCallSession = null;
+            return;
+          }
+          setVoiceCallOverlay(true, voiceCallStatusLabel(state));
+        },
+        onError: (error) => {
+          setVoiceCallOverlay(false);
+          activeVoiceCallSession = null;
+          setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
+        },
+      });
+      try {
+        await activeVoiceCallSession.startOutgoing({ workerId: currentWorkerId, companyId });
+      } catch (error) {
+        setVoiceCallOverlay(false);
+        activeVoiceCallSession = null;
+        setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
+      }
+    }
+    document.getElementById("chatVoiceCallBtn")?.addEventListener("click", () => {
+      void startVoiceCallToCurrentWorker();
+    });
+    document.getElementById("voiceCallHangupBtn")?.addEventListener("click", () => {
+      void (async () => {
+        if (activeVoiceCallSession) await activeVoiceCallSession.end("hangup");
+        activeVoiceCallSession = null;
+        setVoiceCallOverlay(false);
+      })();
+    });
+
     syncAdminComposeAction();
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();

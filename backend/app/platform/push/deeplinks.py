@@ -16,6 +16,7 @@ _TAG_ROUTES: dict[str, str] = {
     "worker-document": "baupass://app/documents",
     "notification": "baupass://app/profile",
     "worker-chat": "baupass://app/chat",
+    "voice-call": "baupass://app/chat",
     "contract-sign": "baupass://app/contract-sign",
 }
 
@@ -28,6 +29,7 @@ _PWA_TAG_PATHS: dict[str, str] = {
     "payroll-document": "/emp-app.html#documents",
     "worker-document": "/emp-app.html#documents",
     "worker-chat": "/emp-app.html#chat",
+    "voice-call": "/emp-app.html#chat",
     "contract-sign": "/emp-app.html#documents",
     "notification": "/emp-app.html",
 }
