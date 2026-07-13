@@ -143,6 +143,7 @@ const PUSH_TAG_URLS = {
   "leave-approved": "/emp-app.html#leave",
   "leave-denied": "/emp-app.html#leave",
   "worker-chat": "/emp-app.html#chat",
+  "voice-call": "/emp-app.html#chat",
   "contract-sign": "/emp-app.html#documents",
 };
 
@@ -158,6 +159,7 @@ function resolvePushTargetUrl(data, tag) {
   if (route.startsWith("baupass://app/")) {
     const routeMap = {
       chat: "/emp-app.html#chat",
+      "voice-call": "/emp-app.html#chat",
       deployment: "/emp-app.html#einsatzplan",
       documents: "/emp-app.html#documents",
       tasks: "/emp-app.html#leave",
@@ -187,7 +189,7 @@ function buildPushNotificationOptions(data, tag, targetUrl) {
     dir: "auto",
     silent: false,
     renotify: true,
-    requireInteraction: logicalTag === "worker-chat" || logicalTag.startsWith("leave-"),
+    requireInteraction: logicalTag === "worker-chat" || logicalTag === "voice-call" || logicalTag.startsWith("leave-"),
     vibrate: [200, 100, 200],
     timestamp: Number(data.timestamp) || Date.now(),
     data: { url: targetUrl, tag: logicalTag },

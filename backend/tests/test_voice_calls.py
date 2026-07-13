@@ -105,3 +105,48 @@ def test_worker_can_accept_and_exchange_signals(client_and_db):
     end = client.post(f"/api/chat/calls/{call_id}/end", json={"reason": "test"}, headers=headers)
     assert end.status_code == 200
     assert end.get_json()["call"]["status"] == "ended"
+
+
+def test_worker_can_fetch_call_by_id(client_and_db):
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    company_id, worker_id = _create_company_and_worker(client, headers)
+    client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
+
+    start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
+    call_id = start.get_json()["call"]["id"]
+    worker_headers = _worker_session_headers(client, worker_id)
+
+    fetched = client.get(f"/api/worker-app/chat/calls/{call_id}", headers=worker_headers)
+    assert fetched.status_code == 200
+    call = fetched.get_json().get("call") or {}
+    assert call.get("id") == call_id
+    assert call.get("status") == "ringing"
+    assert isinstance(call.get("iceServers"), list)
+
+
+def test_voice_call_push_deeplink_includes_call_id():
+    from backend.app.platform.push.deeplinks import push_data_payload
+
+    payload = push_data_payload(tag="voice-call", worker_id="wrk-1", extra={"callId": "vc-test-1"})
+    assert payload["tag"] == "voice-call"
+    assert "callId=vc-test-1" in payload["route"]
+    assert payload["callId"] == "vc-test-1"
+
+
+def test_ice_servers_includes_turns_when_turn_configured(monkeypatch):
+    from backend.app.platform.voice_calls import service as voice_service
+
+    monkeypatch.setenv("SUPPIX_TURN_URL", "turn:turn.example.com:3478")
+    monkeypatch.setenv("SUPPIX_TURN_USERNAME", "user")
+    monkeypatch.setenv("SUPPIX_TURN_PASSWORD", "pass")
+    servers = voice_service.ice_servers()
+    urls = []
+    for item in servers:
+        raw = item.get("urls")
+        if isinstance(raw, list):
+            urls.extend(raw)
+        else:
+            urls.append(str(raw))
+    assert any(str(u).startswith("turn:") for u in urls)
+    assert any(str(u).startswith("turns:") for u in urls)

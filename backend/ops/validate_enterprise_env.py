@@ -162,6 +162,25 @@ def _check_env() -> dict[str, Any]:
     if fcm_v1 and _present("FCM_V1_ONLY"):
         add("FCM_V1_ONLY", ok=True, severity="recommended", value_hint="enabled")
 
+    def _turn_configured() -> bool:
+        if _present("ICE_SERVERS_JSON"):
+            raw = platform_env("ICE_SERVERS_JSON")
+            try:
+                parsed = json.loads(raw)
+                return isinstance(parsed, list) and len(parsed) > 0
+            except Exception:
+                return False
+        return _present("TURN_URL") and _present("TURN_USERNAME") and _present("TURN_PASSWORD")
+
+    turn_ok = _turn_configured()
+    add(
+        "WebRTC TURN (voice calls)",
+        ok=turn_ok,
+        severity="recommended",
+        hint="Set SUPPIX_TURN_URL + USERNAME + PASSWORD or SUPPIX_ICE_SERVERS_JSON for reliable voice on mobile networks.",
+        value_hint="configured" if turn_ok else "stun-only",
+    )
+
     add(
         "SUPPIX_WORKER_APK_URL",
         ok=_present("SUPPIX_WORKER_APK_URL"),

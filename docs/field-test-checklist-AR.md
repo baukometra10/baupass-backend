@@ -119,11 +119,57 @@ flutter run --dart-define=BAUPASS_API_URL=https://YOUR-APP.up.railway.app
 
 ---
 
+## 7) Admin v2 — إرسال جماعي + شات (~3 دقائق)
+
+1. `{BASE}/admin-v2/chat.html` → سجّل دخول مدير الشركة
+2. **Alle Mitarbeiter benachrichtigen** → رسالة تجريبية
+3. (اختياري) استثنِ موظفاً واحداً عبر **Ausnahme**
+4. تحقق أن الرسالة تظهر في **قائمة الشات** وداخل محادثة كل موظف
+5. على تطبيق Flutter → تبويب **Chat** → نفس الرسالة + إشعار push
+
+- [ ] رسالة النجاح تعرض العدد الصحيح
+- [ ] الرسالة ظاهرة عند صاحب العمل
+- [ ] الرسالة ظاهرة عند الموظف (بعد APK جديد)
+
+---
+
+## 8) مكالمة صوتية — Admin → موظف (~5 دقائق)
+
+**متطلبات:** APK/iOS جديد بعد آخر push، ويفضل TURN على Railway:
+
+```env
+SUPPIX_TURN_URL=turn:global.turn.metered.ca:443?transport=tcp
+SUPPIX_TURN_USERNAME=...
+SUPPIX_TURN_PASSWORD=...
+```
+
+تحقق:
+
+```powershell
+python backend/ops/validate_enterprise_env.py --base-url $BASE
+```
+
+- [ ] `WebRTC TURN (voice calls)` = configured (أو stun-only للاختبار الأولي)
+- [ ] `FCM` = OK (للرنين عبر push)
+
+**الاختبار:**
+
+1. Admin v2 Chat → اختر موظفاً → 📞
+2. على هاتف الموظف: **شاشة اتصال كاملة** (حتى خارج تبويب Chat)
+3. **Annehmen** → تحدث → كتم / مكبر صوت → **Auflegen**
+
+- [ ] يرن عند الموظف خلال ~2–5 ثوانٍ
+- [ ] الصوت واضح في الاتجاهين
+- [ ] إنهاء المكالمة من أي طرف يغلق الشاشة
+
+---
+
 ## النتيجة
 
 | الحالة | المعنى |
 |--------|--------|
 | كل ✅ في 1–4 | **MVP جاهز** — التالي: GPS ثم Firebase |
+| كل ✅ في 1–4 + 7–8 | **Chat + Sprachanruf جاهز** للميدان |
 | فشل 2 | UID / خطة `nfc_badges` / موظف غير نشط |
 | فشل 3–4 | Flutter API URL أو جلسة أو عدم تطابق UID |
 | فشل 4 + نجاح 6 | الهاتف غير ضروري للحضور؛ عالجوا القارئ + البطاقة |

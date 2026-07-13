@@ -47,6 +47,7 @@ jobs:
         run: |
           if [ -n "$FIREBASE_JSON" ]; then
             printf '%s' "$FIREBASE_JSON" > google-services.json
+            cp google-services.json "$RUNNER_TEMP/google-services.json.injected"
             echo "Firebase config injected from secret."
           else
             echo "FIREBASE_GOOGLE_SERVICES_JSON not set — using repo placeholder if present."
@@ -61,7 +62,6 @@ jobs:
           rm -rf mobile/android/app/src/main/kotlin/com/baupass/baupass_worker || true
           git checkout HEAD -- \
             mobile/android/app/build.gradle.kts \
-            mobile/android/app/google-services.json \
             mobile/android/settings.gradle.kts \
             mobile/android/gradle.properties \
             mobile/android/gradle/wrapper/gradle-wrapper.properties \
@@ -74,6 +74,13 @@ jobs:
             mobile/lib \
             mobile/pubspec.yaml \
             mobile/test
+
+      - name: Restore injected Firebase config
+        run: |
+          if [ -f "$RUNNER_TEMP/google-services.json.injected" ]; then
+            cp "$RUNNER_TEMP/google-services.json.injected" mobile/android/app/google-services.json
+            echo "Restored injected Firebase google-services.json."
+          fi
 
       - name: Resolve dependencies
         working-directory: mobile
