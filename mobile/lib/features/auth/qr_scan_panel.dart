@@ -20,7 +20,7 @@ class QrScanPanel extends StatefulWidget {
   State<QrScanPanel> createState() => _QrScanPanelState();
 }
 
-class _QrScanPanelState extends State<QrScanPanel> {
+class _QrScanPanelState extends State<QrScanPanel> with WidgetsBindingObserver {
   final MobileScannerController _controller = MobileScannerController(
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
@@ -30,7 +30,34 @@ class _QrScanPanelState extends State<QrScanPanel> {
   String? _cameraError;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Start explicitly: some devices return a black camera preview until start() is called after first render.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _controller.start();
+      } catch (_) {
+        // errorBuilder will handle permission/unsupported; ignore here.
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // After install / returning from settings, the app resumes and the camera must be restarted.
+    if (state == AppLifecycleState.resumed) {
+      _controller.start().catchError((_) {});
+      return;
+    }
+    if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
+      _controller.stop().catchError((_) {});
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
