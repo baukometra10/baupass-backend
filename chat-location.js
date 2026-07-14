@@ -7,15 +7,17 @@
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
   const SEND_MAX_ACCURACY_M = 18;
-  const MAP_MAX_ACCURACY_M = 30;
-  const COARSE_IGNORE_ACCURACY_M = 80;
-  const CACHE_MAX_ACCURACY_M = 25;
-  const INSTANT_GEO_TIMEOUT_MS = 900;
-  const INSTANT_GEO_MAX_AGE_MS = 300000;
-  const SEND_REFINE_MS = 1200;
+  const MAP_MAX_ACCURACY_M = 150;
+  const PREVIEW_CACHE_MAX_ACCURACY_M = 150;
+  const COARSE_IGNORE_ACCURACY_M = 200;
+  const CACHE_MAX_ACCURACY_M = 150;
+  const INSTANT_GEO_TIMEOUT_MS = 400;
+  const INSTANT_GEO_MAX_AGE_MS = 600000;
+  const SEND_REFINE_MS = 800;
   const REFINE_WATCH_MS = 8000;
-  const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+  const CACHE_MAX_AGE_MS = 10 * 60 * 1000;
   const WARM_CYCLE_MS = 20000;
+  const GEO_SESSION_KEY = "suppix-chat-geo-v1";
   let stylesInjected = false;
   let lastKnownChatGeo = null;
   let warmWatchHandle = null;
@@ -189,6 +191,37 @@
     return `<div class="chat-location-card ${side}${themeClass}">${mapHtml}${noteHtml}</div>`;
   }
 
+  function hydrateGeoFromSession() {
+    if (lastKnownChatGeo) return lastKnownChatGeo;
+    try {
+      const raw = global.sessionStorage?.getItem(GEO_SESSION_KEY);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!isValidReading(data)) return null;
+      if (Date.now() - Number(data.capturedAt || 0) > CACHE_MAX_AGE_MS) return null;
+      if (Number(data.accuracy) > PREVIEW_CACHE_MAX_ACCURACY_M) return null;
+      lastKnownChatGeo = data;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
+  function persistGeoSession(reading) {
+    if (!isValidReading(reading)) return;
+    if (Number(reading.accuracy) > PREVIEW_CACHE_MAX_ACCURACY_M) return;
+    try {
+      global.sessionStorage?.setItem(GEO_SESSION_KEY, JSON.stringify({
+        latitude: Number(reading.latitude),
+        longitude: Number(reading.longitude),
+        accuracy: Number(reading.accuracy) || 0,
+        capturedAt: Date.now(),
+      }));
+    } catch {
+      /* ignore */
+    }
+  }
+
   function isValidReading(reading) {
     return Boolean(
       reading
@@ -203,7 +236,8 @@
   }
 
   function isMapReadable(reading) {
-    return Number(reading?.accuracy) <= MAP_MAX_ACCURACY_M;
+    if (!isValidReading(reading)) return false;
+    return Number(reading.accuracy) <= MAP_MAX_ACCURACY_M;
   }
 
   function isCoarseNetworkReading(reading) {
@@ -232,6 +266,7 @@
       accuracy,
       capturedAt: Date.now(),
     };
+    persistGeoSession(lastKnownChatGeo);
   }
 
   function getInstantCachedLastKnown() {
@@ -286,8 +321,11 @@
     };
   }
 
-  /** WhatsApp-style: cached fix first (<1s), then fresh GPS in background. */
+  /** WhatsApp-style: browser cache first (~400ms), never block the sheet. */
   async function captureInstantForSheet() {
+    const memory = getInstantCachedLastKnown();
+    if (memory) return memory;
+
     if (typeof global.captureInstantGeolocation === "function") {
       try {
         const reading = await global.captureInstantGeolocation({});
@@ -296,22 +334,32 @@
         if (Number(error?.code) === 1) throw error;
       }
     }
-    try {
-      const cached = await getGeolocationReading({
-        enableHighAccuracy: true,
-        maximumAge: INSTANT_GEO_MAX_AGE_MS,
-        timeout: INSTANT_GEO_TIMEOUT_MS,
-      });
-      if (isUsableReading(cached)) return cached;
-    } catch (error) {
-      if (Number(error?.code) === 1) throw error;
+
+    const attempts = [
+      { enableHighAccuracy: false, maximumAge: INSTANT_GEO_MAX_AGE_MS, timeout: INSTANT_GEO_TIMEOUT_MS },
+      { enableHighAccuracy: true, maximumAge: INSTANT_GEO_MAX_AGE_MS, timeout: 800 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 2000 },
+    ];
+    for (const attempt of attempts) {
+      try {
+        const reading = await getGeolocationReading(attempt);
+        if (isUsableReading(reading)) return reading;
+      } catch (error) {
+        if (Number(error?.code) === 1) throw error;
+      }
     }
-    const fresh = await getGeolocationReading({
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 2500,
-    });
-    return isUsableReading(fresh) ? fresh : null;
+    return null;
+  }
+
+  function prefetchChatLocation() {
+    hydrateGeoFromSession();
+    if (getInstantCachedLastKnown()) return Promise.resolve(getInstantCachedLastKnown());
+    return captureInstantForSheet()
+      .then((reading) => {
+        if (reading) rememberReading(reading);
+        return reading;
+      })
+      .catch(() => null);
   }
 
   async function captureForSendQuick(fallback, onProgress) {
@@ -455,6 +503,7 @@
 
   function openShareSheet(options = {}) {
     ensureLocationStyles();
+    hydrateGeoFromSession();
     ensureBackgroundGeoWarm();
     const labels = options.labels || {};
     if (!global.navigator?.geolocation) {
@@ -529,7 +578,11 @@
       });
       sendBtn?.addEventListener("click", () => {
         void (async () => {
-          if (sendBtn.disabled && !canEnableSend(bestReading)) return;
+          if (!canEnableSend(bestReading) && sendBtn.disabled) return;
+          if (canEnableSend(bestReading)) {
+            finish(null, readingToResult(bestReading, { note: noteInput?.value || "" }));
+            return;
+          }
           sendBtn.disabled = true;
           sendBtn.textContent = labels.sending || "…";
           try {
@@ -554,25 +607,20 @@
       });
 
       if (cached) onReading(cached);
-
-      void captureInstantForSheet()
-        .then((reading) => { if (reading) onReading(reading); })
-        .catch((error) => {
-          if (Number(error?.code) === 1) onReading(null, error);
-        });
+      else {
+        void captureInstantForSheet()
+          .then((reading) => { if (reading) onReading(reading); })
+          .catch((error) => {
+            if (Number(error?.code) === 1) onReading(null, error);
+          });
+      }
 
       startShareLocationWatch(onReading);
     });
   }
 
   function warmChatGeolocation() {
-    ensureBackgroundGeoWarm();
-    const cached = getInstantCachedLastKnown();
-    if (cached) return Promise.resolve(cached);
-    return captureInstantForSheet().then((reading) => {
-      if (reading) rememberReading(reading);
-      return reading;
-    }).catch(() => null);
+    return prefetchChatLocation();
   }
 
   function locationCaptureErrorMessage(error, labels = {}) {
@@ -589,9 +637,15 @@
   }
 
   function peekCachedChatLocation(options = {}) {
+    hydrateGeoFromSession();
     const cached = getInstantCachedLastKnown();
     if (!cached) return null;
     return readingToResult(cached, options);
+  }
+
+  hydrateGeoFromSession();
+  if (global.navigator?.geolocation) {
+    void prefetchChatLocation();
   }
 
   global.SUPPIXChatLocation = {
@@ -605,6 +659,7 @@
     captureChatLocation: openShareSheet,
     peekCachedChatLocation,
     warmChatGeolocation,
+    prefetchChatLocation,
     ensureBackgroundGeoWarm,
     locationCaptureErrorMessage,
     googleMapsUrl,

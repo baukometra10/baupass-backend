@@ -27,11 +27,11 @@
       singleTimeoutMs: 10000,
     },
     instant: {
-      fastTimeoutMs: 1500,
-      fastMaximumAgeMs: 60000,
-      cachedTimeoutMs: 3500,
-      cachedMaximumAgeMs: 30000,
-      freshTimeoutMs: 12000,
+      fastTimeoutMs: 400,
+      fastMaximumAgeMs: 600000,
+      cachedTimeoutMs: 800,
+      cachedMaximumAgeMs: 600000,
+      freshTimeoutMs: 2500,
     },
     site: {
       minSamples: 1,
@@ -537,14 +537,19 @@
     const opts = Object.assign({}, PRESETS.instant, options || {});
     const attempts = [
       {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: Number(opts.fastTimeoutMs) || 1500,
+        enableHighAccuracy: false,
+        maximumAge: Number(opts.cachedMaximumAgeMs) || 600000,
+        timeout: Number(opts.fastTimeoutMs) || 400,
       },
       {
         enableHighAccuracy: true,
-        maximumAge: Number(opts.cachedMaximumAgeMs) || 15000,
-        timeout: Number(opts.cachedTimeoutMs) || 3500,
+        maximumAge: Number(opts.cachedMaximumAgeMs) || 600000,
+        timeout: Number(opts.cachedTimeoutMs) || 800,
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: Number(opts.freshTimeoutMs) || 2500,
       },
     ];
 
