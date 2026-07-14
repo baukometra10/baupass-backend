@@ -42,13 +42,13 @@
       singleTimeoutMs: 2000,
     },
     chat: {
-      minSamples: 2,
-      maxSamples: 12,
+      minSamples: 3,
+      maxSamples: 16,
       targetAccuracyMeters: 5,
-      acceptAccuracyMeters: 10,
-      maxWaitMs: 12000,
+      acceptAccuracyMeters: 8,
+      maxWaitMs: 30000,
       stableThresholdMeters: 3,
-      singleTimeoutMs: 3000,
+      singleTimeoutMs: 4000,
     },
   };
 
@@ -302,7 +302,7 @@
         (position) => {
           const reading = readPosition(position);
           const accuracy = Number(reading.accuracy) || 999;
-          if (accuracy > 60) {
+          if (accuracy > 35) {
             return;
           }
           samples.push(reading);
@@ -840,7 +840,7 @@
       (position) => {
         const reading = readPosition(position);
         const accuracy = Number(reading.accuracy) || 999;
-        if (accuracy > 60) {
+        if (accuracy > 35) {
           return;
         }
         samples.push(reading);

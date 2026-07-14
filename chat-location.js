@@ -6,13 +6,14 @@
   const MAP_W = 280;
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
-  const SEND_MAX_ACCURACY_M = 12;
-  const PREVIEW_MAX_ACCURACY_M = 200;
+  const SEND_MAX_ACCURACY_M = 10;
+  const MAP_MAX_ACCURACY_M = 10;
+  const COARSE_IGNORE_ACCURACY_M = 35;
   const CACHE_MAX_ACCURACY_M = 10;
-  const CAPTURE_SEND_MS = 15000;
-  const REFINE_MAX_MS = 12000;
-  const PREVIEW_TIMEOUT_MS = 16000;
-  const RAW_GEO_TIMEOUT_MS = 20000;
+  const CAPTURE_SEND_MS = 25000;
+  const REFINE_MAX_MS = 30000;
+  const PREVIEW_TIMEOUT_MS = 35000;
+  const RAW_GEO_TIMEOUT_MS = 30000;
   const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   const WARM_CYCLE_MS = 30000;
   let stylesInjected = false;
@@ -197,6 +198,21 @@
     );
   }
 
+  function isPreciseEnoughForMap(reading) {
+    return Number(reading?.accuracy) <= MAP_MAX_ACCURACY_M;
+  }
+
+  function isCoarseNetworkReading(reading) {
+    return Number(reading?.accuracy) > COARSE_IGNORE_ACCURACY_M;
+  }
+
+  function pickBetterReading(current, next) {
+    if (!isValidReading(next)) return current;
+    if (isCoarseNetworkReading(next)) return current;
+    if (!isValidReading(current)) return next;
+    return Number(next.accuracy) < Number(current.accuracy) ? next : current;
+  }
+
   function rememberReading(reading) {
     if (!isValidReading(reading)) return;
     const accuracy = Number(reading.accuracy) || 999;
@@ -265,9 +281,11 @@
 
   function applyReading(reading, onReading) {
     if (!isValidReading(reading)) return;
+    if (isCoarseNetworkReading(reading)) {
+      onReading(null, null, { weakSignal: true });
+      return;
+    }
     rememberReading(reading);
-    const acc = Number(reading.accuracy) || 999;
-    if (acc > PREVIEW_MAX_ACCURACY_M) return;
     onReading(reading);
   }
 
@@ -289,7 +307,7 @@
         targetAccuracyMeters: 8,
         acceptAccuracyMeters: 8,
         minSamples: 3,
-        stableThresholdMeters: 4,
+        stableThresholdMeters: 3,
         onProgress: (payload) => {
           onProgress?.({
             bestAccuracyMeters: payload?.bestAccuracyMeters,
@@ -322,7 +340,7 @@
           preset: "chat",
           maxWaitMs: REFINE_MAX_MS,
           targetAccuracyMeters: 8,
-          acceptAccuracyMeters: 10,
+          acceptAccuracyMeters: 8,
           onProgress: (payload) => {
             onProgress?.({
               bestAccuracyMeters: payload?.bestAccuracyMeters,
@@ -338,8 +356,8 @@
       return await getGeolocationReading({
         enableHighAccuracy: true,
         maximumAge: 0,
-        timeout: 8000,
-      });
+        timeout: 10000,
+      }).then((reading) => (isCoarseNetworkReading(reading) ? null : reading));
     } catch (error) {
       if (Number(error?.code) === 1) throw error;
       return null;
@@ -416,20 +434,19 @@
     startCycle();
   }
 
-  function shareStatusText(reading, labels = {}) {
+  function shareStatusText(reading, labels = {}, meta = {}) {
+    if (meta?.weakSignal) {
+      return labels.weakSignal || labels.capturingHint || "GPS-Signal schwach — bitte ans Fenster oder ins Freie";
+    }
     const acc = Math.round(Number(reading?.accuracy) || 0);
-    if (!acc) return labels.capturingHint || "GPS wird ermittelt…";
+    if (!acc) return labels.capturingHint || "Präzises GPS wird gesucht…";
     if (acc <= DEFAULT_MAX_ACCURACY_M) {
       return (labels.accuracyGood || "Genauigkeit ±{m} m").replace("{m}", String(acc));
     }
     if (acc <= SEND_MAX_ACCURACY_M) {
       return (labels.ready || "Standort bereit · ±{m} m").replace("{m}", String(acc));
     }
-    const approx = labels.accuracyApprox || "Standort ungefähr · ±{m} m — zum Senden ins Freie";
-    if (acc > SEND_MAX_ACCURACY_M) {
-      return approx.replace("{m}", String(acc));
-    }
-    const tpl = labels.capturingProgress || "GPS verfeinern… ±{m} m";
+    const tpl = labels.capturingProgress || "GPS verfeinert… ±{m} m";
     return tpl.replace("{m}", String(acc));
   }
 
@@ -508,32 +525,44 @@
       const sendBtn = sheet.querySelector(".chat-location-share-send");
       const noteInput = sheet.querySelector(".chat-location-share-note");
 
-      const onReading = (reading, error) => {
+      const onReading = (reading, error, meta) => {
         if (error && Number(error?.code) === 1) {
           if (statusEl) statusEl.textContent = locationCaptureErrorMessage(error, labels);
           if (sendBtn) sendBtn.disabled = true;
           return;
         }
-        if (!reading) return;
-        bestReading = reading;
-        const point = readingToResult(reading);
-        mountMapInHost(mapHost, point);
-        if (statusEl) {
-          statusEl.textContent = shareStatusText(reading, labels);
-          statusEl.classList.toggle("is-precise", Number(reading.accuracy) <= DEFAULT_MAX_ACCURACY_M);
+        if (meta?.weakSignal) {
+          if (statusEl) statusEl.textContent = shareStatusText(null, labels, meta);
+          if (sendBtn) sendBtn.disabled = true;
+          return;
         }
-        if (sendBtn) sendBtn.disabled = !canEnableSend(reading);
+        if (!reading) return;
+        bestReading = pickBetterReading(bestReading, reading);
+        const displayReading = bestReading || reading;
+        const acc = Number(displayReading.accuracy) || 999;
+        if (statusEl) {
+          statusEl.textContent = shareStatusText(displayReading, labels);
+          statusEl.classList.toggle("is-precise", acc <= DEFAULT_MAX_ACCURACY_M);
+        }
+        if (isPreciseEnoughForMap(displayReading)) {
+          mountMapInHost(mapHost, readingToResult(displayReading));
+        }
+        if (sendBtn) sendBtn.disabled = !canEnableSend(bestReading);
       };
 
       previewTimeout = global.setTimeout(() => {
         if (settled) return;
-        if (bestReading && isValidReading(bestReading)) {
+        if (bestReading && isPreciseEnoughForMap(bestReading)) {
           onReading(bestReading);
           return;
         }
         if (statusEl) {
-          statusEl.textContent = locationCaptureErrorMessage({ message: "geolocation_timeout" }, labels);
+          statusEl.textContent = locationCaptureErrorMessage(
+            { message: "location_not_precise_enough", accuracyMeters: Number(bestReading?.accuracy) || 99 },
+            labels,
+          );
         }
+        if (sendBtn) sendBtn.disabled = true;
       }, PREVIEW_TIMEOUT_MS);
 
       if (global.navigator.permissions?.query) {
