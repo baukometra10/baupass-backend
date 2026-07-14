@@ -8,6 +8,9 @@
   const PLAY_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l8-4.5-8-4.5Z" fill="currentColor"/></svg>`;
   const PAUSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="6" width="3.5" height="12" fill="currentColor"/><rect x="13.5" y="6" width="3.5" height="12" fill="currentColor"/></svg>`;
   const LOCK_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/></svg>`;
+  const TRASH_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M10 11v6M14 11v6M6 7l1 12a1 1 0 0 0 1 .93h8a1 1 0 0 0 1-.93L18 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const SEND_PLANE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12.5 19 5 12.5 19l2.2-6.3L19 12.5 5 12.5Z" fill="currentColor"/></svg>`;
+  const VIEW_ONCE_SVG = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6" stroke-dasharray="3.5 3"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="700" fill="currentColor">1</text></svg>`;
   const VOICE_AUDIO_CONSTRAINTS = {
     echoCancellation: true,
     noiseSuppression: true,
@@ -545,6 +548,8 @@
     const useToggleMode = !isTouchPrimaryDevice();
     let recording = false;
     let locked = false;
+    let paused = false;
+    let viewOnce = false;
     let tickTimer = null;
     let pointerId = null;
     let startX = 0;
@@ -553,38 +558,46 @@
     let pendingStart = null;
     let cancelPending = false;
 
-    let sheet = root.querySelector(".wa-voice-record-sheet");
-    if (!sheet) {
-      sheet = global.document.createElement("div");
-      sheet.className = "wa-voice-record-sheet hidden";
-      sheet.innerHTML = `
-        <div class="wa-voice-record-inner">
-          <div class="wa-voice-record-hint">
-            <span class="wa-voice-record-cancel">${labels.slideCancel || "← Wischen zum Abbrechen"}</span>
-            <span class="wa-voice-record-lock-hint">${labels.slideLock || "↑ Hochziehen zum Sperren"}</span>
+    const composeBar = root.querySelector(".chat-compose-bar, .worker-chat-compose-bar");
+    let pillWrap = root.querySelector(".wa-voice-pill-wrap");
+    if (!pillWrap) {
+      pillWrap = global.document.createElement("div");
+      pillWrap.className = "wa-voice-pill-wrap hidden";
+      pillWrap.innerHTML = `
+        <div class="wa-voice-hold-hint hidden">
+          <span class="wa-voice-hold-cancel">${labels.slideCancel || "← Wischen zum Abbrechen"}</span>
+          <span class="wa-voice-hold-lock">${labels.slideLock || "↑ Hochziehen zum Sperren"}</span>
+        </div>
+        <div class="wa-voice-pill-row">
+          <div class="wa-voice-pill-bar">
+            <button type="button" class="wa-voice-pill-delete" aria-label="${labels.cancel || "Abbrechen"}">${TRASH_SVG}</button>
+            <span class="wa-voice-pill-dot" aria-hidden="true"></span>
+            <span class="wa-voice-pill-timer">0:00</span>
+            <div class="wa-voice-pill-wave" aria-hidden="true"></div>
+            <button type="button" class="wa-voice-pill-pause" aria-label="${labels.pause || "Pause"}">${PAUSE_SVG}</button>
+            <button type="button" class="wa-voice-pill-once" aria-label="${labels.viewOnce || "Einmal anhören"}" title="${labels.viewOnce || "Einmal anhören"}">${VIEW_ONCE_SVG}</button>
           </div>
-          <div class="wa-voice-record-main">
-            <button type="button" class="wa-voice-record-lock-btn hidden" aria-label="${labels.locked || "Aufnahme gesperrt"}">${LOCK_SVG}</button>
-            <div class="wa-voice-record-live-wave" aria-hidden="true"></div>
-            <span class="wa-voice-record-timer">0:00</span>
-          </div>
-          <div class="wa-voice-record-actions">
-            <button type="button" class="wa-voice-record-cancel-btn hidden">${labels.cancel || "Abbrechen"}</button>
-            <button type="button" class="wa-voice-record-send hidden">${labels.sendVoice || "Senden"}</button>
-          </div>
+          <button type="button" class="wa-voice-pill-send" aria-label="${labels.sendVoice || "Senden"}">${SEND_PLANE_SVG}</button>
         </div>`;
-      root.appendChild(sheet);
-      const wave = sheet.querySelector(".wa-voice-record-live-wave");
+      if (composeBar?.parentNode) {
+        composeBar.parentNode.insertBefore(pillWrap, composeBar);
+      } else {
+        root.appendChild(pillWrap);
+      }
+      const wave = pillWrap.querySelector(".wa-voice-pill-wave");
       if (wave && !wave.childElementCount) {
-        wave.innerHTML = Array.from({ length: 32 }, () => "<span></span>").join("");
+        wave.innerHTML = Array.from({ length: 36 }, () => "<span></span>").join("");
       }
     }
-    const timerEl = sheet.querySelector(".wa-voice-record-timer");
-    const cancelEl = sheet.querySelector(".wa-voice-record-cancel");
-    const lockHintEl = sheet.querySelector(".wa-voice-record-lock-hint");
-    const lockBtnEl = sheet.querySelector(".wa-voice-record-lock-btn");
-    const sendLockedBtn = sheet.querySelector(".wa-voice-record-send");
-    const cancelLockedBtn = sheet.querySelector(".wa-voice-record-cancel-btn");
+
+    const holdHint = pillWrap.querySelector(".wa-voice-hold-hint");
+    const holdCancelEl = pillWrap.querySelector(".wa-voice-hold-cancel");
+    const timerEl = pillWrap.querySelector(".wa-voice-pill-timer");
+    const dotEl = pillWrap.querySelector(".wa-voice-pill-dot");
+    const pauseBtn = pillWrap.querySelector(".wa-voice-pill-pause");
+    const onceBtn = pillWrap.querySelector(".wa-voice-pill-once");
+    const deleteBtn = pillWrap.querySelector(".wa-voice-pill-delete");
+    const sendPillBtn = pillWrap.querySelector(".wa-voice-pill-send");
 
     const stopTickTimer = () => {
       if (tickTimer) {
@@ -602,27 +615,32 @@
       sendBtn.disabled = recording;
     };
 
+    const showPillMode = () => locked || useToggleMode;
+
     const setRecordingUi = (active) => {
       recording = active;
-      if (!active) locked = false;
-      micBtn.classList.toggle("is-recording", active);
-      root.classList.toggle("is-voice-recording", active);
-      sheet.classList.toggle("hidden", !active);
-      sheet.classList.toggle("is-locked", locked);
-      lockBtnEl?.classList.toggle("hidden", !locked);
-      const showDesktopActions = active && useToggleMode;
-      const showLockedSend = active && locked;
-      sendLockedBtn?.classList.toggle("hidden", !(showLockedSend || showDesktopActions));
-      cancelLockedBtn?.classList.toggle("hidden", !(showLockedSend || showDesktopActions));
-      lockHintEl?.classList.toggle("hidden", locked || useToggleMode);
-      if (active && useToggleMode && cancelEl) {
-        cancelEl.textContent = labels.desktopRecording || labels.recording || "Aufnahme läuft…";
+      if (!active) {
+        locked = false;
+        paused = false;
+        viewOnce = false;
       }
+      micBtn.classList.toggle("is-recording", active && !showPillMode());
+      root.classList.toggle("is-voice-recording", active);
+      root.classList.toggle("is-voice-pill-active", active && showPillMode());
+      pillWrap.classList.toggle("hidden", !active);
+      pillWrap.classList.toggle("is-pill", showPillMode());
+      pillWrap.classList.toggle("is-hold", active && !showPillMode());
+      holdHint?.classList.toggle("hidden", !active || showPillMode());
+      composeBar?.classList.toggle("hidden", active && showPillMode());
+      micBtn.classList.toggle("hidden", active && showPillMode());
+      onceBtn?.classList.toggle("is-active", viewOnce);
+      pauseBtn?.classList.toggle("is-paused", paused);
+      dotEl?.classList.toggle("is-paused", paused);
       if (!active) {
         cancelArmed = false;
-        if (cancelEl) {
-          cancelEl.classList.remove("is-armed");
-          cancelEl.textContent = labels.slideCancel || "← Wischen zum Abbrechen";
+        if (holdCancelEl) {
+          holdCancelEl.classList.remove("is-armed");
+          holdCancelEl.textContent = labels.slideCancel || "← Wischen zum Abbrechen";
         }
         stopTickTimer();
         onRecordingEnd?.();
@@ -631,14 +649,14 @@
     };
 
     const updateWave = (seconds) => {
-      const wave = sheet.querySelector(".wa-voice-record-live-wave");
+      const wave = pillWrap.querySelector(".wa-voice-pill-wave");
       if (timerEl) timerEl.textContent = formatDuration(seconds);
-      const level = Number(recorder.lastLevel || 0);
+      const level = paused ? 0 : Number(recorder.lastLevel || 0);
       if (!wave) return;
       wave.querySelectorAll("span").forEach((bar, index) => {
         const phase = (Date.now() / 100 + index * 0.38) % (Math.PI * 2);
-        const base = 18 + Math.abs(Math.sin(phase)) * 24;
-        const height = base + level * 52 + Math.min(12, seconds * 1.5);
+        const base = 14 + Math.abs(Math.sin(phase)) * 18;
+        const height = paused ? 12 : base + level * 42 + Math.min(10, seconds * 1.2);
         bar.style.height = `${Math.round(Math.min(100, height))}%`;
       });
     };
@@ -649,7 +667,7 @@
         const seconds = recorder.elapsedMs ? Math.max(0, recorder.elapsedMs / 1000) : 0;
         updateWave(seconds);
         onRecordingTick?.(seconds);
-      }, 250);
+      }, 120);
     };
 
     const finishRecording = async (sendIt) => {
@@ -658,6 +676,7 @@
       setRecordingUi(false);
       let blob = null;
       try {
+        if (recorder.isPaused) recorder.resume?.();
         blob = await recorder.stop();
       } catch (error) {
         recorder.cancel?.();
@@ -673,6 +692,7 @@
         onError?.(new Error(labels.tooShort || "voice_too_short"));
         return;
       }
+      if (viewOnce) voiceFile.viewOnce = true;
       try {
         await onSendVoice?.(voiceFile);
       } catch (error) {
@@ -686,8 +706,11 @@
         onError?.(new Error(labels.noThread || "no_thread_selected"));
         return;
       }
+      if (useToggleMode) locked = true;
       cancelPending = false;
       cancelArmed = false;
+      paused = false;
+      viewOnce = false;
       pendingStart = recorder.start()
         .then(() => {
           pendingStart = null;
@@ -726,19 +749,15 @@
       const dx = (event.clientX || 0) - startX;
       const dy = startY - (event.clientY || 0);
       cancelArmed = dx < -cancelSlidePx;
-      if (cancelEl) {
-        cancelEl.classList.toggle("is-armed", cancelArmed);
-        cancelEl.textContent = cancelArmed
+      if (holdCancelEl) {
+        holdCancelEl.classList.toggle("is-armed", cancelArmed);
+        holdCancelEl.textContent = cancelArmed
           ? (labels.releaseCancel || "Loslassen zum Abbrechen")
           : (labels.slideCancel || "← Wischen zum Abbrechen");
       }
-      if (!useToggleMode && dy > lockSlidePx && lockHintEl) {
+      if (!useToggleMode && dy > lockSlidePx) {
         locked = true;
-        sheet.classList.add("is-locked");
-        lockBtnEl?.classList.remove("hidden");
-        sendLockedBtn?.classList.remove("hidden");
-        lockHintEl.classList.add("hidden");
-        if (cancelEl) cancelEl.textContent = labels.lockedRecording || "🔒 Aufnahme gesperrt";
+        setRecordingUi(true);
       }
     };
 
@@ -761,20 +780,33 @@
       await finishRecording(true);
     };
 
-    sendLockedBtn?.addEventListener("click", () => {
-      if (recording) void finishRecording(true);
-    });
-
-    cancelLockedBtn?.addEventListener("click", () => {
+    deleteBtn?.addEventListener("click", () => {
       if (!recording) return;
       cancelArmed = true;
       void finishRecording(false);
     });
 
-    cancelEl?.addEventListener("click", () => {
-      if (!recording || useToggleMode) return;
-      cancelArmed = true;
-      void finishRecording(false);
+    sendPillBtn?.addEventListener("click", () => {
+      if (recording) void finishRecording(true);
+    });
+
+    pauseBtn?.addEventListener("click", () => {
+      if (!recording) return;
+      if (recorder.isPaused) {
+        recorder.resume?.();
+        paused = false;
+      } else {
+        recorder.pause?.();
+        paused = true;
+      }
+      pauseBtn.classList.toggle("is-paused", paused);
+      dotEl?.classList.toggle("is-paused", paused);
+      updateWave((recorder.elapsedMs || 0) / 1000);
+    });
+
+    onceBtn?.addEventListener("click", () => {
+      viewOnce = !viewOnce;
+      onceBtn.classList.toggle("is-active", viewOnce);
     });
 
     const onMicToggleClick = (event) => {
@@ -899,6 +931,9 @@
       wavChunks = [];
     };
 
+    let isPaused = false;
+    let pauseStartedAt = 0;
+
     const stopTimer = () => {
       if (timer) {
         global.clearInterval(timer);
@@ -1011,7 +1046,12 @@
         return lastDurationSec;
       },
       get elapsedMs() {
-        return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+        if (!startedAt) return 0;
+        const end = isPaused && pauseStartedAt ? pauseStartedAt : Date.now();
+        return Math.max(0, end - startedAt);
+      },
+      get isPaused() {
+        return isPaused;
       },
       get lastLevel() {
         return lastLevel;
@@ -1037,6 +1077,8 @@
         mimeType = "";
         lastDurationSec = 0;
         startedAt = 0;
+        isPaused = false;
+        pauseStartedAt = 0;
         if (opts.stream instanceof global.MediaStream) {
           stream = opts.stream;
         } else if (opts.streamPromise) {
@@ -1160,10 +1202,43 @@
         }
         return result;
       },
+      pause() {
+        if (isPaused) return;
+        isPaused = true;
+        pauseStartedAt = Date.now();
+        stopTimer();
+        wavCapturing = false;
+        try {
+          if (recorder?.state === "recording" && typeof recorder.pause === "function") {
+            recorder.pause();
+          }
+        } catch {
+          /* ignore */
+        }
+      },
+      resume() {
+        if (!isPaused) return;
+        if (startedAt && pauseStartedAt) {
+          startedAt += Date.now() - pauseStartedAt;
+        }
+        isPaused = false;
+        pauseStartedAt = 0;
+        wavCapturing = recordingBackend === "webaudio";
+        try {
+          if (recorder?.state === "paused" && typeof recorder.resume === "function") {
+            recorder.resume();
+          }
+        } catch {
+          /* ignore */
+        }
+        if (startedAt) beginRecordingTimer();
+      },
       cancel() {
         stopTimer();
         startedAt = 0;
         lastDurationSec = 0;
+        isPaused = false;
+        pauseStartedAt = 0;
         wavCapturing = false;
         try {
           if (recorder && recorder.state !== "inactive") {
@@ -1460,25 +1535,33 @@
 .chat-head-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem}
 .chat-head-actions button{font-size:.72rem;padding:.28rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);cursor:pointer}
 .chat-compose,.worker-chat-compose{position:relative}
+.chat-compose-bar.hidden,.worker-chat-compose-bar.hidden{display:none!important}
+.chat-mic-btn.hidden,.worker-chat-mic-btn.hidden{display:none!important}
 .chat-mic-btn,.worker-chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:none;background:#00a884;color:#fff;cursor:pointer;flex-shrink:0;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 2px 8px rgba(0,168,132,.35)}
 .chat-mic-btn.is-recording,.worker-chat-mic-btn.is-recording{background:#e53935;box-shadow:0 2px 12px rgba(229,57,53,.45);animation:chatMicPulse 1s ease-in-out infinite}
 @keyframes chatMicPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-.wa-voice-record-sheet{position:fixed;left:0;right:0;bottom:0;z-index:1500;padding:.75rem .85rem calc(.85rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,rgba(11,20,26,.02),rgba(11,20,26,.96) 28%,#0b141a 100%);pointer-events:auto}
-.wa-voice-record-sheet.hidden{display:none}
-.wa-voice-record-inner{display:flex;flex-direction:column;gap:.65rem;max-width:520px;margin:0 auto}
-.wa-voice-record-hint{display:flex;justify-content:space-between;gap:.75rem;font-size:.78rem;color:rgba(233,237,239,.72)}
-.wa-voice-record-cancel.is-armed{color:#ff8a80;font-weight:700}
-.wa-voice-record-lock-hint{color:#53bdeb}
-.wa-voice-record-main{display:flex;align-items:center;gap:.75rem;padding:.65rem .85rem;border-radius:18px;background:#202c33;border:1px solid rgba(255,255,255,.06)}
-.wa-voice-record-live-wave{display:flex;align-items:flex-end;gap:2px;flex:1;height:34px}
-.wa-voice-record-live-wave span{flex:1;border-radius:999px;background:linear-gradient(180deg,#00a884,#128c7e);height:20%;transition:height .07s linear}
-.wa-voice-record-timer{font-variant-numeric:tabular-nums;font-weight:700;color:#e9edef;min-width:3rem;text-align:right;font-size:.95rem}
-.wa-voice-record-lock-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(0,168,132,.2);color:#00a884;display:grid;place-items:center;flex-shrink:0}
-.wa-voice-record-send{align-self:flex-end;border:none;border-radius:999px;padding:.55rem 1.1rem;background:#00a884;color:#fff;font-weight:700;cursor:pointer}
-.wa-voice-record-actions{display:flex;justify-content:flex-end;gap:.55rem}
-.wa-voice-record-cancel-btn{border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:.55rem 1.1rem;background:rgba(255,255,255,.06);color:#ff8a80;font-weight:700;cursor:pointer}
-.wa-voice-record-cancel-btn.hidden,.wa-voice-record-send.hidden{display:none}
-.wa-voice-record-sheet.is-locked .wa-voice-record-main{border-color:rgba(0,168,132,.35)}
+.wa-voice-pill-wrap{display:flex;flex-direction:column;gap:.45rem;width:100%}
+.wa-voice-pill-wrap.hidden{display:none!important}
+.wa-voice-hold-hint{display:flex;justify-content:space-between;gap:.75rem;font-size:.78rem;color:rgba(233,237,239,.72);padding:0 .15rem}
+.wa-voice-hold-cancel.is-armed{color:#ff8a80;font-weight:700}
+.wa-voice-hold-lock{color:#53bdeb}
+.wa-voice-pill-row{display:flex;align-items:center;gap:.55rem;width:100%}
+.wa-voice-pill-bar{flex:1;min-width:0;display:flex;align-items:center;gap:.45rem;padding:.45rem .55rem .45rem .4rem;border-radius:999px;background:#fff;color:#111b21;box-shadow:0 1px 2px rgba(0,0,0,.12),0 4px 16px rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.04)}
+.wa-voice-pill-delete{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:transparent;color:#54656f;cursor:pointer;border-radius:50%;flex-shrink:0;padding:0}
+.wa-voice-pill-delete:hover{background:rgba(0,0,0,.05)}
+.wa-voice-pill-dot{width:10px;height:10px;border-radius:50%;background:#e53935;flex-shrink:0;animation:waVoiceDotPulse 1.2s ease-in-out infinite}
+.wa-voice-pill-dot.is-paused{animation:none;opacity:.55}
+@keyframes waVoiceDotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.88);opacity:.75}}
+.wa-voice-pill-timer{font-variant-numeric:tabular-nums;font-weight:600;color:#111b21;min-width:2.5rem;font-size:.92rem;flex-shrink:0}
+.wa-voice-pill-wave{display:flex;align-items:center;justify-content:center;gap:2px;flex:1;min-width:48px;height:28px;overflow:hidden}
+.wa-voice-pill-wave span{display:block;width:2px;border-radius:999px;background:#8696a0;opacity:.75;height:20%;align-self:center;transition:height .08s linear}
+.wa-voice-pill-pause,.wa-voice-pill-once{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:none;background:transparent;color:#e53935;cursor:pointer;border-radius:50%;flex-shrink:0;padding:0}
+.wa-voice-pill-once{color:#54656f}
+.wa-voice-pill-once.is-active{color:#00a884;background:rgba(0,168,132,.12)}
+.wa-voice-pill-pause.is-paused{color:#54656f}
+.wa-voice-pill-send{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border:none;border-radius:50%;background:#00a884;color:#fff;cursor:pointer;flex-shrink:0;box-shadow:0 2px 10px rgba(0,168,132,.35);padding:0}
+.wa-voice-pill-send:active{transform:scale(.96)}
+.is-voice-pill-active .chat-voice-hint,.is-voice-pill-active .worker-chat-voice-hint{display:none!important}
 .chat-send-btn[hidden],.worker-chat-send-btn[hidden]{display:none!important}
 .is-voice-recording textarea{opacity:.45}
 `;

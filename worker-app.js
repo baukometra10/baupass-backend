@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat31";
+const WORKER_BUILD_TAG = "20260714chat32";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3507,6 +3507,9 @@ function bindWorkerWhatsAppVoiceCompose() {
       slideCancel: t("chatVoiceSlideCancel") || "← Wischen zum Abbrechen",
       releaseCancel: t("chatVoiceReleaseCancel") || "Loslassen zum Abbrechen",
       slideLock: t("chatVoiceSlideLock") || "↑ Hochziehen zum Sperren",
+      pause: t("chatVoicePause") || "Pause",
+      viewOnce: t("chatVoiceViewOnce") || "Einmal anhören",
+      cancel: t("chatVoiceCancel") || "Abbrechen",
       lockedRecording: t("chatVoiceLockedRecording") || "🔒 Aufnahme gesperrt",
       sendVoice: t("workerChatSend") || "Senden",
       tooShort: t("chatVoiceTooShort"),
@@ -13221,6 +13224,18 @@ function startWorkerChatRealtimeFeed() {
       if (String(evt?.type || "") === "chat.typing") {
         workerTypingController?.handleRealtime?.(evt);
         return;
+      }
+      if (String(evt?.type || "") === "chat.message_created" && String(evt?.payload?.senderType || "") === "admin") {
+        window.SUPPIXChatRealtime?.playWorkerMessageSound?.();
+        if (!document?.hasFocus?.() && Notification?.permission === "granted") {
+          try {
+            new Notification(t("workerChatAdminMessageTitle") || "Neue Nachricht vom Arbeitgeber", {
+              body: window.SUPPIXChatRealtime?.previewLabel?.(evt.payload) || "",
+              tag: "worker-chat",
+              icon: "/branding/suppix-icon-192.png",
+            });
+          } catch { /* ignore */ }
+        }
       }
       void loadWorkerChat({ quiet: true });
     },
