@@ -1,10 +1,12 @@
 /**
- * SUPPIX chat location — precise GPS (≤10 m), WhatsApp-style map card, capture overlay.
+ * SUPPIX chat location — fast share (cached GPS first), WhatsApp-style map card.
  */
 (function initSuppixChatLocation(global) {
   const PREFIX = "@location|";
   const DEFAULT_MAX_ACCURACY_M = 10;
-  const SEND_MAX_ACCURACY_M = 30;
+  const SEND_MAX_ACCURACY_M = 120;
+  const FAST_CAPTURE_MAX_MS = 3500;
+  const OVERLAY_DELAY_MS = 450;
   let overlayEl = null;
   let stylesInjected = false;
 
@@ -179,7 +181,7 @@
     const fillEl = host.querySelector(".chat-location-overlay-meter-fill");
     const cancelBtn = host.querySelector(".chat-location-overlay-cancel");
     if (titleEl) titleEl.textContent = labels.capturing || "Standort wird ermittelt…";
-    if (subEl) subEl.textContent = labels.capturingHint || "Bitte draußen bleiben — Ziel: ±10 m";
+    if (subEl) subEl.textContent = labels.capturingHint || "Einen Moment…";
     if (cancelBtn) {
       cancelBtn.textContent = labels.cancel || "Abbrechen";
       cancelBtn.onclick = () => {
@@ -208,6 +210,85 @@
     overlayEl?.classList.add("hidden");
   }
 
+  function isValidReading(reading) {
+    return Boolean(
+      reading
+      && Number.isFinite(Number(reading.latitude))
+      && Number.isFinite(Number(reading.longitude)),
+    );
+  }
+
+  async function captureFastGeolocationForChat({ onProgress, maxWaitMs = FAST_CAPTURE_MAX_MS } = {}) {
+    if (!global.navigator?.geolocation) {
+      const error = new Error("geolocation_unsupported");
+      error.code = 0;
+      throw error;
+    }
+    const deadline = Date.now() + Math.max(800, Number(maxWaitMs) || FAST_CAPTURE_MAX_MS);
+    const report = (payload) => onProgress?.(payload);
+
+    if (typeof global.captureInstantGeolocation === "function") {
+      try {
+        const reading = await global.captureInstantGeolocation({
+          onAttempt: (info) => {
+            if (info?.reading) {
+              report({
+                bestAccuracyMeters: Number(info.reading.accuracy),
+                phase: "instant",
+              });
+            }
+          },
+        });
+        if (isValidReading(reading)) return reading;
+      } catch (error) {
+        if (Number(error?.code) === 1) throw error;
+      }
+    }
+
+    if (typeof global.getCurrentGeolocationReading === "function") {
+      const attempts = [
+        { enableHighAccuracy: false, maximumAge: 600000, timeout: 500 },
+        { enableHighAccuracy: false, maximumAge: 120000, timeout: 900 },
+        { enableHighAccuracy: true, maximumAge: 60000, timeout: 1400 },
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 2200 },
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 2800 },
+      ];
+      for (const attempt of attempts) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 180) break;
+        try {
+          const reading = await global.getCurrentGeolocationReading({
+            enableHighAccuracy: attempt.enableHighAccuracy,
+            maximumAge: attempt.maximumAge,
+            timeout: Math.min(attempt.timeout, remaining),
+          });
+          if (isValidReading(reading)) {
+            report({
+              bestAccuracyMeters: Number(reading.accuracy),
+              phase: "fast",
+            });
+            return reading;
+          }
+        } catch (error) {
+          if (Number(error?.code) === 1) throw error;
+        }
+      }
+    }
+
+    if (typeof global.capturePointGeolocation === "function") {
+      const remaining = Math.max(400, deadline - Date.now());
+      const reading = await global.capturePointGeolocation({
+        maxWaitMs: remaining,
+        onProgress: report,
+      });
+      if (isValidReading(reading)) return reading;
+    }
+
+    const timeoutError = new Error("geolocation_timeout");
+    timeoutError.code = 3;
+    throw timeoutError;
+  }
+
   function locationCaptureErrorMessage(error, labels = {}) {
     const code = String(error?.message || error?.code || "");
     const acc = Number(error?.accuracyMeters);
@@ -222,45 +303,24 @@
   }
 
   async function captureChatLocation(options = {}) {
-    const idealAcc = Number(options.maxAccuracyMeters || DEFAULT_MAX_ACCURACY_M);
     const sendMaxAcc = Number(options.fallbackMaxAccuracyMeters || SEND_MAX_ACCURACY_M);
     const labels = options.labels || {};
     let cancelled = false;
-    const overlay = showCaptureOverlay(labels, () => { cancelled = true; });
+    let overlay = null;
+    let overlayTimer = null;
     const onProgress = (payload) => {
       options.onProgress?.(payload);
-      overlay.update(payload);
+      overlay?.update(payload);
     };
+    overlayTimer = global.setTimeout(() => {
+      if (cancelled) return;
+      overlay = showCaptureOverlay(labels, () => { cancelled = true; });
+    }, OVERLAY_DELAY_MS);
     try {
-      let point = null;
-      if (typeof global.captureSiteAnchorGeolocation === "function") {
-        point = await global.captureSiteAnchorGeolocation({
-          maxAcceptAccuracyMeters: idealAcc,
-          fallbackMaxAccuracyMeters: sendMaxAcc,
-          hardMaxMs: Number(options.maxWaitMs || 20000),
-          onProgress,
-        });
-      } else if (typeof global.captureMapsGradeGeolocation === "function") {
-        point = await global.captureMapsGradeGeolocation({ onProgress, maxWaitMs: 20000 });
-      } else if (typeof global.capturePointGeolocation === "function") {
-        point = await global.capturePointGeolocation({ maxWaitMs: 12000, onProgress });
-      } else if (global.navigator?.geolocation) {
-        point = await new Promise((resolve, reject) => {
-          global.navigator.geolocation.getCurrentPosition(
-            (pos) => resolve({
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude,
-              accuracy: pos.coords.accuracy,
-            }),
-            reject,
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-          );
-        });
-      } else {
-        const error = new Error("geolocation_unsupported");
-        error.code = 0;
-        throw error;
-      }
+      const point = await captureFastGeolocationForChat({
+        onProgress,
+        maxWaitMs: Number(options.maxWaitMs || FAST_CAPTURE_MAX_MS),
+      });
       if (cancelled) {
         const error = new Error("location_cancelled");
         throw error;
@@ -274,11 +334,13 @@
       return {
         lat: point.latitude,
         lng: point.longitude,
-        accuracy,
+        accuracy: Number.isFinite(accuracy) ? accuracy : 0,
         label: options.label || labels.sharedTitle || "",
       };
     } finally {
-      overlay.hide();
+      if (overlayTimer) global.clearTimeout(overlayTimer);
+      overlay?.hide?.();
+      hideCaptureOverlay();
     }
   }
 

@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat10";
+const WORKER_BUILD_TAG = "20260714chat11";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13436,15 +13436,18 @@ async function sendWorkerChatLocation() {
     showWorkerNotice(t("geolocationUnsupported"));
     return;
   }
+  const pendingId = `pending-loc-${Date.now()}`;
+  appendOptimisticWorkerChatBubble(t("chatLocationSending") || "📍 Standort wird gesendet…", pendingId);
   try {
     const point = await window.SUPPIXChatLocation.captureChatLocation({
       labels: workerLocationCaptureLabels(),
       label: t("chatLocationSharedTitle") || "Standort geteilt",
-      maxAccuracyMeters: window.SUPPIXChatLocation.DEFAULT_MAX_ACCURACY_M || 10,
     });
+    removeOptimisticWorkerChatBubble(pendingId);
     const body = window.SUPPIXChatLocation.encodeLocationBody(point);
     await sendWorkerChatMessage({ presetBody: body });
   } catch (error) {
+    removeOptimisticWorkerChatBubble(pendingId);
     if (String(error?.message || "") === "location_cancelled") return;
     const msg = window.SUPPIXChatLocation.locationCaptureErrorMessage?.(error, workerLocationCaptureLabels())
       || t("chatLocationFailed")
