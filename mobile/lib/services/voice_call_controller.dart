@@ -7,7 +7,7 @@ import '../core/session_store.dart';
 import 'voice_call_repository.dart';
 import 'callkit_service.dart';
 
-enum VoiceCallUiPhase { idle, ringing, connecting, connected, ended }
+enum VoiceCallUiPhase { idle, ringing, outgoing, connecting, connected, ended }
 
 /// App-wide incoming/outgoing voice call orchestration (shows full-screen UI on any tab).
 class VoiceCallController extends ChangeNotifier {
@@ -22,6 +22,10 @@ class VoiceCallController extends ChangeNotifier {
   WorkerSession? _session;
   Timer? _pollTimer;
   Timer? _ringTimer;
+  Timer? _ringTimeoutTimer;
+  Timer? _ringCountdownTimer;
+  DateTime? _ringStartedAt;
+  static const Duration ringTimeout = Duration(seconds: 60);
   Timer? _durationTimer;
   DateTime? _connectedAt;
   String? _pendingCallId;
@@ -35,8 +39,17 @@ class VoiceCallController extends ChangeNotifier {
   double _localLevel = 0;
   double _remoteLevel = 0;
   String? _lastDismissedCallId;
+  bool _isOutgoing = false;
 
   VoiceCallUiPhase get phase => _phase;
+  bool get isOutgoing => _isOutgoing;
+  Duration get ringRemaining {
+    final started = _ringStartedAt;
+    if (started == null) return Duration.zero;
+    final left = ringTimeout - DateTime.now().difference(started);
+    if (left.isNegative) return Duration.zero;
+    return left;
+  }
   Map<String, dynamic>? get call => _call;
   String get statusNote => _statusNote;
   Duration get elapsed => _elapsed;
@@ -90,12 +103,16 @@ class VoiceCallController extends ChangeNotifier {
   void unbind() {
     _pollTimer?.cancel();
     _ringTimer?.cancel();
+    _ringTimeoutTimer?.cancel();
+    _ringCountdownTimer?.cancel();
     _durationTimer?.cancel();
     unawaited(_sessionRtc?.end('dispose'));
     _sessionRtc = null;
     _session = null;
     _call = null;
     _phase = VoiceCallUiPhase.idle;
+    _isOutgoing = false;
+    _ringStartedAt = null;
   }
 
   void wakeForCall(String callId) {
@@ -108,7 +125,8 @@ class VoiceCallController extends ChangeNotifier {
   void _startPolling() {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) {
-      if (_phase == VoiceCallUiPhase.idle || _phase == VoiceCallUiPhase.ringing) {
+      if (_phase == VoiceCallUiPhase.idle ||
+          (_phase == VoiceCallUiPhase.ringing && !_isOutgoing)) {
         unawaited(_pollIncoming());
       }
     });
@@ -143,9 +161,11 @@ class VoiceCallController extends ChangeNotifier {
 
   void _presentIncoming(Map<String, dynamic> call) {
     _call = call;
+    _isOutgoing = false;
     _phase = VoiceCallUiPhase.ringing;
     _statusNote = 'Eingehender Anruf';
     _startRingFeedback();
+    _startRingTimeout();
     final callId = (call['id'] ?? call['callId'] ?? '').toString();
     unawaited(_callKit.showIncomingCall(
       callId: callId,
@@ -153,6 +173,69 @@ class VoiceCallController extends ChangeNotifier {
       companyName: subtitleLabel,
     ));
     notifyListeners();
+  }
+
+  void _startRingTimeout() {
+    _ringStartedAt = DateTime.now();
+    _ringTimeoutTimer?.cancel();
+    _ringCountdownTimer?.cancel();
+    _ringTimeoutTimer = Timer(ringTimeout, () {
+      if (_phase == VoiceCallUiPhase.ringing || _phase == VoiceCallUiPhase.outgoing) {
+        if (_isOutgoing) {
+          unawaited(hangup());
+        } else {
+          unawaited(decline());
+        }
+      }
+    });
+    _ringCountdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (_phase == VoiceCallUiPhase.ringing || _phase == VoiceCallUiPhase.outgoing) {
+        notifyListeners();
+      }
+    });
+  }
+
+  void _clearRingTimeout() {
+    _ringTimeoutTimer?.cancel();
+    _ringCountdownTimer?.cancel();
+    _ringTimeoutTimer = null;
+    _ringCountdownTimer = null;
+    _ringStartedAt = null;
+  }
+
+  Future<void> startOutgoingCall() async {
+    final session = _session;
+    if (session == null || isActive) return;
+    _isOutgoing = true;
+    _call = {'callerName': 'Arbeitgeber', 'companyName': subtitleLabel};
+    _phase = VoiceCallUiPhase.outgoing;
+    _statusNote = 'Wählt…';
+    notifyListeners();
+    try {
+      final call = await repo.startWorkerCall(session);
+      _call = call;
+      _phase = VoiceCallUiPhase.ringing;
+      _statusNote = 'Klingelt beim Arbeitgeber…';
+      _startRingFeedback();
+      _startRingTimeout();
+      notifyListeners();
+      _sessionRtc = WorkerVoiceCallSession(
+        repo: repo,
+        session: session,
+        call: call,
+        onState: _onRtcState,
+        onRemoteStream: (_) => notifyListeners(),
+        onAudioLevels: (local, remote) {
+          _localLevel = local;
+          _remoteLevel = remote;
+          notifyListeners();
+        },
+      );
+      await _sessionRtc!.startOutgoing();
+      await _sessionRtc!.setSpeakerphone(_speakerOn);
+    } catch (_) {
+      _finishEnded('Anruf fehlgeschlagen');
+    }
   }
 
   void _startRingFeedback() {
@@ -174,6 +257,7 @@ class VoiceCallController extends ChangeNotifier {
     final call = _call;
     if (session == null || call == null) return;
     _stopRingFeedback();
+    _clearRingTimeout();
     _phase = VoiceCallUiPhase.connecting;
     _statusNote = 'Verbindung wird aufgebaut…';
     notifyListeners();
@@ -198,9 +282,16 @@ class VoiceCallController extends ChangeNotifier {
     final session = _session;
     final call = _call;
     _stopRingFeedback();
+    _clearRingTimeout();
     final callId = (call?['id'] ?? '').toString();
     if (callId.isNotEmpty) {
       unawaited(_callKit.endCall(callId));
+    }
+    if (_isOutgoing) {
+      await _sessionRtc?.end('cancelled');
+      _sessionRtc = null;
+      _finishEnded('Abgebrochen');
+      return;
     }
     if (session != null && call != null) {
       final callId = (call['id'] ?? '').toString();
@@ -220,6 +311,7 @@ class VoiceCallController extends ChangeNotifier {
 
   Future<void> hangup() async {
     _stopRingFeedback();
+    _clearRingTimeout();
     final callId = (_call?['id'] ?? '').toString();
     if (callId.isNotEmpty) {
       unawaited(_callKit.endCall(callId));
@@ -243,16 +335,24 @@ class VoiceCallController extends ChangeNotifier {
 
   void _onRtcState(String state) {
     if (state == 'connected') {
+      _clearRingTimeout();
       _phase = VoiceCallUiPhase.connected;
       _statusNote = 'Sicher verbunden';
       _connectedAt = DateTime.now();
       _startDurationTimer();
       _stopRingFeedback();
-    } else if (state == 'connecting' || state == 'ringing') {
+    } else if (state == 'connecting') {
+      _clearRingTimeout();
       _phase = VoiceCallUiPhase.connecting;
       _statusNote = 'Verbindung wird aufgebaut…';
+    } else if (state == 'ringing') {
+      if (_isOutgoing) {
+        _phase = VoiceCallUiPhase.ringing;
+        _statusNote = 'Klingelt beim Arbeitgeber…';
+      }
     } else if (state == 'ended') {
-      _finishEnded('Anruf beendet');
+      final note = _isOutgoing ? 'Nicht angenommen' : 'Anruf beendet';
+      _finishEnded(note);
     }
     notifyListeners();
   }
@@ -269,6 +369,7 @@ class VoiceCallController extends ChangeNotifier {
 
   void _finishEnded(String note) {
     _stopRingFeedback();
+    _clearRingTimeout();
     _durationTimer?.cancel();
     _durationTimer = null;
     _connectedAt = null;
@@ -276,6 +377,7 @@ class VoiceCallController extends ChangeNotifier {
     _muted = false;
     _localLevel = 0;
     _remoteLevel = 0;
+    _isOutgoing = false;
     _phase = VoiceCallUiPhase.ended;
     _statusNote = note;
     notifyListeners();

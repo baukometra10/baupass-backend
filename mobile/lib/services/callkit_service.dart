@@ -95,7 +95,7 @@ class CallKitService {
       appName: 'SUPPIX',
       handle: companyName?.trim().isNotEmpty == true ? companyName!.trim() : 'Sicherer Sprachkanal',
       type: 0,
-      duration: 45000,
+      duration: 60000,
       textAccept: 'Annehmen',
       textDecline: 'Ablehnen',
       missedCallNotification: const NotificationParams(

@@ -46,6 +46,16 @@ class VoiceCallRepository {
     return null;
   }
 
+  Future<Map<String, dynamic>> startWorkerCall(WorkerSession session) async {
+    final data = await _api.postJson(
+      '/api/worker-app/chat/calls',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: const {},
+    );
+    return Map<String, dynamic>.from(data['call'] as Map? ?? data);
+  }
+
   Future<Map<String, dynamic>> acceptCall(WorkerSession session, String callId) async {
     final data = await _api.postJson(
       '/api/worker-app/chat/calls/$callId/accept',
@@ -86,6 +96,27 @@ class VoiceCallRepository {
       deviceId: session.deviceId,
       body: {'type': type, 'payload': payload},
     );
+  }
+
+  Future<({List<Map<String, dynamic>> signals, Map<String, dynamic>? call})> pollSignalsWithCall(
+    WorkerSession session,
+    String callId, {
+    String sinceId = '',
+  }) async {
+    var path = '/api/worker-app/chat/calls/$callId/signals';
+    if (sinceId.isNotEmpty) path += '?since_id=${Uri.encodeComponent(sinceId)}';
+    final data = await _api.getJson(
+      path,
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final rows = data['signals'];
+    final signals = rows is List
+        ? rows.map((row) => Map<String, dynamic>.from(row as Map)).toList()
+        : <Map<String, dynamic>>[];
+    final callRaw = data['call'];
+    final call = callRaw is Map ? Map<String, dynamic>.from(callRaw) : null;
+    return (signals: signals, call: call);
   }
 
   Future<List<Map<String, dynamic>>> pollSignals(
@@ -153,12 +184,12 @@ class WorkerVoiceCallSession {
   String _lastSignalId = '';
   bool _ended = false;
   bool _muted = false;
+  bool _deferredOffer = false;
+  bool _offerSent = false;
 
   String get callId => (call['id'] ?? call['callId'] ?? '').toString();
 
-  Future<void> acceptAndConnect() async {
-    onState('connecting');
-    await repo.acceptCall(session, callId);
+  Future<void> _setupPeerConnection() async {
     _pc = await createPeerConnection(repo.peerConfig(call));
     _localStream = await navigator.mediaDevices.getUserMedia(VoiceCallRepository.hdAudioConstraints);
     for (final track in _localStream!.getTracks()) {
@@ -195,6 +226,39 @@ class WorkerVoiceCallSession {
         onState('ended');
       }
     };
+  }
+
+  Future<void> startOutgoing() async {
+    onState('ringing');
+    _deferredOffer = true;
+    _offerSent = false;
+    _startPolling();
+  }
+
+  Future<void> _sendOfferAfterAccept() async {
+    if (_offerSent || _ended) return;
+    _offerSent = true;
+    onState('connecting');
+    await _setupPeerConnection();
+    final offer = await _pc!.createOffer({
+      'offerToReceiveAudio': true,
+      'offerToReceiveVideo': false,
+      'voiceActivityDetection': true,
+    });
+    await _pc!.setLocalDescription(offer);
+    await repo.sendSignal(
+      session,
+      callId,
+      type: 'offer',
+      payload: {'type': offer.type, 'sdp': offer.sdp},
+    );
+    _startMeters();
+  }
+
+  Future<void> acceptAndConnect() async {
+    onState('connecting');
+    await repo.acceptCall(session, callId);
+    await _setupPeerConnection();
     _startPolling();
     _startMeters();
   }
@@ -297,8 +361,19 @@ class WorkerVoiceCallSession {
     _pollTimer = Timer.periodic(const Duration(milliseconds: 700), (_) async {
       if (_ended) return;
       try {
-        final signals = await repo.pollSignals(session, callId, sinceId: _lastSignalId);
-        for (final signal in signals) {
+        final result = await repo.pollSignalsWithCall(session, callId, sinceId: _lastSignalId);
+        final callStatus = result.call;
+        if (callStatus != null) {
+          final status = (callStatus['status'] ?? '').toString();
+          if (status == 'declined' || status == 'missed' || status == 'ended') {
+            await end(callStatus['endReason']?.toString() ?? status);
+            return;
+          }
+          if (_deferredOffer && !_offerSent && status == 'accepted') {
+            await _sendOfferAfterAccept();
+          }
+        }
+        for (final signal in result.signals) {
           _lastSignalId = (signal['id'] ?? _lastSignalId).toString();
           await _applySignal(signal);
         }

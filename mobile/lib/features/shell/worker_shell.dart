@@ -283,7 +283,7 @@ class WorkerShellState extends State<WorkerShell> {
         workerCache: widget.workerCache,
         initialTab: _tasksSubTab,
       ),
-      ChatScreen(session: widget.session, chat: widget.chat),
+      ChatScreen(session: widget.session, chat: widget.chat, voiceCall: _voiceCall),
       ProfileScreen(
         session: widget.session,
         auth: widget.auth,

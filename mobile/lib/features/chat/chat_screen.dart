@@ -12,6 +12,7 @@ import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
+import '../../services/voice_call_controller.dart';
 import 'chat_location_helpers.dart';
 import 'chat_media_gallery.dart';
 import 'chat_voice_compose_bar.dart';
@@ -21,10 +22,12 @@ class ChatScreen extends StatefulWidget {
     super.key,
     required this.session,
     required this.chat,
+    this.voiceCall,
   });
 
   final WorkerSession session;
   final ChatRepository chat;
+  final VoiceCallController? voiceCall;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -670,6 +673,16 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Text(branding.chatTitle),
         actions: [
+          if (widget.voiceCall != null)
+            IconButton(
+              icon: const Icon(Icons.call_rounded),
+              tooltip: 'Anrufen',
+              onPressed: widget.voiceCall!.isActive
+                  ? null
+                  : () {
+                      unawaited(widget.voiceCall!.startOutgoingCall());
+                    },
+            ),
           IconButton(
             icon: const Icon(Icons.photo_library_outlined),
             tooltip: 'Medien',

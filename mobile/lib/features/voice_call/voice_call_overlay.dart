@@ -91,8 +91,24 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
     if (phase == VoiceCallUiPhase.idle) return const SizedBox.shrink();
 
     final isRinging = phase == VoiceCallUiPhase.ringing;
+    final isOutgoing = phase == VoiceCallUiPhase.outgoing;
+    final isConnecting = phase == VoiceCallUiPhase.connecting;
     final isConnected = phase == VoiceCallUiPhase.connected;
     final isEnded = phase == VoiceCallUiPhase.ended;
+    final showRingAnim = isRinging || isOutgoing || isConnecting;
+    final ringLeft = widget.controller.ringRemaining;
+    final ringCountdown = ringLeft.inSeconds > 0
+        ? '${ringLeft.inMinutes.remainder(60).toString().padLeft(2, '0')}:${ringLeft.inSeconds.remainder(60).toString().padLeft(2, '0')}'
+        : '';
+
+    String statusLine;
+    if (isConnected) {
+      statusLine = _formatDuration(widget.controller.elapsed);
+    } else if ((isRinging || isOutgoing) && ringCountdown.isNotEmpty) {
+      statusLine = '${widget.controller.statusNote} · $ringCountdown';
+    } else {
+      statusLine = widget.controller.statusNote;
+    }
 
     return SizedBox.expand(
       child: Material(
@@ -112,11 +128,11 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                     label: widget.controller.callerLabel,
                     accent: _accent,
                     pulse: _pulseController,
-                    ringing: isRinging,
+                    ringing: showRingAnim,
                   ),
                   const SizedBox(height: 22),
                   Text(
-                    widget.controller.callerLabel,
+                    widget.controller.isOutgoing ? 'Arbeitgeber' : widget.controller.callerLabel,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       color: Colors.white,
@@ -127,9 +143,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    isConnected
-                        ? _formatDuration(widget.controller.elapsed)
-                        : widget.controller.statusNote,
+                    statusLine,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.78),
@@ -155,6 +169,9 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                     ),
                     const SizedBox(height: 18),
                     _WaveBars(controller: _waveController, accent: _accent),
+                  ] else if (showRingAnim) ...[
+                    const SizedBox(height: 28),
+                    _WaveBars(controller: _waveController, accent: _accent),
                   ],
                   const Spacer(flex: 3),
                   if (_remoteRenderer != null)
@@ -166,11 +183,15 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                         objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                       ),
                     ),
-                  if (isRinging)
+                  if (isRinging && !widget.controller.isOutgoing)
                     _IncomingActions(
                       accent: _accent,
                       onDecline: widget.controller.decline,
                       onAccept: widget.controller.accept,
+                    )
+                  else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
+                    _OutgoingActions(
+                      onCancel: widget.controller.decline,
                     )
                   else if (isConnected)
                     _ActiveControls(
@@ -181,6 +202,8 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                       onToggleSpeaker: widget.controller.toggleSpeaker,
                       onHangup: widget.controller.hangup,
                     )
+                  else if (isConnecting)
+                    _OutgoingActions(onCancel: widget.controller.hangup)
                   else if (isEnded)
                     _EndedHint(note: widget.controller.statusNote)
                   else
@@ -470,6 +493,22 @@ class _IncomingActions extends StatelessWidget {
           glow: const Color(0xFF00A884),
         ),
       ],
+    );
+  }
+}
+
+class _OutgoingActions extends StatelessWidget {
+  const _OutgoingActions({required this.onCancel});
+
+  final Future<void> Function() onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return _RoundActionButton(
+      icon: Icons.call_end_rounded,
+      label: 'Abbrechen',
+      color: const Color(0xFFE53935),
+      onTap: onCancel,
     );
   }
 }

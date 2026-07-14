@@ -11,14 +11,20 @@ _started = False
 
 def expire_voice_calls_once() -> int:
     try:
-        from backend.app.database import get_db
-        from backend.app.platform.voice_calls.service import VoiceCallService
+        import sqlite3
 
-        db = get_db()
-        count = VoiceCallService(db).expire_stale_calls()
-        if count:
-            db.commit()
-        return count
+        from backend.app.platform.voice_calls.service import VoiceCallService
+        from backend.server import DB_PATH
+
+        conn = sqlite3.connect(str(DB_PATH), timeout=60.0, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        try:
+            count = VoiceCallService(conn).expire_stale_calls()
+            if count:
+                conn.commit()
+            return count
+        finally:
+            conn.close()
     except Exception as exc:
         logger.warning("voice_call expire tick failed: %s", exc)
         return 0

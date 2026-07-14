@@ -17,6 +17,9 @@ async function login(request, { username, password, loginScope, otpCode }) {
 }
 
 function getWorkspacePythonExecutable() {
+  if (process.env.PYTHON) {
+    return process.env.PYTHON;
+  }
   const candidates = process.platform === 'win32'
     ? [
         path.resolve('.venv311', 'Scripts', 'python.exe'),
@@ -26,7 +29,9 @@ function getWorkspacePythonExecutable() {
         path.resolve('.venv311', 'bin', 'python'),
         path.resolve('.venv', 'bin', 'python'),
       ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1];
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (found) return found;
+  return process.platform === 'win32' ? 'python' : 'python3';
 }
 
 function ensureLocalSuperadminCredentials(username) {
