@@ -66,11 +66,12 @@
   }
 
   class VoiceCallSession {
-    constructor({ api, role, onState, onError }) {
+    constructor({ api, role, onState, onError, onAudioLevels }) {
       this.api = api;
       this.role = role;
       this.onState = onState || (() => {});
       this.onError = onError || (() => {});
+      this.onAudioLevels = onAudioLevels || (() => {});
       this.callId = "";
       this.workerId = "";
       this.iceServers = [];
@@ -83,8 +84,18 @@
       this.ended = false;
       this.ringDeadline = 0;
       this.muted = false;
+      this.speakerOn = true;
+      this.outputVolume = 1;
       this.companyId = "";
       this.ringTimeoutTimer = null;
+      this.audioContext = null;
+      this.localAnalyser = null;
+      this.remoteAnalyser = null;
+      this.localSource = null;
+      this.remoteSource = null;
+      this.meterTimer = null;
+      this.localMeterData = null;
+      this.remoteMeterData = null;
     }
 
     _callStatusPath() {
@@ -122,6 +133,130 @@
       return this.muted;
     }
 
+    toggleSpeaker() {
+      this.speakerOn = !this.speakerOn;
+      if (this.remoteAudio) {
+        this.remoteAudio.muted = !this.speakerOn;
+      }
+      return this.speakerOn;
+    }
+
+    setOutputVolume(value) {
+      const vol = Math.max(0, Math.min(1, Number(value)));
+      this.outputVolume = vol;
+      if (this.remoteAudio) {
+        this.remoteAudio.volume = vol;
+        this.remoteAudio.muted = !this.speakerOn || vol === 0;
+      }
+      return vol;
+    }
+
+    _getAudioLevel(analyser, buffer) {
+      if (!analyser || !buffer) return 0;
+      analyser.getByteTimeDomainData(buffer);
+      let sum = 0;
+      for (let i = 0; i < buffer.length; i += 1) {
+        const sample = (buffer[i] - 128) / 128;
+        sum += sample * sample;
+      }
+      return Math.min(1, Math.sqrt(sum / buffer.length) * 5.5);
+    }
+
+    async _ensureAudioContext() {
+      if (this.audioContext) return this.audioContext;
+      try {
+        this.audioContext = new (global.AudioContext || global.webkitAudioContext)();
+        if (this.audioContext.state === "suspended") {
+          await this.audioContext.resume();
+        }
+      } catch (_) {
+        this.audioContext = null;
+      }
+      return this.audioContext;
+    }
+
+    _attachLocalAnalyser() {
+      if (!this.audioContext || !this.localStream || this.localSource) return;
+      try {
+        this.localAnalyser = this.audioContext.createAnalyser();
+        this.localAnalyser.fftSize = 256;
+        this.localSource = this.audioContext.createMediaStreamSource(this.localStream);
+        this.localSource.connect(this.localAnalyser);
+      } catch (_) {
+        /* ignore analyser setup errors */
+      }
+    }
+
+    _attachRemoteAnalyser(stream) {
+      if (!stream || this.remoteSource) return;
+      void this._ensureAudioContext().then((ctx) => {
+        if (!ctx || this.ended || this.remoteSource) return;
+        try {
+          this.remoteAnalyser = ctx.createAnalyser();
+          this.remoteAnalyser.fftSize = 256;
+          this.remoteSource = ctx.createMediaStreamSource(stream);
+          this.remoteSource.connect(this.remoteAnalyser);
+        } catch (_) {
+          /* ignore analyser setup errors */
+        }
+      });
+    }
+
+    _startAudioMeters() {
+      this._stopAudioMeters();
+      void this._ensureAudioContext().then((ctx) => {
+        if (!ctx || this.ended) return;
+        this._attachLocalAnalyser();
+        const tick = () => {
+          if (this.ended) return;
+          if (this.localAnalyser && !this.localMeterData) {
+            this.localMeterData = new Uint8Array(this.localAnalyser.fftSize);
+          }
+          if (this.remoteAnalyser && !this.remoteMeterData) {
+            this.remoteMeterData = new Uint8Array(this.remoteAnalyser.fftSize);
+          }
+          const local = this.muted ? 0 : this._getAudioLevel(this.localAnalyser, this.localMeterData);
+          const remote =
+            this.speakerOn && this.outputVolume > 0
+              ? this._getAudioLevel(this.remoteAnalyser, this.remoteMeterData)
+              : 0;
+          try {
+            this.onAudioLevels({ local, remote });
+          } catch (_) {
+            /* ignore UI callback errors */
+          }
+          if (!this.ended) this.meterTimer = global.requestAnimationFrame(tick);
+        };
+        this.meterTimer = global.requestAnimationFrame(tick);
+      });
+    }
+
+    _stopAudioMeters() {
+      if (this.meterTimer) global.cancelAnimationFrame(this.meterTimer);
+      this.meterTimer = null;
+      try {
+        this.localSource?.disconnect();
+        this.remoteSource?.disconnect();
+      } catch (_) {
+        /* ignore */
+      }
+      this.localSource = null;
+      this.remoteSource = null;
+      this.localAnalyser = null;
+      this.remoteAnalyser = null;
+      this.localMeterData = null;
+      this.remoteMeterData = null;
+      if (this.audioContext) {
+        this.audioContext.close().catch(() => {});
+        this.audioContext = null;
+      }
+      try {
+        this.onAudioLevels({ local: 0, remote: 0 });
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
     async _ensureMedia() {
       if (this.localStream) return this.localStream;
       this.localStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
@@ -133,6 +268,8 @@
       const audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
+      audio.volume = this.outputVolume;
+      audio.muted = !this.speakerOn;
       audio.style.display = "none";
       document.body.appendChild(audio);
       this.remoteAudio = audio;
@@ -147,10 +284,13 @@
       });
       const stream = await this._ensureMedia();
       stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
+      this._startAudioMeters();
       this.pc.ontrack = (event) => {
+        const remoteStream = event.streams[0];
         const audio = this._ensureRemoteAudio();
-        audio.srcObject = event.streams[0];
+        audio.srcObject = remoteStream;
         audio.play().catch(() => {});
+        this._attachRemoteAnalyser(remoteStream);
       };
       this.pc.onicecandidate = (event) => {
         if (!event.candidate || !this.callId) return;
@@ -316,6 +456,7 @@
       this._stopPolling();
       this._clearRingTimeout();
       this._stopRingtone();
+      this._stopAudioMeters();
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
       if (this.callId) {
         try {

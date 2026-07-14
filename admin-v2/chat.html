@@ -388,6 +388,97 @@
       from { height: 8px; opacity: 0.45; }
       to { height: 28px; opacity: 1; }
     }
+    .voice-call-meters {
+      margin: 1.15rem auto 0.35rem;
+      width: min(320px, 100%);
+      display: grid;
+      gap: 0.55rem;
+      text-align: left;
+    }
+    .voice-call-meter-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr;
+      align-items: center;
+      gap: 0.55rem;
+    }
+    .voice-call-meter-row span {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: rgba(226, 232, 240, 0.78);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .voice-call-meter-track {
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+    }
+    .voice-call-meter-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22d3ee, #2dd4bf);
+      transition: width 0.08s linear;
+    }
+    .voice-call-meter-fill.remote {
+      background: linear-gradient(90deg, #34d399, #059669);
+    }
+    .voice-call-volume-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      margin: 0.85rem auto 0.15rem;
+      width: min(320px, 100%);
+    }
+    .voice-call-volume-row label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: rgba(226, 232, 240, 0.82);
+      white-space: nowrap;
+    }
+    .voice-call-volume-row input[type="range"] {
+      flex: 1;
+      accent-color: #2dd4bf;
+      cursor: pointer;
+    }
+    .voice-call-controls {
+      display: flex;
+      gap: 0.85rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 1.1rem;
+    }
+    .voice-call-round-btn {
+      min-width: 92px;
+      border-radius: 16px;
+      padding: 0.72rem 0.55rem 0.62rem;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      background: rgba(31, 41, 55, 0.92);
+      color: #f8fafc;
+      cursor: pointer;
+      display: grid;
+      gap: 0.28rem;
+      justify-items: center;
+    }
+    .voice-call-round-btn .voice-call-btn-icon {
+      font-size: 1.35rem;
+      line-height: 1;
+    }
+    .voice-call-round-btn .voice-call-btn-label {
+      font-size: 0.68rem;
+      font-weight: 600;
+      opacity: 0.88;
+    }
+    .voice-call-round-btn.is-active {
+      background: rgba(127, 29, 29, 0.55);
+      border-color: rgba(248, 113, 113, 0.45);
+    }
+    .voice-call-round-btn.danger {
+      background: #b91c1c;
+      border-color: #ef4444;
+    }
     .voice-call-actions {
       display: flex;
       gap: 0.75rem;
@@ -513,15 +604,39 @@
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
-      <div class="voice-call-actions">
-        <button type="button" id="voiceCallMuteBtn" class="ghost hidden" data-aci18n="voiceCallMute">Stumm</button>
-        <button type="button" id="voiceCallHangupBtn" class="danger" data-aci18n="voiceCallHangup">Auflegen</button>
+      <div id="voiceCallMeters" class="voice-call-meters" aria-live="polite">
+        <div class="voice-call-meter-row">
+          <span id="voiceCallMicLabel" data-aci18n="voiceCallMicLabel">Sie</span>
+          <div class="voice-call-meter-track"><div id="voiceCallMicFill" class="voice-call-meter-fill"></div></div>
+        </div>
+        <div class="voice-call-meter-row">
+          <span id="voiceCallRemoteLabel" data-aci18n="voiceCallRemoteLabel">Mitarbeiter</span>
+          <div class="voice-call-meter-track"><div id="voiceCallRemoteFill" class="voice-call-meter-fill remote"></div></div>
+        </div>
+      </div>
+      <div class="voice-call-volume-row">
+        <label for="voiceCallVolume" id="voiceCallVolumeLabel" data-aci18n="voiceCallVolume">Lautstärke</label>
+        <input type="range" id="voiceCallVolume" min="0" max="100" value="100" aria-labelledby="voiceCallVolumeLabel" />
+      </div>
+      <div class="voice-call-controls">
+        <button type="button" id="voiceCallMuteBtn" class="voice-call-round-btn" data-aci18n="voiceCallMute" data-aci18n-attr="aria-label,title" aria-label="Stumm" title="Stumm">
+          <span class="voice-call-btn-icon" aria-hidden="true">🎤</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallMute">Stumm</span>
+        </button>
+        <button type="button" id="voiceCallSpeakerBtn" class="voice-call-round-btn" data-aci18n="voiceCallSpeaker" data-aci18n-attr="aria-label,title" aria-label="Lautsprecher" title="Lautsprecher">
+          <span class="voice-call-btn-icon" aria-hidden="true">🔊</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallSpeaker">Lautsprecher</span>
+        </button>
+        <button type="button" id="voiceCallHangupBtn" class="voice-call-round-btn danger" data-aci18n="voiceCallHangup" data-aci18n-attr="aria-label,title" aria-label="Auflegen" title="Auflegen">
+          <span class="voice-call-btn-icon" aria-hidden="true">📞</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallHangup">Auflegen</span>
+        </button>
       </div>
     </div>
   </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260714voice4"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
+  <script src="/chat-voice-call.js?v=20260714voice5"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice5"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1576,6 +1691,47 @@
     let activeVoiceCallSession = null;
     let voiceCallTimerInterval = null;
     let voiceCallStartedAt = 0;
+    function resetVoiceCallMeters() {
+      const micFill = document.getElementById("voiceCallMicFill");
+      const remoteFill = document.getElementById("voiceCallRemoteFill");
+      if (micFill) micFill.style.width = "0%";
+      if (remoteFill) remoteFill.style.width = "0%";
+    }
+    function updateVoiceCallMuteBtn(muted) {
+      const btn = document.getElementById("voiceCallMuteBtn");
+      if (!btn) return;
+      btn.classList.toggle("is-active", muted);
+      const icon = btn.querySelector(".voice-call-btn-icon");
+      if (icon) icon.textContent = muted ? "🔇" : "🎤";
+      const label = btn.querySelector(".voice-call-btn-label");
+      const text = muted
+        ? (window.adminChatT("voiceCallUnmute") || "Ton an")
+        : (window.adminChatT("voiceCallMute") || "Stumm");
+      if (label) label.textContent = text;
+      btn.setAttribute("aria-label", text);
+      btn.title = text;
+    }
+    function updateVoiceCallSpeakerBtn(on) {
+      const btn = document.getElementById("voiceCallSpeakerBtn");
+      if (!btn) return;
+      btn.classList.toggle("is-active", !on);
+      const icon = btn.querySelector(".voice-call-btn-icon");
+      if (icon) icon.textContent = on ? "🔊" : "🔈";
+      const label = btn.querySelector(".voice-call-btn-label");
+      const text = on
+        ? (window.adminChatT("voiceCallSpeaker") || "Lautsprecher")
+        : (window.adminChatT("voiceCallSpeakerOff") || "Leise");
+      if (label) label.textContent = text;
+      btn.setAttribute("aria-label", text);
+      btn.title = text;
+    }
+    function resetVoiceCallControls() {
+      resetVoiceCallMeters();
+      updateVoiceCallMuteBtn(false);
+      updateVoiceCallSpeakerBtn(true);
+      const volume = document.getElementById("voiceCallVolume");
+      if (volume) volume.value = "100";
+    }
     function voiceCallInitials(name) {
       const parts = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
       return parts.map((part) => part.charAt(0).toUpperCase()).join("") || "AG";
@@ -1612,24 +1768,21 @@
     function setVoiceCallOverlay(visible, statusText, state) {
       const overlay = document.getElementById("voiceCallOverlay");
       const status = document.getElementById("voiceCallStatus");
-      const muteBtn = document.getElementById("voiceCallMuteBtn");
       const rings = overlay?.querySelector(".voice-call-rings");
       if (status && statusText) status.textContent = statusText;
       overlay?.classList.toggle("hidden", !visible);
       if (!visible) {
         stopVoiceCallTimer();
-        muteBtn?.classList.add("hidden");
+        resetVoiceCallControls();
         rings?.classList.remove("hidden");
         return;
       }
       const connected = state === "connected" || state === "accepted";
       if (connected) {
         rings?.classList.add("hidden");
-        muteBtn?.classList.remove("hidden");
         startVoiceCallTimer();
       } else {
         rings?.classList.remove("hidden");
-        muteBtn?.classList.add("hidden");
         stopVoiceCallTimer();
       }
     }
@@ -1657,10 +1810,17 @@
       const name = row ? threadDisplayName(row) : currentWorkerId;
       document.getElementById("voiceCallTitle").textContent = name;
       document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
+      resetVoiceCallControls();
       setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing");
       activeVoiceCallSession = window.SUPPIXVoiceCall.createSession({
         api: voiceCallApi,
         role: "admin",
+        onAudioLevels: ({ local, remote }) => {
+          const micFill = document.getElementById("voiceCallMicFill");
+          const remoteFill = document.getElementById("voiceCallRemoteFill");
+          if (micFill) micFill.style.width = `${Math.round((local || 0) * 100)}%`;
+          if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
+        },
         onState: (state) => {
           if (state === "ended") {
             setVoiceCallOverlay(false);
@@ -1708,12 +1868,20 @@
     document.getElementById("voiceCallMuteBtn")?.addEventListener("click", () => {
       if (!activeVoiceCallSession) return;
       const muted = activeVoiceCallSession.toggleMute();
-      const btn = document.getElementById("voiceCallMuteBtn");
-      if (btn) {
-        btn.textContent = muted
-          ? (window.adminChatT("voiceCallUnmute") || "Ton an")
-          : (window.adminChatT("voiceCallMute") || "Stumm");
-      }
+      updateVoiceCallMuteBtn(muted);
+    });
+    document.getElementById("voiceCallSpeakerBtn")?.addEventListener("click", () => {
+      if (!activeVoiceCallSession) return;
+      const on = activeVoiceCallSession.toggleSpeaker();
+      updateVoiceCallSpeakerBtn(on);
+      const volume = document.getElementById("voiceCallVolume");
+      if (volume && on) volume.value = String(Math.round((activeVoiceCallSession.outputVolume || 1) * 100) || 100);
+    });
+    document.getElementById("voiceCallVolume")?.addEventListener("input", (event) => {
+      if (!activeVoiceCallSession) return;
+      const value = Number(event.target.value);
+      activeVoiceCallSession.setOutputVolume(value / 100);
+      updateVoiceCallSpeakerBtn(activeVoiceCallSession.speakerOn && value > 0);
     });
 
     syncAdminComposeAction();
