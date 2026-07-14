@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat2";
+const WORKER_BUILD_TAG = "20260714chat3";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3032,7 +3032,10 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-reply-bar{display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(0,168,132,.1);border:1px solid rgba(0,168,132,.22)}",
   "#chatCard .worker-chat-reply-bar.hidden{display:none}",
   "#chatCard .worker-chat-reply-bar-text{flex:1;min-width:0;font-size:.78rem;color:#e9edef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
-  "#chatCard .worker-chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem}",
+  "#chatCard .worker-chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem;max-width:100%}",
+  "#chatCard .worker-chat-reply-quote.is-company{border-left-color:#8696a0;background:rgba(134,150,160,.1)}",
+  "#chatCard .worker-chat-reply-quote.is-mine{border-left-color:#53bdeb;background:rgba(83,189,235,.08)}",
+  "#chatCard .worker-chat-reply-quote-text{display:block;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(100%,300px)}",
   "#chatCard .worker-chat-reply-btn{border:none;background:transparent;color:#8696a0;cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem}",
   "#chatCard .worker-chat-typing{font-size:.74rem;color:#00a884;font-style:italic;min-height:1rem;margin:.15rem 0 .35rem}",
   "#chatCard .worker-chat-typing:empty{display:none}",
@@ -12596,10 +12599,58 @@ async function prepareWorkerChatMessagesForDisplay(messages) {
   if (!Array.isArray(messages) || !messages.length) {
     return [];
   }
-  return Promise.all((messages || []).map(async (msg) => ({
-    ...msg,
-    body: await decryptWorkerChatBody(msg.body),
-  })));
+  const list = messages;
+  const byId = new Map(list.map((m) => [String(m.id), m]));
+  return Promise.all(list.map(async (msg) => {
+    const body = await decryptWorkerChatBody(msg.body);
+    let replyTo = msg.replyTo;
+    if (replyTo?.id) {
+      const original = byId.get(String(replyTo.id));
+      const previewBody = await buildWorkerReplyPreview(
+        original || { body: replyTo.body, attachments: [], senderType: replyTo.senderType },
+      );
+      replyTo = {
+        ...replyTo,
+        senderType: original?.senderType || replyTo.senderType,
+        body: previewBody,
+      };
+    }
+    return { ...msg, body, replyTo };
+  }));
+}
+
+function formatWorkerReplyPreviewBody(text, attachments = []) {
+  let body = String(text || "").trim();
+  const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
+  const meta = att?.e2eMeta || att?.e2e_meta || "";
+  const contentType = att?.contentType || att?.content_type || "";
+  const filename = att?.filename || "";
+  if (att && window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType, meta)) {
+    return t("chatVoiceMessage");
+  }
+  if (att && (/^image\//i.test(contentType) || /\.(jpe?g|png|webp|gif)$/i.test(filename))) {
+    return t("chatPreviewPhoto") || "Foto";
+  }
+  if (body.startsWith("@voice-call|")) return t("voiceCallLogTitle") || "Anruf";
+  if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, t("chatVoiceMessage"))) {
+    return t("chatVoiceMessage");
+  }
+  const decryptFailed = t("workerChatE2EDecryptFailed");
+  if (
+    body === "encrypted"
+    || body === decryptFailed
+    || /entschlüsselung fehlgeschlagen|decryption failed/i.test(body)
+  ) {
+    return t("encryptedPreview") || "Verschlüsselte Nachricht";
+  }
+  if (!body) return t("chatReplyEmpty") || "Nachricht";
+  return body.slice(0, 120);
+}
+
+async function buildWorkerReplyPreview(originalMsg) {
+  if (!originalMsg) return t("encryptedPreview") || "Verschlüsselte Nachricht";
+  const decrypted = await decryptWorkerChatBody(originalMsg.body);
+  return formatWorkerReplyPreviewBody(decrypted, originalMsg.attachments);
 }
 
 function extractChatThreadId(row) {
@@ -12878,11 +12929,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
 }
 
 function workerReplyPreviewText(msg) {
-  const body = String(msg?.body || "").trim();
-  if (body.startsWith("@voice-call|")) return t("voiceCallLogTitle") || "Anruf";
-  if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, t("chatVoiceMessage"))) return t("chatVoiceMessage");
-  if (!body || body === "encrypted") return t("encryptedPreview") || "Verschlüsselte Nachricht";
-  return body.slice(0, 96);
+  return formatWorkerReplyPreviewBody(msg?.body, msg?.attachments);
 }
 
 function workerReplySenderLabel(msg) {
@@ -12909,12 +12956,10 @@ function clearWorkerReplyTo() {
 function renderWorkerReplyQuoteHtml(msg) {
   const reply = msg?.replyTo;
   if (!reply?.id) return "";
-  let body = String(reply.body || "").trim();
-  if (body === "voice") body = t("chatVoiceMessage");
-  if (body === "photo") body = t("chatPreviewPhoto") || "Foto";
-  if (body === "encrypted") body = t("encryptedPreview") || "Verschlüsselte Nachricht";
+  const body = String(reply.body || "").trim() || (t("encryptedPreview") || "Verschlüsselte Nachricht");
   const who = String(reply.senderType || "") === "worker" ? (t("workerChatFromYou") || "Du") : getWorkerBrandTitle();
-  return `<div class="worker-chat-reply-quote"><strong>${escapeHtmlBasic(who)}</strong>${escapeHtmlBasic(body.slice(0, 120))}</div>`;
+  const sideClass = String(reply.senderType || "") === "worker" ? "is-mine" : "is-company";
+  return `<div class="worker-chat-reply-quote ${sideClass}"><strong>${escapeHtmlBasic(who)}</strong><span class="worker-chat-reply-quote-text">${escapeHtmlBasic(body)}</span></div>`;
 }
 
 function stopWorkerTypingController() {

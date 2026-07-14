@@ -94,8 +94,11 @@
     .chat-quick-replies.hidden{display:none}
     .chat-quick-replies button{border:1px solid rgba(0,168,132,.28);background:rgba(0,168,132,.08);color:var(--text);border-radius:999px;padding:.28rem .62rem;font-size:.72rem;cursor:pointer;white-space:nowrap}
     .chat-quick-replies button:hover{border-color:rgba(0,168,132,.45)}
-    .chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem;opacity:.92}
+    .chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem;opacity:.92;max-width:100%}
+    .chat-reply-quote.is-worker{border-left-color:#53bdeb;background:rgba(83,189,235,.08)}
+    .chat-reply-quote.is-admin{border-left-color:#00a884}
     .chat-reply-quote strong{display:block;font-size:.68rem;opacity:.75;margin-bottom:.12rem}
+    .chat-reply-quote-text{display:block;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(100%,320px)}
     .bubble-reply-btn,.chat-reply-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem;opacity:.65}
     .bubble-reply-btn:hover,.chat-reply-btn:hover{opacity:1;color:var(--accent)}
     .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); }
@@ -889,16 +892,16 @@
       </div>
     </div>
   </div>
-  <script src="/ops-realtime.js?v=20260714chat2"></script>
-  <script src="/chat-realtime.js?v=20260714chat2"></script>
-  <script src="/chat-gallery.js?v=20260714chat2"></script>
-  <script src="/chat-typing.js?v=20260714chat2"></script>
-  <script src="/chat-search.js?v=20260714chat2"></script>
-  <script src="/chat-admin-push.js?v=20260714chat2"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat2"></script>
-  <script src="/chat-voice.js?v=20260714chat2"></script>
-  <script src="/chat-voice-call.js?v=20260714chat2"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat2"></script>
+  <script src="/ops-realtime.js?v=20260714chat3"></script>
+  <script src="/chat-realtime.js?v=20260714chat3"></script>
+  <script src="/chat-gallery.js?v=20260714chat3"></script>
+  <script src="/chat-typing.js?v=20260714chat3"></script>
+  <script src="/chat-search.js?v=20260714chat3"></script>
+  <script src="/chat-admin-push.js?v=20260714chat3"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat3"></script>
+  <script src="/chat-voice.js?v=20260714chat3"></script>
+  <script src="/chat-voice-call.js?v=20260714chat3"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat3"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1234,6 +1237,55 @@
         return window.adminChatT("e2eDecryptFailed");
       }
     }
+    function formatChatReplyPreviewBody(text, attachments = []) {
+      let body = String(text || "").trim();
+      const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
+      if (att && isAudioAttachment(att.filename, att.contentType, att.e2eMeta)) {
+        return window.adminChatT("chatVoiceMessage");
+      }
+      if (att && isImageAttachment(att.filename, att.contentType)) {
+        return window.adminChatT("chatPreviewPhoto") || "Foto";
+      }
+      if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, window.adminChatT("chatVoiceMessage"))) {
+        return window.adminChatT("chatVoiceMessage");
+      }
+      if (body.startsWith("@voice-call|")) return window.adminChatT("voiceCallLogTitle");
+      const decryptFailed = window.adminChatT("e2eDecryptFailed");
+      if (
+        body === "encrypted"
+        || body === decryptFailed
+        || /entschlüsselung fehlgeschlagen|decryption failed/i.test(body)
+      ) {
+        return window.adminChatT("encryptedPreview");
+      }
+      if (!body) return window.adminChatT("chatReplyEmpty") || "Nachricht";
+      return body.slice(0, 120);
+    }
+    async function buildAdminReplyPreview(originalMsg) {
+      if (!originalMsg) return window.adminChatT("encryptedPreview");
+      const decrypted = await decryptAdminChatBody(originalMsg.body);
+      return formatChatReplyPreviewBody(decrypted, originalMsg.attachments);
+    }
+    async function prepareAdminChatMessagesForDisplay(messages) {
+      const list = Array.isArray(messages) ? messages : [];
+      const byId = new Map(list.map((m) => [String(m.id), m]));
+      return Promise.all(list.map(async (msg) => {
+        const body = await decryptAdminChatBody(msg.body);
+        let replyTo = msg.replyTo;
+        if (replyTo?.id) {
+          const original = byId.get(String(replyTo.id));
+          const previewBody = await buildAdminReplyPreview(
+            original || { body: replyTo.body, attachments: [], senderType: replyTo.senderType },
+          );
+          replyTo = {
+            ...replyTo,
+            senderType: original?.senderType || replyTo.senderType,
+            body: previewBody,
+          };
+        }
+        return { ...msg, body, replyTo };
+      }));
+    }
     async function encryptAdminChatAttachment(file, workerId) {
       if (!adminE2ERequired) {
         return { file, fields: {}, filename: file.name || "upload.bin" };
@@ -1251,12 +1303,6 @@
         fields: { e2e_meta: packed.meta, e2e_encrypted: "1" },
         filename: `${file.name || "upload.bin"}.e2e`,
       };
-    }
-    async function prepareAdminChatMessagesForDisplay(messages) {
-      return Promise.all((messages || []).map(async (msg) => ({
-        ...msg,
-        body: await decryptAdminChatBody(msg.body),
-      })));
     }
     function adminChatMessagesFingerprint(messages) {
       if (!Array.isArray(messages) || !messages.length) return "empty";
@@ -1527,13 +1573,7 @@
       });
     }
     function replyPreviewText(msg) {
-      const body = String(msg?.body || "").trim();
-      if (body.startsWith("@voice-call|")) return window.adminChatT("voiceCallLogTitle");
-      if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, window.adminChatT("chatVoiceMessage"))) {
-        return window.adminChatT("chatVoiceMessage");
-      }
-      if (body === "encrypted" || !body) return window.adminChatT("encryptedPreview");
-      return body.slice(0, 96);
+      return formatChatReplyPreviewBody(msg?.body, msg?.attachments);
     }
     function replySenderLabel(msg) {
       return String(msg?.senderType || "") === "worker"
@@ -1567,11 +1607,9 @@
       const who = String(reply.senderType || "") === "worker"
         ? window.adminChatT("senderWorker")
         : window.adminChatT("senderCompany");
-      let body = String(reply.body || "").trim();
-      if (body === "voice") body = window.adminChatT("chatVoiceMessage");
-      if (body === "photo") body = window.adminChatT("chatPreviewPhoto") || "Foto";
-      if (body === "encrypted") body = window.adminChatT("encryptedPreview");
-      return `<span class="chat-reply-quote"><strong>${escapeHtml(who)}</strong>${escapeHtml(body.slice(0, 120))}</span>`;
+      const body = String(reply.body || "").trim() || window.adminChatT("encryptedPreview");
+      const sideClass = String(reply.senderType || "") === "worker" ? "is-worker" : "is-admin";
+      return `<span class="chat-reply-quote ${sideClass}"><strong>${escapeHtml(who)}</strong><span class="chat-reply-quote-text">${escapeHtml(body)}</span></span>`;
     }
     function handleAdminChatRealtimeEvent(evt) {
       const type = String(evt?.type || "");
