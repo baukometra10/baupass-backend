@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714voice1";
+const WORKER_BUILD_TAG = "20260714chat2";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -2111,6 +2111,8 @@ const WORKER_CHAT_POLL_MS = 8000;
 const WORKER_CHAT_E2E_SYNC_TTL_MS = 120000;
 let workerChatLastFingerprint = "";
 let workerChatMessagesCache = [];
+let workerTypingController = null;
+let workerChatSearchUnmount = null;
 let workerReplyTo = null;
 let workerChatRealtimeStop = null;
 let workerChatE2ELastSyncAt = 0;
@@ -3032,6 +3034,15 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-reply-bar-text{flex:1;min-width:0;font-size:.78rem;color:#e9edef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
   "#chatCard .worker-chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem}",
   "#chatCard .worker-chat-reply-btn{border:none;background:transparent;color:#8696a0;cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem}",
+  "#chatCard .worker-chat-typing{font-size:.74rem;color:#00a884;font-style:italic;min-height:1rem;margin:.15rem 0 .35rem}",
+  "#chatCard .worker-chat-typing:empty{display:none}",
+  "#chatCard .worker-chat-search-wrap{position:relative;margin:.2rem 0 .45rem}",
+  "#chatCard .worker-chat-search-wrap input{width:100%;font-size:.84rem;padding:.45rem .65rem;border-radius:10px;border:1px solid rgba(134,150,160,.18);background:#2a3942;color:#e9edef}",
+  "#chatCard .worker-chat-search-results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:#1f2c34;border:1px solid rgba(134,150,160,.18);border-radius:10px;max-height:220px;overflow-y:auto}",
+  "#chatCard .worker-chat-search-results.hidden{display:none}",
+  "#chatCard .worker-chat-search-result{display:flex;gap:.45rem;width:100%;text-align:left;border:none;background:transparent;color:#e9edef;padding:.45rem .65rem;cursor:pointer}",
+  "#chatCard .worker-chat-bubble.chat-search-flash{animation:workerChatSearchFlash 1.2s ease}",
+  "@keyframes workerChatSearchFlash{0%,100%{box-shadow:none}40%{box-shadow:0 0 0 3px rgba(0,168,132,.45)}}",
   "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1;color:#8696a0}",
   "#chatCard .worker-chat-ticks.is-delivered{color:#8696a0}",
   "#chatCard .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
@@ -3236,6 +3247,11 @@ function ensureWorkerChatDom() {
             <button type="button" id="workerChatClearOwnBtn" data-i18n="chatClearOwn">Meine Nachrichten löschen</button>
             <button type="button" id="workerChatClearAllBtn" data-i18n="chatClearAll">Chat leeren</button>
           </div>
+        </div>
+        <p id="workerChatTyping" class="worker-chat-typing" aria-live="polite"></p>
+        <div id="workerChatSearchWrap" class="worker-chat-search-wrap hidden">
+          <input id="workerChatSearchInput" type="search" data-i18n="chatSearchPh" data-i18n-attr="placeholder" placeholder="In Unterhaltung suchen…" autocomplete="off" />
+          <div id="workerChatSearchResults" class="worker-chat-search-results hidden" aria-live="polite"></div>
         </div>
       </div>
       <div id="workerChatMessages" class="worker-chat-messages">
@@ -12748,7 +12764,7 @@ function renderWorkerChatMessages(messages, options = {}) {
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
       const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
       html += `
-        <div class="${rowClasses}">
+        <div class="${rowClasses}"${messageId ? ` data-message-id="${escapeHtmlBasic(messageId)}"` : ""}>
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
           <div class="${bubbleClasses}">
             ${renderWorkerReplyQuoteHtml(msg)}
@@ -12901,6 +12917,132 @@ function renderWorkerReplyQuoteHtml(msg) {
   return `<div class="worker-chat-reply-quote"><strong>${escapeHtmlBasic(who)}</strong>${escapeHtmlBasic(body.slice(0, 120))}</div>`;
 }
 
+function stopWorkerTypingController() {
+  if (workerTypingController) {
+    try { workerTypingController.stop(); } catch { /* ignore */ }
+    workerTypingController = null;
+  }
+  const typingEl = document.getElementById("workerChatTyping");
+  if (typingEl) typingEl.textContent = "";
+}
+
+function startWorkerTypingController() {
+  stopWorkerTypingController();
+  const threadId = String(workerChatThreadId || "").trim();
+  if (!threadId || !window.SUPPIXChatTyping?.createTypingController) return;
+  const typingEl = document.getElementById("workerChatTyping");
+  workerTypingController = window.SUPPIXChatTyping.createTypingController({
+    threadId,
+    actorType: "worker",
+    actorId: String(lastWorkerPayload?.worker?.id || "").trim(),
+    postTyping: async () => {
+      await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/typing`, {
+        method: "POST",
+        headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({}),
+      });
+    },
+    fetchTyping: async () => {
+      const data = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/typing`, {
+        headers: buildWorkerAuthHeaders(),
+      });
+      return data?.actors || [];
+    },
+    labels: {
+      workerTyping: t("chatWorkerTyping") || "Mitarbeiter tippt…",
+      adminTyping: t("chatAdminTyping") || "Arbeitgeber tippt…",
+    },
+    onLabel: (text) => {
+      if (typingEl) typingEl.textContent = text;
+    },
+  });
+  workerTypingController.bindInput(elements.workerChatInput || document.getElementById("workerChatInput"));
+}
+
+function ensureWorkerChatSearchUi() {
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  if (!chatCard) return;
+  let wrap = document.getElementById("workerChatSearchWrap");
+  if (!wrap) {
+    const head = chatCard.querySelector(".section-head");
+    if (!head) return;
+    const typing = document.createElement("p");
+    typing.id = "workerChatTyping";
+    typing.className = "worker-chat-typing";
+    typing.setAttribute("aria-live", "polite");
+    wrap = document.createElement("div");
+    wrap.id = "workerChatSearchWrap";
+    wrap.className = "worker-chat-search-wrap hidden";
+    wrap.innerHTML = `
+      <input id="workerChatSearchInput" type="search" data-i18n="chatSearchPh" data-i18n-attr="placeholder" placeholder="In Unterhaltung suchen…" autocomplete="off" />
+      <div id="workerChatSearchResults" class="worker-chat-search-results hidden" aria-live="polite"></div>
+    `;
+    head.appendChild(typing);
+    head.appendChild(wrap);
+  }
+}
+
+function syncWorkerChatSearchUi() {
+  ensureWorkerChatSearchUi();
+  const wrap = document.getElementById("workerChatSearchWrap");
+  const hasThread = Boolean(String(workerChatThreadId || "").trim());
+  wrap?.classList.toggle("hidden", !hasThread);
+  if (workerChatSearchUnmount) {
+    try { workerChatSearchUnmount(); } catch { /* ignore */ }
+    workerChatSearchUnmount = null;
+  }
+  const input = document.getElementById("workerChatSearchInput");
+  const results = document.getElementById("workerChatSearchResults");
+  if (!hasThread || !input || !window.SUPPIXChatSearch?.mountSearchBar) return;
+  if (input.value) input.value = "";
+  workerChatSearchUnmount = window.SUPPIXChatSearch.mountSearchBar({
+    containerEl: wrap,
+    inputEl: input,
+    resultsEl: results,
+    getMessages: () => workerChatMessagesCache,
+    labels: {
+      empty: t("chatSearchEmpty") || "Keine Treffer",
+      voice: t("chatVoiceMessage"),
+      photo: t("chatPreviewPhoto"),
+      encrypted: t("encryptedPreview"),
+    },
+    onSelect: (id) => {
+      const bubble = document.querySelector(`#workerChatMessages [data-message-id="${CSS.escape(id)}"]`);
+      bubble?.scrollIntoView({ behavior: "smooth", block: "center" });
+      bubble?.classList.add("chat-search-flash");
+      setTimeout(() => bubble?.classList.remove("chat-search-flash"), 1400);
+    },
+  });
+}
+
+function bindWorkerOfflineChatQueue() {
+  if (!window.SUPPIXChatOfflineQueue?.bindAutoFlush || window.__workerChatOfflineBound) return;
+  window.__workerChatOfflineBound = true;
+  window.SUPPIXChatOfflineQueue.bindAutoFlush({
+    sendItem: async (item) => {
+      const threadId = String(item.threadId || workerChatThreadId || "").trim();
+      if (!threadId) return;
+      await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+        method: "POST",
+        headers: buildWorkerAuthHeaders({
+          "Content-Type": "application/json",
+          ...(item.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
+        }),
+        body: JSON.stringify({
+          body: item.body,
+          ...(item.replyToMessageId ? { reply_to_message_id: item.replyToMessageId } : {}),
+        }),
+      });
+      void loadWorkerChat({ quiet: true });
+    },
+    onProgress: ({ type }) => {
+      if (type === "sent") {
+        showWorkerNotice(t("chatQueuedSent") || "Offline-Nachricht gesendet");
+      }
+    },
+  });
+}
+
 function startWorkerChatRealtimeFeed() {
   if (workerChatRealtimeStop) {
     try { workerChatRealtimeStop(); } catch { /* ignore */ }
@@ -12909,7 +13051,13 @@ function startWorkerChatRealtimeFeed() {
   if (!window.SUPPIXChatRealtime?.startWorkerChatRealtime) return;
   workerChatRealtimeStop = window.SUPPIXChatRealtime.startWorkerChatRealtime({
     headers: () => buildWorkerAuthHeaders(),
-    onChatEvent: () => { void loadWorkerChat({ quiet: true }); },
+    onChatEvent: (evt) => {
+      if (String(evt?.type || "") === "chat.typing") {
+        workerTypingController?.handleRealtime?.(evt);
+        return;
+      }
+      void loadWorkerChat({ quiet: true });
+    },
   });
 }
 
@@ -12982,6 +13130,8 @@ async function loadWorkerChat(options = {}) {
     bindWorkerChatClearActions();
     bindWorkerChatComposeEvents();
     syncWorkerComposeAction();
+    startWorkerTypingController();
+    syncWorkerChatSearchUi();
   } catch (error) {
     if (error?.code === "thread_not_found") {
       workerChatThreadId = "";
@@ -13147,6 +13297,25 @@ async function sendWorkerChatMessage(options = {}) {
       }
     }
     let messageId = "";
+    const queueWorkerChatOffline = () => {
+      if (file || !window.SUPPIXChatOfflineQueue) return false;
+      window.SUPPIXChatOfflineQueue.enqueue({
+        kind: "worker_message",
+        threadId,
+        body: outboundBody,
+        e2eClientUnavailable,
+        replyToMessageId: workerReplyTo?.id || "",
+      });
+      removeOptimisticWorkerChatBubble(pendingId);
+      clearWorkerReplyTo();
+      showWorkerNotice(t("chatQueuedOffline") || "Offline gespeichert — wird gesendet");
+      return true;
+    };
+    if (!file && window.SUPPIXChatOfflineQueue && !window.SUPPIXChatOfflineQueue.isOnline()) {
+      queueWorkerChatOffline();
+      syncWorkerComposeAction();
+      return;
+    }
     try {
       const sent = await postMessage(threadId, outboundBody, { e2eClientUnavailable });
       messageId = String(sent?.message?.id || "");
@@ -13160,6 +13329,14 @@ async function sendWorkerChatMessage(options = {}) {
         }
         const sent = await postMessage(threadId, outboundBody, { e2eClientUnavailable });
         messageId = String(sent?.message?.id || "");
+      } else if (
+        !file
+        && window.SUPPIXChatOfflineQueue
+        && (error?.code === "network_error" || error?.name === "TypeError" || /failed to fetch|network/i.test(String(error?.message || "")))
+      ) {
+        queueWorkerChatOffline();
+        syncWorkerComposeAction();
+        return;
       } else {
         throw error;
       }
@@ -13610,6 +13787,7 @@ applyTheme(storedTheme);
 
 // Initialize offline storage
 void initOfflineStorage();
+bindWorkerOfflineChatQueue();
 
 // Show notification permission banner if not yet granted
 if ("Notification" in window && Notification.permission === "default" && elements.notificationBanner) {

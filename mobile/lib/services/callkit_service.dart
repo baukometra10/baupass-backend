@@ -1,0 +1,151 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_callkit_incoming/entities/android_params.dart';
+import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
+import 'package:flutter_callkit_incoming/entities/ios_params.dart';
+import 'package:flutter_callkit_incoming/entities/notification_params.dart';
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+
+typedef CallKitActionHandler = void Function(String callId);
+
+/// Native incoming-call UI (CallKit iOS / full-screen Android).
+class CallKitService {
+  CallKitService();
+
+  StreamSubscription<dynamic>? _eventSub;
+  CallKitActionHandler? onAccept;
+  CallKitActionHandler? onDecline;
+  CallKitActionHandler? onEnded;
+  bool _ready = false;
+
+  Future<void> initialize({
+    CallKitActionHandler? onAccept,
+    CallKitActionHandler? onDecline,
+    CallKitActionHandler? onEnded,
+  }) async {
+    if (_ready) return;
+    this.onAccept = onAccept;
+    this.onDecline = onDecline;
+    this.onEnded = onEnded;
+    try {
+      await FlutterCallkitIncoming.requestNotificationPermission({
+        'title': 'Anrufbenachrichtigungen',
+        'rationaleMessagePermission':
+            'Benachrichtigungen sind nötig, um eingehende Anrufe anzuzeigen.',
+        'postNotificationMessageRequired':
+            'Bitte Anrufbenachrichtigungen in den Einstellungen erlauben.',
+      });
+      if (!kIsWeb) {
+        try {
+          final canFull = await FlutterCallkitIncoming.canUseFullScreenIntent();
+          if (canFull == false) {
+            await FlutterCallkitIncoming.requestFullIntentPermission();
+          }
+        } catch (_) {
+          /* Android < 14 */
+        }
+      }
+      _eventSub ??= FlutterCallkitIncoming.onEvent.listen(_handleEvent);
+      _ready = true;
+    } catch (error) {
+      debugPrint('[callkit] init skipped: $error');
+    }
+  }
+
+  void _handleEvent(dynamic raw) {
+    final event = raw?.event?.toString() ?? '';
+    final body = raw?.body;
+    final callId = _extractCallId(body);
+    if (callId.isEmpty) return;
+    if (event.contains('Accept')) {
+      onAccept?.call(callId);
+      return;
+    }
+    if (event.contains('Decline')) {
+      onDecline?.call(callId);
+      return;
+    }
+    if (event.contains('Ended') || event.contains('Timeout')) {
+      onEnded?.call(callId);
+    }
+  }
+
+  String _extractCallId(dynamic body) {
+    if (body is Map) {
+      final extra = body['extra'];
+      if (extra is Map && extra['callId'] != null) {
+        return extra['callId'].toString();
+      }
+      if (body['id'] != null) return body['id'].toString();
+    }
+    return '';
+  }
+
+  Future<void> showIncomingCall({
+    required String callId,
+    required String callerName,
+    String? companyName,
+  }) async {
+    if (!_ready || callId.isEmpty) return;
+    final label = callerName.trim().isNotEmpty ? callerName.trim() : 'Arbeitgeber';
+    final params = CallKitParams(
+      id: callId,
+      nameCaller: label,
+      appName: 'SUPPIX',
+      handle: companyName?.trim().isNotEmpty == true ? companyName!.trim() : 'Sicherer Sprachkanal',
+      type: 0,
+      duration: 45000,
+      textAccept: 'Annehmen',
+      textDecline: 'Ablehnen',
+      missedCallNotification: const NotificationParams(
+        showNotification: true,
+        isShowCallback: false,
+        subtitle: 'Verpasster Anruf',
+        callbackText: 'Zurückrufen',
+      ),
+      extra: <String, dynamic>{'callId': callId},
+      android: const AndroidParams(
+        isCustomNotification: true,
+        isShowLogo: false,
+        ringtonePath: 'system_ringtone_default',
+        backgroundColor: '#0b141a',
+        actionColor: '#00a884',
+        textColor: '#ffffff',
+        incomingCallNotificationChannelName: 'Eingehende Anrufe',
+        missedCallNotificationChannelName: 'Verpasste Anrufe',
+      ),
+      ios: const IOSParams(
+        handleType: 'generic',
+        supportsVideo: false,
+        maximumCallGroups: 1,
+        maximumCallsPerCallGroup: 1,
+        supportsDTMF: false,
+        supportsHolding: false,
+        supportsGrouping: false,
+        supportsUngrouping: false,
+        ringtonePath: 'system_ringtone_default',
+      ),
+    );
+    try {
+      await FlutterCallkitIncoming.showCallkitIncoming(params);
+    } catch (error) {
+      debugPrint('[callkit] show incoming failed: $error');
+    }
+  }
+
+  Future<void> endCall(String callId) async {
+    if (!_ready || callId.isEmpty) return;
+    try {
+      await FlutterCallkitIncoming.endCall(callId);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  Future<void> dispose() async {
+    await _eventSub?.cancel();
+    _eventSub = null;
+    _ready = false;
+  }
+}

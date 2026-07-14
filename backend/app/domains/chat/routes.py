@@ -106,6 +106,108 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         service.mark_thread_read(thread_id=thread_id, company_id=cid, reader_type="admin")
         return jsonify({"messages": messages})
 
+    @chat_core_bp.get("/chat/threads/<thread_id>/search")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_search(thread_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        query = str(request.args.get("q") or request.args.get("query") or "").strip()
+        if not query:
+            return jsonify({"results": []})
+        service = ChatService(get_db())
+        results = service.search_messages(thread_id, cid, query)
+        return jsonify({"results": results, "query": query})
+
+    @chat_core_bp.post("/chat/threads/<thread_id>/typing")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_typing(thread_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        worker_id = str(data.get("worker_id") or "").strip()
+        if not worker_id:
+            return jsonify({"error": "worker_required"}), 400
+        from .typing import set_typing
+
+        user = getattr(g, "current_user", None) or {}
+        actor_label = str(user.get("name") or user.get("email") or "Arbeitgeber").strip()
+        set_typing(
+            thread_id=thread_id,
+            company_id=cid,
+            worker_id=worker_id,
+            actor_type="admin",
+            actor_id=str(user.get("id") or ""),
+            actor_label=actor_label,
+        )
+        return jsonify({"ok": True})
+
+    @chat_core_bp.get("/chat/threads/<thread_id>/typing")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_typing_status(thread_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from .typing import list_typing
+
+        user = getattr(g, "current_user", None) or {}
+        actors = list_typing(
+            thread_id,
+            exclude_actor_type="admin",
+            exclude_actor_id=str(user.get("id") or ""),
+        )
+        return jsonify({"actors": actors})
+
+    @chat_core_bp.post("/chat/push-subscribe")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_push_subscribe():
+        import secrets
+
+        from backend.server import now_iso
+
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        endpoint = str(data.get("endpoint") or "").strip()
+        p256dh = str(data.get("p256dh") or "").strip()
+        auth_key = str(data.get("auth") or "").strip()
+        cid = str(data.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        if not endpoint or not p256dh or not auth_key or not cid:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        db = get_db()
+        user_id = str(user.get("id") or "")
+        existing = db.execute("SELECT id FROM admin_push_subscriptions WHERE endpoint = ?", (endpoint,)).fetchone()
+        now = now_iso()
+        if existing:
+            db.execute(
+                """
+                UPDATE admin_push_subscriptions
+                SET user_id = ?, company_id = ?, p256dh = ?, auth = ?, updated_at = ?
+                WHERE endpoint = ?
+                """,
+                (user_id, cid, p256dh, auth_key, now, endpoint),
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO admin_push_subscriptions
+                (id, user_id, company_id, endpoint, p256dh, auth, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (f"apsub-{secrets.token_hex(8)}", user_id, cid, endpoint, p256dh, auth_key, now, now),
+            )
+        db.commit()
+        return jsonify({"ok": True})
+
     @chat_core_bp.post("/chat/threads/<thread_id>/messages")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -161,10 +263,13 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         raw_events = list_recent_events(company_id, limit=200, since_id=since_id)
         events = []
         for evt in reversed(raw_events):
-            if str(evt.get("type") or "") != "chat.message_created":
+            evt_type = str(evt.get("type") or "")
+            if evt_type not in {"chat.message_created", "chat.typing"}:
                 continue
             payload = evt.get("payload") or {}
-            if str(payload.get("workerId") or "") != worker_id:
+            if evt_type == "chat.message_created" and str(payload.get("workerId") or "") != worker_id:
+                continue
+            if evt_type == "chat.typing" and str(payload.get("workerId") or "") != worker_id:
                 continue
             events.append(evt)
             if len(events) >= limit:
@@ -305,6 +410,63 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         except Exception:
             logging.getLogger(__name__).exception("worker_chat_messages failed for thread %s", thread_id)
             return jsonify({"error": "chat_load_failed", "message": "Nachrichten konnten nicht geladen werden.", "messages": []}), 500
+
+    @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/search")
+    @require_worker_session
+    def worker_chat_search(thread_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        query = str(request.args.get("q") or request.args.get("query") or "").strip()
+        if not query:
+            return jsonify({"results": []})
+        service = ChatService(get_db())
+        results = service.search_messages(thread_id, company_id, query)
+        return jsonify({"results": results, "query": query})
+
+    @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/typing")
+    @require_worker_session
+    def worker_chat_typing(thread_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from .typing import set_typing
+
+        worker = getattr(g, "worker", None) or {}
+        actor_label = f"{worker.get('first_name') or ''} {worker.get('last_name') or ''}".strip() or worker_id
+        set_typing(
+            thread_id=thread_id,
+            company_id=company_id,
+            worker_id=worker_id,
+            actor_type="worker",
+            actor_id=worker_id,
+            actor_label=actor_label,
+        )
+        return jsonify({"ok": True})
+
+    @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/typing")
+    @require_worker_session
+    def worker_chat_typing_status(thread_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from .typing import list_typing
+
+        actors = list_typing(
+            thread_id,
+            exclude_actor_type="worker",
+            exclude_actor_id=worker_id,
+        )
+        return jsonify({"actors": actors})
 
     @chat_core_bp.get("/worker-app/chat/attachments/<attachment_id>/download")
     @require_worker_session

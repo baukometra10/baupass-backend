@@ -448,6 +448,74 @@ class ChatService:
                 entry["readByRecipient"] = bool(last_worker_read and created and last_worker_read >= created)
         return result
 
+    def search_messages(
+        self,
+        thread_id: str,
+        company_id: str,
+        query: str,
+        *,
+        limit: int = 40,
+    ) -> list[dict[str, Any]]:
+        q = str(query or "").strip().lower()
+        if not q:
+            return []
+        messages = self.list_messages(thread_id, company_id)
+        hits: list[dict[str, Any]] = []
+        for msg in messages:
+            body = str(msg.get("body") or "")
+            attachments = msg.get("attachments") or []
+            preview = self._message_preview_text(
+                body,
+                company_id,
+                attachment_filename=(attachments[0] or {}).get("filename") if attachments else None,
+                attachment_content_type=(attachments[0] or {}).get("contentType") if attachments else None,
+                attachment_e2e_meta=(attachments[0] or {}).get("e2eMeta") if attachments else None,
+            )
+            text = str(preview or body or "").strip().lower()
+            has_voice = preview == "voice" or any(
+                self._is_audio_attachment(
+                    item.get("filename"),
+                    item.get("contentType"),
+                    item.get("e2eMeta"),
+                )
+                for item in attachments
+            )
+            has_photo = preview == "photo" or any(
+                self._is_image_attachment(item.get("filename"), item.get("contentType"))
+                for item in attachments
+            )
+            match = False
+            if q in {"voice", "sprachnachricht", "audio"}:
+                match = has_voice
+            elif q in {"photo", "foto", "bild", "image"}:
+                match = has_photo
+            elif q in {"encrypted", "verschlüsselt", "verschlusselt"}:
+                match = preview == "encrypted" or "verschlüssel" in text
+            else:
+                match = q in text or q in body.lower()
+            if not match:
+                continue
+            snippet = preview or body
+            if preview == "encrypted":
+                snippet = "Verschlüsselte Nachricht"
+            elif preview == "voice":
+                snippet = "Sprachnachricht"
+            elif preview == "photo":
+                snippet = "Foto"
+            hits.append(
+                {
+                    "id": msg.get("id"),
+                    "threadId": msg.get("threadId"),
+                    "createdAt": msg.get("createdAt"),
+                    "senderType": msg.get("senderType"),
+                    "snippet": str(snippet or "")[:160],
+                    "matchType": preview or "text",
+                }
+            )
+            if len(hits) >= max(1, min(limit, 80)):
+                break
+        return hits
+
     def create_message(
         self,
         *,
@@ -856,6 +924,21 @@ class ChatService:
         return deleted
 
     def _notify_company_side(self, company_id: str, worker_id: str, body: str) -> None:
+        worker_name = worker_id
+        try:
+            row = self.db.execute(
+                "SELECT first_name, last_name FROM workers WHERE id = ? AND company_id = ?",
+                (worker_id, company_id),
+            ).fetchone()
+            if row:
+                worker_name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip() or worker_id
+        except Exception:
+            pass
+        preview = str(body or "").strip()
+        if preview.lower().startswith("@voice-call|"):
+            preview = "Sprachnachricht"
+        if len(preview) > 120:
+            preview = preview[:117] + "…"
         try:
             self.db.execute(
                 """
@@ -866,6 +949,19 @@ class ChatService:
                 (f"notif-{uuid.uuid4().hex[:16]}", worker_id, company_id, body[:280], utc_now_iso()),
             )
             self.db.commit()
+        except Exception:
+            pass
+        try:
+            from backend.app.platform.push.admin_delivery import deliver_admin_push
+
+            deliver_admin_push(
+                self.db,
+                company_id,
+                title=f"Chat · {worker_name}",
+                body=preview or "Neue Nachricht",
+                tag="admin-chat",
+                extra={"workerId": worker_id, "companyId": company_id},
+            )
         except Exception:
             pass
 

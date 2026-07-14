@@ -22,7 +22,7 @@
 
   function isChatEvent(evt) {
     const type = String(evt?.type || "");
-    return type === "chat.message_created" || type.startsWith("chat.voice_call");
+    return type === "chat.message_created" || type === "chat.typing" || type.startsWith("chat.voice_call");
   }
 
   function previewLabel(payload) {

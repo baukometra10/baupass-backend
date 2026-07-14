@@ -76,6 +76,20 @@
     .chat-reply-bar.hidden{display:none}
     .chat-reply-bar-text{flex:1;min-width:0;font-size:.78rem;color:var(--text);opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .chat-reply-bar button{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem}
+    .chat-typing-indicator{font-size:.78rem;color:#00a884;font-style:italic;min-height:1rem;margin-top:.15rem}
+    .chat-typing-indicator:empty{display:none}
+    .chat-search-wrap{position:relative;margin-top:.45rem}
+    .chat-search-wrap input{font-size:.84rem;padding:.45rem .65rem}
+    .chat-search-results{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:var(--panel);border:1px solid var(--border);border-radius:10px;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.28)}
+    .chat-search-results.hidden{display:none}
+    .chat-search-empty{margin:.45rem .65rem;font-size:.78rem;color:var(--muted)}
+    .chat-search-result{display:flex;gap:.45rem;align-items:flex-start;width:100%;text-align:left;border:none;background:transparent;color:var(--text);padding:.45rem .65rem;cursor:pointer}
+    .chat-search-result:hover{background:var(--item-bg)}
+    .chat-search-result-time{font-size:.68rem;color:var(--muted);flex-shrink:0}
+    .chat-search-result-text{font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .bubble.chat-search-hit{outline:2px solid rgba(0,168,132,.45)}
+    .bubble.chat-search-flash{animation:chatSearchFlash 1.2s ease}
+    @keyframes chatSearchFlash{0%,100%{box-shadow:none}40%{box-shadow:0 0 0 3px rgba(0,168,132,.45)}}
     .chat-quick-replies{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem}
     .chat-quick-replies.hidden{display:none}
     .chat-quick-replies button{border:1px solid rgba(0,168,132,.28);background:rgba(0,168,132,.08);color:var(--text);border-radius:999px;padding:.28rem .62rem;font-size:.72rem;cursor:pointer;white-space:nowrap}
@@ -750,6 +764,11 @@
             <div style="min-width:0;">
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
+              <p id="chatTypingIndicator" class="chat-typing-indicator" aria-live="polite"></p>
+              <div id="chatSearchWrap" class="chat-search-wrap hidden">
+                <input id="chatMessageSearch" type="search" data-aci18n="chatSearchPh" data-aci18n-attr="placeholder" placeholder="In Unterhaltung suchen…" autocomplete="off" />
+                <div id="chatSearchResults" class="chat-search-results hidden" aria-live="polite"></div>
+              </div>
               <div id="chatHeadActions" class="chat-head-actions hidden">
                 <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" title="Medien" aria-label="Medien">🖼</button>
                 <button type="button" id="chatVoiceHistoryBtn" class="chat-voice-history-btn" title="Anrufverlauf" aria-label="Anrufverlauf">🕘</button>
@@ -870,12 +889,16 @@
       </div>
     </div>
   </div>
-  <script src="/ops-realtime.js?v=20260714chat1"></script>
-  <script src="/chat-realtime.js?v=20260714chat1"></script>
-  <script src="/chat-gallery.js?v=20260714chat1"></script>
-  <script src="/chat-voice.js?v=20260714chat1"></script>
-  <script src="/chat-voice-call.js?v=20260714chat1"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat1"></script>
+  <script src="/ops-realtime.js?v=20260714chat2"></script>
+  <script src="/chat-realtime.js?v=20260714chat2"></script>
+  <script src="/chat-gallery.js?v=20260714chat2"></script>
+  <script src="/chat-typing.js?v=20260714chat2"></script>
+  <script src="/chat-search.js?v=20260714chat2"></script>
+  <script src="/chat-admin-push.js?v=20260714chat2"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat2"></script>
+  <script src="/chat-voice.js?v=20260714chat2"></script>
+  <script src="/chat-voice-call.js?v=20260714chat2"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat2"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -902,6 +925,8 @@
     let chatRealtimeStop = null;
     let adminChatMessagesCache = [];
     let adminReplyTo = null;
+    let adminTypingController = null;
+    let adminChatSearchUnmount = null;
     const CHAT_POLL_MS = 8000;
     let adminChatLastFingerprint = "";
     let openingThreadWorkerId = "";
@@ -1549,12 +1574,104 @@
       return `<span class="chat-reply-quote"><strong>${escapeHtml(who)}</strong>${escapeHtml(body.slice(0, 120))}</span>`;
     }
     function handleAdminChatRealtimeEvent(evt) {
+      const type = String(evt?.type || "");
+      if (type === "chat.typing") {
+        adminTypingController?.handleRealtime?.(evt);
+        return;
+      }
       const payload = evt?.payload || {};
       const threadId = String(payload.threadId || "");
       if (threadId && currentThreadId && threadId === currentThreadId) {
         void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
       }
       void loadThreads();
+    }
+    function stopAdminTypingController() {
+      if (adminTypingController) {
+        try { adminTypingController.stop(); } catch { /* ignore */ }
+        adminTypingController = null;
+      }
+      const typingEl = document.getElementById("chatTypingIndicator");
+      if (typingEl) typingEl.textContent = "";
+    }
+    function startAdminTypingController() {
+      stopAdminTypingController();
+      if (!currentThreadId || !currentWorkerId || !window.SUPPIXChatTyping?.createTypingController) return;
+      const typingEl = document.getElementById("chatTypingIndicator");
+      adminTypingController = window.SUPPIXChatTyping.createTypingController({
+        threadId: currentThreadId,
+        actorType: "admin",
+        actorId: getAdminUserId(),
+        workerId: currentWorkerId,
+        companyId,
+        labels: {
+          workerTyping: window.adminChatT("chatWorkerTyping") || "Mitarbeiter tippt…",
+          adminTyping: window.adminChatT("chatAdminTyping") || "Arbeitgeber tippt…",
+        },
+        postTyping: async () => {
+          await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/typing?company_id=${encodeURIComponent(companyId)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ worker_id: currentWorkerId }),
+          });
+        },
+        fetchTyping: async () => {
+          const data = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/typing?company_id=${encodeURIComponent(companyId)}`);
+          return data?.actors || [];
+        },
+        onLabel: (text) => {
+          if (typingEl) typingEl.textContent = text;
+        },
+      });
+      adminTypingController.bindInput(document.getElementById("chatReply"));
+    }
+    function syncAdminChatSearchUi() {
+      const wrap = document.getElementById("chatSearchWrap");
+      if (!wrap) return;
+      wrap.classList.toggle("hidden", !currentThreadId);
+      if (adminChatSearchUnmount) {
+        try { adminChatSearchUnmount(); } catch { /* ignore */ }
+        adminChatSearchUnmount = null;
+      }
+      const input = document.getElementById("chatMessageSearch");
+      const results = document.getElementById("chatSearchResults");
+      if (!currentThreadId || !input || !window.SUPPIXChatSearch?.mountSearchBar) return;
+      if (input.value) input.value = "";
+      adminChatSearchUnmount = window.SUPPIXChatSearch.mountSearchBar({
+        containerEl: wrap,
+        inputEl: input,
+        resultsEl: results,
+        getMessages: () => adminChatMessagesCache,
+        labels: {
+          empty: window.adminChatT("chatSearchEmpty") || "Keine Treffer",
+          voice: window.adminChatT("chatVoiceMessage"),
+          photo: window.adminChatT("chatPreviewPhoto"),
+          encrypted: window.adminChatT("encryptedPreview"),
+        },
+        onSelect: (id) => window.SUPPIXChatSearch?.scrollToMessage?.(id),
+      });
+    }
+    function bindAdminOfflineChatQueue() {
+      if (!window.SUPPIXChatOfflineQueue?.bindAutoFlush || window.__adminChatOfflineBound) return;
+      window.__adminChatOfflineBound = true;
+      window.SUPPIXChatOfflineQueue.bindAutoFlush({
+        sendItem: async (item) => {
+          await ensureAdminSession();
+          const res = await api(`/api/chat/threads/${encodeURIComponent(item.threadId)}/messages?company_id=${encodeURIComponent(item.companyId || companyId)}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(item.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}) },
+            body: JSON.stringify({
+              worker_id: item.workerId,
+              body: item.body,
+              ...(item.replyToMessageId ? { reply_to_message_id: item.replyToMessageId } : {}),
+            }),
+          });
+          if (item.threadId === currentThreadId) {
+            void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
+          }
+          return res;
+        },
+      });
     }
     function startAdminChatRealtimeFeed() {
       if (chatRealtimeStop) {
@@ -1949,6 +2066,8 @@
         currentThreadId = resolvedId;
         syncAdminThreadCompose();
         await loadMessages(resolvedId, requestedWorkerId);
+        startAdminTypingController();
+        syncAdminChatSearchUi();
         startChatPolling();
         renderThreads();
       } catch (error) {
@@ -2086,18 +2205,43 @@
             throw error;
           }
         }
-        const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
-          },
-          body: JSON.stringify({
-            worker_id: currentWorkerId,
-            body: outboundBody,
-            ...(adminReplyTo?.id ? { reply_to_message_id: adminReplyTo.id } : {}),
-          }),
-        });
+        let res;
+        try {
+          res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
+            },
+            body: JSON.stringify({
+              worker_id: currentWorkerId,
+              body: outboundBody,
+              ...(adminReplyTo?.id ? { reply_to_message_id: adminReplyTo.id } : {}),
+            }),
+          });
+        } catch (sendError) {
+          const offline = !uploadFile && window.SUPPIXChatOfflineQueue && (
+            !window.SUPPIXChatOfflineQueue.isOnline()
+            || sendError?.name === "TypeError"
+            || /failed to fetch|network/i.test(String(sendError?.message || ""))
+          );
+          if (offline) {
+            window.SUPPIXChatOfflineQueue.enqueue({
+              kind: "admin_message",
+              threadId: currentThreadId,
+              workerId: currentWorkerId,
+              companyId,
+              body: outboundBody,
+              e2eClientUnavailable,
+              replyToMessageId: adminReplyTo?.id || "",
+            });
+            setThreadMeta(window.adminChatT("chatQueuedOffline") || "Offline gespeichert — wird gesendet", { dynamic: true });
+            clearAdminReplyTo();
+            adminChatLastFingerprint = "";
+            return;
+          }
+          throw sendError;
+        }
         if (uploadFile && res?.message?.id) {
           let attachmentFile = uploadFile;
           let extraFields = { message_id: String(res.message.id), worker_id: currentWorkerId };
@@ -2771,6 +2915,17 @@
         document.getElementById("broadcastExcludeSuggest")?.classList.add("hidden");
       });
     }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event?.data?.type === "NAVIGATE_ADMIN_CHAT" && event.data.url) {
+          try {
+            const target = new URL(event.data.url, location.origin);
+            const wid = target.searchParams.get("worker_id");
+            if (wid) void openThread(target.searchParams.get("thread_id") || "", wid);
+          } catch { /* ignore */ }
+        }
+      });
+    }
     void (async () => {
       await ensureAdminSession();
       await window.E2ECrypto?.ensureCryptoSessionReady?.();
@@ -2779,6 +2934,8 @@
       updateChatHead("");
       syncAdminThreadCompose();
       syncAdminComposeAction();
+      bindAdminOfflineChatQueue();
+      window.SUPPIXAdminChatPush?.initAdminChatPush?.({ api, companyId, prompt: true });
       startThreadListPolling();
       startAdminChatRealtimeFeed();
       startAdminIncomingCallPoll();

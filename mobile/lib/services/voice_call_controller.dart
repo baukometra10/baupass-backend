@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../core/session_store.dart';
 import 'voice_call_repository.dart';
+import 'callkit_service.dart';
 
 enum VoiceCallUiPhase { idle, ringing, connecting, connected, ended }
 
@@ -12,9 +13,11 @@ enum VoiceCallUiPhase { idle, ringing, connecting, connected, ended }
 class VoiceCallController extends ChangeNotifier {
   VoiceCallController({
     required this.repo,
-  });
+    CallKitService? callKit,
+  }) : _callKit = callKit ?? CallKitService();
 
   final VoiceCallRepository repo;
+  final CallKitService _callKit;
 
   WorkerSession? _session;
   Timer? _pollTimer;
@@ -64,6 +67,23 @@ class VoiceCallController extends ChangeNotifier {
 
   void bind(WorkerSession session) {
     _session = session;
+    unawaited(_callKit.initialize(
+      onAccept: (callId) {
+        if ((_call?['id'] ?? '').toString() == callId || _phase == VoiceCallUiPhase.ringing) {
+          unawaited(accept());
+        }
+      },
+      onDecline: (callId) {
+        if ((_call?['id'] ?? '').toString() == callId || _phase == VoiceCallUiPhase.ringing) {
+          unawaited(decline());
+        }
+      },
+      onEnded: (callId) {
+        if ((_call?['id'] ?? '').toString() == callId) {
+          unawaited(decline());
+        }
+      },
+    ));
     _startPolling();
   }
 
@@ -126,6 +146,12 @@ class VoiceCallController extends ChangeNotifier {
     _phase = VoiceCallUiPhase.ringing;
     _statusNote = 'Eingehender Anruf';
     _startRingFeedback();
+    final callId = (call['id'] ?? call['callId'] ?? '').toString();
+    unawaited(_callKit.showIncomingCall(
+      callId: callId,
+      callerName: callerLabel,
+      companyName: subtitleLabel,
+    ));
     notifyListeners();
   }
 
@@ -172,6 +198,10 @@ class VoiceCallController extends ChangeNotifier {
     final session = _session;
     final call = _call;
     _stopRingFeedback();
+    final callId = (call?['id'] ?? '').toString();
+    if (callId.isNotEmpty) {
+      unawaited(_callKit.endCall(callId));
+    }
     if (session != null && call != null) {
       final callId = (call['id'] ?? '').toString();
       if (callId.isNotEmpty) {
@@ -190,6 +220,10 @@ class VoiceCallController extends ChangeNotifier {
 
   Future<void> hangup() async {
     _stopRingFeedback();
+    final callId = (_call?['id'] ?? '').toString();
+    if (callId.isNotEmpty) {
+      unawaited(_callKit.endCall(callId));
+    }
     await _sessionRtc?.end('hangup');
     _sessionRtc = null;
     _finishEnded('Anruf beendet');
@@ -259,6 +293,7 @@ class VoiceCallController extends ChangeNotifier {
   @override
   void dispose() {
     unbind();
+    unawaited(_callKit.dispose());
     super.dispose();
   }
 }
