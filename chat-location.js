@@ -6,6 +6,7 @@
   const MAP_W = 280;
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
+  const READY_MAX_ACCURACY_M = 20;
   const SEND_MAX_ACCURACY_M = 120;
   const MAP_MAX_ACCURACY_M = 150;
   const PREVIEW_CACHE_MAX_ACCURACY_M = 150;
@@ -147,6 +148,8 @@
       ".chat-location-share-panel{flex-shrink:0;background:#1f2c34;padding:.85rem .85rem calc(.85rem + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(134,150,160,.14)}",
       ".chat-location-share-status{margin:0 0 .55rem;font-size:.8rem;color:#8696a0}",
       ".chat-location-share-status.is-precise{color:#25d366}",
+      ".chat-location-share-status.is-ready{color:#25d366}",
+      ".chat-location-share-status.is-approx{color:#eaa860}",
       ".chat-location-share-note{width:100%;min-height:42px;max-height:88px;resize:none;border-radius:10px;border:1px solid rgba(134,150,160,.2);background:#2a3942;color:#e9edef;padding:.6rem .7rem;font:inherit;font-size:.9rem;margin-bottom:.75rem}",
       ".chat-location-share-note::placeholder{color:rgba(233,237,239,.42)}",
       ".chat-location-share-actions{display:flex;justify-content:flex-end}",
@@ -169,8 +172,16 @@
     const href = googleMapsUrl(point);
     const openLabel = escapeHtml(options.openLabel || "In Google Maps öffnen");
     const metaHtml = String(options.metaHtml || "").trim();
+    const shareFull = options.shareFull === true;
     if (!embedSrc) {
       return `<div class="chat-location-map-fallback">${openLabel}</div>`;
+    }
+    if (shareFull) {
+      return `<div class="chat-location-map-frame">
+      <iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="eager" title="${openLabel}" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
+      <a class="chat-location-map-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" aria-label="${openLabel}"></a>
+      ${metaHtml ? `<div class="chat-location-map-meta">${metaHtml}</div>` : ""}
+    </div>`;
     }
     return `<div class="chat-location-map-frame">
       <iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" width="${MAP_W}" height="${MAP_H}" loading="eager" title="${openLabel}" referrerpolicy="no-referrer-when-downgrade" allowfullscreen></iframe>
@@ -466,20 +477,27 @@
     startCycle();
   }
 
+  function applyShareStatusClasses(el, acc) {
+    if (!el) return;
+    el.classList.toggle("is-precise", acc <= DEFAULT_MAX_ACCURACY_M);
+    el.classList.toggle("is-ready", acc > DEFAULT_MAX_ACCURACY_M && acc <= READY_MAX_ACCURACY_M);
+    el.classList.toggle("is-approx", acc > READY_MAX_ACCURACY_M && acc <= SEND_MAX_ACCURACY_M);
+  }
+
   function shareStatusText(reading, labels = {}) {
     const acc = Math.round(Number(reading?.accuracy) || 0);
     if (!acc) return labels.capturingHint || "Standort wird ermittelt…";
     if (acc <= DEFAULT_MAX_ACCURACY_M) {
       return (labels.accuracyGood || "Genauigkeit ±{m} m").replace("{m}", String(acc));
     }
-    if (acc <= SEND_MAX_ACCURACY_M) {
+    if (acc <= READY_MAX_ACCURACY_M) {
       return (labels.ready || "Standort bereit · ±{m} m").replace("{m}", String(acc));
     }
-    if (acc <= MAP_MAX_ACCURACY_M) {
-      const tpl = labels.capturingProgress || "Verfeinern… ±{m} m";
+    if (acc <= SEND_MAX_ACCURACY_M) {
+      const tpl = labels.accuracyApprox || "Standort ungefähr · ±{m} m";
       return tpl.replace("{m}", String(acc));
     }
-    return labels.weakSignal || labels.capturingHint || "GPS-Signal schwach — bitte kurz warten";
+    return labels.weakSignal || labels.capturingHint || "GPS-Signal schwach";
   }
 
   function readingToResult(reading, options = {}) {
@@ -494,7 +512,7 @@
 
   function mountMapInHost(host, point) {
     if (!host || !point) return;
-    host.innerHTML = buildMapFrameHtml(point);
+    host.innerHTML = buildMapFrameHtml(point, { shareFull: true });
     host.querySelector(".chat-location-share-map-loading")?.classList.add("hidden");
   }
 
@@ -521,9 +539,15 @@
     return new Promise((resolve, reject) => {
       let settled = false;
       let bestReading = cached || null;
+      let sendReadyTimer = null;
+      const syncSendButton = () => {
+        if (!sendBtn) return;
+        sendBtn.disabled = !canEnableSend(bestReading);
+      };
       const finish = (error, result) => {
         if (settled) return;
         settled = true;
+        if (sendReadyTimer) global.clearTimeout(sendReadyTimer);
         closeShareSheet();
         if (error) reject(error);
         else resolve(result);
@@ -538,7 +562,7 @@
         </div>
         <div class="chat-location-share-mapwrap">
           <div class="chat-location-share-map">
-            ${cachedPoint ? buildMapFrameHtml(cachedPoint) : `<div class="chat-location-share-map-loading">${escapeHtml(labels.capturing || "Standort wird ermittelt…")}</div>`}
+            ${cachedPoint ? buildMapFrameHtml(cachedPoint, { shareFull: true }) : `<div class="chat-location-share-map-loading">${escapeHtml(labels.capturing || "Standort wird ermittelt…")}</div>`}
           </div>
         </div>
         <div class="chat-location-share-panel">
@@ -568,13 +592,29 @@
         const acc = Number(displayReading.accuracy) || 999;
         if (statusEl) {
           statusEl.textContent = shareStatusText(displayReading, labels);
-          statusEl.classList.toggle("is-precise", acc <= DEFAULT_MAX_ACCURACY_M);
+          applyShareStatusClasses(statusEl, acc);
+          if (acc > READY_MAX_ACCURACY_M && labels.desktopHint) {
+            statusEl.textContent = `${shareStatusText(displayReading, labels)} — ${labels.desktopHint}`;
+          }
         }
         if (isMapReadable(displayReading)) {
           mountMapInHost(mapHost, readingToResult(displayReading));
         }
-        if (sendBtn) sendBtn.disabled = !canEnableSend(bestReading);
+        syncSendButton();
       };
+
+      sendReadyTimer = global.setTimeout(() => {
+        if (settled || !bestReading) return;
+        if (statusEl) {
+          const acc = Number(bestReading.accuracy) || 999;
+          statusEl.textContent = shareStatusText(bestReading, labels);
+          applyShareStatusClasses(statusEl, acc);
+          if (acc > READY_MAX_ACCURACY_M && labels.desktopHint) {
+            statusEl.textContent = `${shareStatusText(bestReading, labels)} — ${labels.desktopHint}`;
+          }
+        }
+        syncSendButton();
+      }, SEND_READY_MS);
 
       sheet.querySelector(".chat-location-share-close")?.addEventListener("click", () => {
         finish(new Error("location_cancelled"));
