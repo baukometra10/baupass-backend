@@ -42,13 +42,13 @@
       singleTimeoutMs: 2000,
     },
     chat: {
-      minSamples: 1,
-      maxSamples: 10,
+      minSamples: 2,
+      maxSamples: 12,
       targetAccuracyMeters: 5,
-      acceptAccuracyMeters: 8,
-      maxWaitMs: 2500,
-      stableThresholdMeters: 2,
-      singleTimeoutMs: 2000,
+      acceptAccuracyMeters: 10,
+      maxWaitMs: 12000,
+      stableThresholdMeters: 3,
+      singleTimeoutMs: 3000,
     },
   };
 
@@ -280,12 +280,32 @@
           finish(error);
           return;
         }
+        const bestAccuracy = Math.min(
+          ...samples.map((sample) => Number(sample.accuracy) || 999),
+        );
+        const acceptAccuracy = Number(opts.acceptAccuracyMeters);
+        if (
+          Number.isFinite(acceptAccuracy)
+          && acceptAccuracy > 0
+          && bestAccuracy > acceptAccuracy
+        ) {
+          const inaccurateError = new Error("geolocation_inaccurate");
+          inaccurateError.code = 4;
+          inaccurateError.accuracyMeters = bestAccuracy;
+          finish(inaccurateError);
+          return;
+        }
         finish(null, finalizePosition(samples));
       }, opts.maxWaitMs);
 
       watchId = global.navigator.geolocation.watchPosition(
         (position) => {
-          samples.push(readPosition(position));
+          const reading = readPosition(position);
+          const accuracy = Number(reading.accuracy) || 999;
+          if (accuracy > 60) {
+            return;
+          }
+          samples.push(reading);
           if (samples.length > opts.maxSamples + 4) {
             samples.splice(0, samples.length - (opts.maxSamples + 2));
           }
@@ -818,7 +838,12 @@
 
     watchId = global.navigator.geolocation.watchPosition(
       (position) => {
-        samples.push(readPosition(position));
+        const reading = readPosition(position);
+        const accuracy = Number(reading.accuracy) || 999;
+        if (accuracy > 60) {
+          return;
+        }
+        samples.push(reading);
         if (samples.length > opts.maxSamples + 4) {
           samples.splice(0, samples.length - (opts.maxSamples + 2));
         }

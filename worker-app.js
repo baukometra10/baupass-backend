@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat20";
+const WORKER_BUILD_TAG = "20260714chat21";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13394,7 +13394,7 @@ function workerLocationCaptureLabels() {
     capturingHint: t("chatLocationCapturingHint") || "Standort wird ermittelt…",
     capturingProgress: t("chatLocationCapturingProgress") || "Verfeinern… ±{m} m",
     cancel: t("chatLocationCancel") || "Abbrechen",
-    inaccurate: t("chatLocationInaccurate") || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. 10 m nötig.",
+    inaccurate: t("chatLocationInaccurate") || "GPS zu ungenau (±{m} m). Bitte kurz ins Freie gehen — max. {max} m.",
     unsupported: t("chatLocationUnsupported") || t("geolocationUnsupported"),
     timeout: t("chatLocationTimeout") || "Standort-Timeout — bitte erneut versuchen.",
     denied: t("chatLocationDenied") || t("geolocationRequiredLogin"),
