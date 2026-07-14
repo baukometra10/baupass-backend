@@ -167,13 +167,56 @@ class ChatService:
         ).fetchall()
         return [_json_safe_row(row) for row in rows]
 
-    def _message_preview_text(self, body: Any, company_id: str) -> str:
+    def _is_audio_attachment(
+        self,
+        filename: Any = None,
+        content_type: Any = None,
+        e2e_meta: Any = None,
+    ) -> bool:
+        mime = str(content_type or "").lower()
+        name = str(filename or "").lower()
+        if mime.startswith("audio/"):
+            return True
+        if any(name.endswith(ext) for ext in (".webm", ".m4a", ".ogg", ".mp3", ".wav")):
+            return True
+        meta = str(e2e_meta or "").lower()
+        if meta and any(token in meta for token in ("audio", "voice", "webm", "m4a", "ogg", "mp3", "wav")):
+            return True
+        if name.endswith(".e2e") and meta:
+            return any(token in meta for token in ("audio", "voice", "webm", "m4a", "ogg", "mp3", "wav"))
+        return False
+
+    def _is_image_attachment(self, filename: Any = None, content_type: Any = None) -> bool:
+        mime = str(content_type or "").lower()
+        name = str(filename or "").lower()
+        if mime.startswith("image/"):
+            return True
+        return any(name.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"))
+
+    def _message_preview_text(
+        self,
+        body: Any,
+        company_id: str,
+        *,
+        attachment_filename: Any = None,
+        attachment_content_type: Any = None,
+        attachment_e2e_meta: Any = None,
+    ) -> str:
+        if self._is_audio_attachment(attachment_filename, attachment_content_type, attachment_e2e_meta):
+            return "voice"
+        if self._is_image_attachment(attachment_filename, attachment_content_type):
+            return "photo"
         raw = maybe_decrypt_field(body, company_id=company_id) if body else ""
         text = str(raw or "").strip()
         if not text:
             return ""
+        if text.startswith("@voice-call|"):
+            return "call"
         if is_e2e_envelope(text):
             return "encrypted"
+        lowered = text.lower()
+        if lowered in {"voice", "sprachnachricht", "voice message", "🎤"} or "sprachnachricht" in lowered:
+            return "voice"
         return text[:120]
 
     def _fetch_thread_summaries(self, company_id: str) -> dict[str, dict[str, Any]]:
@@ -190,7 +233,28 @@ class ChatService:
                 ) AS unread_count,
                 lm.body AS last_body,
                 lm.sender_type AS last_sender_type,
-                lm.created_at AS last_message_at
+                lm.created_at AS last_message_at,
+                (
+                    SELECT a.filename
+                    FROM chat_attachments a
+                    WHERE a.message_id = lm.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS last_att_filename,
+                (
+                    SELECT a.content_type
+                    FROM chat_attachments a
+                    WHERE a.message_id = lm.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS last_att_content_type,
+                (
+                    SELECT a.e2e_meta
+                    FROM chat_attachments a
+                    WHERE a.message_id = lm.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS last_att_e2e_meta
             FROM chat_threads t
             LEFT JOIN chat_messages lm ON lm.thread_id = t.id
                 AND lm.created_at = (
@@ -208,7 +272,13 @@ class ChatService:
             if not thread_id:
                 continue
             summaries[thread_id] = {
-                "last_message_preview": self._message_preview_text(row["last_body"], company_id),
+                "last_message_preview": self._message_preview_text(
+                    row["last_body"],
+                    company_id,
+                    attachment_filename=row["last_att_filename"],
+                    attachment_content_type=row["last_att_content_type"],
+                    attachment_e2e_meta=row["last_att_e2e_meta"],
+                ),
                 "last_message_sender_type": str(row["last_sender_type"] or ""),
                 "last_message_at": row["last_message_at"],
                 "unread_count": int(row["unread_count"] or 0),

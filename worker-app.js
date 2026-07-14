@@ -1478,8 +1478,13 @@ function workerChatReadTicks(msg, side) {
   if (side !== "mine") {
     return "";
   }
+  const id = String(msg.id || "");
+  const pending = id.startsWith("pending-");
+  if (pending) {
+    return `<span class="worker-chat-ticks is-pending" aria-hidden="true">✓</span>`;
+  }
   const read = msg.readByRecipient === true || msg.read_by_recipient === true;
-  return `<span class="worker-chat-ticks${read ? " is-read" : ""}" aria-hidden="true">${read ? "✓✓" : "✓"}</span>`;
+  return `<span class="worker-chat-ticks${read ? " is-read" : " is-delivered"}" aria-hidden="true">✓✓</span>`;
 }
 
 function scrollWorkerChatToBottom(force = false) {
@@ -3010,8 +3015,10 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:6px;font-size:.72rem;color:rgba(233,237,239,.62)}",
   "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:rgba(233,237,239,.62)}",
   "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:rgba(233,237,239,.72)}",
-  "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1}",
+  "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1;color:#8696a0}",
+  "#chatCard .worker-chat-ticks.is-delivered{color:#8696a0}",
   "#chatCard .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
+  "#chatCard .worker-chat-ticks.is-pending{color:#8696a0;opacity:.72}",
   "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%;background:#2a3942;border:1px solid rgba(134,150,160,.18);color:#e9edef}",
   "#chatCard .worker-chat-file-hint{color:#8696a0!important}",
   "#chatCard .muted-info{color:#8696a0!important}",
@@ -12423,7 +12430,11 @@ function workerChatMessagesFingerprint(messages) {
     return "empty";
   }
   const last = messages[messages.length - 1];
-  return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}`;
+  const readState = messages
+    .filter((msg) => workerChatSenderSide(msg) === "mine")
+    .map((msg) => (msg.readByRecipient || msg.read_by_recipient ? "1" : "0"))
+    .join("");
+  return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}:${readState}`;
 }
 
 function appendOptimisticWorkerChatBubble(text, pendingId) {

@@ -59,8 +59,10 @@
     .bubble-body { white-space:pre-wrap; word-break:break-word; line-height:1.45; }
     .bubble-meta { display:flex; justify-content:flex-end; align-items:center; gap:0.28rem; margin-top:0.22rem; font-size:0.68rem; color:rgba(226,232,240,.72); }
     .bubble.admin .bubble-meta { color:rgba(236,254,255,.78); }
-    .chat-ticks { letter-spacing:-0.14em; font-size:0.78rem; line-height:1; }
-    .chat-ticks.is-read { color:#7dd3fc; }
+    .chat-ticks { letter-spacing:-0.14em; font-size:0.78rem; line-height:1; color:#8696a0; }
+    .chat-ticks.is-delivered { color:#8696a0; }
+    .chat-ticks.is-read { color:#53bdeb; font-weight:700; }
+    .chat-ticks.is-pending { color:#8696a0; opacity:0.72; }
     .thread-time { flex-shrink:0; font-size:0.68rem; color:var(--muted); }
     .thread-unread { flex-shrink:0; min-width:1.2rem; height:1.2rem; padding:0 0.35rem; border-radius:999px; background:#0d9488; color:#fff; font-size:0.66rem; font-weight:800; display:grid; place-items:center; }
     .thread-item.has-unread .thread-name { font-weight:800; }
@@ -850,8 +852,8 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260714voice11"></script>
-  <script src="/chat-voice-call.js?v=20260714voice11"></script>
+  <script src="/chat-voice.js?v=20260714voice12"></script>
+  <script src="/chat-voice-call.js?v=20260714voice12"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260714voice12"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -875,6 +877,7 @@
     let currentThreadId = "";
     let currentWorkerId = "";
     let chatPollTimer = null;
+    let threadListPollTimer = null;
     const CHAT_POLL_MS = 2000;
     let adminChatLastFingerprint = "";
     let openingThreadWorkerId = "";
@@ -1209,7 +1212,11 @@
     function adminChatMessagesFingerprint(messages) {
       if (!Array.isArray(messages) || !messages.length) return "empty";
       const last = messages[messages.length - 1];
-      return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}`;
+      const readState = messages
+        .filter((msg) => String(msg.senderType || "") === "admin")
+        .map((msg) => (msg.readByRecipient ? "1" : "0"))
+        .join("");
+      return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}:${readState}`;
     }
     function isImageAttachment(filename, contentType) {
       const mime = String(contentType || "").toLowerCase();
@@ -1497,30 +1504,50 @@
     }
     function chatReadTicks(msg) {
       if (String(msg.senderType || "") !== "admin") return "";
+      const id = String(msg.id || "");
+      const pending = id.startsWith("pending-");
+      if (pending) {
+        return `<span class="chat-ticks is-pending" aria-label="${escapeAttr(window.adminChatT("sending") || "Senden…")}">✓</span>`;
+      }
       const read = Boolean(msg.readByRecipient);
       const label = read ? window.adminChatT("read") : window.adminChatT("delivered");
-      return `<span class="chat-ticks${read ? " is-read" : ""}" aria-label="${escapeAttr(label)}">${read ? "✓✓" : "✓"}</span>`;
+      return `<span class="chat-ticks${read ? " is-read" : " is-delivered"}" aria-label="${escapeAttr(label)}">✓✓</span>`;
     }
     function threadPreviewText(row) {
-      if (!row?.hasThread) return window.adminChatT("newChat");
       const preview = String(row.last_message_preview || "").trim();
-      if (!preview) return row.subject || "general";
-      if (preview.startsWith("@voice-call|")) {
-        const meta = parseVoiceCallLogBody(preview);
-        if (meta) {
-          if (meta.status === "callback_requested") {
-            return `${window.adminChatT("voiceCallLogCallbackRequested")} · ${window.adminChatT("voiceCallLogTitle")}`;
-          }
-          return `${window.adminChatT("voiceCallLogTitle")} · ${voiceCallLogSummary(meta)}`;
-        }
+      if (!row?.hasThread && !preview) return window.adminChatT("newChat");
+      if (!preview) return row?.hasThread ? (row.subject || "general") : window.adminChatT("newChat");
+      if (preview.startsWith("@voice-call|") || preview === "call") {
+        return window.adminChatT("voiceCallLogTitle");
       }
       if (preview === "encrypted") return window.adminChatT("encryptedPreview");
+      if (preview === "photo" || preview === "image") {
+        const photo = window.adminChatT("chatPreviewPhoto") || "Foto";
+        return row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ${photo}` : photo;
+      }
       if (preview === "voice" || /🎤|sprachnachricht|voice message/i.test(preview) || /\.(webm|m4a|ogg|mp3|wav)$/i.test(preview)) {
         const voice = window.adminChatT("chatVoiceMessage");
         return row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ${voice}` : voice;
       }
       const prefix = row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ` : "";
       return `${prefix}${preview.replace(/\s+/g, " ").slice(0, 72)}`;
+    }
+    function threadSortKey(row) {
+      return String(row.last_message_at || row.updated_at || "");
+    }
+    function sortThreadRows(rows) {
+      return [...rows].sort((left, right) => {
+        const tsLeft = threadSortKey(left);
+        const tsRight = threadSortKey(right);
+        if (!tsLeft && !tsRight) {
+          return threadDisplayName(left).localeCompare(threadDisplayName(right), undefined, { sensitivity: "base" });
+        }
+        if (!tsLeft) return 1;
+        if (!tsRight) return -1;
+        const byTime = tsRight.localeCompare(tsLeft);
+        if (byTime !== 0) return byTime;
+        return threadDisplayName(left).localeCompare(threadDisplayName(right), undefined, { sensitivity: "base" });
+      });
     }
     function updateChatHead(name) {
       const avatar = document.getElementById("chatHeadAvatar");
@@ -1694,7 +1721,8 @@
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
       const host = document.getElementById("threadList");
-      const rows = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
+      const filtered = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
+      const rows = sortThreadRows(filtered);
       host.innerHTML = rows.length
         ? rows.map((row) => {
             const name = threadDisplayName(row);
@@ -1838,6 +1866,18 @@
         if (!currentThreadId || !currentWorkerId) return;
         loadMessages(currentThreadId, currentWorkerId, { quiet: true }).catch(() => {});
       }, CHAT_POLL_MS);
+    }
+    function startThreadListPolling() {
+      stopThreadListPolling();
+      threadListPollTimer = setInterval(() => {
+        void loadThreads();
+      }, CHAT_POLL_MS);
+    }
+    function stopThreadListPolling() {
+      if (threadListPollTimer) {
+        clearInterval(threadListPollTimer);
+        threadListPollTimer = null;
+      }
     }
     async function sendAdminChatPayload({ body, file }) {
       if (!currentThreadId || !currentWorkerId) return;
@@ -2570,6 +2610,7 @@
       updateChatHead("");
       syncAdminThreadCompose();
       syncAdminComposeAction();
+      startThreadListPolling();
       startAdminIncomingCallPoll();
       await loadThreads();
     })().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
