@@ -213,6 +213,8 @@ class ChatService:
             return ""
         if text.startswith("@voice-call|"):
             return "call"
+        if text.startswith("@location|"):
+            return "location"
         if is_e2e_envelope(text):
             return "encrypted"
         lowered = text.lower()
@@ -491,6 +493,8 @@ class ChatService:
                 match = has_photo
             elif q in {"encrypted", "verschlüsselt", "verschlusselt"}:
                 match = preview == "encrypted" or "verschlüssel" in text
+            elif q in {"location", "standort", "gps", "karte", "map"}:
+                match = preview == "location"
             else:
                 match = q in text or q in body.lower()
             if not match:
@@ -502,6 +506,8 @@ class ChatService:
                 snippet = "Sprachnachricht"
             elif preview == "photo":
                 snippet = "Foto"
+            elif preview == "location":
+                snippet = "Standort"
             hits.append(
                 {
                     "id": msg.get("id"),
@@ -591,6 +597,8 @@ class ChatService:
                 match = has_photo
             elif q in {"encrypted", "verschlüsselt", "verschlusselt"}:
                 match = preview == "encrypted"
+            elif q in {"location", "standort", "gps", "karte", "map"}:
+                match = preview == "location"
             else:
                 match = q in text or q in body.lower() or q in name_blob
             if not match:
@@ -602,6 +610,8 @@ class ChatService:
                 snippet = "Sprachnachricht"
             elif preview == "photo":
                 snippet = "Foto"
+            elif preview == "location":
+                snippet = "Standort"
             hits.append(
                 {
                     "id": str(row["id"]),
@@ -716,7 +726,9 @@ class ChatService:
             "messageId": message_id,
             "workerId": worker_id,
             "senderType": sender_type,
-            "preview": "encrypted" if encrypted_preview else plain_body[:120],
+            "preview": "encrypted" if encrypted_preview else (
+                self._message_preview_text(plain_body, company_id) or plain_body[:120]
+            ),
             "replyToMessageId": clean_reply_id,
         }
         try:

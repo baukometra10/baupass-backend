@@ -30,6 +30,7 @@
     if (!preview || preview === "encrypted") return "Verschlüsselte Nachricht";
     if (preview === "voice") return "Sprachnachricht";
     if (preview === "photo") return "Foto";
+    if (preview === "location") return "📍 Standort";
     return preview.slice(0, 120);
   }
 
@@ -47,6 +48,11 @@
     if (String(evt?.payload?.senderType || "") !== "worker") return;
     if (global.document?.hasFocus?.()) return;
     if (!global.Notification || Notification.permission !== "granted") return;
+    const workerId = String(evt?.payload?.workerId || "");
+    const companyId = String(global.__adminChatCompanyId || "");
+    if (workerId && companyId && global.SUPPIXChatThreadPrefs?.isMuted?.(companyId, workerId)) {
+      return;
+    }
     const title = labels.workerMessageTitle || "Neue Mitarbeiter-Nachricht";
     try {
       new global.Notification(title, {

@@ -18,8 +18,10 @@
       }
     }
     if (body === "encrypted") return labels.encrypted || "encrypted";
+    if (global.SUPPIXChatLocation?.isLocationBody?.(body)) return labels.location || "location";
     if (body === "voice") return labels.voice || "voice";
     if (body === "photo") return labels.photo || "photo";
+    if (global.SUPPIXChatLocation?.isLocationBody?.(body)) return labels.location || "location";
     return body;
   }
 
@@ -36,6 +38,9 @@
         || text === "photo" || text === "foto";
       if (q === "voice" || q === "sprachnachricht") return hasVoice;
       if (q === "photo" || q === "foto" || q === "bild") return hasPhoto;
+      if (q === "location" || q === "standort" || q === "gps") {
+        return global.SUPPIXChatLocation?.isLocationBody?.(msg?.body) || text === "location" || text.includes("standort");
+      }
       if (q === "encrypted" || q === "verschlüsselt") return text === "encrypted" || text.includes("verschlüssel");
       return text.includes(q);
     });

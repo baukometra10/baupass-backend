@@ -306,6 +306,18 @@
     .global-search-result:hover{background:var(--item-bg);border-color:rgba(94,234,212,.22)}
     .global-search-result strong{display:block;font-size:.82rem}
     .global-search-result span{font-size:.74rem;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chat-location-card{max-width:280px;border-radius:12px;overflow:hidden;border:1px solid rgba(134,150,160,.22);background:rgba(0,0,0,.18)}
+    .chat-location-map{display:block;width:100%;height:auto;object-fit:cover;background:#0f172a}
+    .chat-location-meta{padding:.45rem .55rem .55rem;display:flex;flex-direction:column;gap:.15rem;font-size:.76rem}
+    .chat-location-title{font-size:.82rem;color:var(--text)}
+    .chat-location-coords,.chat-location-acc{color:var(--muted);font-size:.72rem}
+    .chat-location-open{color:#5eead4;text-decoration:none;font-size:.74rem;margin-top:.1rem}
+    .thread-item-actions{display:flex;gap:.15rem;opacity:.55}
+    .thread-item:hover .thread-item-actions,.thread-item.is-active .thread-item-actions{opacity:1}
+    .thread-item-action{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:.1rem .2rem;font-size:.78rem;border-radius:6px}
+    .thread-item-action.is-active{color:#5eead4}
+    .thread-item.is-pinned .thread-name::before{content:"📌 ";font-size:.72rem}
+    .thread-item.is-muted .thread-preview{opacity:.65}
     .chat-voice-call-btn {
       border-radius: 999px;
       width: 38px;
@@ -795,6 +807,7 @@
               </div>
               <div id="chatHeadActions" class="chat-head-actions hidden">
                 <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" title="Medien" aria-label="Medien">🖼</button>
+                <button type="button" id="chatExportBtn" class="chat-voice-history-btn" data-aci18n="chatExport" data-aci18n-attr="title,aria-label" title="Chat exportieren" aria-label="Chat exportieren">⬇</button>
                 <button type="button" id="chatVoiceHistoryBtn" class="chat-voice-history-btn" title="Anrufverlauf" aria-label="Anrufverlauf">🕘</button>
                 <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" title="Anrufen" aria-label="Anrufen">📞</button>
                 <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
@@ -818,6 +831,7 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
               <span class="sr-only">Anhang</span>
             </label>
+            <button type="button" class="chat-compose-attach" id="chatLocationBtn" data-aci18n="chatLocationShare" data-aci18n-attr="title,aria-label" title="Standort senden" aria-label="Standort senden">📍</button>
             <input id="chatFile" class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
             <textarea id="chatReply" data-aci18n="replyPh" data-aci18n-attr="placeholder" placeholder="Antwort schreiben…" rows="1"></textarea>
             <button type="button" class="chat-mic-btn" id="chatVoiceMicBtn" data-aci18n="chatVoiceMic" data-aci18n-attr="aria-label,title" aria-label="Sprachnachricht">
@@ -913,16 +927,19 @@
       </div>
     </div>
   </div>
-  <script src="/ops-realtime.js?v=20260714chat4"></script>
-  <script src="/chat-realtime.js?v=20260714chat4"></script>
-  <script src="/chat-gallery.js?v=20260714chat4"></script>
-  <script src="/chat-typing.js?v=20260714chat4"></script>
-  <script src="/chat-search.js?v=20260714chat4"></script>
-  <script src="/chat-admin-push.js?v=20260714chat4"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat4"></script>
-  <script src="/chat-voice.js?v=20260714chat4"></script>
-  <script src="/chat-voice-call.js?v=20260714chat4"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat4"></script>
+  <script src="/geo-precision.js?v=20260714chat5"></script>
+  <script src="/ops-realtime.js?v=20260714chat5"></script>
+  <script src="/chat-realtime.js?v=20260714chat5"></script>
+  <script src="/chat-gallery.js?v=20260714chat5"></script>
+  <script src="/chat-typing.js?v=20260714chat5"></script>
+  <script src="/chat-search.js?v=20260714chat5"></script>
+  <script src="/chat-location.js?v=20260714chat5"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat5"></script>
+  <script src="/chat-admin-push.js?v=20260714chat5"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat5"></script>
+  <script src="/chat-voice.js?v=20260714chat5"></script>
+  <script src="/chat-voice-call.js?v=20260714chat5"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat5"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -934,6 +951,7 @@
     const wpSet = (key, val) => (WP?.setItem ? WP.setItem(key, val) : localStorage.setItem(key, val));
     const params = new URLSearchParams(location.search);
     let companyId = params.get("company_id") || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "";
+    window.__adminChatCompanyId = companyId;
     const token = wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token") || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token") || "";
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
@@ -948,6 +966,8 @@
     let threadListPollTimer = null;
     let chatRealtimeStop = null;
     let adminChatMessagesCache = [];
+    const adminThreadPreviewCache = {};
+    const ADMIN_PREVIEW_CACHE_KEY = "suppix-admin-chat-preview-cache";
     let adminReplyTo = null;
     let adminTypingController = null;
     let adminChatSearchUnmount = null;
@@ -1258,6 +1278,96 @@
         return window.adminChatT("e2eDecryptFailed");
       }
     }
+    function adminLocationLabels() {
+      return {
+        location: window.adminChatT("chatLocationPreview"),
+        openMaps: window.adminChatT("chatLocationOpenMaps"),
+        accuracy: window.adminChatT("chatLocationAccuracy"),
+      };
+    }
+    function messagePreviewLabelFromBody(body, attachments = []) {
+      return formatChatReplyPreviewBody(String(body || ""), attachments);
+    }
+    function readAdminPreviewCache() {
+      try {
+        const raw = sessionStorage.getItem(ADMIN_PREVIEW_CACHE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+    function writeAdminPreviewCacheEntry(workerId, preview) {
+      const key = String(workerId || "").trim();
+      if (!key || !preview) return;
+      adminThreadPreviewCache[key] = preview;
+      try {
+        const bucket = readAdminPreviewCache();
+        const cid = String(companyId || "default");
+        if (!bucket[cid] || typeof bucket[cid] !== "object") bucket[cid] = {};
+        bucket[cid][key] = preview;
+        sessionStorage.setItem(ADMIN_PREVIEW_CACHE_KEY, JSON.stringify(bucket));
+      } catch {
+        /* ignore */
+      }
+    }
+    function getCachedThreadPreview(workerId) {
+      const key = String(workerId || "").trim();
+      if (!key) return "";
+      if (adminThreadPreviewCache[key]) return adminThreadPreviewCache[key];
+      const cid = String(companyId || "default");
+      return String(readAdminPreviewCache()?.[cid]?.[key] || "");
+    }
+    function updateAdminThreadPreviewCache(workerId, messages) {
+      const list = Array.isArray(messages) ? messages : [];
+      if (!list.length) return;
+      const last = list[list.length - 1];
+      writeAdminPreviewCacheEntry(workerId, messagePreviewLabelFromBody(last.body, last.attachments));
+    }
+    async function sendAdminChatLocation() {
+      if (!currentThreadId || !currentWorkerId || !window.SUPPIXChatLocation?.captureChatLocation) return;
+      const btn = document.getElementById("chatLocationBtn");
+      if (btn) btn.disabled = true;
+      try {
+        const point = await window.SUPPIXChatLocation.captureChatLocation({
+          capturingLabel: window.adminChatT("chatLocationCapturing"),
+          onProgress: (text) => setThreadMeta(text, { dynamic: true }),
+        });
+        const body = window.SUPPIXChatLocation.encodeLocationBody(point);
+        await sendAdminChatPayload({ body });
+      } catch (error) {
+        setThreadMeta(window.adminChatT("chatLocationFailed") || error?.message || String(error), { dynamic: true });
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+    function exportAdminChatThread() {
+      if (!adminChatMessagesCache.length) {
+        setThreadMeta(window.adminChatT("chatExportEmpty"), { dynamic: true });
+        return;
+      }
+      const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
+      const name = row ? threadDisplayName(row) : (currentWorkerId || "chat");
+      const lines = adminChatMessagesCache.map((msg) => {
+        const time = String(msg.createdAt || "").replace("T", " ").slice(0, 19);
+        const who = msg.senderType === "admin" ? "Admin" : "Mitarbeiter";
+        let body = String(msg.body || "");
+        const loc = window.SUPPIXChatLocation?.parseLocationBody?.(body);
+        if (loc) {
+          body = `Standort ${loc.lat}, ${loc.lng}${loc.label ? ` (${loc.label})` : ""}${loc.accuracy ? ` ±${Math.round(loc.accuracy)}m` : ""}`;
+        }
+        return `[${time}] ${who}: ${body}`;
+      });
+      const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `chat-${name.replace(/[^\w\-]+/g, "_").slice(0, 40)}.txt`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    }
     function formatChatReplyPreviewBody(text, attachments = []) {
       let body = String(text || "").trim();
       const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
@@ -1271,6 +1381,35 @@
         return window.adminChatT("chatVoiceMessage");
       }
       if (body.startsWith("@voice-call|")) return window.adminChatT("voiceCallLogTitle");
+      if (window.SUPPIXChatLocation?.isLocationBody?.(body)) {
+        return window.adminChatT("chatLocationPreview");
+      }
+      const decryptFailed = window.adminChatT("e2eDecryptFailed");
+      if (
+        body === "encrypted"
+        || body === decryptFailed
+        || /entschlüsselung fehlgeschlagen|decryption failed/i.test(body)
+      ) {
+        return window.adminChatT("encryptedPreview");
+      }
+      if (!body) return window.adminChatT("chatReplyEmpty") || "Nachricht";
+      return body.slice(0, 120);
+    }
+      let body = String(text || "").trim();
+      const att = Array.isArray(attachments) && attachments[0] ? attachments[0] : null;
+      if (att && isAudioAttachment(att.filename, att.contentType, att.e2eMeta)) {
+        return window.adminChatT("chatVoiceMessage");
+      }
+      if (att && isImageAttachment(att.filename, att.contentType)) {
+        return window.adminChatT("chatPreviewPhoto") || "Foto";
+      }
+      if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, window.adminChatT("chatVoiceMessage"))) {
+        return window.adminChatT("chatVoiceMessage");
+      }
+      if (body.startsWith("@voice-call|")) return window.adminChatT("voiceCallLogTitle");
+      if (window.SUPPIXChatLocation?.isLocationBody?.(body)) {
+        return window.adminChatT("chatLocationPreview");
+      }
       const decryptFailed = window.adminChatT("e2eDecryptFailed");
       if (
         body === "encrypted"
@@ -1706,6 +1845,7 @@
           voice: window.adminChatT("chatVoiceMessage"),
           photo: window.adminChatT("chatPreviewPhoto"),
           encrypted: window.adminChatT("encryptedPreview"),
+          location: window.adminChatT("chatLocationPreview"),
         },
         onSelect: (id) => window.SUPPIXChatSearch?.scrollToMessage?.(id),
       });
@@ -1912,7 +2052,18 @@
       if (preview.startsWith("@voice-call|") || preview === "call") {
         return window.adminChatT("voiceCallLogTitle");
       }
-      if (preview === "encrypted") return window.adminChatT("encryptedPreview");
+      if (preview === "encrypted") {
+        const cached = getCachedThreadPreview(row.worker_id);
+        if (cached) {
+          const prefix = row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ` : "";
+          return `${prefix}${cached}`;
+        }
+        return window.adminChatT("encryptedPreview");
+      }
+      if (preview === "location") {
+        const loc = window.adminChatT("chatLocationPreview");
+        return row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ${loc}` : loc;
+      }
       if (preview === "photo" || preview === "image") {
         const photo = window.adminChatT("chatPreviewPhoto") || "Foto";
         return row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ${photo}` : photo;
@@ -1924,11 +2075,11 @@
       const prefix = row.last_message_sender_type === "admin" ? `${window.adminChatT("previewYou")}: ` : "";
       return `${prefix}${preview.replace(/\s+/g, " ").slice(0, 72)}`;
     }
-    function threadSortKey(row) {
-      return String(row.last_message_at || row.updated_at || "");
-    }
     function sortThreadRows(rows) {
       return [...rows].sort((left, right) => {
+        const pinLeft = window.SUPPIXChatThreadPrefs?.pinSortValue?.(companyId, left.worker_id) || 0;
+        const pinRight = window.SUPPIXChatThreadPrefs?.pinSortValue?.(companyId, right.worker_id) || 0;
+        if (pinLeft !== pinRight) return pinRight - pinLeft;
         const tsLeft = threadSortKey(left);
         const tsRight = threadSortKey(right);
         if (!tsLeft && !tsRight) {
@@ -2044,9 +2195,31 @@
         : "";
       return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true">📞</span><span class="chat-call-log-text">${summary}</span></div>${callbackBtn}<div class="bubble-meta"><span>${time}</span></div></div>`;
     }
+    function threadSortKey(row) {
+      return String(row.last_message_at || row.updated_at || "");
+    }
     function renderChatBubble(msg, options = {}) {
       const callLog = parseVoiceCallLogBody(msg.body);
       if (callLog) return renderCallLogBubble(msg, callLog, options);
+      const location = window.SUPPIXChatLocation?.parseLocationBody?.(msg.body);
+      if (location) {
+        const { grouped = false, tail = true } = options;
+        const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
+        const time = formatBubbleTime(msg.createdAt);
+        const ticks = chatReadTicks(msg);
+        const messageId = escapeHtml(String(msg.id || ""));
+        const side = msg.senderType === "admin" ? "mine" : "them";
+        const deleteBtn = canDeleteAdminMessage(msg)
+          ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
+          : "";
+        const replyBtn = messageIdPresent(msg)
+          ? `<button type="button" class="bubble-reply-btn" data-chat-reply-id="${messageId}" title="${escapeAttr(window.adminChatT("chatReplyAction") || "Antworten")}">↩</button>`
+          : "";
+        const sideClass = msg.senderType === "admin" ? "admin" : "worker";
+        const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
+        const locationHtml = window.SUPPIXChatLocation.renderLocationBubbleHtml(location, adminLocationLabels(), { side });
+        return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${locationHtml}<div class="bubble-meta"><span>${time}</span>${ticks}${replyBtn}${deleteBtn}</div></div>`;
+      }
       const { grouped = false, tail = true } = options;
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
       const time = formatBubbleTime(msg.createdAt);
@@ -2128,12 +2301,18 @@
             const loading = openingThreadWorkerId && String(row.worker_id) === String(openingThreadWorkerId) ? " is-loading" : "";
             const unreadClass = unread > 0 ? " has-unread" : "";
             const badge = row.badge_id ? `#${row.badge_id}` : "";
-            return `<button type="button" class="thread-item${active}${loading}${unreadClass}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
+            const pinned = window.SUPPIXChatThreadPrefs?.isPinned?.(companyId, row.worker_id);
+            const muted = window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id);
+            return `<button type="button" class="thread-item${active}${loading}${unreadClass}${pinned ? " is-pinned" : ""}${muted ? " is-muted" : ""}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
               <span class="thread-avatar" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
               <span class="thread-body">
                 <span class="thread-top">
                   <span class="thread-name">${escapeHtml(name)}</span>
                   <span style="display:flex;align-items:center;gap:0.35rem;">
+                    <span class="thread-item-actions">
+                      <button type="button" class="thread-item-action${pinned ? " is-active" : ""}" data-thread-pin="${escapeAttr(row.worker_id || "")}" title="${escapeAttr(pinned ? window.adminChatT("chatThreadUnpin") : window.adminChatT("chatThreadPin"))}" aria-label="${escapeAttr(pinned ? window.adminChatT("chatThreadUnpin") : window.adminChatT("chatThreadPin"))}">📌</button>
+                      <button type="button" class="thread-item-action${muted ? " is-active" : ""}" data-thread-mute="${escapeAttr(row.worker_id || "")}" title="${escapeAttr(muted ? window.adminChatT("chatThreadUnmute") : window.adminChatT("chatThreadMute"))}" aria-label="${escapeAttr(muted ? window.adminChatT("chatThreadUnmute") : window.adminChatT("chatThreadMute"))}">${muted ? "🔕" : "🔔"}</button>
+                    </span>
                     ${time ? `<span class="thread-time">${escapeHtml(time)}</span>` : ""}
                     ${unread > 0 ? `<span class="thread-unread">${unread > 99 ? "99+" : unread}</span>` : (badge ? `<span class="thread-badge">${escapeHtml(badge)}</span>` : "")}
                   </span>
@@ -2145,6 +2324,24 @@
         : `<p class="muted">${window.adminChatT("noWorkersFound")}</p>`;
       host.querySelectorAll("[data-worker]").forEach((btn) => {
         btn.addEventListener("click", () => openThread(btn.getAttribute("data-id"), btn.getAttribute("data-worker"), btn));
+      });
+      host.querySelectorAll("[data-thread-pin]").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const workerId = btn.getAttribute("data-thread-pin") || "";
+          window.SUPPIXChatThreadPrefs?.togglePin?.(companyId, workerId);
+          renderThreads();
+        });
+      });
+      host.querySelectorAll("[data-thread-mute]").forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const workerId = btn.getAttribute("data-thread-mute") || "";
+          window.SUPPIXChatThreadPrefs?.toggleMute?.(companyId, workerId);
+          renderThreads();
+        });
       });
     }
     async function ensureThread(threadId, workerId) {
@@ -2231,6 +2428,7 @@
         adminChatLastFingerprint = fingerprint;
         const messages = await prepareAdminChatMessagesForDisplay(rawMessages);
         adminChatMessagesCache = messages;
+        updateAdminThreadPreviewCache(workerId, messages);
         if (!quiet) {
           lastThreadMetaName = name || "";
           updateChatHead(name);
@@ -2291,7 +2489,7 @@
       const list = document.getElementById("messageList");
       const pendingId = `pending-${Date.now()}`;
       if (sendBtn) sendBtn.disabled = true;
-      if (!file && draftBody) {
+      if (!file && draftBody && !window.SUPPIXChatLocation?.isLocationBody?.(draftBody)) {
         list.insertAdjacentHTML("beforeend", renderChatBubble({
           id: pendingId,
           senderType: "admin",
@@ -2495,6 +2693,10 @@
     });
     document.getElementById("chatReplyBarClear")?.addEventListener("click", clearAdminReplyTo);
     document.getElementById("chatMediaGalleryBtn")?.addEventListener("click", openAdminChatGallery);
+    document.getElementById("chatExportBtn")?.addEventListener("click", exportAdminChatThread);
+    document.getElementById("chatLocationBtn")?.addEventListener("click", () => {
+      void sendAdminChatLocation();
+    });
     document.getElementById("chatClearOwnBtn")?.addEventListener("click", () => {
       if (!window.confirm(window.adminChatT("chatClearOwnConfirm"))) return;
       clearAdminChatMessages("own").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
@@ -3084,6 +3286,12 @@
       syncAdminThreadCompose();
       syncAdminComposeAction();
       bindAdminOfflineChatQueue();
+      try {
+        const cid = String(companyId || "default");
+        Object.assign(adminThreadPreviewCache, readAdminPreviewCache()?.[cid] || {});
+      } catch {
+        /* ignore */
+      }
       window.SUPPIXAdminChatPush?.initAdminChatPush?.({
         api,
         companyId,

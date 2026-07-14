@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat4";
+const WORKER_BUILD_TAG = "20260714chat5";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3275,6 +3275,7 @@ function ensureWorkerChatDom() {
             <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
             <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
           </label>
+          <button type="button" id="workerChatLocationBtn" class="worker-chat-compose-attach worker-chat-location-btn" data-i18n="chatLocationShare" data-i18n-attr="title,aria-label" title="Standort senden" aria-label="Standort senden">📍</button>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <button type="button" id="workerChatMicBtn" class="worker-chat-mic-btn" data-i18n="chatVoiceMic" data-i18n-attr="aria-label,title" aria-label="Sprachnachricht">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -3826,6 +3827,13 @@ function bindWorkerChatComposeEvents() {
   bindWorkerWhatsAppVoiceCompose();
   document.getElementById("workerChatReplyBarClear")?.addEventListener("click", clearWorkerReplyTo);
   document.getElementById("workerChatGalleryBtn")?.addEventListener("click", openWorkerChatGallery);
+  const locationBtn = document.getElementById("workerChatLocationBtn");
+  if (locationBtn && !locationBtn.dataset.chatBound) {
+    locationBtn.dataset.chatBound = "1";
+    locationBtn.addEventListener("click", () => {
+      void sendWorkerChatLocation();
+    });
+  }
 }
 
 function updateWorkerChatFileHint() {
@@ -12632,6 +12640,9 @@ function formatWorkerReplyPreviewBody(text, attachments = []) {
     return t("chatPreviewPhoto") || "Foto";
   }
   if (body.startsWith("@voice-call|")) return t("voiceCallLogTitle") || "Anruf";
+  if (window.SUPPIXChatLocation?.isLocationBody?.(body)) {
+    return t("chatLocationPreview") || "📍 Standort";
+  }
   if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, t("chatVoiceMessage"))) {
     return t("chatVoiceMessage");
   }
@@ -12796,8 +12807,16 @@ function renderWorkerChatMessages(messages, options = {}) {
       );
       const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, t("chatVoiceMessage"));
       const callLog = window.SUPPIXWorkerVoiceCall?.parseCallLogBody?.(msg.body);
-      const body = voiceOnly || callLog ? "" : escapeHtmlBasic(String(msg.body || ""));
+      const location = window.SUPPIXChatLocation?.parseLocationBody?.(msg.body);
+      const body = voiceOnly || callLog || location ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
+      const locationHtml = location
+        ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, {
+          location: t("chatLocationPreview") || "📍 Standort",
+          openMaps: t("chatLocationOpenMaps") || "In Karte öffnen",
+          accuracy: t("chatLocationAccuracy") || "±{m} m",
+        }, { side })
+        : "";
       const callLogHtml = callLog
         ? window.SUPPIXWorkerVoiceCall.renderCallLogHtml(callLog, {
           showCallback: side !== "mine" && ["missed", "declined", "cancelled", "ended"].includes(String(callLog.status || "")),
@@ -12820,6 +12839,7 @@ function renderWorkerChatMessages(messages, options = {}) {
           <div class="${bubbleClasses}">
             ${renderWorkerReplyQuoteHtml(msg)}
             ${bodyHtml}
+            ${locationHtml}
             ${callLogHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
@@ -13050,6 +13070,7 @@ function syncWorkerChatSearchUi() {
       voice: t("chatVoiceMessage"),
       photo: t("chatPreviewPhoto"),
       encrypted: t("encryptedPreview"),
+      location: t("chatLocationPreview"),
     },
     onSelect: (id) => {
       const bubble = document.querySelector(`#workerChatMessages [data-message-id="${CSS.escape(id)}"]`);
@@ -13257,6 +13278,25 @@ function startWorkerChatPolling() {
   }, WORKER_CHAT_POLL_MS);
 }
 
+async function sendWorkerChatLocation() {
+  if (!window.SUPPIXChatLocation?.captureChatLocation) {
+    showWorkerNotice(t("geolocationUnsupported"));
+    return;
+  }
+  const btn = document.getElementById("workerChatLocationBtn");
+  if (btn) btn.disabled = true;
+  try {
+    showWorkerNotice(t("chatLocationCapturing") || "Standort wird ermittelt…");
+    const point = await window.SUPPIXChatLocation.captureChatLocation();
+    const body = window.SUPPIXChatLocation.encodeLocationBody(point);
+    await sendWorkerChatMessage({ presetBody: body });
+  } catch (error) {
+    showWorkerNotice(t("chatLocationFailed") || formatWorkerApiError(error));
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 async function sendWorkerChatMessage(options = {}) {
   ensureWorkerChatDom();
   syncWorkerChatComposeRefs();
@@ -13272,11 +13312,12 @@ async function sendWorkerChatMessage(options = {}) {
   elements.workerChatInput = input;
   const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
   const voiceFile = options.voiceFile || null;
-  const file = voiceFile || fileInput?.files?.[0] || null;
+  const presetBody = options.presetBody ? String(options.presetBody) : "";
+  const file = presetBody ? null : (voiceFile || fileInput?.files?.[0] || null);
   const uploadFile = file
     ? (window.SUPPIXChatVoice?.asUploadFile?.(file, file.name ? "voice" : "voice", file.durationSec, file.durationSec) || file)
     : null;
-  let body = String(input.value || "").trim();
+  let body = presetBody || String(input.value || "").trim();
   const placeholderText = String(t("workerChatPlaceholder") || "").trim();
   if (placeholderText && body === placeholderText) {
     body = "";
@@ -13330,7 +13371,7 @@ async function sendWorkerChatMessage(options = {}) {
       fileInput.value = "";
       updateWorkerChatFileHint();
     }
-    if (!file) {
+    if (!file && !presetBody) {
       appendOptimisticWorkerChatBubble(body, pendingId);
     }
     let outboundBody = body;
