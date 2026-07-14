@@ -3,7 +3,7 @@
  */
 (function (global) {
   const POLL_MS = 700;
-  const RING_TIMEOUT_MS = 45000;
+  const RING_TIMEOUT_MS = 60000;
   const AUDIO_CONSTRAINTS = {
     audio: {
       echoCancellation: true,

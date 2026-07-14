@@ -292,7 +292,8 @@ class ChatService:
         """All active workers for admin chat, with optional existing thread metadata."""
         workers = self.db.execute(
             """
-            SELECT id, first_name, last_name, badge_id, status
+            SELECT id, first_name, last_name, badge_id, status,
+                   CASE WHEN LENGTH(COALESCE(photo_data, '')) > 0 THEN 1 ELSE 0 END AS has_photo
             FROM workers
             WHERE company_id = ?
               AND deleted_at IS NULL
@@ -330,6 +331,7 @@ class ChatService:
                     "last_name": worker["last_name"],
                     "badge_id": worker["badge_id"],
                     "status": worker["status"],
+                    "hasPhoto": bool(int(worker["has_photo"] or 0)),
                     "subject": str(thread["subject"]) if thread else "general",
                     "last_message_at": summary.get("last_message_at")
                     or (thread.get("last_message_at") if thread else None),

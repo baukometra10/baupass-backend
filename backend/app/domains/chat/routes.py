@@ -66,6 +66,28 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"threads": service.list_threads(cid, worker_id=worker_id)})
         return jsonify({"threads": service.list_admin_chat_directory(cid)})
 
+    @chat_core_bp.get("/chat/workers/<worker_id>/avatar")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_worker_avatar(worker_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        row = get_db().execute(
+            """
+            SELECT photo_data FROM workers
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL AND worker_type = 'worker'
+            """,
+            (worker_id, cid),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "worker_not_found"}), 404
+        photo = str(row["photo_data"] or "").strip()
+        if not photo:
+            return jsonify({"error": "photo_not_found"}), 404
+        return jsonify({"photoData": photo, "workerId": worker_id})
+
     @chat_core_bp.post("/chat/threads")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -318,12 +340,16 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         if not message:
             return jsonify({"error": "message_not_found", "message": "Nachricht nicht gefunden."}), 404
         try:
+            from backend.server import normalize_upload_mimetype
+
+            filename = str(upload.filename or "upload.bin")
+            content_type = normalize_upload_mimetype(str(upload.mimetype or "application/octet-stream"), filename)
             attachment = ChatService(db).save_attachment(
                 message_id=message_id,
                 company_id=cid,
                 worker_id=worker_id,
-                filename=str(upload.filename or "upload.bin"),
-                content_type=str(upload.mimetype or "application/octet-stream"),
+                filename=filename,
+                content_type=content_type,
                 blob=upload.read(),
                 e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
                 encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),

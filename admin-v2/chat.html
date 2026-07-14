@@ -35,7 +35,16 @@
     .thread-item.is-active { background:var(--active-item); border-color:rgba(94,234,212,0.34); }
     .thread-item.is-loading { opacity:0.78; }
     .thread-item:hover { background:var(--item-bg); border-color:rgba(94,234,212,0.24); }
-    .thread-avatar { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; letter-spacing:.02em; background:linear-gradient(135deg,#5eead4,#93c5fd); box-shadow:0 4px 14px rgba(15,23,42,.18); }
+    .thread-avatar { width:42px; height:42px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; letter-spacing:.02em; background:linear-gradient(135deg,#5eead4,#93c5fd); box-shadow:0 4px 14px rgba(15,23,42,.18); overflow:hidden; flex-shrink:0; cursor:pointer; border:none; padding:0; font:inherit; }
+    .thread-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .chat-head-avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; background:linear-gradient(135deg,#5eead4,#93c5fd); flex-shrink:0; overflow:hidden; cursor:pointer; border:none; padding:0; font:inherit; }
+    .chat-head-avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+    .worker-profile-modal { position:fixed; inset:0; z-index:1650; display:grid; place-items:center; padding:1rem; background:rgba(2,6,12,.72); }
+    .worker-profile-modal.hidden { display:none; }
+    .worker-profile-card { width:min(360px,94vw); border-radius:18px; background:#0b141a; border:1px solid rgba(255,255,255,.08); color:#e9edef; padding:1.25rem; text-align:center; }
+    .worker-profile-photo { width:140px; height:140px; border-radius:50%; margin:0 auto .85rem; object-fit:cover; background:linear-gradient(135deg,#5eead4,#93c5fd); display:grid; place-items:center; font-size:2.4rem; font-weight:800; color:#042f2e; overflow:hidden; }
+    .worker-profile-photo img { width:100%; height:100%; object-fit:cover; }
+    .chat-image-preview { cursor:pointer; border-radius:10px; max-width:min(100%,280px); display:block; }
     .thread-body { min-width:0; display:grid; gap:0.12rem; }
     .thread-top { display:flex; align-items:center; justify-content:space-between; gap:0.55rem; min-width:0; }
     .thread-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:750; }
@@ -68,8 +77,6 @@
     .thread-item.has-unread .thread-name { font-weight:800; }
     .thread-item.has-unread .thread-preview { color:var(--text); font-weight:600; }
     .chat-main-head-inner { display:flex; align-items:center; gap:0.75rem; min-width:0; }
-    .chat-head-avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; background:linear-gradient(135deg,#5eead4,#93c5fd); flex-shrink:0; }
-    .chat-head-avatar.hidden { display:none; }
     .hidden { display:none !important; }
     .chat-compose.is-inactive { display:none; }
     .chat-reply-bar{display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(0,168,132,.1);border:1px solid rgba(0,168,132,.22)}
@@ -997,20 +1004,20 @@
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
   <script src="/ops-realtime.js?v=20260714chat22"></script>
-  <script src="/chat-realtime.js?v=20260714chat22"></script>
-  <script src="/chat-gallery.js?v=20260714chat21"></script>
+  <script src="/chat-realtime.js?v=20260714chat31"></script>
+  <script src="/chat-gallery.js?v=20260714chat31"></script>
   <script src="/chat-typing.js?v=20260714chat21"></script>
   <script src="/chat-search.js?v=20260714chat21"></script>
-  <script src="/chat-location.js?v=20260714chat30"></script>
+  <script src="/chat-location.js?v=20260714chat31"></script>
   <script src="/chat-attach-sheet.js?v=20260714chat21"></script>
   <script src="/chat-thread-prefs.js?v=20260714chat21"></script>
   <script src="/chat-message-prefs.js?v=20260714chat21"></script>
   <script src="/chat-message-menu.js?v=20260714chat21"></script>
   <script src="/chat-admin-push.js?v=20260714chat22"></script>
   <script src="/chat-offline-queue.js?v=20260714chat21"></script>
-  <script src="/chat-voice.js?v=20260714chat21"></script>
-  <script src="/chat-voice-call.js?v=20260714chat21"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat30"></script>
+  <script src="/chat-voice.js?v=20260714chat31"></script>
+  <script src="/chat-voice-call.js?v=20260714chat31"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat31"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1188,6 +1195,117 @@
       const first = parts[0]?.[0] || "";
       const last = (parts.length > 1 ? parts[parts.length - 1]?.[0] : parts[0]?.[1]) || "";
       return `${first}${last}`.toUpperCase();
+    }
+    const adminWorkerAvatarCache = new Map();
+    function prepareAdminUploadFile(file) {
+      if (!file) return null;
+      if (window.SUPPIXChatVoice?.prepareChatUploadFile) {
+        return window.SUPPIXChatVoice.prepareChatUploadFile(file);
+      }
+      return file;
+    }
+    function adminAttachmentPreviewKey(file) {
+      if (!file) return null;
+      if (isImageAttachment(file.name, file.type)) return "photo";
+      if (window.SUPPIXChatVoice?.isAudioAttachment?.(file.name, file.type)) return "voice";
+      return "file";
+    }
+    async function loadWorkerAvatarPhoto(workerId) {
+      const wid = String(workerId || "").trim();
+      if (!wid) return null;
+      if (adminWorkerAvatarCache.has(wid)) return adminWorkerAvatarCache.get(wid);
+      try {
+        const data = await api(`/api/chat/workers/${encodeURIComponent(wid)}/avatar?company_id=${encodeURIComponent(companyId)}`);
+        const photo = String(data.photoData || "").trim();
+        adminWorkerAvatarCache.set(wid, photo || null);
+        return photo || null;
+      } catch {
+        adminWorkerAvatarCache.set(wid, null);
+        return null;
+      }
+    }
+    function applyAvatarToElement(el, photoData, initials) {
+      if (!el) return;
+      if (photoData) {
+        el.innerHTML = `<img src="${escapeAttr(photoData)}" alt="" />`;
+        el.classList.add("has-photo");
+      } else {
+        el.textContent = initials || "MA";
+        el.classList.remove("has-photo");
+      }
+    }
+    async function hydrateThreadAvatars() {
+      document.querySelectorAll("[data-worker-avatar]").forEach(async (el) => {
+        const workerId = el.getAttribute("data-worker-avatar") || "";
+        const initials = el.textContent || "MA";
+        const photo = await loadWorkerAvatarPhoto(workerId);
+        applyAvatarToElement(el, photo, initials);
+      });
+    }
+    async function openWorkerProfileModal(workerId) {
+      const row = threads.find((item) => String(item.worker_id) === String(workerId));
+      const name = row ? threadDisplayName(row) : workerId;
+      const initials = threadInitials(name);
+      let modal = document.getElementById("workerProfileModal");
+      if (!modal) {
+        modal = document.createElement("div");
+        modal.id = "workerProfileModal";
+        modal.className = "worker-profile-modal hidden";
+        modal.innerHTML = `<div class="worker-profile-card" role="dialog" aria-modal="true">
+          <div id="workerProfilePhoto" class="worker-profile-photo"></div>
+          <h3 id="workerProfileName" style="margin:.2rem 0 .35rem"></h3>
+          <p id="workerProfileMeta" class="muted" style="margin:0 0 1rem"></p>
+          <button type="button" id="workerProfileClose" class="btn ghost">${escapeHtml(window.adminChatT("close") || "Schließen")}</button>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener("click", (event) => {
+          if (event.target === modal) modal.classList.add("hidden");
+        });
+        modal.querySelector("#workerProfileClose")?.addEventListener("click", () => modal.classList.add("hidden"));
+      }
+      const photoEl = modal.querySelector("#workerProfilePhoto");
+      const nameEl = modal.querySelector("#workerProfileName");
+      const metaEl = modal.querySelector("#workerProfileMeta");
+      if (nameEl) nameEl.textContent = name;
+      if (metaEl) {
+        metaEl.textContent = row?.badge_id ? `#${row.badge_id}` : (row?.status || "");
+      }
+      applyAvatarToElement(photoEl, null, initials);
+      modal.classList.remove("hidden");
+      const photo = row?.hasPhoto ? await loadWorkerAvatarPhoto(workerId) : null;
+      applyAvatarToElement(photoEl, photo, initials);
+    }
+    async function resolveAdminAttachmentObjectUrl(item) {
+      const res = await fetch(`/api/chat/attachments/${encodeURIComponent(item.id)}/download`, {
+        headers: downloadHeaders(),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("attachment_download_failed");
+      let blob = await res.blob();
+      const meta = adminChatAttachmentMetaById[item.id] || item.e2eMeta || "";
+      if (meta && adminE2ECryptoAvailable()) {
+        const buffer = new Uint8Array(await blob.arrayBuffer());
+        const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", getAdminUserId());
+        blob = new Blob([decrypted.bytes], { type: decrypted.mime || item.contentType || blob.type });
+      }
+      return URL.createObjectURL(blob);
+    }
+    function openAdminChatImageLightbox(attachmentId, filename, contentType) {
+      void resolveAdminAttachmentObjectUrl({ id: attachmentId, contentType, e2eMeta: adminChatAttachmentMetaById[attachmentId] || "" })
+        .then((url) => {
+          window.SUPPIXChatGallery?.openMediaLightbox?.({
+            title: filename,
+            url,
+            kind: "image",
+            labels: { download: window.adminChatT("download") || "Herunterladen" },
+            onDownload: () => {
+              downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
+                setThreadMeta(error.message || String(error), { dynamic: true });
+              });
+            },
+          });
+        })
+        .catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
     }
     const ADMIN_E2E_KEYS_TTL_MS = 60000;
     function adminE2ECryptoAvailable() {
@@ -1646,11 +1764,9 @@
         const url = URL.createObjectURL(blob);
         img.src = url;
         img.dataset.loaded = "1";
-        img.title = window.adminChatT("clickToSave", { name: filename });
+        img.title = window.adminChatT("clickToOpen", { name: filename }) || filename;
         img.addEventListener("click", () => {
-          downloadChatAttachment(attachmentId, filename, contentType || blob.type).catch((error) => {
-            setThreadMeta(error.message || String(error), { dynamic: true });
-          });
+          openAdminChatImageLightbox(attachmentId, filename, contentType || blob.type);
         });
       } catch {
         img.remove();
@@ -2082,11 +2198,31 @@
           files: window.adminChatT("chatGalleryFiles") || "Dateien",
           empty: window.adminChatT("chatGalleryEmpty") || "Keine Medien in dieser Unterhaltung.",
           close: window.adminChatT("close") || "Schließen",
+          open: window.adminChatT("open") || "Öffnen",
+          delete: window.adminChatT("chatGalleryDelete") || "Entfernen",
+          download: window.adminChatT("download") || "Herunterladen",
+        },
+        resolveItemUrl: async (item) => {
+          if (item.kind !== "image") return "";
+          return resolveAdminAttachmentObjectUrl(item);
+        },
+        onDeleteItem: async (item, ctx) => {
+          if (!ctx?.messageId) return;
+          const ok = global.confirm(window.adminChatT("chatGalleryDeleteConfirm") || "Nachricht mit Medium entfernen?");
+          if (!ok) return;
+          await deleteAdminChatMessage(ctx.messageId);
+          openAdminChatGallery();
         },
         onOpenItem: (item) => {
           if (item.kind === "voice") {
             const player = document.querySelector(`.chat-voice-note[data-attachment-id="${CSS.escape(item.id)}"]`);
             player?.querySelector(".chat-voice-play")?.click();
+            document.getElementById("suppixChatGalleryModal")?.classList.add("hidden");
+            return;
+          }
+          if (item.kind === "image") {
+            document.getElementById("suppixChatGalleryModal")?.classList.add("hidden");
+            openAdminChatImageLightbox(item.id, item.filename, item.contentType);
             return;
           }
           downloadChatAttachment(item.id, item.filename, item.contentType).catch((error) => {
@@ -2210,7 +2346,7 @@
         return threadDisplayName(left).localeCompare(threadDisplayName(right), undefined, { sensitivity: "base" });
       });
     }
-    function updateChatHead(name) {
+    function updateChatHead(name, workerId) {
       const avatar = document.getElementById("chatHeadAvatar");
       const title = document.getElementById("chatHeadTitle");
       const actions = document.getElementById("chatHeadActions");
@@ -2223,8 +2359,16 @@
       }
       if (avatar) {
         if (clean) {
-          avatar.textContent = threadInitials(clean);
+          applyAvatarToElement(avatar, null, threadInitials(clean));
           avatar.classList.remove("hidden");
+          avatar.dataset.openProfile = String(workerId || currentWorkerId || "");
+          if (workerId || currentWorkerId) {
+            void loadWorkerAvatarPhoto(workerId || currentWorkerId).then((photo) => {
+              if (String(currentWorkerId || "") === String(workerId || currentWorkerId || "")) {
+                applyAvatarToElement(avatar, photo, threadInitials(clean));
+              }
+            });
+          }
         } else {
           avatar.textContent = "";
           avatar.classList.add("hidden");
@@ -2444,6 +2588,14 @@
       });
       return meta.status ? meta : null;
     }
+    function shouldShowCallLogToAdmin(meta) {
+      const audience = String(meta?.audience || "both").toLowerCase();
+      if (audience === "worker") return false;
+      const status = String(meta?.status || "");
+      const initiatedBy = String(meta?.initiatedBy || "admin").toLowerCase();
+      if (status === "missed" && initiatedBy === "admin") return false;
+      return true;
+    }
     function voiceCallLogSummary(meta) {
       const status = String(meta?.status || "ended");
       const duration = Number(meta?.duration || 0);
@@ -2476,6 +2628,7 @@
     }
     function renderChatBubble(msg, options = {}) {
       const callLog = parseVoiceCallLogBody(msg.body);
+      if (callLog && !shouldShowCallLogToAdmin(callLog)) return "";
       if (callLog) return renderCallLogBubble(msg, callLog, options);
       const location = window.SUPPIXChatLocation?.parseLocationBody?.(msg.body);
       if (location) {
@@ -2527,7 +2680,7 @@
               return `<div class="chat-image-actions">
                 <button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">⬇ ${name}</button>
               </div>
-              <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" />`;
+              <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
             }
             return `<button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">📎 ${name}</button>`;
           }).join("")}</div>`
@@ -2575,7 +2728,7 @@
             const pinned = window.SUPPIXChatThreadPrefs?.isPinned?.(companyId, row.worker_id);
             const muted = window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id);
             return `<div class="thread-item${active}${loading}${unreadClass}${pinned ? " is-pinned" : ""}${muted ? " is-muted" : ""}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" tabindex="0" role="button" aria-current="${active ? "true" : "false"}">
-              <span class="thread-avatar" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
+              <span class="thread-avatar" data-worker-avatar="${escapeAttr(row.worker_id || "")}" data-open-profile="${escapeAttr(row.worker_id || "")}" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
               <span class="thread-body">
                 <span class="thread-top">
                   <span class="thread-name">${escapeHtml(name)}</span>
@@ -2596,6 +2749,11 @@
       host.querySelectorAll(".thread-item[data-worker]").forEach((row) => {
         row.addEventListener("click", (event) => {
           if (event.target instanceof Element && event.target.closest("[data-thread-pin],[data-thread-mute]")) return;
+          if (event.target instanceof Element && event.target.closest("[data-open-profile]")) {
+            event.stopPropagation();
+            void openWorkerProfileModal(row.getAttribute("data-worker"));
+            return;
+          }
           void openThread(row.getAttribute("data-id"), row.getAttribute("data-worker"), row);
         });
         row.addEventListener("keydown", (event) => {
@@ -2623,6 +2781,7 @@
           renderThreads();
         });
       });
+      void hydrateThreadAvatars();
     }
     async function ensureThread(threadId, workerId) {
       if (threadId) return threadId;
@@ -2645,7 +2804,7 @@
       const row = threads.find((item) => String(item.worker_id) === requestedWorkerId);
       const name = row ? threadDisplayName(row) : requestedWorkerId;
       lastThreadMetaName = name || "";
-      updateChatHead(name);
+      updateChatHead(name, requestedWorkerId);
       syncAdminThreadCompose();
       setThreadMeta(window.adminChatT("chatWith", { name }), { dynamic: true });
       const list = document.getElementById("messageList");
@@ -2711,7 +2870,7 @@
         updateAdminThreadPreviewCache(workerId, messages);
         if (!quiet) {
           lastThreadMetaName = name || "";
-          updateChatHead(name);
+          updateChatHead(name, workerId);
           syncAdminThreadCompose();
           setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
         }
@@ -2766,7 +2925,7 @@
       const sendBtn = document.getElementById("sendReplyBtn");
       const replyInput = document.getElementById("chatReply");
       const fileInput = document.getElementById("chatFile");
-      const draftBody = String(body || "").trim() || (file ? window.adminChatT("chatVoiceMessage") : "");
+      const draftBody = String(body || "").trim() || (file ? (adminAttachmentPreviewKey(file) === "voice" ? window.adminChatT("chatVoiceMessage") : (file.name ? `📎 ${file.name}` : "")) : "");
       const list = document.getElementById("messageList");
       const pendingId = `pending-${Date.now()}`;
       if (sendBtn) sendBtn.disabled = true;
@@ -2785,7 +2944,7 @@
         scrollMessageListToBottom(true);
       }
       let uploadPack = null;
-      let uploadFile = file ? window.SUPPIXChatVoice?.asUploadFile?.(file, file.name ? "voice" : "voice", file.durationSec, file.durationSec) || file : null;
+      let uploadFile = file ? prepareAdminUploadFile(file) : null;
       try {
         if (uploadFile && adminE2ERequired) {
           if (!adminE2ECryptoAvailable()) {
@@ -2878,7 +3037,12 @@
         if (row) {
           row.hasThread = true;
           row.id = currentThreadId;
-          row.last_message_preview = file ? "voice" : draftBody.slice(0, 120);
+          const previewKey = uploadFile ? adminAttachmentPreviewKey(uploadFile) : null;
+          row.last_message_preview = previewKey === "voice"
+            ? "voice"
+            : previewKey === "photo"
+              ? "photo"
+              : draftBody.slice(0, 120);
           row.last_message_sender_type = "admin";
           row.last_message_at = new Date().toISOString();
         }
@@ -2962,6 +3126,9 @@
     });
     document.getElementById("chatReplyBarClear")?.addEventListener("click", clearAdminReplyTo);
     document.getElementById("chatMediaGalleryBtn")?.addEventListener("click", openAdminChatGallery);
+    document.getElementById("chatHeadAvatar")?.addEventListener("click", () => {
+      if (currentWorkerId) void openWorkerProfileModal(currentWorkerId);
+    });
     document.getElementById("chatExportBtn")?.addEventListener("click", exportAdminChatThread);
     bindAdminChatAttachSheet();
     bindAdminChatMessageMenu();

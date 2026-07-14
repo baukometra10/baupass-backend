@@ -37,6 +37,7 @@
             : "file";
         items.push({
           id,
+          messageId: String(msg.id || ""),
           filename,
           contentType,
           e2eMeta,
@@ -59,16 +60,28 @@
 .chat-gallery-inner{width:min(720px,96vw);max-height:min(82vh,760px);overflow:hidden;border-radius:16px;background:#0b141a;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;color:#e9edef}
 .chat-gallery-head{display:flex;align-items:center;justify-content:space-between;padding:.85rem 1rem;border-bottom:1px solid rgba(255,255,255,.08)}
 .chat-gallery-head h4{margin:0;font-size:1rem}
-.chat-gallery-tabs{display:flex;gap:.35rem;padding:.55rem 1rem;border-bottom:1px solid rgba(255,255,255,.06)}
+.chat-gallery-tabs{display:flex;gap:.35rem;padding:.55rem 1rem;border-bottom:1px solid rgba(255,255,255,.06);flex-wrap:wrap}
 .chat-gallery-tabs button{border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:#e9edef;border-radius:999px;padding:.3rem .7rem;font-size:.75rem;cursor:pointer}
 .chat-gallery-tabs button.is-active{background:rgba(0,168,132,.22);border-color:rgba(0,168,132,.45);color:#fff}
 .chat-gallery-grid{flex:1;overflow:auto;padding:1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:.65rem}
-.chat-gallery-item{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.55rem;background:rgba(255,255,255,.03);cursor:pointer;text-align:left}
+.chat-gallery-item{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:.45rem;background:rgba(255,255,255,.03);cursor:pointer;text-align:left;display:flex;flex-direction:column;gap:.35rem;min-height:120px}
 .chat-gallery-item:hover{border-color:rgba(0,168,132,.35)}
+.chat-gallery-item .thumb{width:100%;aspect-ratio:1;border-radius:8px;object-fit:cover;background:#1f2c34;display:block}
 .chat-gallery-item .kind{font-size:1.35rem;line-height:1}
-.chat-gallery-item .name{display:block;margin-top:.35rem;font-size:.72rem;opacity:.85;word-break:break-word}
-.chat-gallery-item .when{display:block;margin-top:.2rem;font-size:.66rem;opacity:.55}
+.chat-gallery-item .name{display:block;font-size:.72rem;opacity:.85;word-break:break-word}
+.chat-gallery-item .when{display:block;font-size:.66rem;opacity:.55}
+.chat-gallery-item .actions{display:flex;gap:.35rem;margin-top:auto}
+.chat-gallery-item .actions button{flex:1;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e9edef;border-radius:8px;padding:.25rem;font-size:.65rem;cursor:pointer}
 .chat-gallery-empty{padding:1.25rem;color:rgba(233,237,239,.65);font-size:.9rem}
+.chat-media-lightbox{position:fixed;inset:0;z-index:1700;display:flex;flex-direction:column;background:rgba(0,0,0,.88);color:#fff}
+.chat-media-lightbox.hidden{display:none}
+.chat-media-lightbox-head{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:rgba(0,0,0,.35)}
+.chat-media-lightbox-head button{border:none;background:transparent;color:#fff;font-size:1.4rem;cursor:pointer;padding:.25rem .5rem}
+.chat-media-lightbox-body{flex:1;display:grid;place-items:center;padding:1rem;overflow:auto}
+.chat-media-lightbox-body img,.chat-media-lightbox-body video{max-width:min(96vw,920px);max-height:min(78vh,820px);border-radius:8px;object-fit:contain}
+.chat-media-lightbox-actions{display:flex;gap:.5rem;justify-content:center;padding:.85rem 1rem calc(.85rem + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.35)}
+.chat-media-lightbox-actions button{border:none;border-radius:999px;padding:.55rem 1.1rem;font:inherit;font-weight:600;cursor:pointer;background:#00a884;color:#fff}
+.chat-media-lightbox-actions button.ghost{background:rgba(255,255,255,.12)}
 `;
     global.document.head.appendChild(style);
   }
@@ -97,7 +110,52 @@
     return modal;
   }
 
-  function openChatGallery({ messages, labels = {}, onOpenItem } = {}) {
+  function ensureLightbox() {
+    ensureStyles();
+    let box = global.document.getElementById("suppixChatMediaLightbox");
+    if (box) return box;
+    box = global.document.createElement("div");
+    box.id = "suppixChatMediaLightbox";
+    box.className = "chat-media-lightbox hidden";
+    box.innerHTML = `
+      <div class="chat-media-lightbox-head">
+        <span id="chatMediaLightboxTitle"></span>
+        <button type="button" id="chatMediaLightboxClose" aria-label="Schließen">✕</button>
+      </div>
+      <div class="chat-media-lightbox-body" id="chatMediaLightboxBody"></div>
+      <div class="chat-media-lightbox-actions">
+        <button type="button" id="chatMediaLightboxDownload">Herunterladen</button>
+        <button type="button" class="ghost" id="chatMediaLightboxDismiss">Schließen</button>
+      </div>`;
+    global.document.body.appendChild(box);
+    const close = () => box.classList.add("hidden");
+    box.querySelector("#chatMediaLightboxClose")?.addEventListener("click", close);
+    box.querySelector("#chatMediaLightboxDismiss")?.addEventListener("click", close);
+    box.addEventListener("click", (event) => {
+      if (event.target === box) close();
+    });
+    return box;
+  }
+
+  function openMediaLightbox({ title, url, kind, onDownload, labels = {} } = {}) {
+    const box = ensureLightbox();
+    const body = box.querySelector("#chatMediaLightboxBody");
+    const titleEl = box.querySelector("#chatMediaLightboxTitle");
+    const downloadBtn = box.querySelector("#chatMediaLightboxDownload");
+    if (titleEl) titleEl.textContent = String(title || "");
+    if (body) {
+      body.innerHTML = kind === "image"
+        ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(title || "Bild")}" />`
+        : `<p>${escapeHtml(title || "Datei")}</p>`;
+    }
+    if (downloadBtn) {
+      downloadBtn.textContent = labels.download || "Herunterladen";
+      downloadBtn.onclick = () => { if (typeof onDownload === "function") onDownload(); };
+    }
+    box.classList.remove("hidden");
+  }
+
+  function openChatGallery({ messages, labels = {}, onOpenItem, onDeleteItem, resolveItemUrl } = {}) {
     const modal = ensureModal(labels);
     const items = collectMediaItems(messages, labels);
     const tabs = modal.querySelector("#chatGalleryTabs");
@@ -132,21 +190,46 @@
         .map((item) => {
           const icon = item.kind === "image" ? "🖼" : item.kind === "voice" ? "🎤" : "📎";
           const when = item.createdAt ? String(item.createdAt).slice(0, 16).replace("T", " ") : "";
-          return `<button type="button" class="chat-gallery-item" data-id="${escapeHtml(item.id)}" data-kind="${escapeHtml(item.kind)}">
-            <span class="kind" aria-hidden="true">${icon}</span>
+          const thumb = item.kind === "image"
+            ? `<img class="thumb" data-thumb-id="${escapeHtml(item.id)}" alt="" loading="lazy" />`
+            : `<span class="kind" aria-hidden="true">${icon}</span>`;
+          const deleteBtn = onDeleteItem && item.messageId
+            ? `<button type="button" data-delete-msg="${escapeHtml(item.messageId)}">${escapeHtml(labels.delete || "Entfernen")}</button>`
+            : "";
+          return `<div class="chat-gallery-item" data-id="${escapeHtml(item.id)}" data-kind="${escapeHtml(item.kind)}" data-msg="${escapeHtml(item.messageId)}">
+            ${thumb}
             <span class="name">${escapeHtml(item.filename)}</span>
             <span class="when">${escapeHtml(when)}</span>
-          </button>`;
+            <div class="actions">
+              <button type="button" data-open="1">${escapeHtml(labels.open || "Öffnen")}</button>
+              ${deleteBtn}
+            </div>
+          </div>`;
         })
         .join("");
-      grid.querySelectorAll(".chat-gallery-item").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-id") || "";
-          const kind = btn.getAttribute("data-kind") || "";
-          const item = visible.find((entry) => entry.id === id);
+      grid.querySelectorAll(".chat-gallery-item").forEach((card) => {
+        const id = card.getAttribute("data-id") || "";
+        const kind = card.getAttribute("data-kind") || "";
+        const item = visible.find((entry) => entry.id === id);
+        card.querySelector("[data-open]")?.addEventListener("click", () => {
           if (item) onOpenItem?.(item, { kind, id });
         });
+        card.querySelector("[data-delete-msg]")?.addEventListener("click", (event) => {
+          event.stopPropagation();
+          const messageId = card.getAttribute("data-msg") || "";
+          if (messageId && item) onDeleteItem?.(item, { messageId });
+        });
       });
+      if (typeof resolveItemUrl === "function") {
+        grid.querySelectorAll("img[data-thumb-id]").forEach((img) => {
+          const id = img.getAttribute("data-thumb-id") || "";
+          const item = visible.find((entry) => entry.id === id);
+          if (!item) return;
+          void resolveItemUrl(item).then((url) => {
+            if (url) img.src = url;
+          }).catch(() => {});
+        });
+      }
     };
 
     render();
@@ -156,5 +239,6 @@
   global.SUPPIXChatGallery = {
     collectMediaItems,
     openChatGallery,
+    openMediaLightbox,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -1493,6 +1493,14 @@
     }
   }
 
+  function prepareChatUploadFile(file) {
+    if (!file) return null;
+    if (isLikelyVoiceCaptureFile(file)) {
+      return asUploadFile(file, "voice", file.durationSec, file.durationSec);
+    }
+    return file;
+  }
+
   global.SUPPIXChatVoice = {
     MIC_SVG,
     SEND_SVG,
@@ -1523,6 +1531,7 @@
     updateComposePrimaryAction,
     bindWhatsAppVoiceCompose,
     asUploadFile,
+    prepareChatUploadFile,
     createRecorder,
     renderAudioPlayerHtml,
     hydrateAudioPlayers,

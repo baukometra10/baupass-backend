@@ -10,7 +10,7 @@ from typing import Any
 from backend.app.platform.events.bus import publish_event
 from backend.app.core.platform_env import platform_env
 
-RING_TIMEOUT_SECONDS = 45
+RING_TIMEOUT_SECONDS = 60
 ACTIVE_STATUSES = frozenset({"ringing", "accepted"})
 
 
@@ -249,7 +249,7 @@ class VoiceCallService:
         except Exception:
             return 0
 
-    def _log_call_to_chat(self, call: dict[str, Any], *, status: str, reason: str, role: str) -> None:
+    def _log_call_to_chat(self, call: dict[str, Any], *, status: str, reason: str, role: str, audience: str | None = None) -> None:
         company_id = str(call.get("companyId") or "").strip()
         worker_id = str(call.get("workerId") or "").strip()
         caller_user_id = str(call.get("callerUserId") or "").strip()
@@ -257,7 +257,14 @@ class VoiceCallService:
             return
         duration_sec = self._call_duration_seconds(call)
         call_id = str(call.get("id") or "").strip()
-        body = f"@voice-call|status={status}|duration={duration_sec}|reason={reason}|role={role}"
+        initiated_by = str(call.get("initiatedBy") or "admin").strip().lower()
+        visible_to = str(audience or "").strip().lower()
+        if not visible_to:
+            if status == "missed" and initiated_by == "admin":
+                visible_to = "worker"
+            else:
+                visible_to = "both"
+        body = f"@voice-call|status={status}|duration={duration_sec}|reason={reason}|role={role}|initiatedBy={initiated_by}|audience={visible_to}"
         if call_id:
             body += f"|callId={call_id}"
         try:
@@ -316,8 +323,9 @@ class VoiceCallService:
                 pass
             try:
                 missed_call = self.get_call(str(row["id"]))
-                self._log_call_to_chat(missed_call, status="missed", reason="timeout", role="system")
                 initiated_by = str(missed_call.get("initiatedBy") or "admin")
+                audience = "worker" if initiated_by == "admin" else "both"
+                self._log_call_to_chat(missed_call, status="missed", reason="timeout", role="system", audience=audience)
                 if initiated_by == "worker":
                     worker_id = str(missed_call.get("workerId") or row["worker_id"])
                     wname = str(missed_call.get("callerName") or worker_id)
@@ -327,6 +335,21 @@ class VoiceCallService:
                         message=f"{wname} hat angerufen — nicht erreicht.",
                         worker_id=worker_id,
                     )
+                elif initiated_by == "admin":
+                    try:
+                        from backend.app.platform.push.delivery import deliver_worker_push
+
+                        deliver_worker_push(
+                            self.db,
+                            str(row["worker_id"]),
+                            title="Verpasster Anruf",
+                            body="Anruf von Ihrem Arbeitgeber — nicht erreicht.",
+                            tag="voice-call-missed",
+                            company_id=str(row["company_id"]),
+                            extra={"callId": str(row["id"]), "type": "voice_call_missed"},
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 pass
         return count

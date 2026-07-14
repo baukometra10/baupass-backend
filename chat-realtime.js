@@ -2,6 +2,8 @@
  * SUPPIX chat realtime — platform events for admin + worker chat.
  */
 (function initSuppixChatRealtime(global) {
+  let notifyAudioCtx = null;
+
   function normalizeEvent(raw) {
     const evt = raw || {};
     let payload = evt.payload;
@@ -22,7 +24,7 @@
 
   function isChatEvent(evt) {
     const type = String(evt?.type || "");
-    return type === "chat.message_created" || type === "chat.typing" || type.startsWith("chat.voice_call");
+    return type === "chat.message_created" || type === "chat.typing" || type.startsWith("chat.voice_call") || type.startsWith("voice_call.");
   }
 
   function previewLabel(payload) {
@@ -34,6 +36,51 @@
     return preview.slice(0, 120);
   }
 
+  function isAdminChatPage() {
+    const path = String(global.location?.pathname || "");
+    return /\/admin-v2\/chat\.html$/i.test(path) || /\/chat\.html$/i.test(path);
+  }
+
+  function playWorkerMessageSound() {
+    try {
+      const Ctx = global.AudioContext || global.webkitAudioContext;
+      if (!Ctx) return;
+      if (!notifyAudioCtx) notifyAudioCtx = new Ctx();
+      const ctx = notifyAudioCtx;
+      if (ctx.state === "suspended") {
+        void ctx.resume();
+      }
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+      global.setTimeout(() => {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(988, ctx.currentTime);
+        gain2.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain2.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.02);
+        gain2.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+        osc2.start();
+        osc2.stop(ctx.currentTime + 0.24);
+      }, 140);
+    } catch {
+      /* ignore */
+    }
+  }
+
   function requestDesktopNotifyPermission() {
     try {
       if (!global.Notification || Notification.permission !== "default") return;
@@ -43,21 +90,27 @@
     }
   }
 
-  function maybeDesktopNotify(evt, labels = {}) {
+  function notifyAdminWorkerMessage(evt, labels = {}) {
     if (String(evt?.type || "") !== "chat.message_created") return;
     if (String(evt?.payload?.senderType || "") !== "worker") return;
-    if (global.document?.hasFocus?.()) return;
-    if (!global.Notification || Notification.permission !== "granted") return;
     const workerId = String(evt?.payload?.workerId || "");
     const companyId = String(global.__adminChatCompanyId || "");
     if (workerId && companyId && global.SUPPIXChatThreadPrefs?.isMuted?.(companyId, workerId)) {
       return;
     }
-    const title = labels.workerMessageTitle || "Neue Mitarbeiter-Nachricht";
+    playWorkerMessageSound();
+    const onChatPage = isAdminChatPage();
+    const focused = Boolean(global.document?.hasFocus?.());
+    if (focused && onChatPage) return;
+    if (!global.Notification || Notification.permission !== "granted") return;
+    const workerName = String(evt?.payload?.workerName || "").trim();
+    const title = workerName
+      ? `${labels.workerMessageTitle || "Neue Mitarbeiter-Nachricht"} — ${workerName}`
+      : (labels.workerMessageTitle || "Neue Mitarbeiter-Nachricht");
     try {
       new global.Notification(title, {
         body: previewLabel(evt.payload),
-        tag: `chat-${evt.payload?.threadId || "thread"}`,
+        tag: `chat-${evt.payload?.threadId || workerId || "thread"}`,
         icon: "/branding/suppix-icon-192.png",
       });
     } catch {
@@ -66,6 +119,9 @@
   }
 
   async function startAdminChatRealtime({ companyId, onChatEvent, onMode, labels, getHeaders } = {}) {
+    if (global.__adminChatCompanyId !== companyId) {
+      global.__adminChatCompanyId = companyId;
+    }
     if (!global.SUPPIXOpsRealtime?.start) {
       return () => {};
     }
@@ -88,8 +144,8 @@
       onEvent: (raw) => {
         const evt = normalizeEvent(raw);
         if (!isChatEvent(evt)) return;
+        notifyAdminWorkerMessage(evt, labels);
         onChatEvent?.(evt);
-        maybeDesktopNotify(evt, labels);
       },
     });
   }
@@ -123,9 +179,9 @@
           onChatEvent?.(evt);
         });
       } catch {
-        /* retry */
+        /* ignore */
       }
-      if (!stopped) timer = global.setTimeout(poll, pollMs);
+      timer = global.setTimeout(poll, pollMs);
     };
 
     poll();
@@ -140,7 +196,8 @@
     isChatEvent,
     previewLabel,
     requestDesktopNotifyPermission,
-    maybeDesktopNotify,
+    notifyAdminWorkerMessage,
+    playWorkerMessageSound,
     startAdminChatRealtime,
     startWorkerChatRealtime,
   };
