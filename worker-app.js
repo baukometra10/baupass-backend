@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat11";
+const WORKER_BUILD_TAG = "20260714chat12";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13290,6 +13290,7 @@ async function loadWorkerChat(options = {}) {
     bindWorkerChatComposeEvents();
     syncWorkerComposeAction();
     startWorkerTypingController();
+    void window.SUPPIXChatLocation?.warmChatGeolocation?.();
     syncWorkerChatSearchUi();
   } catch (error) {
     if (error?.code === "thread_not_found") {
@@ -13398,6 +13399,7 @@ function bindWorkerChatAttachSheet() {
   window.SUPPIXChatAttachSheet?.mountChatAttachSheet?.({
     triggerEl: document.getElementById("workerChatAttachBtn"),
     sheetEl: document.getElementById("workerChatAttachSheet"),
+    onOpen: () => { void window.SUPPIXChatLocation?.warmChatGeolocation?.(); },
     onSelect: (action) => {
       if (action === "document") {
         document.getElementById("workerChatFileInput")?.click();
@@ -13434,6 +13436,15 @@ function bindWorkerChatAttachSheet() {
 async function sendWorkerChatLocation() {
   if (!window.SUPPIXChatLocation?.captureChatLocation) {
     showWorkerNotice(t("geolocationUnsupported"));
+    return;
+  }
+  void window.SUPPIXChatLocation?.warmChatGeolocation?.();
+  const instant = window.SUPPIXChatLocation?.peekCachedChatLocation?.({
+    label: t("chatLocationSharedTitle") || "Standort geteilt",
+  });
+  if (instant) {
+    const body = window.SUPPIXChatLocation.encodeLocationBody(instant);
+    await sendWorkerChatMessage({ presetBody: body });
     return;
   }
   const pendingId = `pending-loc-${Date.now()}`;

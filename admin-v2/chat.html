@@ -1424,6 +1424,15 @@
     }
     async function sendAdminChatLocation() {
       if (!currentThreadId || !currentWorkerId || !window.SUPPIXChatLocation?.captureChatLocation) return;
+      void window.SUPPIXChatLocation?.warmChatGeolocation?.();
+      const instant = window.SUPPIXChatLocation?.peekCachedChatLocation?.({
+        label: window.adminChatT("chatLocationSharedTitle"),
+      });
+      if (instant) {
+        const body = window.SUPPIXChatLocation.encodeLocationBody(instant);
+        await sendAdminChatPayload({ body });
+        return;
+      }
       const list = document.getElementById("messageList");
       const pendingId = `pending-loc-${Date.now()}`;
       if (list) {
@@ -1452,6 +1461,7 @@
       window.SUPPIXChatAttachSheet?.mountChatAttachSheet?.({
         triggerEl: document.getElementById("chatAttachBtn"),
         sheetEl: document.getElementById("chatAttachSheet"),
+        onOpen: () => { void window.SUPPIXChatLocation?.warmChatGeolocation?.(); },
         onSelect: (action) => {
           if (action === "document") {
             document.getElementById("chatFile")?.click();
@@ -2710,6 +2720,7 @@
         const activeRow = threads.find((item) => String(item.worker_id) === String(workerId));
         if (activeRow) activeRow.unread_count = 0;
         renderThreads();
+        void window.SUPPIXChatLocation?.warmChatGeolocation?.();
       } catch (error) {
         if (!quiet) {
           setThreadMeta(error.message || String(error), { dynamic: true });
