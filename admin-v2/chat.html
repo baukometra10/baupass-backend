@@ -75,8 +75,6 @@
     .chat-compose-bar textarea { flex:1; min-width:0; min-height:42px; max-height:120px; resize:none; border-radius:22px; padding:0.62rem 0.85rem; }
     .chat-send-btn { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; border:none; background:#0f766e; color:#ecfeff; cursor:pointer; flex-shrink:0; }
     .chat-send-btn[hidden] { display:none !important; }
-    .chat-mic-btn { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; flex-shrink:0; touch-action:none; user-select:none; }
-    .chat-mic-btn.is-recording { background:#b91c1c; border-color:#ef4444; color:#fff; }
     .chat-send-btn:disabled { opacity:0.55; cursor:not-allowed; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
     textarea, input, button { font:inherit; }
@@ -286,9 +284,8 @@
       justify-content: space-between;
       padding: 0;
       background:
-        radial-gradient(ellipse 120% 80% at 50% -10%, rgba(6, 182, 212, 0.35), transparent 55%),
-        radial-gradient(circle at 80% 90%, rgba(14, 116, 144, 0.22), transparent 40%),
-        linear-gradient(180deg, #020617 0%, #0b1220 38%, #000 100%);
+        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(0, 168, 132, 0.14), transparent 58%),
+        #0b141a;
       animation: voiceCallFadeIn 0.35s ease;
     }
     @keyframes voiceCallFadeIn {
@@ -353,25 +350,81 @@
       100% { transform: scale(1.55); opacity: 0; }
     }
     .voice-call-avatar {
-      width: 168px;
-      height: 168px;
-      margin: 0 auto 1.25rem;
+      width: 180px;
+      height: 180px;
+      margin: 0 auto 1.35rem;
       border-radius: 50%;
       display: grid;
       place-items: center;
-      font-size: 3rem;
+      font-size: 3.2rem;
       font-weight: 800;
-      color: #ecfeff;
-      background: linear-gradient(145deg, rgba(6, 182, 212, 0.95), rgba(14, 116, 144, 0.55));
-      box-shadow: 0 24px 64px rgba(6, 182, 212, 0.35), inset 0 0 0 4px rgba(255,255,255,.08);
+      color: #e9edef;
+      background: linear-gradient(145deg, #00a884, #128c7e);
+      box-shadow: 0 24px 64px rgba(0, 168, 132, 0.28);
       position: relative;
       z-index: 1;
     }
     .voice-call-stage h4 {
       margin: 0 0 0.35rem;
-      font-size: 1.85rem;
+      font-size: 2rem;
       letter-spacing: -0.02em;
+      color: #e9edef;
     }
+    .voice-call-stage p {
+      color: rgba(233, 237, 239, 0.72);
+    }
+    .voice-call-timer {
+      margin-top: 0.55rem !important;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.15rem !important;
+      color: rgba(233, 237, 239, 0.88) !important;
+      font-weight: 500;
+    }
+    .voice-call-controls.incoming-only,
+    .voice-call-controls.active-only {
+      display: flex;
+      gap: 2.5rem;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 0.5rem;
+    }
+    .voice-call-wa-circle {
+      width: 68px;
+      height: 68px;
+      border-radius: 50%;
+      border: none;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      color: #fff;
+      font-size: 1.65rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      transition: transform 0.15s ease;
+    }
+    .voice-call-wa-circle:active { transform: scale(0.96); }
+    .voice-call-wa-circle.accept { background: #00a884; }
+    .voice-call-wa-circle.decline { background: #e53935; }
+    .voice-call-wa-circle.hangup { background: #e53935; width: 76px; height: 76px; font-size: 1.85rem; }
+    .voice-call-wa-circle.secondary { background: rgba(255,255,255,0.12); width: 58px; height: 58px; font-size: 1.35rem; }
+    .voice-call-wa-circle.is-active { background: rgba(229, 57, 53, 0.85); }
+    .voice-call-round-btn .voice-call-btn-label { display: none; }
+    .voice-call-round-btn {
+      min-width: 58px;
+      min-height: 58px;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      padding: 0;
+      border: none;
+      background: rgba(255,255,255,0.12);
+      color: #e9edef;
+    }
+    .voice-call-round-btn.danger,
+    .voice-call-round-btn.accept { width: 68px; height: 68px; min-width: 68px; min-height: 68px; border-radius: 50%; }
+    .voice-call-round-btn.accept { background: #00a884; }
+    .voice-call-round-btn.danger { background: #e53935; }
+    #voiceCallHangupBtn.voice-call-round-btn { width: 76px; height: 76px; min-width: 76px; min-height: 76px; }
     .voice-call-stage p {
       margin: 0;
       color: rgba(226, 232, 240, 0.82);
@@ -795,9 +848,9 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260714voice9"></script>
-  <script src="/chat-voice-call.js?v=20260714voice9"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice9"></script>
+  <script src="/chat-voice.js?v=20260714voice10"></script>
+  <script src="/chat-voice-call.js?v=20260714voice10"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice10"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1295,6 +1348,9 @@
           ...adminVoiceLabels(),
           slideCancel: window.adminChatT("chatVoiceSlideCancel"),
           releaseCancel: window.adminChatT("chatVoiceReleaseCancel"),
+          slideLock: window.adminChatT("chatVoiceSlideLock"),
+          lockedRecording: window.adminChatT("chatVoiceLockedRecording"),
+          sendVoice: window.adminChatT("send"),
           tooShort: window.adminChatT("chatVoiceTooShort"),
         },
         onSendText: () => handleAdminPrimaryAction(),
@@ -1308,7 +1364,7 @@
           adminVoiceRecorder?.cancel?.();
           document.getElementById("chatVoiceMicBtn")?.classList.remove("is-recording");
           document.querySelector(".chat-compose")?.classList.remove("is-voice-recording");
-          document.querySelector(".chat-voice-record-overlay")?.classList.add("hidden");
+          document.querySelector(".wa-voice-record-sheet")?.classList.add("hidden");
           const msg = String(error?.message || error || "");
           if (msg.includes("too_short") || msg === window.adminChatT("chatVoiceTooShort")) {
             setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });

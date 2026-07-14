@@ -3228,8 +3228,11 @@ function ensureWorkerChatDom() {
             <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
           </label>
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
+          <button type="button" id="workerChatMicBtn" class="worker-chat-mic-btn" data-i18n="chatVoiceMic" data-i18n-attr="aria-label,title" aria-label="Sprachnachricht">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </button>
           <div class="worker-chat-send-slot">
-            <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
+            <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" hidden data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
@@ -3296,6 +3299,7 @@ let workerVoiceRecorder = null;
 let workerVoiceRecording = false;
 let workerVoiceStartedAt = 0;
 let workerPrimaryActionBusy = false;
+let workerVoiceComposeBound = false;
 
 function resetWorkerVoiceRecorder() {
   try {
@@ -3327,44 +3331,71 @@ function workerVoiceLabels() {
 
 function syncWorkerComposeAction() {
   syncWorkerChatComposeRefs();
-  const button = elements.workerChatSendBtn;
-  if (!button) {
+  const sendBtn = elements.workerChatSendBtn;
+  if (!sendBtn) {
     return "send";
   }
-  let mode = "send";
-  if (window.SUPPIXChatVoice?.updateComposePrimaryAction) {
-    mode = window.SUPPIXChatVoice.updateComposePrimaryAction({
-      input: elements.workerChatInput,
-      button,
-      fileInput: elements.workerChatFileInput,
-      recording: workerVoiceRecording,
-      labels: workerVoiceLabels(),
-    });
-  } else {
-    button.disabled = false;
-    if (workerVoiceRecording) {
-      button.dataset.mode = "stop";
-      mode = "stop";
-    } else {
-      button.dataset.mode = workerComposeHasPayload() ? "send" : "mic";
-      mode = button.dataset.mode;
-    }
-  }
+  const hasText = window.SUPPIXChatVoice?.composeHasText?.(elements.workerChatInput, t("workerChatPlaceholder"));
+  const hasFile = Boolean(elements.workerChatFileInput?.files?.length);
+  sendBtn.hidden = !(hasText || hasFile);
+  sendBtn.dataset.mode = "send";
+  sendBtn.disabled = false;
   normalizeWorkerChatSendDom();
   clearWorkerNativeVoiceCaptureUi();
-  return mode;
+  return sendBtn.hidden ? "mic" : "send";
+}
+
+function bindWorkerWhatsAppVoiceCompose() {
+  if (workerVoiceComposeBound || !window.SUPPIXChatVoice?.bindWhatsAppVoiceCompose) return;
+  const chatCard = elements.chatCard || document.getElementById("chatCard");
+  const compose = chatCard?.querySelector(".worker-chat-compose");
+  const micBtn = document.getElementById("workerChatMicBtn");
+  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
+  const input = elements.workerChatInput || document.getElementById("workerChatInput");
+  const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
+  const recorder = getWorkerVoiceRecorder();
+  if (!compose || !micBtn || !recorder) return;
+  workerVoiceComposeBound = true;
+  window.SUPPIXChatVoice.bindWhatsAppVoiceCompose({
+    root: compose,
+    input,
+    sendBtn,
+    micBtn,
+    fileInput,
+    recorder,
+    labels: {
+      ...workerVoiceLabels(),
+      slideCancel: t("chatVoiceSlideCancel") || "← Wischen zum Abbrechen",
+      releaseCancel: t("chatVoiceReleaseCancel") || "Loslassen zum Abbrechen",
+      slideLock: t("chatVoiceSlideLock") || "↑ Hochziehen zum Sperren",
+      lockedRecording: t("chatVoiceLockedRecording") || "🔒 Aufnahme gesperrt",
+      sendVoice: t("workerChatSend") || "Senden",
+      tooShort: t("chatVoiceTooShort"),
+    },
+    onSendText: () => {
+      void sendWorkerChatMessage();
+    },
+    onSendVoice: async (voiceFile) => {
+      await sendWorkerChatMessage({ voiceFile });
+    },
+    onRecordingTick: (seconds) => updateWorkerVoiceHint(seconds),
+    onError: (error) => {
+      workerVoiceRecording = false;
+      updateWorkerVoiceHint(0);
+      recorder.cancel?.();
+      micBtn.classList.remove("is-recording");
+      compose.classList.remove("is-voice-recording");
+      compose.querySelector(".wa-voice-record-sheet")?.classList.add("hidden");
+      showWorkerVoiceNotice(error);
+      syncWorkerComposeAction();
+    },
+  });
 }
 
 function clearWorkerNativeVoiceCaptureUi() {
   document.querySelectorAll("#chatCard .worker-chat-native-mic-label, #chatCard #workerChatVoiceCaptureInput").forEach((node) => {
     node.remove();
   });
-  const sendBtn = elements.workerChatSendBtn || document.getElementById("workerChatSendBtn");
-  if (sendBtn) {
-    sendBtn.hidden = false;
-    sendBtn.style.display = "inline-flex";
-    sendBtn.removeAttribute("aria-hidden");
-  }
 }
 
 function updateWorkerVoiceHint(seconds) {
@@ -3744,6 +3775,7 @@ function bindWorkerChatComposeEvents() {
     });
   }
   syncWorkerComposeAction();
+  bindWorkerWhatsAppVoiceCompose();
 }
 
 function updateWorkerChatFileHint() {

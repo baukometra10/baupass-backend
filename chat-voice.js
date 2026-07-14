@@ -7,6 +7,15 @@
   const STOP_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor"/></svg>`;
   const PLAY_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 7.5v9l8-4.5-8-4.5Z" fill="currentColor"/></svg>`;
   const PAUSE_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="6" width="3.5" height="12" fill="currentColor"/><rect x="13.5" y="6" width="3.5" height="12" fill="currentColor"/></svg>`;
+  const LOCK_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" stroke-width="2"/></svg>`;
+  const VOICE_AUDIO_CONSTRAINTS = {
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true,
+    channelCount: 1,
+    sampleRate: 48000,
+  };
+  const VOICE_RECORD_BITRATE = 128000;
 
   function isAppleLikeDevice() {
     const ua = String(global.navigator?.userAgent || "");
@@ -39,9 +48,9 @@
       throw new Error("voice_not_supported");
     }
     const attempts = [
-      { audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 } },
+      { audio: VOICE_AUDIO_CONSTRAINTS },
+      { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } },
       { audio: true },
-      { audio: { channelCount: 1 } },
     ];
     let lastError = null;
     for (const constraints of attempts) {
@@ -246,12 +255,16 @@
     let lastError = null;
     for (const options of optionSets) {
       try {
-        const recorder = Object.keys(options).length && options.mimeType
-          ? new global.MediaRecorder(stream, options)
-          : new global.MediaRecorder(stream);
+        const recorderOptions = { ...options };
+        if (recorderOptions.mimeType) {
+          recorderOptions.audioBitsPerSecond = VOICE_RECORD_BITRATE;
+        }
+        const recorder = Object.keys(recorderOptions).length && recorderOptions.mimeType
+          ? new global.MediaRecorder(stream, recorderOptions)
+          : new global.MediaRecorder(stream, { audioBitsPerSecond: VOICE_RECORD_BITRATE });
         return {
           recorder,
-          mimeType: recorder.mimeType || options.mimeType || picked || "audio/mp4",
+          mimeType: recorder.mimeType || options.mimeType || picked || "audio/webm",
         };
       } catch (error) {
         lastError = error;
@@ -437,16 +450,16 @@
       .replace(/</g, "&lt;");
   }
 
-  function voiceWaveformHtml(seed) {
+  function voiceWaveformHtml(seed, barCount = 36) {
     let hash = 0;
     const text = String(seed || "voice");
     for (let i = 0; i < text.length; i += 1) {
       hash = (hash + text.charCodeAt(i) * (i + 3)) % 9973;
     }
     const bars = [];
-    for (let i = 0; i < 28; i += 1) {
+    for (let i = 0; i < barCount; i += 1) {
       hash = (hash * 33 + i * 17) % 100;
-      const height = 28 + (hash % 72);
+      const height = 24 + (hash % 68);
       bars.push(`<span style="height:${height}%"></span>`);
     }
     return `<div class="chat-voice-wave" aria-hidden="true">${bars.join("")}</div>`;
@@ -526,33 +539,46 @@
   }) {
     if (!root || !micBtn || !recorder) return () => {};
     const cancelSlidePx = 72;
+    const lockSlidePx = 72;
     const useToggleMode = !isTouchPrimaryDevice();
     let recording = false;
+    let locked = false;
     let tickTimer = null;
     let pointerId = null;
     let startX = 0;
+    let startY = 0;
     let cancelArmed = false;
     let pendingStart = null;
     let cancelPending = false;
 
-    let overlay = root.querySelector(".chat-voice-record-overlay");
-    if (!overlay) {
-      overlay = global.document.createElement("div");
-      overlay.className = "chat-voice-record-overlay hidden";
-      overlay.innerHTML = `
-        <div class="chat-voice-record-panel">
-          <span class="chat-voice-record-cancel">${labels.slideCancel || "← Zum Abbrechen wischen"}</span>
-          <span class="chat-voice-record-timer">0:00</span>
-          <div class="chat-voice-record-live-wave" aria-hidden="true"></div>
+    let sheet = root.querySelector(".wa-voice-record-sheet");
+    if (!sheet) {
+      sheet = global.document.createElement("div");
+      sheet.className = "wa-voice-record-sheet hidden";
+      sheet.innerHTML = `
+        <div class="wa-voice-record-inner">
+          <div class="wa-voice-record-hint">
+            <span class="wa-voice-record-cancel">${labels.slideCancel || "← Wischen zum Abbrechen"}</span>
+            <span class="wa-voice-record-lock-hint">${labels.slideLock || "↑ Hochziehen zum Sperren"}</span>
+          </div>
+          <div class="wa-voice-record-main">
+            <button type="button" class="wa-voice-record-lock-btn hidden" aria-label="${labels.locked || "Aufnahme gesperrt"}">${LOCK_SVG}</button>
+            <div class="wa-voice-record-live-wave" aria-hidden="true"></div>
+            <span class="wa-voice-record-timer">0:00</span>
+          </div>
+          <button type="button" class="wa-voice-record-send hidden">${labels.sendVoice || "Senden"}</button>
         </div>`;
-      root.appendChild(overlay);
-      const wave = overlay.querySelector(".chat-voice-record-live-wave");
+      root.appendChild(sheet);
+      const wave = sheet.querySelector(".wa-voice-record-live-wave");
       if (wave && !wave.childElementCount) {
-        wave.innerHTML = Array.from({ length: 24 }, () => "<span></span>").join("");
+        wave.innerHTML = Array.from({ length: 32 }, () => "<span></span>").join("");
       }
     }
-    const timerEl = overlay.querySelector(".chat-voice-record-timer");
-    const cancelEl = overlay.querySelector(".chat-voice-record-cancel");
+    const timerEl = sheet.querySelector(".wa-voice-record-timer");
+    const cancelEl = sheet.querySelector(".wa-voice-record-cancel");
+    const lockHintEl = sheet.querySelector(".wa-voice-record-lock-hint");
+    const lockBtnEl = sheet.querySelector(".wa-voice-record-lock-btn");
+    const sendLockedBtn = sheet.querySelector(".wa-voice-record-send");
 
     const stopTickTimer = () => {
       if (tickTimer) {
@@ -572,21 +598,28 @@
 
     const setRecordingUi = (active) => {
       recording = active;
+      if (!active) locked = false;
       micBtn.classList.toggle("is-recording", active);
       root.classList.toggle("is-voice-recording", active);
-      overlay.classList.toggle("hidden", !active);
+      sheet.classList.toggle("hidden", !active);
+      sheet.classList.toggle("is-locked", locked);
+      lockBtnEl?.classList.toggle("hidden", !locked);
+      sendLockedBtn?.classList.toggle("hidden", !locked);
+      lockHintEl?.classList.toggle("hidden", locked || useToggleMode);
       if (!active) stopTickTimer();
       syncSendBtn();
     };
 
     const updateWave = (seconds) => {
-      const wave = overlay.querySelector(".chat-voice-record-live-wave");
+      const wave = sheet.querySelector(".wa-voice-record-live-wave");
       if (timerEl) timerEl.textContent = formatDuration(seconds);
+      const level = Number(recorder.lastLevel || 0);
       if (!wave) return;
       wave.querySelectorAll("span").forEach((bar, index) => {
-        const phase = (Date.now() / 110 + index * 0.42) % (Math.PI * 2);
-        const height = 22 + Math.abs(Math.sin(phase)) * 58 + Math.min(18, seconds * 2);
-        bar.style.height = `${Math.round(height)}%`;
+        const phase = (Date.now() / 100 + index * 0.38) % (Math.PI * 2);
+        const base = 18 + Math.abs(Math.sin(phase)) * 24;
+        const height = base + level * 52 + Math.min(12, seconds * 1.5);
+        bar.style.height = `${Math.round(Math.min(100, height))}%`;
       });
     };
 
@@ -656,21 +689,32 @@
       if (event.button !== undefined && event.button !== 0) return;
       pointerId = event.pointerId ?? "mouse";
       startX = event.clientX || 0;
+      startY = event.clientY || 0;
       cancelArmed = false;
+      locked = false;
       cancelPending = false;
       micBtn.setPointerCapture?.(event.pointerId);
       void beginRecording();
     };
 
     const onMicMove = (event) => {
-      if (!recording) return;
+      if (!recording || locked) return;
       const dx = (event.clientX || 0) - startX;
+      const dy = startY - (event.clientY || 0);
       cancelArmed = dx < -cancelSlidePx;
       if (cancelEl) {
         cancelEl.classList.toggle("is-armed", cancelArmed);
         cancelEl.textContent = cancelArmed
           ? (labels.releaseCancel || "Loslassen zum Abbrechen")
-          : (labels.slideCancel || "← Zum Abbrechen wischen");
+          : (labels.slideCancel || "← Wischen zum Abbrechen");
+      }
+      if (!useToggleMode && dy > lockSlidePx && lockHintEl) {
+        locked = true;
+        sheet.classList.add("is-locked");
+        lockBtnEl?.classList.remove("hidden");
+        sendLockedBtn?.classList.remove("hidden");
+        lockHintEl.classList.add("hidden");
+        if (cancelEl) cancelEl.textContent = labels.lockedRecording || "🔒 Aufnahme gesperrt";
       }
     };
 
@@ -685,13 +729,17 @@
         pointerId = null;
         return;
       }
-      if (!recording) {
+      if (!recording || locked) {
         pointerId = null;
         return;
       }
       pointerId = null;
       await finishRecording(true);
     };
+
+    sendLockedBtn?.addEventListener("click", () => {
+      if (recording && locked) void finishRecording(true);
+    });
 
     const onMicToggleClick = (event) => {
       if (!useToggleMode) return;
@@ -729,7 +777,7 @@
     };
   }
 
-  function createRecorder({ onTick, onError } = {}) {
+  function createRecorder({ onTick, onError, onLevel } = {}) {
     let stream = null;
     let recorder = null;
     let chunks = [];
@@ -745,8 +793,22 @@
     let wavChunks = [];
     let wavSampleRate = 44100;
     let wavCapturing = false;
+    let levelContext = null;
+    let levelAnalyser = null;
+    let levelTimer = null;
+    let lastLevel = 0;
 
     const cleanupStream = () => {
+      if (levelTimer) {
+        global.clearInterval(levelTimer);
+        levelTimer = null;
+      }
+      if (levelContext) {
+        levelContext.close?.().catch(() => {});
+        levelContext = null;
+      }
+      levelAnalyser = null;
+      lastLevel = 0;
       if (stream) {
         stream.getTracks().forEach((track) => {
           try {
@@ -811,6 +873,29 @@
         const seconds = (Date.now() - startedAt) / 1000;
         onTick?.(seconds);
       }, 250);
+    };
+
+    const attachInputLevel = (activeStream) => {
+      try {
+        const Ctx = global.AudioContext || global.webkitAudioContext;
+        if (!Ctx) return;
+        levelContext = new Ctx();
+        levelAnalyser = levelContext.createAnalyser();
+        levelAnalyser.fftSize = 256;
+        const src = levelContext.createMediaStreamSource(activeStream);
+        src.connect(levelAnalyser);
+        const buffer = new Uint8Array(levelAnalyser.frequencyBinCount);
+        levelTimer = global.setInterval(() => {
+          if (!levelAnalyser) return;
+          levelAnalyser.getByteFrequencyData(buffer);
+          let sum = 0;
+          for (let i = 0; i < buffer.length; i += 1) sum += buffer[i];
+          lastLevel = Math.min(1, (sum / buffer.length / 255) * 2.2);
+          onLevel?.(lastLevel);
+        }, 80);
+      } catch {
+        /* ignore level meter */
+      }
     };
 
     const startWebAudioRecording = async (activeStream) => {
@@ -888,6 +973,9 @@
       get elapsedMs() {
         return startedAt ? Math.max(0, Date.now() - startedAt) : 0;
       },
+      get lastLevel() {
+        return lastLevel;
+      },
       async start(options = null) {
         if (!canRecordVoice()) {
           throw new Error("voice_not_supported");
@@ -924,6 +1012,7 @@
         audioTracks.forEach((track) => {
           track.enabled = true;
         });
+        attachInputLevel(stream);
         if (hasMediaRecorder()) {
           try {
             await startMediaRecorder(stream);
@@ -1076,10 +1165,13 @@
     const e2eRaw = attachment?.e2eMeta || attachment?.e2e_meta || labels.e2eMeta || "";
     const knownDuration = Number(labels.durationSec || attachment?.durationSec || parseE2eAttachmentDuration(e2eRaw) || 0);
     const durationLabel = knownDuration > 0 ? formatDuration(knownDuration) : "0:00";
-    return `<div class="chat-voice-note is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}"${knownDuration > 0 ? ` data-duration-sec="${knownDuration}"` : ""}>
+    return `<div class="chat-voice-note wa-voice-bubble is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}"${knownDuration > 0 ? ` data-duration-sec="${knownDuration}"` : ""}>
       <button type="button" class="chat-voice-play" aria-label="${voiceLabel}">${PLAY_SVG}</button>
-      ${voiceWaveformHtml(id || filename)}
-      <span class="chat-voice-duration">${durationLabel}</span>
+      <div class="chat-voice-body">
+        ${voiceWaveformHtml(id || filename, 40)}
+        <span class="chat-voice-duration">${durationLabel}</span>
+      </div>
+      <span class="chat-voice-dot" aria-hidden="true"></span>
     </div>`;
   }
 
@@ -1184,7 +1276,9 @@
           progressWave.style.setProperty("--voice-progress", String(ratio));
         }
         if (durationEl) {
-          durationEl.textContent = formatDuration(audio.currentTime);
+          const remaining = Math.max(0, audio.duration - audio.currentTime);
+          durationEl.textContent = formatDuration(remaining);
+          durationEl.classList.toggle("is-countdown", true);
         }
       });
       audio.addEventListener("ended", () => {
@@ -1244,6 +1338,16 @@
         void toggleVoicePlayback(player, { downloadFn, onError });
       };
       playBtn.addEventListener("click", handler);
+      playBtn.addEventListener("dblclick", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (activePlayer !== player || !activeAudio) return;
+        const rates = [1, 1.5, 2];
+        const current = Number(activeAudio.playbackRate || 1);
+        const idx = rates.indexOf(current);
+        activeAudio.playbackRate = rates[(idx + 1) % rates.length];
+        player.setAttribute("data-playback-rate", String(activeAudio.playbackRate));
+      });
       player.addEventListener("click", (event) => {
         if (event.target instanceof Element && event.target.closest(".chat-voice-play")) return;
         handler(event);
@@ -1267,48 +1371,52 @@
 
   function injectVoiceStyles() {
     const css = `
-.chat-voice-note{display:flex;align-items:center;gap:10px;min-width:min(240px,78vw);max-width:100%;padding:6px 8px 6px 4px;border-radius:999px;cursor:pointer;user-select:none}
-.chat-voice-note.is-mine,.bubble.admin .chat-voice-note{background:rgba(255,255,255,.14)}
-.chat-voice-note.is-them,.bubble.worker .chat-voice-note{background:rgba(15,23,42,.08)}
-.chat-voice-play{width:36px;height:36px;border-radius:50%;border:none;display:grid;place-items:center;flex-shrink:0;cursor:pointer;color:inherit;background:rgba(255,255,255,.22)}
-.chat-voice-note.is-them .chat-voice-play,.bubble.worker .chat-voice-play{background:rgba(15,23,42,.08);color:#0f766e}
-.chat-voice-note.is-mine .chat-voice-play,.bubble.admin .chat-voice-play{background:rgba(255,255,255,.24);color:#ecfeff}
-.chat-voice-note.is-playing .chat-voice-play{transform:scale(1.03)}
-.chat-voice-note.is-loading .chat-voice-play{opacity:.55}
-.chat-voice-wave{--voice-progress:0;position:relative;display:flex;align-items:center;gap:2px;flex:1;min-width:84px;height:28px;overflow:hidden}
-.chat-voice-wave::after{content:"";position:absolute;inset:0;width:calc(var(--voice-progress,0) * 100%);background:linear-gradient(90deg,rgba(94,234,212,.18),rgba(94,234,212,.34));pointer-events:none;border-radius:999px}
-.chat-voice-wave span{display:block;width:3px;border-radius:999px;background:currentColor;opacity:.42;align-self:center}
-.chat-voice-note.is-playing .chat-voice-wave span{opacity:.72}
-.chat-voice-duration{font-size:.72rem;opacity:.82;min-width:2.3rem;text-align:end;font-variant-numeric:tabular-nums}
+.wa-voice-bubble,.chat-voice-note{display:flex;align-items:center;gap:8px;min-width:min(260px,82vw);max-width:min(320px,92vw);padding:7px 10px 7px 6px;border-radius:999px;cursor:pointer;user-select:none;position:relative}
+.wa-voice-bubble .chat-voice-body{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.wa-voice-bubble .chat-voice-dot{width:8px;height:8px;border-radius:50%;background:#53bdeb;flex-shrink:0;opacity:.95}
+.wa-voice-bubble.is-mine,.bubble.admin .wa-voice-bubble,.bubble.admin .chat-voice-note{background:#005c4b;color:#e9edef}
+.wa-voice-bubble.is-them,.bubble.worker .wa-voice-bubble,.bubble.worker .chat-voice-note{background:#202c33;color:#e9edef}
+.chat-voice-play{width:34px;height:34px;border-radius:50%;border:none;display:grid;place-items:center;flex-shrink:0;cursor:pointer;color:inherit;background:rgba(0,0,0,.18)}
+.wa-voice-bubble.is-mine .chat-voice-play,.bubble.admin .chat-voice-play{background:rgba(0,0,0,.16);color:#e9edef}
+.wa-voice-bubble.is-them .chat-voice-play,.bubble.worker .chat-voice-play{background:rgba(255,255,255,.1);color:#e9edef}
+.chat-voice-note.is-playing .chat-voice-play,.wa-voice-bubble.is-playing .chat-voice-play{transform:scale(1.04);background:rgba(0,0,0,.24)}
+.chat-voice-note.is-loading .chat-voice-play,.wa-voice-bubble.is-loading .chat-voice-play{opacity:.55}
+.chat-voice-wave{--voice-progress:0;position:relative;display:flex;align-items:center;gap:2px;flex:1;min-width:96px;height:26px;overflow:hidden}
+.chat-voice-wave::after{content:"";position:absolute;inset:0;width:calc(var(--voice-progress,0) * 100%);background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,255,255,.18));pointer-events:none;border-radius:999px}
+.chat-voice-wave span{display:block;width:2px;border-radius:999px;background:currentColor;opacity:.55;align-self:center;min-height:4px}
+.chat-voice-note.is-playing .chat-voice-wave span,.wa-voice-bubble.is-playing .chat-voice-wave span{opacity:.88}
+.chat-voice-duration{font-size:.74rem;opacity:.88;min-width:2.4rem;text-align:end;font-variant-numeric:tabular-nums;flex-shrink:0}
+.chat-voice-duration.is-countdown{opacity:1}
 .bubble.is-voice-only .bubble-body{display:none}
 .bubble.is-voice-only{padding:.35rem .55rem .35rem .35rem}
 .worker-chat-bubble.is-voice-only .worker-chat-body{display:none}
 .worker-chat-bubble.is-voice-only{padding:.4rem .55rem .35rem .45rem}
 .chat-delete-btn,.worker-chat-delete-btn{border:none;background:transparent;cursor:pointer;opacity:.5;font-size:.85rem;padding:0 .15rem}
 .chat-delete-btn:hover,.worker-chat-delete-btn:hover{opacity:1}
-.worker-chat-bubble.is-company .chat-voice-note{background:rgba(255,255,255,.06)}
-.worker-chat-bubble.is-company .chat-voice-play{background:rgba(233,237,239,.12);color:#e9edef}
-.worker-chat-bubble.is-mine .chat-voice-note{background:rgba(0,0,0,.12)}
-.worker-chat-bubble.is-mine .chat-voice-play{background:rgba(0,0,0,.16);color:#e9edef}
-.worker-chat-bubble.is-company .chat-voice-duration,.worker-chat-bubble.is-mine .chat-voice-duration{color:rgba(233,237,239,.82)}
+.worker-chat-bubble.is-company .wa-voice-bubble,.worker-chat-bubble.is-company .chat-voice-note{background:rgba(32,44,51,.92)}
+.worker-chat-bubble.is-mine .wa-voice-bubble,.worker-chat-bubble.is-mine .chat-voice-note{background:#005c4b}
+.worker-chat-bubble.is-company .chat-voice-duration,.worker-chat-bubble.is-mine .chat-voice-duration{color:rgba(233,237,239,.88)}
 .chat-head-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem}
 .chat-head-actions button{font-size:.72rem;padding:.28rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);cursor:pointer}
-.chat-compose{position:relative}
-.chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:1px solid var(--border,#334155);background:var(--input-bg,#1e293b);color:var(--text,#e2e8f0);cursor:pointer;flex-shrink:0;touch-action:none;user-select:none;-webkit-user-select:none}
-.chat-mic-btn.is-recording{background:#b91c1c;border-color:#ef4444;color:#fff;animation:chatMicPulse 1s ease-in-out infinite}
-@keyframes chatMicPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
-.chat-voice-record-overlay{position:absolute;left:0;right:0;bottom:100%;padding:.45rem .65rem .55rem;pointer-events:none}
-.chat-voice-record-overlay.hidden{display:none}
-.chat-voice-record-panel{display:flex;align-items:center;gap:.65rem;padding:.55rem .75rem;border-radius:16px;border:1px solid rgba(94,234,212,.28);background:rgba(15,23,42,.94);box-shadow:0 8px 28px rgba(0,0,0,.35)}
-.chat-voice-record-cancel{flex:1;font-size:.78rem;color:rgba(226,232,240,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chat-voice-record-cancel.is-armed{color:#fca5a5;font-weight:700}
-.chat-voice-record-timer{font-variant-numeric:tabular-nums;font-weight:700;color:#5eead4;min-width:3rem;text-align:right}
-.chat-voice-record-live-wave{display:flex;align-items:flex-end;gap:2px;height:28px;width:88px}
-.chat-voice-record-live-wave span{flex:1;border-radius:999px;background:linear-gradient(180deg,#67e8f9,#14b8a6);height:20%;transition:height .08s linear}
+.chat-compose,.worker-chat-compose{position:relative}
+.chat-mic-btn,.worker-chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:none;background:#00a884;color:#fff;cursor:pointer;flex-shrink:0;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 2px 8px rgba(0,168,132,.35)}
+.chat-mic-btn.is-recording,.worker-chat-mic-btn.is-recording{background:#e53935;box-shadow:0 2px 12px rgba(229,57,53,.45);animation:chatMicPulse 1s ease-in-out infinite}
+@keyframes chatMicPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.wa-voice-record-sheet{position:fixed;left:0;right:0;bottom:0;z-index:1500;padding:.75rem .85rem calc(.85rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,rgba(11,20,26,.02),rgba(11,20,26,.96) 28%,#0b141a 100%);pointer-events:auto}
+.wa-voice-record-sheet.hidden{display:none}
+.wa-voice-record-inner{display:flex;flex-direction:column;gap:.65rem;max-width:520px;margin:0 auto}
+.wa-voice-record-hint{display:flex;justify-content:space-between;gap:.75rem;font-size:.78rem;color:rgba(233,237,239,.72)}
+.wa-voice-record-cancel.is-armed{color:#ff8a80;font-weight:700}
+.wa-voice-record-lock-hint{color:#53bdeb}
+.wa-voice-record-main{display:flex;align-items:center;gap:.75rem;padding:.65rem .85rem;border-radius:18px;background:#202c33;border:1px solid rgba(255,255,255,.06)}
+.wa-voice-record-live-wave{display:flex;align-items:flex-end;gap:2px;flex:1;height:34px}
+.wa-voice-record-live-wave span{flex:1;border-radius:999px;background:linear-gradient(180deg,#00a884,#128c7e);height:20%;transition:height .07s linear}
+.wa-voice-record-timer{font-variant-numeric:tabular-nums;font-weight:700;color:#e9edef;min-width:3rem;text-align:right;font-size:.95rem}
+.wa-voice-record-lock-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(0,168,132,.2);color:#00a884;display:grid;place-items:center;flex-shrink:0}
+.wa-voice-record-send{align-self:flex-end;border:none;border-radius:999px;padding:.55rem 1.1rem;background:#00a884;color:#fff;font-weight:700;cursor:pointer}
+.wa-voice-record-sheet.is-locked .wa-voice-record-main{border-color:rgba(0,168,132,.35)}
 .chat-send-btn[hidden],.worker-chat-send-btn[hidden]{display:none!important}
-.worker-chat-compose{position:relative}
-.worker-chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:#1f2c34;color:#e9edef;cursor:pointer;flex-shrink:0;touch-action:none}
-.worker-chat-mic-btn.is-recording{background:#b91c1c;border-color:#ef4444}
+.is-voice-recording textarea{opacity:.45}
 `;
     let style = global.document?.getElementById("suppixChatVoiceStyles");
     if (!style && global.document) {
