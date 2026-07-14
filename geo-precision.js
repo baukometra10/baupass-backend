@@ -757,4 +757,101 @@
   global.capturePointGeolocation = capturePointGeolocation;
   global.captureInstantGeolocation = captureInstantGeolocation;
   global.getCurrentGeolocationReading = getCurrentGeolocationReading;
+
+  /**
+   * High-accuracy GPS stream for live UI (chat location sheet).
+   * Uses multi-sample averaging like maps-grade capture, never low-accuracy cache.
+   */
+  function startPreciseLocationWatch(options = {}) {
+    if (!global.navigator?.geolocation) {
+      return { stop() {}, finalize() { return null; } };
+    }
+    const preset = PRESETS[options.preset] || PRESETS.site;
+    const opts = Object.assign({}, preset, options || {});
+    const samples = [];
+    let watchId = null;
+    let timer = null;
+    let stopped = false;
+    const onProgress = typeof opts.onProgress === "function" ? opts.onProgress : null;
+    const onError = typeof opts.onError === "function" ? opts.onError : null;
+    const onDone = typeof opts.onDone === "function" ? opts.onDone : null;
+
+    const emit = () => {
+      const finalized = finalizePosition(samples);
+      if (!finalized || !onProgress) return;
+      onProgress({
+        reading: finalized,
+        sampleCount: samples.length,
+        bestAccuracyMeters: Number(finalized.accuracy) || null,
+        phase: "watch",
+      });
+    };
+
+    const stop = () => {
+      if (stopped) return finalizePosition(samples);
+      stopped = true;
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (watchId != null) {
+        try {
+          global.navigator.geolocation.clearWatch(watchId);
+        } catch (_) {
+          // ignore
+        }
+        watchId = null;
+      }
+      const finalReading = finalizePosition(samples);
+      if (finalReading && onDone) onDone(finalReading);
+      return finalReading;
+    };
+
+    watchId = global.navigator.geolocation.watchPosition(
+      (position) => {
+        samples.push(readPosition(position));
+        if (samples.length > opts.maxSamples + 4) {
+          samples.splice(0, samples.length - (opts.maxSamples + 2));
+        }
+        emit();
+        const bestAccuracy = Math.min(
+          ...samples.map((sample) => Number(sample.accuracy) || 999),
+        );
+        if (
+          samples.length >= opts.minSamples
+          && bestAccuracy <= opts.targetAccuracyMeters
+          && samplesAreStable(samples, opts.stableThresholdMeters)
+        ) {
+          stop();
+        }
+      },
+      (error) => {
+        if (Number(error?.code) === 1) {
+          stop();
+          if (onError) onError(normalizeGeolocationError(error, 1));
+          return;
+        }
+        const finalReading = finalizePosition(samples);
+        if (finalReading) {
+          stop();
+          return;
+        }
+        if (onError) onError(normalizeGeolocationError(error, 2));
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: Math.max(1000, Number(opts.maxWaitMs) || preset.maxWaitMs),
+      },
+    );
+
+    timer = setTimeout(stop, Math.max(1000, Number(opts.maxWaitMs) || preset.maxWaitMs));
+
+    return {
+      stop,
+      finalize: () => finalizePosition(samples),
+    };
+  }
+
+  global.startPreciseLocationWatch = startPreciseLocationWatch;
 })(typeof globalThis !== "undefined" ? globalThis : window);
