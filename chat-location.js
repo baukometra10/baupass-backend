@@ -1,5 +1,5 @@
 /**
- * SUPPIX chat location — preview map fast, send only with fresh precise GPS.
+ * SUPPIX chat location — mobile: precise GPS; desktop: best WiFi fallback when GPS unavailable.
  */
 (function initSuppixChatLocation(global) {
   const PREFIX = "@location|";
@@ -7,6 +7,8 @@
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
   const READY_MAX_ACCURACY_M = 20;
+  const MOBILE_SEND_MAX_ACCURACY_M = 18;
+  const DESKTOP_SEND_MAX_ACCURACY_M = 150;
   const SEND_MAX_ACCURACY_M = 25;
   const CACHE_PERSIST_MAX_ACCURACY_M = 25;
   const MAP_MAX_ACCURACY_M = 150;
@@ -17,9 +19,9 @@
   const SEND_READY_MS = 1200;
   const INSTANT_GEO_TIMEOUT_MS = 400;
   const INSTANT_GEO_MAX_AGE_MS = 60000;
-  const SEND_CAPTURE_MS = 10000;
-  const SEND_CAPTURE_MS_MOBILE = 14000;
-  const REFINE_WATCH_MS = 15000;
+  const SEND_CAPTURE_MS = 6000;
+  const SEND_CAPTURE_MS_MOBILE = 16000;
+  const REFINE_WATCH_MS = 20000;
   const CACHE_MAX_AGE_MS = 10 * 60 * 1000;
   const WARM_CYCLE_MS = 20000;
   const GEO_SESSION_KEY = "suppix-chat-geo-v1";
@@ -213,7 +215,11 @@
   }
 
   function sendAccuracyLimit() {
-    return isMobileDevice() ? 18 : SEND_MAX_ACCURACY_M;
+    return isMobileDevice() ? MOBILE_SEND_MAX_ACCURACY_M : DESKTOP_SEND_MAX_ACCURACY_M;
+  }
+
+  function cachePersistLimit() {
+    return isMobileDevice() ? MOBILE_SEND_MAX_ACCURACY_M : DESKTOP_SEND_MAX_ACCURACY_M;
   }
 
   function hydrateGeoFromSession() {
@@ -226,7 +232,7 @@
       if (Date.now() - Number(data.capturedAt || 0) > CACHE_MAX_AGE_MS) return null;
       if (Number(data.accuracy) > PREVIEW_CACHE_MAX_ACCURACY_M) return null;
       lastKnownChatGeo = data;
-      if (Number(data.accuracy) > CACHE_PERSIST_MAX_ACCURACY_M) {
+      if (Number(data.accuracy) > cachePersistLimit()) {
         try { global.sessionStorage?.removeItem(GEO_SESSION_KEY); } catch { /* ignore */ }
       }
       return data;
@@ -237,7 +243,7 @@
 
   function persistGeoSession(reading) {
     if (!isValidReading(reading)) return;
-    if (Number(reading.accuracy) > CACHE_PERSIST_MAX_ACCURACY_M) return;
+    if (Number(reading.accuracy) > cachePersistLimit()) return;
     try {
       global.sessionStorage?.setItem(GEO_SESSION_KEY, JSON.stringify({
         latitude: Number(reading.latitude),
@@ -396,47 +402,74 @@
     return age <= FRESH_READING_MAX_AGE_MS;
   }
 
-  async function captureFreshForSend(onProgress) {
+  async function captureFreshForSend(fallbackReading, onProgress) {
     const mobile = isMobileDevice();
-    const maxWait = mobile ? SEND_CAPTURE_MS_MOBILE : SEND_CAPTURE_MS;
-    const acceptAcc = sendAccuracyLimit();
-    if (typeof global.capturePreciseGeolocation === "function") {
-      const reading = await global.capturePreciseGeolocation({
-        preset: "maps",
-        maxWaitMs: maxWait,
-        targetAccuracyMeters: 10,
-        acceptAccuracyMeters: acceptAcc,
-        minSamples: mobile ? 2 : 2,
-        stableThresholdMeters: 5,
-        onProgress: (payload) => {
-          onProgress?.({
-            bestAccuracyMeters: payload?.bestAccuracyMeters,
-            phase: "send",
-          });
-        },
-      });
-      return rejectImpreciseReading(reading, acceptAcc);
+    const limit = sendAccuracyLimit();
+    let best = isUsableReading(fallbackReading) ? fallbackReading : null;
+    const watchFinal = shareWatchHandle?.finalize?.();
+    if (isUsableReading(watchFinal)) best = pickBetterReading(best, watchFinal);
+
+    if (mobile && typeof global.capturePreciseGeolocation === "function") {
+      try {
+        const reading = await global.capturePreciseGeolocation({
+          preset: "maps",
+          maxWaitMs: SEND_CAPTURE_MS_MOBILE,
+          targetAccuracyMeters: 8,
+          acceptAccuracyMeters: MOBILE_SEND_MAX_ACCURACY_M,
+          minSamples: 3,
+          stableThresholdMeters: 5,
+          onProgress: (payload) => {
+            onProgress?.({
+              bestAccuracyMeters: payload?.bestAccuracyMeters,
+              phase: "send",
+            });
+          },
+        });
+        return rejectImpreciseReading(reading, limit);
+      } catch (error) {
+        if (Number(error?.code) === 1) throw error;
+        best = pickBetterReading(best, error?.reading);
+        if (isPreciseEnoughToSend(best)) return best;
+        const acc = Number(best?.accuracy) || Number(error?.accuracyMeters) || 999;
+        const inaccurateError = new Error("location_not_precise_enough");
+        inaccurateError.accuracyMeters = acc;
+        throw inaccurateError;
+      }
     }
-    const reading = await getGeolocationReading({
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: maxWait,
-    });
-    return rejectImpreciseReading(reading, acceptAcc);
+
+    const attempts = [
+      { enableHighAccuracy: true, maximumAge: 0, timeout: SEND_CAPTURE_MS },
+      { enableHighAccuracy: false, maximumAge: 0, timeout: 4000 },
+    ];
+    for (const attempt of attempts) {
+      try {
+        const reading = await getGeolocationReading(attempt);
+        best = pickBetterReading(best, reading);
+        onProgress?.({ bestAccuracyMeters: Number(best?.accuracy), phase: "send" });
+      } catch (error) {
+        if (Number(error?.code) === 1) throw error;
+      }
+    }
+
+    if (isMapReadable(best)) return best;
+    throw new Error("geolocation_timeout");
   }
 
-  async function captureForSendQuick(_fallback, onProgress) {
-    return captureFreshForSend(onProgress);
+  async function captureForSendQuick(fallback, onProgress) {
+    return captureFreshForSend(fallback, onProgress);
   }
 
   function startShareLocationWatch(onReading) {
     stopShareWatch();
     if (!global.navigator?.geolocation) return;
 
-    if (typeof global.startPreciseLocationWatch === "function") {
+    const mobile = isMobileDevice();
+    if (mobile && typeof global.startPreciseLocationWatch === "function") {
       shareWatchHandle = global.startPreciseLocationWatch({
-        preset: "chat",
+        preset: "maps",
         maxWaitMs: REFINE_WATCH_MS,
+        acceptAccuracyMeters: MOBILE_SEND_MAX_ACCURACY_M,
+        targetAccuracyMeters: 8,
         onProgress: (payload) => {
           const reading = payload?.reading;
           if (!isUsableReading(reading)) return;
@@ -453,20 +486,26 @@
     const watchId = global.navigator.geolocation.watchPosition(
       (position) => {
         const reading = readingFromPosition(position);
-        if (!isUsableReading(reading)) return;
+        if (!isMapReadable(reading)) return;
         rememberReading(reading);
         onReading(reading);
       },
       (error) => {
         if (Number(error?.code) === 1) onReading(null, error);
       },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: REFINE_WATCH_MS },
+      {
+        enableHighAccuracy: mobile,
+        maximumAge: mobile ? 0 : 15000,
+        timeout: REFINE_WATCH_MS,
+      },
     );
     shareWatchHandle = {
       stop() {
         try { global.navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
       },
-      finalize() { return null; },
+      finalize() {
+        return lastKnownChatGeo && isMapReadable(lastKnownChatGeo) ? lastKnownChatGeo : null;
+      },
     };
   }
 
@@ -475,8 +514,9 @@
   }
 
   function isPreciseEnoughToSend(reading) {
+    if (!isMobileDevice()) return isMapReadable(reading);
     if (!isUsableReading(reading) || !isFreshReading(reading)) return false;
-    return Number(reading.accuracy) <= sendAccuracyLimit();
+    return Number(reading.accuracy) <= MOBILE_SEND_MAX_ACCURACY_M;
   }
 
   function ensureBackgroundGeoWarm() {
@@ -533,8 +573,14 @@
   function shareStatusWithHint(reading, labels = {}) {
     const acc = Number(reading?.accuracy) || 999;
     let text = shareStatusText(reading, labels);
-    if (!isMobileDevice() && acc > sendAccuracyLimit() && labels.desktopHint) {
-      text = `${text} — ${labels.desktopHint}`;
+    if (!isMobileDevice()) {
+      if (acc > MOBILE_SEND_MAX_ACCURACY_M && acc <= MAP_MAX_ACCURACY_M) {
+        const tpl = labels.desktopSendable || labels.accuracyApprox || "Standort sendbar · ±{m} m";
+        text = tpl.replace("{m}", String(Math.round(acc)));
+      }
+      if (acc > MOBILE_SEND_MAX_ACCURACY_M && labels.desktopHint) {
+        text = `${text} — ${labels.desktopHint}`;
+      }
     }
     return text;
   }
@@ -655,14 +701,18 @@
       sendBtn?.addEventListener("click", () => {
         void (async () => {
           if (sendBtn.disabled) return;
+          if (isPreciseEnoughToSend(bestReading)) {
+            finish(null, readingToResult(bestReading, { note: noteInput?.value || "" }));
+            return;
+          }
           sendBtn.disabled = true;
           sendBtn.textContent = labels.sending || "…";
           if (statusEl) statusEl.textContent = labels.capturingHint || "Standort wird ermittelt…";
           try {
-            const finalized = await captureFreshForSend((payload) => {
+            const finalized = await captureFreshForSend(bestReading, (payload) => {
               const acc = Number(payload?.bestAccuracyMeters);
               if (statusEl && Number.isFinite(acc)) {
-                statusEl.textContent = shareStatusText({ accuracy: acc }, labels);
+                statusEl.textContent = shareStatusWithHint({ accuracy: acc }, labels);
                 applyShareStatusClasses(statusEl, acc);
               }
             });
@@ -670,6 +720,10 @@
             rememberReading(finalized);
             finish(null, readingToResult(finalized, { note: noteInput?.value || "" }));
           } catch (error) {
+            if (!isMobileDevice() && isMapReadable(bestReading)) {
+              finish(null, readingToResult(bestReading, { note: noteInput?.value || "" }));
+              return;
+            }
             sendBtn.disabled = canEnableSend(bestReading);
             sendBtn.textContent = labels.send || "Senden";
             if (statusEl) statusEl.textContent = locationCaptureErrorMessage(error, labels);
@@ -699,7 +753,7 @@
     const acc = Number(error?.accuracyMeters);
     if (code === "geolocation_inaccurate" || code === "location_not_precise_enough" || Number(error?.code) === 4) {
       const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte kurz ins Freie gehen.";
-      return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", String(sendAccuracyLimit()));
+      return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", String(MOBILE_SEND_MAX_ACCURACY_M));
     }
     if (code === "geolocation_unsupported") return labels.unsupported || "Standort wird auf diesem Gerät nicht unterstützt.";
     if (code === "geolocation_timeout") return labels.timeout || "Standort-Timeout — bitte erneut versuchen.";
