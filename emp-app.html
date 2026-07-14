@@ -138,12 +138,39 @@
     #chatCard .worker-chat-send-btn.is-recording{background:#ea4335}
     #chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#182229;color:#53bdeb;font-size:.72rem;font-weight:700;text-align:center}
     body.worker-feature-tab-active #chatCard .chat-layout-version{display:none}
-    .chat-location-card{max-width:280px;border-radius:12px;overflow:hidden;border:1px solid rgba(134,150,160,.22);background:rgba(0,0,0,.18)}
-    .chat-location-map{display:block;width:100%;height:auto;object-fit:cover;background:#0f172a}
-    .chat-location-meta{padding:.45rem .55rem .55rem;display:flex;flex-direction:column;gap:.15rem;font-size:.76rem;color:#e9edef}
-    .chat-location-coords,.chat-location-acc{color:rgba(233,237,239,.62);font-size:.72rem}
-    .chat-location-open{color:#53bdeb;text-decoration:none;font-size:.74rem;margin-top:.1rem}
-    .worker-chat-location-btn{border:none;background:#2a3942;color:#e9edef;width:40px;height:40px;border-radius:50%;cursor:pointer;flex-shrink:0}
+    .chat-location-card{max-width:min(100%,320px);border-radius:14px;overflow:hidden;border:1px solid rgba(134,150,160,.22);background:#111b21;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+    .chat-location-map-link{display:block;position:relative;background:#0b141a}
+    .chat-location-map{display:block;width:100%;height:auto;object-fit:cover;background:#0f172a;min-height:140px}
+    .chat-location-map-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-72%);font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.45))}
+    .chat-location-meta{padding:.55rem .65rem .65rem;display:flex;flex-direction:column;gap:.35rem;color:#e9edef}
+    .chat-location-head{display:flex;align-items:flex-start;gap:.55rem}
+    .chat-location-icon{font-size:1.1rem;line-height:1.2}
+    .chat-location-text{display:flex;flex-direction:column;gap:.12rem;min-width:0}
+    .chat-location-title{font-size:.88rem}
+    .chat-location-acc{font-size:.72rem;color:rgba(233,237,239,.62)}
+    .chat-location-acc.is-precise{color:#25d366;font-weight:600}
+    .chat-location-open{color:#53bdeb;text-decoration:none;font-size:.76rem}
+    .chat-compose-attach-wrap{position:relative;flex-shrink:0}
+    .chat-attach-sheet{position:absolute;left:0;bottom:calc(100% + 10px);min-width:240px;background:#1f2c34;border:1px solid rgba(134,150,160,.22);border-radius:16px;padding:.35rem;box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:40;display:flex;flex-direction:column;gap:.1rem}
+    .chat-attach-sheet.hidden{display:none}
+    .chat-attach-item{display:flex;align-items:center;gap:.85rem;width:100%;border:none;background:transparent;color:#e9edef;border-radius:12px;padding:.65rem .75rem;cursor:pointer;text-align:left;font:inherit}
+    .chat-attach-item:hover{background:rgba(255,255,255,.06)}
+    .chat-attach-icon{width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-size:1.15rem;flex-shrink:0}
+    .chat-attach-icon.is-doc{background:#7f66ff;color:#fff}
+    .chat-attach-icon.is-photo{background:#007bff;color:#fff}
+    .chat-attach-icon.is-location{background:#25d366;color:#fff}
+    .worker-chat-compose-attach.chat-attach-trigger{width:40px;height:40px;border-radius:50%;border:1px solid rgba(134,150,160,.22);background:#2a3942;color:#e9edef;font-size:1.35rem;line-height:1;font-weight:300;cursor:pointer;flex-shrink:0}
+    .chat-location-overlay{position:fixed;inset:0;background:rgba(5,8,16,.72);display:grid;place-items:center;z-index:9999;padding:1rem}
+    .chat-location-overlay.hidden{display:none}
+    .chat-location-overlay-card{width:min(100%,340px);background:#1f2c34;border:1px solid rgba(134,150,160,.22);border-radius:18px;padding:1.2rem 1rem 1rem;text-align:center;color:#e9edef}
+    .chat-location-overlay-pulse{font-size:2rem;margin-bottom:.5rem;animation:chatLocPulse 1.2s ease-in-out infinite}
+    @keyframes chatLocPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.08);opacity:.82}}
+    .chat-location-overlay-title{display:block;font-size:1rem;margin-bottom:.35rem}
+    .chat-location-overlay-sub{margin:0 0 .75rem;font-size:.82rem;color:#8696a0;line-height:1.35}
+    .chat-location-overlay-meter{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:.85rem}
+    .chat-location-overlay-meter-fill{display:block;height:100%;width:20%;background:linear-gradient(90deg,#25d366,#53bdeb);border-radius:999px;transition:width .25s ease}
+    .chat-location-overlay-cancel{border:1px solid rgba(134,150,160,.28);background:transparent;color:#e9edef;border-radius:10px;padding:.45rem .85rem;cursor:pointer;font:inherit}
+    .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
     .stb-build-tag{font-size:.62rem;font-weight:700;color:var(--corp-muted,#607995);margin-left:6px;opacity:.85}
   </style>
   <script>
@@ -1286,15 +1313,25 @@
           <div class="worker-chat-compose">
             <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
             <div class="worker-chat-compose-bar">
-              <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput" title="Unterlage anfügen">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                </svg>
-                <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
-                <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-              </label>
-              <button type="button" id="workerChatLocationBtn" class="worker-chat-compose-attach worker-chat-location-btn" data-i18n="chatLocationShare" data-i18n-attr="title,aria-label" title="Standort senden" aria-label="Standort senden">📍</button>
+              <div class="chat-compose-attach-wrap">
+                <button type="button" id="workerChatAttachBtn" class="worker-chat-compose-attach chat-attach-trigger" aria-label="Anhang" title="Anhang">+</button>
+                <div id="workerChatAttachSheet" class="chat-attach-sheet hidden" role="menu" aria-label="Anhang">
+                  <button type="button" class="chat-attach-item" data-attach-action="document">
+                    <span class="chat-attach-icon is-doc" aria-hidden="true">📄</span>
+                    <span data-i18n="chatAttachDocument">Dokument</span>
+                  </button>
+                  <button type="button" class="chat-attach-item" data-attach-action="photo">
+                    <span class="chat-attach-icon is-photo" aria-hidden="true">🖼</span>
+                    <span data-i18n="chatAttachPhoto">Foto</span>
+                  </button>
+                  <button type="button" class="chat-attach-item" data-attach-action="location">
+                    <span class="chat-attach-icon is-location" aria-hidden="true">📍</span>
+                    <span data-i18n="chatLocationShare">Standort</span>
+                  </button>
+                </div>
+              </div>
+              <input type="file" id="workerChatFileInput" class="sr-only" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+              <input type="file" id="workerChatPhotoInput" class="sr-only" accept="image/*,.jpg,.jpeg,.png,.webp" />
               <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
               <div class="worker-chat-send-slot">
                 <button type="button" id="workerChatSendBtn" class="worker-chat-send-btn" data-i18n="workerChatSend" data-i18n-attr="aria-label" aria-label="Senden">
@@ -1533,18 +1570,19 @@
   <script src="./e2e-i18n.js?v=20260707e2e1"></script>
   <script src="./e2e-crypto.js?v=20260714e2e4"></script>
   <script src="./e2e-worker-security.js?v=20260707o"></script>
-  <script src="./geo-precision.js?v=20260714chat5"></script>
-  <script src="./chat-realtime.js?v=20260714chat5"></script>
-  <script src="./chat-gallery.js?v=20260714chat5"></script>
-  <script src="./chat-typing.js?v=20260714chat5"></script>
-  <script src="./chat-search.js?v=20260714chat5"></script>
-  <script src="./chat-location.js?v=20260714chat5"></script>
-  <script src="./chat-offline-queue.js?v=20260714chat5"></script>
-  <script src="./chat-voice.js?v=20260714chat5"></script>
-  <script src="./chat-voice-call.js?v=20260714chat5"></script>
-  <script src="./worker-voice-call.js?v=20260714chat5"></script>
+  <script src="./geo-precision.js?v=20260714chat8"></script>
+  <script src="./chat-realtime.js?v=20260714chat8"></script>
+  <script src="./chat-gallery.js?v=20260714chat8"></script>
+  <script src="./chat-typing.js?v=20260714chat8"></script>
+  <script src="./chat-search.js?v=20260714chat8"></script>
+  <script src="./chat-location.js?v=20260714chat8"></script>
+  <script src="./chat-attach-sheet.js?v=20260714chat8"></script>
+  <script src="./chat-offline-queue.js?v=20260714chat8"></script>
+  <script src="./chat-voice.js?v=20260714chat8"></script>
+  <script src="./chat-voice-call.js?v=20260714chat8"></script>
+  <script src="./worker-voice-call.js?v=20260714chat8"></script>
   <script src="./worker-qr-scanner.js?v=20260709qr1"></script>
-  <script src="./worker-app.js?v=20260714chat5" defer></script>
+  <script src="./worker-app.js?v=20260714chat8" defer></script>
   <script defer>
     window.addEventListener("DOMContentLoaded", function () {
       ["./ai-voice-ui.js?v=20260614loginfix1", "./usage-tracker.js?v=20260619usage1"].forEach(function (src) {

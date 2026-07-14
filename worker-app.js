@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat5";
+const WORKER_BUILD_TAG = "20260714chat8";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3267,15 +3267,25 @@ function ensureWorkerChatDom() {
           <button type="button" id="workerChatReplyBarClear" aria-label="Antwort abbrechen">✕</button>
         </div>
         <div class="worker-chat-compose-bar">
-          <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-            <span class="sr-only" data-i18n="workerChatAttach">Unterlage anfügen</span>
-            <input type="file" id="workerChatFileInput" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
-          </label>
-          <button type="button" id="workerChatLocationBtn" class="worker-chat-compose-attach worker-chat-location-btn" data-i18n="chatLocationShare" data-i18n-attr="title,aria-label" title="Standort senden" aria-label="Standort senden">📍</button>
+          <div class="chat-compose-attach-wrap">
+            <button type="button" id="workerChatAttachBtn" class="worker-chat-compose-attach chat-attach-trigger" aria-label="Anhang" title="Anhang">+</button>
+            <div id="workerChatAttachSheet" class="chat-attach-sheet hidden" role="menu" aria-label="Anhang">
+              <button type="button" class="chat-attach-item" data-attach-action="document">
+                <span class="chat-attach-icon is-doc" aria-hidden="true">📄</span>
+                <span data-i18n="chatAttachDocument">Dokument</span>
+              </button>
+              <button type="button" class="chat-attach-item" data-attach-action="photo">
+                <span class="chat-attach-icon is-photo" aria-hidden="true">🖼</span>
+                <span data-i18n="chatAttachPhoto">Foto</span>
+              </button>
+              <button type="button" class="chat-attach-item" data-attach-action="location">
+                <span class="chat-attach-icon is-location" aria-hidden="true">📍</span>
+                <span data-i18n="chatLocationShare">Standort</span>
+              </button>
+            </div>
+          </div>
+          <input type="file" id="workerChatFileInput" class="sr-only" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
+          <input type="file" id="workerChatPhotoInput" class="sr-only" accept="image/*,.jpg,.jpeg,.png,.webp" />
           <textarea id="workerChatInput" rows="1" data-i18n="workerChatPlaceholder" data-i18n-attr="placeholder" placeholder="Nachricht schreiben…"></textarea>
           <button type="button" id="workerChatMicBtn" class="worker-chat-mic-btn" data-i18n="chatVoiceMic" data-i18n-attr="aria-label,title" aria-label="Sprachnachricht">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -3827,13 +3837,7 @@ function bindWorkerChatComposeEvents() {
   bindWorkerWhatsAppVoiceCompose();
   document.getElementById("workerChatReplyBarClear")?.addEventListener("click", clearWorkerReplyTo);
   document.getElementById("workerChatGalleryBtn")?.addEventListener("click", openWorkerChatGallery);
-  const locationBtn = document.getElementById("workerChatLocationBtn");
-  if (locationBtn && !locationBtn.dataset.chatBound) {
-    locationBtn.dataset.chatBound = "1";
-    locationBtn.addEventListener("click", () => {
-      void sendWorkerChatLocation();
-    });
-  }
+  bindWorkerChatAttachSheet();
 }
 
 function updateWorkerChatFileHint() {
@@ -12811,11 +12815,7 @@ function renderWorkerChatMessages(messages, options = {}) {
       const body = voiceOnly || callLog || location ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
       const locationHtml = location
-        ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, {
-          location: t("chatLocationPreview") || "📍 Standort",
-          openMaps: t("chatLocationOpenMaps") || "In Karte öffnen",
-          accuracy: t("chatLocationAccuracy") || "±{m} m",
-        }, { side })
+        ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), { side })
         : "";
       const callLogHtml = callLog
         ? window.SUPPIXWorkerVoiceCall.renderCallLogHtml(callLog, {
@@ -13278,22 +13278,89 @@ function startWorkerChatPolling() {
   }, WORKER_CHAT_POLL_MS);
 }
 
+function workerLocationLabels() {
+  return {
+    location: t("chatLocationPreview") || "📍 Standort",
+    sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
+    openMaps: t("chatLocationOpenMaps") || "In Karte öffnen",
+    accuracy: t("chatLocationAccuracy") || "±{m} m",
+    accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",
+  };
+}
+
+function workerLocationCaptureLabels() {
+  return {
+    sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
+    capturing: t("chatLocationCapturing") || "Standort wird ermittelt…",
+    capturingHint: t("chatLocationCapturingHint") || "Bitte draußen bleiben — Ziel: ±10 m Genauigkeit",
+    capturingProgress: t("chatLocationCapturingProgress") || "Verfeinern… aktuell ±{m} m (Ziel ≤10 m)",
+    cancel: t("chatLocationCancel") || "Abbrechen",
+    inaccurate: t("chatLocationInaccurate") || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. 10 m nötig.",
+    unsupported: t("chatLocationUnsupported") || t("geolocationUnsupported"),
+    timeout: t("chatLocationTimeout") || "Standort-Timeout — bitte erneut versuchen.",
+    denied: t("chatLocationDenied") || t("geolocationRequiredLogin"),
+    failed: t("chatLocationFailed") || "Standort konnte nicht ermittelt werden.",
+  };
+}
+
+function bindWorkerChatAttachSheet() {
+  if (window.__workerChatAttachBound) return;
+  window.__workerChatAttachBound = true;
+  window.SUPPIXChatAttachSheet?.mountChatAttachSheet?.({
+    triggerEl: document.getElementById("workerChatAttachBtn"),
+    sheetEl: document.getElementById("workerChatAttachSheet"),
+    onSelect: (action) => {
+      if (action === "document") {
+        document.getElementById("workerChatFileInput")?.click();
+        return;
+      }
+      if (action === "photo") {
+        document.getElementById("workerChatPhotoInput")?.click();
+        return;
+      }
+      if (action === "location") {
+        void sendWorkerChatLocation();
+      }
+    },
+  });
+  const photoInput = document.getElementById("workerChatPhotoInput");
+  if (photoInput && !photoInput.dataset.bound) {
+    photoInput.dataset.bound = "1";
+    photoInput.addEventListener("change", () => {
+      const file = photoInput.files?.[0];
+      if (!file) return;
+      const fileInput = document.getElementById("workerChatFileInput");
+      if (fileInput) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        updateWorkerChatFileHint();
+        syncWorkerComposeAction();
+      }
+      photoInput.value = "";
+    });
+  }
+}
+
 async function sendWorkerChatLocation() {
   if (!window.SUPPIXChatLocation?.captureChatLocation) {
     showWorkerNotice(t("geolocationUnsupported"));
     return;
   }
-  const btn = document.getElementById("workerChatLocationBtn");
-  if (btn) btn.disabled = true;
   try {
-    showWorkerNotice(t("chatLocationCapturing") || "Standort wird ermittelt…");
-    const point = await window.SUPPIXChatLocation.captureChatLocation();
+    const point = await window.SUPPIXChatLocation.captureChatLocation({
+      labels: workerLocationCaptureLabels(),
+      label: t("chatLocationSharedTitle") || "Standort geteilt",
+      maxAccuracyMeters: window.SUPPIXChatLocation.DEFAULT_MAX_ACCURACY_M || 10,
+    });
     const body = window.SUPPIXChatLocation.encodeLocationBody(point);
     await sendWorkerChatMessage({ presetBody: body });
   } catch (error) {
-    showWorkerNotice(t("chatLocationFailed") || formatWorkerApiError(error));
-  } finally {
-    if (btn) btn.disabled = false;
+    if (String(error?.message || "") === "location_cancelled") return;
+    const msg = window.SUPPIXChatLocation.locationCaptureErrorMessage?.(error, workerLocationCaptureLabels())
+      || t("chatLocationFailed")
+      || formatWorkerApiError(error);
+    showWorkerNotice(msg);
   }
 }
 
