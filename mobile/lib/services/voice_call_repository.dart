@@ -179,8 +179,15 @@ class WorkerVoiceCallSession {
     _pc!.onConnectionState = (state) {
       if (state == RTCPeerConnectionState.RTCPeerConnectionStateConnected) {
         onState('connected');
-      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed ||
-          state == RTCPeerConnectionState.RTCPeerConnectionStateDisconnected) {
+      } else if (state == RTCPeerConnectionState.RTCPeerConnectionStateFailed) {
+        onState('ended');
+      }
+    };
+    _pc!.onIceConnectionState = (state) {
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        onState('connected');
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
         onState('ended');
       }
     };

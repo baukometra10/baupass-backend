@@ -135,12 +135,27 @@
             type: "ice-candidate",
             payload: event.candidate.toJSON(),
           }),
-        }).catch((err) => this.onError(err));
+        }).catch(() => {
+          /* ignore transient ICE signal errors while ringing */
+        });
       };
       this.pc.onconnectionstatechange = () => {
         const state = this.pc?.connectionState || "";
-        if (state === "connected") this.onState("connected");
-        if (state === "failed" || state === "disconnected") this.onError(new Error("connection_failed"));
+        if (state === "connected") {
+          this._stopRingtone();
+          this.onState("connected");
+        } else if (state === "failed") {
+          void this.end("connection_failed");
+        }
+      };
+      this.pc.oniceconnectionstatechange = () => {
+        const ice = this.pc?.iceConnectionState || "";
+        if (ice === "connected" || ice === "completed") {
+          this._stopRingtone();
+          this.onState("connected");
+        } else if (ice === "failed") {
+          void this.end("ice_failed");
+        }
       };
       return this.pc;
     }
@@ -205,8 +220,8 @@
             this._stopRingtone();
             this.onState("accepted");
           }
-        } catch (err) {
-          this.onError(err);
+        } catch (_) {
+          /* ignore transient poll errors while call is active */
         }
         if (!this.ended) this.pollTimer = global.setTimeout(tick, POLL_MS);
       };
