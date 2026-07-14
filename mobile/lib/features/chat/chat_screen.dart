@@ -332,6 +332,88 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$h:$m';
   }
 
+  Map<String, String>? _parseVoiceCallLog(String? body) {
+    final text = (body ?? '').trim();
+    if (!text.startsWith('@voice-call|')) return null;
+    final meta = <String, String>{};
+    for (final part in text.substring('@voice-call|'.length).split('|')) {
+      final idx = part.indexOf('=');
+      if (idx <= 0) continue;
+      meta[part.substring(0, idx)] = part.substring(idx + 1);
+    }
+    return meta.containsKey('status') ? meta : null;
+  }
+
+  String _voiceCallLogSummary(Map<String, String> meta) {
+    final status = meta['status'] ?? 'ended';
+    final duration = int.tryParse(meta['duration'] ?? '') ?? 0;
+    final label = switch (status) {
+      'declined' => 'Abgelehnt',
+      'missed' => 'Verpasst',
+      'cancelled' => 'Abgebrochen',
+      'callback_requested' => 'Rückruf angefordert',
+      _ => 'Anruf beendet',
+    };
+    if (duration > 0) {
+      final m = (duration ~/ 60).toString().padLeft(2, '0');
+      final s = (duration % 60).toString().padLeft(2, '0');
+      return '$label · $m:$s';
+    }
+    return label;
+  }
+
+  Future<void> _requestCallback({String? callId}) async {
+    try {
+      await widget.chat.requestVoiceCallback(widget.session, callId: callId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rückruf angefordert')),
+      );
+      await _boot(silent: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Rückruf fehlgeschlagen: $e')),
+      );
+    }
+  }
+
+  Widget _buildCallLogBubble(Map<String, String> meta, {required bool showCallback}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0F766E).withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFF5EEAD4).withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('📞', style: TextStyle(fontSize: 16)),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  _voiceCallLogSummary(meta),
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+          if (showCallback) ...[
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => _requestCallback(callId: meta['callId']),
+              child: const Text('Rückruf anfordern'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _buildPrimaryAction() {
     final hasText = _message.text.trim().isNotEmpty;
     if (_recording) {
@@ -390,13 +472,14 @@ class _ChatScreenState extends State<ChatScreen> {
                           itemBuilder: (context, index) {
                             final item = _messages[index];
                             final isWorker = _isWorkerMessage(item);
+                            final callLog = _parseVoiceCallLog(item['body'] as String?);
                             final attachments = (item['attachments'] as List?) ?? const [];
                             final audioAttachments = attachments
                                 .map((att) => Map<String, dynamic>.from(att as Map))
                                 .where(_isAudioAttachment)
                                 .toList();
-                            final showBody = !_isVoiceOnlyBody(item['body'] as String?)
-                                || audioAttachments.isEmpty;
+                            final showBody = callLog == null
+                                && (!_isVoiceOnlyBody(item['body'] as String?) || audioAttachments.isEmpty);
                             final read = item['readByRecipient'] == true || item['read_by_recipient'] == true;
                             final readLabel = _readStatusLabel(item);
                             final timeLabel = _formatTime(item['createdAt'] as String?);
@@ -461,7 +544,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                                     ),
                                               ),
                                             const SizedBox(height: 4),
-                                            if (showBody && (item['body'] as String? ?? '').trim().isNotEmpty)
+                                            if (callLog != null)
+                                              _buildCallLogBubble(
+                                                callLog,
+                                                showCallback: !isWorker
+                                                    && const {'missed', 'declined', 'cancelled', 'ended'}.contains(callLog['status']),
+                                              )
+                                            else if (showBody && (item['body'] as String? ?? '').trim().isNotEmpty)
                                               Text(
                                                 item['body'] as String? ?? '',
                                                 style: Theme.of(context).textTheme.bodyMedium,

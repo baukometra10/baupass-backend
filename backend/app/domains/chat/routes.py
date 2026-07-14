@@ -893,5 +893,64 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         except ValueError as exc:
             return _voice_call_error(exc)
 
+    @chat_core_bp.get("/chat/calls/history")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_history():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        worker_id = str(request.args.get("worker_id") or request.args.get("workerId") or "").strip() or None
+        limit = int(request.args.get("limit") or 50)
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        calls = service.list_calls(company_id=cid, worker_id=worker_id, limit=limit)
+        missed = service.count_missed_calls(company_id=cid, worker_id=worker_id)
+        return jsonify({"calls": calls, "missedCount": missed})
+
+    @chat_core_bp.get("/worker-app/chat/calls/history")
+    @require_worker_session
+    def worker_chat_call_history():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        limit = int(request.args.get("limit") or 50)
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        calls = service.list_calls(company_id=company_id, worker_id=worker_id, limit=limit)
+        missed = service.count_missed_calls(company_id=company_id, worker_id=worker_id)
+        return jsonify({"calls": calls, "missedCount": missed})
+
+    @chat_core_bp.post("/worker-app/chat/calls/callback-request")
+    @require_worker_session
+    def worker_chat_call_callback_request():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        data = request.get_json(silent=True) or {}
+        call_id = str(data.get("call_id") or data.get("callId") or "").strip() or None
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            result = service.request_worker_callback(
+                company_id=company_id,
+                worker_id=worker_id,
+                call_id=call_id,
+            )
+            get_db().commit()
+            return jsonify(result)
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
     register_blueprint_once(flask_app, chat_core_bp, url_prefix="/api")
     print("[baupass] domain/chat: worker-company chat routes registered", flush=True)

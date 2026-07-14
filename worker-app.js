@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260707voice22";
+const WORKER_BUILD_TAG = "20260714voice1";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -2625,6 +2625,19 @@ function bindWorkerChatMessageActions() {
   }
   host.dataset.chatActionsBound = "1";
   host.addEventListener("click", (event) => {
+    const callbackBtn = event.target instanceof Element ? event.target.closest("[data-voice-callback]") : null;
+    if (callbackBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      const callId = callbackBtn.getAttribute("data-call-id") || "";
+      void window.SUPPIXWorkerVoiceCall?.requestCallback?.(workerVoiceCallApi, callId || null)
+        .then(() => {
+          showWorkerNotice(t("voiceCallCallbackRequested") || "Rückruf angefordert");
+          void loadWorkerChat({ quiet: true });
+        })
+        .catch(() => showWorkerNotice(t("voiceCallCallbackFailed") || "Rückruf fehlgeschlagen"));
+      return;
+    }
     const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
     if (!deleteBtn) {
       return;
@@ -5945,6 +5958,7 @@ function renderWorker(payload, options = {}) {
   applyWorkerChatMenuState(planFeatures);
   if (workerToken && workerPlanAllowsFeature("worker_chat")) {
     startWorkerChatPolling();
+    startWorkerVoiceCallPolling();
   }
   void refreshHomeDeploymentTeaser().catch(() => {});
   const hasLateAlert    = !!planFeatures.late_checkin_alert;   // ab professional
@@ -8541,6 +8555,7 @@ function invalidateWorkerSession({ showNotice = true } = {}) {
   workerE2EPublicKeyRowsCache = null;
   workerE2EPublicKeysCacheAt = 0;
   stopWorkerChatPolling();
+  stopWorkerVoiceCallPolling();
   clearWorkerSessionExpiryTimer();
   if (showNotice) {
     showWorkerNotice(t("sessionExpired"));
@@ -12638,8 +12653,14 @@ function renderWorkerChatMessages(messages, options = {}) {
         }),
       );
       const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, t("chatVoiceMessage"));
-      const body = voiceOnly ? "" : escapeHtmlBasic(String(msg.body || ""));
+      const callLog = window.SUPPIXWorkerVoiceCall?.parseCallLogBody?.(msg.body);
+      const body = voiceOnly || callLog ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
+      const callLogHtml = callLog
+        ? window.SUPPIXWorkerVoiceCall.renderCallLogHtml(callLog, {
+          showCallback: side !== "mine" && ["missed", "declined", "cancelled", "ended"].includes(String(callLog.status || "")),
+        })
+        : "";
       const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
       const ticksHtml = workerChatReadTicks(msg, side);
       const messageId = String(msg.id || "");
@@ -12653,6 +12674,7 @@ function renderWorkerChatMessages(messages, options = {}) {
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
           <div class="${bubbleClasses}">
             ${bodyHtml}
+            ${callLogHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
@@ -12821,6 +12843,35 @@ function stopWorkerChatPolling() {
     clearInterval(workerChatPollTimer);
     workerChatPollTimer = null;
   }
+}
+
+function workerVoiceCallApi(path, options = {}) {
+  const cleanPath = String(path || "");
+  const url = cleanPath.startsWith("http") ? cleanPath : `${API_BASE}${cleanPath.startsWith("/") ? "" : "/"}${cleanPath}`;
+  return fetchJson(url, {
+    ...options,
+    headers: { ...buildWorkerAuthHeaders(), ...(options.headers || {}) },
+  });
+}
+
+function startWorkerVoiceCallPolling() {
+  if (!window.SUPPIXWorkerVoiceCall?.init) {
+    return;
+  }
+  window.SUPPIXWorkerVoiceCall.init({
+    api: workerVoiceCallApi,
+    enabled: Boolean(workerToken && workerPlanAllowsFeature("worker_chat")),
+  });
+  const callId = new URLSearchParams(window.location.search).get("callId")
+    || new URLSearchParams(window.location.search).get("call_id")
+    || "";
+  if (callId) {
+    window.SUPPIXWorkerVoiceCall.wakeForCallId?.(callId);
+  }
+}
+
+function stopWorkerVoiceCallPolling() {
+  window.SUPPIXWorkerVoiceCall?.stop?.();
 }
 
 function startWorkerChatPolling() {

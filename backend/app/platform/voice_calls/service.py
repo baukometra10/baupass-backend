@@ -204,7 +204,10 @@ class VoiceCallService:
         if not company_id or not worker_id:
             return
         duration_sec = self._call_duration_seconds(call)
+        call_id = str(call.get("id") or "").strip()
         body = f"@voice-call|status={status}|duration={duration_sec}|reason={reason}|role={role}"
+        if call_id:
+            body += f"|callId={call_id}"
         try:
             from backend.app.domains.chat.service import ChatService
 
@@ -215,13 +218,14 @@ class VoiceCallService:
                 subject="general",
                 created_by_user_id=caller_user_id or None,
             )
+            sender_type = "worker" if role == "worker" else "admin"
             chat.create_message(
                 thread_id=thread_id,
                 company_id=company_id,
                 worker_id=worker_id,
-                sender_type="admin",
-                sender_user_id=caller_user_id or None,
-                sender_worker_id=None,
+            sender_type=sender_type,
+            sender_user_id=(caller_user_id or None) if sender_type == "admin" else None,
+            sender_worker_id=worker_id if sender_type == "worker" else None,
                 body=body,
                 allow_plaintext_e2e_fallback=True,
             )
@@ -512,3 +516,188 @@ class VoiceCallService:
                 }
             )
         return out
+
+    def list_calls(
+        self,
+        *,
+        company_id: str,
+        worker_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        self.expire_stale_calls()
+        clean_limit = max(1, min(int(limit or 50), 200))
+        params: list[Any] = [company_id]
+        sql = """
+            SELECT * FROM chat_voice_calls
+            WHERE company_id = ?
+        """
+        if worker_id:
+            sql += " AND worker_id = ?"
+            params.append(worker_id)
+        sql += " ORDER BY datetime(created_at) DESC LIMIT ?"
+        params.append(clean_limit)
+        rows = self.db.execute(sql, tuple(params)).fetchall()
+        history: list[dict[str, Any]] = []
+        for row in rows:
+            payload = self._enrich_call(self._row_to_call(row))
+            payload["durationSec"] = self._call_duration_seconds(payload)
+            history.append(payload)
+        return history
+
+    def count_missed_calls(self, *, company_id: str, worker_id: str | None = None) -> int:
+        self.expire_stale_calls()
+        params: list[Any] = [company_id]
+        sql = """
+            SELECT COUNT(*) AS c FROM chat_voice_calls
+            WHERE company_id = ? AND status = 'missed'
+        """
+        if worker_id:
+            sql += " AND worker_id = ?"
+            params.append(worker_id)
+        row = self.db.execute(sql, tuple(params)).fetchone()
+        return int(row["c"] if row and "c" in row.keys() else 0)
+
+    def request_worker_callback(
+        self,
+        *,
+        company_id: str,
+        worker_id: str,
+        call_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.expire_stale_calls()
+        call: dict[str, Any]
+        if call_id:
+            call = self.get_call(call_id)
+            if str(call.get("workerId") or "") != str(worker_id):
+                raise ValueError("forbidden")
+            if str(call.get("companyId") or "") != str(company_id):
+                raise ValueError("forbidden")
+        else:
+            row = self.db.execute(
+                """
+                SELECT * FROM chat_voice_calls
+                WHERE company_id = ? AND worker_id = ? AND status IN ('missed', 'declined', 'ended')
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """,
+                (company_id, worker_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("call_not_found")
+            call = self._row_to_call(row)
+
+        ref_id = str(call.get("id") or "")
+        self._log_call_to_chat(
+            {**call, "companyId": company_id, "workerId": worker_id},
+            status="callback_requested",
+            reason="worker_requested",
+            role="worker",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(company_id, source="voice_call_callback")
+        except Exception:
+            pass
+        try:
+            publish_event(
+                "voice_call.callback_requested",
+                company_id,
+                {"callId": ref_id, "workerId": worker_id},
+            )
+        except Exception:
+            pass
+        return {"ok": True, "callId": ref_id}
+
+    def list_calls(
+        self,
+        *,
+        company_id: str,
+        worker_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        self.expire_stale_calls()
+        clean_limit = max(1, min(int(limit or 50), 200))
+        params: list[Any] = [company_id]
+        sql = """
+            SELECT * FROM chat_voice_calls
+            WHERE company_id = ?
+        """
+        if worker_id:
+            sql += " AND worker_id = ?"
+            params.append(worker_id)
+        sql += " ORDER BY datetime(created_at) DESC LIMIT ?"
+        params.append(clean_limit)
+        rows = self.db.execute(sql, tuple(params)).fetchall()
+        out: list[dict[str, Any]] = []
+        for row in rows:
+            payload = self._enrich_call(self._row_to_call(row))
+            payload["durationSec"] = self._call_duration_seconds(payload)
+            out.append(payload)
+        return out
+
+    def count_missed_calls(self, *, company_id: str, worker_id: str | None = None) -> int:
+        self.expire_stale_calls()
+        params: list[Any] = [company_id]
+        sql = """
+            SELECT COUNT(*) AS c FROM chat_voice_calls
+            WHERE company_id = ? AND status = 'missed'
+        """
+        if worker_id:
+            sql += " AND worker_id = ?"
+            params.append(worker_id)
+        row = self.db.execute(sql, tuple(params)).fetchone()
+        return int(row["c"] if row and "c" in row.keys() else 0)
+
+    def request_worker_callback(
+        self,
+        *,
+        company_id: str,
+        worker_id: str,
+        call_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.expire_stale_calls()
+        call: dict[str, Any]
+        if call_id:
+            call = self.get_call(call_id)
+            if str(call.get("workerId") or "") != str(worker_id):
+                raise ValueError("forbidden")
+            if str(call.get("companyId") or "") != str(company_id):
+                raise ValueError("forbidden")
+        else:
+            row = self.db.execute(
+                """
+                SELECT * FROM chat_voice_calls
+                WHERE company_id = ? AND worker_id = ? AND status IN ('missed', 'declined', 'ended', 'cancelled')
+                ORDER BY datetime(created_at) DESC
+                LIMIT 1
+                """,
+                (company_id, worker_id),
+            ).fetchone()
+            if not row:
+                raise ValueError("call_not_found")
+            call = self._row_to_call(row)
+
+        ref_id = str(call.get("id") or "")
+        body = f"@voice-call|status=callback_requested|duration=0|reason=worker_requested|role=worker|callId={ref_id}"
+        self._log_call_to_chat(
+            {**call, "companyId": company_id, "workerId": worker_id},
+            status="callback_requested",
+            reason="worker_requested",
+            role="worker",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(company_id, source="voice_call_callback")
+        except Exception:
+            pass
+        try:
+            publish_event(
+                "voice_call.callback_requested",
+                company_id,
+                {"callId": ref_id, "workerId": worker_id},
+            )
+        except Exception:
+            pass
+        return {"ok": True, "callId": ref_id, "body": body}

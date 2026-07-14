@@ -385,4 +385,13 @@ class ChatRepository {
   VoiceCallRepository? _voiceCalls;
 
   VoiceCallRepository get voiceCalls => _voiceCalls ??= VoiceCallRepository(_api);
+
+  Future<void> requestVoiceCallback(WorkerSession session, {String? callId}) async {
+    await _api.postJson(
+      '/api/worker-app/chat/calls/callback-request',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: callId != null && callId.trim().isNotEmpty ? {'call_id': callId.trim()} : {},
+    );
+  }
 }

@@ -528,6 +528,60 @@
       padding-top: 0.15rem;
       padding-bottom: 0.15rem;
     }
+    .chat-call-log-btn {
+      display: inline-flex;
+      margin-top: 0.35rem;
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      border: 1px solid rgba(94, 234, 212, 0.35);
+      background: rgba(6, 182, 212, 0.18);
+      color: #ecfeff;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .voice-call-history-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 1250;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+      background: rgba(2, 6, 23, 0.72);
+    }
+    .voice-call-history-modal.hidden { display: none; }
+    .voice-call-history-inner {
+      width: min(520px, 100%);
+      max-height: min(70vh, 640px);
+      overflow: auto;
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #0f172a;
+      padding: 1rem;
+    }
+    .voice-call-history-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.65rem 0.2rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .voice-call-history-item:last-child { border-bottom: none; }
+    .voice-call-history-item strong { display: block; font-size: 0.88rem; }
+    .voice-call-history-item small { color: rgba(226, 232, 240, 0.72); font-size: 0.75rem; }
+    .chat-voice-history-btn {
+      border-radius: 999px;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      background: rgba(30, 41, 59, 0.55);
+      color: #e2e8f0;
+      cursor: pointer;
+    }
     .voice-call-actions {
       display: flex;
       gap: 0.75rem;
@@ -598,6 +652,7 @@
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
               <div id="chatHeadActions" class="chat-head-actions hidden">
+                <button type="button" id="chatVoiceHistoryBtn" class="chat-voice-history-btn" title="Anrufverlauf" aria-label="Anrufverlauf">🕘</button>
                 <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" title="Anrufen" aria-label="Anrufen">📞</button>
                 <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
                 <button type="button" id="chatClearAllBtn" data-aci18n="chatClearAll">Chat leeren</button>
@@ -640,6 +695,15 @@
         <button type="button" id="broadcastCancelBtn">Abbrechen</button>
         <button type="button" id="broadcastSendBtn" class="primary" data-aci18n="send">Senden</button>
       </div>
+    </div>
+  </div>
+  <div id="voiceCallHistoryModal" class="voice-call-history-modal hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallHistoryTitle">
+    <div class="voice-call-history-inner">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:0.75rem;">
+        <h4 id="voiceCallHistoryTitle" data-aci18n="voiceCallHistory" style="margin:0;">Anrufverlauf</h4>
+        <button type="button" id="voiceCallHistoryCloseBtn" aria-label="Schließen">✕</button>
+      </div>
+      <div id="voiceCallHistoryList"></div>
     </div>
   </div>
   <div id="voiceCallOverlay" class="voice-call-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
@@ -685,8 +749,8 @@
     </div>
   </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260714voice6"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice6"></script>
+  <script src="/chat-voice-call.js?v=20260714voice7"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice7"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1237,7 +1301,12 @@
       if (!preview) return row.subject || "general";
       if (preview.startsWith("@voice-call|")) {
         const meta = parseVoiceCallLogBody(preview);
-        if (meta) return `${window.adminChatT("voiceCallLogTitle")} · ${voiceCallLogSummary(meta)}`;
+        if (meta) {
+          if (meta.status === "callback_requested") {
+            return `${window.adminChatT("voiceCallLogCallbackRequested")} · ${window.adminChatT("voiceCallLogTitle")}`;
+          }
+          return `${window.adminChatT("voiceCallLogTitle")} · ${voiceCallLogSummary(meta)}`;
+        }
       }
       if (preview === "encrypted") return window.adminChatT("encryptedPreview");
       if (preview === "voice" || /🎤|sprachnachricht|voice message/i.test(preview) || /\.(webm|m4a|ogg|mp3|wav)$/i.test(preview)) {
@@ -1331,6 +1400,7 @@
         declined: "voiceCallLogDeclined",
         missed: "voiceCallLogMissed",
         cancelled: "voiceCallLogCancelled",
+        callback_requested: "voiceCallLogCallbackRequested",
       }[status] || "voiceCallLogEnded";
       const statusText = window.adminChatT(statusKey);
       if (duration > 0) return `${statusText} · ${formatVoiceCallDuration(duration * 1000)}`;
@@ -1343,7 +1413,11 @@
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
       const classes = ["bubble", sideClass, "is-call-log", grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
       const summary = escapeHtml(voiceCallLogSummary(meta));
-      return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true">📞</span><span class="chat-call-log-text">${summary}</span></div><div class="bubble-meta"><span>${time}</span></div></div>`;
+      const showCallback = ["missed", "declined", "cancelled", "callback_requested", "ended"].includes(String(meta?.status || ""));
+      const callbackBtn = showCallback
+        ? `<button type="button" class="chat-call-log-btn" data-voice-callback="1">${escapeHtml(window.adminChatT("voiceCallCallback") || "Zurückrufen")}</button>`
+        : "";
+      return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true">📞</span><span class="chat-call-log-text">${summary}</span></div>${callbackBtn}<div class="bubble-meta"><span>${time}</span></div></div>`;
     }
     function renderChatBubble(msg, options = {}) {
       const callLog = parseVoiceCallLogBody(msg.body);
@@ -1990,6 +2064,63 @@
     }
     document.getElementById("chatVoiceCallBtn")?.addEventListener("click", () => {
       void startVoiceCallToCurrentWorker();
+    });
+    document.getElementById("messageList")?.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target.closest("[data-voice-callback]") : null;
+      if (!target) return;
+      event.preventDefault();
+      void startVoiceCallToCurrentWorker();
+    });
+    function closeVoiceCallHistoryModal() {
+      document.getElementById("voiceCallHistoryModal")?.classList.add("hidden");
+    }
+    function formatCallHistoryWhen(value) {
+      if (!value) return "";
+      try {
+        return new Date(value).toLocaleString(undefined, { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      } catch (_) {
+        return String(value);
+      }
+    }
+    async function openVoiceCallHistoryModal() {
+      if (!currentWorkerId) return;
+      const modal = document.getElementById("voiceCallHistoryModal");
+      const list = document.getElementById("voiceCallHistoryList");
+      if (!modal || !list) return;
+      modal.classList.remove("hidden");
+      list.innerHTML = `<p class="muted">${window.adminChatT("chatLoading")}</p>`;
+      try {
+        const data = await voiceCallApi(`/api/chat/calls/history?worker_id=${encodeURIComponent(currentWorkerId)}&limit=30`);
+        const calls = Array.isArray(data.calls) ? data.calls : [];
+        if (!calls.length) {
+          list.innerHTML = `<p class="muted">${window.adminChatT("voiceCallHistoryEmpty")}</p>`;
+          return;
+        }
+        list.innerHTML = calls.map((call) => {
+          const meta = {
+            status: call.status || "ended",
+            duration: String(call.durationSec || 0),
+          };
+          const summary = escapeHtml(voiceCallLogSummary(meta));
+          const when = escapeHtml(formatCallHistoryWhen(call.createdAt || call.endedAt));
+          return `<div class="voice-call-history-item"><div><strong>${summary}</strong><small>${when}</small></div><button type="button" class="chat-call-log-btn" data-history-call="1">${escapeHtml(window.adminChatT("voiceCallCallback") || "Zurückrufen")}</button></div>`;
+        }).join("");
+        list.querySelectorAll("[data-history-call]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            closeVoiceCallHistoryModal();
+            void startVoiceCallToCurrentWorker();
+          });
+        });
+      } catch (error) {
+        list.innerHTML = `<p class="muted">${escapeHtml(String(error?.message || error || window.adminChatT("voiceCallFailed")))}</p>`;
+      }
+    }
+    document.getElementById("chatVoiceHistoryBtn")?.addEventListener("click", () => {
+      void openVoiceCallHistoryModal();
+    });
+    document.getElementById("voiceCallHistoryCloseBtn")?.addEventListener("click", closeVoiceCallHistoryModal);
+    document.getElementById("voiceCallHistoryModal")?.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.id === "voiceCallHistoryModal") closeVoiceCallHistoryModal();
     });
     document.getElementById("voiceCallHangupBtn")?.addEventListener("click", () => {
       void (async () => {

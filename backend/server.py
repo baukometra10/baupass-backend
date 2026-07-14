@@ -8490,6 +8490,13 @@ def start_background_jobs():
 
     threading.Thread(target=report_scheduler_loop, name="baupass-report-scheduler", daemon=True).start()  # baupass:allow-inline-thread
 
+    try:
+        from backend.app.platform.voice_calls.scheduler import bootstrap_voice_call_scheduler
+
+        bootstrap_voice_call_scheduler(interval_seconds=15.0)
+    except Exception as voice_sched_exc:
+        print(f"[baupass] WARNING: voice call scheduler skipped: {voice_sched_exc}", flush=True)
+
     def worker_session_cleanup_loop():
         while True:
             run_worker_session_cleanup_cycle_once()

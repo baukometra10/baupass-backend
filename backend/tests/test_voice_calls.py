@@ -119,6 +119,36 @@ def test_worker_can_accept_and_exchange_signals(client_and_db):
     assert any("@voice-call|" in str(row.get("body") or "") for row in rows)
 
 
+def test_voice_call_history_and_worker_callback(client_and_db):
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    company_id, worker_id = _create_company_and_worker(client, headers)
+    client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
+
+    start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
+    call_id = start.get_json()["call"]["id"]
+    client.post(f"/api/chat/calls/{call_id}/end", json={"reason": "test"}, headers=headers)
+    worker_headers = _worker_session_headers(client, worker_id)
+
+    history = client.get(f"/api/chat/calls/history?worker_id={worker_id}", headers=headers)
+    assert history.status_code == 200
+    payload = history.get_json()
+    assert isinstance(payload.get("calls"), list)
+    assert payload["calls"]
+
+    worker_history = client.get("/api/worker-app/chat/calls/history", headers=worker_headers)
+    assert worker_history.status_code == 200
+    assert worker_history.get_json().get("calls")
+
+    callback = client.post(
+        "/api/worker-app/chat/calls/callback-request",
+        json={"call_id": call_id},
+        headers=worker_headers,
+    )
+    assert callback.status_code == 200
+    assert callback.get_json().get("ok") is True
+
+
 def test_worker_can_fetch_call_by_id(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)
