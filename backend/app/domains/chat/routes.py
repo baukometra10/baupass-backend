@@ -118,6 +118,11 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         worker_id = str(data.get("worker_id") or "").strip()
         if not worker_id:
             return jsonify({"error": "worker_required"}), 400
+        e2e_client_unavailable = str(request.headers.get("X-E2E-Client-Unavailable") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         service = ChatService(get_db())
         try:
             message = service.create_message(
@@ -128,10 +133,16 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 sender_user_id=str(g.current_user.get("id") or ""),
                 sender_worker_id=None,
                 body=str(data.get("body") or ""),
+                allow_plaintext_e2e_fallback=e2e_client_unavailable,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
+            code = str(exc)
+            messages = {
+                "message_required": "Nachricht fehlt.",
+                "e2e_required": "Verschlüsselte Nachricht erforderlich — E2E-Schlüssel prüfen.",
+            }
+            return jsonify({"error": code, "message": messages.get(code, code)}), 400
 
     @chat_core_bp.post("/chat/threads/<thread_id>/attachments")
     @require_auth
@@ -652,6 +663,62 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         except ValueError as exc:
             return _voice_call_error(exc)
 
+    @chat_core_bp.get("/chat/calls/incoming")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_incoming():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        call = service.get_incoming_for_admin(cid)
+        return jsonify({"call": call})
+
+    @chat_core_bp.post("/chat/calls/<call_id>/accept")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_accept(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.accept_call(call_id, role="admin")
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/chat/calls/<call_id>/decline")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_decline(call_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.get_call(call_id)
+            if not _assert_admin_call_access(call, cid):
+                return jsonify({"error": "forbidden"}), 403
+            updated = service.decline_call(call_id, role="admin")
+            get_db().commit()
+            return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
     @chat_core_bp.get("/chat/calls/<call_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -738,6 +805,25 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             updated = service.end_call(call_id, role="admin", reason=str(data.get("reason") or "hangup"))
             get_db().commit()
             return jsonify({"ok": True, "call": updated})
+        except ValueError as exc:
+            return _voice_call_error(exc)
+
+    @chat_core_bp.post("/worker-app/chat/calls")
+    @require_worker_session
+    def worker_chat_call_start():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.voice_calls.service import VoiceCallService
+
+        service = VoiceCallService(get_db())
+        try:
+            call = service.start_worker_call(company_id=company_id, worker_id=worker_id)
+            get_db().commit()
+            return jsonify({"ok": True, "call": call})
         except ValueError as exc:
             return _voice_call_error(exc)
 

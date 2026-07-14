@@ -270,6 +270,49 @@
     },
     stop: stopPolling,
     wakeForCallId,
+    async startOutgoingCall(api) {
+      if (typeof api !== "function" || !global.SUPPIXVoiceCall?.isSupported?.()) {
+        return Promise.reject(new Error("voice_call_unsupported"));
+      }
+      if (session) {
+        return Promise.reject(new Error("worker_busy"));
+      }
+      apiFn = api;
+      session = global.SUPPIXVoiceCall.createSession({
+        api,
+        role: "worker",
+        onAudioLevels: ({ local, remote }) => updateLevels(local, remote),
+        onState: (state) => {
+          if (state === "ringing" || state === "dialing") {
+            setOverlay(true, t("voiceCallRinging", "Klingelt…"), "active");
+          } else if (state === "connected" || state === "accepted") {
+            setOverlay(true, t("voiceCallConnected", "Verbunden"), "active");
+            startTimer();
+          } else if (state === "ended") {
+            session = null;
+            setOverlay(false);
+            global.dispatchEvent(new CustomEvent("worker-voice-call-ended"));
+          }
+        },
+        onError: () => {
+          session = null;
+          setOverlay(false);
+        },
+      });
+      const overlayEl = ensureOverlay();
+      document.getElementById("workerVoiceCallTitle").textContent = t("senderCompany", "Arbeitgeber");
+      document.getElementById("workerVoiceCallAvatar").textContent = "AG";
+      setOverlay(true, t("voiceCallDialing", "Wählt…"), "active");
+      overlayEl.querySelector(".incoming-only")?.classList.add("hidden");
+      overlayEl.querySelector(".active-only")?.classList.remove("hidden");
+      try {
+        await session.startWorkerOutgoing();
+      } catch (error) {
+        session = null;
+        setOverlay(false);
+        throw error;
+      }
+    },
     requestCallback(api, callId) {
       if (typeof api !== "function") return Promise.reject(new Error("api_required"));
       return api("/api/worker-app/chat/calls/callback-request", {

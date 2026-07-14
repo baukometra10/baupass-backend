@@ -74,6 +74,9 @@
     .chat-compose-attach:hover { color:var(--accent); border-color:rgba(94,234,212,.35); }
     .chat-compose-bar textarea { flex:1; min-width:0; min-height:42px; max-height:120px; resize:none; border-radius:22px; padding:0.62rem 0.85rem; }
     .chat-send-btn { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; border:none; background:#0f766e; color:#ecfeff; cursor:pointer; flex-shrink:0; }
+    .chat-send-btn[hidden] { display:none !important; }
+    .chat-mic-btn { display:inline-flex; align-items:center; justify-content:center; width:42px; height:42px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--text); cursor:pointer; flex-shrink:0; touch-action:none; user-select:none; }
+    .chat-mic-btn.is-recording { background:#b91c1c; border-color:#ef4444; color:#fff; }
     .chat-send-btn:disabled { opacity:0.55; cursor:not-allowed; }
     .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }
     textarea, input, button { font:inherit; }
@@ -443,6 +446,13 @@
       accent-color: #2dd4bf;
       cursor: pointer;
     }
+    .voice-call-controls.incoming-only.hidden,
+    .voice-call-controls.active-only.hidden { display: none; }
+    .voice-call-controls.incoming-only,
+    .voice-call-controls.active-only { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+    .voice-call-controls.incoming-only .voice-call-round-btn.accept { background: #059669; border-color: #34d399; }
+    .voice-call-subtitle { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: rgba(226,232,240,0.72); }
+    .voice-call-quality { display:inline-flex; margin-bottom:0.75rem; padding:0.25rem 0.65rem; border-radius:999px; font-size:0.72rem; border:1px solid rgba(94,234,212,0.25); color:rgba(226,232,240,0.85); }
     .voice-call-controls {
       display: flex;
       gap: 0.85rem;
@@ -672,7 +682,10 @@
             </label>
             <input id="chatFile" class="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*" />
             <textarea id="chatReply" data-aci18n="replyPh" data-aci18n-attr="placeholder" placeholder="Antwort schreiben…" rows="1"></textarea>
-            <button type="button" class="chat-send-btn" id="sendReplyBtn" data-aci18n="send" data-aci18n-attr="aria-label" aria-label="Senden">
+            <button type="button" class="chat-mic-btn" id="chatVoiceMicBtn" data-aci18n="chatVoiceMic" data-aci18n-attr="aria-label,title" aria-label="Sprachnachricht">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button type="button" class="chat-send-btn" id="sendReplyBtn" hidden data-aci18n="send" data-aci18n-attr="aria-label" aria-label="Senden">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h12M13 7l5 5-5 5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
@@ -712,7 +725,9 @@
       <div class="voice-call-rings" aria-hidden="true"><span></span><span></span><span></span></div>
       <div id="voiceCallAvatar" class="voice-call-avatar" aria-hidden="true">AG</div>
       <h4 id="voiceCallTitle" data-aci18n="voiceCallTitle">Sprachanruf</h4>
+      <p id="voiceCallSubtitle" class="voice-call-subtitle hidden"></p>
       <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
+      <p id="voiceCallQuality" class="voice-call-quality hidden" aria-live="polite"></p>
       <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span><span></span>
@@ -732,7 +747,17 @@
         <label for="voiceCallVolume" id="voiceCallVolumeLabel" data-aci18n="voiceCallVolume">Lautstärke</label>
         <input type="range" id="voiceCallVolume" min="0" max="100" value="100" aria-labelledby="voiceCallVolumeLabel" />
       </div>
-      <div class="voice-call-controls">
+      <div class="voice-call-controls incoming-only hidden" id="voiceCallIncomingControls">
+        <button type="button" id="voiceCallDeclineBtn" class="voice-call-round-btn danger" data-aci18n="voiceCallDecline" data-aci18n-attr="aria-label,title" aria-label="Ablehnen" title="Ablehnen">
+          <span class="voice-call-btn-icon" aria-hidden="true">✕</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallDecline">Ablehnen</span>
+        </button>
+        <button type="button" id="voiceCallAcceptBtn" class="voice-call-round-btn accept" data-aci18n="voiceCallAccept" data-aci18n-attr="aria-label,title" aria-label="Annehmen" title="Annehmen">
+          <span class="voice-call-btn-icon" aria-hidden="true">📞</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallAccept">Annehmen</span>
+        </button>
+      </div>
+      <div class="voice-call-controls active-only" id="voiceCallActiveControls">
         <button type="button" id="voiceCallMuteBtn" class="voice-call-round-btn" data-aci18n="voiceCallMute" data-aci18n-attr="aria-label,title" aria-label="Stumm" title="Stumm">
           <span class="voice-call-btn-icon" aria-hidden="true">🎤</span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallMute">Stumm</span>
@@ -748,9 +773,9 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260714voice7"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice7"></script>
+  <script src="/chat-voice.js?v=20260714voice8"></script>
+  <script src="/chat-voice-call.js?v=20260714voice8"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice8"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -881,7 +906,10 @@
     async function apiMultipart(path, { fields = {}, fileField = "file", file } = {}) {
       const form = new FormData();
       Object.entries(fields).forEach(([key, value]) => form.append(key, value));
-      if (file) form.append(fileField, file);
+      if (file) {
+        const name = file.name || "voice.webm";
+        form.append(fileField, file, name);
+      }
       const res = await fetch(path, { method: "POST", headers: headers(), body: form, credentials: "include" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message || data.error || res.statusText);
@@ -1212,6 +1240,46 @@
       onError: (error) => setThreadMeta(error?.message || String(error), { dynamic: true }),
     }) || null;
     let adminVoiceRecording = false;
+    let adminVoiceComposeBound = false;
+    function bindAdminWhatsAppVoiceCompose() {
+      if (adminVoiceComposeBound || !adminVoiceRecorder) return;
+      const compose = document.querySelector(".chat-compose");
+      const micBtn = document.getElementById("chatVoiceMicBtn");
+      const sendBtn = document.getElementById("sendReplyBtn");
+      const input = document.getElementById("chatReply");
+      const fileInput = document.getElementById("chatFile");
+      if (!compose || !micBtn) return;
+      adminVoiceComposeBound = true;
+      window.SUPPIXChatVoice?.bindWhatsAppVoiceCompose?.({
+        root: compose,
+        input,
+        sendBtn,
+        micBtn,
+        fileInput,
+        recorder: adminVoiceRecorder,
+        labels: {
+          ...adminVoiceLabels(),
+          slideCancel: window.adminChatT("chatVoiceSlideCancel"),
+          releaseCancel: window.adminChatT("chatVoiceReleaseCancel"),
+          tooShort: window.adminChatT("chatVoiceTooShort"),
+        },
+        onSendText: () => handleAdminPrimaryAction(),
+        onSendVoice: async (voiceFile) => {
+          await sendAdminChatPayload({ body: window.adminChatT("chatVoiceMessage"), file: voiceFile });
+        },
+        onRecordingTick: (seconds) => updateAdminVoiceHint(seconds),
+        onError: (error) => {
+          adminVoiceRecording = false;
+          updateAdminVoiceHint(0);
+          const msg = String(error?.message || error || "");
+          if (msg.includes("too_short") || msg === window.adminChatT("chatVoiceTooShort")) {
+            setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });
+          } else {
+            setThreadMeta(msg || window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
+          }
+        },
+      });
+    }
     function adminVoiceLabels() {
       return {
         send: window.adminChatT("send"),
@@ -1222,15 +1290,13 @@
     }
     function syncAdminComposeAction() {
       const input = document.getElementById("chatReply");
-      const button = document.getElementById("sendReplyBtn");
+      const sendBtn = document.getElementById("sendReplyBtn");
       const fileInput = document.getElementById("chatFile");
-      return window.SUPPIXChatVoice?.updateComposePrimaryAction?.({
-        input,
-        button,
-        fileInput,
-        recording: adminVoiceRecording,
-        labels: adminVoiceLabels(),
-      });
+      if (!sendBtn) return "send";
+      const hasText = window.SUPPIXChatVoice?.composeHasText?.(input, window.adminChatT("replyPh"));
+      const hasFile = Boolean(fileInput?.files?.length);
+      sendBtn.hidden = !(hasText || hasFile);
+      return hasText || hasFile ? "send" : "mic";
     }
     function updateAdminVoiceHint(seconds) {
       const hint = document.getElementById("chatVoiceHint");
@@ -1632,6 +1698,11 @@
     }
     async function sendAdminChatPayload({ body, file }) {
       if (!currentThreadId || !currentWorkerId) return;
+      await ensureAdminSession();
+      await refreshAdminE2EReadiness(currentWorkerId, false);
+      if (adminE2ERequired) {
+        await ensureAdminE2EIdentity();
+      }
       const sendBtn = document.getElementById("sendReplyBtn");
       const replyInput = document.getElementById("chatReply");
       const fileInput = document.getElementById("chatFile");
@@ -1649,24 +1720,45 @@
         }, { grouped: false, tail: true }).replace('class="bubble admin tail"', 'class="bubble admin tail is-pending"'));
         scrollMessageListToBottom(true);
       }
+      let uploadPack = null;
+      let uploadFile = file ? window.SUPPIXChatVoice?.asUploadFile?.(file, file.name ? "voice" : "voice", file.durationSec, file.durationSec) || file : null;
       try {
-        const outboundBody = await encryptAdminChatBody(draftBody, currentWorkerId);
+        if (uploadFile && adminE2ERequired) {
+          if (!adminE2ECryptoAvailable()) {
+            throw new Error("e2e_keys_missing");
+          }
+          uploadPack = await encryptAdminChatAttachment(uploadFile, currentWorkerId);
+        }
+        let outboundBody = draftBody;
+        let e2eClientUnavailable = false;
+        try {
+          outboundBody = await encryptAdminChatBody(draftBody, currentWorkerId);
+        } catch (error) {
+          if (adminE2ERequired && String(error?.message || error) === "e2e_keys_missing") {
+            e2eClientUnavailable = true;
+            outboundBody = draftBody;
+          } else {
+            throw error;
+          }
+        }
         const res = await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/messages?company_id=${encodeURIComponent(companyId)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
+          },
           body: JSON.stringify({ worker_id: currentWorkerId, body: outboundBody }),
         });
-        if (file && res?.message?.id) {
-          let uploadFile = file;
+        if (uploadFile && res?.message?.id) {
+          let attachmentFile = uploadFile;
           let extraFields = { message_id: String(res.message.id), worker_id: currentWorkerId };
-          if (adminE2ERequired && adminE2ECryptoAvailable()) {
-            const packed = await encryptAdminChatAttachment(file, currentWorkerId);
-            uploadFile = new File([packed.file], packed.filename, { type: "application/vnd.suppix.e2e+binary" });
-            extraFields = { ...extraFields, ...packed.fields };
+          if (uploadPack) {
+            attachmentFile = new File([uploadPack.file], uploadPack.filename, { type: "application/vnd.suppix.e2e+binary" });
+            extraFields = { ...extraFields, ...uploadPack.fields };
           }
           await apiMultipart(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/attachments?company_id=${encodeURIComponent(companyId)}`, {
             fields: extraFields,
-            file: uploadFile,
+            file: attachmentFile,
           });
         }
         list.querySelector(".bubble.admin.is-pending")?.remove();
@@ -1700,41 +1792,8 @@
     }
     async function handleAdminPrimaryAction() {
       if (!currentThreadId || !currentWorkerId) return;
-      const mode = document.getElementById("sendReplyBtn")?.dataset.mode || "send";
       const replyInput = document.getElementById("chatReply");
       const fileInput = document.getElementById("chatFile");
-      if (mode === "mic") {
-        if (!adminVoiceRecorder || !window.SUPPIXChatVoice?.isSupported?.()) {
-          setThreadMeta(window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
-          return;
-        }
-        try {
-          adminVoiceRecording = true;
-          syncAdminComposeAction();
-          await adminVoiceRecorder.start();
-        } catch (error) {
-          adminVoiceRecording = false;
-          updateAdminVoiceHint(0);
-          syncAdminComposeAction();
-          setThreadMeta(error?.message || window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
-        }
-        return;
-      }
-      if (mode === "stop") {
-        adminVoiceRecording = false;
-        updateAdminVoiceHint(0);
-        syncAdminComposeAction();
-        const blob = await adminVoiceRecorder.stop();
-        const voiceFile = adminVoiceRecorder.toFile(blob, "voice");
-        if (!voiceFile) {
-          setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });
-          return;
-        }
-        await sendAdminChatPayload({ body: window.adminChatT("chatVoiceMessage"), file: voiceFile });
-        if (replyInput) replyInput.value = "";
-        if (fileInput) fileInput.value = "";
-        return;
-      }
       const body = String(replyInput?.value || "").trim();
       const file = fileInput?.files?.[0] || null;
       if (!body && !file) return;
@@ -1750,8 +1809,8 @@
       chatReplyInput.addEventListener("input", () => syncAdminComposeAction());
       chatReplyInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
-          const mode = document.getElementById("sendReplyBtn")?.dataset.mode || "send";
-          if (mode !== "send") return;
+          const sendBtn = document.getElementById("sendReplyBtn");
+          if (sendBtn?.hidden) return;
           event.preventDefault();
           void handleAdminPrimaryAction();
         }
@@ -1967,25 +2026,41 @@
       }, 1000);
       if (timerEl) timerEl.textContent = "00:00";
     }
-    function setVoiceCallOverlay(visible, statusText, state) {
+    function setVoiceCallOverlay(visible, statusText, state, mode = "active") {
       const overlay = document.getElementById("voiceCallOverlay");
       const status = document.getElementById("voiceCallStatus");
       const rings = overlay?.querySelector(".voice-call-rings");
+      const incoming = document.getElementById("voiceCallIncomingControls");
+      const active = document.getElementById("voiceCallActiveControls");
+      const meters = document.getElementById("voiceCallMeters");
+      const volume = document.querySelector(".voice-call-volume-row");
+      const quality = document.getElementById("voiceCallQuality");
       if (status && statusText) status.textContent = statusText;
       overlay?.classList.toggle("hidden", !visible);
+      const isIncoming = mode === "incoming";
+      incoming?.classList.toggle("hidden", !visible || !isIncoming);
+      active?.classList.toggle("hidden", !visible || isIncoming);
+      meters?.classList.toggle("hidden", isIncoming);
+      volume?.classList.toggle("hidden", isIncoming);
+      document.getElementById("voiceCallLiveWave")?.classList.toggle("hidden", isIncoming);
       if (!visible) {
         stopVoiceCallTimer();
         resetVoiceCallControls();
         rings?.classList.remove("hidden");
+        quality?.classList.add("hidden");
+        document.getElementById("voiceCallSubtitle")?.classList.add("hidden");
         return;
       }
       const connected = state === "connected" || state === "accepted";
       if (connected) {
         rings?.classList.add("hidden");
         startVoiceCallTimer();
+        quality?.classList.remove("hidden");
+        if (quality) quality.textContent = window.adminChatT("voiceCallQualityGood") || "Verbindung stabil";
       } else {
         rings?.classList.remove("hidden");
         stopVoiceCallTimer();
+        quality?.classList.add("hidden");
       }
     }
     function voiceCallStatusLabel(state) {
@@ -1997,6 +2072,103 @@
         ended: window.adminChatT("voiceCallEnded"),
       };
       return map[state] || state || "";
+    }
+    let adminIncomingPollTimer = null;
+    let dismissedAdminCallId = "";
+    let pendingIncomingCall = null;
+    function buildAdminVoiceCallSession() {
+      return window.SUPPIXVoiceCall.createSession({
+        api: voiceCallApi,
+        role: "admin",
+        onAudioLevels: ({ local, remote }) => {
+          const micFill = document.getElementById("voiceCallMicFill");
+          const remoteFill = document.getElementById("voiceCallRemoteFill");
+          if (micFill) micFill.style.width = `${Math.round((local || 0) * 100)}%`;
+          if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
+          updateVoiceCallLiveWave(local, remote);
+        },
+        onState: (state) => {
+          if (state === "ended") {
+            setVoiceCallOverlay(false);
+            activeVoiceCallSession = null;
+            pendingIncomingCall = null;
+            if (currentThreadId) {
+              void loadMessages(currentThreadId, currentWorkerId);
+              void loadThreads();
+            }
+            return;
+          }
+          const mode = pendingIncomingCall && (state === "ringing" || state === "connecting") ? "incoming" : "active";
+          if (state === "connected" || state === "accepted") pendingIncomingCall = null;
+          setVoiceCallOverlay(true, voiceCallStatusLabel(state), state, mode);
+        },
+        onError: (error) => {
+          void (async () => {
+            if (activeVoiceCallSession) await activeVoiceCallSession.end("error");
+            activeVoiceCallSession = null;
+            pendingIncomingCall = null;
+            setVoiceCallOverlay(false);
+            setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
+          })();
+        },
+      });
+    }
+    async function handleAdminIncomingCall(call) {
+      if (!call?.id || activeVoiceCallSession) return;
+      if (String(call.id) === dismissedAdminCallId) return;
+      if (call.status && call.status !== "ringing") return;
+      pendingIncomingCall = call;
+      const name = call.callerName || call.caller_name || window.adminChatT("workerDefault");
+      document.getElementById("voiceCallTitle").textContent = name;
+      document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
+      const subtitle = document.getElementById("voiceCallSubtitle");
+      if (subtitle) {
+        subtitle.textContent = window.adminChatT("voiceCallIncomingFromWorker");
+        subtitle.classList.remove("hidden");
+      }
+      resetVoiceCallControls();
+      setVoiceCallOverlay(true, window.adminChatT("voiceCallIncomingRinging"), "ringing", "incoming");
+    }
+    async function acceptAdminIncomingCall() {
+      const call = pendingIncomingCall;
+      if (!call?.id || !window.SUPPIXVoiceCall?.isSupported?.()) return;
+      activeVoiceCallSession = buildAdminVoiceCallSession();
+      activeVoiceCallSession._incomingCall = call;
+      try {
+        setVoiceCallOverlay(true, window.adminChatT("voiceCallConnected"), "connecting", "active");
+        await activeVoiceCallSession.acceptIncoming(call);
+      } catch (error) {
+        activeVoiceCallSession = null;
+        pendingIncomingCall = null;
+        setVoiceCallOverlay(false);
+        setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
+      }
+    }
+    async function declineAdminIncomingCall() {
+      const call = pendingIncomingCall;
+      if (!call?.id) {
+        setVoiceCallOverlay(false);
+        return;
+      }
+      dismissedAdminCallId = String(call.id);
+      pendingIncomingCall = null;
+      try {
+        await voiceCallApi(`/api/chat/calls/${encodeURIComponent(call.id)}/decline`, { method: "POST" });
+      } catch (_) {
+        /* ignore */
+      }
+      setVoiceCallOverlay(false);
+    }
+    function startAdminIncomingCallPoll() {
+      if (adminIncomingPollTimer) clearInterval(adminIncomingPollTimer);
+      adminIncomingPollTimer = setInterval(() => {
+        if (activeVoiceCallSession || pendingIncomingCall || !companyId) return;
+        voiceCallApi("/api/chat/calls/incoming")
+          .then((data) => {
+            if (data?.call) void handleAdminIncomingCall(data.call);
+          })
+          .catch(() => {});
+      }, 2500);
     }
     async function startVoiceCallToCurrentWorker() {
       if (!currentWorkerId) return;
@@ -2013,40 +2185,8 @@
       document.getElementById("voiceCallTitle").textContent = name;
       document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
       resetVoiceCallControls();
-      setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing");
-      activeVoiceCallSession = window.SUPPIXVoiceCall.createSession({
-        api: voiceCallApi,
-        role: "admin",
-        onAudioLevels: ({ local, remote }) => {
-          const micFill = document.getElementById("voiceCallMicFill");
-          const remoteFill = document.getElementById("voiceCallRemoteFill");
-          if (micFill) micFill.style.width = `${Math.round((local || 0) * 100)}%`;
-          if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
-          updateVoiceCallLiveWave(local, remote);
-        },
-        onState: (state, reason) => {
-          if (state === "ended") {
-            setVoiceCallOverlay(false);
-            activeVoiceCallSession = null;
-            if (currentThreadId) {
-              void loadMessages(currentThreadId, currentWorkerId);
-              void loadThreads();
-            }
-            return;
-          }
-          setVoiceCallOverlay(true, voiceCallStatusLabel(state), state);
-        },
-        onError: (error) => {
-          void (async () => {
-            if (activeVoiceCallSession) {
-              await activeVoiceCallSession.end("error");
-            }
-            activeVoiceCallSession = null;
-            setVoiceCallOverlay(false);
-            setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
-          })();
-        },
-      });
+      setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing", "active");
+      activeVoiceCallSession = buildAdminVoiceCallSession();
       try {
         await activeVoiceCallSession.startOutgoing({ workerId: currentWorkerId, companyId });
       } catch (error) {
@@ -2064,6 +2204,12 @@
     }
     document.getElementById("chatVoiceCallBtn")?.addEventListener("click", () => {
       void startVoiceCallToCurrentWorker();
+    });
+    document.getElementById("voiceCallAcceptBtn")?.addEventListener("click", () => {
+      void acceptAdminIncomingCall();
+    });
+    document.getElementById("voiceCallDeclineBtn")?.addEventListener("click", () => {
+      void declineAdminIncomingCall();
     });
     document.getElementById("messageList")?.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target.closest("[data-voice-callback]") : null;
@@ -2269,6 +2415,9 @@
       await ensureAdminSession();
       await window.E2ECrypto?.ensureCryptoSessionReady?.();
       await ensureAdminE2EIdentity();
+      bindAdminWhatsAppVoiceCompose();
+      syncAdminComposeAction();
+      startAdminIncomingCallPoll();
       await loadThreads();
     })().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
   </script>

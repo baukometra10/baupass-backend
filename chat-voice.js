@@ -494,6 +494,190 @@
     return "mic";
   }
 
+  function asUploadFile(blob, filenamePrefix, durationSec, fallbackDuration) {
+    if (!blob || !blob.size) return null;
+    const ext = extensionForMime(blob.type);
+    const name = `${filenamePrefix || "voice"}-${Date.now()}.${ext}`;
+    const duration = Math.max(0, Math.round(Number(durationSec ?? fallbackDuration ?? 0) || 0));
+    try {
+      const file = new File([blob], name, { type: blob.type || "audio/webm" });
+      if (duration > 0) file.durationSec = duration;
+      return file;
+    } catch {
+      const out = new Blob([blob], { type: blob.type || "audio/webm" });
+      out.name = name;
+      if (duration > 0) out.durationSec = duration;
+      return out;
+    }
+  }
+
+  function bindWhatsAppVoiceCompose({
+    root,
+    input,
+    sendBtn,
+    micBtn,
+    fileInput,
+    recorder,
+    labels = {},
+    onSendText,
+    onSendVoice,
+    onRecordingTick,
+    onError,
+  }) {
+    if (!root || !micBtn || !recorder) return () => {};
+    const holdMs = 0;
+    const cancelSlidePx = 72;
+    let recording = false;
+    let holdTimer = null;
+    let pointerId = null;
+    let startX = 0;
+    let cancelArmed = false;
+
+    let overlay = root.querySelector(".chat-voice-record-overlay");
+    if (!overlay) {
+      overlay = global.document.createElement("div");
+      overlay.className = "chat-voice-record-overlay hidden";
+      overlay.innerHTML = `
+        <div class="chat-voice-record-panel">
+          <span class="chat-voice-record-cancel">${labels.slideCancel || "← Zum Abbrechen wischen"}</span>
+          <span class="chat-voice-record-timer">0:00</span>
+          <div class="chat-voice-record-live-wave" aria-hidden="true"></div>
+        </div>`;
+      root.appendChild(overlay);
+      const wave = overlay.querySelector(".chat-voice-record-live-wave");
+      if (wave && !wave.childElementCount) {
+        wave.innerHTML = Array.from({ length: 24 }, () => "<span></span>").join("");
+      }
+    }
+    const timerEl = overlay.querySelector(".chat-voice-record-timer");
+    const cancelEl = overlay.querySelector(".chat-voice-record-cancel");
+
+    const syncSendBtn = () => {
+      if (!sendBtn) return;
+      const hasText = composeHasText(input, labels.placeholder);
+      const hasFile = Boolean(fileInput?.files?.length);
+      const showSend = (hasText || hasFile) && !recording;
+      sendBtn.hidden = !showSend;
+      sendBtn.disabled = recording;
+    };
+
+    const setRecordingUi = (active) => {
+      recording = active;
+      micBtn.classList.toggle("is-recording", active);
+      root.classList.toggle("is-voice-recording", active);
+      overlay.classList.toggle("hidden", !active);
+      syncSendBtn();
+    };
+
+    const updateWave = (seconds) => {
+      const wave = overlay.querySelector(".chat-voice-record-live-wave");
+      if (timerEl) timerEl.textContent = formatDuration(seconds);
+      if (!wave) return;
+      wave.querySelectorAll("span").forEach((bar, index) => {
+        const phase = (Date.now() / 110 + index * 0.42) % (Math.PI * 2);
+        const height = 22 + Math.abs(Math.sin(phase)) * 58 + Math.min(18, seconds * 2);
+        bar.style.height = `${Math.round(height)}%`;
+      });
+    };
+
+    const finishRecording = async (sendIt) => {
+      if (!recording) return;
+      setRecordingUi(false);
+      let blob = null;
+      try {
+        blob = await recorder.stop();
+      } catch (error) {
+        recorder.cancel?.();
+        onError?.(error);
+        return;
+      }
+      if (!sendIt || cancelArmed) {
+        recorder.cancel?.();
+        return;
+      }
+      const voiceFile = asUploadFile(blob, "voice", recorder.lastDurationSec, recorder.lastDurationSec);
+      if (!voiceFile) {
+        onError?.(new Error(labels.tooShort || "voice_too_short"));
+        return;
+      }
+      try {
+        await onSendVoice?.(voiceFile);
+      } catch (error) {
+        onError?.(error);
+      }
+    };
+
+    const onMicDown = async (event) => {
+      if (recording || pointerId !== null) return;
+      if (event.button !== undefined && event.button !== 0) return;
+      pointerId = event.pointerId ?? "mouse";
+      startX = event.clientX || 0;
+      cancelArmed = false;
+      micBtn.setPointerCapture?.(event.pointerId);
+      try {
+        await recorder.start();
+        setRecordingUi(true);
+        updateWave(0);
+        onRecordingTick?.(0);
+      } catch (error) {
+        pointerId = null;
+        onError?.(error);
+      }
+    };
+
+    const onMicMove = (event) => {
+      if (!recording) return;
+      const dx = (event.clientX || 0) - startX;
+      cancelArmed = dx < -cancelSlidePx;
+      if (cancelEl) {
+        cancelEl.classList.toggle("is-armed", cancelArmed);
+        cancelEl.textContent = cancelArmed
+          ? (labels.releaseCancel || "Loslassen zum Abbrechen")
+          : (labels.slideCancel || "← Zum Abbrechen wischen");
+      }
+    };
+
+    const onMicUp = async (event) => {
+      if (holdTimer) {
+        global.clearTimeout(holdTimer);
+        holdTimer = null;
+      }
+      try {
+        micBtn.releasePointerCapture?.(event.pointerId);
+      } catch {
+        /* ignore */
+      }
+      if (!recording) {
+        pointerId = null;
+        return;
+      }
+      pointerId = null;
+      await finishRecording(true);
+    };
+
+    micBtn.addEventListener("pointerdown", onMicDown);
+    micBtn.addEventListener("pointermove", onMicMove);
+    micBtn.addEventListener("pointerup", onMicUp);
+    micBtn.addEventListener("pointercancel", onMicUp);
+    micBtn.addEventListener("contextmenu", (event) => event.preventDefault());
+
+    if (sendBtn) {
+      sendBtn.addEventListener("click", () => {
+        void onSendText?.();
+      });
+    }
+    input?.addEventListener("input", syncSendBtn);
+    fileInput?.addEventListener("change", syncSendBtn);
+    syncSendBtn();
+
+    return () => {
+      micBtn.removeEventListener("pointerdown", onMicDown);
+      micBtn.removeEventListener("pointermove", onMicMove);
+      micBtn.removeEventListener("pointerup", onMicUp);
+      micBtn.removeEventListener("pointercancel", onMicUp);
+    };
+  }
+
   function createRecorder({ onTick, onError } = {}) {
     let stream = null;
     let recorder = null;
@@ -1058,6 +1242,22 @@
 .worker-chat-bubble.is-company .chat-voice-duration,.worker-chat-bubble.is-mine .chat-voice-duration{color:rgba(233,237,239,.82)}
 .chat-head-actions{display:flex;gap:.35rem;flex-wrap:wrap;margin-top:.35rem}
 .chat-head-actions button{font-size:.72rem;padding:.28rem .5rem;border-radius:8px;border:1px solid var(--border);background:var(--input-bg);color:var(--text);cursor:pointer}
+.chat-compose{position:relative}
+.chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:1px solid var(--border,#334155);background:var(--input-bg,#1e293b);color:var(--text,#e2e8f0);cursor:pointer;flex-shrink:0;touch-action:none;user-select:none;-webkit-user-select:none}
+.chat-mic-btn.is-recording{background:#b91c1c;border-color:#ef4444;color:#fff;animation:chatMicPulse 1s ease-in-out infinite}
+@keyframes chatMicPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.chat-voice-record-overlay{position:absolute;left:0;right:0;bottom:100%;padding:.45rem .65rem .55rem;pointer-events:none}
+.chat-voice-record-overlay.hidden{display:none}
+.chat-voice-record-panel{display:flex;align-items:center;gap:.65rem;padding:.55rem .75rem;border-radius:16px;border:1px solid rgba(94,234,212,.28);background:rgba(15,23,42,.94);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+.chat-voice-record-cancel{flex:1;font-size:.78rem;color:rgba(226,232,240,.78);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chat-voice-record-cancel.is-armed{color:#fca5a5;font-weight:700}
+.chat-voice-record-timer{font-variant-numeric:tabular-nums;font-weight:700;color:#5eead4;min-width:3rem;text-align:right}
+.chat-voice-record-live-wave{display:flex;align-items:flex-end;gap:2px;height:28px;width:88px}
+.chat-voice-record-live-wave span{flex:1;border-radius:999px;background:linear-gradient(180deg,#67e8f9,#14b8a6);height:20%;transition:height .08s linear}
+.chat-send-btn[hidden],.worker-chat-send-btn[hidden]{display:none!important}
+.worker-chat-compose{position:relative}
+.worker-chat-mic-btn{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:#1f2c34;color:#e9edef;cursor:pointer;flex-shrink:0;touch-action:none}
+.worker-chat-mic-btn.is-recording{background:#b91c1c;border-color:#ef4444}
 `;
     let style = global.document?.getElementById("suppixChatVoiceStyles");
     if (!style && global.document) {
@@ -1098,6 +1298,8 @@
     probeBlobDuration,
     composeHasText,
     updateComposePrimaryAction,
+    bindWhatsAppVoiceCompose,
+    asUploadFile,
     createRecorder,
     renderAudioPlayerHtml,
     hydrateAudioPlayers,

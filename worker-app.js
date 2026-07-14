@@ -2669,9 +2669,14 @@ async function clearWorkerChatMessages(scope) {
 function bindWorkerChatClearActions() {
   const ownBtn = document.getElementById("workerChatClearOwnBtn");
   const allBtn = document.getElementById("workerChatClearAllBtn");
+  const callBtn = document.getElementById("workerChatCallBtn");
   const actions = document.getElementById("workerChatHeadActions");
   if (actions) {
     actions.classList.toggle("hidden", !workerChatThreadId);
+  }
+  if (callBtn && !callBtn.dataset.bound) {
+    callBtn.dataset.bound = "1";
+    callBtn.addEventListener("click", () => startWorkerCallToEmployer());
   }
   if (ownBtn && !ownBtn.dataset.bound) {
     ownBtn.dataset.bound = "1";
@@ -3202,6 +3207,7 @@ function ensureWorkerChatDom() {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
           <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
           <div id="workerChatHeadActions" class="chat-head-actions hidden">
+            <button type="button" id="workerChatCallBtn" class="chat-voice-call-btn" data-i18n="voiceCallCallEmployer" data-i18n-attr="title,aria-label" title="Arbeitgeber anrufen" aria-label="Arbeitgeber anrufen">📞</button>
             <button type="button" id="workerChatClearOwnBtn" data-i18n="chatClearOwn">Meine Nachrichten löschen</button>
             <button type="button" id="workerChatClearAllBtn" data-i18n="chatClearAll">Chat leeren</button>
           </div>
@@ -3592,7 +3598,8 @@ async function handleWorkerPrimaryAction(options = {}) {
         showWorkerVoiceNotice(error);
         return;
       }
-      const voiceFile = stopRecorder?.toFile(blob, "voice", stopRecorder?.lastDurationSec);
+      const voiceFile = stopRecorder?.toFile(blob, "voice", stopRecorder?.lastDurationSec)
+        || window.SUPPIXChatVoice?.asUploadFile?.(blob, "voice", stopRecorder?.lastDurationSec, stopRecorder?.lastDurationSec);
       if (!voiceFile) {
         resetWorkerVoiceRecorder();
         resetWorkerVoiceUi();
@@ -12852,6 +12859,21 @@ function workerVoiceCallApi(path, options = {}) {
     ...options,
     headers: { ...buildWorkerAuthHeaders(), ...(options.headers || {}) },
   });
+}
+
+function startWorkerCallToEmployer() {
+  if (!workerToken || !workerPlanAllowsFeature("worker_chat")) {
+    showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
+    return;
+  }
+  if (!window.SUPPIXWorkerVoiceCall?.startOutgoingCall) {
+    showWorkerNotice(t("voiceCallUnsupported") || "Sprachanruf nicht unterstützt.");
+    return;
+  }
+  void window.SUPPIXWorkerVoiceCall.startOutgoingCall(workerVoiceCallApi)
+    .catch((error) => {
+      showWorkerNotice(formatWorkerApiError(error) || t("voiceCallFailed") || "Anruf fehlgeschlagen");
+    });
 }
 
 function startWorkerVoiceCallPolling() {

@@ -110,10 +110,19 @@ class VoiceCallService:
                 created_at TEXT NOT NULL,
                 answered_at TEXT,
                 ended_at TEXT,
-                end_reason TEXT NOT NULL DEFAULT ''
+                end_reason TEXT NOT NULL DEFAULT '',
+                initiated_by TEXT NOT NULL DEFAULT 'admin'
             )
             """
         )
+        cols = self._table_columns("chat_voice_calls")
+        if "initiated_by" not in cols:
+            try:
+                self.db.execute(
+                    "ALTER TABLE chat_voice_calls ADD COLUMN initiated_by TEXT NOT NULL DEFAULT 'admin'"
+                )
+            except Exception:
+                pass
         self.db.execute(
             """
             CREATE TABLE IF NOT EXISTS chat_voice_call_signals (
@@ -150,6 +159,7 @@ class VoiceCallService:
             "answeredAt": row["answered_at"] if "answered_at" in keys else None,
             "endedAt": row["ended_at"] if "ended_at" in keys else None,
             "endReason": row["end_reason"] if "end_reason" in keys else "",
+            "initiatedBy": row["initiated_by"] if "initiated_by" in keys else "admin",
         }
 
     def _enrich_call(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -183,7 +193,49 @@ class VoiceCallService:
                         payload["companyName"] = cname
             except Exception:
                 pass
+        worker_id = str(payload.get("workerId") or "").strip()
+        if worker_id and not payload.get("callerName"):
+            try:
+                worker = self.db.execute(
+                    "SELECT first_name, last_name, badge_id FROM workers WHERE id = ?",
+                    (worker_id,),
+                ).fetchone()
+                if worker:
+                    wname = f"{worker['first_name'] or ''} {worker['last_name'] or ''}".strip()
+                    if not wname:
+                        wname = str(worker["badge_id"] or "").strip()
+                    if wname:
+                        payload["callerName"] = wname
+            except Exception:
+                pass
         return payload
+
+    def _notify_admin_voice_event(self, company_id: str, *, title: str, message: str, worker_id: str = "") -> None:
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(company_id, source="voice_call_admin")
+        except Exception:
+            pass
+        try:
+            self.db.execute(
+                """
+                INSERT INTO notifications
+                (id, worker_id, company_id, type, title, message, action_url, created_at)
+                VALUES (?, ?, ?, 'voice_call_admin', ?, ?, '/admin-v2/chat.html', ?)
+                """,
+                (
+                    f"notif-{uuid.uuid4().hex[:16]}",
+                    worker_id or None,
+                    company_id,
+                    title[:120],
+                    message[:280],
+                    utc_now_iso(),
+                ),
+            )
+            self.db.commit()
+        except Exception:
+            pass
 
     def _call_duration_seconds(self, call: dict[str, Any]) -> int:
         answered = str(call.get("answeredAt") or "").strip()
@@ -265,6 +317,16 @@ class VoiceCallService:
             try:
                 missed_call = self.get_call(str(row["id"]))
                 self._log_call_to_chat(missed_call, status="missed", reason="timeout", role="system")
+                initiated_by = str(missed_call.get("initiatedBy") or "admin")
+                if initiated_by == "worker":
+                    worker_id = str(missed_call.get("workerId") or row["worker_id"])
+                    wname = str(missed_call.get("callerName") or worker_id)
+                    self._notify_admin_voice_event(
+                        row["company_id"],
+                        title="Verpasster Anruf",
+                        message=f"{wname} hat angerufen — nicht erreicht.",
+                        worker_id=worker_id,
+                    )
             except Exception:
                 pass
         return count
@@ -299,8 +361,8 @@ class VoiceCallService:
         now = utc_now_iso()
         self.db.execute(
             """
-            INSERT INTO chat_voice_calls (id, company_id, worker_id, caller_user_id, status, created_at)
-            VALUES (?, ?, ?, ?, 'ringing', ?)
+            INSERT INTO chat_voice_calls (id, company_id, worker_id, caller_user_id, status, created_at, initiated_by)
+            VALUES (?, ?, ?, ?, 'ringing', ?, 'admin')
             """,
             (call_id, company_id, worker_id, caller_user_id, now),
         )
@@ -335,6 +397,56 @@ class VoiceCallService:
             }
         )
 
+    def start_worker_call(self, *, company_id: str, worker_id: str) -> dict[str, Any]:
+        self.expire_stale_calls()
+        worker = self.db.execute(
+            """
+            SELECT id, first_name, last_name FROM workers
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL
+            """,
+            (worker_id, company_id),
+        ).fetchone()
+        if not worker:
+            raise ValueError("worker_not_found")
+        if self._worker_has_active_call(worker_id):
+            raise ValueError("worker_busy")
+
+        call_id = f"vc-{uuid.uuid4().hex[:16]}"
+        now = utc_now_iso()
+        self.db.execute(
+            """
+            INSERT INTO chat_voice_calls
+            (id, company_id, worker_id, caller_user_id, status, created_at, initiated_by)
+            VALUES (?, ?, ?, '', 'ringing', ?, 'worker')
+            """,
+            (call_id, company_id, worker_id, now),
+        )
+        wname = f"{worker['first_name'] or ''} {worker['last_name'] or ''}".strip() or worker_id
+        try:
+            self._notify_admin_voice_event(
+                company_id,
+                title="Eingehender Anruf",
+                message=f"{wname} ruft an — sicherer Sprachkanal.",
+                worker_id=worker_id,
+            )
+        except Exception:
+            pass
+        try:
+            publish_event(
+                "voice_call.incoming",
+                company_id,
+                {"callId": call_id, "workerId": worker_id, "initiatedBy": "worker"},
+            )
+        except Exception:
+            pass
+        return self._enrich_call(
+            {
+                **self._row_to_call(
+                    self.db.execute("SELECT * FROM chat_voice_calls WHERE id = ?", (call_id,)).fetchone()
+                ),
+            }
+        )
+
     def get_call(self, call_id: str) -> dict[str, Any]:
         self.expire_stale_calls()
         row = self.db.execute("SELECT * FROM chat_voice_calls WHERE id = ?", (call_id,)).fetchone()
@@ -345,10 +457,12 @@ class VoiceCallService:
 
     def get_incoming_for_worker(self, worker_id: str) -> dict[str, Any] | None:
         self.expire_stale_calls()
+        cols = self._table_columns("chat_voice_calls")
+        initiated_filter = " AND COALESCE(initiated_by, 'admin') = 'admin'" if "initiated_by" in cols else ""
         row = self.db.execute(
-            """
+            f"""
             SELECT * FROM chat_voice_calls
-            WHERE worker_id = ? AND status = 'ringing'
+            WHERE worker_id = ? AND status = 'ringing'{initiated_filter}
             ORDER BY created_at DESC
             LIMIT 1
             """,
@@ -359,12 +473,36 @@ class VoiceCallService:
         payload = self._row_to_call(row)
         return self._enrich_call(payload)
 
+    def get_incoming_for_admin(self, company_id: str) -> dict[str, Any] | None:
+        self.expire_stale_calls()
+        cols = self._table_columns("chat_voice_calls")
+        initiated_filter = " AND initiated_by = 'worker'" if "initiated_by" in cols else " AND 1=0"
+        row = self.db.execute(
+            f"""
+            SELECT * FROM chat_voice_calls
+            WHERE company_id = ? AND status = 'ringing'{initiated_filter}
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (company_id,),
+        ).fetchone()
+        if not row:
+            return None
+        payload = self._row_to_call(row)
+        return self._enrich_call(payload)
+
     def accept_call(self, call_id: str, *, role: str) -> dict[str, Any]:
         call = self.get_call(call_id)
         if call.get("status") != "ringing":
             raise ValueError("call_not_ringing")
-        if role != "worker":
+        initiated_by = str(call.get("initiatedBy") or "admin")
+        clean_role = str(role or "").strip().lower()
+        if clean_role == "worker" and initiated_by != "admin":
             raise ValueError("forbidden")
+        if clean_role == "admin" and initiated_by != "worker":
+            raise ValueError("forbidden")
+        if clean_role not in {"admin", "worker"}:
+            raise ValueError("invalid_sender_role")
         now = utc_now_iso()
         self.db.execute(
             """
@@ -388,11 +526,29 @@ class VoiceCallService:
         call = self.get_call(call_id)
         if call.get("status") not in ACTIVE_STATUSES:
             raise ValueError("call_not_active")
-        if role == "worker" and call.get("status") != "ringing":
-            raise ValueError("call_not_ringing")
+        initiated_by = str(call.get("initiatedBy") or "admin")
+        clean_role = str(role or "").strip().lower()
+        if clean_role == "worker":
+            if call.get("status") != "ringing":
+                raise ValueError("call_not_ringing")
+            if initiated_by != "admin":
+                raise ValueError("forbidden")
+        elif clean_role == "admin":
+            if call.get("status") != "ringing":
+                raise ValueError("call_not_ringing")
+            if initiated_by != "worker":
+                raise ValueError("forbidden")
+        else:
+            raise ValueError("invalid_sender_role")
         now = utc_now_iso()
-        status = "declined" if role == "worker" else "ended"
-        reason = "declined_by_worker" if role == "worker" else "cancelled_by_admin"
+        if clean_role == "worker":
+            status = "declined"
+            reason = "declined_by_worker"
+            log_role = "worker"
+        else:
+            status = "declined"
+            reason = "declined_by_admin"
+            log_role = "admin"
         self.db.execute(
             """
             UPDATE chat_voice_calls
@@ -410,8 +566,8 @@ class VoiceCallService:
         except Exception:
             pass
         updated = self.get_call(call_id)
-        log_status = "declined" if role == "worker" else "cancelled"
-        self._log_call_to_chat(updated, status=log_status, reason=reason, role=role)
+        log_status = "declined" if status == "declined" else "cancelled"
+        self._log_call_to_chat(updated, status=log_status, reason=reason, role=log_role)
         return updated
 
     def end_call(self, call_id: str, *, role: str, reason: str = "hangup") -> dict[str, Any]:

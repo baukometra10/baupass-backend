@@ -96,6 +96,8 @@
       this.meterTimer = null;
       this.localMeterData = null;
       this.remoteMeterData = null;
+      this.deferredOffer = false;
+      this.offerSent = false;
     }
 
     _callStatusPath() {
@@ -360,6 +362,17 @@
       }
     }
 
+    async _sendOfferAfterAccept() {
+      if (this.offerSent || this.ended || !this.callId) return;
+      this.offerSent = true;
+      this._stopRingtone();
+      await this._createPeer();
+      const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
+      await this.pc.setLocalDescription(offer);
+      await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      this.onState("connected");
+    }
+
     _pollPath() {
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
       let url = `${prefix}/chat/calls/${encodeURIComponent(this.callId)}/signals`;
@@ -382,6 +395,9 @@
           for (const signal of signals) {
             this.lastSignalId = signal.id || this.lastSignalId;
             await this._applyRemoteSignal(signal);
+          }
+          if (this.deferredOffer && !this.offerSent && call.status === "accepted") {
+            await this._sendOfferAfterAccept();
           }
           if (this.role === "admin" && call.status === "accepted") {
             this._stopRingtone();
@@ -426,6 +442,27 @@
       const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
       await this.pc.setLocalDescription(offer);
       await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      this._startPolling();
+      this._scheduleRingTimeout();
+    }
+
+    async startWorkerOutgoing() {
+      this.deferredOffer = true;
+      this.offerSent = false;
+      this.onState("dialing");
+      const res = await this.api("/api/worker-app/chat/calls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const call = res.call || {};
+      this.callId = String(call.id || "");
+      this.iceServers = call.iceServers || [];
+      if (!this.callId) throw new Error("call_start_failed");
+      this.ringtone = createRingtone();
+      this.ringtone.start();
+      this.ringDeadline = Date.now() + RING_TIMEOUT_MS;
+      this.onState("ringing");
       this._startPolling();
       this._scheduleRingTimeout();
     }
