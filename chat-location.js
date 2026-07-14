@@ -4,7 +4,9 @@
 (function initSuppixChatLocation(global) {
   const PREFIX = "@location|";
   const DEFAULT_MAX_ACCURACY_M = 10;
+  const SEND_MAX_ACCURACY_M = 30;
   let overlayEl = null;
+  let stylesInjected = false;
 
   function escapePart(value) {
     return encodeURIComponent(String(value ?? "").trim());
@@ -64,12 +66,41 @@
     return `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}#map=18/${loc.lat}/${loc.lng}`;
   }
 
+  function embedMapUrl(loc) {
+    if (!loc) return "";
+    const lat = Number(loc.lat);
+    const lng = Number(loc.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 16;
+    const latDelta = zoom >= 17 ? 0.0035 : 0.006;
+    const lngDelta = zoom >= 17 ? 0.0055 : 0.009;
+    const bbox = [
+      lng - lngDelta,
+      lat - latDelta,
+      lng + lngDelta,
+      lat + latDelta,
+    ].join(",");
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
+
   function staticMapUrl(loc) {
     if (!loc) return "";
     const lat = loc.lat.toFixed(6);
     const lng = loc.lng.toFixed(6);
-    const zoom = Number(loc.accuracy) <= 10 ? 17 : 15;
+    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 15;
     return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=320x180&markers=${lat},${lng}`;
+  }
+
+  function ensureLocationStyles() {
+    if (stylesInjected || !global.document) return;
+    stylesInjected = true;
+    const style = global.document.createElement("style");
+    style.id = "suppixChatLocationStyles";
+    style.textContent = [
+      ".chat-location-map-embed{display:block;width:100%;height:180px;border:0;background:#0f172a}",
+      ".chat-location-map-fallback{display:grid;place-items:center;min-height:140px;background:linear-gradient(145deg,#0f172a,#1e293b);color:#94a3b8;font-size:.82rem;padding:1rem;text-align:center}",
+    ].join("");
+    global.document.head.appendChild(style);
   }
 
   function formatLocationPreview(labels = {}) {
@@ -95,18 +126,22 @@
 
   function renderLocationBubbleHtml(loc, labels = {}, options = {}) {
     if (!loc) return "";
+    ensureLocationStyles();
     const side = options.side === "mine" ? "is-mine" : "is-them";
     const title = escapeHtml(loc.label || labels.sharedTitle || formatLocationPreview(labels));
     const accText = accuracyLabel(loc, labels);
     const accClass = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? "is-precise" : "";
-    const mapSrc = staticMapUrl(loc);
+    const embedSrc = embedMapUrl(loc);
     const href = mapsUrl(loc);
     const openLabel = escapeHtml(labels.openMaps || "In Karte öffnen");
+    const mapHtml = embedSrc
+      ? `<iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="lazy" title="${title}" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+      : `<div class="chat-location-map-fallback">${openLabel}</div>`;
     return `<div class="chat-location-card ${side}">
-      <a class="chat-location-map-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" aria-label="${openLabel}">
-        <img class="chat-location-map" src="${escapeHtml(mapSrc)}" alt="${title}" loading="lazy" width="320" height="180" />
+      <div class="chat-location-map-link">
+        ${mapHtml}
         <span class="chat-location-map-pin" aria-hidden="true">📍</span>
-      </a>
+      </div>
       <div class="chat-location-meta">
         <div class="chat-location-head">
           <span class="chat-location-icon" aria-hidden="true">📍</span>
@@ -177,8 +212,8 @@
     const code = String(error?.message || error?.code || "");
     const acc = Number(error?.accuracyMeters);
     if (code === "geolocation_inaccurate" || code === "location_not_precise_enough") {
-      const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. 10 m Genauigkeit nötig.";
-      return tpl.replace("{m}", String(Math.round(acc || 99)));
+      const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. {max} m nötig.";
+      return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", String(SEND_MAX_ACCURACY_M));
     }
     if (code === "geolocation_unsupported") return labels.unsupported || "Standort wird auf diesem Gerät nicht unterstützt.";
     if (code === "geolocation_timeout") return labels.timeout || "Standort-Timeout — bitte erneut versuchen.";
@@ -187,7 +222,8 @@
   }
 
   async function captureChatLocation(options = {}) {
-    const maxAcc = Number(options.maxAccuracyMeters || DEFAULT_MAX_ACCURACY_M);
+    const idealAcc = Number(options.maxAccuracyMeters || DEFAULT_MAX_ACCURACY_M);
+    const sendMaxAcc = Number(options.fallbackMaxAccuracyMeters || SEND_MAX_ACCURACY_M);
     const labels = options.labels || {};
     let cancelled = false;
     const overlay = showCaptureOverlay(labels, () => { cancelled = true; });
@@ -199,15 +235,15 @@
       let point = null;
       if (typeof global.captureSiteAnchorGeolocation === "function") {
         point = await global.captureSiteAnchorGeolocation({
-          maxAcceptAccuracyMeters: maxAcc,
-          fallbackMaxAccuracyMeters: maxAcc,
-          hardMaxMs: Number(options.maxWaitMs || 15000),
+          maxAcceptAccuracyMeters: idealAcc,
+          fallbackMaxAccuracyMeters: sendMaxAcc,
+          hardMaxMs: Number(options.maxWaitMs || 20000),
           onProgress,
         });
       } else if (typeof global.captureMapsGradeGeolocation === "function") {
-        point = await global.captureMapsGradeGeolocation({ onProgress, maxWaitMs: 15000 });
+        point = await global.captureMapsGradeGeolocation({ onProgress, maxWaitMs: 20000 });
       } else if (typeof global.capturePointGeolocation === "function") {
-        point = await global.capturePointGeolocation({ maxWaitMs: 8000, onProgress });
+        point = await global.capturePointGeolocation({ maxWaitMs: 12000, onProgress });
       } else if (global.navigator?.geolocation) {
         point = await new Promise((resolve, reject) => {
           global.navigator.geolocation.getCurrentPosition(
@@ -217,7 +253,7 @@
               accuracy: pos.coords.accuracy,
             }),
             reject,
-            { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
           );
         });
       } else {
@@ -230,7 +266,7 @@
         throw error;
       }
       const accuracy = Number(point?.accuracy);
-      if (!Number.isFinite(accuracy) || accuracy > maxAcc) {
+      if (!Number.isFinite(accuracy) || accuracy > sendMaxAcc) {
         const error = new Error("location_not_precise_enough");
         error.accuracyMeters = accuracy;
         throw error;
@@ -249,6 +285,7 @@
   global.SUPPIXChatLocation = {
     PREFIX,
     DEFAULT_MAX_ACCURACY_M,
+    SEND_MAX_ACCURACY_M,
     encodeLocationBody,
     parseLocationBody,
     isLocationBody,

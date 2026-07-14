@@ -70,7 +70,7 @@
   function isInteractiveTarget(target) {
     if (!(target instanceof Element)) return false;
     return Boolean(target.closest(
-      "button:not(.bubble-menu-btn), a, input, textarea, select, audio, video, .chat-image-preview, [data-attachment-id], [data-voice-callback], .chat-location-open",
+      "button:not(.bubble-menu-btn), a, input, textarea, select, audio, video, iframe, .chat-image-preview, [data-attachment-id], [data-voice-callback], .chat-location-open, .chat-location-map-embed",
     ));
   }
 
