@@ -68,6 +68,8 @@
     .chat-main-head-inner { display:flex; align-items:center; gap:0.75rem; min-width:0; }
     .chat-head-avatar { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; color:#042f2e; font-weight:800; background:linear-gradient(135deg,#5eead4,#93c5fd); flex-shrink:0; }
     .chat-head-avatar.hidden { display:none; }
+    .hidden { display:none !important; }
+    .chat-compose.is-inactive { display:none; }
     .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); }
     .chat-compose-bar { display:flex; align-items:flex-end; gap:0.45rem; }
     .chat-compose-attach { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--muted); cursor:pointer; flex-shrink:0; }
@@ -746,7 +748,7 @@
         <div id="messageList" class="message-list">
           <p class="muted" id="pickWorkerHint" data-aci18n="pickWorkerHint">Wählen Sie links einen Mitarbeiter aus.</p>
         </div>
-        <div class="chat-compose">
+        <div class="chat-compose is-inactive" id="chatCompose">
           <p id="chatVoiceHint" class="chat-voice-hint hidden" aria-live="polite"></p>
           <div class="chat-compose-bar">
             <label class="chat-compose-attach" for="chatFile" title="Anhang">
@@ -848,9 +850,9 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260714voice10"></script>
-  <script src="/chat-voice-call.js?v=20260714voice10"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice10"></script>
+  <script src="/chat-voice.js?v=20260714voice11"></script>
+  <script src="/chat-voice-call.js?v=20260714voice11"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice11"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -911,6 +913,7 @@
       renderThreads();
       if (!currentThreadId) {
         updateChatHead("");
+        syncAdminThreadCompose();
         const list = document.getElementById("messageList");
         if (list && !currentWorkerId) {
           list.innerHTML = `<p class="muted" id="pickWorkerHint">${window.adminChatT("pickWorkerHint")}</p>`;
@@ -1351,13 +1354,24 @@
           slideLock: window.adminChatT("chatVoiceSlideLock"),
           lockedRecording: window.adminChatT("chatVoiceLockedRecording"),
           sendVoice: window.adminChatT("send"),
+          cancel: window.adminChatT("chatVoiceCancel"),
+          desktopRecording: window.adminChatT("chatVoiceRecording"),
+          noThread: window.adminChatT("chatVoiceNoThread"),
           tooShort: window.adminChatT("chatVoiceTooShort"),
         },
         onSendText: () => handleAdminPrimaryAction(),
         onSendVoice: async (voiceFile) => {
           await sendAdminChatPayload({ body: window.adminChatT("chatVoiceMessage"), file: voiceFile });
         },
-        onRecordingTick: (seconds) => updateAdminVoiceHint(seconds),
+        canRecord: () => Boolean(currentThreadId && currentWorkerId),
+        onRecordingTick: (seconds) => {
+          adminVoiceRecording = true;
+          updateAdminVoiceHint(seconds);
+        },
+        onRecordingEnd: () => {
+          adminVoiceRecording = false;
+          updateAdminVoiceHint(0);
+        },
         onError: (error) => {
           adminVoiceRecording = false;
           updateAdminVoiceHint(0);
@@ -1366,7 +1380,9 @@
           document.querySelector(".chat-compose")?.classList.remove("is-voice-recording");
           document.querySelector(".wa-voice-record-sheet")?.classList.add("hidden");
           const msg = String(error?.message || error || "");
-          if (msg.includes("too_short") || msg === window.adminChatT("chatVoiceTooShort")) {
+          if (msg === "no_thread_selected" || msg.includes("no_thread")) {
+            setThreadMeta(window.adminChatT("chatVoiceNoThread"), { dynamic: true });
+          } else if (msg.includes("too_short") || msg === window.adminChatT("chatVoiceTooShort")) {
             setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });
           } else if (msg === "e2e_keys_missing") {
             setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });
@@ -1386,7 +1402,32 @@
         placeholder: window.adminChatT("replyPh"),
       };
     }
-    function syncAdminComposeAction() {
+    function syncAdminThreadCompose() {
+      const compose = document.getElementById("chatCompose");
+      const active = Boolean(currentThreadId && currentWorkerId);
+      if (compose) {
+        compose.classList.toggle("is-inactive", !active);
+      }
+      const micBtn = document.getElementById("chatVoiceMicBtn");
+      const replyInput = document.getElementById("chatReply");
+      const fileInput = document.getElementById("chatFile");
+      const callBtn = document.getElementById("chatVoiceCallBtn");
+      const historyBtn = document.getElementById("chatVoiceHistoryBtn");
+      if (micBtn) micBtn.disabled = !active;
+      if (replyInput) replyInput.disabled = !active;
+      if (fileInput) fileInput.disabled = !active;
+      if (callBtn) callBtn.disabled = !active;
+      if (historyBtn) historyBtn.disabled = !active;
+      if (!active) {
+        adminVoiceRecorder?.cancel?.();
+        adminVoiceRecording = false;
+        document.getElementById("chatVoiceMicBtn")?.classList.remove("is-recording");
+        compose?.classList.remove("is-voice-recording");
+        document.querySelector(".wa-voice-record-sheet")?.classList.add("hidden");
+        updateAdminVoiceHint(0);
+      }
+      syncAdminComposeAction();
+    }
       const input = document.getElementById("chatReply");
       const sendBtn = document.getElementById("sendReplyBtn");
       const fileInput = document.getElementById("chatFile");
@@ -1704,6 +1745,7 @@
       const name = row ? threadDisplayName(row) : requestedWorkerId;
       lastThreadMetaName = name || "";
       updateChatHead(name);
+      syncAdminThreadCompose();
       setThreadMeta(window.adminChatT("chatWith", { name }), { dynamic: true });
       const list = document.getElementById("messageList");
       if (list) {
@@ -1722,6 +1764,7 @@
           row.hasThread = true;
         }
         currentThreadId = resolvedId;
+        syncAdminThreadCompose();
         await loadMessages(resolvedId, requestedWorkerId);
         startChatPolling();
         renderThreads();
@@ -1764,6 +1807,7 @@
         if (!quiet) {
           lastThreadMetaName = name || "";
           updateChatHead(name);
+          syncAdminThreadCompose();
           setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
         }
         const list = document.getElementById("messageList");
@@ -2404,6 +2448,7 @@
     });
 
     syncAdminComposeAction();
+    syncAdminThreadCompose();
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
 
@@ -2521,6 +2566,8 @@
       await window.E2ECrypto?.ensureCryptoSessionReady?.();
       await ensureAdminE2EIdentity();
       bindAdminWhatsAppVoiceCompose();
+      updateChatHead("");
+      syncAdminThreadCompose();
       syncAdminComposeAction();
       startAdminIncomingCallPoll();
       await loadThreads();

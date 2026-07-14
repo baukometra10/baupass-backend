@@ -535,7 +535,9 @@
     onSendText,
     onSendVoice,
     onRecordingTick,
+    onRecordingEnd,
     onError,
+    canRecord,
   }) {
     if (!root || !micBtn || !recorder) return () => {};
     const cancelSlidePx = 72;
@@ -566,7 +568,10 @@
             <div class="wa-voice-record-live-wave" aria-hidden="true"></div>
             <span class="wa-voice-record-timer">0:00</span>
           </div>
-          <button type="button" class="wa-voice-record-send hidden">${labels.sendVoice || "Senden"}</button>
+          <div class="wa-voice-record-actions">
+            <button type="button" class="wa-voice-record-cancel-btn hidden">${labels.cancel || "Abbrechen"}</button>
+            <button type="button" class="wa-voice-record-send hidden">${labels.sendVoice || "Senden"}</button>
+          </div>
         </div>`;
       root.appendChild(sheet);
       const wave = sheet.querySelector(".wa-voice-record-live-wave");
@@ -579,6 +584,7 @@
     const lockHintEl = sheet.querySelector(".wa-voice-record-lock-hint");
     const lockBtnEl = sheet.querySelector(".wa-voice-record-lock-btn");
     const sendLockedBtn = sheet.querySelector(".wa-voice-record-send");
+    const cancelLockedBtn = sheet.querySelector(".wa-voice-record-cancel-btn");
 
     const stopTickTimer = () => {
       if (tickTimer) {
@@ -604,9 +610,23 @@
       sheet.classList.toggle("hidden", !active);
       sheet.classList.toggle("is-locked", locked);
       lockBtnEl?.classList.toggle("hidden", !locked);
-      sendLockedBtn?.classList.toggle("hidden", !locked);
+      const showDesktopActions = active && useToggleMode;
+      const showLockedSend = active && locked;
+      sendLockedBtn?.classList.toggle("hidden", !(showLockedSend || showDesktopActions));
+      cancelLockedBtn?.classList.toggle("hidden", !(showLockedSend || showDesktopActions));
       lockHintEl?.classList.toggle("hidden", locked || useToggleMode);
-      if (!active) stopTickTimer();
+      if (active && useToggleMode && cancelEl) {
+        cancelEl.textContent = labels.desktopRecording || labels.recording || "Aufnahme läuft…";
+      }
+      if (!active) {
+        cancelArmed = false;
+        if (cancelEl) {
+          cancelEl.classList.remove("is-armed");
+          cancelEl.textContent = labels.slideCancel || "← Wischen zum Abbrechen";
+        }
+        stopTickTimer();
+        onRecordingEnd?.();
+      }
       syncSendBtn();
     };
 
@@ -662,6 +682,10 @@
 
     const beginRecording = async () => {
       if (recording || pendingStart) return;
+      if (typeof canRecord === "function" && !canRecord()) {
+        onError?.(new Error(labels.noThread || "no_thread_selected"));
+        return;
+      }
       cancelPending = false;
       cancelArmed = false;
       pendingStart = recorder.start()
@@ -738,12 +762,28 @@
     };
 
     sendLockedBtn?.addEventListener("click", () => {
-      if (recording && locked) void finishRecording(true);
+      if (recording) void finishRecording(true);
+    });
+
+    cancelLockedBtn?.addEventListener("click", () => {
+      if (!recording) return;
+      cancelArmed = true;
+      void finishRecording(false);
+    });
+
+    cancelEl?.addEventListener("click", () => {
+      if (!recording || useToggleMode) return;
+      cancelArmed = true;
+      void finishRecording(false);
     });
 
     const onMicToggleClick = (event) => {
       if (!useToggleMode) return;
       event.preventDefault();
+      if (typeof canRecord === "function" && !canRecord() && !recording) {
+        onError?.(new Error(labels.noThread || "no_thread_selected"));
+        return;
+      }
       if (recording) {
         void finishRecording(true);
         return;
@@ -1414,6 +1454,9 @@
 .wa-voice-record-timer{font-variant-numeric:tabular-nums;font-weight:700;color:#e9edef;min-width:3rem;text-align:right;font-size:.95rem}
 .wa-voice-record-lock-btn{width:38px;height:38px;border-radius:50%;border:1px solid rgba(255,255,255,.12);background:rgba(0,168,132,.2);color:#00a884;display:grid;place-items:center;flex-shrink:0}
 .wa-voice-record-send{align-self:flex-end;border:none;border-radius:999px;padding:.55rem 1.1rem;background:#00a884;color:#fff;font-weight:700;cursor:pointer}
+.wa-voice-record-actions{display:flex;justify-content:flex-end;gap:.55rem}
+.wa-voice-record-cancel-btn{border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:.55rem 1.1rem;background:rgba(255,255,255,.06);color:#ff8a80;font-weight:700;cursor:pointer}
+.wa-voice-record-cancel-btn.hidden,.wa-voice-record-send.hidden{display:none}
 .wa-voice-record-sheet.is-locked .wa-voice-record-main{border-color:rgba(0,168,132,.35)}
 .chat-send-btn[hidden],.worker-chat-send-btn[hidden]{display:none!important}
 .is-voice-recording textarea{opacity:.45}

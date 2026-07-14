@@ -127,29 +127,33 @@
 
     toggleMute() {
       this.muted = !this.muted;
-      if (this.localStream) {
-        this.localStream.getAudioTracks().forEach((track) => {
-          track.enabled = !this.muted;
-        });
-      }
+      this._applyMuteToLocalTracks();
       return this.muted;
+    }
+
+    _applyMuteToLocalTracks() {
+      if (!this.localStream) return;
+      this.localStream.getAudioTracks().forEach((track) => {
+        track.enabled = !this.muted;
+      });
     }
 
     toggleSpeaker() {
       this.speakerOn = !this.speakerOn;
-      if (this.remoteAudio) {
-        this.remoteAudio.muted = !this.speakerOn;
-      }
+      this._applySpeakerToRemoteAudio();
       return this.speakerOn;
+    }
+
+    _applySpeakerToRemoteAudio() {
+      if (!this.remoteAudio) return;
+      this.remoteAudio.muted = !this.speakerOn || this.outputVolume === 0;
+      this.remoteAudio.volume = this.outputVolume;
     }
 
     setOutputVolume(value) {
       const vol = Math.max(0, Math.min(1, Number(value)));
       this.outputVolume = vol;
-      if (this.remoteAudio) {
-        this.remoteAudio.volume = vol;
-        this.remoteAudio.muted = !this.speakerOn || vol === 0;
-      }
+      this._applySpeakerToRemoteAudio();
       return vol;
     }
 
@@ -260,21 +264,27 @@
     }
 
     async _ensureMedia() {
-      if (this.localStream) return this.localStream;
+      if (this.localStream) {
+        this._applyMuteToLocalTracks();
+        return this.localStream;
+      }
       this.localStream = await navigator.mediaDevices.getUserMedia(AUDIO_CONSTRAINTS);
+      this._applyMuteToLocalTracks();
       return this.localStream;
     }
 
     _ensureRemoteAudio() {
-      if (this.remoteAudio) return this.remoteAudio;
+      if (this.remoteAudio) {
+        this._applySpeakerToRemoteAudio();
+        return this.remoteAudio;
+      }
       const audio = document.createElement("audio");
       audio.autoplay = true;
       audio.playsInline = true;
-      audio.volume = this.outputVolume;
-      audio.muted = !this.speakerOn;
       audio.style.display = "none";
       document.body.appendChild(audio);
       this.remoteAudio = audio;
+      this._applySpeakerToRemoteAudio();
       return audio;
     }
 
@@ -291,6 +301,7 @@
         const remoteStream = event.streams[0];
         const audio = this._ensureRemoteAudio();
         audio.srcObject = remoteStream;
+        this._applySpeakerToRemoteAudio();
         audio.play().catch(() => {});
         this._attachRemoteAnalyser(remoteStream);
       };
