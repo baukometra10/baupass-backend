@@ -106,6 +106,18 @@ def test_worker_can_accept_and_exchange_signals(client_and_db):
     assert end.status_code == 200
     assert end.get_json()["call"]["status"] == "ended"
 
+    thread = client.post(
+        "/api/chat/threads",
+        json={"worker_id": worker_id, "subject": "general"},
+        headers=headers,
+    )
+    assert thread.status_code == 200
+    thread_id = thread.get_json().get("threadId")
+    messages = client.get(f"/api/chat/threads/{thread_id}?company_id={company_id}", headers=headers)
+    assert messages.status_code == 200
+    rows = messages.get_json().get("messages") or []
+    assert any("@voice-call|" in str(row.get("body") or "") for row in rows)
+
 
 def test_worker_can_fetch_call_by_id(client_and_db):
     client, _ = client_and_db

@@ -185,6 +185,50 @@ class VoiceCallService:
                 pass
         return payload
 
+    def _call_duration_seconds(self, call: dict[str, Any]) -> int:
+        answered = str(call.get("answeredAt") or "").strip()
+        ended = str(call.get("endedAt") or "").strip()
+        if not answered or not ended:
+            return 0
+        try:
+            start = datetime.fromisoformat(answered.replace("Z", "+00:00"))
+            finish = datetime.fromisoformat(ended.replace("Z", "+00:00"))
+            return max(0, int((finish - start).total_seconds()))
+        except Exception:
+            return 0
+
+    def _log_call_to_chat(self, call: dict[str, Any], *, status: str, reason: str, role: str) -> None:
+        company_id = str(call.get("companyId") or "").strip()
+        worker_id = str(call.get("workerId") or "").strip()
+        caller_user_id = str(call.get("callerUserId") or "").strip()
+        if not company_id or not worker_id:
+            return
+        duration_sec = self._call_duration_seconds(call)
+        body = f"@voice-call|status={status}|duration={duration_sec}|reason={reason}|role={role}"
+        try:
+            from backend.app.domains.chat.service import ChatService
+
+            chat = ChatService(self.db)
+            thread_id = chat.get_or_create_worker_thread(
+                company_id=company_id,
+                worker_id=worker_id,
+                subject="general",
+                created_by_user_id=caller_user_id or None,
+            )
+            chat.create_message(
+                thread_id=thread_id,
+                company_id=company_id,
+                worker_id=worker_id,
+                sender_type="admin",
+                sender_user_id=caller_user_id or None,
+                sender_worker_id=None,
+                body=body,
+                allow_plaintext_e2e_fallback=True,
+            )
+            self.db.commit()
+        except Exception:
+            pass
+
     def expire_stale_calls(self) -> int:
         cutoff = (datetime.now(timezone.utc) - timedelta(seconds=RING_TIMEOUT_SECONDS)).strftime("%Y-%m-%dT%H:%M:%SZ")
         rows = self.db.execute(
@@ -212,6 +256,11 @@ class VoiceCallService:
                     row["company_id"],
                     {"callId": row["id"], "workerId": row["worker_id"]},
                 )
+            except Exception:
+                pass
+            try:
+                missed_call = self.get_call(str(row["id"]))
+                self._log_call_to_chat(missed_call, status="missed", reason="timeout", role="system")
             except Exception:
                 pass
         return count
@@ -356,7 +405,10 @@ class VoiceCallService:
             )
         except Exception:
             pass
-        return self.get_call(call_id)
+        updated = self.get_call(call_id)
+        log_status = "declined" if role == "worker" else "cancelled"
+        self._log_call_to_chat(updated, status=log_status, reason=reason, role=role)
+        return updated
 
     def end_call(self, call_id: str, *, role: str, reason: str = "hangup") -> dict[str, Any]:
         call = self.get_call(call_id)
@@ -381,7 +433,9 @@ class VoiceCallService:
             )
         except Exception:
             pass
-        return self.get_call(call_id)
+        updated = self.get_call(call_id)
+        self._log_call_to_chat(updated, status="ended", reason=end_reason, role=role)
+        return updated
 
     def add_signal(self, call_id: str, *, sender_role: str, signal_type: str, payload: Any) -> dict[str, Any]:
         call = self.get_call(call_id)

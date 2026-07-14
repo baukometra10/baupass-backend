@@ -147,7 +147,13 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                     ),
                   ),
                   if (isConnected) ...[
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 22),
+                    _CallLevelMeters(
+                      local: widget.controller.localLevel,
+                      remote: widget.controller.remoteLevel,
+                      accent: _accent,
+                    ),
+                    const SizedBox(height: 18),
                     _WaveBars(controller: _waveController, accent: _accent),
                   ],
                   const Spacer(flex: 3),
@@ -342,6 +348,62 @@ class _CallerAvatar extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _CallLevelMeters extends StatelessWidget {
+  const _CallLevelMeters({
+    required this.local,
+    required this.remote,
+    required this.accent,
+  });
+
+  final double local;
+  final double remote;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 280,
+      child: Column(
+        children: [
+          _meterRow('Sie', local, accent),
+          const SizedBox(height: 8),
+          _meterRow('Arbeitgeber', remote, const Color(0xFF34D399)),
+        ],
+      ),
+    );
+  }
+
+  Widget _meterRow(String label, double level, Color color) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 72,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.72),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: level.clamp(0.0, 1.0),
+              backgroundColor: Colors.white.withValues(alpha: 0.12),
+              color: color,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -134,6 +135,7 @@ class WorkerVoiceCallSession {
     required this.call,
     required this.onState,
     this.onRemoteStream,
+    this.onAudioLevels,
   });
 
   final VoiceCallRepository repo;
@@ -141,11 +143,13 @@ class WorkerVoiceCallSession {
   final Map<String, dynamic> call;
   final void Function(String state) onState;
   final void Function(MediaStream stream)? onRemoteStream;
+  final void Function(double local, double remote)? onAudioLevels;
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
   MediaStream? _remoteStream;
   Timer? _pollTimer;
+  Timer? _meterTimer;
   String _lastSignalId = '';
   bool _ended = false;
   bool _muted = false;
@@ -192,6 +196,42 @@ class WorkerVoiceCallSession {
       }
     };
     _startPolling();
+    _startMeters();
+  }
+
+  void _startMeters() {
+    _meterTimer?.cancel();
+    _meterTimer = Timer.periodic(const Duration(milliseconds: 90), (_) async {
+      final pc = _pc;
+      if (_ended || pc == null) return;
+      try {
+        final stats = await pc.getStats();
+        var local = 0.0;
+        var remote = 0.0;
+        stats.forEach((_, report) {
+          final values = report.values;
+          final type = report.type;
+          if (type == 'media-source' && values['kind'] == 'audio') {
+            final level = values['audioLevel'];
+            if (level is num) local = math.max(local, level.toDouble().clamp(0.0, 1.0));
+          }
+          if (type == 'inbound-rtp' && (values['kind'] == 'audio' || values['mediaType'] == 'audio')) {
+            final level = values['audioLevel'];
+            if (level is num) remote = math.max(remote, level.toDouble().clamp(0.0, 1.0));
+          }
+        });
+        if (_muted) local = 0;
+        onAudioLevels?.call(local, remote);
+      } catch (_) {
+        /* ignore transient stats errors */
+      }
+    });
+  }
+
+  void _stopMeters() {
+    _meterTimer?.cancel();
+    _meterTimer = null;
+    onAudioLevels?.call(0, 0);
   }
 
   Future<void> setMuted(bool muted) async {
@@ -277,6 +317,7 @@ class WorkerVoiceCallSession {
     if (_ended) return;
     _ended = true;
     _pollTimer?.cancel();
+    _stopMeters();
     try {
       await repo.endCall(session, callId, reason: reason);
     } catch (_) {

@@ -29,6 +29,8 @@ class VoiceCallController extends ChangeNotifier {
   Duration _elapsed = Duration.zero;
   bool _muted = false;
   bool _speakerOn = true;
+  double _localLevel = 0;
+  double _remoteLevel = 0;
   String? _lastDismissedCallId;
 
   VoiceCallUiPhase get phase => _phase;
@@ -37,6 +39,8 @@ class VoiceCallController extends ChangeNotifier {
   Duration get elapsed => _elapsed;
   bool get muted => _muted;
   bool get speakerOn => _speakerOn;
+  double get localLevel => _localLevel;
+  double get remoteLevel => _remoteLevel;
   bool get isActive => _phase != VoiceCallUiPhase.idle && _phase != VoiceCallUiPhase.ended;
   WorkerVoiceCallSession? get rtcSession => _sessionRtc;
 
@@ -154,6 +158,11 @@ class VoiceCallController extends ChangeNotifier {
       call: call,
       onState: _onRtcState,
       onRemoteStream: (_) => notifyListeners(),
+      onAudioLevels: (local, remote) {
+        _localLevel = local;
+        _remoteLevel = remote;
+        notifyListeners();
+      },
     );
     await _sessionRtc!.acceptAndConnect();
     await _sessionRtc!.setSpeakerphone(_speakerOn);
@@ -231,6 +240,8 @@ class VoiceCallController extends ChangeNotifier {
     _connectedAt = null;
     _elapsed = Duration.zero;
     _muted = false;
+    _localLevel = 0;
+    _remoteLevel = 0;
     _phase = VoiceCallUiPhase.ended;
     _statusNote = note;
     notifyListeners();

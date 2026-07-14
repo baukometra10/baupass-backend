@@ -479,6 +479,55 @@
       background: #b91c1c;
       border-color: #ef4444;
     }
+    .voice-call-live-wave {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 3px;
+      height: 42px;
+      margin: 0.95rem auto 0.15rem;
+      width: min(280px, 100%);
+    }
+    .voice-call-live-wave span {
+      width: 3px;
+      border-radius: 999px;
+      height: 18%;
+      background: linear-gradient(180deg, #67e8f9, #14b8a6);
+      transition: height 0.08s linear;
+    }
+    .chat-call-log {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(94, 234, 212, 0.22);
+      max-width: 100%;
+    }
+    .bubble.admin .chat-call-log { background: rgba(255, 255, 255, 0.14); }
+    .bubble.worker .chat-call-log { background: rgba(15, 23, 42, 0.08); }
+    .chat-call-log-icon {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(6, 182, 212, 0.22);
+      color: #ecfeff;
+      flex-shrink: 0;
+    }
+    .chat-call-log-text {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: rgba(241, 245, 249, 0.92);
+    }
+    .bubble.is-call-log {
+      background: transparent !important;
+      box-shadow: none !important;
+      padding-top: 0.15rem;
+      padding-bottom: 0.15rem;
+    }
     .voice-call-actions {
       display: flex;
       gap: 0.75rem;
@@ -604,6 +653,7 @@
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
+      <div id="voiceCallLiveWave" class="voice-call-live-wave" aria-hidden="true"></div>
       <div id="voiceCallMeters" class="voice-call-meters" aria-live="polite">
         <div class="voice-call-meter-row">
           <span id="voiceCallMicLabel" data-aci18n="voiceCallMicLabel">Sie</span>
@@ -635,8 +685,8 @@
     </div>
   </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260714voice5"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice5"></script>
+  <script src="/chat-voice-call.js?v=20260714voice6"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice6"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1185,6 +1235,10 @@
       if (!row?.hasThread) return window.adminChatT("newChat");
       const preview = String(row.last_message_preview || "").trim();
       if (!preview) return row.subject || "general";
+      if (preview.startsWith("@voice-call|")) {
+        const meta = parseVoiceCallLogBody(preview);
+        if (meta) return `${window.adminChatT("voiceCallLogTitle")} · ${voiceCallLogSummary(meta)}`;
+      }
       if (preview === "encrypted") return window.adminChatT("encryptedPreview");
       if (preview === "voice" || /🎤|sprachnachricht|voice message/i.test(preview) || /\.(webm|m4a|ogg|mp3|wav)$/i.test(preview)) {
         const voice = window.adminChatT("chatVoiceMessage");
@@ -1258,7 +1312,42 @@
     function messageIdPresent(msg) {
       return Boolean(String(msg.id || "").trim());
     }
+    function parseVoiceCallLogBody(body) {
+      const text = String(body || "").trim();
+      if (!text.startsWith("@voice-call|")) return null;
+      const meta = {};
+      text.slice("@voice-call|".length).split("|").forEach((part) => {
+        const idx = part.indexOf("=");
+        if (idx < 0) return;
+        meta[part.slice(0, idx)] = part.slice(idx + 1);
+      });
+      return meta.status ? meta : null;
+    }
+    function voiceCallLogSummary(meta) {
+      const status = String(meta?.status || "ended");
+      const duration = Number(meta?.duration || 0);
+      const statusKey = {
+        ended: "voiceCallLogEnded",
+        declined: "voiceCallLogDeclined",
+        missed: "voiceCallLogMissed",
+        cancelled: "voiceCallLogCancelled",
+      }[status] || "voiceCallLogEnded";
+      const statusText = window.adminChatT(statusKey);
+      if (duration > 0) return `${statusText} · ${formatVoiceCallDuration(duration * 1000)}`;
+      return statusText;
+    }
+    function renderCallLogBubble(msg, meta, options = {}) {
+      const { grouped = false, tail = true } = options;
+      const time = formatBubbleTime(msg.createdAt);
+      const messageId = escapeHtml(String(msg.id || ""));
+      const sideClass = msg.senderType === "admin" ? "admin" : "worker";
+      const classes = ["bubble", sideClass, "is-call-log", grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
+      const summary = escapeHtml(voiceCallLogSummary(meta));
+      return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true">📞</span><span class="chat-call-log-text">${summary}</span></div><div class="bubble-meta"><span>${time}</span></div></div>`;
+    }
     function renderChatBubble(msg, options = {}) {
+      const callLog = parseVoiceCallLogBody(msg.body);
+      if (callLog) return renderCallLogBubble(msg, callLog, options);
       const { grouped = false, tail = true } = options;
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
       const time = formatBubbleTime(msg.createdAt);
@@ -1691,6 +1780,37 @@
     let activeVoiceCallSession = null;
     let voiceCallTimerInterval = null;
     let voiceCallStartedAt = 0;
+    const VOICE_CALL_SVG = {
+      mic: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3Z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 0 1-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      micOff: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V6a3 3 0 0 0-5.94-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17 11a7 7 0 0 1-7 7M5 5l14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      speaker: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 9a4 4 0 0 1 0 6M19 7a7 7 0 0 1 0 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      speakerOff: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M22 9 16 15M16 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      hangup: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 7.5c2.4-2.4 6.6-2.4 9 0l1.5 1.5M9 9l6 6M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+    };
+    function ensureVoiceCallLiveWave() {
+      const wave = document.getElementById("voiceCallLiveWave");
+      if (!wave || wave.childElementCount) return;
+      wave.innerHTML = Array.from({ length: 28 }, () => "<span></span>").join("");
+    }
+    function updateVoiceCallLiveWave(local, remote) {
+      const wave = document.getElementById("voiceCallLiveWave");
+      if (!wave) return;
+      ensureVoiceCallLiveWave();
+      const level = Math.max(Number(local || 0), Number(remote || 0));
+      wave.querySelectorAll("span").forEach((bar, index) => {
+        const phase = (Date.now() / 120 + index * 0.35) % (Math.PI * 2);
+        const base = 0.2 + Math.sin(phase) * 0.14;
+        const height = Math.round((base + level * 0.66) * 100);
+        bar.style.height = `${Math.max(14, Math.min(100, height))}%`;
+      });
+    }
+    function resetVoiceCallLiveWave() {
+      const wave = document.getElementById("voiceCallLiveWave");
+      if (!wave) return;
+      wave.querySelectorAll("span").forEach((bar) => {
+        bar.style.height = "18%";
+      });
+    }
     function resetVoiceCallMeters() {
       const micFill = document.getElementById("voiceCallMicFill");
       const remoteFill = document.getElementById("voiceCallRemoteFill");
@@ -1702,7 +1822,7 @@
       if (!btn) return;
       btn.classList.toggle("is-active", muted);
       const icon = btn.querySelector(".voice-call-btn-icon");
-      if (icon) icon.textContent = muted ? "🔇" : "🎤";
+      if (icon) icon.innerHTML = muted ? VOICE_CALL_SVG.micOff : VOICE_CALL_SVG.mic;
       const label = btn.querySelector(".voice-call-btn-label");
       const text = muted
         ? (window.adminChatT("voiceCallUnmute") || "Ton an")
@@ -1716,7 +1836,7 @@
       if (!btn) return;
       btn.classList.toggle("is-active", !on);
       const icon = btn.querySelector(".voice-call-btn-icon");
-      if (icon) icon.textContent = on ? "🔊" : "🔈";
+      if (icon) icon.innerHTML = on ? VOICE_CALL_SVG.speaker : VOICE_CALL_SVG.speakerOff;
       const label = btn.querySelector(".voice-call-btn-label");
       const text = on
         ? (window.adminChatT("voiceCallSpeaker") || "Lautsprecher")
@@ -1727,10 +1847,18 @@
     }
     function resetVoiceCallControls() {
       resetVoiceCallMeters();
+      resetVoiceCallLiveWave();
       updateVoiceCallMuteBtn(false);
       updateVoiceCallSpeakerBtn(true);
       const volume = document.getElementById("voiceCallVolume");
       if (volume) volume.value = "100";
+      ensureVoiceCallLiveWave();
+      const hangupIcon = document.querySelector("#voiceCallHangupBtn .voice-call-btn-icon");
+      if (hangupIcon) hangupIcon.innerHTML = VOICE_CALL_SVG.hangup;
+      const muteIcon = document.querySelector("#voiceCallMuteBtn .voice-call-btn-icon");
+      if (muteIcon) muteIcon.innerHTML = VOICE_CALL_SVG.mic;
+      const speakerIcon = document.querySelector("#voiceCallSpeakerBtn .voice-call-btn-icon");
+      if (speakerIcon) speakerIcon.innerHTML = VOICE_CALL_SVG.speaker;
     }
     function voiceCallInitials(name) {
       const parts = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
@@ -1820,11 +1948,16 @@
           const remoteFill = document.getElementById("voiceCallRemoteFill");
           if (micFill) micFill.style.width = `${Math.round((local || 0) * 100)}%`;
           if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
+          updateVoiceCallLiveWave(local, remote);
         },
-        onState: (state) => {
+        onState: (state, reason) => {
           if (state === "ended") {
             setVoiceCallOverlay(false);
             activeVoiceCallSession = null;
+            if (currentThreadId) {
+              void loadMessages(currentThreadId, currentWorkerId);
+              void loadThreads();
+            }
             return;
           }
           setVoiceCallOverlay(true, voiceCallStatusLabel(state), state);
@@ -1863,6 +1996,10 @@
         if (activeVoiceCallSession) await activeVoiceCallSession.end("hangup");
         activeVoiceCallSession = null;
         setVoiceCallOverlay(false);
+        if (currentThreadId) {
+          await loadMessages(currentThreadId, currentWorkerId);
+          await loadThreads();
+        }
       })();
     });
     document.getElementById("voiceCallMuteBtn")?.addEventListener("click", () => {
