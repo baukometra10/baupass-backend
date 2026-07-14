@@ -1,13 +1,14 @@
 /**
- * SUPPIX chat location — blink-fast share (memory + cached GPS), WhatsApp-style map card.
+ * SUPPIX chat location — WhatsApp-style Google Maps card + accurate GPS when sharing.
  */
 (function initSuppixChatLocation(global) {
   const PREFIX = "@location|";
   const DEFAULT_MAX_ACCURACY_M = 10;
-  const SEND_MAX_ACCURACY_M = 120;
-  const LAST_KNOWN_MAX_AGE_MS = 15 * 60 * 1000;
-  const FAST_CAPTURE_MAX_MS = 1200;
-  let overlayEl = null;
+  const INSTANT_MAX_ACCURACY_M = 25;
+  const TARGET_ACCURACY_M = 18;
+  const SEND_MAX_ACCURACY_M = 50;
+  const LAST_KNOWN_MAX_AGE_MS = 10 * 60 * 1000;
+  const REFINE_MAX_MS = 6500;
   let stylesInjected = false;
   let lastKnownChatGeo = null;
   let warmInFlight = null;
@@ -77,12 +78,12 @@
     const lat = Number(loc?.lat);
     const lng = Number(loc?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
-    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 16;
+    const acc = Number(loc?.accuracy) || 999;
+    const zoom = acc <= DEFAULT_MAX_ACCURACY_M ? 18 : acc <= 35 ? 17 : 16;
     const q = encodeURIComponent(`${lat},${lng}`);
     return `https://maps.google.com/maps?q=${q}&hl=de&z=${zoom}&output=embed`;
   }
 
-  /** @deprecated use googleMapsUrl */
   function mapsUrl(loc) {
     return googleMapsUrl(loc);
   }
@@ -101,11 +102,18 @@
     const style = global.document.createElement("style");
     style.id = "suppixChatLocationStyles";
     style.textContent = [
-      ".chat-location-map-embed{display:block;width:100%;height:180px;border:0;background:#e8eaed;pointer-events:none}",
-      ".chat-location-map-hit{display:block;position:relative;overflow:hidden;border-radius:12px 12px 0 0;background:#e8eaed;text-decoration:none;color:inherit}",
-      ".chat-location-map-hit:hover .chat-location-map-embed{opacity:.94}",
-      ".chat-location-map-fallback{display:grid;place-items:center;min-height:160px;background:linear-gradient(145deg,#e8eaed,#d2dbe3);color:#3c4043;font-size:.82rem;padding:1rem;text-align:center}",
-      ".chat-location-map-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-78%);font-size:1.75rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));pointer-events:none;z-index:2}",
+      ".chat-location-card{max-width:min(100%,300px);border-radius:10px;overflow:hidden;background:#1f2c34;box-shadow:0 1px 2px rgba(0,0,0,.22)}",
+      ".chat-location-card.is-mine,.chat-location-card.is-them{border:1px solid rgba(134,150,160,.16)}",
+      ".chat-location-map-hit{display:block;text-decoration:none;color:inherit}",
+      ".chat-location-map-frame{position:relative;height:140px;overflow:hidden;background:#dadce0}",
+      ".chat-location-map-embed{position:absolute;left:50%;top:50%;width:118%;height:220px;border:0;pointer-events:none;transform:translate(-50%,-52%) scale(1.12)}",
+      ".chat-location-map-frame::after{content:\"\";position:absolute;inset:auto 0 0 0;height:42px;background:linear-gradient(180deg,transparent,rgba(31,44,52,.92));pointer-events:none}",
+      ".chat-location-map-caption{display:flex;flex-direction:column;gap:.1rem;padding:.55rem .65rem .62rem;background:#1f2c34}",
+      ".chat-location-caption-title{font-size:.84rem;font-weight:600;color:#e9edef;line-height:1.25}",
+      ".chat-location-caption-acc{font-size:.72rem;color:rgba(233,237,239,.58)}",
+      ".chat-location-caption-acc.is-precise{color:#25d366;font-weight:600}",
+      ".chat-location-caption-acc.is-warn{color:#fbbf24}",
+      ".chat-location-map-fallback{display:grid;place-items:center;min-height:148px;background:linear-gradient(160deg,#dadce0,#bdc1c6);color:#3c4043;font-size:.82rem;padding:1rem;text-align:center}",
     ].join("");
     global.document.head.appendChild(style);
   }
@@ -124,11 +132,21 @@
 
   function accuracyLabel(loc, labels = {}) {
     const acc = Math.round(Number(loc?.accuracy) || 0);
-    if (!acc) return "";
-    const tpl = acc <= DEFAULT_MAX_ACCURACY_M
-      ? (labels.accuracyGood || "Genauigkeit ±{m} m")
-      : (labels.accuracy || "±{m} m");
-    return tpl.replace("{m}", String(acc));
+    if (!acc || acc <= 15) return "";
+    if (acc <= DEFAULT_MAX_ACCURACY_M) {
+      return (labels.accuracyGood || "Genauigkeit ±{m} m").replace("{m}", String(acc));
+    }
+    if (acc <= 35) {
+      return (labels.accuracy || "±{m} m").replace("{m}", String(acc));
+    }
+    return (labels.accuracyApprox || "Standort ungefähr · ±{m} m").replace("{m}", String(acc));
+  }
+
+  function accuracyClass(loc) {
+    const acc = Number(loc?.accuracy) || 0;
+    if (acc <= DEFAULT_MAX_ACCURACY_M) return "is-precise";
+    if (acc > 50) return "is-warn";
+    return "";
   }
 
   function renderLocationBubbleHtml(loc, labels = {}, options = {}) {
@@ -137,28 +155,21 @@
     const side = options.side === "mine" ? "is-mine" : "is-them";
     const title = escapeHtml(loc.label || labels.sharedTitle || formatLocationPreview(labels));
     const accText = accuracyLabel(loc, labels);
-    const accClass = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? "is-precise" : "";
+    const accClass = accuracyClass(loc);
     const embedSrc = googleMapsEmbedUrl(loc);
     const href = googleMapsUrl(loc);
     const openLabel = escapeHtml(labels.openMaps || "In Google Maps öffnen");
     const mapHtml = embedSrc
-      ? `<iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="eager" title="${title}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>`
+      ? `<div class="chat-location-map-frame"><iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="eager" title="${title}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
       : `<div class="chat-location-map-fallback">${openLabel}</div>`;
     return `<div class="chat-location-card ${side}">
       <a class="chat-location-map-hit" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" aria-label="${openLabel}">
         ${mapHtml}
-        <span class="chat-location-map-pin" aria-hidden="true">📍</span>
-      </a>
-      <div class="chat-location-meta">
-        <div class="chat-location-head">
-          <span class="chat-location-icon" aria-hidden="true">📍</span>
-          <div class="chat-location-text">
-            <strong class="chat-location-title">${title}</strong>
-            ${accText ? `<span class="chat-location-acc ${accClass}">${escapeHtml(accText)}</span>` : ""}
-          </div>
+        <div class="chat-location-map-caption">
+          <span class="chat-location-caption-title">${title}</span>
+          ${accText ? `<span class="chat-location-caption-acc ${accClass}">${escapeHtml(accText)}</span>` : ""}
         </div>
-        <a class="chat-location-open" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${openLabel}</a>
-      </div>
+      </a>
     </div>`;
   }
 
@@ -172,17 +183,28 @@
 
   function rememberReading(reading) {
     if (!isValidReading(reading)) return;
+    const accuracy = Number(reading.accuracy) || 999;
+    if (
+      lastKnownChatGeo
+      && Number(lastKnownChatGeo.accuracy) < accuracy
+      && Date.now() - Number(lastKnownChatGeo.capturedAt || 0) < 30000
+    ) {
+      return;
+    }
     lastKnownChatGeo = {
       latitude: Number(reading.latitude),
       longitude: Number(reading.longitude),
-      accuracy: Number(reading.accuracy) || 0,
+      accuracy,
       capturedAt: Date.now(),
     };
   }
 
-  function getFreshLastKnown() {
+  function getFreshLastKnown(maxAccuracy = INSTANT_MAX_ACCURACY_M) {
     if (!lastKnownChatGeo) return null;
     if (Date.now() - Number(lastKnownChatGeo.capturedAt || 0) > LAST_KNOWN_MAX_AGE_MS) {
+      return null;
+    }
+    if (Number(lastKnownChatGeo.accuracy) > maxAccuracy) {
       return null;
     }
     return lastKnownChatGeo;
@@ -207,40 +229,14 @@
     });
   }
 
-  function raceGeolocationAttempts(attempts) {
-    return new Promise((resolve, reject) => {
-      if (!attempts.length) {
-        reject(new Error("geolocation_timeout"));
-        return;
-      }
-      let pending = attempts.length;
-      let settled = false;
-      let lastError = null;
-      attempts.forEach((attempt) => {
-        getGeolocationReading(attempt)
-          .then((reading) => {
-            if (settled || !isValidReading(reading)) return;
-            settled = true;
-            resolve(reading);
-          })
-          .catch((error) => {
-            lastError = error;
-            pending -= 1;
-            if (!settled && pending === 0) {
-              reject(lastError || new Error("geolocation_timeout"));
-            }
-          });
-      });
-    });
-  }
-
-  function firstWatchFix(maxMs = 1200) {
+  function watchBestAccuracy(maxMs = REFINE_MAX_MS, onProgress) {
     return new Promise((resolve, reject) => {
       if (!global.navigator?.geolocation) {
         reject(new Error("geolocation_unsupported"));
         return;
       }
       let settled = false;
+      let best = null;
       let watchId = null;
       const finish = (error, reading) => {
         if (settled) return;
@@ -253,51 +249,79 @@
         else resolve(reading);
       };
       const timer = global.setTimeout(() => {
-        const error = new Error("geolocation_timeout");
-        error.code = 3;
-        finish(error);
+        if (best) finish(null, best);
+        else {
+          const error = new Error("geolocation_timeout");
+          error.code = 3;
+          finish(error);
+        }
       }, maxMs);
       watchId = global.navigator.geolocation.watchPosition(
         (position) => {
-          finish(null, {
+          const reading = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
-            accuracy: Number(position.coords.accuracy) || 0,
+            accuracy: Number(position.coords.accuracy) || 999,
             capturedAt: Date.now(),
-          });
+          };
+          if (!best || reading.accuracy < best.accuracy) {
+            best = reading;
+            onProgress?.({ bestAccuracyMeters: reading.accuracy, phase: "refine" });
+          }
+          if (reading.accuracy <= TARGET_ACCURACY_M) {
+            finish(null, reading);
+          }
         },
         (error) => {
           if (Number(error?.code) === 1) finish(error);
+          else if (best) finish(null, best);
         },
         { enableHighAccuracy: true, maximumAge: 0, timeout: maxMs },
       );
     });
   }
 
-  async function captureFastGeolocationForChat({ maxWaitMs = FAST_CAPTURE_MAX_MS } = {}) {
+  async function captureAccurateGeolocationForChat({ onProgress, maxWaitMs = REFINE_MAX_MS } = {}) {
     if (!global.navigator?.geolocation) {
       const error = new Error("geolocation_unsupported");
       error.code = 0;
       throw error;
     }
-    const cached = getFreshLastKnown();
-    if (cached) return cached;
+    const instant = getFreshLastKnown(INSTANT_MAX_ACCURACY_M);
+    if (instant) return instant;
 
-    const budget = Math.max(600, Number(maxWaitMs) || FAST_CAPTURE_MAX_MS);
-    try {
-      const reading = await raceGeolocationAttempts([
-        { enableHighAccuracy: false, maximumAge: LAST_KNOWN_MAX_AGE_MS, timeout: Math.min(320, budget) },
-        { enableHighAccuracy: false, maximumAge: 300000, timeout: Math.min(450, budget) },
-        { enableHighAccuracy: false, maximumAge: 60000, timeout: Math.min(650, budget) },
-      ]);
+    if (typeof global.captureSiteAnchorGeolocation === "function") {
+      const reading = await global.captureSiteAnchorGeolocation({
+        maxAcceptAccuracyMeters: TARGET_ACCURACY_M,
+        fallbackMaxAccuracyMeters: SEND_MAX_ACCURACY_M,
+        hardMaxMs: maxWaitMs,
+        quickReturnMs: 700,
+        onProgress: (payload) => {
+          onProgress?.({
+            bestAccuracyMeters: payload.bestAccuracyMeters,
+            phase: payload.phase || "refine",
+          });
+        },
+      });
       rememberReading(reading);
       return reading;
+    }
+
+    try {
+      const quick = await getGeolocationReading({
+        enableHighAccuracy: true,
+        maximumAge: 15000,
+        timeout: Math.min(1200, maxWaitMs),
+      });
+      if (isValidReading(quick) && Number(quick.accuracy) <= INSTANT_MAX_ACCURACY_M) {
+        rememberReading(quick);
+        return quick;
+      }
     } catch (error) {
       if (Number(error?.code) === 1) throw error;
     }
 
-    const remaining = Math.max(400, budget - 200);
-    const reading = await firstWatchFix(remaining);
+    const reading = await watchBestAccuracy(maxWaitMs, onProgress);
     rememberReading(reading);
     return reading;
   }
@@ -315,9 +339,18 @@
 
   function warmChatGeolocation() {
     if (!global.navigator?.geolocation) return Promise.resolve(null);
-    if (getFreshLastKnown()) return Promise.resolve(getFreshLastKnown());
+    const good = getFreshLastKnown(INSTANT_MAX_ACCURACY_M);
+    if (good) return Promise.resolve(good);
     if (warmInFlight) return warmInFlight;
-    warmInFlight = captureFastGeolocationForChat({ maxWaitMs: 900 })
+    const capture = typeof global.captureSiteAnchorGeolocation === "function"
+      ? global.captureSiteAnchorGeolocation({
+        maxAcceptAccuracyMeters: TARGET_ACCURACY_M,
+        fallbackMaxAccuracyMeters: SEND_MAX_ACCURACY_M,
+        hardMaxMs: 5000,
+        quickReturnMs: 600,
+      })
+      : watchBestAccuracy(5000);
+    warmInFlight = capture
       .then((reading) => {
         rememberReading(reading);
         return reading;
@@ -332,8 +365,8 @@
   function locationCaptureErrorMessage(error, labels = {}) {
     const code = String(error?.message || error?.code || "");
     const acc = Number(error?.accuracyMeters);
-    if (code === "geolocation_inaccurate" || code === "location_not_precise_enough") {
-      const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. {max} m nötig.";
+    if (code === "geolocation_inaccurate" || code === "location_not_precise_enough" || Number(error?.code) === 4) {
+      const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte kurz ins Freie gehen — max. {max} m.";
       return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", String(SEND_MAX_ACCURACY_M));
     }
     if (code === "geolocation_unsupported") return labels.unsupported || "Standort wird auf diesem Gerät nicht unterstützt.";
@@ -343,30 +376,110 @@
   }
 
   function peekCachedChatLocation(options = {}) {
-    const cached = getFreshLastKnown();
+    const cached = getFreshLastKnown(INSTANT_MAX_ACCURACY_M);
     if (!cached) return null;
     return readingToResult(cached, options);
   }
 
   async function captureChatLocation(options = {}) {
     const sendMaxAcc = Number(options.fallbackMaxAccuracyMeters || SEND_MAX_ACCURACY_M);
-    const cached = getFreshLastKnown();
-    const reading = cached || await captureFastGeolocationForChat({
-      maxWaitMs: Number(options.maxWaitMs || FAST_CAPTURE_MAX_MS),
-    });
-    rememberReading(reading);
-    const accuracy = Number(reading?.accuracy);
-    if (Number.isFinite(accuracy) && accuracy > sendMaxAcc) {
-      const error = new Error("location_not_precise_enough");
-      error.accuracyMeters = accuracy;
-      throw error;
+    const labels = options.labels || {};
+    let overlay = null;
+    let overlayTimer = null;
+    let cancelled = false;
+    const onProgress = (payload) => {
+      options.onProgress?.(payload);
+      overlay?.update?.(payload);
+    };
+    overlayTimer = global.setTimeout(() => {
+      if (cancelled) return;
+      overlay = showCaptureOverlay(labels, () => { cancelled = true; });
+    }, 500);
+
+    try {
+      const instant = getFreshLastKnown(INSTANT_MAX_ACCURACY_M);
+      const reading = instant || await captureAccurateGeolocationForChat({
+        onProgress,
+        maxWaitMs: Number(options.maxWaitMs || REFINE_MAX_MS),
+      });
+      if (cancelled) {
+        const error = new Error("location_cancelled");
+        throw error;
+      }
+      rememberReading(reading);
+      const accuracy = Number(reading?.accuracy);
+      if (Number.isFinite(accuracy) && accuracy > sendMaxAcc) {
+        const error = new Error("location_not_precise_enough");
+        error.accuracyMeters = accuracy;
+        throw error;
+      }
+      return readingToResult(reading, options);
+    } finally {
+      if (overlayTimer) global.clearTimeout(overlayTimer);
+      overlay?.hide?.();
+      hideCaptureOverlay();
     }
-    return readingToResult(reading, options);
+  }
+
+  let overlayEl = null;
+
+  function ensureOverlay() {
+    if (overlayEl) return overlayEl;
+    overlayEl = global.document?.createElement("div");
+    if (!overlayEl) return null;
+    overlayEl.className = "chat-location-overlay hidden";
+    overlayEl.innerHTML = `<div class="chat-location-overlay-card" role="dialog" aria-modal="true" aria-live="polite">
+      <div class="chat-location-overlay-pulse" aria-hidden="true">📍</div>
+      <strong class="chat-location-overlay-title"></strong>
+      <p class="chat-location-overlay-sub"></p>
+      <div class="chat-location-overlay-meter"><span class="chat-location-overlay-meter-fill"></span></div>
+      <button type="button" class="chat-location-overlay-cancel"></button>
+    </div>`;
+    global.document.body.appendChild(overlayEl);
+    return overlayEl;
+  }
+
+  function showCaptureOverlay(labels = {}, onCancel) {
+    const host = ensureOverlay();
+    if (!host) return { update() {}, hide() {} };
+    const titleEl = host.querySelector(".chat-location-overlay-title");
+    const subEl = host.querySelector(".chat-location-overlay-sub");
+    const fillEl = host.querySelector(".chat-location-overlay-meter-fill");
+    const cancelBtn = host.querySelector(".chat-location-overlay-cancel");
+    if (titleEl) titleEl.textContent = labels.capturing || "Standort wird ermittelt…";
+    if (subEl) subEl.textContent = labels.capturingHint || "GPS verfeinern…";
+    if (cancelBtn) {
+      cancelBtn.textContent = labels.cancel || "Abbrechen";
+      cancelBtn.onclick = () => {
+        hideCaptureOverlay();
+        onCancel?.();
+      };
+    }
+    host.classList.remove("hidden");
+    return {
+      update(progress = {}) {
+        const acc = Number(progress.bestAccuracyMeters);
+        if (subEl && Number.isFinite(acc)) {
+          const tpl = labels.capturingProgress || "Aktuell ±{m} m";
+          subEl.textContent = tpl.replace("{m}", String(Math.round(acc)));
+        }
+        if (fillEl && Number.isFinite(acc)) {
+          const pct = Math.max(10, Math.min(100, ((SEND_MAX_ACCURACY_M - acc) / SEND_MAX_ACCURACY_M) * 100));
+          fillEl.style.width = `${pct}%`;
+        }
+      },
+      hide: hideCaptureOverlay,
+    };
+  }
+
+  function hideCaptureOverlay() {
+    overlayEl?.classList.add("hidden");
   }
 
   global.SUPPIXChatLocation = {
     PREFIX,
     DEFAULT_MAX_ACCURACY_M,
+    INSTANT_MAX_ACCURACY_M,
     SEND_MAX_ACCURACY_M,
     encodeLocationBody,
     parseLocationBody,
