@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat26";
+const WORKER_BUILD_TAG = "20260714chat28";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13453,6 +13453,7 @@ function workerLocationShareLabels() {
     accuracy: t("chatLocationAccuracy") || "±{m} m",
     accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",
     accuracyApprox: t("chatLocationAccuracyApprox") || "Standort ungefähr · ±{m} m",
+    desktopHint: t("chatLocationDesktopHint") || "",
     ready: t("chatLocationReady") || "Standort bereit · ±{m} m",
   });
 }
