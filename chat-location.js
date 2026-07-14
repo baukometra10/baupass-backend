@@ -7,10 +7,12 @@
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
   const SEND_MAX_ACCURACY_M = 12;
-  const PREVIEW_MAX_ACCURACY_M = 18;
+  const PREVIEW_MAX_ACCURACY_M = 200;
   const CACHE_MAX_ACCURACY_M = 10;
   const CAPTURE_SEND_MS = 15000;
   const REFINE_MAX_MS = 12000;
+  const PREVIEW_TIMEOUT_MS = 16000;
+  const RAW_GEO_TIMEOUT_MS = 20000;
   const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   const WARM_CYCLE_MS = 30000;
   let stylesInjected = false;
@@ -18,6 +20,7 @@
   let warmWatchHandle = null;
   let shareSheetEl = null;
   let shareWatchHandle = null;
+  let shareRawWatchId = null;
 
   function escapePart(value) {
     return encodeURIComponent(String(value ?? "").trim());
@@ -250,18 +253,31 @@
   }
 
   function stopShareWatch() {
+    if (shareRawWatchId != null) {
+      try { global.navigator.geolocation.clearWatch(shareRawWatchId); } catch { /* ignore */ }
+      shareRawWatchId = null;
+    }
     if (shareWatchHandle) {
       try { shareWatchHandle.stop?.(); } catch { /* ignore */ }
       shareWatchHandle = null;
     }
   }
 
-  function applyReading(reading, onReading, allowCoarsePreview = false) {
+  function applyReading(reading, onReading) {
     if (!isValidReading(reading)) return;
     rememberReading(reading);
     const acc = Number(reading.accuracy) || 999;
-    if (!allowCoarsePreview && acc > PREVIEW_MAX_ACCURACY_M) return;
+    if (acc > PREVIEW_MAX_ACCURACY_M) return;
     onReading(reading);
+  }
+
+  function readingFromPosition(position) {
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      accuracy: Number(position.coords.accuracy) || 0,
+      capturedAt: Date.now(),
+    };
   }
 
   async function captureForSend(onProgress) {
@@ -318,7 +334,16 @@
         if (Number(error?.code) === 1) throw error;
       }
     }
-    return captureForSend(onProgress);
+    try {
+      return await getGeolocationReading({
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 8000,
+      });
+    } catch (error) {
+      if (Number(error?.code) === 1) throw error;
+      return null;
+    }
   }
 
   function startShareLocationWatch(onReading) {
@@ -326,10 +351,24 @@
     if (!global.navigator?.geolocation) return;
 
     const instant = getPreciseCachedLastKnown();
-    if (instant) applyReading(instant, onReading, true);
+    if (instant) applyReading(instant, onReading);
+
+    shareRawWatchId = global.navigator.geolocation.watchPosition(
+      (position) => applyReading(readingFromPosition(position), onReading),
+      (error) => {
+        if (Number(error?.code) === 1) onReading(null, error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: RAW_GEO_TIMEOUT_MS,
+      },
+    );
 
     void captureBestReadingFast()
-      .then((reading) => applyReading(reading, onReading, false))
+      .then((reading) => {
+        if (reading) applyReading(reading, onReading);
+      })
       .catch((error) => {
         if (Number(error?.code) === 1) onReading(null, error);
       });
@@ -339,7 +378,7 @@
       preset: "chat",
       maxWaitMs: REFINE_MAX_MS,
       onProgress: (payload) => {
-        applyReading(payload?.reading, onReading, false);
+        applyReading(payload?.reading, onReading);
       },
       onError: (error) => {
         if (Number(error?.code) === 1) onReading(null, error);
@@ -386,6 +425,10 @@
     if (acc <= SEND_MAX_ACCURACY_M) {
       return (labels.ready || "Standort bereit · ±{m} m").replace("{m}", String(acc));
     }
+    const approx = labels.accuracyApprox || "Standort ungefähr · ±{m} m — zum Senden ins Freie";
+    if (acc > SEND_MAX_ACCURACY_M) {
+      return approx.replace("{m}", String(acc));
+    }
     const tpl = labels.capturingProgress || "GPS verfeinern… ±{m} m";
     return tpl.replace("{m}", String(acc));
   }
@@ -428,9 +471,11 @@
     return new Promise((resolve, reject) => {
       let settled = false;
       let bestReading = cached || null;
+      let previewTimeout = null;
       const finish = (error, result) => {
         if (settled) return;
         settled = true;
+        if (previewTimeout) global.clearTimeout(previewTimeout);
         closeShareSheet();
         if (error) reject(error);
         else resolve(result);
@@ -465,7 +510,8 @@
 
       const onReading = (reading, error) => {
         if (error && Number(error?.code) === 1) {
-          finish(error);
+          if (statusEl) statusEl.textContent = locationCaptureErrorMessage(error, labels);
+          if (sendBtn) sendBtn.disabled = true;
           return;
         }
         if (!reading) return;
@@ -478,6 +524,25 @@
         }
         if (sendBtn) sendBtn.disabled = !canEnableSend(reading);
       };
+
+      previewTimeout = global.setTimeout(() => {
+        if (settled) return;
+        if (bestReading && isValidReading(bestReading)) {
+          onReading(bestReading);
+          return;
+        }
+        if (statusEl) {
+          statusEl.textContent = locationCaptureErrorMessage({ message: "geolocation_timeout" }, labels);
+        }
+      }, PREVIEW_TIMEOUT_MS);
+
+      if (global.navigator.permissions?.query) {
+        void global.navigator.permissions.query({ name: "geolocation" }).then((state) => {
+          if (settled || state?.state !== "denied") return;
+          if (statusEl) statusEl.textContent = locationCaptureErrorMessage({ code: 1 }, labels);
+          if (sendBtn) sendBtn.disabled = true;
+        }).catch(() => {});
+      }
 
       sheet.querySelector(".chat-location-share-close")?.addEventListener("click", () => {
         finish(new Error("location_cancelled"));
