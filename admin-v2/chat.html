@@ -101,6 +101,35 @@
     .chat-reply-quote-text{display:block;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(100%,320px)}
     .bubble-reply-btn,.chat-reply-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem;opacity:.65}
     .bubble-reply-btn:hover,.chat-reply-btn:hover{opacity:1;color:var(--accent)}
+    .bubble-menu-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:.85rem;padding:0 .1rem;margin-left:.15rem;opacity:.55;line-height:1}
+    .bubble-menu-btn:hover,.bubble:hover .bubble-menu-btn{opacity:1;color:var(--accent)}
+    .bubble.is-msg-pinned{outline:1px solid rgba(0,168,132,.35)}
+    .bubble.is-msg-starred .bubble-star-badge{font-size:.62rem;margin-right:.12rem}
+    .bubble-pin-badge,.bubble-star-badge{font-size:.62rem;opacity:.85}
+    .chat-msg-menu-overlay{position:fixed;inset:0;z-index:120}
+    .chat-msg-menu-overlay.hidden{display:none}
+    .chat-msg-menu-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.42)}
+    .chat-msg-menu-panel{position:fixed;z-index:121;min-width:210px;max-width:min(92vw,280px);background:#1f2c34;border:1px solid rgba(134,150,160,.22);border-radius:14px;padding:.35rem;box-shadow:0 12px 32px rgba(0,0,0,.38);display:flex;flex-direction:column;gap:.08rem}
+    .chat-msg-menu-item{display:flex;align-items:center;gap:.55rem;width:100%;border:none;background:transparent;color:var(--text);border-radius:10px;padding:.62rem .75rem;cursor:pointer;text-align:left;font:inherit;font-size:.88rem}
+    .chat-msg-menu-item:hover{background:rgba(255,255,255,.06)}
+    .chat-msg-menu-item.is-danger{color:#f87171}
+    .chat-msg-menu-item.is-active{color:#5eead4}
+    .bubble.chat-msg-menu-active{outline:2px solid rgba(0,168,132,.55);box-shadow:0 0 0 4px rgba(0,168,132,.12)}
+    .chat-pinned-bar{display:flex;flex-direction:column;gap:.35rem;margin:0 0 .65rem;padding:.45rem;border-radius:12px;background:rgba(0,168,132,.08);border:1px solid rgba(0,168,132,.18)}
+    .chat-pinned-item{display:flex;align-items:center;gap:.45rem;width:100%;border:none;background:rgba(255,255,255,.04);color:var(--text);border-radius:10px;padding:.45rem .55rem;cursor:pointer;text-align:left;font:inherit}
+    .chat-pinned-item:hover{background:rgba(255,255,255,.08)}
+    .chat-pinned-icon{flex-shrink:0;font-size:.82rem}
+    .chat-pinned-text{flex:1;min-width:0;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}
+    .chat-pinned-jump{flex-shrink:0;font-size:.68rem;color:#5eead4;font-weight:700}
+    .chat-forward-modal{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:1rem;background:rgba(0,0,0,.55)}
+    .chat-forward-modal.hidden{display:none}
+    .chat-forward-inner{width:min(420px,100%);background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:1rem;display:flex;flex-direction:column;gap:.65rem;max-height:min(80vh,560px)}
+    .chat-forward-inner h4{margin:0;font-size:1rem}
+    .chat-forward-list{overflow-y:auto;display:flex;flex-direction:column;gap:.25rem;max-height:min(50vh,360px)}
+    .chat-forward-item{display:flex;align-items:center;gap:.55rem;width:100%;border:none;background:transparent;color:var(--text);border-radius:10px;padding:.55rem .65rem;cursor:pointer;text-align:left;font:inherit}
+    .chat-forward-item:hover{background:var(--item-bg)}
+    .chat-forward-item-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#5eead4,#93c5fd);color:#042f2e;font-weight:800;flex-shrink:0;font-size:.78rem}
+    .chat-forward-modal-actions{display:flex;justify-content:flex-end;gap:.45rem}
     .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); position:relative; }
     .chat-compose-bar { display:flex; align-items:flex-end; gap:0.45rem; }
     .chat-compose-attach-wrap { position:relative; flex-shrink:0; }
@@ -884,6 +913,16 @@
       </section>
     </main>
   </div>
+  <div id="chatForwardModal" class="chat-forward-modal hidden" role="dialog" aria-modal="true" aria-labelledby="chatForwardTitle">
+    <div class="chat-forward-inner">
+      <h4 id="chatForwardTitle" data-aci18n="chatForwardTitle">Weiterleiten an</h4>
+      <input id="chatForwardSearch" type="search" data-aci18n="chatForwardSearchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter suchen…" />
+      <div id="chatForwardList" class="chat-forward-list"></div>
+      <div class="chat-forward-modal-actions">
+        <button type="button" id="chatForwardCancelBtn" data-aci18n="chatLocationCancel">Abbrechen</button>
+      </div>
+    </div>
+  </div>
   <div id="broadcastModal" class="broadcast-modal hidden" role="dialog" aria-modal="true" aria-labelledby="broadcastModalTitle">
     <div class="broadcast-modal-inner">
       <h4 id="broadcastModalTitle" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</h4>
@@ -966,20 +1005,22 @@
       </div>
     </div>
   </div>
-  <script src="/geo-precision.js?v=20260714chat8"></script>
-  <script src="/ops-realtime.js?v=20260714chat8"></script>
-  <script src="/chat-realtime.js?v=20260714chat8"></script>
-  <script src="/chat-gallery.js?v=20260714chat8"></script>
-  <script src="/chat-typing.js?v=20260714chat8"></script>
-  <script src="/chat-search.js?v=20260714chat8"></script>
-  <script src="/chat-location.js?v=20260714chat8"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat8"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat8"></script>
-  <script src="/chat-admin-push.js?v=20260714chat8"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat8"></script>
-  <script src="/chat-voice.js?v=20260714chat8"></script>
-  <script src="/chat-voice-call.js?v=20260714chat8"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat8"></script>
+  <script src="/geo-precision.js?v=20260714chat9"></script>
+  <script src="/ops-realtime.js?v=20260714chat9"></script>
+  <script src="/chat-realtime.js?v=20260714chat9"></script>
+  <script src="/chat-gallery.js?v=20260714chat9"></script>
+  <script src="/chat-typing.js?v=20260714chat9"></script>
+  <script src="/chat-search.js?v=20260714chat9"></script>
+  <script src="/chat-location.js?v=20260714chat9"></script>
+  <script src="/chat-attach-sheet.js?v=20260714chat9"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat9"></script>
+  <script src="/chat-message-prefs.js?v=20260714chat9"></script>
+  <script src="/chat-message-menu.js?v=20260714chat9"></script>
+  <script src="/chat-admin-push.js?v=20260714chat9"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat9"></script>
+  <script src="/chat-voice.js?v=20260714chat9"></script>
+  <script src="/chat-voice-call.js?v=20260714chat9"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat9"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -2184,6 +2225,13 @@
       if (!Array.isArray(messages) || !messages.length) {
         return `<p class="muted">${window.adminChatT("noMessages")}</p>`;
       }
+      const pinnedBar = window.SUPPIXChatMessageMenu?.renderPinnedBarHtml?.({
+        threadId: currentThreadId,
+        messages,
+        getPreview: (msg) => replyPreviewText(msg),
+        labelPinned: window.adminChatT("chatPinnedBar"),
+        labelJump: window.adminChatT("chatPinnedJump"),
+      }) || "";
       let html = "";
       let lastDay = "";
       for (let i = 0; i < messages.length; i += 1) {
@@ -2202,7 +2250,7 @@
           html += `<div class="bubble worker tail"><span class="bubble-body muted">${escapeHtml(String(error?.message || error))}</span></div>`;
         }
       }
-      return html;
+      return pinnedBar + html;
     }
     function formatChatTimestamp(value) {
       return formatBubbleTime(value);
@@ -2214,6 +2262,157 @@
       const sender = String(msg.senderType || "");
       const senderUserId = String(msg.senderUserId || msg.sender_user_id || "");
       return sender === "admin" && messageIdPresent(msg) && senderUserId === getAdminUserId();
+    }
+    function adminMessageMenuLabels() {
+      return {
+        reply: window.adminChatT("chatMenuReply"),
+        copyAction: window.adminChatT("chatMenuCopy"),
+        forward: window.adminChatT("chatMenuForward"),
+        pin: window.adminChatT("chatMenuPin"),
+        unpin: window.adminChatT("chatMenuUnpin"),
+        star: window.adminChatT("chatMenuStar"),
+        unstar: window.adminChatT("chatMenuUnstar"),
+        delete: window.adminChatT("chatMenuDelete"),
+        copy: {
+          voice: window.adminChatT("chatVoiceMessage"),
+          photo: window.adminChatT("chatPreviewPhoto"),
+          location: window.adminChatT("chatLocationPreview"),
+          encrypted: window.adminChatT("encryptedPreview"),
+          empty: window.adminChatT("chatReplyEmpty"),
+          call: window.adminChatT("voiceCallLogTitle"),
+        },
+      };
+    }
+    function messageBubbleDecor(msg) {
+      const messageId = String(msg?.id || "").trim();
+      if (!messageId || messageId.startsWith("pending-")) {
+        return { extraClass: "", badges: "", menuBtn: "" };
+      }
+      const pinned = window.SUPPIXChatMessagePrefs?.isPinned?.(currentThreadId, messageId);
+      const starred = window.SUPPIXChatMessagePrefs?.isStarred?.(currentThreadId, messageId);
+      const extraClass = [pinned ? "is-msg-pinned" : "", starred ? "is-msg-starred" : ""].filter(Boolean).join(" ");
+      const pinBadge = pinned ? `<span class="bubble-pin-badge" aria-hidden="true">📌</span>` : "";
+      const starBadge = starred ? `<span class="bubble-star-badge" aria-hidden="true">⭐</span>` : "";
+      const menuBtn = `<button type="button" class="bubble-menu-btn" data-chat-menu-id="${escapeHtml(messageId)}" title="${escapeAttr(window.adminChatT("chatMenuMore") || "Aktionen")}" aria-label="${escapeAttr(window.adminChatT("chatMenuMore") || "Aktionen")}">⋮</button>`;
+      return { extraClass, badges: `${pinBadge}${starBadge}`, menuBtn };
+    }
+    let adminForwardPending = null;
+    function buildAdminForwardDraft(msg) {
+      if (!msg) return "";
+      if (window.SUPPIXChatLocation?.isLocationBody?.(msg.body)) {
+        return String(msg.body || "").trim();
+      }
+      const sender = replySenderLabel(msg);
+      const preview = replyPreviewText(msg);
+      return `↪ ${sender}: ${preview}`;
+    }
+    function openAdminForwardModal(msg) {
+      adminForwardPending = msg;
+      const modal = document.getElementById("chatForwardModal");
+      const search = document.getElementById("chatForwardSearch");
+      if (search) search.value = "";
+      renderAdminForwardList("");
+      modal?.classList.remove("hidden");
+      search?.focus();
+    }
+    function closeAdminForwardModal() {
+      adminForwardPending = null;
+      document.getElementById("chatForwardModal")?.classList.add("hidden");
+    }
+    function renderAdminForwardList(query) {
+      const host = document.getElementById("chatForwardList");
+      if (!host) return;
+      const q = String(query || "").trim().toLowerCase();
+      const current = String(currentWorkerId || "");
+      const rows = threads.filter((row) => {
+        if (String(row.worker_id) === current) return false;
+        const name = threadDisplayName(row);
+        const hay = `${name} ${row.badge_id || ""} ${row.subject || ""}`.toLowerCase();
+        return !q || hay.includes(q);
+      });
+      host.innerHTML = rows.length
+        ? rows.map((row) => {
+            const name = threadDisplayName(row);
+            return `<button type="button" class="chat-forward-item" data-forward-worker="${escapeAttr(row.worker_id || "")}" data-forward-thread="${escapeAttr(row.id || "")}">
+              <span class="chat-forward-item-avatar">${escapeHtml(threadInitials(name))}</span>
+              <span>${escapeHtml(name)}</span>
+            </button>`;
+          }).join("")
+        : `<p class="muted">${window.adminChatT("chatForwardNoWorkers")}</p>`;
+      host.querySelectorAll("[data-forward-worker]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          void forwardAdminMessageTo(btn.getAttribute("data-forward-worker") || "", btn.getAttribute("data-forward-thread") || "");
+        });
+      });
+    }
+    async function forwardAdminMessageTo(workerId, threadId) {
+      const msg = adminForwardPending;
+      closeAdminForwardModal();
+      if (!msg || !workerId) return;
+      const draft = buildAdminForwardDraft(msg);
+      await openThread(threadId || "", workerId);
+      const input = document.getElementById("chatReply");
+      if (input && draft) {
+        input.value = draft;
+        syncAdminComposeAction();
+        input.focus();
+      }
+    }
+    function refreshAdminMessageListView() {
+      const list = document.getElementById("messageList");
+      if (!list || !adminChatMessagesCache.length) return;
+      list.innerHTML = renderMessageListHtml(adminChatMessagesCache);
+      hydrateChatImagePreviews();
+      hydrateChatAudioPreviews();
+    }
+    function scrollToAdminMessage(messageId) {
+      const list = document.getElementById("messageList");
+      if (!list || !messageId) return;
+      const safeId = String(messageId).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      const bubble = list.querySelector(`[data-message-id="${safeId}"]`);
+      if (!bubble) return;
+      bubble.scrollIntoView({ behavior: "smooth", block: "center" });
+      bubble.classList.add("chat-search-flash");
+      setTimeout(() => bubble.classList.remove("chat-search-flash"), 1200);
+    }
+    function bindAdminChatMessageMenu() {
+      const list = document.getElementById("messageList");
+      if (!list) return;
+      window.SUPPIXChatMessageMenu?.bindPinnedBar?.(list, scrollToAdminMessage);
+      if (list.dataset.msgMenuBound === "1") return;
+      list.dataset.msgMenuBound = "1";
+      window.SUPPIXChatMessageMenu?.mountMessageMenu?.({
+        rootEl: list,
+        getMessageById: (id) => adminChatMessagesCache.find((item) => String(item.id) === String(id)),
+        getThreadId: () => currentThreadId,
+        labels: adminMessageMenuLabels(),
+        canDelete: (msg) => canDeleteAdminMessage(msg),
+        canForward: () => true,
+        onReply: (msg) => setAdminReplyTo(msg),
+        onCopy: async (_msg, text) => {
+          try {
+            await navigator.clipboard.writeText(String(text || ""));
+            setThreadMeta(window.adminChatT("chatCopied"), { dynamic: true });
+          } catch {
+            setThreadMeta(window.adminChatT("chatCopyFailed"), { dynamic: true });
+          }
+        },
+        onForward: (msg) => openAdminForwardModal(msg),
+        onPinToggle: (msg) => {
+          window.SUPPIXChatMessagePrefs?.togglePin?.(currentThreadId, msg.id);
+          refreshAdminMessageListView();
+        },
+        onStarToggle: (msg) => {
+          window.SUPPIXChatMessagePrefs?.toggleStar?.(currentThreadId, msg.id);
+          refreshAdminMessageListView();
+        },
+        onDelete: (msg) => {
+          if (!window.confirm(`${window.adminChatT("deleteMessageTitle")}?`)) return;
+          deleteAdminChatMessage(String(msg.id || "")).catch((error) => {
+            setThreadMeta(error.message || String(error), { dynamic: true });
+          });
+        },
+      });
     }
     function messageIdPresent(msg) {
       return Boolean(String(msg.id || "").trim());
@@ -2270,16 +2469,11 @@
         const ticks = chatReadTicks(msg);
         const messageId = escapeHtml(String(msg.id || ""));
         const side = msg.senderType === "admin" ? "mine" : "them";
-        const deleteBtn = canDeleteAdminMessage(msg)
-          ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
-          : "";
-        const replyBtn = messageIdPresent(msg)
-          ? `<button type="button" class="bubble-reply-btn" data-chat-reply-id="${messageId}" title="${escapeAttr(window.adminChatT("chatReplyAction") || "Antworten")}">↩</button>`
-          : "";
+        const decor = messageBubbleDecor(msg);
         const sideClass = msg.senderType === "admin" ? "admin" : "worker";
-        const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : ""].filter(Boolean).join(" ");
+        const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", decor.extraClass].filter(Boolean).join(" ");
         const locationHtml = window.SUPPIXChatLocation.renderLocationBubbleHtml(location, adminLocationLabels(), { side });
-        return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${locationHtml}<div class="bubble-meta"><span>${time}</span>${ticks}${replyBtn}${deleteBtn}</div></div>`;
+        return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${locationHtml}<div class="bubble-meta">${decor.badges}<span>${time}</span>${ticks}${decor.menuBtn}</div></div>`;
       }
       const { grouped = false, tail = true } = options;
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");
@@ -2320,15 +2514,10 @@
       const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, window.adminChatT("chatVoiceMessage"));
       const body = voiceOnly ? "" : escapeHtml(msg.body || "");
       const messageId = escapeHtml(String(msg.id || ""));
-      const deleteBtn = canDeleteAdminMessage(msg)
-        ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
-        : "";
-      const replyBtn = messageIdPresent(msg)
-        ? `<button type="button" class="bubble-reply-btn" data-chat-reply-id="${messageId}" title="${escapeAttr(window.adminChatT("chatReplyAction") || "Antworten")}">↩</button>`
-        : "";
+      const decor = messageBubbleDecor(msg);
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
-      const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
-      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${replyBtn}${deleteBtn}</div></div>`;
+      const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", voiceOnly ? "is-voice-only" : "", decor.extraClass].filter(Boolean).join(" ");
+      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta">${decor.badges}<span>${time}</span>${ticks}${decor.menuBtn}</div></div>`;
     }
     async function clearAdminChatMessages(scope) {
       if (!currentThreadId) return;
@@ -2732,22 +2921,6 @@
       chatFileInput.addEventListener("change", () => syncAdminComposeAction());
     }
     document.getElementById("messageList").addEventListener("click", (event) => {
-      const replyBtn = event.target instanceof Element ? event.target.closest("[data-chat-reply-id]") : null;
-      if (replyBtn) {
-        const messageId = replyBtn.getAttribute("data-chat-reply-id") || "";
-        const msg = adminChatMessagesCache.find((item) => String(item.id) === String(messageId));
-        if (msg) setAdminReplyTo(msg);
-        return;
-      }
-      const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
-      if (deleteBtn) {
-        const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
-        if (!messageId) return;
-        deleteAdminChatMessage(messageId).catch((error) => {
-          setThreadMeta(error.message || String(error), { dynamic: true });
-        });
-        return;
-      }
       const btn = event.target instanceof Element ? event.target.closest(".chat-attachment-btn[data-attachment-id]") : null;
       if (!btn) return;
       const attachmentId = btn.getAttribute("data-attachment-id") || "";
@@ -2765,6 +2938,11 @@
     document.getElementById("chatMediaGalleryBtn")?.addEventListener("click", openAdminChatGallery);
     document.getElementById("chatExportBtn")?.addEventListener("click", exportAdminChatThread);
     bindAdminChatAttachSheet();
+    bindAdminChatMessageMenu();
+    document.getElementById("chatForwardCancelBtn")?.addEventListener("click", closeAdminForwardModal);
+    document.getElementById("chatForwardSearch")?.addEventListener("input", (event) => {
+      renderAdminForwardList(event.target?.value || "");
+    });
     document.getElementById("chatClearOwnBtn")?.addEventListener("click", () => {
       if (!window.confirm(window.adminChatT("chatClearOwnConfirm"))) return;
       clearAdminChatMessages("own").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));

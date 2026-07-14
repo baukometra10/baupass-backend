@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat8";
+const WORKER_BUILD_TAG = "20260714chat9";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -2628,9 +2628,100 @@ function bindWorkerFeatureTabActions() {
   });
 }
 
+function workerMessageMenuLabels() {
+  return {
+    reply: t("chatMenuReply"),
+    copyAction: t("chatMenuCopy"),
+    pin: t("chatMenuPin"),
+    unpin: t("chatMenuUnpin"),
+    star: t("chatMenuStar"),
+    unstar: t("chatMenuUnstar"),
+    delete: t("chatMenuDelete"),
+    copy: {
+      voice: t("chatVoiceMessage"),
+      photo: t("chatPreviewPhoto") || "Foto",
+      location: t("chatLocationPreview") || "Standort",
+      encrypted: t("encryptedPreview") || "Verschlüsselte Nachricht",
+      empty: t("chatReplyEmpty") || "Nachricht",
+      call: t("voiceCallLogTitle") || "Anruf",
+    },
+  };
+}
+
+function workerMessageBubbleDecor(msg) {
+  const messageId = String(msg?.id || "").trim();
+  if (!messageId) {
+    return { extraClass: "", badges: "", menuBtn: "" };
+  }
+  const threadId = String(workerChatThreadId || "").trim();
+  const pinned = window.SUPPIXChatMessagePrefs?.isPinned?.(threadId, messageId);
+  const starred = window.SUPPIXChatMessagePrefs?.isStarred?.(threadId, messageId);
+  const extraClass = [pinned ? "is-msg-pinned" : "", starred ? "is-msg-starred" : ""].filter(Boolean).join(" ");
+  const pinBadge = pinned ? `<span class="bubble-pin-badge" aria-hidden="true">📌</span>` : "";
+  const starBadge = starred ? `<span class="bubble-star-badge" aria-hidden="true">⭐</span>` : "";
+  const menuBtn = `<button type="button" class="bubble-menu-btn" data-chat-menu-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("chatMenuMore") || "Aktionen")}">⋮</button>`;
+  return { extraClass, badges: `${pinBadge}${starBadge}`, menuBtn };
+}
+
+function refreshWorkerMessageListView() {
+  if (!elements.workerChatMessages || !workerChatMessagesCache.length) {
+    return;
+  }
+  renderWorkerChatMessages(workerChatMessagesCache, { quiet: true });
+}
+
+function scrollToWorkerMessage(messageId) {
+  const host = elements.workerChatMessages || document.getElementById("workerChatMessages");
+  if (!host || !messageId) return;
+  const safeId = String(messageId).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const bubble = host.querySelector(`[data-message-id="${safeId}"]`);
+  if (!bubble) return;
+  bubble.scrollIntoView({ behavior: "smooth", block: "center" });
+  bubble.classList.add("chat-search-flash");
+  setTimeout(() => bubble.classList.remove("chat-search-flash"), 1200);
+}
+
+function bindWorkerChatMessageMenu() {
+  const host = elements.workerChatMessages || document.getElementById("workerChatMessages");
+  if (!host) return;
+  window.SUPPIXChatMessageMenu?.bindPinnedBar?.(host, scrollToWorkerMessage);
+  if (host.dataset.msgMenuBound === "1") return;
+  host.dataset.msgMenuBound = "1";
+  window.SUPPIXChatMessageMenu?.mountMessageMenu?.({
+    rootEl: host,
+    bubbleSelector: "[data-message-id]",
+    getMessageById: (id) => workerChatMessagesCache.find((item) => String(item.id) === String(id)),
+    getThreadId: () => String(workerChatThreadId || "").trim(),
+    labels: workerMessageMenuLabels(),
+    canDelete: (msg) => workerChatSenderSide(msg) === "mine" && Boolean(msg?.id),
+    canForward: () => false,
+    onReply: (msg) => setWorkerReplyTo(msg),
+    onCopy: async (_msg, text) => {
+      try {
+        await navigator.clipboard.writeText(String(text || ""));
+        showWorkerNotice(t("chatCopied"));
+      } catch {
+        showWorkerNotice(t("chatCopyFailed"));
+      }
+    },
+    onPinToggle: (msg) => {
+      window.SUPPIXChatMessagePrefs?.togglePin?.(workerChatThreadId, msg.id);
+      refreshWorkerMessageListView();
+    },
+    onStarToggle: (msg) => {
+      window.SUPPIXChatMessagePrefs?.toggleStar?.(workerChatThreadId, msg.id);
+      refreshWorkerMessageListView();
+    },
+    onDelete: (msg) => {
+      void deleteWorkerChatMessage(String(msg.id || ""));
+    },
+  });
+}
+
 function bindWorkerChatMessageActions() {
   const host = elements.workerChatMessages || document.getElementById("workerChatMessages");
   if (!host || host.dataset.chatActionsBound === "1") {
+    bindWorkerChatMessageMenu();
     return;
   }
   host.dataset.chatActionsBound = "1";
@@ -2646,28 +2737,9 @@ function bindWorkerChatMessageActions() {
           void loadWorkerChat({ quiet: true });
         })
         .catch(() => showWorkerNotice(t("voiceCallCallbackFailed") || "Rückruf fehlgeschlagen"));
-      return;
     }
-    const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
-    if (deleteBtn) {
-      event.preventDefault();
-      event.stopPropagation();
-      const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
-      if (messageId) {
-        void deleteWorkerChatMessage(messageId);
-      }
-      return;
-    }
-    const replyBtn = event.target instanceof Element ? event.target.closest("[data-chat-reply-id]") : null;
-    if (!replyBtn) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    const messageId = replyBtn.getAttribute("data-chat-reply-id") || "";
-    const msg = workerChatMessagesCache.find((item) => String(item.id) === String(messageId));
-    if (msg) setWorkerReplyTo(msg);
   });
+  bindWorkerChatMessageMenu();
 }
 
 async function clearWorkerChatMessages(scope) {
@@ -3037,6 +3109,14 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-reply-quote.is-mine{border-left-color:#53bdeb;background:rgba(83,189,235,.08)}",
   "#chatCard .worker-chat-reply-quote-text{display:block;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(100%,300px)}",
   "#chatCard .worker-chat-reply-btn{border:none;background:transparent;color:#8696a0;cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem}",
+  "#chatCard .worker-chat-bubble .bubble-menu-btn{border:none;background:transparent;color:#8696a0;cursor:pointer;font-size:.85rem;padding:0 .1rem;margin-left:.15rem;opacity:.55;line-height:1}",
+  "#chatCard .worker-chat-bubble:hover .bubble-menu-btn{opacity:1;color:#53bdeb}",
+  "#chatCard .worker-chat-bubble.is-msg-pinned{outline:1px solid rgba(0,168,132,.35)}",
+  "#chatCard .worker-chat-bubble.chat-msg-menu-active{outline:2px solid rgba(0,168,132,.55);box-shadow:0 0 0 4px rgba(0,168,132,.12)}",
+  "#chatCard .chat-pinned-bar{display:flex;flex-direction:column;gap:.35rem;margin:0 0 .65rem;padding:.45rem;border-radius:12px;background:rgba(0,168,132,.08);border:1px solid rgba(0,168,132,.18)}",
+  "#chatCard .chat-pinned-item{display:flex;align-items:center;gap:.45rem;width:100%;border:none;background:rgba(255,255,255,.04);color:#e9edef;border-radius:10px;padding:.45rem .55rem;cursor:pointer;text-align:left;font:inherit}",
+  "#chatCard .chat-pinned-text{flex:1;min-width:0;font-size:.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.92}",
+  "#chatCard .chat-pinned-jump{flex-shrink:0;font-size:.68rem;color:#53bdeb;font-weight:700}",
   "#chatCard .worker-chat-typing{font-size:.74rem;color:#00a884;font-style:italic;min-height:1rem;margin:.15rem 0 .35rem}",
   "#chatCard .worker-chat-typing:empty{display:none}",
   "#chatCard .worker-chat-search-wrap{position:relative;margin:.2rem 0 .45rem}",
@@ -12788,6 +12868,14 @@ function renderWorkerChatMessages(messages, options = {}) {
       return;
     }
     let html = "";
+    const pinnedBar = window.SUPPIXChatMessageMenu?.renderPinnedBarHtml?.({
+      threadId: workerChatThreadId,
+      messages: displayMessages,
+      getPreview: (msg) => workerReplyPreviewText(msg),
+      labelPinned: t("chatPinnedBar"),
+      labelJump: t("chatPinnedJump"),
+    }) || "";
+    html += pinnedBar;
     let lastDay = "";
     for (let i = 0; i < displayMessages.length; i += 1) {
       const msg = displayMessages[i];
@@ -12825,28 +12913,23 @@ function renderWorkerChatMessages(messages, options = {}) {
       const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
       const ticksHtml = workerChatReadTicks(msg, side);
       const messageId = String(msg.id || "");
-      const deleteHtml = side === "mine" && messageId
-        ? `<button type="button" class="worker-chat-delete-btn" data-chat-delete-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("workerChatDelete"))}">🗑</button>`
-        : "";
-      const replyHtml = messageId
-        ? `<button type="button" class="worker-chat-reply-btn" data-chat-reply-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("chatReplyAction") || "Antworten")}">↩</button>`
-        : "";
+      const decor = workerMessageBubbleDecor(msg);
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
-      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
+      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : "", decor.extraClass].filter(Boolean).join(" ");
       html += `
         <div class="${rowClasses}"${messageId ? ` data-message-id="${escapeHtmlBasic(messageId)}"` : ""}>
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
-          <div class="${bubbleClasses}">
+          <div class="${bubbleClasses}"${messageId ? ` data-message-id="${escapeHtmlBasic(messageId)}"` : ""}>
             ${renderWorkerReplyQuoteHtml(msg)}
             ${bodyHtml}
             ${locationHtml}
             ${callLogHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
+              ${decor.badges}
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
               ${ticksHtml}
-              ${replyHtml}
-              ${deleteHtml}
+              ${decor.menuBtn}
             </div>
           </div>
         </div>
