@@ -1901,7 +1901,7 @@ def apply_security_headers(response):
         "connect-src 'self' https: "
         "wss://localhost:49494 wss://127.0.0.1:49494 "
         "wss://signsocket.stepover.com:57357; "
-        "frame-src 'self' blob:; "
+        "frame-src 'self' blob: https://www.google.com https://maps.google.com https://www.google.de; "
         "object-src 'self' blob:; "
         "base-uri 'self'; "
         f"frame-ancestors {frame_ancestors}"

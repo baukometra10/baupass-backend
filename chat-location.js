@@ -65,34 +65,34 @@
     return parseLocationBody(text) !== null;
   }
 
-  function mapsUrl(loc) {
+  function googleMapsUrl(loc) {
     if (!loc) return "#";
-    return `https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}#map=18/${loc.lat}/${loc.lng}`;
+    const lat = Number(loc.lat);
+    const lng = Number(loc.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "#";
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
+  }
+
+  function googleMapsEmbedUrl(loc) {
+    const lat = Number(loc?.lat);
+    const lng = Number(loc?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
+    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 16;
+    const q = encodeURIComponent(`${lat},${lng}`);
+    return `https://maps.google.com/maps?q=${q}&hl=de&z=${zoom}&output=embed`;
+  }
+
+  /** @deprecated use googleMapsUrl */
+  function mapsUrl(loc) {
+    return googleMapsUrl(loc);
   }
 
   function embedMapUrl(loc) {
-    if (!loc) return "";
-    const lat = Number(loc.lat);
-    const lng = Number(loc.lng);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
-    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 16;
-    const latDelta = zoom >= 17 ? 0.0035 : 0.006;
-    const lngDelta = zoom >= 17 ? 0.0055 : 0.009;
-    const bbox = [
-      lng - lngDelta,
-      lat - latDelta,
-      lng + lngDelta,
-      lat + latDelta,
-    ].join(",");
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${encodeURIComponent(bbox)}&layer=mapnik&marker=${encodeURIComponent(`${lat},${lng}`)}`;
+    return googleMapsEmbedUrl(loc);
   }
 
   function staticMapUrl(loc) {
-    if (!loc) return "";
-    const lat = loc.lat.toFixed(6);
-    const lng = loc.lng.toFixed(6);
-    const zoom = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? 17 : 15;
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=${zoom}&size=320x180&markers=${lat},${lng}`;
+    return googleMapsEmbedUrl(loc);
   }
 
   function ensureLocationStyles() {
@@ -101,8 +101,11 @@
     const style = global.document.createElement("style");
     style.id = "suppixChatLocationStyles";
     style.textContent = [
-      ".chat-location-map-embed{display:block;width:100%;height:180px;border:0;background:#0f172a}",
-      ".chat-location-map-fallback{display:grid;place-items:center;min-height:140px;background:linear-gradient(145deg,#0f172a,#1e293b);color:#94a3b8;font-size:.82rem;padding:1rem;text-align:center}",
+      ".chat-location-map-embed{display:block;width:100%;height:180px;border:0;background:#e8eaed;pointer-events:none}",
+      ".chat-location-map-hit{display:block;position:relative;overflow:hidden;border-radius:12px 12px 0 0;background:#e8eaed;text-decoration:none;color:inherit}",
+      ".chat-location-map-hit:hover .chat-location-map-embed{opacity:.94}",
+      ".chat-location-map-fallback{display:grid;place-items:center;min-height:160px;background:linear-gradient(145deg,#e8eaed,#d2dbe3);color:#3c4043;font-size:.82rem;padding:1rem;text-align:center}",
+      ".chat-location-map-pin{position:absolute;left:50%;top:50%;transform:translate(-50%,-78%);font-size:1.75rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));pointer-events:none;z-index:2}",
     ].join("");
     global.document.head.appendChild(style);
   }
@@ -135,17 +138,17 @@
     const title = escapeHtml(loc.label || labels.sharedTitle || formatLocationPreview(labels));
     const accText = accuracyLabel(loc, labels);
     const accClass = Number(loc.accuracy) <= DEFAULT_MAX_ACCURACY_M ? "is-precise" : "";
-    const embedSrc = embedMapUrl(loc);
-    const href = mapsUrl(loc);
-    const openLabel = escapeHtml(labels.openMaps || "In Karte öffnen");
+    const embedSrc = googleMapsEmbedUrl(loc);
+    const href = googleMapsUrl(loc);
+    const openLabel = escapeHtml(labels.openMaps || "In Google Maps öffnen");
     const mapHtml = embedSrc
-      ? `<iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="lazy" title="${title}" referrerpolicy="no-referrer-when-downgrade"></iframe>`
+      ? `<iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="eager" title="${title}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>`
       : `<div class="chat-location-map-fallback">${openLabel}</div>`;
     return `<div class="chat-location-card ${side}">
-      <div class="chat-location-map-link">
+      <a class="chat-location-map-hit" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" aria-label="${openLabel}">
         ${mapHtml}
         <span class="chat-location-map-pin" aria-hidden="true">📍</span>
-      </div>
+      </a>
       <div class="chat-location-meta">
         <div class="chat-location-head">
           <span class="chat-location-icon" aria-hidden="true">📍</span>
@@ -374,6 +377,8 @@
     peekCachedChatLocation,
     warmChatGeolocation,
     locationCaptureErrorMessage,
+    googleMapsUrl,
+    googleMapsEmbedUrl,
     mapsUrl,
     staticMapUrl,
   };

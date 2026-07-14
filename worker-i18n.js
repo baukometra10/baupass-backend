@@ -339,7 +339,7 @@ const TRANSLATIONS = {
     chatLocationTimeout: "Standort-Timeout — bitte erneut versuchen.",
     chatLocationDenied: "Standortfreigabe verweigert.",
     chatLocationFailed: "Standort konnte nicht ermittelt werden.",
-    chatLocationOpenMaps: "In Karte öffnen",
+    chatLocationOpenMaps: "In Google Maps öffnen",
     chatLocationAccuracy: "±{m} m",
     chatLocationAccuracyGood: "Genauigkeit ±{m} m",
     chatAttachDocument: "Dokument",
