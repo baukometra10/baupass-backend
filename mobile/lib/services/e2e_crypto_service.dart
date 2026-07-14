@@ -130,6 +130,7 @@ class E2eCryptoService {
     required String filename,
     required String mime,
     int? durationSec,
+    bool viewOnce = false,
   }) async {
     final secretKey = await _aesGcm.newSecretKey();
     final nonce = _aesGcm.newNonce();
@@ -146,6 +147,7 @@ class E2eCryptoService {
       'filename': filename,
       'mime': mime,
       if (durationSec != null && durationSec > 0) 'durationSec': durationSec,
+      if (viewOnce) 'viewOnce': true,
       'iv': base64Encode(nonce),
       'ct': base64Encode(wireBytes),
       'wrappedKey': wrappedKey,

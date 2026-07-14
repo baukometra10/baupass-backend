@@ -716,6 +716,9 @@
     if (Number(meta?.durationSec) > 0) {
       fileEnvelope.durationSec = Math.round(Number(meta.durationSec));
     }
+    if (meta?.viewOnce) {
+      fileEnvelope.viewOnce = true;
+    }
     return {
       blob: new Uint8Array(ct),
       meta: JSON.stringify(fileEnvelope),

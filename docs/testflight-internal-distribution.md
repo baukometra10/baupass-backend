@@ -95,7 +95,8 @@ Until secrets are configured, use local `flutter build ipa` + Transporter.
 
 ## CallKit & voice calls (iOS TestFlight)
 
-Build **0.1.9+26** and later include native incoming-call UI via `flutter_callkit_incoming`.
+Build **0.1.9+26** and later include native incoming-call UI via `flutter_callkit_incoming`.  
+Build **0.1.10+27** and later add chat parity: inline images, media gallery, location sharing, WhatsApp-style voice recording bar.
 
 ### What to test on a physical iPhone
 
@@ -113,9 +114,31 @@ Build **0.1.9+26** and later include native incoming-call UI via `flutter_callki
 
 ### If CallKit does not appear
 
-- Confirm the build number in TestFlight matches `pubspec.yaml` (`0.1.9+26` or newer).
+- Confirm the build number in TestFlight matches `pubspec.yaml` (`0.1.10+27` or newer for chat gallery/location/voice bar; `0.1.9+26`+ for CallKit).
 - Check iOS **Settings → WorkPass Worker → Notifications** and microphone permission.
 - First upload after adding CallKit must be a **new native build** (PWA-only changes are not enough).
+
+---
+
+## Chat features (iOS TestFlight, build 0.1.10+27+)
+
+### What to test
+
+1. **Sprachnachricht** — tap mic → WhatsApp-style bar (timer, waveform, pause, view-once toggle, send). Send to admin; admin should receive playable voice.
+2. **Standort** — pin icon in compose → GPS sheet → send. Admin chat shows location bubble; tap opens Maps.
+3. **Fotos** — attach image; inline preview in thread; tap for fullscreen. **Medien** icon (AppBar) opens gallery with tabs (Alle/Fotos/Sprache/Dateien).
+4. **View-once voice** — enable “1” toggle before send; recipient can listen once (PWA/admin); native playback opens file (view-once enforced on web clients).
+
+### Build command (Mac)
+
+```bash
+cd mobile
+flutter pub get
+flutter build ipa --release \
+  --dart-define=BAUPASS_API_URL=https://baupass-production.up.railway.app
+```
+
+Upload `build/ios/ipa/*.ipa` via **Transporter** or Xcode Organizer.
 
 ---
 

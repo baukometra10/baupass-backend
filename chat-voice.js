@@ -376,6 +376,36 @@
     return Number.isFinite(sec) && sec > 0 ? Math.round(sec) : 0;
   }
 
+  const VIEW_ONCE_CONSUMED_KEY = "suppix-chat-view-once-consumed";
+
+  function loadViewOnceConsumed() {
+    try {
+      return new Set(JSON.parse(global.localStorage?.getItem(VIEW_ONCE_CONSUMED_KEY) || "[]"));
+    } catch {
+      return new Set();
+    }
+  }
+
+  function markViewOnceConsumed(attachmentId) {
+    const id = String(attachmentId || "").trim();
+    if (!id) return;
+    const set = loadViewOnceConsumed();
+    set.add(id);
+    try {
+      global.localStorage?.setItem(VIEW_ONCE_CONSUMED_KEY, JSON.stringify([...set].slice(-500)));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isViewOnceAttachment(e2eMeta) {
+    return Boolean(parseE2eAttachmentMeta(e2eMeta)?.viewOnce);
+  }
+
+  function isViewOnceConsumed(attachmentId) {
+    return loadViewOnceConsumed().has(String(attachmentId || "").trim());
+  }
+
   async function probeBlobDuration(blob) {
     if (!blob) return 0;
     try {
@@ -1280,7 +1310,11 @@
     const e2eRaw = attachment?.e2eMeta || attachment?.e2e_meta || labels.e2eMeta || "";
     const knownDuration = Number(labels.durationSec || attachment?.durationSec || parseE2eAttachmentDuration(e2eRaw) || 0);
     const durationLabel = knownDuration > 0 ? formatDuration(knownDuration) : "0:00";
-    return `<div class="chat-voice-note wa-voice-bubble is-${side}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}"${knownDuration > 0 ? ` data-duration-sec="${knownDuration}"` : ""}>
+    const viewOnce = isViewOnceAttachment(e2eRaw);
+    const consumed = viewOnce && isViewOnceConsumed(id);
+    const viewOnceClass = viewOnce ? " is-view-once" : "";
+    const consumedClass = consumed ? " is-view-once-consumed" : "";
+    return `<div class="chat-voice-note wa-voice-bubble is-${side}${viewOnceClass}${consumedClass}" data-attachment-id="${id}" data-filename="${filename}" data-content-type="${contentType}"${viewOnce ? ' data-view-once="1"' : ""}${knownDuration > 0 ? ` data-duration-sec="${knownDuration}"` : ""}>
       <button type="button" class="chat-voice-play" aria-label="${voiceLabel}">${PLAY_SVG}</button>
       <div class="chat-voice-body">
         ${voiceWaveformHtml(id || filename, 40)}
@@ -1364,6 +1398,14 @@
     const attachmentId = player.getAttribute("data-attachment-id") || "";
     if (!playBtn || !attachmentId) return;
 
+    const isIncoming = player.classList.contains("is-them");
+    const viewOnce = player.getAttribute("data-view-once") === "1";
+    if (isIncoming && viewOnce && isViewOnceConsumed(attachmentId)) {
+      player.classList.add("is-view-once-consumed");
+      onError?.(new Error("view_once_consumed"));
+      return;
+    }
+
     if (activePlayer === player && activeAudio && !activeAudio.paused) {
       activeAudio.pause();
       player.classList.remove("is-playing");
@@ -1422,6 +1464,16 @@
         if (progressWave) progressWave.style.setProperty("--voice-progress", "0");
         if (durationEl && cached.duration) {
           durationEl.textContent = formatDuration(cached.duration);
+        }
+        if (isIncoming && viewOnce) {
+          markViewOnceConsumed(attachmentId);
+          player.classList.add("is-view-once-consumed");
+          audioCache.delete(attachmentId);
+          try {
+            global.URL.revokeObjectURL(cached.url);
+          } catch {
+            /* ignore */
+          }
         }
         activeAudio = null;
         activePlayer = null;
@@ -1562,6 +1614,9 @@
 .wa-voice-pill-send{display:inline-flex;align-items:center;justify-content:center;width:48px;height:48px;border:none;border-radius:50%;background:#00a884;color:#fff;cursor:pointer;flex-shrink:0;box-shadow:0 2px 10px rgba(0,168,132,.35);padding:0}
 .wa-voice-pill-send:active{transform:scale(.96)}
 .is-voice-pill-active .chat-voice-hint,.is-voice-pill-active .worker-chat-voice-hint{display:none!important}
+.chat-voice-note.is-view-once .chat-voice-dot{background:#00a884}
+.chat-voice-note.is-view-once-consumed{opacity:.55}
+.chat-voice-note.is-view-once-consumed .chat-voice-play{pointer-events:none;opacity:.45}
 .chat-send-btn[hidden],.worker-chat-send-btn[hidden]{display:none!important}
 .is-voice-recording textarea{opacity:.45}
 `;
@@ -1609,6 +1664,9 @@
     isAudioAttachment,
     isVoiceOnlyBody,
     parseE2eAttachmentDuration,
+    isViewOnceAttachment,
+    isViewOnceConsumed,
+    markViewOnceConsumed,
     probeBlobDuration,
     composeHasText,
     updateComposePrimaryAction,

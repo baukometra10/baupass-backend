@@ -149,6 +149,37 @@ class ApiClient {
     return decoded;
   }
 
+  Future<Map<String, dynamic>> deleteJson(
+    String path, {
+    String? bearerToken,
+    String? deviceId,
+    Map<String, String>? extraHeaders,
+  }) async {
+    final uri = Uri.parse('$_baseUrl$path');
+    final http.Response response;
+    try {
+      response = await _http.delete(
+        uri,
+        headers: _headers(
+          bearerToken: bearerToken,
+          deviceId: deviceId,
+          extraHeaders: extraHeaders,
+        ),
+      );
+    } on Exception catch (e) {
+      throw ApiException(0, 'network_error', e.toString());
+    }
+    Map<String, dynamic> decoded = <String, dynamic>{};
+    if (response.body.isNotEmpty) {
+      final parsed = jsonDecode(response.body);
+      if (parsed is Map<String, dynamic>) decoded = parsed;
+    }
+    if (response.statusCode >= 400) {
+      throw _apiException(response.statusCode, decoded, path);
+    }
+    return decoded;
+  }
+
   Future<List<Map<String, dynamic>>> getJsonList(
     String path, {
     String? bearerToken,

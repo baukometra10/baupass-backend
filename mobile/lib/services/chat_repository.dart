@@ -308,6 +308,7 @@ class ChatRepository {
     required File file,
     int? durationSec,
     String? displayFilename,
+    bool viewOnce = false,
   }) async {
     await ensureE2eReady(session);
     final workerId = _workerId ?? '';
@@ -323,6 +324,7 @@ class ChatRepository {
         filename: originalName,
         mime: _guessAttachmentMime(originalName),
         durationSec: durationSec,
+        viewOnce: viewOnce,
       );
       final tempDir = Directory.systemTemp;
       final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');
@@ -392,6 +394,15 @@ class ChatRepository {
       bearerToken: session.bearer,
       deviceId: session.deviceId,
       body: callId != null && callId.trim().isNotEmpty ? {'call_id': callId.trim()} : {},
+    );
+  }
+
+  Future<void> deleteMessage(WorkerSession session, String messageId) async {
+    if (messageId.trim().isEmpty) return;
+    await _api.deleteJson(
+      '/api/worker-app/chat/messages/$messageId',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
     );
   }
 }

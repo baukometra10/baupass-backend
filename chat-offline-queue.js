@@ -66,6 +66,7 @@
       filename: String(file.name || "upload.bin"),
       contentType: String(file.type || "application/octet-stream"),
       durationSec: Number(file.durationSec || 0),
+      viewOnce: Boolean(file.viewOnce),
     };
     return new Promise((resolve) => {
       const tx = db.transaction("blobs", "readwrite");
@@ -88,6 +89,7 @@
     const blob = new Blob([payload.buffer], { type: payload.contentType || "application/octet-stream" });
     const file = new File([blob], payload.filename || "upload.bin", { type: payload.contentType || "application/octet-stream" });
     if (payload.durationSec) file.durationSec = payload.durationSec;
+    if (payload.viewOnce) file.viewOnce = true;
     return file;
   }
 

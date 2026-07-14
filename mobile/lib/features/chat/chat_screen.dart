@@ -12,6 +12,9 @@ import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
+import 'chat_location_helpers.dart';
+import 'chat_media_gallery.dart';
+import 'chat_voice_compose_bar.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -32,10 +35,15 @@ class _ChatScreenState extends State<ChatScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   bool _loading = true;
   bool _sending = false;
-  bool _recording = false;
+  bool _voiceComposing = false;
+  bool _voicePaused = false;
+  bool _voiceViewOnce = false;
   String? _threadId;
   String? _recordPath;
-  DateTime? _recordStartedAt;
+  DateTime? _voiceSegmentStarted;
+  Duration _voiceElapsed = Duration.zero;
+  Duration _voiceAccumulated = Duration.zero;
+  Timer? _voiceTicker;
   List<Map<String, dynamic>> _messages = <Map<String, dynamic>>[];
   bool _silentRefresh = false;
   Timer? _pollTimer;
@@ -46,7 +54,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _message.addListener(_onComposeChanged);
     _boot();
     _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
-      if (!_sending && !_silentRefresh && !_recording && mounted) {
+      if (!_sending && !_silentRefresh && !_voiceComposing && mounted) {
         _boot(silent: true);
       }
     });
@@ -55,8 +63,12 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _voiceTicker?.cancel();
     _message.removeListener(_onComposeChanged);
     _message.dispose();
+    if (_voiceComposing) {
+      unawaited(_recorder.stop());
+    }
     _recorder.dispose();
     super.dispose();
   }
@@ -133,7 +145,7 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _sendVoiceFile(String filePath, {int? durationSec}) async {
+  Future<void> _sendVoiceFile(String filePath, {int? durationSec, bool viewOnce = false}) async {
     final threadId = _threadId;
     if (threadId == null || _sending) return;
     final file = File(filePath);
@@ -154,6 +166,7 @@ class _ChatScreenState extends State<ChatScreen> {
         file: file,
         durationSec: durationSec,
         displayFilename: voiceName,
+        viewOnce: viewOnce,
       );
       if (!mounted) return;
       await _boot(silent: true);
@@ -188,45 +201,116 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<void> _toggleVoice() async {
-    if (_sending) return;
-    if (!_recording) {
-      if (!await _recorder.hasPermission()) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Mikrofon-Berechtigung erforderlich. Bitte in den iPhone-Einstellungen für die Mitarbeiter-App erlauben.',
-            ),
+  void _syncVoiceElapsed() {
+    if (!_voiceComposing || _voicePaused || _voiceSegmentStarted == null) return;
+    setState(() {
+      _voiceElapsed = _voiceAccumulated + DateTime.now().difference(_voiceSegmentStarted!);
+    });
+  }
+
+  void _startVoiceTicker() {
+    _voiceTicker?.cancel();
+    _voiceTicker = Timer.periodic(const Duration(milliseconds: 200), (_) => _syncVoiceElapsed());
+  }
+
+  Future<void> _startVoiceCompose() async {
+    if (_sending || _voiceComposing) return;
+    if (!await _recorder.hasPermission()) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mikrofon-Berechtigung erforderlich. Bitte in den Einstellungen erlauben.',
           ),
-        );
-        return;
-      }
-      final dir = await getTemporaryDirectory();
-      _recordPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(
-        const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000),
-        path: _recordPath!,
+        ),
       );
-      if (!mounted) return;
-      setState(() {
-        _recording = true;
-        _recordStartedAt = DateTime.now();
-      });
       return;
     }
-
-    final path = await _recorder.stop();
+    final dir = await getTemporaryDirectory();
+    _recordPath = '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.aacLc, sampleRate: 16000),
+      path: _recordPath!,
+    );
     if (!mounted) return;
-    final startedAt = _recordStartedAt;
     setState(() {
-      _recording = false;
-      _recordStartedAt = null;
+      _voiceComposing = true;
+      _voicePaused = false;
+      _voiceViewOnce = false;
+      _voiceElapsed = Duration.zero;
+      _voiceAccumulated = Duration.zero;
+      _voiceSegmentStarted = DateTime.now();
     });
+    _startVoiceTicker();
+  }
+
+  Future<void> _cancelVoiceCompose() async {
+    _voiceTicker?.cancel();
+    if (_voiceComposing) {
+      await _recorder.stop();
+    }
+    final path = _recordPath;
+    _recordPath = null;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {
+        /* ignore */
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _voiceComposing = false;
+      _voicePaused = false;
+      _voiceViewOnce = false;
+      _voiceElapsed = Duration.zero;
+      _voiceAccumulated = Duration.zero;
+      _voiceSegmentStarted = null;
+    });
+  }
+
+  Future<void> _toggleVoicePause() async {
+    if (!_voiceComposing) return;
+    if (_voicePaused) {
+      await _recorder.resume();
+      if (!mounted) return;
+      setState(() {
+        _voicePaused = false;
+        _voiceSegmentStarted = DateTime.now();
+      });
+      _startVoiceTicker();
+      return;
+    }
+    _syncVoiceElapsed();
+    _voiceTicker?.cancel();
+    await _recorder.pause();
+    if (!mounted) return;
+    setState(() {
+      _voicePaused = true;
+      _voiceAccumulated = _voiceElapsed;
+      _voiceSegmentStarted = null;
+    });
+  }
+
+  Future<void> _finishVoiceCompose() async {
+    if (!_voiceComposing) return;
+    _syncVoiceElapsed();
+    _voiceTicker?.cancel();
+    final viewOnce = _voiceViewOnce;
+    final elapsed = _voiceElapsed;
+    final path = await _recorder.stop();
     final filePath = path ?? _recordPath;
     _recordPath = null;
+    if (!mounted) return;
+    setState(() {
+      _voiceComposing = false;
+      _voicePaused = false;
+      _voiceViewOnce = false;
+      _voiceElapsed = Duration.zero;
+      _voiceAccumulated = Duration.zero;
+      _voiceSegmentStarted = null;
+    });
     if (filePath == null || filePath.isEmpty) return;
-    final elapsed = startedAt == null ? Duration.zero : DateTime.now().difference(startedAt);
     if (elapsed < const Duration(milliseconds: 800)) {
       try {
         await File(filePath).delete();
@@ -239,12 +323,76 @@ class _ChatScreenState extends State<ChatScreen> {
       );
       return;
     }
-    await _sendVoiceFile(filePath, durationSec: elapsed.inSeconds.clamp(1, 3600));
+    await _sendVoiceFile(
+      filePath,
+      durationSec: elapsed.inSeconds.clamp(1, 3600),
+      viewOnce: viewOnce,
+    );
+  }
+
+  Future<void> _sendLocation() async {
+    final threadId = _threadId;
+    if (threadId == null || _sending || _voiceComposing) return;
+    final point = await showChatLocationShareSheet(context);
+    if (point == null || !mounted) return;
+    setState(() => _sending = true);
+    try {
+      final body = encodeChatLocationBody(
+        lat: point.lat,
+        lng: point.lng,
+        accuracy: point.accuracy,
+        note: point.note,
+      );
+      await widget.chat.sendMessage(
+        session: widget.session,
+        threadId: threadId,
+        body: body,
+      );
+      await _boot(silent: true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Standort senden fehlgeschlagen: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _openGallery() async {
+    if (_messages.isEmpty) return;
+    await showChatMediaGallery(
+      context: context,
+      messages: _messages,
+      session: widget.session,
+      chat: widget.chat,
+      onDeleteMessage: (messageId) async {
+        await widget.chat.deleteMessage(widget.session, messageId);
+        await _boot(silent: true);
+      },
+      onOpenItem: (item) async {
+        if (item.kind == ChatMediaKind.image) {
+          await _showImageFullscreen({
+            'id': item.id,
+            'filename': item.filename,
+            'e2eMeta': item.e2eMeta,
+            'e2e_meta': item.e2eMeta,
+          });
+          return;
+        }
+        await _openAttachment({
+          'id': item.id,
+          'filename': item.filename,
+          'e2eMeta': item.e2eMeta,
+          'e2e_meta': item.e2eMeta,
+        });
+      },
+    );
   }
 
   Future<void> _attach() async {
     final threadId = _threadId;
-    if (threadId == null || _sending || _recording) return;
+    if (threadId == null || _sending || _voiceComposing) return;
     final picked = await FilePicker.platform.pickFiles(withData: false);
     if (picked == null || picked.files.isEmpty) return;
     final file = picked.files.single.path;
@@ -307,6 +455,81 @@ class _ChatScreenState extends State<ChatScreen> {
         || filename.endsWith('.wav')
         || filename.endsWith('.webm')
         || filename.endsWith('.aac');
+  }
+
+  bool _isImageAttachment(Map<String, dynamic> attachment) {
+    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? '')
+        .toString()
+        .toLowerCase();
+    final filename = (attachment['filename'] ?? '').toString().toLowerCase();
+    if (contentType.startsWith('image/')) return true;
+    return filename.endsWith('.jpg')
+        || filename.endsWith('.jpeg')
+        || filename.endsWith('.png')
+        || filename.endsWith('.webp')
+        || filename.endsWith('.gif');
+  }
+
+  Future<void> _showImageFullscreen(Map<String, dynamic> attachment) async {
+    final id = attachment['id'] as String?;
+    if (id == null || id.isEmpty) return;
+    final filename = attachment['filename'] as String? ?? 'bild.jpg';
+    final e2eMeta = attachment['e2eMeta'] as String? ?? attachment['e2e_meta'] as String?;
+    try {
+      final bytes = await widget.chat.downloadAttachment(
+        session: widget.session,
+        attachmentId: id,
+        e2eMeta: e2eMeta,
+        filename: filename,
+      );
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        barrierColor: Colors.black87,
+        builder: (context) {
+          return Dialog.fullscreen(
+            backgroundColor: Colors.black,
+            child: Stack(
+              children: [
+                Center(
+                  child: InteractiveViewer(
+                    minScale: 0.5,
+                    maxScale: 4,
+                    child: Image.memory(bytes, fit: BoxFit.contain),
+                  ),
+                ),
+                SafeArea(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close, color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Bild konnte nicht geladen werden: $e')),
+      );
+    }
+  }
+
+  Widget _buildImageAttachment(Map<String, dynamic> attachment) {
+    final id = attachment['id'] as String?;
+    if (id == null || id.isEmpty) return const SizedBox.shrink();
+    return _ChatImagePreview(
+      key: ValueKey<String>(id),
+      attachment: attachment,
+      chat: widget.chat,
+      session: widget.session,
+      onTapFullscreen: () => _showImageFullscreen(attachment),
+    );
   }
 
   bool _isVoiceOnlyBody(String? body) {
@@ -416,33 +639,27 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildPrimaryAction() {
     final hasText = _message.text.trim().isNotEmpty;
-    if (_recording) {
+    if (hasText) {
       return FilledButton(
-        onPressed: _sending ? null : _toggleVoice,
-        style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFFEA4335),
-          minimumSize: const Size(52, 52),
-          padding: EdgeInsets.zero,
-          shape: const CircleBorder(),
-        ),
-        child: const Icon(Icons.stop),
-      );
-    }
-    if (!hasText) {
-      return FilledButton(
-        onPressed: _sending ? null : _toggleVoice,
+        onPressed: _sending ? null : _send,
         style: FilledButton.styleFrom(
           backgroundColor: const Color(0xFF00A884),
           minimumSize: const Size(52, 52),
           padding: EdgeInsets.zero,
           shape: const CircleBorder(),
         ),
-        child: const Icon(Icons.mic),
+        child: const Icon(Icons.send),
       );
     }
     return FilledButton(
-      onPressed: _sending ? null : _send,
-      child: const Text('Senden'),
+      onPressed: (_sending || _voiceComposing) ? null : _startVoiceCompose,
+      style: FilledButton.styleFrom(
+        backgroundColor: const Color(0xFF00A884),
+        minimumSize: const Size(52, 52),
+        padding: EdgeInsets.zero,
+        shape: const CircleBorder(),
+      ),
+      child: const Icon(Icons.mic),
     );
   }
 
@@ -453,6 +670,11 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Text(branding.chatTitle),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.photo_library_outlined),
+            tooltip: 'Medien',
+            onPressed: _messages.isEmpty ? null : _openGallery,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _boot,
@@ -473,12 +695,14 @@ class _ChatScreenState extends State<ChatScreen> {
                             final item = _messages[index];
                             final isWorker = _isWorkerMessage(item);
                             final callLog = _parseVoiceCallLog(item['body'] as String?);
+                            final location = parseChatLocationBody(item['body'] as String?);
                             final attachments = (item['attachments'] as List?) ?? const [];
                             final audioAttachments = attachments
                                 .map((att) => Map<String, dynamic>.from(att as Map))
                                 .where(_isAudioAttachment)
                                 .toList();
                             final showBody = callLog == null
+                                && location == null
                                 && (!_isVoiceOnlyBody(item['body'] as String?) || audioAttachments.isEmpty);
                             final read = item['readByRecipient'] == true || item['read_by_recipient'] == true;
                             final readLabel = _readStatusLabel(item);
@@ -550,6 +774,15 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 showCallback: !isWorker
                                                     && const {'missed', 'declined', 'cancelled', 'ended'}.contains(callLog['status']),
                                               )
+                                            else if (location != null)
+                                              Padding(
+                                                padding: const EdgeInsets.only(top: 4),
+                                                child: ChatLocationBubble(
+                                                  point: location,
+                                                  isMine: isWorker,
+                                                  timeLabel: timeLabel,
+                                                ),
+                                              )
                                             else if (showBody && (item['body'] as String? ?? '').trim().isNotEmpty)
                                               Text(
                                                 item['body'] as String? ?? '',
@@ -592,6 +825,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                               ...attachments.map((att) {
                                                 final map = Map<String, dynamic>.from(att as Map);
                                                 if (_isAudioAttachment(map)) return const SizedBox.shrink();
+                                                if (_isImageAttachment(map)) {
+                                                  return Padding(
+                                                    padding: const EdgeInsets.only(top: 4),
+                                                    child: _buildImageAttachment(map),
+                                                  );
+                                                }
                                                 return InkWell(
                                                   onTap: () => _openAttachment(map),
                                                   child: Padding(
@@ -606,32 +845,45 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 );
                                               }),
                                             ],
-                                            const SizedBox(height: 4),
-                                            Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              mainAxisAlignment: MainAxisAlignment.end,
-                                              children: [
-                                                if (timeLabel.isNotEmpty)
-                                                  Text(
-                                                    timeLabel,
-                                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                                        ),
-                                                  ),
-                                                if (readLabel.isNotEmpty) ...[
-                                                  const SizedBox(width: 6),
-                                                  Text(
-                                                    readLabel,
-                                                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                                                          fontWeight: FontWeight.w700,
-                                                          color: read
-                                                              ? Theme.of(context).colorScheme.primary
-                                                              : Theme.of(context).colorScheme.onSurfaceVariant,
-                                                        ),
-                                                  ),
+                                            if (location == null) ...[
+                                              const SizedBox(height: 4),
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                mainAxisAlignment: MainAxisAlignment.end,
+                                                children: [
+                                                  if (timeLabel.isNotEmpty)
+                                                    Text(
+                                                      timeLabel,
+                                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                          ),
+                                                    ),
+                                                  if (readLabel.isNotEmpty) ...[
+                                                    const SizedBox(width: 6),
+                                                    Text(
+                                                      readLabel,
+                                                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                            fontWeight: FontWeight.w700,
+                                                            color: read
+                                                                ? Theme.of(context).colorScheme.primary
+                                                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                          ),
+                                                    ),
+                                                  ],
                                                 ],
-                                              ],
-                                            ),
+                                              ),
+                                            ] else if (readLabel.isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                readLabel,
+                                                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                      fontWeight: FontWeight.w700,
+                                                      color: read
+                                                          ? Theme.of(context).colorScheme.primary
+                                                          : Theme.of(context).colorScheme.onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ],
                                           ],
                                         ),
                                       ),
@@ -643,47 +895,134 @@ class _ChatScreenState extends State<ChatScreen> {
                           },
                         ),
                 ),
-                if (_recording)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                    child: Row(
-                      children: [
-                        Icon(Icons.mic, color: Theme.of(context).colorScheme.error),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text('Aufnahme läuft — erneut tippen zum Senden'),
-                        ),
-                      ],
-                    ),
-                  ),
-                SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          onPressed: (_sending || _recording) ? null : _attach,
-                          icon: const Icon(Icons.attach_file),
-                        ),
-                        Expanded(
-                          child: TextField(
-                            controller: _message,
-                            minLines: 1,
-                            maxLines: 4,
-                            decoration: const InputDecoration(
-                              hintText: 'Nachricht schreiben…',
+                if (_voiceComposing)
+                  ChatVoiceComposeBar(
+                    elapsed: _voiceElapsed,
+                    paused: _voicePaused,
+                    viewOnce: _voiceViewOnce,
+                    onCancel: () => unawaited(_cancelVoiceCompose()),
+                    onTogglePause: () => unawaited(_toggleVoicePause()),
+                    onToggleViewOnce: () => setState(() => _voiceViewOnce = !_voiceViewOnce),
+                    onSend: () => unawaited(_finishVoiceCompose()),
+                  )
+                else
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                      child: Row(
+                        children: [
+                          IconButton(
+                            onPressed: _sending ? null : _attach,
+                            icon: const Icon(Icons.attach_file),
+                          ),
+                          IconButton(
+                            onPressed: _sending ? null : _sendLocation,
+                            icon: const Icon(Icons.location_on_outlined),
+                            tooltip: 'Standort senden',
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _message,
+                              minLines: 1,
+                              maxLines: 4,
+                              decoration: const InputDecoration(
+                                hintText: 'Nachricht schreiben…',
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 8),
-                        _buildPrimaryAction(),
-                      ],
+                          const SizedBox(width: 8),
+                          _buildPrimaryAction(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
+    );
+  }
+}
+
+class _ChatImagePreview extends StatefulWidget {
+  const _ChatImagePreview({
+    super.key,
+    required this.attachment,
+    required this.chat,
+    required this.session,
+    required this.onTapFullscreen,
+  });
+
+  final Map<String, dynamic> attachment;
+  final ChatRepository chat;
+  final WorkerSession session;
+  final VoidCallback onTapFullscreen;
+
+  @override
+  State<_ChatImagePreview> createState() => _ChatImagePreviewState();
+}
+
+class _ChatImagePreviewState extends State<_ChatImagePreview> {
+  Uint8List? _bytes;
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final id = widget.attachment['id'] as String?;
+    if (id == null || id.isEmpty) {
+      if (mounted) setState(() { _loading = false; _failed = true; });
+      return;
+    }
+    try {
+      final bytes = await widget.chat.downloadAttachment(
+        session: widget.session,
+        attachmentId: id,
+        e2eMeta: widget.attachment['e2eMeta'] as String? ?? widget.attachment['e2e_meta'] as String?,
+        filename: widget.attachment['filename'] as String? ?? 'bild.jpg',
+      );
+      if (!mounted) return;
+      setState(() {
+        _bytes = bytes;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _failed = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const SizedBox(
+        width: 180,
+        height: 120,
+        child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+      );
+    }
+    if (_failed || _bytes == null) {
+      return InkWell(
+        onTap: widget.onTapFullscreen,
+        child: const Text('🖼 Bild anzeigen', style: TextStyle(decoration: TextDecoration.underline)),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: widget.onTapFullscreen,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 280, maxHeight: 280),
+          child: Image.memory(_bytes!, fit: BoxFit.cover),
+        ),
+      ),
     );
   }
 }

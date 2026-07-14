@@ -1,8 +1,9 @@
-const WORKER_BUILD = "20260714chat21";
+const WORKER_BUILD = "20260714chat33";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
   "/chat-voice.js",
+  "/chat-global-notify.js",
   "/chat-realtime.js",
   "/chat-gallery.js",
   "/chat-typing.js",
@@ -29,6 +30,7 @@ const STATIC_ASSETS = [
   { path: "/chat-search.js", rev: WORKER_BUILD },
   { path: "/chat-offline-queue.js", rev: WORKER_BUILD },
   { path: "/chat-voice.js", rev: WORKER_BUILD },
+  { path: "/chat-global-notify.js", rev: WORKER_BUILD },
   { path: "/chat-voice-call.js", rev: WORKER_BUILD },
   { path: "/worker-voice-call.js", rev: WORKER_BUILD },
   { path: "/emp-app-manifest.json", rev: WORKER_BUILD },
@@ -221,7 +223,24 @@ self.addEventListener("push", (event) => {
   const tag = data.tag || "baupass-notification";
   const defaultUrl = resolvePushTargetUrl(data, tag);
   const options = buildPushNotificationOptions(data, tag, defaultUrl);
-  event.waitUntil(self.registration.showNotification(title, options));
+  const logicalTag = String(options.data?.tag || tag || "").trim();
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(title, options),
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+        windowClients.forEach((client) => {
+          client.postMessage({
+            type: "SUPPIX_CHAT_PUSH",
+            role: "worker",
+            tag: logicalTag,
+            title,
+            body: data.body || "",
+            preview: data.preview || data.body || "",
+          });
+        });
+      }),
+    ]),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

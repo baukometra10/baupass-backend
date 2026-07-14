@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat32";
+const WORKER_BUILD_TAG = "20260714chat33";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3131,6 +3131,8 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
   "#chatCard .worker-chat-ticks.is-pending{color:#8696a0;opacity:.72}",
   "#chatCard .worker-chat-attachment-btn{min-height:44px;padding:10px 14px;font-size:.92rem;font-weight:700;border-radius:12px;width:100%;max-width:100%;background:#2a3942;border:1px solid rgba(134,150,160,.18);color:#e9edef}",
+  "#chatCard .worker-chat-image-preview{cursor:pointer;border-radius:10px;max-width:min(100%,280px);display:block;margin-top:6px;border:1px solid rgba(134,150,160,.18);background:#1f2c34}",
+  "#chatCard .worker-chat-image-preview:hover{border-color:rgba(0,168,132,.45)}",
   "#chatCard .worker-chat-file-hint{color:#8696a0!important}",
   "#chatCard .muted-info{color:#8696a0!important}",
   "#chatCard .chat-layout-version{margin:0 0 8px;padding:6px 10px;border-radius:8px;background:#182229;color:#53bdeb;font-size:.72rem;font-weight:700;text-align:center}",
@@ -5215,6 +5217,9 @@ function registerWorkerSw() {
     if (event.data?.type === "NAVIGATE_WORKER_APP") {
       navigateWorkerAppFromNotification(event.data.url);
     }
+    if (event.data?.type === "SUPPIX_CHAT_PUSH") {
+      window.SUPPIXChatGlobalNotify?.handleSwPush?.(event.data);
+    }
     if (event.data?.type === "SW_FLUSH_OFFLINE_QUEUE" && workerToken) {
       void syncOfflineEventQueue();
     }
@@ -5222,6 +5227,7 @@ function registerWorkerSw() {
 
   navigator.serviceWorker.register(`./worker-sw.js?v=${WORKER_BUILD_TAG}`).then((registration) => {
     registration.update().catch(() => {});
+    window.SUPPIXChatGlobalNotify?.init?.({ role: "worker" });
 
     const handleControllerChange = () => {
       updateWorkerBuildBadge();
@@ -12835,6 +12841,95 @@ async function ensureWorkerChatThread(forceRefresh = false) {
 
 let workerChatAttachmentMetaById = {};
 let workerChatAttachmentNameById = {};
+const workerChatImageObjectUrls = new Map();
+
+function isWorkerImageAttachment(filename, contentType) {
+  const mime = String(contentType || "").toLowerCase();
+  if (/^image\//i.test(mime)) return true;
+  return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
+}
+
+async function resolveWorkerAttachmentBlob(attachmentId, filename, e2eMeta) {
+  if (!workerToken || !attachmentId) {
+    throw new Error("attachment_missing");
+  }
+  const response = await fetch(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
+    headers: buildWorkerAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  let outBlob = blob;
+  let outName = filename || "download";
+  const meta = String(workerChatAttachmentMetaById[attachmentId] || e2eMeta || "").trim();
+  const needsDecrypt = Boolean(meta) || String(blob.type || "").includes("e2e") || /\.e2e$/i.test(String(filename || workerChatAttachmentNameById[attachmentId] || ""));
+  if (needsDecrypt) {
+    if (!meta) {
+      throw new Error("e2e_attachment_meta_invalid");
+    }
+    if (!workerE2ECryptoAvailable()) {
+      throw new Error("e2e_crypto_unavailable");
+    }
+    await window.E2ECrypto?.ensureCryptoSessionReady?.();
+    await ensureWorkerChatE2EReady(false);
+    const workerId = getWorkerE2EEntityId();
+    const buffer = new Uint8Array(await blob.arrayBuffer());
+    const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "worker", workerId);
+    outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "application/octet-stream" });
+    outName = decrypted.filename || outName;
+  }
+  return { blob: outBlob, filename: outName };
+}
+
+async function resolveWorkerAttachmentObjectUrl(item) {
+  const cached = workerChatImageObjectUrls.get(String(item.id || ""));
+  if (cached) return cached;
+  const { blob } = await resolveWorkerAttachmentBlob(item.id, item.filename, item.e2eMeta || "");
+  const url = URL.createObjectURL(blob);
+  workerChatImageObjectUrls.set(String(item.id || ""), url);
+  return url;
+}
+
+function openWorkerChatImageLightbox(attachmentId, filename, contentType, e2eMeta) {
+  void resolveWorkerAttachmentObjectUrl({ id: attachmentId, filename, e2eMeta })
+    .then((url) => {
+      window.SUPPIXChatGallery?.openMediaLightbox?.({
+        title: filename,
+        url,
+        kind: "image",
+        labels: { download: t("workerChatDownload") || "Herunterladen" },
+        onDownload: () => {
+          void downloadWorkerChatAttachment(attachmentId, filename, e2eMeta || "");
+        },
+      });
+    })
+    .catch((error) => showWorkerNotice(formatWorkerApiError(error)));
+}
+
+async function loadWorkerChatImagePreview(img) {
+  const attachmentId = img.getAttribute("data-attachment-id") || "";
+  const filename = img.getAttribute("data-filename") || "bild.jpg";
+  const e2eMeta = workerChatAttachmentMetaById[attachmentId] || img.getAttribute("data-e2e-meta") || "";
+  if (!attachmentId || img.dataset.loaded === "1") return;
+  try {
+    const url = await resolveWorkerAttachmentObjectUrl({ id: attachmentId, filename, e2eMeta });
+    img.src = url;
+    img.dataset.loaded = "1";
+    img.title = filename;
+    img.addEventListener("click", () => {
+      openWorkerChatImageLightbox(attachmentId, filename, img.getAttribute("data-content-type") || "", e2eMeta);
+    });
+  } catch {
+    img.remove();
+  }
+}
+
+function hydrateWorkerChatImagePreviews() {
+  document.querySelectorAll("img.worker-chat-image-preview[data-attachment-id]").forEach((img) => {
+    void loadWorkerChatImagePreview(img);
+  });
+}
 
 function renderWorkerChatAttachmentHtml(attachments, options = {}) {
   if (!Array.isArray(attachments) || !attachments.length) {
@@ -12858,6 +12953,9 @@ function renderWorkerChatAttachmentHtml(attachments, options = {}) {
           voice: t("chatVoiceMessage"),
           side: voiceSide,
         });
+      }
+      if (isWorkerImageAttachment(attachment.filename, contentType)) {
+        return `<img class="worker-chat-image-preview" data-attachment-id="${safeId}" data-filename="${name}" data-content-type="${escapeHtmlBasic(contentType)}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
       }
       return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${safeId}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
@@ -12900,6 +12998,8 @@ function renderWorkerChatMessages(messages, options = {}) {
       const grouped = shouldGroupWorkerChatMessages(displayMessages[i - 1], msg);
       const tail = !shouldGroupWorkerChatMessages(msg, displayMessages[i + 1]);
       const senderLabel = side === "mine" ? t("workerChatFromYou") : getWorkerBrandTitle();
+      const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
+      const ticksHtml = workerChatReadTicks(msg, side);
       const attachHtml = renderWorkerChatAttachmentHtml(msg.attachments, { side });
       const hasVoice = Boolean(
         Array.isArray(msg.attachments)
@@ -12925,8 +13025,6 @@ function renderWorkerChatMessages(messages, options = {}) {
           showCallback: side !== "mine" && ["missed", "declined", "cancelled", "ended"].includes(String(callLog.status || "")),
         })
         : "";
-      const time = formatWorkerBubbleTime(msg.createdAt || msg.created_at);
-      const ticksHtml = workerChatReadTicks(msg, side);
       const messageId = String(msg.id || "");
       const decor = workerMessageBubbleDecor(msg);
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
@@ -12955,6 +13053,7 @@ function renderWorkerChatMessages(messages, options = {}) {
     bindWorkerChatMessageActions();
     applyWorkerChatDirection();
     hydrateWorkerChatAudioPlayers();
+    hydrateWorkerChatImagePreviews();
     scrollWorkerChatToBottom(!quiet);
   })();
 }
@@ -13019,6 +13118,7 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
       filename: file.name || "upload.bin",
       mime: file.type || "application/octet-stream",
       durationSec: Number(file.durationSec || 0),
+      viewOnce: Boolean(file.viewOnce),
     });
     form.append("e2e_meta", packed.meta);
     form.append("e2e_encrypted", "1");
@@ -13254,10 +13354,28 @@ function openWorkerChatGallery() {
       files: t("chatGalleryFiles") || "Dateien",
       empty: t("chatGalleryEmpty") || "Keine Medien in dieser Unterhaltung.",
       close: t("close") || "Schließen",
+      open: t("open") || "Öffnen",
+      delete: t("chatGalleryDelete") || "Entfernen",
+      download: t("workerChatDownload") || "Herunterladen",
+    },
+    resolveItemUrl: async (item) => {
+      if (item.kind !== "image") return "";
+      return resolveWorkerAttachmentObjectUrl(item);
+    },
+    onDeleteItem: async (item) => {
+      if (!item?.messageId) return;
+      await deleteWorkerChatMessage(item.messageId);
+      openWorkerChatGallery();
     },
     onOpenItem: (item) => {
       if (item.kind === "voice") {
         document.querySelector(`#workerChatMessages .chat-voice-note[data-attachment-id="${CSS.escape(item.id)}"] .chat-voice-play`)?.click();
+        document.getElementById("suppixChatGalleryModal")?.classList.add("hidden");
+        return;
+      }
+      if (item.kind === "image") {
+        document.getElementById("suppixChatGalleryModal")?.classList.add("hidden");
+        openWorkerChatImageLightbox(item.id, item.filename, item.contentType, item.e2eMeta || "");
         return;
       }
       void downloadWorkerChatAttachment(item.id, item.filename, item.e2eMeta || "");

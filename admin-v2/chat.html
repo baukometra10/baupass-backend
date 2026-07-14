@@ -1003,21 +1003,22 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
-  <script src="/ops-realtime.js?v=20260714chat22"></script>
-  <script src="/chat-realtime.js?v=20260714chat32"></script>
-  <script src="/chat-gallery.js?v=20260714chat32"></script>
-  <script src="/chat-typing.js?v=20260714chat21"></script>
-  <script src="/chat-search.js?v=20260714chat21"></script>
-  <script src="/chat-location.js?v=20260714chat32"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat21"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat21"></script>
-  <script src="/chat-message-prefs.js?v=20260714chat21"></script>
-  <script src="/chat-message-menu.js?v=20260714chat21"></script>
-  <script src="/chat-admin-push.js?v=20260714chat22"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat21"></script>
-  <script src="/chat-voice.js?v=20260714chat32"></script>
-  <script src="/chat-voice-call.js?v=20260714chat32"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat32"></script>
+  <script src="/ops-realtime.js?v=20260714chat33"></script>
+  <script src="/chat-realtime.js?v=20260714chat33"></script>
+  <script src="/chat-gallery.js?v=20260714chat33"></script>
+  <script src="/chat-typing.js?v=20260714chat33"></script>
+  <script src="/chat-search.js?v=20260714chat33"></script>
+  <script src="/chat-location.js?v=20260714chat33"></script>
+  <script src="/chat-attach-sheet.js?v=20260714chat33"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat33"></script>
+  <script src="/chat-message-prefs.js?v=20260714chat33"></script>
+  <script src="/chat-message-menu.js?v=20260714chat33"></script>
+  <script src="/chat-admin-push.js?v=20260714chat33"></script>
+  <script src="/chat-global-notify.js?v=20260714chat33"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat33"></script>
+  <script src="/chat-voice.js?v=20260714chat33"></script>
+  <script src="/chat-voice-call.js?v=20260714chat33"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat33"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1691,6 +1692,7 @@
         filename: file.name || "upload.bin",
         mime: file.type || "application/octet-stream",
         durationSec: Number(file.durationSec || 0),
+        viewOnce: Boolean(file.viewOnce),
       });
       return {
         file: new Blob([packed.blob], { type: "application/vnd.suppix.e2e+binary" }),
@@ -3716,8 +3718,12 @@
             if (wid) void openThread(target.searchParams.get("thread_id") || "", wid);
           } catch { /* ignore */ }
         }
+        if (event?.data?.type === "SUPPIX_CHAT_PUSH") {
+          window.SUPPIXChatGlobalNotify?.handleSwPush?.(event.data);
+        }
       });
     }
+    window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });
     void window.SUPPIXChatLocation?.prefetchChatLocation?.();
     void (async () => {
       await ensureAdminSession();

@@ -1,5 +1,5 @@
 /* SUPPIX admin service worker — web push for employer chat. */
-const ADMIN_SW_BUILD = "20260714chat22";
+const ADMIN_SW_BUILD = "20260714chat33";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -34,15 +34,32 @@ self.addEventListener("push", (event) => {
   const tag = data.tag || "admin-chat";
   const targetUrl = resolveAdminPushUrl(data);
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body: data.body || "",
-      tag,
-      icon: "/branding/suppix-icon-192.png",
-      badge: "/branding/suppix-icon-192.png",
-      data: { url: targetUrl, tag },
-      renotify: true,
-      requireInteraction: tag === "admin-chat" || tag === "voice-call",
-    }),
+    Promise.all([
+      self.registration.showNotification(title, {
+        body: data.body || "",
+        tag,
+        icon: "/branding/suppix-icon-192.png",
+        badge: "/branding/suppix-icon-192.png",
+        data: { url: targetUrl, tag },
+        renotify: true,
+        requireInteraction: tag === "admin-chat" || tag === "voice-call",
+      }),
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+        windowClients.forEach((client) => {
+          client.postMessage({
+            type: "SUPPIX_CHAT_PUSH",
+            role: "admin",
+            tag,
+            title,
+            body: data.body || "",
+            workerId: data.workerId || data.worker_id || "",
+            workerName: data.workerName || "",
+            threadId: data.threadId || data.thread_id || "",
+            preview: data.preview || data.body || "",
+          });
+        });
+      }),
+    ]),
   );
 });
 
