@@ -31,7 +31,7 @@
     .chat-sidebar h3 { margin:0; font-size:1.08rem; padding:0 0.15rem; }
     .sidebar-hint { font-size:0.82rem; margin:0; padding:0 0.15rem; }
     .thread-list { display:flex; flex-direction:column; gap:0.12rem; flex:1; min-height:0; overflow-y:auto; padding:0.15rem 0.15rem 0.15rem 0; }
-    .thread-item { width:100%; text-align:left; background:transparent; border:1px solid transparent; color:var(--text); border-radius:14px; padding:0.58rem 0.62rem; cursor:pointer; display:grid; grid-template-columns:42px minmax(0,1fr); gap:0.7rem; align-items:center; min-height:62px; transition:background .12s ease,border-color .12s ease,transform .12s ease; }
+    .thread-item { width:100%; text-align:left; background:transparent; border:1px solid transparent; color:var(--text); border-radius:14px; padding:0.58rem 0.62rem; cursor:pointer; display:grid; grid-template-columns:42px minmax(0,1fr); gap:0.7rem; align-items:center; min-height:62px; transition:background .12s ease,border-color .12s ease,transform .12s ease; border-width:1px; border-style:solid; }
     .thread-item.is-active { background:var(--active-item); border-color:rgba(94,234,212,0.34); }
     .thread-item.is-loading { opacity:0.78; }
     .thread-item:hover { background:var(--item-bg); border-color:rgba(94,234,212,0.24); }
@@ -927,19 +927,19 @@
       </div>
     </div>
   </div>
-  <script src="/geo-precision.js?v=20260714chat5"></script>
-  <script src="/ops-realtime.js?v=20260714chat5"></script>
-  <script src="/chat-realtime.js?v=20260714chat5"></script>
-  <script src="/chat-gallery.js?v=20260714chat5"></script>
-  <script src="/chat-typing.js?v=20260714chat5"></script>
-  <script src="/chat-search.js?v=20260714chat5"></script>
-  <script src="/chat-location.js?v=20260714chat5"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat5"></script>
-  <script src="/chat-admin-push.js?v=20260714chat5"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat5"></script>
-  <script src="/chat-voice.js?v=20260714chat5"></script>
-  <script src="/chat-voice-call.js?v=20260714chat5"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat5"></script>
+  <script src="/geo-precision.js?v=20260714chat6"></script>
+  <script src="/ops-realtime.js?v=20260714chat6"></script>
+  <script src="/chat-realtime.js?v=20260714chat6"></script>
+  <script src="/chat-gallery.js?v=20260714chat6"></script>
+  <script src="/chat-typing.js?v=20260714chat6"></script>
+  <script src="/chat-search.js?v=20260714chat6"></script>
+  <script src="/chat-location.js?v=20260714chat6"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat6"></script>
+  <script src="/chat-admin-push.js?v=20260714chat6"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat6"></script>
+  <script src="/chat-voice.js?v=20260714chat6"></script>
+  <script src="/chat-voice-call.js?v=20260714chat6"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat6"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -2303,7 +2303,7 @@
             const badge = row.badge_id ? `#${row.badge_id}` : "";
             const pinned = window.SUPPIXChatThreadPrefs?.isPinned?.(companyId, row.worker_id);
             const muted = window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id);
-            return `<button type="button" class="thread-item${active}${loading}${unreadClass}${pinned ? " is-pinned" : ""}${muted ? " is-muted" : ""}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" aria-current="${active ? "true" : "false"}">
+            return `<div class="thread-item${active}${loading}${unreadClass}${pinned ? " is-pinned" : ""}${muted ? " is-muted" : ""}" data-id="${escapeAttr(row.id || "")}" data-worker="${escapeAttr(row.worker_id || "")}" tabindex="0" role="button" aria-current="${active ? "true" : "false"}">
               <span class="thread-avatar" aria-hidden="true">${escapeHtml(threadInitials(name))}</span>
               <span class="thread-body">
                 <span class="thread-top">
@@ -2319,11 +2319,20 @@
                 </span>
                 <span class="thread-preview">${escapeHtml(preview)}</span>
               </span>
-            </button>`;
+            </div>`;
           }).join("")
         : `<p class="muted">${window.adminChatT("noWorkersFound")}</p>`;
-      host.querySelectorAll("[data-worker]").forEach((btn) => {
-        btn.addEventListener("click", () => openThread(btn.getAttribute("data-id"), btn.getAttribute("data-worker"), btn));
+      host.querySelectorAll(".thread-item[data-worker]").forEach((row) => {
+        row.addEventListener("click", (event) => {
+          if (event.target instanceof Element && event.target.closest("[data-thread-pin],[data-thread-mute]")) return;
+          void openThread(row.getAttribute("data-id"), row.getAttribute("data-worker"), row);
+        });
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          if (event.target instanceof Element && event.target.closest("[data-thread-pin],[data-thread-mute]")) return;
+          event.preventDefault();
+          void openThread(row.getAttribute("data-id"), row.getAttribute("data-worker"), row);
+        });
       });
       host.querySelectorAll("[data-thread-pin]").forEach((btn) => {
         btn.addEventListener("click", (event) => {
