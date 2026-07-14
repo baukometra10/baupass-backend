@@ -83,6 +83,33 @@
       this.ended = false;
       this.ringDeadline = 0;
       this.muted = false;
+      this.companyId = "";
+      this.ringTimeoutTimer = null;
+    }
+
+    _callStatusPath() {
+      const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
+      return `${prefix}/chat/calls/${encodeURIComponent(this.callId)}`;
+    }
+
+    _scheduleRingTimeout() {
+      if (this.ringTimeoutTimer) global.clearTimeout(this.ringTimeoutTimer);
+      this.ringTimeoutTimer = global.setTimeout(() => {
+        if (this.ended || !this.callId) return;
+        void this.api(this._callStatusPath())
+          .then((data) => {
+            const status = data.call?.status || "";
+            if (!this.ended && (status === "ringing" || status === "accepted")) {
+              if (status === "ringing") void this.end("timeout");
+            }
+          })
+          .catch(() => {});
+      }, RING_TIMEOUT_MS);
+    }
+
+    _clearRingTimeout() {
+      if (this.ringTimeoutTimer) global.clearTimeout(this.ringTimeoutTimer);
+      this.ringTimeoutTimer = null;
     }
 
     toggleMute() {
@@ -240,6 +267,7 @@
 
     async startOutgoing({ workerId, companyId }) {
       this.workerId = String(workerId || "");
+      this.companyId = String(companyId || "");
       this.onState("dialing");
       const res = await this.api("/api/chat/calls", {
         method: "POST",
@@ -259,22 +287,7 @@
       await this.pc.setLocalDescription(offer);
       await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
       this._startPolling();
-      while (!this.ended && Date.now() < this.ringDeadline) {
-        const statusRes = await this.api(`/api/chat/calls/${encodeURIComponent(this.callId)}`);
-        const status = statusRes.call?.status || "";
-        if (status === "accepted") break;
-        if (status === "declined" || status === "missed" || status === "ended") {
-          await this.end(status);
-          return;
-        }
-        await sleep(1200);
-      }
-      if (!this.ended) {
-        const latest = await this.api(`/api/chat/calls/${encodeURIComponent(this.callId)}`);
-        if ((latest.call?.status || "") !== "accepted") {
-          await this.end("timeout");
-        }
-      }
+      this._scheduleRingTimeout();
     }
 
     async acceptIncoming(callPayload) {
@@ -301,6 +314,7 @@
       if (this.ended) return;
       this.ended = true;
       this._stopPolling();
+      this._clearRingTimeout();
       this._stopRingtone();
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
       if (this.callId) {

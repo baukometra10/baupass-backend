@@ -520,7 +520,7 @@
     </div>
   </div>
   <script src="/chat-voice.js?v=20260707voice4"></script>
-  <script src="/chat-voice-call.js?v=20260714voice3"></script>
+  <script src="/chat-voice-call.js?v=20260714voice4"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260707voice4"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -642,6 +642,13 @@
       if (!res.ok) throw new Error(data.error || data.message || res.statusText);
       return data;
     };
+    function voiceCallApi(path, options = {}) {
+      let url = String(path || "");
+      if (companyId && url.startsWith("/api/chat/calls")) {
+        url += `${url.includes("?") ? "&" : "?"}company_id=${encodeURIComponent(companyId)}`;
+      }
+      return api(url, options);
+    }
     async function apiMultipart(path, { fields = {}, fileField = "file", file } = {}) {
       const form = new FormData();
       Object.entries(fields).forEach(([key, value]) => form.append(key, value));
@@ -1652,7 +1659,7 @@
       document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
       setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing");
       activeVoiceCallSession = window.SUPPIXVoiceCall.createSession({
-        api,
+        api: voiceCallApi,
         role: "admin",
         onState: (state) => {
           if (state === "ended") {
@@ -1676,8 +1683,15 @@
       try {
         await activeVoiceCallSession.startOutgoing({ workerId: currentWorkerId, companyId });
       } catch (error) {
-        setVoiceCallOverlay(false);
+        if (activeVoiceCallSession) {
+          try {
+            await activeVoiceCallSession.end("error");
+          } catch (_) {
+            /* ignore */
+          }
+        }
         activeVoiceCallSession = null;
+        setVoiceCallOverlay(false);
         setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
       }
     }
