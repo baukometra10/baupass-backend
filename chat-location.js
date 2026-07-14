@@ -1,19 +1,18 @@
 /**
- * SUPPIX chat location — WhatsApp-style share sheet, map card, optional note.
+ * SUPPIX chat location — WhatsApp-style share sheet, instant precise GPS.
  */
 (function initSuppixChatLocation(global) {
   const PREFIX = "@location|";
-  const DEFAULT_MAX_ACCURACY_M = 10;
-  const TARGET_ACCURACY_M = 15;
-  const SEND_READY_ACCURACY_M = 20;
-  const SEND_MIN_WAIT_MS = 1200;
-  const REFINE_MAX_MS = 12000;
-  const CACHE_MAX_ACCURACY_M = 22;
-  const CACHE_MAX_AGE_MS = 3 * 60 * 1000;
+  const DEFAULT_MAX_ACCURACY_M = 8;
+  const INSTANT_SEND_ACCURACY_M = 10;
+  const REFINE_MAX_MS = 3500;
+  const CACHE_MAX_ACCURACY_M = 12;
+  const CACHE_MAX_AGE_MS = 5 * 60 * 1000;
   const LAST_KNOWN_MAX_AGE_MS = 10 * 60 * 1000;
+  const WARM_CYCLE_MS = 28000;
   let stylesInjected = false;
   let lastKnownChatGeo = null;
-  let warmInFlight = null;
+  let warmWatchHandle = null;
   let shareSheetEl = null;
   let shareWatchHandle = null;
 
@@ -83,7 +82,7 @@
     const lng = Number(loc?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return "";
     const acc = Number(loc?.accuracy) || 999;
-    const zoom = acc <= DEFAULT_MAX_ACCURACY_M ? 18 : acc <= 35 ? 17 : acc <= 80 ? 16 : 15;
+    const zoom = acc <= 8 ? 19 : acc <= DEFAULT_MAX_ACCURACY_M ? 18 : acc <= 20 ? 17 : 16;
     const q = encodeURIComponent(`${lat},${lng}`);
     return `https://maps.google.com/maps?q=${q}&hl=de&z=${zoom}&output=embed`;
   }
@@ -140,7 +139,6 @@
       ".chat-location-share-send{min-width:120px;border:none;border-radius:999px;background:#00a884;color:#fff;font:inherit;font-weight:700;font-size:.92rem;padding:.72rem 1.35rem;cursor:pointer}",
       ".chat-location-share-send:disabled{opacity:.45;cursor:not-allowed}",
       ".chat-location-share-status.is-precise{color:#25d366}",
-      ".chat-location-share-status.is-refining{color:#8696a0}",
       ".chat-location-share-send.is-ready{background:#00a884}",
     ].join("");
     global.document.head.appendChild(style);
@@ -164,17 +162,10 @@
     if (acc <= DEFAULT_MAX_ACCURACY_M) {
       return (labels.accuracyGood || "Genauigkeit ±{m} m").replace("{m}", String(acc));
     }
-    if (acc <= 50) {
-      return (labels.accuracy || "±{m} m").replace("{m}", String(acc));
+    if (acc <= 20) {
+      return (labels.ready || "Standort bereit · ±{m} m").replace("{m}", String(acc));
     }
-    return (labels.accuracyApprox || "Standort ungefähr · ±{m} m").replace("{m}", String(acc));
-  }
-
-  function accuracyClass(loc) {
-    const acc = Number(loc?.accuracy) || 0;
-    if (acc <= DEFAULT_MAX_ACCURACY_M) return "is-precise";
-    if (acc > 50) return "is-warn";
-    return "";
+    return (labels.accuracy || "±{m} m").replace("{m}", String(acc));
   }
 
   function renderLocationBubbleHtml(loc, labels = {}, options = {}) {
@@ -214,7 +205,7 @@
     if (
       lastKnownChatGeo
       && Number(lastKnownChatGeo.accuracy) < accuracy
-      && Date.now() - Number(lastKnownChatGeo.capturedAt || 0) < 30000
+      && Date.now() - Number(lastKnownChatGeo.capturedAt || 0) < 20000
     ) {
       return;
     }
@@ -268,39 +259,117 @@
     }
   }
 
-  function isSendReady(reading, startedAt) {
-    if (!isValidReading(reading)) return false;
-    const elapsed = Date.now() - startedAt;
-    const acc = Number(reading?.accuracy) || 999;
-    if (elapsed >= SEND_MIN_WAIT_MS) return true;
-    return acc <= SEND_READY_ACCURACY_M;
-  }
-
-  function shareStatusText(reading, labels, startedAt) {
-    const acc = Math.round(Number(reading?.accuracy) || 0);
-    if (!acc) return labels.capturingHint || "GPS wird ermittelt…";
-    if (acc <= SEND_READY_ACCURACY_M) {
-      return accuracyLabel({ accuracy: acc }, labels) || labels.sharedTitle || "Standort geteilt";
+  function stopWarmWatch() {
+    if (warmWatchHandle) {
+      try { warmWatchHandle.stop?.(); } catch { /* ignore */ }
+      warmWatchHandle = null;
     }
-    const tpl = labels.capturingProgress || "Verfeinern… ±{m} m";
-    return tpl.replace("{m}", String(acc));
   }
 
-  function updateShareSheetStatus(sheet, reading, labels = {}, startedAt = Date.now()) {
+  function applyReading(reading, onReading) {
+    if (!isValidReading(reading)) return;
+    rememberReading(reading);
+    onReading(reading);
+  }
+
+  function startShareLocationWatch(onReading, maxMs = REFINE_MAX_MS) {
+    stopShareWatch();
+    if (!global.navigator?.geolocation) return;
+
+    const instant = getPreciseCachedLastKnown() || getAnyFreshLastKnown();
+    if (instant) applyReading(instant, onReading);
+
+    if (typeof global.startPreciseLocationWatch === "function") {
+      shareWatchHandle = global.startPreciseLocationWatch({
+        preset: "chat",
+        maxWaitMs: maxMs,
+        onProgress: (payload) => {
+          applyReading(payload?.reading, onReading);
+        },
+        onError: (error) => onReading(null, error),
+        onDone: (reading) => {
+          if (isValidReading(reading)) applyReading(reading, onReading);
+        },
+      });
+      return;
+    }
+
+    let best = null;
+    shareWatchHandle = {
+      stop() {},
+      finalize() { return best; },
+    };
+    const watchId = global.navigator.geolocation.watchPosition(
+      (position) => {
+        const reading = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: Number(position.coords.accuracy) || 999,
+          capturedAt: Date.now(),
+        };
+        if (!best || Number(reading.accuracy) < Number(best.accuracy)) {
+          best = reading;
+          applyReading(reading, onReading);
+        }
+      },
+      (error) => {
+        if (Number(error?.code) === 1) onReading(null, error);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: maxMs },
+    );
+    global.setTimeout(() => {
+      try { global.navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
+    }, maxMs);
+  }
+
+  function ensureBackgroundGeoWarm() {
+    if (!global.navigator?.geolocation) return;
+    if (warmWatchHandle) return;
+    if (typeof global.startPreciseLocationWatch !== "function") return;
+
+    const startCycle = () => {
+      if (warmWatchHandle) return;
+      warmWatchHandle = global.startPreciseLocationWatch({
+        preset: "chat",
+        maxWaitMs: WARM_CYCLE_MS,
+        onProgress: (payload) => {
+          if (isValidReading(payload?.reading)) rememberReading(payload.reading);
+        },
+        onDone: (reading) => {
+          warmWatchHandle = null;
+          if (isValidReading(reading)) rememberReading(reading);
+          global.setTimeout(startCycle, 400);
+        },
+        onError: () => {
+          warmWatchHandle = null;
+          global.setTimeout(startCycle, 1200);
+        },
+      });
+    };
+    startCycle();
+  }
+
+  function shareStatusText(reading, labels = {}) {
+    const acc = Math.round(Number(reading?.accuracy) || 0);
+    if (!acc) return labels.capturingHint || "Standort wird ermittelt…";
+    return accuracyLabel({ accuracy: acc }, labels) || labels.sharedTitle || "Standort geteilt";
+  }
+
+  function updateShareSheetStatus(sheet, reading, labels = {}) {
     const statusEl = sheet.querySelector(".chat-location-share-status");
     if (!statusEl || !reading) return;
     const acc = Number(reading.accuracy) || 999;
-    statusEl.textContent = shareStatusText(reading, labels, startedAt);
-    statusEl.classList.toggle("is-precise", acc <= SEND_READY_ACCURACY_M);
-    statusEl.classList.toggle("is-refining", acc > SEND_READY_ACCURACY_M);
+    statusEl.textContent = shareStatusText(reading, labels);
+    statusEl.classList.toggle("is-precise", acc <= INSTANT_SEND_ACCURACY_M);
   }
 
-  function updateShareSendButton(sendBtn, reading, startedAt) {
+  function updateShareSendButton(sendBtn, reading) {
     if (!sendBtn) return;
-    const ready = isSendReady(reading, startedAt);
+    const ready = isValidReading(reading);
     sendBtn.disabled = !ready;
     sendBtn.classList.toggle("is-ready", ready);
   }
+
   function readingToResult(reading, options = {}) {
     const accuracy = Number(reading?.accuracy);
     return {
@@ -332,82 +401,6 @@
     loading?.classList.add("hidden");
   }
 
-  function startShareLocationWatch(onReading, maxMs = REFINE_MAX_MS) {
-    stopShareWatch();
-    if (!global.navigator?.geolocation) return;
-
-    const cached = getAnyFreshLastKnown();
-    if (cached) {
-      rememberReading(cached);
-      onReading(cached);
-    }
-
-    void getGeolocationReading({
-      enableHighAccuracy: true,
-      maximumAge: 0,
-      timeout: 5000,
-    }).then((reading) => {
-      if (isValidReading(reading)) {
-        rememberReading(reading);
-        onReading(reading);
-      }
-    }).catch((error) => {
-      if (Number(error?.code) === 1) onReading(null, error);
-    });
-
-    if (typeof global.startPreciseLocationWatch === "function") {
-      shareWatchHandle = global.startPreciseLocationWatch({
-        preset: "site",
-        maxWaitMs: maxMs,
-        onProgress: (payload) => {
-          const reading = payload?.reading;
-          if (!isValidReading(reading)) return;
-          rememberReading(reading);
-          onReading(reading);
-        },
-        onError: (error) => onReading(null, error),
-        onDone: (reading) => {
-          if (isValidReading(reading)) {
-            rememberReading(reading);
-            onReading(reading);
-          }
-        },
-      });
-      return;
-    }
-
-    let best = null;
-    shareWatchHandle = {
-      stop() {},
-      finalize() { return best; },
-    };
-    const push = (reading) => {
-      if (!isValidReading(reading)) return;
-      if (!best || Number(reading.accuracy) < Number(best.accuracy)) {
-        best = reading;
-        rememberReading(reading);
-        onReading(reading);
-      }
-    };
-    const watchId = global.navigator.geolocation.watchPosition(
-      (position) => {
-        push({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: Number(position.coords.accuracy) || 999,
-          capturedAt: Date.now(),
-        });
-      },
-      (error) => {
-        if (Number(error?.code) === 1) onReading(null, error);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: maxMs },
-    );
-    global.setTimeout(() => {
-      try { global.navigator.geolocation.clearWatch(watchId); } catch { /* ignore */ }
-    }, maxMs);
-  }
-
   function closeShareSheet() {
     stopShareWatch();
     shareSheetEl?.classList.add("hidden");
@@ -417,6 +410,7 @@
 
   function openShareSheet(options = {}) {
     ensureLocationStyles();
+    ensureBackgroundGeoWarm();
     const labels = options.labels || {};
     if (!global.navigator?.geolocation) {
       return Promise.reject(new Error("geolocation_unsupported"));
@@ -429,7 +423,6 @@
       const finish = (error, result) => {
         if (settled) return;
         settled = true;
-        if (readyTimer) global.clearInterval(readyTimer);
         closeShareSheet();
         if (error) reject(error);
         else resolve(result);
@@ -448,7 +441,7 @@
           </div>
         </div>
         <div class="chat-location-share-panel">
-          <p class="chat-location-share-status">${escapeHtml(labels.capturingHint || "GPS wird ermittelt…")}</p>
+          <p class="chat-location-share-status">${escapeHtml(labels.capturingHint || "Standort wird ermittelt…")}</p>
           <textarea class="chat-location-share-note" rows="2" maxlength="500" placeholder="${escapeHtml(labels.notePlaceholder || "Hinweis hinzufügen…")}"></textarea>
           <div class="chat-location-share-actions">
             <button type="button" class="chat-location-share-send" disabled>${escapeHtml(labels.send || "Senden")}</button>
@@ -460,13 +453,6 @@
       const closeBtn = sheet.querySelector(".chat-location-share-close");
       const sendBtn = sheet.querySelector(".chat-location-share-send");
       const noteInput = sheet.querySelector(".chat-location-share-note");
-      const startedAt = Date.now();
-      let readyTimer = null;
-
-      const refreshSendState = () => {
-        if (!bestReading) return;
-        updateShareSendButton(sendBtn, bestReading, startedAt);
-      };
 
       const onReading = (reading, error) => {
         if (error && Number(error?.code) === 1) {
@@ -476,11 +462,9 @@
         if (!reading) return;
         bestReading = reading;
         updateShareSheetMap(sheet, readingToResult(reading));
-        updateShareSheetStatus(sheet, reading, labels, startedAt);
-        refreshSendState();
+        updateShareSheetStatus(sheet, reading, labels);
+        updateShareSendButton(sendBtn, reading);
       };
-
-      readyTimer = global.setInterval(refreshSendState, 400);
 
       closeBtn?.addEventListener("click", () => {
         finish(new Error("location_cancelled"));
@@ -505,44 +489,14 @@
   }
 
   function warmChatGeolocation() {
-    if (!global.navigator?.geolocation) return Promise.resolve(null);
-    if (warmInFlight) return warmInFlight;
+    ensureBackgroundGeoWarm();
     const cached = getPreciseCachedLastKnown();
     if (cached) return Promise.resolve(cached);
-    warmInFlight = new Promise((resolve) => {
-      let settled = false;
-      const finish = (reading) => {
-        if (settled) return;
-        settled = true;
-        if (isValidReading(reading)) rememberReading(reading);
-        resolve(reading || getPreciseCachedLastKnown() || getAnyFreshLastKnown());
-      };
-      if (typeof global.startPreciseLocationWatch !== "function") {
-        finish(null);
-        return;
-      }
-      const handle = global.startPreciseLocationWatch({
-        preset: "site",
-        maxWaitMs: 9000,
-        onProgress: (payload) => {
-          const reading = payload?.reading;
-          if (isValidReading(reading)) rememberReading(reading);
-        },
-        onDone: (reading) => {
-          handle?.stop?.();
-          finish(reading);
-        },
-        onError: () => finish(null),
-      });
+    return new Promise((resolve) => {
       global.setTimeout(() => {
-        const reading = handle?.finalize?.();
-        handle?.stop?.();
-        finish(reading);
-      }, 9200);
-    }).finally(() => {
-      warmInFlight = null;
+        resolve(getPreciseCachedLastKnown() || getAnyFreshLastKnown());
+      }, 600);
     });
-    return warmInFlight;
   }
 
   function locationCaptureErrorMessage(error, labels = {}) {
@@ -550,7 +504,7 @@
     const acc = Number(error?.accuracyMeters);
     if (code === "geolocation_inaccurate" || code === "location_not_precise_enough" || Number(error?.code) === 4) {
       const tpl = labels.inaccurate || "GPS zu ungenau (±{m} m). Bitte kurz ins Freie gehen.";
-      return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", "150");
+      return tpl.replace("{m}", String(Math.round(acc || 99))).replace("{max}", "12");
     }
     if (code === "geolocation_unsupported") return labels.unsupported || "Standort wird auf diesem Gerät nicht unterstützt.";
     if (code === "geolocation_timeout") return labels.timeout || "Standort-Timeout — bitte erneut versuchen.";
@@ -559,8 +513,7 @@
   }
 
   async function captureChatLocation(options = {}) {
-    const point = await openShareSheet(options);
-    return point;
+    return openShareSheet(options);
   }
 
   function peekCachedChatLocation(options = {}) {
@@ -581,6 +534,7 @@
     captureChatLocation,
     peekCachedChatLocation,
     warmChatGeolocation,
+    ensureBackgroundGeoWarm,
     locationCaptureErrorMessage,
     googleMapsUrl,
     googleMapsEmbedUrl,

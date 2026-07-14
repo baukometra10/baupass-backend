@@ -13383,6 +13383,7 @@ function workerLocationLabels() {
     accuracy: t("chatLocationAccuracy") || "±{m} m",
     accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",
     accuracyApprox: t("chatLocationAccuracyApprox") || "Standort ungefähr · ±{m} m",
+    ready: t("chatLocationReady") || "Standort bereit · ±{m} m",
   };
 }
 
@@ -13390,8 +13391,8 @@ function workerLocationCaptureLabels() {
   return {
     sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
     capturing: t("chatLocationCapturing") || "Standort wird ermittelt…",
-    capturingHint: t("chatLocationCapturingHint") || "Bitte draußen bleiben — Ziel: ±10 m Genauigkeit",
-    capturingProgress: t("chatLocationCapturingProgress") || "Verfeinern… aktuell ±{m} m (Ziel ≤10 m)",
+    capturingHint: t("chatLocationCapturingHint") || "Standort wird ermittelt…",
+    capturingProgress: t("chatLocationCapturingProgress") || "Verfeinern… ±{m} m",
     cancel: t("chatLocationCancel") || "Abbrechen",
     inaccurate: t("chatLocationInaccurate") || "GPS zu ungenau (±{m} m). Bitte ins Freie gehen — max. 10 m nötig.",
     unsupported: t("chatLocationUnsupported") || t("geolocationUnsupported"),
@@ -13450,6 +13451,7 @@ function workerLocationShareLabels() {
     accuracy: t("chatLocationAccuracy") || "±{m} m",
     accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",
     accuracyApprox: t("chatLocationAccuracyApprox") || "Standort ungefähr · ±{m} m",
+    ready: t("chatLocationReady") || "Standort bereit · ±{m} m",
   });
 }
 

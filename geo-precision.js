@@ -41,6 +41,15 @@
       stableThresholdMeters: 8,
       singleTimeoutMs: 2000,
     },
+    chat: {
+      minSamples: 1,
+      maxSamples: 8,
+      targetAccuracyMeters: 5,
+      acceptAccuracyMeters: 8,
+      maxWaitMs: 3500,
+      stableThresholdMeters: 3,
+      singleTimeoutMs: 2500,
+    },
   };
 
   const UI_POINT_MAX_WAIT_MS = 5000;
@@ -817,6 +826,15 @@
         const bestAccuracy = Math.min(
           ...samples.map((sample) => Number(sample.accuracy) || 999),
         );
+        const acceptAccuracy = Number(opts.acceptAccuracyMeters);
+        if (
+          Number.isFinite(acceptAccuracy)
+          && acceptAccuracy > 0
+          && bestAccuracy <= acceptAccuracy
+        ) {
+          stop();
+          return;
+        }
         if (
           samples.length >= opts.minSamples
           && bestAccuracy <= opts.targetAccuracyMeters
