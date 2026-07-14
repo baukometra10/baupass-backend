@@ -108,18 +108,20 @@
     const style = global.document.createElement("style");
     style.id = "suppixChatLocationStyles";
     style.textContent = [
-      ".chat-location-card{max-width:min(100%,300px);border-radius:10px;overflow:hidden;background:#1f2c34;box-shadow:0 1px 2px rgba(0,0,0,.22)}",
-      ".chat-location-card.is-mine,.chat-location-card.is-them{border:1px solid rgba(134,150,160,.16)}",
+      ".chat-location-card{max-width:min(100%,280px);border-radius:12px;overflow:hidden;box-shadow:0 1px 1px rgba(0,0,0,.22)}",
+      ".chat-location-card.is-mine{background:#005c4b;padding:3px}",
+      ".chat-location-card.is-them{background:#202c33;padding:3px}",
+      ".chat-location-card.is-mine.admin-theme{background:#0f766e}",
       ".chat-location-map-hit{display:block;text-decoration:none;color:inherit}",
-      ".chat-location-map-frame{position:relative;height:140px;overflow:hidden;background:#dadce0}",
-      ".chat-location-map-embed{position:absolute;left:50%;top:50%;width:118%;height:220px;border:0;pointer-events:none;transform:translate(-50%,-52%) scale(1.12)}",
-      ".chat-location-map-frame::after{content:\"\";position:absolute;inset:auto 0 0 0;height:42px;background:linear-gradient(180deg,transparent,rgba(31,44,52,.92));pointer-events:none}",
-      ".chat-location-map-caption{display:flex;flex-direction:column;gap:.18rem;padding:.55rem .65rem .62rem;background:#1f2c34}",
-      ".chat-location-caption-title{font-size:.84rem;font-weight:600;color:#e9edef;line-height:1.25}",
-      ".chat-location-caption-note{font-size:.82rem;color:#e9edef;line-height:1.35;white-space:pre-wrap;word-break:break-word}",
-      ".chat-location-caption-acc{font-size:.72rem;color:rgba(233,237,239,.58)}",
-      ".chat-location-caption-acc.is-precise{color:#25d366;font-weight:600}",
-      ".chat-location-caption-acc.is-warn{color:#fbbf24}",
+      ".chat-location-map-frame{position:relative;height:200px;overflow:hidden;background:#dadce0;border-radius:9px}",
+      ".chat-location-map-embed{position:absolute;left:50%;top:50%;width:120%;height:130%;border:0;pointer-events:none;transform:translate(-50%,-50%) scale(1.06)}",
+      ".chat-location-map-meta{position:absolute;right:6px;bottom:6px;z-index:3;display:inline-flex;align-items:center;gap:3px;padding:2px 7px 2px 8px;border-radius:8px;background:rgba(11,20,26,.52);font-size:.68rem;line-height:1.2;color:#fff}",
+      ".chat-location-time{font-size:.68rem;color:#fff;opacity:.95}",
+      ".chat-location-map-meta .chat-ticks,.chat-location-map-meta .worker-chat-ticks{font-size:.74rem;line-height:1;color:#8696a0}",
+      ".chat-location-map-meta .chat-ticks.is-read,.chat-location-map-meta .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
+      ".chat-location-map-meta .chat-ticks.is-delivered,.chat-location-map-meta .worker-chat-ticks.is-delivered{color:rgba(255,255,255,.78)}",
+      ".chat-location-note-strip{padding:.45rem .55rem .5rem;font-size:.84rem;line-height:1.35;color:#e9edef;white-space:pre-wrap;word-break:break-word}",
+      ".chat-location-map-caption{display:none}",
       ".chat-location-map-fallback{display:grid;place-items:center;min-height:140px;background:linear-gradient(160deg,#dadce0,#bdc1c6);color:#3c4043;font-size:.82rem;padding:1rem;text-align:center}",
       ".chat-location-share-sheet{position:fixed;inset:0;z-index:10000;display:flex;flex-direction:column;background:rgba(5,8,16,.78)}",
       ".chat-location-share-sheet.hidden{display:none}",
@@ -181,26 +183,21 @@
     if (!loc) return "";
     ensureLocationStyles();
     const side = options.side === "mine" ? "is-mine" : "is-them";
-    const title = escapeHtml(labels.sharedTitle || "Standort geteilt");
-    const noteHtml = loc.note
-      ? `<span class="chat-location-caption-note">${escapeHtml(loc.note)}</span>`
-      : "";
-    const accText = accuracyLabel(loc, labels);
-    const accClass = accuracyClass(loc);
+    const themeClass = options.theme === "admin" ? " admin-theme" : "";
     const embedSrc = googleMapsEmbedUrl(loc);
     const href = googleMapsUrl(loc);
     const openLabel = escapeHtml(labels.openMaps || "In Google Maps öffnen");
+    const metaHtml = String(options.metaHtml || "").trim();
+    const noteHtml = loc.note
+      ? `<div class="chat-location-note-strip">${escapeHtml(loc.note)}</div>`
+      : "";
     const mapHtml = embedSrc
-      ? `<div class="chat-location-map-frame"><iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="lazy" title="${title}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe></div>`
+      ? `<div class="chat-location-map-frame"><iframe class="chat-location-map-embed" src="${escapeHtml(embedSrc)}" loading="lazy" title="${openLabel}" allowfullscreen referrerpolicy="no-referrer-when-downgrade"></iframe>${metaHtml ? `<div class="chat-location-map-meta">${metaHtml}</div>` : ""}</div>`
       : `<div class="chat-location-map-fallback">${openLabel}</div>`;
-    return `<div class="chat-location-card ${side}">
+    return `<div class="chat-location-card ${side}${themeClass}">
       <a class="chat-location-map-hit" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" aria-label="${openLabel}">
         ${mapHtml}
-        <div class="chat-location-map-caption">
-          <span class="chat-location-caption-title">${title}</span>
-          ${noteHtml}
-          ${accText ? `<span class="chat-location-caption-acc ${accClass}">${escapeHtml(accText)}</span>` : ""}
-        </div>
+        ${noteHtml}
       </a>
     </div>`;
   }

@@ -344,7 +344,9 @@
     .global-search-result:hover{background:var(--item-bg);border-color:rgba(94,234,212,.22)}
     .global-search-result strong{display:block;font-size:.82rem}
     .global-search-result span{font-size:.74rem;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .chat-location-card{max-width:min(100%,300px);border-radius:10px;overflow:hidden;background:#111b21;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+    .chat-location-card{max-width:min(100%,280px);border-radius:12px;overflow:hidden;box-shadow:0 1px 1px rgba(0,0,0,.22)}
+    .bubble.is-location-only{background:transparent!important;border:none!important;padding:0!important;box-shadow:none!important;max-width:min(100%,300px)}
+    .bubble.is-location-only .bubble-sender{margin-bottom:.35rem}
     .chat-location-overlay{position:fixed;inset:0;background:rgba(5,8,16,.72);display:grid;place-items:center;z-index:9999;padding:1rem}
     .chat-location-overlay.hidden{display:none}
     .chat-location-overlay-card{width:min(100%,340px);background:#1f2c34;border:1px solid rgba(134,150,160,.22);border-radius:18px;padding:1.2rem 1rem 1rem;text-align:center;color:#e9edef}
@@ -993,22 +995,22 @@
       </div>
     </div>
   </div>
-  <script src="/geo-precision.js?v=20260714chat16"></script>
-  <script src="/ops-realtime.js?v=20260714chat16"></script>
-  <script src="/chat-realtime.js?v=20260714chat16"></script>
-  <script src="/chat-gallery.js?v=20260714chat16"></script>
-  <script src="/chat-typing.js?v=20260714chat16"></script>
-  <script src="/chat-search.js?v=20260714chat16"></script>
-  <script src="/chat-location.js?v=20260714chat16"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat16"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat16"></script>
-  <script src="/chat-message-prefs.js?v=20260714chat16"></script>
-  <script src="/chat-message-menu.js?v=20260714chat16"></script>
-  <script src="/chat-admin-push.js?v=20260714chat16"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat16"></script>
-  <script src="/chat-voice.js?v=20260714chat16"></script>
-  <script src="/chat-voice-call.js?v=20260714chat16"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat16"></script>
+  <script src="/geo-precision.js?v=20260714chat17"></script>
+  <script src="/ops-realtime.js?v=20260714chat17"></script>
+  <script src="/chat-realtime.js?v=20260714chat17"></script>
+  <script src="/chat-gallery.js?v=20260714chat17"></script>
+  <script src="/chat-typing.js?v=20260714chat17"></script>
+  <script src="/chat-search.js?v=20260714chat17"></script>
+  <script src="/chat-location.js?v=20260714chat17"></script>
+  <script src="/chat-attach-sheet.js?v=20260714chat17"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat17"></script>
+  <script src="/chat-message-prefs.js?v=20260714chat17"></script>
+  <script src="/chat-message-menu.js?v=20260714chat17"></script>
+  <script src="/chat-admin-push.js?v=20260714chat17"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat17"></script>
+  <script src="/chat-voice.js?v=20260714chat17"></script>
+  <script src="/chat-voice-call.js?v=20260714chat17"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat17"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -2470,9 +2472,14 @@
         const side = msg.senderType === "admin" ? "mine" : "them";
         const decor = messageBubbleDecor(msg);
         const sideClass = msg.senderType === "admin" ? "admin" : "worker";
-        const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", decor.extraClass].filter(Boolean).join(" ");
-        const locationHtml = window.SUPPIXChatLocation.renderLocationBubbleHtml(location, adminLocationLabels(), { side });
-        return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${locationHtml}<div class="bubble-meta">${decor.badges}<span>${time}</span>${ticks}${decor.menuBtn}</div></div>`;
+        const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", "is-location-only", decor.extraClass].filter(Boolean).join(" ");
+        const mapMeta = `<span class="chat-location-time">${time}</span>${msg.senderType === "admin" ? ticks : ""}`;
+        const locationHtml = window.SUPPIXChatLocation.renderLocationBubbleHtml(location, adminLocationLabels(), {
+          side,
+          theme: "admin",
+          metaHtml: mapMeta,
+        });
+        return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${locationHtml}${decor.menuBtn ? `<div class="bubble-meta bubble-meta-float">${decor.menuBtn}</div>` : ""}</div>`;
       }
       const { grouped = false, tail = true } = options;
       const who = msg.senderType === "worker" ? window.adminChatT("senderWorker") : window.adminChatT("senderCompany");

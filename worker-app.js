@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat16";
+const WORKER_BUILD_TAG = "20260714chat17";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -12583,7 +12583,10 @@ function appendOptimisticWorkerChatBubble(text, pendingId) {
   const body = String(text || "");
   const location = window.SUPPIXChatLocation?.parseLocationBody?.(body);
   const locationHtml = location
-    ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), { side: "mine" })
+    ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), {
+      side: "mine",
+      metaHtml: `<span class="chat-location-time">${escapeHtmlBasic(t("workerChatSending") || "…")}</span><span class="worker-chat-ticks is-pending" aria-hidden="true">✓</span>`,
+    })
     : "";
   const bodyHtml = location ? "" : `<div class="worker-chat-body">${escapeHtmlBasic(body)}</div>`;
   const bubble = document.createElement("div");
@@ -12591,13 +12594,13 @@ function appendOptimisticWorkerChatBubble(text, pendingId) {
   bubble.dataset.pendingId = pendingId;
   bubble.innerHTML = `
     <span class="worker-chat-sender">${escapeHtmlBasic(t("workerChatFromYou"))}</span>
-    <div class="worker-chat-bubble is-mine is-tail">
+    <div class="worker-chat-bubble is-mine is-tail${location ? " is-location-only" : ""}">
       ${bodyHtml}
       ${locationHtml}
-      <div class="worker-chat-meta">
+      ${location ? "" : `<div class="worker-chat-meta">
         <span class="worker-chat-time">${escapeHtmlBasic(t("workerChatSending") || "…")}</span>
-        <span class="worker-chat-ticks" aria-hidden="true">✓</span>
-      </div>
+        <span class="worker-chat-ticks is-pending" aria-hidden="true">✓</span>
+      </div>`}
     </div>
   `;
   elements.workerChatMessages.appendChild(bubble);
@@ -12909,7 +12912,10 @@ function renderWorkerChatMessages(messages, options = {}) {
       const body = voiceOnly || callLog || location ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
       const locationHtml = location
-        ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), { side })
+        ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), {
+          side,
+          metaHtml: `${time ? `<span class="chat-location-time">${escapeHtmlBasic(time)}</span>` : ""}${ticksHtml}`,
+        })
         : "";
       const callLogHtml = callLog
         ? window.SUPPIXWorkerVoiceCall.renderCallLogHtml(callLog, {
@@ -12921,7 +12927,7 @@ function renderWorkerChatMessages(messages, options = {}) {
       const messageId = String(msg.id || "");
       const decor = workerMessageBubbleDecor(msg);
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
-      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : "", decor.extraClass].filter(Boolean).join(" ");
+      const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : "", location ? "is-location-only" : "", decor.extraClass].filter(Boolean).join(" ");
       html += `
         <div class="${rowClasses}"${messageId ? ` data-message-id="${escapeHtmlBasic(messageId)}"` : ""}>
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
@@ -12931,12 +12937,13 @@ function renderWorkerChatMessages(messages, options = {}) {
             ${locationHtml}
             ${callLogHtml}
             ${attachHtml}
-            <div class="worker-chat-meta">
+            ${location ? "" : `<div class="worker-chat-meta">
               ${decor.badges}
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
               ${ticksHtml}
               ${decor.menuBtn}
-            </div>
+            </div>`}
+            ${location && decor.menuBtn ? `<div class="worker-chat-meta worker-chat-meta-float">${decor.menuBtn}</div>` : ""}
           </div>
         </div>
       `;
