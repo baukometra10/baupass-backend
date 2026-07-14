@@ -2,13 +2,12 @@
 from __future__ import annotations
 
 import json
-import os
-import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from backend.app.platform.events.bus import publish_event
+from backend.app.core.platform_env import platform_env
 
 RING_TIMEOUT_SECONDS = 45
 ACTIVE_STATUSES = frozenset({"ringing", "accepted"})
@@ -19,7 +18,7 @@ def utc_now_iso() -> str:
 
 
 def ice_servers() -> list[dict[str, Any]]:
-    raw_json = (os.getenv("BAUPASS_ICE_SERVERS_JSON") or os.getenv("SUPPIX_ICE_SERVERS_JSON") or "").strip()
+    raw_json = platform_env("ICE_SERVERS_JSON")
     if raw_json:
         try:
             parsed = json.loads(raw_json)
@@ -32,11 +31,11 @@ def ice_servers() -> list[dict[str, Any]]:
         {"urls": "stun:stun1.l.google.com:19302"},
         {"urls": "stun:stun.cloudflare.com:3478"},
     ]
-    turn_url = (os.getenv("BAUPASS_TURN_URL") or os.getenv("SUPPIX_TURN_URL") or "").strip()
+    turn_url = platform_env("TURN_URL")
     if turn_url:
         entry: dict[str, Any] = {"urls": turn_url}
-        username = (os.getenv("BAUPASS_TURN_USERNAME") or os.getenv("SUPPIX_TURN_USERNAME") or "").strip()
-        password = (os.getenv("BAUPASS_TURN_PASSWORD") or os.getenv("SUPPIX_TURN_PASSWORD") or "").strip()
+        username = platform_env("TURN_USERNAME")
+        password = platform_env("TURN_PASSWORD")
         if username:
             entry["username"] = username
         if password:
@@ -47,6 +46,35 @@ def ice_servers() -> list[dict[str, Any]]:
             tls_entry["urls"] = "turns:" + turn_url[5:]
             servers.append(tls_entry)
     return servers
+
+
+def ice_servers_diagnostics() -> dict[str, Any]:
+    """Non-secret snapshot for admin health checks (no credentials)."""
+    servers = ice_servers()
+    urls: list[str] = []
+    turn_configured = False
+    has_credentials = bool(platform_env("TURN_USERNAME") and platform_env("TURN_PASSWORD"))
+    using_json = bool(platform_env("ICE_SERVERS_JSON"))
+    for item in servers:
+        raw_urls = item.get("urls")
+        if isinstance(raw_urls, list):
+            batch = [str(u) for u in raw_urls]
+        else:
+            batch = [str(raw_urls or "")]
+        for url in batch:
+            if not url:
+                continue
+            urls.append(url)
+            if url.startswith("turn:") or url.startswith("turns:"):
+                turn_configured = True
+    return {
+        "turnConfigured": turn_configured,
+        "turnCredentialsConfigured": has_credentials or using_json,
+        "iceServersJsonOverride": using_json,
+        "primaryTurnUrl": platform_env("TURN_URL"),
+        "serverCount": len(servers),
+        "urls": urls,
+    }
 
 
 class VoiceCallService:

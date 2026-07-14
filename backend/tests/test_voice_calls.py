@@ -134,19 +134,27 @@ def test_voice_call_push_deeplink_includes_call_id():
     assert payload["callId"] == "vc-test-1"
 
 
-def test_ice_servers_includes_turns_when_turn_configured(monkeypatch):
+def test_ice_servers_diagnostics_turn_configured(monkeypatch):
     from backend.app.platform.voice_calls import service as voice_service
 
-    monkeypatch.setenv("SUPPIX_TURN_URL", "turn:turn.example.com:3478")
+    monkeypatch.delenv("SUPPIX_ICE_SERVERS_JSON", raising=False)
+    monkeypatch.delenv("BAUPASS_ICE_SERVERS_JSON", raising=False)
+    monkeypatch.setenv("SUPPIX_TURN_URL", "turn:global.relay.metered.ca:443?transport=tcp")
     monkeypatch.setenv("SUPPIX_TURN_USERNAME", "user")
     monkeypatch.setenv("SUPPIX_TURN_PASSWORD", "pass")
-    servers = voice_service.ice_servers()
-    urls = []
-    for item in servers:
-        raw = item.get("urls")
-        if isinstance(raw, list):
-            urls.extend(raw)
-        else:
-            urls.append(str(raw))
-    assert any(str(u).startswith("turn:") for u in urls)
-    assert any(str(u).startswith("turns:") for u in urls)
+    diag = voice_service.ice_servers_diagnostics()
+    assert diag["turnConfigured"] is True
+    assert diag["primaryTurnUrl"] == "turn:global.relay.metered.ca:443?transport=tcp"
+    assert any("relay.metered.ca" in u for u in diag["urls"])
+
+
+def test_ice_servers_prefers_suppix_turn_over_baupass(monkeypatch):
+    from backend.app.platform.voice_calls import service as voice_service
+
+    monkeypatch.delenv("SUPPIX_ICE_SERVERS_JSON", raising=False)
+    monkeypatch.setenv("BAUPASS_TURN_URL", "turn:old.example.com:3478")
+    monkeypatch.setenv("SUPPIX_TURN_URL", "turn:global.relay.metered.ca:443?transport=tcp")
+    monkeypatch.setenv("SUPPIX_TURN_USERNAME", "user")
+    monkeypatch.setenv("SUPPIX_TURN_PASSWORD", "pass")
+    diag = voice_service.ice_servers_diagnostics()
+    assert diag["primaryTurnUrl"] == "turn:global.relay.metered.ca:443?transport=tcp"

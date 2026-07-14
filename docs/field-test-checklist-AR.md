@@ -138,7 +138,7 @@ flutter run --dart-define=BAUPASS_API_URL=https://YOUR-APP.up.railway.app
 **متطلبات:** APK/iOS جديد بعد آخر push، ويفضل TURN على Railway:
 
 ```env
-SUPPIX_TURN_URL=turn:global.turn.metered.ca:443?transport=tcp
+SUPPIX_TURN_URL=turn:global.relay.metered.ca:443?transport=tcp
 SUPPIX_TURN_USERNAME=...
 SUPPIX_TURN_PASSWORD=...
 ```

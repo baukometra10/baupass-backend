@@ -617,6 +617,15 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     def _assert_worker_call_access(call: dict, worker_id: str) -> bool:
         return str(call.get("workerId") or "") == str(worker_id or "")
 
+    @chat_core_bp.get("/chat/calls/ice-config")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_call_ice_config():
+        from backend.app.platform.voice_calls.service import ice_servers_diagnostics
+
+        return jsonify({"ok": True, "ice": ice_servers_diagnostics()})
+
     @chat_core_bp.post("/chat/calls")
     @require_auth
     @require_roles("superadmin", "company-admin")
