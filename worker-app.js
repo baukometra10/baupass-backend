@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat24";
+const WORKER_BUILD_TAG = "20260714chat25";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13391,7 +13391,7 @@ function workerLocationCaptureLabels() {
   return {
     sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
     capturing: t("chatLocationCapturing") || "Standort wird ermittelt…",
-    capturingHint: t("chatLocationCapturingHint") || "Präzises GPS wird gesucht…",
+    capturingHint: t("chatLocationCapturingHint") || "Standort wird ermittelt…",
     weakSignal: t("chatLocationWeakSignal") || "GPS-Signal schwach — bitte ans Fenster oder ins Freie",
     capturingProgress: t("chatLocationCapturingProgress") || "Verfeinern… ±{m} m",
     cancel: t("chatLocationCancel") || "Abbrechen",
