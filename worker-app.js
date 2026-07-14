@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat3";
+const WORKER_BUILD_TAG = "20260714chat4";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13064,10 +13064,10 @@ function bindWorkerOfflineChatQueue() {
   if (!window.SUPPIXChatOfflineQueue?.bindAutoFlush || window.__workerChatOfflineBound) return;
   window.__workerChatOfflineBound = true;
   window.SUPPIXChatOfflineQueue.bindAutoFlush({
-    sendItem: async (item) => {
+    sendItem: async (item, attachmentFile) => {
       const threadId = String(item.threadId || workerChatThreadId || "").trim();
       if (!threadId) return;
-      await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+      const sent = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
         method: "POST",
         headers: buildWorkerAuthHeaders({
           "Content-Type": "application/json",
@@ -13078,6 +13078,10 @@ function bindWorkerOfflineChatQueue() {
           ...(item.replyToMessageId ? { reply_to_message_id: item.replyToMessageId } : {}),
         }),
       });
+      const messageId = String(sent?.message?.id || "");
+      if (attachmentFile && messageId) {
+        await uploadWorkerChatAttachment(threadId, messageId, attachmentFile);
+      }
       void loadWorkerChat({ quiet: true });
     },
     onProgress: ({ type }) => {
@@ -13269,6 +13273,9 @@ async function sendWorkerChatMessage(options = {}) {
   const fileInput = elements.workerChatFileInput || document.getElementById("workerChatFileInput");
   const voiceFile = options.voiceFile || null;
   const file = voiceFile || fileInput?.files?.[0] || null;
+  const uploadFile = file
+    ? (window.SUPPIXChatVoice?.asUploadFile?.(file, file.name ? "voice" : "voice", file.durationSec, file.durationSec) || file)
+    : null;
   let body = String(input.value || "").trim();
   const placeholderText = String(t("workerChatPlaceholder") || "").trim();
   if (placeholderText && body === placeholderText) {
@@ -13342,22 +13349,22 @@ async function sendWorkerChatMessage(options = {}) {
       }
     }
     let messageId = "";
-    const queueWorkerChatOffline = () => {
-      if (file || !window.SUPPIXChatOfflineQueue) return false;
-      window.SUPPIXChatOfflineQueue.enqueue({
+    const queueWorkerChatOffline = async () => {
+      if (!window.SUPPIXChatOfflineQueue) return false;
+      await window.SUPPIXChatOfflineQueue.enqueue({
         kind: "worker_message",
         threadId,
         body: outboundBody,
         e2eClientUnavailable,
         replyToMessageId: workerReplyTo?.id || "",
-      });
+      }, uploadFile || null);
       removeOptimisticWorkerChatBubble(pendingId);
       clearWorkerReplyTo();
       showWorkerNotice(t("chatQueuedOffline") || "Offline gespeichert — wird gesendet");
       return true;
     };
-    if (!file && window.SUPPIXChatOfflineQueue && !window.SUPPIXChatOfflineQueue.isOnline()) {
-      queueWorkerChatOffline();
+    if (window.SUPPIXChatOfflineQueue && !window.SUPPIXChatOfflineQueue.isOnline()) {
+      await queueWorkerChatOffline();
       syncWorkerComposeAction();
       return;
     }
@@ -13375,11 +13382,10 @@ async function sendWorkerChatMessage(options = {}) {
         const sent = await postMessage(threadId, outboundBody, { e2eClientUnavailable });
         messageId = String(sent?.message?.id || "");
       } else if (
-        !file
-        && window.SUPPIXChatOfflineQueue
+        window.SUPPIXChatOfflineQueue
         && (error?.code === "network_error" || error?.name === "TypeError" || /failed to fetch|network/i.test(String(error?.message || "")))
       ) {
-        queueWorkerChatOffline();
+        await queueWorkerChatOffline();
         syncWorkerComposeAction();
         return;
       } else {
@@ -13387,8 +13393,8 @@ async function sendWorkerChatMessage(options = {}) {
       }
     }
     removeOptimisticWorkerChatBubble(pendingId);
-    if (file && messageId) {
-      await uploadWorkerChatAttachment(threadId, messageId, file);
+    if (uploadFile && messageId) {
+      await uploadWorkerChatAttachment(threadId, messageId, uploadFile);
     }
     workerChatLastFingerprint = "";
     clearWorkerReplyTo();

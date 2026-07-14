@@ -516,6 +516,109 @@ class ChatService:
                 break
         return hits
 
+    def search_company_messages(
+        self,
+        company_id: str,
+        query: str,
+        *,
+        limit: int = 30,
+    ) -> list[dict[str, Any]]:
+        q = str(query or "").strip().lower()
+        if len(q) < 2:
+            return []
+        rows = self.db.execute(
+            """
+            SELECT
+                m.id,
+                m.thread_id,
+                m.worker_id,
+                m.sender_type,
+                m.body,
+                m.created_at,
+                w.first_name,
+                w.last_name,
+                w.badge_id,
+                (
+                    SELECT a.filename
+                    FROM chat_attachments a
+                    WHERE a.message_id = m.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS att_filename,
+                (
+                    SELECT a.content_type
+                    FROM chat_attachments a
+                    WHERE a.message_id = m.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS att_content_type,
+                (
+                    SELECT a.e2e_meta
+                    FROM chat_attachments a
+                    WHERE a.message_id = m.id
+                    ORDER BY a.created_at ASC
+                    LIMIT 1
+                ) AS att_e2e_meta
+            FROM chat_messages m
+            INNER JOIN workers w ON w.id = m.worker_id AND w.company_id = m.company_id
+            WHERE m.company_id = ?
+              AND w.deleted_at IS NULL
+            ORDER BY m.created_at DESC
+            LIMIT 500
+            """,
+            (company_id,),
+        ).fetchall()
+        hits: list[dict[str, Any]] = []
+        for row in rows:
+            body = maybe_decrypt_field(row["body"], company_id=company_id)
+            preview = self._message_preview_text(
+                body,
+                company_id,
+                attachment_filename=row["att_filename"],
+                attachment_content_type=row["att_content_type"],
+                attachment_e2e_meta=row["att_e2e_meta"],
+            )
+            text = str(preview or body or "").strip().lower()
+            worker_name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip()
+            badge = str(row["badge_id"] or "").strip()
+            name_blob = f"{worker_name} {badge}".strip().lower()
+            has_voice = preview == "voice"
+            has_photo = preview == "photo"
+            match = False
+            if q in {"voice", "sprachnachricht", "audio"}:
+                match = has_voice
+            elif q in {"photo", "foto", "bild", "image"}:
+                match = has_photo
+            elif q in {"encrypted", "verschlüsselt", "verschlusselt"}:
+                match = preview == "encrypted"
+            else:
+                match = q in text or q in body.lower() or q in name_blob
+            if not match:
+                continue
+            snippet = preview or body
+            if preview == "encrypted":
+                snippet = "Verschlüsselte Nachricht"
+            elif preview == "voice":
+                snippet = "Sprachnachricht"
+            elif preview == "photo":
+                snippet = "Foto"
+            hits.append(
+                {
+                    "id": str(row["id"]),
+                    "threadId": str(row["thread_id"]),
+                    "workerId": str(row["worker_id"]),
+                    "senderType": str(row["sender_type"] or ""),
+                    "createdAt": str(row["created_at"] or ""),
+                    "snippet": str(snippet or "")[:160],
+                    "workerName": worker_name or str(row["worker_id"]),
+                    "badgeId": badge,
+                    "matchType": preview or "text",
+                }
+            )
+            if len(hits) >= max(1, min(limit, 60)):
+                break
+        return hits
+
     def create_message(
         self,
         *,

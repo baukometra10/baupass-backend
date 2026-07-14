@@ -45,7 +45,7 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _message.addListener(_onComposeChanged);
     _boot();
-    _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!_sending && !_silentRefresh && !_recording && mounted) {
         _boot(silent: true);
       }

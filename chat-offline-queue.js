@@ -1,13 +1,16 @@
 /**
- * SUPPIX chat offline queue — retry pending messages on reconnect.
+ * SUPPIX chat offline queue — text + attachments (IndexedDB blobs), auto-retry on reconnect.
  */
 (function initSuppixChatOfflineQueue(global) {
-  const STORAGE_KEY = "suppix-chat-offline-queue";
+  const META_KEY = "suppix-chat-offline-queue";
+  const DB_NAME = "suppix-chat-offline";
+  const DB_VERSION = 1;
   const MAX_QUEUE = 40;
+  let dbPromise = null;
 
-  function readQueue() {
+  function readMetaQueue() {
     try {
-      const raw = global.localStorage?.getItem(STORAGE_KEY);
+      const raw = global.localStorage?.getItem(META_KEY);
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
     } catch {
@@ -15,40 +18,131 @@
     }
   }
 
-  function writeQueue(rows) {
+  function writeMetaQueue(rows) {
     try {
-      global.localStorage?.setItem(STORAGE_KEY, JSON.stringify(rows.slice(-MAX_QUEUE)));
+      global.localStorage?.setItem(META_KEY, JSON.stringify(rows.slice(-MAX_QUEUE)));
     } catch {
       /* ignore quota */
     }
-  }
-
-  function enqueue(item) {
-    const rows = readQueue();
-    rows.push({
-      id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-      retries: 0,
-      ...item,
-    });
-    writeQueue(rows);
-    return rows.length;
   }
 
   function isOnline() {
     return global.navigator?.onLine !== false;
   }
 
+  function getIndexedDB() {
+    try {
+      return global.indexedDB || global.webkitIndexedDB || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function openDb() {
+    const idb = getIndexedDB();
+    if (!idb) return Promise.resolve(null);
+    if (!dbPromise) {
+      dbPromise = new Promise((resolve, reject) => {
+        const req = idb.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          if (!db.objectStoreNames.contains("blobs")) {
+            db.createObjectStore("blobs");
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      }).catch(() => null);
+    }
+    return dbPromise;
+  }
+
+  async function storeBlob(blobKey, file) {
+    const db = await openDb();
+    if (!db || !file) return false;
+    const buffer = await file.arrayBuffer();
+    const payload = {
+      buffer,
+      filename: String(file.name || "upload.bin"),
+      contentType: String(file.type || "application/octet-stream"),
+      durationSec: Number(file.durationSec || 0),
+    };
+    return new Promise((resolve) => {
+      const tx = db.transaction("blobs", "readwrite");
+      tx.objectStore("blobs").put(payload, blobKey);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+  }
+
+  async function readBlob(blobKey) {
+    const db = await openDb();
+    if (!db || !blobKey) return null;
+    const payload = await new Promise((resolve) => {
+      const tx = db.transaction("blobs", "readonly");
+      const req = tx.objectStore("blobs").get(blobKey);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+    if (!payload?.buffer) return null;
+    const blob = new Blob([payload.buffer], { type: payload.contentType || "application/octet-stream" });
+    const file = new File([blob], payload.filename || "upload.bin", { type: payload.contentType || "application/octet-stream" });
+    if (payload.durationSec) file.durationSec = payload.durationSec;
+    return file;
+  }
+
+  async function deleteBlob(blobKey) {
+    const db = await openDb();
+    if (!db || !blobKey) return;
+    await new Promise((resolve) => {
+      const tx = db.transaction("blobs", "readwrite");
+      tx.objectStore("blobs").delete(blobKey);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  }
+
+  async function enqueue(item, file = null) {
+    const entry = {
+      id: `q-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      createdAt: new Date().toISOString(),
+      retries: 0,
+      ...item,
+    };
+    if (file) {
+      const blobKey = `blob-${entry.id}`;
+      const stored = await storeBlob(blobKey, file);
+      if (stored) {
+        entry.attachment = {
+          blobKey,
+          filename: String(file.name || "upload.bin"),
+          contentType: String(file.type || "application/octet-stream"),
+          durationSec: Number(file.durationSec || 0),
+          e2eFields: item.attachmentE2eFields || null,
+        };
+      }
+    }
+    const rows = readMetaQueue();
+    rows.push(entry);
+    writeMetaQueue(rows);
+    return entry;
+  }
+
   async function flushQueue({ sendItem, onProgress } = {}) {
-    if (!isOnline() || typeof sendItem !== "function") return { sent: 0, failed: 0 };
-    let rows = readQueue();
-    if (!rows.length) return { sent: 0, failed: 0 };
+    if (!isOnline() || typeof sendItem !== "function") return { sent: 0, failed: 0, pending: readMetaQueue().length };
+    let rows = readMetaQueue();
+    if (!rows.length) return { sent: 0, failed: 0, pending: 0 };
     let sent = 0;
     let failed = 0;
     const remaining = [];
     for (const item of rows) {
+      let attachmentFile = null;
+      if (item.attachment?.blobKey) {
+        attachmentFile = await readBlob(item.attachment.blobKey);
+      }
       try {
-        await sendItem(item);
+        await sendItem(item, attachmentFile);
+        if (item.attachment?.blobKey) await deleteBlob(item.attachment.blobKey);
         sent += 1;
         onProgress?.({ type: "sent", item });
       } catch (error) {
@@ -56,12 +150,13 @@
         if (retries < 5) {
           remaining.push({ ...item, retries });
         } else {
+          if (item.attachment?.blobKey) await deleteBlob(item.attachment.blobKey);
           failed += 1;
           onProgress?.({ type: "dropped", item, error });
         }
       }
     }
-    writeQueue(remaining);
+    writeMetaQueue(remaining);
     return { sent, failed, pending: remaining.length };
   }
 
@@ -82,33 +177,29 @@
     };
   }
 
-  async function sendWithOfflineFallback({
-    payload,
-    sendNow,
-    onQueued,
-  } = {}) {
+  async function sendWithOfflineFallback({ payload, file, sendNow, onQueued } = {}) {
     if (isOnline()) {
       try {
-        return await sendNow(payload);
+        return await sendNow(payload, file);
       } catch (error) {
         if (error?.code !== "network_error" && error?.name !== "TypeError") throw error;
       }
     }
-    enqueue(payload);
+    await enqueue(payload, file || null);
     onQueued?.(payload);
     return { queued: true };
   }
 
   global.SUPPIXChatOfflineQueue = {
-    STORAGE_KEY,
-    readQueue,
+    STORAGE_KEY: META_KEY,
+    readQueue: readMetaQueue,
     enqueue,
     flushQueue,
     bindAutoFlush,
     sendWithOfflineFallback,
     isOnline,
     pendingCount() {
-      return readQueue().length;
+      return readMetaQueue().length;
     },
   };
 })(typeof window !== "undefined" ? window : globalThis);

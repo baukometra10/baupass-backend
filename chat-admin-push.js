@@ -2,6 +2,8 @@
  * SUPPIX admin chat push — VAPID web push for employer PWA/mobile browser.
  */
 (function initSuppixAdminPush(global) {
+  const DISMISS_KEY = "suppix-admin-push-banner-dismissed";
+
   function urlBase64ToUint8Array(base64String) {
     const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
     const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
@@ -67,25 +69,65 @@
     return true;
   }
 
-  function initAdminChatPush({ api, companyId, prompt = true } = {}) {
-    if (!prompt || !api || !companyId) return;
+  function shouldShowPushBanner() {
+    if (!("Notification" in global)) return false;
+    if (Notification.permission === "granted") return false;
+    try {
+      if (global.sessionStorage?.getItem(DISMISS_KEY) === "1") return false;
+    } catch {
+      /* ignore */
+    }
+    return true;
+  }
+
+  function mountPushBanner({ bannerEl, textEl, enableBtn, dismissBtn, labels = {}, onSubscribed } = {}) {
+    if (!bannerEl) return;
+    const sync = () => {
+      if (!shouldShowPushBanner()) {
+        bannerEl.classList.add("hidden");
+        return;
+      }
+      if (textEl) {
+        textEl.textContent = Notification.permission === "denied"
+          ? (labels.denied || "Push blockiert — in den Browser-Einstellungen erlauben.")
+          : (labels.prompt || "Push aktivieren, um Mitarbeiter-Nachrichten auch bei geschlossenem Tab zu erhalten.");
+      }
+      bannerEl.classList.remove("hidden");
+    };
+    sync();
+    enableBtn?.addEventListener("click", () => {
+      void onSubscribed?.().then((ok) => {
+        if (ok) bannerEl.classList.add("hidden");
+        else sync();
+      });
+    });
+    dismissBtn?.addEventListener("click", () => {
+      try { global.sessionStorage?.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ }
+      bannerEl.classList.add("hidden");
+    });
+    return sync;
+  }
+
+  function initAdminChatPush({ api, companyId, prompt = true, banner } = {}) {
+    if (!api || !companyId) return;
+    if (banner) {
+      mountPushBanner({
+        ...banner,
+        onSubscribed: async () => subscribeAdminPush({ api, companyId }),
+      });
+    }
+    if (!prompt) return;
     if (!("Notification" in global)) return;
     if (Notification.permission === "granted") {
       void subscribeAdminPush({ api, companyId });
-      return;
-    }
-    if (Notification.permission === "default") {
-      global.document?.addEventListener("visibilitychange", () => {
-        if (global.document.visibilityState === "visible") {
-          void subscribeAdminPush({ api, companyId });
-        }
-      }, { once: true });
     }
   }
 
   global.SUPPIXAdminChatPush = {
     ensureAdminSw,
     subscribeAdminPush,
+    shouldShowPushBanner,
+    mountPushBanner,
     initAdminChatPush,
   };
 })(typeof window !== "undefined" ? window : globalThis);

@@ -121,6 +121,21 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         results = service.search_messages(thread_id, cid, query)
         return jsonify({"results": results, "query": query})
 
+    @chat_core_bp.get("/chat/search")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_global_search():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        query = str(request.args.get("q") or request.args.get("query") or "").strip()
+        if len(query) < 2:
+            return jsonify({"results": [], "query": query})
+        limit = min(60, max(1, int(request.args.get("limit", "30"))))
+        results = ChatService(get_db()).search_company_messages(cid, query, limit=limit)
+        return jsonify({"results": results, "query": query})
+
     @chat_core_bp.post("/chat/threads/<thread_id>/typing")
     @require_auth
     @require_roles("superadmin", "company-admin")

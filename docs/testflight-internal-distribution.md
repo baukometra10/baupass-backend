@@ -93,6 +93,32 @@ Until secrets are configured, use local `flutter build ipa` + Transporter.
 
 ---
 
+## CallKit & voice calls (iOS TestFlight)
+
+Build **0.1.9+26** and later include native incoming-call UI via `flutter_callkit_incoming`.
+
+### What to test on a physical iPhone
+
+1. Install the TestFlight build and log in as a **test worker** with chat enabled.
+2. From **Admin v2 → Chat**, start a voice call to that worker.
+3. Lock the phone or background the app — expect the **native CallKit** incoming screen (not only an in-app banner).
+4. Accept the call, verify two-way audio, then hang up from either side.
+5. Decline once and confirm the admin sees **declined** / missed state in chat.
+
+### iOS capabilities in this repo
+
+- `Info.plist` → `UIBackgroundModes`: `voip`, `audio`, `remote-notification`
+- Microphone usage string for WebRTC voice
+- Chat poll interval in the Flutter app: **4s** (faster message sync when realtime is unavailable)
+
+### If CallKit does not appear
+
+- Confirm the build number in TestFlight matches `pubspec.yaml` (`0.1.9+26` or newer).
+- Check iOS **Settings → WorkPass Worker → Notifications** and microphone permission.
+- First upload after adding CallKit must be a **new native build** (PWA-only changes are not enough).
+
+---
+
 ## Related
 
 - [distribute-worker-app-AR.md](./distribute-worker-app-AR.md)
