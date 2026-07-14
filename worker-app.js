@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat18";
+const WORKER_BUILD_TAG = "20260714chat20";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13447,6 +13447,7 @@ function workerLocationShareLabels() {
     shareTitle: t("chatLocationShareTitle") || "Standort senden",
     notePlaceholder: t("chatLocationNotePlaceholder") || "Hinweis hinzufügen…",
     send: t("chatLocationSend") || "Senden",
+    sending: t("chatLocationSending") || "…",
     sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
     accuracy: t("chatLocationAccuracy") || "±{m} m",
     accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",

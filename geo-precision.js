@@ -43,12 +43,12 @@
     },
     chat: {
       minSamples: 1,
-      maxSamples: 8,
+      maxSamples: 10,
       targetAccuracyMeters: 5,
       acceptAccuracyMeters: 8,
-      maxWaitMs: 3500,
-      stableThresholdMeters: 3,
-      singleTimeoutMs: 2500,
+      maxWaitMs: 2500,
+      stableThresholdMeters: 2,
+      singleTimeoutMs: 2000,
     },
   };
 

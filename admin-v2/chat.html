@@ -345,7 +345,7 @@
     .global-search-result strong{display:block;font-size:.82rem}
     .global-search-result span{font-size:.74rem;color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .chat-location-card{max-width:min(100%,280px);border-radius:12px;overflow:hidden;box-shadow:0 1px 1px rgba(0,0,0,.22)}
-    .bubble.is-location-only{background:transparent!important;border:none!important;padding:0!important;box-shadow:none!important;max-width:min(100%,300px)}
+    .bubble.is-location-only{background:transparent!important;border:none!important;padding:0!important;box-shadow:none!important;width:min(100%,280px)!important;max-width:280px!important}
     .bubble.is-location-only .bubble-sender{margin-bottom:.35rem}
     .chat-location-overlay{position:fixed;inset:0;background:rgba(5,8,16,.72);display:grid;place-items:center;z-index:9999;padding:1rem}
     .chat-location-overlay.hidden{display:none}
@@ -995,22 +995,22 @@
       </div>
     </div>
   </div>
-  <script src="/geo-precision.js?v=20260714chat19"></script>
-  <script src="/ops-realtime.js?v=20260714chat19"></script>
-  <script src="/chat-realtime.js?v=20260714chat19"></script>
-  <script src="/chat-gallery.js?v=20260714chat19"></script>
-  <script src="/chat-typing.js?v=20260714chat19"></script>
-  <script src="/chat-search.js?v=20260714chat19"></script>
-  <script src="/chat-location.js?v=20260714chat19"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat19"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat19"></script>
-  <script src="/chat-message-prefs.js?v=20260714chat19"></script>
-  <script src="/chat-message-menu.js?v=20260714chat19"></script>
-  <script src="/chat-admin-push.js?v=20260714chat19"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat19"></script>
-  <script src="/chat-voice.js?v=20260714chat19"></script>
-  <script src="/chat-voice-call.js?v=20260714chat19"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat19"></script>
+  <script src="/geo-precision.js?v=20260714chat20"></script>
+  <script src="/ops-realtime.js?v=20260714chat20"></script>
+  <script src="/chat-realtime.js?v=20260714chat20"></script>
+  <script src="/chat-gallery.js?v=20260714chat20"></script>
+  <script src="/chat-typing.js?v=20260714chat20"></script>
+  <script src="/chat-search.js?v=20260714chat20"></script>
+  <script src="/chat-location.js?v=20260714chat20"></script>
+  <script src="/chat-attach-sheet.js?v=20260714chat20"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat20"></script>
+  <script src="/chat-message-prefs.js?v=20260714chat20"></script>
+  <script src="/chat-message-menu.js?v=20260714chat20"></script>
+  <script src="/chat-admin-push.js?v=20260714chat20"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat20"></script>
+  <script src="/chat-voice.js?v=20260714chat20"></script>
+  <script src="/chat-voice-call.js?v=20260714chat20"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat20"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1379,6 +1379,7 @@
         shareTitle: window.adminChatT("chatLocationShareTitle"),
         notePlaceholder: window.adminChatT("chatLocationNotePlaceholder"),
         send: window.adminChatT("chatLocationSend"),
+        sending: window.adminChatT("chatLocationSending"),
         sharedTitle: window.adminChatT("chatLocationSharedTitle"),
         accuracy: window.adminChatT("chatLocationAccuracy"),
         accuracyGood: window.adminChatT("chatLocationAccuracyGood"),
