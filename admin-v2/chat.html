@@ -993,22 +993,22 @@
       </div>
     </div>
   </div>
-  <script src="/geo-precision.js?v=20260714chat14"></script>
-  <script src="/ops-realtime.js?v=20260714chat14"></script>
-  <script src="/chat-realtime.js?v=20260714chat14"></script>
-  <script src="/chat-gallery.js?v=20260714chat14"></script>
-  <script src="/chat-typing.js?v=20260714chat14"></script>
-  <script src="/chat-search.js?v=20260714chat14"></script>
-  <script src="/chat-location.js?v=20260714chat14"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat14"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat14"></script>
-  <script src="/chat-message-prefs.js?v=20260714chat14"></script>
-  <script src="/chat-message-menu.js?v=20260714chat14"></script>
-  <script src="/chat-admin-push.js?v=20260714chat14"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat14"></script>
-  <script src="/chat-voice.js?v=20260714chat14"></script>
-  <script src="/chat-voice-call.js?v=20260714chat14"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat14"></script>
+  <script src="/geo-precision.js?v=20260714chat15"></script>
+  <script src="/ops-realtime.js?v=20260714chat15"></script>
+  <script src="/chat-realtime.js?v=20260714chat15"></script>
+  <script src="/chat-gallery.js?v=20260714chat15"></script>
+  <script src="/chat-typing.js?v=20260714chat15"></script>
+  <script src="/chat-search.js?v=20260714chat15"></script>
+  <script src="/chat-location.js?v=20260714chat15"></script>
+  <script src="/chat-attach-sheet.js?v=20260714chat15"></script>
+  <script src="/chat-thread-prefs.js?v=20260714chat15"></script>
+  <script src="/chat-message-prefs.js?v=20260714chat15"></script>
+  <script src="/chat-message-menu.js?v=20260714chat15"></script>
+  <script src="/chat-admin-push.js?v=20260714chat15"></script>
+  <script src="/chat-offline-queue.js?v=20260714chat15"></script>
+  <script src="/chat-voice.js?v=20260714chat15"></script>
+  <script src="/chat-voice-call.js?v=20260714chat15"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat15"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1371,6 +1371,17 @@
         failed: window.adminChatT("chatLocationFailed"),
       };
     }
+    function adminLocationShareLabels() {
+      return Object.assign({}, adminLocationCaptureLabels(), {
+        shareTitle: window.adminChatT("chatLocationShareTitle"),
+        notePlaceholder: window.adminChatT("chatLocationNotePlaceholder"),
+        send: window.adminChatT("chatLocationSend"),
+        sharedTitle: window.adminChatT("chatLocationSharedTitle"),
+        accuracy: window.adminChatT("chatLocationAccuracy"),
+        accuracyGood: window.adminChatT("chatLocationAccuracyGood"),
+        accuracyApprox: window.adminChatT("chatLocationAccuracyApprox"),
+      });
+    }
     function messagePreviewLabelFromBody(body, attachments = []) {
       return formatChatReplyPreviewBody(String(body || ""), attachments);
     }
@@ -1411,32 +1422,14 @@
       writeAdminPreviewCacheEntry(workerId, messagePreviewLabelFromBody(last.body, last.attachments));
     }
     async function sendAdminChatLocation() {
-      if (!currentThreadId || !currentWorkerId || !window.SUPPIXChatLocation?.captureChatLocation) return;
-      void window.SUPPIXChatLocation?.warmChatGeolocation?.();
-      const instant = window.SUPPIXChatLocation?.peekCachedChatLocation?.({
-        label: window.adminChatT("chatLocationSharedTitle"),
-      });
-      if (instant) {
-        const body = window.SUPPIXChatLocation.encodeLocationBody(instant);
-        await sendAdminChatPayload({ body });
-        return;
-      }
-      const list = document.getElementById("messageList");
-      const pendingId = `pending-loc-${Date.now()}`;
-      if (list) {
-        list.insertAdjacentHTML("beforeend", `<div class="bubble admin tail is-pending" data-message-id="${escapeHtml(pendingId)}"><span class="bubble-body muted">${escapeHtml(window.adminChatT("chatLocationSending") || "📍 Standort wird gesendet…")}</span></div>`);
-        scrollMessageListToBottom(true);
-      }
+      if (!currentThreadId || !currentWorkerId || !window.SUPPIXChatLocation?.openShareSheet) return;
       try {
-        const point = await window.SUPPIXChatLocation.captureChatLocation({
-          labels: adminLocationCaptureLabels(),
-          label: window.adminChatT("chatLocationSharedTitle"),
+        const point = await window.SUPPIXChatLocation.openShareSheet({
+          labels: adminLocationShareLabels(),
         });
-        list?.querySelector(`[data-message-id="${pendingId}"]`)?.remove();
         const body = window.SUPPIXChatLocation.encodeLocationBody(point);
         await sendAdminChatPayload({ body });
       } catch (error) {
-        list?.querySelector(`[data-message-id="${pendingId}"]`)?.remove();
         if (String(error?.message || "") === "location_cancelled") return;
         const msg = window.SUPPIXChatLocation.locationCaptureErrorMessage?.(error, adminLocationCaptureLabels())
           || window.adminChatT("chatLocationFailed");

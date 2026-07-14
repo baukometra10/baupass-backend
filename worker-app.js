@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat14";
+const WORKER_BUILD_TAG = "20260714chat15";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13434,32 +13434,30 @@ function bindWorkerChatAttachSheet() {
   }
 }
 
+function workerLocationShareLabels() {
+  return Object.assign({}, workerLocationCaptureLabels(), {
+    shareTitle: t("chatLocationShareTitle") || "Standort senden",
+    notePlaceholder: t("chatLocationNotePlaceholder") || "Hinweis hinzufügen…",
+    send: t("chatLocationSend") || "Senden",
+    sharedTitle: t("chatLocationSharedTitle") || "Standort geteilt",
+    accuracy: t("chatLocationAccuracy") || "±{m} m",
+    accuracyGood: t("chatLocationAccuracyGood") || "Genauigkeit ±{m} m",
+    accuracyApprox: t("chatLocationAccuracyApprox") || "Standort ungefähr · ±{m} m",
+  });
+}
+
 async function sendWorkerChatLocation() {
-  if (!window.SUPPIXChatLocation?.captureChatLocation) {
+  if (!window.SUPPIXChatLocation?.openShareSheet) {
     showWorkerNotice(t("geolocationUnsupported"));
     return;
   }
-  void window.SUPPIXChatLocation?.warmChatGeolocation?.();
-  const instant = window.SUPPIXChatLocation?.peekCachedChatLocation?.({
-    label: t("chatLocationSharedTitle") || "Standort geteilt",
-  });
-  if (instant) {
-    const body = window.SUPPIXChatLocation.encodeLocationBody(instant);
-    await sendWorkerChatMessage({ presetBody: body });
-    return;
-  }
-  const pendingId = `pending-loc-${Date.now()}`;
-  appendOptimisticWorkerChatBubble(t("chatLocationSending") || "📍 Standort wird gesendet…", pendingId);
   try {
-    const point = await window.SUPPIXChatLocation.captureChatLocation({
-      labels: workerLocationCaptureLabels(),
-      label: t("chatLocationSharedTitle") || "Standort geteilt",
+    const point = await window.SUPPIXChatLocation.openShareSheet({
+      labels: workerLocationShareLabels(),
     });
-    removeOptimisticWorkerChatBubble(pendingId);
     const body = window.SUPPIXChatLocation.encodeLocationBody(point);
     await sendWorkerChatMessage({ presetBody: body });
   } catch (error) {
-    removeOptimisticWorkerChatBubble(pendingId);
     if (String(error?.message || "") === "location_cancelled") return;
     const msg = window.SUPPIXChatLocation.locationCaptureErrorMessage?.(error, workerLocationCaptureLabels())
       || t("chatLocationFailed")
