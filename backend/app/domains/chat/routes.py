@@ -134,6 +134,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 sender_worker_id=None,
                 body=str(data.get("body") or ""),
                 allow_plaintext_e2e_fallback=e2e_client_unavailable,
+                reply_to_message_id=str(data.get("reply_to_message_id") or data.get("replyToMessageId") or "").strip() or None,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:
@@ -143,6 +144,32 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 "e2e_required": "Verschlüsselte Nachricht erforderlich — E2E-Schlüssel prüfen.",
             }
             return jsonify({"error": code, "message": messages.get(code, code)}), 400
+
+    @chat_core_bp.get("/worker-app/chat/events/recent")
+    @require_worker_session
+    def worker_chat_events_recent():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.events.bus import list_recent_events
+
+        since_id = str(request.args.get("since_id") or "").strip() or None
+        limit = min(50, max(1, int(request.args.get("limit", "25"))))
+        raw_events = list_recent_events(company_id, limit=200, since_id=since_id)
+        events = []
+        for evt in reversed(raw_events):
+            if str(evt.get("type") or "") != "chat.message_created":
+                continue
+            payload = evt.get("payload") or {}
+            if str(payload.get("workerId") or "") != worker_id:
+                continue
+            events.append(evt)
+            if len(events) >= limit:
+                break
+        return jsonify({"events": events})
 
     @chat_core_bp.post("/chat/threads/<thread_id>/attachments")
     @require_auth
@@ -327,6 +354,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 sender_worker_id=worker_id,
                 body=str(data.get("body") or ""),
                 allow_plaintext_e2e_fallback=e2e_client_unavailable,
+                reply_to_message_id=str(data.get("reply_to_message_id") or data.get("replyToMessageId") or "").strip() or None,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:

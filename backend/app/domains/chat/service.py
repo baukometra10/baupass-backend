@@ -133,6 +133,7 @@ class ChatService:
                 ("sender_worker_id", "ALTER TABLE chat_messages ADD COLUMN sender_worker_id TEXT"),
                 ("read_at", "ALTER TABLE chat_messages ADD COLUMN read_at TEXT"),
                 ("body", "ALTER TABLE chat_messages ADD COLUMN body TEXT NOT NULL DEFAULT ''"),
+                ("reply_to_message_id", "ALTER TABLE chat_messages ADD COLUMN reply_to_message_id TEXT"),
             ):
                 if column not in message_cols:
                     try:
@@ -384,9 +385,11 @@ class ChatService:
         last_admin_read = str(thread_row["last_admin_read_at"] or "") if thread_row else ""
         rows = self.db.execute(
             """
-            SELECT m.*, a.id AS attachment_id, a.filename AS attachment_filename, a.content_type AS attachment_content_type,
+            SELECT m.*, rm.body AS reply_body, rm.sender_type AS reply_sender_type,
+                   a.id AS attachment_id, a.filename AS attachment_filename, a.content_type AS attachment_content_type,
                    a.file_size AS attachment_file_size, a.e2e_meta AS attachment_e2e_meta
             FROM chat_messages m
+            LEFT JOIN chat_messages rm ON rm.id = m.reply_to_message_id
             LEFT JOIN chat_attachments a ON a.message_id = m.id
             WHERE m.thread_id = ? AND m.company_id = ?
             ORDER BY m.created_at ASC
@@ -409,9 +412,20 @@ class ChatService:
                     "body": maybe_decrypt_field(row["body"], company_id=str(row["company_id"] or "")),
                     "createdAt": row["created_at"],
                     "readAt": row["read_at"],
+                    "replyToMessageId": str(row["reply_to_message_id"] or "") or None,
                     "attachments": [],
                 },
             )
+            reply_body = maybe_decrypt_field(row["reply_body"], company_id=str(row["company_id"] or "")) if row["reply_body"] else ""
+            if entry.get("replyToMessageId") and (reply_body or row["reply_sender_type"]):
+                entry["replyTo"] = {
+                    "id": entry["replyToMessageId"],
+                    "senderType": str(row["reply_sender_type"] or ""),
+                    "body": self._message_preview_text(
+                        reply_body,
+                        company_id,
+                    ) or str(reply_body or "")[:120],
+                }
             if row["attachment_id"]:
                 attach_payload = {
                     "id": row["attachment_id"],
@@ -445,6 +459,7 @@ class ChatService:
         sender_worker_id: str | None,
         body: str,
         allow_plaintext_e2e_fallback: bool = False,
+        reply_to_message_id: str | None = None,
     ) -> dict[str, Any]:
         if not body.strip():
             raise ValueError("message_required")
@@ -458,6 +473,7 @@ class ChatService:
                 sender_worker_id=sender_worker_id,
                 body=body,
                 allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
+                reply_to_message_id=reply_to_message_id,
             )
         except ValueError:
             raise
@@ -472,6 +488,7 @@ class ChatService:
                 sender_worker_id=sender_worker_id,
                 body=body,
                 allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
+                reply_to_message_id=reply_to_message_id,
             )
 
     def _create_message_record(
@@ -486,10 +503,19 @@ class ChatService:
         body: str,
         silent_side_effects: bool = False,
         allow_plaintext_e2e_fallback: bool = False,
+        reply_to_message_id: str | None = None,
     ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
+        clean_reply_id = str(reply_to_message_id or "").strip() or None
+        if clean_reply_id:
+            reply_row = self.db.execute(
+                "SELECT id FROM chat_messages WHERE id = ? AND thread_id = ? AND company_id = ?",
+                (clean_reply_id, thread_id, company_id),
+            ).fetchone()
+            if not reply_row:
+                clean_reply_id = None
         if is_e2e_chat_required(self.db, company_id, worker_id=worker_id) and not allow_plaintext_e2e_fallback:
             assert_e2e_message_body(plain_body)
         stored_body = maybe_encrypt_field(plain_body, company_id=company_id)
@@ -497,10 +523,10 @@ class ChatService:
         self.db.execute(
             """
             INSERT INTO chat_messages
-            (id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body, created_at, reply_to_message_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (message_id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, stored_body, now),
+            (message_id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, stored_body, now, clean_reply_id),
         )
         self.db.execute(
             """
@@ -520,6 +546,7 @@ class ChatService:
             "workerId": worker_id,
             "senderType": sender_type,
             "preview": "encrypted" if encrypted_preview else plain_body[:120],
+            "replyToMessageId": clean_reply_id,
         }
         try:
             publish_event("chat.message_created", company_id, event_payload, actor_id=sender_user_id or sender_worker_id or "")
@@ -560,6 +587,7 @@ class ChatService:
             "senderWorkerId": sender_worker_id,
             "body": plain_body,
             "createdAt": now,
+            "replyToMessageId": clean_reply_id,
             "attachments": [],
         }
 

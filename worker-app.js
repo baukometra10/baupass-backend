@@ -2107,9 +2107,12 @@ let workerChatThreadId = "";
 let workerChatThreadLastError = null;
 const WORKER_CHAT_THREAD_STORAGE_KEY = "worker-chat-thread-id";
 let workerChatPollTimer = null;
-const WORKER_CHAT_POLL_MS = 2000;
+const WORKER_CHAT_POLL_MS = 8000;
 const WORKER_CHAT_E2E_SYNC_TTL_MS = 120000;
 let workerChatLastFingerprint = "";
+let workerChatMessagesCache = [];
+let workerReplyTo = null;
+let workerChatRealtimeStop = null;
 let workerChatE2ELastSyncAt = 0;
 let workerE2EIdentityReady = false;
 let workerE2EDeviceMismatch = false;
@@ -2644,15 +2647,24 @@ function bindWorkerChatMessageActions() {
       return;
     }
     const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
-    if (!deleteBtn) {
+    if (deleteBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
+      if (messageId) {
+        void deleteWorkerChatMessage(messageId);
+      }
+      return;
+    }
+    const replyBtn = event.target instanceof Element ? event.target.closest("[data-chat-reply-id]") : null;
+    if (!replyBtn) {
       return;
     }
     event.preventDefault();
     event.stopPropagation();
-    const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
-    if (messageId) {
-      void deleteWorkerChatMessage(messageId);
-    }
+    const messageId = replyBtn.getAttribute("data-chat-reply-id") || "";
+    const msg = workerChatMessagesCache.find((item) => String(item.id) === String(messageId));
+    if (msg) setWorkerReplyTo(msg);
   });
 }
 
@@ -3015,6 +3027,11 @@ const WORKER_CHAT_SHELL_FIX_CSS = [
   "#chatCard .worker-chat-meta{display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:6px;font-size:.72rem;color:rgba(233,237,239,.62)}",
   "#chatCard .worker-chat-bubble.is-company .worker-chat-meta{color:rgba(233,237,239,.62)}",
   "#chatCard .worker-chat-bubble.is-mine .worker-chat-meta{color:rgba(233,237,239,.72)}",
+  "#chatCard .worker-chat-reply-bar{display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(0,168,132,.1);border:1px solid rgba(0,168,132,.22)}",
+  "#chatCard .worker-chat-reply-bar.hidden{display:none}",
+  "#chatCard .worker-chat-reply-bar-text{flex:1;min-width:0;font-size:.78rem;color:#e9edef;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}",
+  "#chatCard .worker-chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem}",
+  "#chatCard .worker-chat-reply-btn{border:none;background:transparent;color:#8696a0;cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem}",
   "#chatCard .worker-chat-ticks{letter-spacing:-0.14em;font-size:.78rem;line-height:1;color:#8696a0}",
   "#chatCard .worker-chat-ticks.is-delivered{color:#8696a0}",
   "#chatCard .worker-chat-ticks.is-read{color:#53bdeb;font-weight:700}",
@@ -3214,6 +3231,7 @@ function ensureWorkerChatDom() {
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
           <h3 data-i18n="workerChatTitle">Chat mit Firma</h3>
           <div id="workerChatHeadActions" class="chat-head-actions hidden">
+            <button type="button" id="workerChatGalleryBtn" class="chat-voice-call-btn" title="Medien" aria-label="Medien">🖼</button>
             <button type="button" id="workerChatCallBtn" class="chat-voice-call-btn" data-i18n="voiceCallCallEmployer" data-i18n-attr="title,aria-label" title="Arbeitgeber anrufen" aria-label="Arbeitgeber anrufen">📞</button>
             <button type="button" id="workerChatClearOwnBtn" data-i18n="chatClearOwn">Meine Nachrichten löschen</button>
             <button type="button" id="workerChatClearAllBtn" data-i18n="chatClearAll">Chat leeren</button>
@@ -3225,6 +3243,10 @@ function ensureWorkerChatDom() {
       </div>
       <div class="worker-chat-compose">
         <p id="workerChatFileHint" class="worker-chat-file-hint muted-info hidden"></p>
+        <div id="workerChatReplyBar" class="worker-chat-reply-bar hidden" aria-live="polite">
+          <span id="workerChatReplyBarText" class="worker-chat-reply-bar-text"></span>
+          <button type="button" id="workerChatReplyBarClear" aria-label="Antwort abbrechen">✕</button>
+        </div>
         <div class="worker-chat-compose-bar">
           <label class="worker-chat-file-label worker-chat-compose-attach" for="workerChatFileInput">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -3783,6 +3805,8 @@ function bindWorkerChatComposeEvents() {
   }
   syncWorkerComposeAction();
   bindWorkerWhatsAppVoiceCompose();
+  document.getElementById("workerChatReplyBarClear")?.addEventListener("click", clearWorkerReplyTo);
+  document.getElementById("workerChatGalleryBtn")?.addEventListener("click", openWorkerChatGallery);
 }
 
 function updateWorkerChatFileHint() {
@@ -12677,6 +12701,7 @@ function renderWorkerChatMessages(messages, options = {}) {
   }
   void (async () => {
     const displayMessages = await prepareWorkerChatMessagesForDisplay(messages);
+    workerChatMessagesCache = displayMessages;
     if (!elements.workerChatMessages) {
       return;
     }
@@ -12717,18 +12742,23 @@ function renderWorkerChatMessages(messages, options = {}) {
       const deleteHtml = side === "mine" && messageId
         ? `<button type="button" class="worker-chat-delete-btn" data-chat-delete-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("workerChatDelete"))}">🗑</button>`
         : "";
+      const replyHtml = messageId
+        ? `<button type="button" class="worker-chat-reply-btn" data-chat-reply-id="${escapeHtmlBasic(messageId)}" aria-label="${escapeHtmlBasic(t("chatReplyAction") || "Antworten")}">↩</button>`
+        : "";
       const rowClasses = ["worker-chat-row", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : ""].filter(Boolean).join(" ");
       const bubbleClasses = ["worker-chat-bubble", `is-${side}`, grouped ? "is-grouped" : "", tail ? "is-tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
       html += `
         <div class="${rowClasses}">
           <span class="worker-chat-sender">${escapeHtmlBasic(senderLabel)}</span>
           <div class="${bubbleClasses}">
+            ${renderWorkerReplyQuoteHtml(msg)}
             ${bodyHtml}
             ${callLogHtml}
             ${attachHtml}
             <div class="worker-chat-meta">
               ${time ? `<span class="worker-chat-time">${escapeHtmlBasic(time)}</span>` : ""}
               ${ticksHtml}
+              ${replyHtml}
               ${deleteHtml}
             </div>
           </div>
@@ -12829,6 +12859,81 @@ async function uploadWorkerChatAttachment(threadId, messageId, file) {
     throw error;
   }
   return payload;
+}
+
+function workerReplyPreviewText(msg) {
+  const body = String(msg?.body || "").trim();
+  if (body.startsWith("@voice-call|")) return t("voiceCallLogTitle") || "Anruf";
+  if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, t("chatVoiceMessage"))) return t("chatVoiceMessage");
+  if (!body || body === "encrypted") return t("encryptedPreview") || "Verschlüsselte Nachricht";
+  return body.slice(0, 96);
+}
+
+function workerReplySenderLabel(msg) {
+  return workerChatSenderSide(msg) === "mine" ? (t("workerChatFromYou") || "Du") : getWorkerBrandTitle();
+}
+
+function setWorkerReplyTo(msg) {
+  if (!msg?.id) return;
+  workerReplyTo = { id: String(msg.id), body: workerReplyPreviewText(msg) };
+  const bar = document.getElementById("workerChatReplyBar");
+  const text = document.getElementById("workerChatReplyBarText");
+  if (bar) bar.classList.remove("hidden");
+  if (text) text.textContent = `${workerReplySenderLabel(msg)}: ${workerReplyTo.body}`;
+  elements.workerChatInput?.focus();
+}
+
+function clearWorkerReplyTo() {
+  workerReplyTo = null;
+  document.getElementById("workerChatReplyBar")?.classList.add("hidden");
+  const text = document.getElementById("workerChatReplyBarText");
+  if (text) text.textContent = "";
+}
+
+function renderWorkerReplyQuoteHtml(msg) {
+  const reply = msg?.replyTo;
+  if (!reply?.id) return "";
+  let body = String(reply.body || "").trim();
+  if (body === "voice") body = t("chatVoiceMessage");
+  if (body === "photo") body = t("chatPreviewPhoto") || "Foto";
+  if (body === "encrypted") body = t("encryptedPreview") || "Verschlüsselte Nachricht";
+  const who = String(reply.senderType || "") === "worker" ? (t("workerChatFromYou") || "Du") : getWorkerBrandTitle();
+  return `<div class="worker-chat-reply-quote"><strong>${escapeHtmlBasic(who)}</strong>${escapeHtmlBasic(body.slice(0, 120))}</div>`;
+}
+
+function startWorkerChatRealtimeFeed() {
+  if (workerChatRealtimeStop) {
+    try { workerChatRealtimeStop(); } catch { /* ignore */ }
+    workerChatRealtimeStop = null;
+  }
+  if (!window.SUPPIXChatRealtime?.startWorkerChatRealtime) return;
+  workerChatRealtimeStop = window.SUPPIXChatRealtime.startWorkerChatRealtime({
+    headers: () => buildWorkerAuthHeaders(),
+    onChatEvent: () => { void loadWorkerChat({ quiet: true }); },
+  });
+}
+
+function openWorkerChatGallery() {
+  if (!workerChatMessagesCache.length) return;
+  window.SUPPIXChatGallery?.openChatGallery?.({
+    messages: workerChatMessagesCache,
+    labels: {
+      title: t("chatGalleryTitle") || "Medien",
+      all: t("chatGalleryAll") || "Alle",
+      images: t("chatGalleryImages") || "Fotos",
+      voice: t("chatVoiceMessage") || "Sprache",
+      files: t("chatGalleryFiles") || "Dateien",
+      empty: t("chatGalleryEmpty") || "Keine Medien in dieser Unterhaltung.",
+      close: t("close") || "Schließen",
+    },
+    onOpenItem: (item) => {
+      if (item.kind === "voice") {
+        document.querySelector(`#workerChatMessages .chat-voice-note[data-attachment-id="${CSS.escape(item.id)}"] .chat-voice-play`)?.click();
+        return;
+      }
+      void downloadWorkerChatAttachment(item.id, item.filename, item.e2eMeta || "");
+    },
+  });
 }
 
 async function loadWorkerChat(options = {}) {
@@ -12944,6 +13049,7 @@ function startWorkerChatPolling() {
   if (!workerToken || !workerPlanAllowsFeature("worker_chat")) {
     return;
   }
+  startWorkerChatRealtimeFeed();
   workerChatPollTimer = setInterval(() => {
     if (!workerToken) {
       return;
@@ -12993,7 +13099,10 @@ async function sendWorkerChatMessage(options = {}) {
       "Content-Type": "application/json",
       ...(options.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
     }),
-    body: JSON.stringify({ body: outboundBody }),
+    body: JSON.stringify({
+      body: outboundBody,
+      ...(workerReplyTo?.id ? { reply_to_message_id: workerReplyTo.id } : {}),
+    }),
   });
   const allowed = workerPlanAllowsFeature("worker_chat");
   const pendingId = `pending-${Date.now()}`;
@@ -13060,6 +13169,7 @@ async function sendWorkerChatMessage(options = {}) {
       await uploadWorkerChatAttachment(threadId, messageId, file);
     }
     workerChatLastFingerprint = "";
+    clearWorkerReplyTo();
     void loadWorkerChat({ quiet: true });
     syncWorkerComposeAction();
   } catch (error) {

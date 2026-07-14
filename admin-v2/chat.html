@@ -72,6 +72,18 @@
     .chat-head-avatar.hidden { display:none; }
     .hidden { display:none !important; }
     .chat-compose.is-inactive { display:none; }
+    .chat-reply-bar{display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(0,168,132,.1);border:1px solid rgba(0,168,132,.22)}
+    .chat-reply-bar.hidden{display:none}
+    .chat-reply-bar-text{flex:1;min-width:0;font-size:.78rem;color:var(--text);opacity:.92;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .chat-reply-bar button{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:1rem}
+    .chat-quick-replies{display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.45rem}
+    .chat-quick-replies.hidden{display:none}
+    .chat-quick-replies button{border:1px solid rgba(0,168,132,.28);background:rgba(0,168,132,.08);color:var(--text);border-radius:999px;padding:.28rem .62rem;font-size:.72rem;cursor:pointer;white-space:nowrap}
+    .chat-quick-replies button:hover{border-color:rgba(0,168,132,.45)}
+    .chat-reply-quote{display:block;margin:0 0 .35rem;padding:.35rem .5rem;border-left:3px solid #00a884;border-radius:8px;background:rgba(0,168,132,.08);font-size:.76rem;opacity:.92}
+    .chat-reply-quote strong{display:block;font-size:.68rem;opacity:.75;margin-bottom:.12rem}
+    .bubble-reply-btn,.chat-reply-btn{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:.72rem;padding:0;margin-left:.25rem;opacity:.65}
+    .bubble-reply-btn:hover,.chat-reply-btn:hover{opacity:1;color:var(--accent)}
     .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); }
     .chat-compose-bar { display:flex; align-items:flex-end; gap:0.45rem; }
     .chat-compose-attach { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--muted); cursor:pointer; flex-shrink:0; }
@@ -739,6 +751,7 @@
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
               <div id="chatHeadActions" class="chat-head-actions hidden">
+                <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" title="Medien" aria-label="Medien">🖼</button>
                 <button type="button" id="chatVoiceHistoryBtn" class="chat-voice-history-btn" title="Anrufverlauf" aria-label="Anrufverlauf">🕘</button>
                 <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" title="Anrufen" aria-label="Anrufen">📞</button>
                 <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
@@ -752,6 +765,11 @@
         </div>
         <div class="chat-compose is-inactive" id="chatCompose">
           <p id="chatVoiceHint" class="chat-voice-hint hidden" aria-live="polite"></p>
+          <div id="chatReplyBar" class="chat-reply-bar hidden" aria-live="polite">
+            <span id="chatReplyBarText" class="chat-reply-bar-text"></span>
+            <button type="button" id="chatReplyBarClear" aria-label="Antwort abbrechen">✕</button>
+          </div>
+          <div id="chatQuickReplies" class="chat-quick-replies hidden"></div>
           <div class="chat-compose-bar">
             <label class="chat-compose-attach" for="chatFile" title="Anhang">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v10M8.5 11.5 12 15l3.5-3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 19h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -852,9 +870,12 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260714voice12"></script>
-  <script src="/chat-voice-call.js?v=20260714voice12"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice12"></script>
+  <script src="/ops-realtime.js?v=20260714chat1"></script>
+  <script src="/chat-realtime.js?v=20260714chat1"></script>
+  <script src="/chat-gallery.js?v=20260714chat1"></script>
+  <script src="/chat-voice.js?v=20260714chat1"></script>
+  <script src="/chat-voice-call.js?v=20260714chat1"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714chat1"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -878,7 +899,10 @@
     let currentWorkerId = "";
     let chatPollTimer = null;
     let threadListPollTimer = null;
-    const CHAT_POLL_MS = 2000;
+    let chatRealtimeStop = null;
+    let adminChatMessagesCache = [];
+    let adminReplyTo = null;
+    const CHAT_POLL_MS = 8000;
     let adminChatLastFingerprint = "";
     let openingThreadWorkerId = "";
     let chatLoadSequence = 0;
@@ -1434,6 +1458,7 @@
         updateAdminVoiceHint(0);
       }
       syncAdminComposeAction();
+      renderAdminQuickReplies();
     }
     function syncAdminComposeAction() {
       const input = document.getElementById("chatReply");
@@ -1444,6 +1469,132 @@
       const hasFile = Boolean(fileInput?.files?.length);
       sendBtn.hidden = !(hasText || hasFile);
       return hasText || hasFile ? "send" : "mic";
+    }
+    function adminQuickReplyTemplates() {
+      return [
+        window.adminChatT("quickReplyThanks") || "Danke für die Info.",
+        window.adminChatT("quickReplyCallBack") || "Ich rufe dich gleich zurück.",
+        window.adminChatT("quickReplyOnSite") || "Bitte melde dich vor Ort.",
+        window.adminChatT("quickReplyDocs") || "Bitte Dokumente im Chat hochladen.",
+        window.adminChatT("quickReplyReceived") || "Nachricht erhalten.",
+      ];
+    }
+    function renderAdminQuickReplies() {
+      const host = document.getElementById("chatQuickReplies");
+      if (!host) return;
+      const active = Boolean(currentThreadId && currentWorkerId);
+      host.classList.toggle("hidden", !active);
+      if (!active) {
+        host.innerHTML = "";
+        return;
+      }
+      host.innerHTML = adminQuickReplyTemplates()
+        .map((text) => `<button type="button" data-quick-reply="${escapeAttr(text)}">${escapeHtml(text)}</button>`)
+        .join("");
+      host.querySelectorAll("[data-quick-reply]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const input = document.getElementById("chatReply");
+          if (!input) return;
+          input.value = btn.getAttribute("data-quick-reply") || "";
+          syncAdminComposeAction();
+          input.focus();
+        });
+      });
+    }
+    function replyPreviewText(msg) {
+      const body = String(msg?.body || "").trim();
+      if (body.startsWith("@voice-call|")) return window.adminChatT("voiceCallLogTitle");
+      if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, window.adminChatT("chatVoiceMessage"))) {
+        return window.adminChatT("chatVoiceMessage");
+      }
+      if (body === "encrypted" || !body) return window.adminChatT("encryptedPreview");
+      return body.slice(0, 96);
+    }
+    function replySenderLabel(msg) {
+      return String(msg?.senderType || "") === "worker"
+        ? window.adminChatT("senderWorker")
+        : window.adminChatT("senderCompany");
+    }
+    function setAdminReplyTo(msg) {
+      if (!msg?.id) return;
+      adminReplyTo = {
+        id: String(msg.id),
+        senderType: String(msg.senderType || ""),
+        body: replyPreviewText(msg),
+      };
+      const bar = document.getElementById("chatReplyBar");
+      const text = document.getElementById("chatReplyBarText");
+      if (bar) bar.classList.remove("hidden");
+      if (text) {
+        text.textContent = `${replySenderLabel(msg)}: ${adminReplyTo.body}`;
+      }
+      document.getElementById("chatReply")?.focus();
+    }
+    function clearAdminReplyTo() {
+      adminReplyTo = null;
+      document.getElementById("chatReplyBar")?.classList.add("hidden");
+      const text = document.getElementById("chatReplyBarText");
+      if (text) text.textContent = "";
+    }
+    function renderReplyQuoteHtml(msg) {
+      const reply = msg?.replyTo;
+      if (!reply?.id) return "";
+      const who = String(reply.senderType || "") === "worker"
+        ? window.adminChatT("senderWorker")
+        : window.adminChatT("senderCompany");
+      let body = String(reply.body || "").trim();
+      if (body === "voice") body = window.adminChatT("chatVoiceMessage");
+      if (body === "photo") body = window.adminChatT("chatPreviewPhoto") || "Foto";
+      if (body === "encrypted") body = window.adminChatT("encryptedPreview");
+      return `<span class="chat-reply-quote"><strong>${escapeHtml(who)}</strong>${escapeHtml(body.slice(0, 120))}</span>`;
+    }
+    function handleAdminChatRealtimeEvent(evt) {
+      const payload = evt?.payload || {};
+      const threadId = String(payload.threadId || "");
+      if (threadId && currentThreadId && threadId === currentThreadId) {
+        void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
+      }
+      void loadThreads();
+    }
+    function startAdminChatRealtimeFeed() {
+      if (chatRealtimeStop) {
+        try { chatRealtimeStop(); } catch { /* ignore */ }
+        chatRealtimeStop = null;
+      }
+      if (!companyId || !window.SUPPIXChatRealtime?.startAdminChatRealtime) return;
+      window.SUPPIXChatRealtime.requestDesktopNotifyPermission?.();
+      void window.SUPPIXChatRealtime.startAdminChatRealtime({
+        companyId,
+        labels: { workerMessageTitle: window.adminChatT("chatWorkerMessageTitle") || "Neue Mitarbeiter-Nachricht" },
+        onChatEvent: handleAdminChatRealtimeEvent,
+      }).then((stopFn) => {
+        chatRealtimeStop = typeof stopFn === "function" ? stopFn : null;
+      });
+    }
+    function openAdminChatGallery() {
+      if (!adminChatMessagesCache.length) return;
+      window.SUPPIXChatGallery?.openChatGallery?.({
+        messages: adminChatMessagesCache,
+        labels: {
+          title: window.adminChatT("chatGalleryTitle") || "Medien",
+          all: window.adminChatT("chatGalleryAll") || "Alle",
+          images: window.adminChatT("chatGalleryImages") || "Fotos",
+          voice: window.adminChatT("chatVoiceMessage") || "Sprache",
+          files: window.adminChatT("chatGalleryFiles") || "Dateien",
+          empty: window.adminChatT("chatGalleryEmpty") || "Keine Medien in dieser Unterhaltung.",
+          close: window.adminChatT("close") || "Schließen",
+        },
+        onOpenItem: (item) => {
+          if (item.kind === "voice") {
+            const player = document.querySelector(`.chat-voice-note[data-attachment-id="${CSS.escape(item.id)}"]`);
+            player?.querySelector(".chat-voice-play")?.click();
+            return;
+          }
+          downloadChatAttachment(item.id, item.filename, item.contentType).catch((error) => {
+            setThreadMeta(error.message || String(error), { dynamic: true });
+          });
+        },
+      });
     }
     function updateAdminVoiceHint(seconds) {
       const hint = document.getElementById("chatVoiceHint");
@@ -1697,9 +1848,12 @@
       const deleteBtn = canDeleteAdminMessage(msg)
         ? `<button type="button" class="chat-delete-btn" data-chat-delete-id="${messageId}" title="${window.adminChatT("deleteMessageTitle")}">🗑</button>`
         : "";
+      const replyBtn = messageIdPresent(msg)
+        ? `<button type="button" class="bubble-reply-btn" data-chat-reply-id="${messageId}" title="${escapeAttr(window.adminChatT("chatReplyAction") || "Antworten")}">↩</button>`
+        : "";
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
       const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", voiceOnly ? "is-voice-only" : ""].filter(Boolean).join(" ");
-      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${deleteBtn}</div></div>`;
+      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta"><span>${time}</span>${ticks}${replyBtn}${deleteBtn}</div></div>`;
     }
     async function clearAdminChatMessages(scope) {
       if (!currentThreadId) return;
@@ -1833,6 +1987,7 @@
         }
         adminChatLastFingerprint = fingerprint;
         const messages = await prepareAdminChatMessagesForDisplay(rawMessages);
+        adminChatMessagesCache = messages;
         if (!quiet) {
           lastThreadMetaName = name || "";
           updateChatHead(name);
@@ -1937,7 +2092,11 @@
             "Content-Type": "application/json",
             ...(e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
           },
-          body: JSON.stringify({ worker_id: currentWorkerId, body: outboundBody }),
+          body: JSON.stringify({
+            worker_id: currentWorkerId,
+            body: outboundBody,
+            ...(adminReplyTo?.id ? { reply_to_message_id: adminReplyTo.id } : {}),
+          }),
         });
         if (uploadFile && res?.message?.id) {
           let attachmentFile = uploadFile;
@@ -1952,6 +2111,7 @@
           });
         }
         list.querySelector(".bubble.admin.is-pending")?.remove();
+        clearAdminReplyTo();
         adminChatLastFingerprint = "";
         void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
         const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
@@ -2011,6 +2171,13 @@
       chatFileInput.addEventListener("change", () => syncAdminComposeAction());
     }
     document.getElementById("messageList").addEventListener("click", (event) => {
+      const replyBtn = event.target instanceof Element ? event.target.closest("[data-chat-reply-id]") : null;
+      if (replyBtn) {
+        const messageId = replyBtn.getAttribute("data-chat-reply-id") || "";
+        const msg = adminChatMessagesCache.find((item) => String(item.id) === String(messageId));
+        if (msg) setAdminReplyTo(msg);
+        return;
+      }
       const deleteBtn = event.target instanceof Element ? event.target.closest("[data-chat-delete-id]") : null;
       if (deleteBtn) {
         const messageId = deleteBtn.getAttribute("data-chat-delete-id") || "";
@@ -2033,6 +2200,8 @@
     document.getElementById("sendReplyBtn").addEventListener("click", () => {
       void handleAdminPrimaryAction();
     });
+    document.getElementById("chatReplyBarClear")?.addEventListener("click", clearAdminReplyTo);
+    document.getElementById("chatMediaGalleryBtn")?.addEventListener("click", openAdminChatGallery);
     document.getElementById("chatClearOwnBtn")?.addEventListener("click", () => {
       if (!window.confirm(window.adminChatT("chatClearOwnConfirm"))) return;
       clearAdminChatMessages("own").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
@@ -2611,6 +2780,7 @@
       syncAdminThreadCompose();
       syncAdminComposeAction();
       startThreadListPolling();
+      startAdminChatRealtimeFeed();
       startAdminIncomingCallPoll();
       await loadThreads();
     })().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });

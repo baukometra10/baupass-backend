@@ -212,14 +212,14 @@ class _AmbientBackground extends StatelessWidget {
       builder: (context, _) {
         final t = pulse.value;
         return Container(
-          decoration: BoxDecoration(
-            gradient: RadialGradient(
-              center: Alignment(0, -0.15 + math.sin(t * math.pi * 2) * 0.05),
-              radius: 1.2,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
               colors: [
-                Color.lerp(const Color(0xFF0B1220), accent.withValues(alpha: 0.35), 0.35 + t * 0.15)!,
-                const Color(0xFF020617),
-                const Color(0xFF000000),
+                Color(0xFF0B141A),
+                Color(0xFF111B21),
+                Color(0xFF0B141A),
               ],
             ),
           ),
@@ -292,8 +292,8 @@ class _CallerAvatar extends StatelessWidget {
     final parts = label.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).take(2);
     final initials = parts.map((p) => p.substring(0, 1).toUpperCase()).join();
     return SizedBox(
-      width: 168,
-      height: 168,
+      width: 180,
+      height: 180,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -324,16 +324,16 @@ class _CallerAvatar extends StatelessWidget {
             height: 120,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: LinearGradient(
+              gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  accent.withValues(alpha: 0.95),
-                  accent.withValues(alpha: 0.45),
+                  Color(0xFF00A884),
+                  Color(0xFF128C7E),
                 ],
               ),
-              boxShadow: [
-                BoxShadow(color: accent.withValues(alpha: 0.35), blurRadius: 36, spreadRadius: 2),
+              boxShadow: const [
+                BoxShadow(color: Color(0x6600A884), blurRadius: 36, spreadRadius: 2),
               ],
             ),
             alignment: Alignment.center,
@@ -459,15 +459,15 @@ class _IncomingActions extends StatelessWidget {
         _RoundActionButton(
           icon: Icons.call_end_rounded,
           label: 'Ablehnen',
-          color: const Color(0xFFEF4444),
+          color: const Color(0xFFE53935),
           onTap: onDecline,
         ),
         _RoundActionButton(
           icon: Icons.call_rounded,
           label: 'Annehmen',
-          color: const Color(0xFF10B981),
+          color: const Color(0xFF00A884),
           onTap: onAccept,
-          glow: accent,
+          glow: const Color(0xFF00A884),
         ),
       ],
     );
@@ -517,7 +517,7 @@ class _ActiveControls extends StatelessWidget {
         _RoundActionButton(
           icon: Icons.call_end_rounded,
           label: 'Auflegen',
-          color: const Color(0xFFEF4444),
+          color: const Color(0xFFE53935),
           onTap: onHangup,
         ),
       ],

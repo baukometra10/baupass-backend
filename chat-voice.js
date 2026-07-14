@@ -1263,6 +1263,25 @@
     activePlayer = null;
   }
 
+  function bindWaveformSeek(player, audio) {
+    const wave = player.querySelector(".chat-voice-wave");
+    if (!wave || wave.dataset.seekBound === "1") return;
+    wave.dataset.seekBound = "1";
+    wave.style.cursor = "pointer";
+    wave.addEventListener("click", (event) => {
+      if (!audio.duration || Number.isNaN(audio.duration)) return;
+      const rect = wave.getBoundingClientRect();
+      if (!rect.width) return;
+      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+      audio.currentTime = ratio * audio.duration;
+      const progressWave = player.querySelector(".chat-voice-wave");
+      if (progressWave) {
+        progressWave.style.setProperty("--voice-progress", String(ratio));
+      }
+      event.stopPropagation();
+    });
+  }
+
   async function toggleVoicePlayback(player, { downloadFn, onError } = {}) {
     const playBtn = player.querySelector(".chat-voice-play");
     const progressWave = player.querySelector(".chat-voice-wave");
@@ -1306,6 +1325,7 @@
       player.classList.remove("is-loading");
       player.classList.add("is-playing");
       playBtn.innerHTML = PAUSE_SVG;
+      bindWaveformSeek(player, audio);
       if (durationEl && cached.duration) {
         durationEl.textContent = formatDuration(cached.duration);
       }
@@ -1425,6 +1445,7 @@
 .chat-voice-wave::after{content:"";position:absolute;inset:0;width:calc(var(--voice-progress,0) * 100%);background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,255,255,.18));pointer-events:none;border-radius:999px}
 .chat-voice-wave span{display:block;width:2px;border-radius:999px;background:currentColor;opacity:.55;align-self:center;min-height:4px}
 .chat-voice-note.is-playing .chat-voice-wave span,.wa-voice-bubble.is-playing .chat-voice-wave span{opacity:.88}
+.chat-voice-wave{cursor:pointer;touch-action:manipulation}
 .chat-voice-duration{font-size:.74rem;opacity:.88;min-width:2.4rem;text-align:end;font-variant-numeric:tabular-nums;flex-shrink:0}
 .chat-voice-duration.is-countdown{opacity:1}
 .bubble.is-voice-only .bubble-body{display:none}
