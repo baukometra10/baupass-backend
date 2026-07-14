@@ -6,11 +6,12 @@
   const MAP_W = 280;
   const MAP_H = 160;
   const DEFAULT_MAX_ACCURACY_M = 8;
-  const SEND_MAX_ACCURACY_M = 18;
+  const SEND_MAX_ACCURACY_M = 120;
   const MAP_MAX_ACCURACY_M = 150;
   const PREVIEW_CACHE_MAX_ACCURACY_M = 150;
   const COARSE_IGNORE_ACCURACY_M = 200;
   const CACHE_MAX_ACCURACY_M = 150;
+  const SEND_READY_MS = 1200;
   const INSTANT_GEO_TIMEOUT_MS = 400;
   const INSTANT_GEO_MAX_AGE_MS = 600000;
   const SEND_REFINE_MS = 800;
@@ -137,9 +138,11 @@
       ".chat-location-share-close{border:none;background:transparent;color:#e9edef;font-size:1.6rem;line-height:1;cursor:pointer;padding:.2rem .45rem}",
       ".chat-location-share-heading{margin:0;font-size:1.02rem;font-weight:600}",
       ".chat-location-share-mapwrap{flex:1;display:flex;flex-direction:column;min-height:0;padding:.75rem .75rem 0}",
-      ".chat-location-share-map{position:relative;width:100%;height:min(52vh,360px);min-height:220px;border-radius:12px;overflow:hidden;background:#e5e3df;flex-shrink:0}",
-      ".chat-location-share-map .chat-location-map-embed{width:100%;height:100%;min-height:220px}",
-      ".chat-location-share-map-loading{position:absolute;inset:0;display:grid;place-items:center;background:rgba(17,27,33,.5);color:#e9edef;font-size:.88rem}",
+      ".chat-location-share-map{position:relative;width:100%;height:min(52vh,360px);min-height:240px;border-radius:12px;overflow:hidden;background:#e5e3df;flex-shrink:0}",
+      ".chat-location-share-map .chat-location-map-frame{position:absolute;inset:0;height:100%;border-radius:12px}",
+      ".chat-location-share-map .chat-location-map-embed{position:absolute;inset:0;width:100%;height:100%;min-height:240px;border:0;margin:0;padding:0;background:#e5e3df}",
+      ".chat-location-share-map .chat-location-map-link{position:absolute;inset:0;z-index:2}",
+      ".chat-location-share-map-loading{position:absolute;inset:0;display:grid;place-items:center;background:rgba(17,27,33,.5);color:#e9edef;font-size:.88rem;z-index:1}",
       ".chat-location-share-map-loading.hidden{display:none}",
       ".chat-location-share-panel{flex-shrink:0;background:#1f2c34;padding:.85rem .85rem calc(.85rem + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(134,150,160,.14)}",
       ".chat-location-share-status{margin:0 0 .55rem;font-size:.8rem;color:#8696a0}",
