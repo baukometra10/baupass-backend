@@ -525,13 +525,15 @@
     onError,
   }) {
     if (!root || !micBtn || !recorder) return () => {};
-    const holdMs = 0;
     const cancelSlidePx = 72;
+    const useToggleMode = !isTouchPrimaryDevice();
     let recording = false;
-    let holdTimer = null;
+    let tickTimer = null;
     let pointerId = null;
     let startX = 0;
     let cancelArmed = false;
+    let pendingStart = null;
+    let cancelPending = false;
 
     let overlay = root.querySelector(".chat-voice-record-overlay");
     if (!overlay) {
@@ -552,6 +554,13 @@
     const timerEl = overlay.querySelector(".chat-voice-record-timer");
     const cancelEl = overlay.querySelector(".chat-voice-record-cancel");
 
+    const stopTickTimer = () => {
+      if (tickTimer) {
+        global.clearInterval(tickTimer);
+        tickTimer = null;
+      }
+    };
+
     const syncSendBtn = () => {
       if (!sendBtn) return;
       const hasText = composeHasText(input, labels.placeholder);
@@ -566,6 +575,7 @@
       micBtn.classList.toggle("is-recording", active);
       root.classList.toggle("is-voice-recording", active);
       overlay.classList.toggle("hidden", !active);
+      if (!active) stopTickTimer();
       syncSendBtn();
     };
 
@@ -580,8 +590,18 @@
       });
     };
 
+    const startTickTimer = () => {
+      stopTickTimer();
+      tickTimer = global.setInterval(() => {
+        const seconds = recorder.elapsedMs ? Math.max(0, recorder.elapsedMs / 1000) : 0;
+        updateWave(seconds);
+        onRecordingTick?.(seconds);
+      }, 250);
+    };
+
     const finishRecording = async (sendIt) => {
       if (!recording) return;
+      stopTickTimer();
       setRecordingUi(false);
       let blob = null;
       try {
@@ -607,22 +627,39 @@
       }
     };
 
-    const onMicDown = async (event) => {
-      if (recording || pointerId !== null) return;
+    const beginRecording = async () => {
+      if (recording || pendingStart) return;
+      cancelPending = false;
+      cancelArmed = false;
+      pendingStart = recorder.start()
+        .then(() => {
+          pendingStart = null;
+          if (cancelPending) {
+            recorder.cancel?.();
+            return;
+          }
+          setRecordingUi(true);
+          updateWave(0);
+          onRecordingTick?.(0);
+          startTickTimer();
+        })
+        .catch((error) => {
+          pendingStart = null;
+          cancelPending = false;
+          onError?.(error);
+        });
+      await pendingStart;
+    };
+
+    const onMicDown = (event) => {
+      if (useToggleMode || recording || pointerId !== null || pendingStart) return;
       if (event.button !== undefined && event.button !== 0) return;
       pointerId = event.pointerId ?? "mouse";
       startX = event.clientX || 0;
       cancelArmed = false;
+      cancelPending = false;
       micBtn.setPointerCapture?.(event.pointerId);
-      try {
-        await recorder.start();
-        setRecordingUi(true);
-        updateWave(0);
-        onRecordingTick?.(0);
-      } catch (error) {
-        pointerId = null;
-        onError?.(error);
-      }
+      void beginRecording();
     };
 
     const onMicMove = (event) => {
@@ -638,14 +675,15 @@
     };
 
     const onMicUp = async (event) => {
-      if (holdTimer) {
-        global.clearTimeout(holdTimer);
-        holdTimer = null;
-      }
       try {
         micBtn.releasePointerCapture?.(event.pointerId);
       } catch {
         /* ignore */
+      }
+      if (pendingStart) {
+        cancelPending = true;
+        pointerId = null;
+        return;
       }
       if (!recording) {
         pointerId = null;
@@ -655,6 +693,17 @@
       await finishRecording(true);
     };
 
+    const onMicToggleClick = (event) => {
+      if (!useToggleMode) return;
+      event.preventDefault();
+      if (recording) {
+        void finishRecording(true);
+        return;
+      }
+      void beginRecording();
+    };
+
+    micBtn.addEventListener("click", onMicToggleClick);
     micBtn.addEventListener("pointerdown", onMicDown);
     micBtn.addEventListener("pointermove", onMicMove);
     micBtn.addEventListener("pointerup", onMicUp);
@@ -671,10 +720,12 @@
     syncSendBtn();
 
     return () => {
+      micBtn.removeEventListener("click", onMicToggleClick);
       micBtn.removeEventListener("pointerdown", onMicDown);
       micBtn.removeEventListener("pointermove", onMicMove);
       micBtn.removeEventListener("pointerup", onMicUp);
       micBtn.removeEventListener("pointercancel", onMicUp);
+      stopTickTimer();
     };
   }
 

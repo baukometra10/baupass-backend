@@ -280,12 +280,15 @@
       position: fixed;
       inset: 0;
       z-index: 1300;
-      display: grid;
-      place-items: center;
-      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: space-between;
+      padding: 0;
       background:
-        radial-gradient(circle at 50% 18%, rgba(6, 182, 212, 0.22), transparent 42%),
-        linear-gradient(180deg, #020617 0%, #0b1220 45%, #000 100%);
+        radial-gradient(ellipse 120% 80% at 50% -10%, rgba(6, 182, 212, 0.35), transparent 55%),
+        radial-gradient(circle at 80% 90%, rgba(14, 116, 144, 0.22), transparent 40%),
+        linear-gradient(180deg, #020617 0%, #0b1220 38%, #000 100%);
       animation: voiceCallFadeIn 0.35s ease;
     }
     @keyframes voiceCallFadeIn {
@@ -294,10 +297,25 @@
     }
     .voice-call-overlay.hidden { display: none; }
     .voice-call-stage {
-      width: min(420px, 100%);
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
       text-align: center;
       position: relative;
-      padding: 1.5rem 1.25rem 1.25rem;
+      padding: 2.5rem 1.5rem 1.5rem;
+      min-height: 0;
+    }
+    .voice-call-footer {
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,.55));
     }
     .voice-call-secure-badge {
       display: inline-flex;
@@ -335,23 +353,23 @@
       100% { transform: scale(1.55); opacity: 0; }
     }
     .voice-call-avatar {
-      width: 120px;
-      height: 120px;
-      margin: 0 auto 1rem;
+      width: 168px;
+      height: 168px;
+      margin: 0 auto 1.25rem;
       border-radius: 50%;
       display: grid;
       place-items: center;
-      font-size: 2.2rem;
+      font-size: 3rem;
       font-weight: 800;
       color: #ecfeff;
       background: linear-gradient(145deg, rgba(6, 182, 212, 0.95), rgba(14, 116, 144, 0.55));
-      box-shadow: 0 18px 48px rgba(6, 182, 212, 0.28);
+      box-shadow: 0 24px 64px rgba(6, 182, 212, 0.35), inset 0 0 0 4px rgba(255,255,255,.08);
       position: relative;
       z-index: 1;
     }
     .voice-call-stage h4 {
       margin: 0 0 0.35rem;
-      font-size: 1.45rem;
+      font-size: 1.85rem;
       letter-spacing: -0.02em;
     }
     .voice-call-stage p {
@@ -460,9 +478,27 @@
       flex-wrap: wrap;
       margin-top: 1.1rem;
     }
+    .voice-call-live-wave {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 3px;
+      height: 72px;
+      width: min(320px, 88vw);
+      margin: 1.25rem auto 0.35rem;
+    }
+    .voice-call-live-wave span {
+      flex: 1;
+      max-width: 6px;
+      border-radius: 999px;
+      height: 18%;
+      background: linear-gradient(180deg, #67e8f9, #14b8a6);
+      transition: height 0.08s linear;
+    }
     .voice-call-round-btn {
-      min-width: 92px;
-      border-radius: 16px;
+      min-width: 108px;
+      min-height: 92px;
+      border-radius: 20px;
       padding: 0.72rem 0.55rem 0.62rem;
       border: 1px solid rgba(255, 255, 255, 0.14);
       background: rgba(31, 41, 55, 0.92);
@@ -488,22 +524,6 @@
     .voice-call-round-btn.danger {
       background: #b91c1c;
       border-color: #ef4444;
-    }
-    .voice-call-live-wave {
-      display: flex;
-      align-items: flex-end;
-      justify-content: center;
-      gap: 3px;
-      height: 42px;
-      margin: 0.95rem auto 0.15rem;
-      width: min(280px, 100%);
-    }
-    .voice-call-live-wave span {
-      width: 3px;
-      border-radius: 999px;
-      height: 18%;
-      background: linear-gradient(180deg, #67e8f9, #14b8a6);
-      transition: height 0.08s linear;
     }
     .chat-call-log {
       display: inline-flex;
@@ -743,6 +763,8 @@
           <div class="voice-call-meter-track"><div id="voiceCallRemoteFill" class="voice-call-meter-fill remote"></div></div>
         </div>
       </div>
+    </div>
+    <div class="voice-call-footer">
       <div class="voice-call-volume-row">
         <label for="voiceCallVolume" id="voiceCallVolumeLabel" data-aci18n="voiceCallVolume">Lautstärke</label>
         <input type="range" id="voiceCallVolume" min="0" max="100" value="100" aria-labelledby="voiceCallVolumeLabel" />
@@ -773,10 +795,10 @@
       </div>
     </div>
   </div>
-  <script src="/chat-voice.js?v=20260714voice8"></script>
-  <script src="/chat-voice-call.js?v=20260714voice8"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714voice8"></script>
-  <script src="/e2e-crypto.js?v=20260707e2e3"></script>
+  <script src="/chat-voice.js?v=20260714voice9"></script>
+  <script src="/chat-voice-call.js?v=20260714voice9"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260714voice9"></script>
+  <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -941,6 +963,14 @@
     function adminE2ECryptoAvailable() {
       return typeof window.E2ECrypto !== "undefined" && Boolean(getAdminUserId());
     }
+    function isAdminE2EEncryptUnavailable(error) {
+      if (!error) return false;
+      const msg = String(error?.message || error || "").trim();
+      if (msg === "e2e_keys_missing" || msg === "e2e_recipients_required") return true;
+      if (window.E2ECrypto?.isCryptoKeyImportError?.(error)) return true;
+      if (String(error?.name || "") === "DataError") return true;
+      return false;
+    }
     async function refreshAdminE2EReadiness(workerId, force = false) {
       if (!companyId || !workerId) {
         adminE2ERequired = false;
@@ -1041,7 +1071,11 @@
       if (!adminKeys.length) {
         return [];
       }
-      return [...new Set([...adminKeys, ...workerKeys])];
+      const merged = [...new Set([...adminKeys, ...workerKeys])];
+      if (window.E2ECrypto?.filterImportablePublicKeys) {
+        return await window.E2ECrypto.filterImportablePublicKeys(merged);
+      }
+      return merged;
     }
     async function fetchAdminE2EPublicKeys(workerId, force = false) {
       await fetchAdminE2EPublicKeyRows(workerId, force);
@@ -1271,9 +1305,17 @@
         onError: (error) => {
           adminVoiceRecording = false;
           updateAdminVoiceHint(0);
+          adminVoiceRecorder?.cancel?.();
+          document.getElementById("chatVoiceMicBtn")?.classList.remove("is-recording");
+          document.querySelector(".chat-compose")?.classList.remove("is-voice-recording");
+          document.querySelector(".chat-voice-record-overlay")?.classList.add("hidden");
           const msg = String(error?.message || error || "");
           if (msg.includes("too_short") || msg === window.adminChatT("chatVoiceTooShort")) {
             setThreadMeta(window.adminChatT("chatVoiceTooShort"), { dynamic: true });
+          } else if (msg === "e2e_keys_missing") {
+            setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });
+          } else if (msg === "DataError" || error?.name === "DataError") {
+            setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });
           } else {
             setThreadMeta(msg || window.adminChatT("chatVoiceNotSupported"), { dynamic: true });
           }
@@ -1727,14 +1769,21 @@
           if (!adminE2ECryptoAvailable()) {
             throw new Error("e2e_keys_missing");
           }
-          uploadPack = await encryptAdminChatAttachment(uploadFile, currentWorkerId);
+          try {
+            uploadPack = await encryptAdminChatAttachment(uploadFile, currentWorkerId);
+          } catch (error) {
+            if (isAdminE2EEncryptUnavailable(error)) {
+              throw new Error("e2e_keys_missing");
+            }
+            throw error;
+          }
         }
         let outboundBody = draftBody;
         let e2eClientUnavailable = false;
         try {
           outboundBody = await encryptAdminChatBody(draftBody, currentWorkerId);
         } catch (error) {
-          if (adminE2ERequired && String(error?.message || error) === "e2e_keys_missing") {
+          if (adminE2ERequired && isAdminE2EEncryptUnavailable(error)) {
             e2eClientUnavailable = true;
             outboundBody = draftBody;
           } else {
@@ -1779,7 +1828,7 @@
           replyInput.value = draftBody;
         }
         const msg = String(error?.message || error || "");
-        if (msg === "e2e_keys_missing") {
+        if (msg === "e2e_keys_missing" || error?.name === "DataError" || msg === "DataError") {
           setThreadMeta(window.adminChatT("e2eKeysMissing"), { dynamic: true });
         } else {
           setThreadMeta(msg, { dynamic: true });

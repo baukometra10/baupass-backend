@@ -386,13 +386,42 @@
   }
 
   async function importPublicKeySpkiB64(spkiB64) {
+    const raw = String(spkiB64 || "").trim();
+    if (!raw) {
+      throw new DOMException("Invalid key material", "DataError");
+    }
     return crypto.subtle.importKey(
       "spki",
-      b64Decode(spkiB64),
+      b64Decode(raw),
       { name: ALGORITHM, namedCurve: ALGORITHM },
       true,
       [],
     );
+  }
+
+  async function filterImportablePublicKeys(spkiB64List) {
+    const out = [];
+    const seen = new Set();
+    for (const pub of spkiB64List || []) {
+      const key = String(pub || "").trim();
+      if (!key || seen.has(key)) continue;
+      try {
+        await importPublicKeySpkiB64(key);
+        seen.add(key);
+        out.push(key);
+      } catch {
+        /* skip malformed or wrong-algorithm keys */
+      }
+    }
+    return out;
+  }
+
+  function isCryptoKeyImportError(error) {
+    if (!error) return false;
+    const name = String(error.name || "");
+    if (name === "DataError" || name === "NotSupportedError" || name === "OperationError") return true;
+    const msg = String(error.message || error || "");
+    return msg === "DataError" || /invalid key/i.test(msg);
   }
 
   async function encryptPrivateKeyJwk(jwk) {
@@ -575,13 +604,21 @@
   }
 
   async function encryptUtf8(plaintext, recipientPublicKeysSpkiB64) {
-    const recipients = (recipientPublicKeysSpkiB64 || []).filter(Boolean);
+    const recipients = await filterImportablePublicKeys(recipientPublicKeysSpkiB64);
     if (!recipients.length) {
-      throw new Error("e2e_recipients_required");
+      throw new Error("e2e_keys_missing");
     }
     const envelopes = [];
     for (const pub of recipients) {
-      envelopes.push(await sealForRecipient(plaintext, pub));
+      try {
+        envelopes.push(await sealForRecipient(plaintext, pub));
+      } catch (error) {
+        if (isCryptoKeyImportError(error)) continue;
+        throw error;
+      }
+    }
+    if (!envelopes.length) {
+      throw new Error("e2e_keys_missing");
     }
     if (envelopes.length === 1) {
       return JSON.stringify(envelopes[0]);
@@ -645,8 +682,8 @@
   }
 
   async function encryptBlob(fileBytes, recipientPublicKeysSpkiB64, meta = {}) {
-    const recipients = (recipientPublicKeysSpkiB64 || []).filter(Boolean);
-    if (!recipients.length) throw new Error("e2e_recipients_required");
+    const recipients = await filterImportablePublicKeys(recipientPublicKeysSpkiB64);
+    if (!recipients.length) throw new Error("e2e_keys_missing");
     const dataKey = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const plain = fileBytes instanceof Uint8Array ? fileBytes : new Uint8Array(fileBytes);
@@ -667,8 +704,14 @@
     fileEnvelope.wrappedKey = wrappedKey;
     const keyEnvelopes = [];
     for (const pub of recipients) {
-      keyEnvelopes.push(await sealForRecipient(keyB64, pub));
+      try {
+        keyEnvelopes.push(await sealForRecipient(keyB64, pub));
+      } catch (error) {
+        if (isCryptoKeyImportError(error)) continue;
+        throw error;
+      }
     }
+    if (!keyEnvelopes.length) throw new Error("e2e_keys_missing");
     fileEnvelope.keyEnvelopes = keyEnvelopes.length === 1 ? keyEnvelopes[0] : { multi: true, envelopes: keyEnvelopes };
     if (Number(meta?.durationSec) > 0) {
       fileEnvelope.durationSec = Math.round(Number(meta.durationSec));
@@ -925,5 +968,7 @@
     unlockDevicePin,
     exportPublicKeySpkiB64,
     importPublicKeySpkiB64,
+    filterImportablePublicKeys,
+    isCryptoKeyImportError,
   });
 })(typeof window !== "undefined" ? window : globalThis);
