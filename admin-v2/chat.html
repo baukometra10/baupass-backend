@@ -996,8 +996,8 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat21"></script>
-  <script src="/ops-realtime.js?v=20260714chat21"></script>
-  <script src="/chat-realtime.js?v=20260714chat21"></script>
+  <script src="/ops-realtime.js?v=20260714chat22"></script>
+  <script src="/chat-realtime.js?v=20260714chat22"></script>
   <script src="/chat-gallery.js?v=20260714chat21"></script>
   <script src="/chat-typing.js?v=20260714chat21"></script>
   <script src="/chat-search.js?v=20260714chat21"></script>
@@ -1006,7 +1006,7 @@
   <script src="/chat-thread-prefs.js?v=20260714chat21"></script>
   <script src="/chat-message-prefs.js?v=20260714chat21"></script>
   <script src="/chat-message-menu.js?v=20260714chat21"></script>
-  <script src="/chat-admin-push.js?v=20260714chat21"></script>
+  <script src="/chat-admin-push.js?v=20260714chat22"></script>
   <script src="/chat-offline-queue.js?v=20260714chat21"></script>
   <script src="/chat-voice.js?v=20260714chat21"></script>
   <script src="/chat-voice-call.js?v=20260714chat21"></script>
@@ -1023,7 +1023,11 @@
     const params = new URLSearchParams(location.search);
     let companyId = params.get("company_id") || wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "";
     window.__adminChatCompanyId = companyId;
-    const token = wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token") || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token") || "";
+    function getAdminToken() {
+      return wpGet(WP?.KEYS?.ADMIN_TOKEN || "workpass-admin-token")
+        || wpGet(WP?.KEYS?.SESSION_TOKEN || "workpass-session-token")
+        || "";
+    }
     const backLink = document.getElementById("backLink");
     if (companyId) backLink.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}#operations`;
     if (window.BaupassAuth?.resolveTenantBranding) {
@@ -1134,7 +1138,10 @@
     let adminE2EPublicKeysCacheAt = 0;
     let adminChatAttachmentMetaById = {};
     let adminChatAttachmentNameById = {};
-    const headers = () => ({ "Accept": "application/json", ...(token ? { "Authorization": `Bearer ${token}` } : {}) });
+    const headers = () => {
+      const token = getAdminToken();
+      return { Accept: "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    };
     const api = async (path, options = {}) => {
       const res = await fetch(path, { ...options, headers: { ...headers(), ...(options.headers || {}) }, credentials: "include" });
       const data = await res.json().catch(() => ({}));
@@ -1588,6 +1595,7 @@
       return window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType, e2eMeta) || false;
     }
     function downloadHeaders() {
+      const token = getAdminToken();
       return token ? { Authorization: `Bearer ${token}` } : {};
     }
     async function downloadChatAttachment(attachmentId, filename, contentType) {
@@ -2052,6 +2060,7 @@
       window.SUPPIXChatRealtime.requestDesktopNotifyPermission?.();
       void window.SUPPIXChatRealtime.startAdminChatRealtime({
         companyId,
+        getHeaders: headers,
         labels: { workerMessageTitle: window.adminChatT("chatWorkerMessageTitle") || "Neue Mitarbeiter-Nachricht" },
         onChatEvent: handleAdminChatRealtimeEvent,
       }).then((stopFn) => {

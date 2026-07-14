@@ -38,35 +38,39 @@
     if (!api || !companyId) return false;
     if (!("Notification" in global) || !("PushManager" in global)) return false;
     if (Notification.permission === "denied") return false;
-    if (Notification.permission === "default") {
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") return false;
-    }
-    const registration = await ensureAdminSw();
-    if (!registration) return false;
+    try {
+      if (Notification.permission === "default") {
+        const perm = await Notification.requestPermission();
+        if (perm !== "granted") return false;
+      }
+      const registration = await ensureAdminSw();
+      if (!registration) return false;
 
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      const vapidRes = await api("/api/push-vapid-key");
-      const vapidKey = String(vapidRes?.vapidPublicKey || vapidRes?.publicKey || "").trim();
-      if (!vapidKey) return false;
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey),
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        const vapidRes = await api("/api/worker-app/push-vapid-key");
+        const vapidKey = String(vapidRes?.vapidPublicKey || vapidRes?.publicKey || "").trim();
+        if (!vapidKey) return false;
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        });
+      }
+
+      await api("/api/chat/push-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          endpoint: subscription.endpoint,
+          p256dh: arrayBufferToBase64(subscription.getKey("p256dh")),
+          auth: arrayBufferToBase64(subscription.getKey("auth")),
+          company_id: companyId,
+        }),
       });
+      return true;
+    } catch {
+      return false;
     }
-
-    await api("/api/chat/push-subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        endpoint: subscription.endpoint,
-        p256dh: arrayBufferToBase64(subscription.getKey("p256dh")),
-        auth: arrayBufferToBase64(subscription.getKey("auth")),
-        company_id: companyId,
-      }),
-    });
-    return true;
   }
 
   function shouldShowPushBanner() {

@@ -87,7 +87,7 @@
       .join("");
   }
 
-  function startPolling({ companyId, feedEl, onMode, onEvent }) {
+  function startPolling({ companyId, feedEl, onMode, onEvent, getHeaders }) {
     let stopped = false;
     let timer = null;
     let retryMs = 5000;
@@ -117,7 +117,13 @@
       if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
       if (sinceId) url += `&since_id=${encodeURIComponent(sinceId)}`;
       try {
-        const response = await fetch(url, { credentials: "include", headers: { Accept: "application/json" } });
+        const response = await fetch(url, {
+          credentials: "include",
+          headers: {
+            Accept: "application/json",
+            ...(typeof getHeaders === "function" ? getHeaders() : {}),
+          },
+        });
         if (!response.ok) {
           if (response.status === 401) {
             stopped = true;
@@ -243,9 +249,15 @@
     });
   }
 
-  async function start({ companyId, feedEl, onMode, onEvent }) {
+  async function start({ companyId, feedEl, onMode, onEvent, getHeaders }) {
     try {
-      const st = await fetch("/api/v1/realtime/status", { credentials: "include" }).then((r) =>
+      const st = await fetch("/api/v1/realtime/status", {
+        credentials: "include",
+        headers: {
+          Accept: "application/json",
+          ...(typeof getHeaders === "function" ? getHeaders() : {}),
+        },
+      }).then((r) =>
         r.ok ? r.json() : null,
       );
       const ws = st?.websocket;
@@ -256,7 +268,7 @@
     } catch {
       /* polling fallback */
     }
-    return startPolling({ companyId, feedEl, onMode, onEvent });
+    return startPolling({ companyId, feedEl, onMode, onEvent, getHeaders });
   }
 
   global.SUPPIXOpsRealtime = { start, formatEventLine, renderFeed };

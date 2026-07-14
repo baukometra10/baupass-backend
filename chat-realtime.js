@@ -65,7 +65,7 @@
     }
   }
 
-  async function startAdminChatRealtime({ companyId, onChatEvent, onMode, labels } = {}) {
+  async function startAdminChatRealtime({ companyId, onChatEvent, onMode, labels, getHeaders } = {}) {
     if (!global.SUPPIXOpsRealtime?.start) {
       return () => {};
     }
@@ -83,6 +83,7 @@
     return global.SUPPIXOpsRealtime.start({
       companyId,
       feedEl: null,
+      getHeaders,
       onMode,
       onEvent: (raw) => {
         const evt = normalizeEvent(raw);
