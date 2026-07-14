@@ -6,9 +6,7 @@
   const DEFAULT_MAX_ACCURACY_M = 10;
   const TARGET_ACCURACY_M = 15;
   const SEND_READY_ACCURACY_M = 20;
-  const SEND_FALLBACK_MS = 4500;
-  const SEND_FALLBACK_ACCURACY_M = 35;
-  const ABSOLUTE_MAX_ACCURACY_M = 80;
+  const SEND_MIN_WAIT_MS = 1200;
   const REFINE_MAX_MS = 12000;
   const CACHE_MAX_ACCURACY_M = 22;
   const CACHE_MAX_AGE_MS = 3 * 60 * 1000;
@@ -271,12 +269,11 @@
   }
 
   function isSendReady(reading, startedAt) {
-    const acc = Number(reading?.accuracy) || 999;
+    if (!isValidReading(reading)) return false;
     const elapsed = Date.now() - startedAt;
-    if (acc <= SEND_READY_ACCURACY_M) return true;
-    if (elapsed >= SEND_FALLBACK_MS && acc <= SEND_FALLBACK_ACCURACY_M) return true;
-    if (elapsed >= REFINE_MAX_MS * 0.85 && acc <= ABSOLUTE_MAX_ACCURACY_M) return true;
-    return false;
+    const acc = Number(reading?.accuracy) || 999;
+    if (elapsed >= SEND_MIN_WAIT_MS) return true;
+    return acc <= SEND_READY_ACCURACY_M;
   }
 
   function shareStatusText(reading, labels, startedAt) {
@@ -339,11 +336,24 @@
     stopShareWatch();
     if (!global.navigator?.geolocation) return;
 
-    const cached = getPreciseCachedLastKnown();
+    const cached = getAnyFreshLastKnown();
     if (cached) {
       rememberReading(cached);
       onReading(cached);
     }
+
+    void getGeolocationReading({
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 5000,
+    }).then((reading) => {
+      if (isValidReading(reading)) {
+        rememberReading(reading);
+        onReading(reading);
+      }
+    }).catch((error) => {
+      if (Number(error?.code) === 1) onReading(null, error);
+    });
 
     if (typeof global.startPreciseLocationWatch === "function") {
       shareWatchHandle = global.startPreciseLocationWatch({
@@ -419,6 +429,7 @@
       const finish = (error, result) => {
         if (settled) return;
         settled = true;
+        if (readyTimer) global.clearInterval(readyTimer);
         closeShareSheet();
         if (error) reject(error);
         else resolve(result);
@@ -450,6 +461,12 @@
       const sendBtn = sheet.querySelector(".chat-location-share-send");
       const noteInput = sheet.querySelector(".chat-location-share-note");
       const startedAt = Date.now();
+      let readyTimer = null;
+
+      const refreshSendState = () => {
+        if (!bestReading) return;
+        updateShareSendButton(sendBtn, bestReading, startedAt);
+      };
 
       const onReading = (reading, error) => {
         if (error && Number(error?.code) === 1) {
@@ -460,15 +477,17 @@
         bestReading = reading;
         updateShareSheetMap(sheet, readingToResult(reading));
         updateShareSheetStatus(sheet, reading, labels, startedAt);
-        updateShareSendButton(sendBtn, reading, startedAt);
+        refreshSendState();
       };
+
+      readyTimer = global.setInterval(refreshSendState, 400);
 
       closeBtn?.addEventListener("click", () => {
         finish(new Error("location_cancelled"));
       });
       sendBtn?.addEventListener("click", () => {
         const finalized = shareWatchHandle?.finalize?.() || bestReading;
-        if (!finalized || !isSendReady(finalized, startedAt)) return;
+        if (!isValidReading(finalized)) return;
         finish(null, readingToResult(finalized, { note: noteInput?.value || "" }));
       });
       global.document.addEventListener("keydown", function escHandler(event) {
