@@ -5,16 +5,14 @@ import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
-import 'package:open_file/open_file.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/session_store.dart';
 import '../../services/chat_repository.dart';
 import 'chat_attachment_helpers.dart';
 
-/// WhatsApp-style voice bubble. Downloads once, then opens the system player.
-/// (Inline MediaPlayer package is pending when local Flutter pub resolution
-/// is fixed on Flutter 3.44 — UI matches the chat34 web player.)
+/// WhatsApp-style inline voice note with in-bubble play/pause.
 class ChatVoicePlayer extends StatefulWidget {
   const ChatVoicePlayer({
     super.key,
@@ -34,12 +32,17 @@ class ChatVoicePlayer extends StatefulWidget {
 }
 
 class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
+  static AudioPlayer? _sharedPlayer;
+  static String? _activeId;
   static final Map<String, String> _fileCache = {};
+
+  final AudioPlayer _player = AudioPlayer();
+  StreamSubscription<Duration>? _posSub;
+  StreamSubscription<PlayerState>? _stateSub;
 
   bool _loading = false;
   bool _playing = false;
-  double _progress = 0;
-  Timer? _progressTimer;
+  Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   String? _error;
 
@@ -50,11 +53,34 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
     super.initState();
     final preset = parseE2eDurationSec(widget.attachment);
     if (preset > 0) _duration = Duration(seconds: preset);
+    _posSub = _player.positionStream.listen((pos) {
+      if (!mounted || _activeId != _id) return;
+      setState(() => _position = pos);
+    });
+    _stateSub = _player.playerStateStream.listen((state) {
+      if (!mounted) return;
+      if (_activeId != _id) return;
+      final playing = state.playing && state.processingState != ProcessingState.completed;
+      setState(() {
+        _playing = playing;
+        if (state.processingState == ProcessingState.completed) {
+          _position = Duration.zero;
+          _playing = false;
+          _activeId = null;
+        }
+      });
+    });
   }
 
   @override
   void dispose() {
-    _progressTimer?.cancel();
+    unawaited(_posSub?.cancel());
+    unawaited(_stateSub?.cancel());
+    if (_activeId == _id) {
+      unawaited(_player.stop());
+      _activeId = null;
+    }
+    unawaited(_player.dispose());
     super.dispose();
   }
 
@@ -77,59 +103,42 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
     return path;
   }
 
-  void _startProgressAnim() {
-    _progressTimer?.cancel();
-    final totalMs = _duration.inMilliseconds > 0 ? _duration.inMilliseconds : 8000;
-    final started = DateTime.now();
-    _progressTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
-      if (!mounted) return;
-      final elapsed = DateTime.now().difference(started).inMilliseconds;
-      final p = (elapsed / totalMs).clamp(0.0, 1.0);
-      setState(() => _progress = p);
-      if (p >= 1) {
-        _progressTimer?.cancel();
-        setState(() {
-          _playing = false;
-          _progress = 0;
-        });
-      }
-    });
-  }
-
   Future<void> _toggle() async {
     if (_id.isEmpty) return;
-    if (_playing) {
-      _progressTimer?.cancel();
-      setState(() {
-        _playing = false;
-        _progress = 0;
-      });
+    if (_playing && _activeId == _id) {
+      await _player.pause();
+      if (mounted) setState(() => _playing = false);
       return;
     }
+
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final path = await _ensureLocalFile();
-      final result = await OpenFile.open(path);
-      if (!mounted) return;
-      if (result.type != ResultType.done) {
-        setState(() {
-          _loading = false;
-          _error = 'Abspielen fehlgeschlagen';
-        });
-        return;
+      if (_sharedPlayer != null && _sharedPlayer != _player && _activeId != null && _activeId != _id) {
+        await _sharedPlayer!.stop();
       }
-      setState(() {
-        _loading = false;
-        _playing = true;
-      });
-      _startProgressAnim();
+      _sharedPlayer = _player;
+      _activeId = _id;
+
+      final path = await _ensureLocalFile();
+      final dur = await _player.setFilePath(path);
+      if (dur != null && dur.inMilliseconds > 0) {
+        _duration = dur;
+      }
+      await _player.play();
+      if (mounted) {
+        setState(() {
+          _playing = true;
+          _loading = false;
+        });
+      }
     } catch (_) {
       if (mounted) {
         setState(() {
           _loading = false;
+          _playing = false;
           _error = 'Abspielen fehlgeschlagen';
         });
       }
@@ -147,8 +156,11 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
   Widget build(BuildContext context) {
     final accent = widget.isMine ? const Color(0xFF0F766E) : const Color(0xFF1D4ED8);
     final bg = widget.isMine ? const Color(0xFF005C4B) : const Color(0xFF202C33);
+    final progress = _duration.inMilliseconds > 0
+        ? (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0)
+        : 0.0;
     final remaining = _playing && _duration > Duration.zero
-        ? Duration(milliseconds: ((_duration.inMilliseconds) * (1 - _progress)).round())
+        ? _duration - _position
         : _duration;
 
     return Material(
@@ -188,7 +200,7 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
                 width: 118,
                 height: 26,
                 child: CustomPaint(
-                  painter: _WavePainter(progress: _progress, accent: accent),
+                  painter: _WavePainter(progress: progress, accent: accent),
                 ),
               ),
               const SizedBox(width: 8),
