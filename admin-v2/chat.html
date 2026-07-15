@@ -399,6 +399,19 @@
       background: #2563eb;
       border-color: #2563eb;
     }
+    .broadcast-modal-actions button.primary:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .broadcast-recipient-summary {
+      margin: 0;
+      font-size: 0.82rem;
+    }
+    .broadcast-hint {
+      margin: 0;
+      min-height: 1.1rem;
+      font-size: 0.78rem;
+    }
     .broadcast-exclude {
       display: grid;
       gap: 0.4rem;
@@ -1065,6 +1078,7 @@
   <div id="broadcastModal" class="broadcast-modal hidden" role="dialog" aria-modal="true" aria-labelledby="broadcastModalTitle">
     <div class="broadcast-modal-inner">
       <h4 id="broadcastModalTitle" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</h4>
+      <p id="broadcastRecipientSummary" class="broadcast-recipient-summary muted" aria-live="polite"></p>
       <input id="broadcastTitle" type="text" data-aci18n="broadcastAllTitlePh" data-aci18n-attr="placeholder" placeholder="Betreff" />
       <textarea id="broadcastMessage" rows="4" data-aci18n="broadcastAllMessagePh" data-aci18n-attr="placeholder" placeholder="Nachricht an alle Mitarbeiter…"></textarea>
       <div class="broadcast-exclude">
@@ -1073,8 +1087,9 @@
         <div id="broadcastExcludeChips" class="broadcast-chip-row" aria-label="Ausnahmen"></div>
         <div id="broadcastExcludeSuggest" class="broadcast-suggest hidden" aria-label="Vorschläge"></div>
       </div>
+      <p id="broadcastHint" class="broadcast-hint muted"></p>
       <div class="broadcast-modal-actions">
-        <button type="button" id="broadcastCancelBtn">Abbrechen</button>
+        <button type="button" id="broadcastCancelBtn" data-aci18n="chatLocationCancel">Abbrechen</button>
         <button type="button" id="broadcastSendBtn" class="primary" data-aci18n="send">Senden</button>
       </div>
     </div>
@@ -1145,22 +1160,22 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
-  <script src="/ops-realtime.js?v=20260715chat36"></script>
-  <script src="/chat-realtime.js?v=20260715chat36"></script>
-  <script src="/chat-gallery.js?v=20260715chat36"></script>
-  <script src="/chat-typing.js?v=20260715chat36"></script>
-  <script src="/chat-search.js?v=20260715chat36"></script>
-  <script src="/chat-location.js?v=20260715chat36"></script>
-  <script src="/chat-attach-sheet.js?v=20260715chat36"></script>
-  <script src="/chat-thread-prefs.js?v=20260715chat36"></script>
-  <script src="/chat-message-prefs.js?v=20260715chat36"></script>
-  <script src="/chat-message-menu.js?v=20260715chat36"></script>
-  <script src="/chat-admin-push.js?v=20260715chat36"></script>
-  <script src="/chat-global-notify.js?v=20260715chat36"></script>
-  <script src="/chat-offline-queue.js?v=20260715chat36"></script>
-  <script src="/chat-voice.js?v=20260715chat36"></script>
-  <script src="/chat-voice-call.js?v=20260715chat36"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260715chat36"></script>
+  <script src="/ops-realtime.js?v=20260715chat37"></script>
+  <script src="/chat-realtime.js?v=20260715chat37"></script>
+  <script src="/chat-gallery.js?v=20260715chat37"></script>
+  <script src="/chat-typing.js?v=20260715chat37"></script>
+  <script src="/chat-search.js?v=20260715chat37"></script>
+  <script src="/chat-location.js?v=20260715chat37"></script>
+  <script src="/chat-attach-sheet.js?v=20260715chat37"></script>
+  <script src="/chat-thread-prefs.js?v=20260715chat37"></script>
+  <script src="/chat-message-prefs.js?v=20260715chat37"></script>
+  <script src="/chat-message-menu.js?v=20260715chat37"></script>
+  <script src="/chat-admin-push.js?v=20260715chat37"></script>
+  <script src="/chat-global-notify.js?v=20260715chat37"></script>
+  <script src="/chat-offline-queue.js?v=20260715chat37"></script>
+  <script src="/chat-voice.js?v=20260715chat37"></script>
+  <script src="/chat-voice-call.js?v=20260715chat37"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260715chat37"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1509,22 +1524,58 @@
       }
       return URL.createObjectURL(blob);
     }
+    function buildAdminChatImageLightboxItems() {
+      const media = window.SUPPIXChatGallery?.collectMediaItems?.(adminChatMessagesCache) || [];
+      return media
+        .filter((item) => item.kind === "image")
+        .map((item) => ({
+          id: item.id,
+          title: item.filename,
+          kind: "image",
+          contentType: item.contentType,
+          resolveUrl: () => resolveAdminAttachmentObjectUrl(item),
+          onDownload: () => {
+            downloadChatAttachment(item.id, item.filename, item.contentType).catch((error) => {
+              setThreadMeta(error.message || String(error), { dynamic: true });
+            });
+          },
+        }));
+    }
     function openAdminChatImageLightbox(attachmentId, filename, contentType) {
-      void resolveAdminAttachmentObjectUrl({ id: attachmentId, contentType, e2eMeta: adminChatAttachmentMetaById[attachmentId] || "" })
-        .then((url) => {
-          window.SUPPIXChatGallery?.openMediaLightbox?.({
-            title: filename,
-            url,
-            kind: "image",
-            labels: { download: window.adminChatT("download") || "Herunterladen" },
-            onDownload: () => {
-              downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
-                setThreadMeta(error.message || String(error), { dynamic: true });
-              });
-            },
-          });
-        })
-        .catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
+      const items = buildAdminChatImageLightboxItems();
+      let index = items.findIndex((item) => String(item.id) === String(attachmentId));
+      if (index < 0) {
+        items.unshift({
+          id: attachmentId,
+          title: filename,
+          kind: "image",
+          contentType,
+          resolveUrl: () => resolveAdminAttachmentObjectUrl({
+            id: attachmentId,
+            contentType,
+            e2eMeta: adminChatAttachmentMetaById[attachmentId] || "",
+          }),
+          onDownload: () => {
+            downloadChatAttachment(attachmentId, filename, contentType).catch((error) => {
+              setThreadMeta(error.message || String(error), { dynamic: true });
+            });
+          },
+        });
+        index = 0;
+      }
+      window.SUPPIXChatGallery?.openMediaLightbox?.({
+        items,
+        index,
+        labels: {
+          download: window.adminChatT("download") || "Herunterladen",
+          close: window.adminChatT("close") || window.adminChatT("adminPushDismiss") || "Schließen",
+          of: window.adminChatT("chatGalleryCounter") || "{current} / {total}",
+          prev: window.adminChatT("chatGalleryPrev") || "Zurück",
+          next: window.adminChatT("chatGalleryNext") || "Weiter",
+          loading: "…",
+          failed: window.adminChatT("openThreadFailed") || "Konnte nicht geladen werden",
+        },
+      });
     }
     const ADMIN_E2E_KEYS_TTL_MS = 60000;
     function adminE2ECryptoAvailable() {
@@ -2966,6 +3017,14 @@
         filtered = filtered.filter((row) => window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id));
       }
       const rows = sortThreadRows(filtered);
+      updateThreadFilterChipBadges();
+      const emptyKey = adminThreadFilter === "unread"
+        ? "threadFilterEmptyUnread"
+        : adminThreadFilter === "pinned"
+          ? "threadFilterEmptyPinned"
+          : adminThreadFilter === "muted"
+            ? "threadFilterEmptyMuted"
+            : "noWorkersFound";
       host.innerHTML = rows.length
         ? rows.map((row) => {
             const name = threadDisplayName(row);
@@ -2996,7 +3055,7 @@
               </span>
             </div>`;
           }).join("")
-        : `<p class="muted">${window.adminChatT("noWorkersFound")}</p>`;
+        : `<p class="muted">${window.adminChatT(emptyKey)}</p>`;
       host.querySelectorAll(".thread-item[data-worker]").forEach((row) => {
         row.addEventListener("click", (event) => {
           if (event.target instanceof Element && event.target.closest("[data-thread-pin],[data-thread-mute]")) return;
@@ -3501,13 +3560,73 @@
       if (!window.confirm(window.adminChatT("chatClearAllConfirm"))) return;
       clearAdminChatMessages("all").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
     });
+    function getBroadcastTargetCounts() {
+      const excludeSet = window.__broadcastExcludeWorkerIds instanceof Set ? window.__broadcastExcludeWorkerIds : new Set();
+      const total = Array.isArray(adminThreadRows) ? adminThreadRows.length : 0;
+      const excluded = excludeSet.size;
+      return {
+        total,
+        excluded,
+        target: Math.max(0, total - excluded),
+      };
+    }
+    function syncBroadcastModalState() {
+      const message = String(document.getElementById("broadcastMessage")?.value || "").trim();
+      const sendBtn = document.getElementById("broadcastSendBtn");
+      const summary = document.getElementById("broadcastRecipientSummary");
+      const hint = document.getElementById("broadcastHint");
+      const counts = getBroadcastTargetCounts();
+      if (summary) {
+        summary.textContent = window.adminChatT("broadcastRecipientSummary", {
+          target: String(counts.target),
+          total: String(counts.total),
+          excluded: String(counts.excluded),
+        });
+      }
+      if (hint) {
+        if (!counts.total) {
+          hint.textContent = window.adminChatT("broadcastNoWorkers");
+        } else if (!counts.target) {
+          hint.textContent = window.adminChatT("broadcastNoTargets");
+        } else if (!message) {
+          hint.textContent = window.adminChatT("broadcastMessageRequired");
+        } else {
+          hint.textContent = "";
+        }
+      }
+      if (sendBtn) {
+        sendBtn.disabled = !message || counts.target <= 0 || sendBtn.dataset.busy === "1";
+      }
+    }
+    function updateThreadFilterChipBadges() {
+      const unread = threads.filter((row) => Number(row.unread_count || 0) > 0).length;
+      const pinned = threads.filter((row) => window.SUPPIXChatThreadPrefs?.isPinned?.(companyId, row.worker_id)).length;
+      const muted = threads.filter((row) => window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id)).length;
+      const counts = { all: threads.length, unread, pinned, muted };
+      document.querySelectorAll("#threadFilterBar [data-thread-filter]").forEach((chip) => {
+        const key = chip.getAttribute("data-thread-filter") || "all";
+        const base = window.adminChatT({
+          all: "threadFilterAll",
+          unread: "threadFilterUnread",
+          pinned: "threadFilterPinned",
+          muted: "threadFilterMuted",
+        }[key] || "threadFilterAll");
+        const count = counts[key] ?? 0;
+        chip.textContent = count > 0 || key === "all" ? `${base} (${count})` : base;
+      });
+    }
     function openBroadcastModal() {
       const modal = document.getElementById("broadcastModal");
       const titleInput = document.getElementById("broadcastTitle");
       const messageInput = document.getElementById("broadcastMessage");
+      const sendBtn = document.getElementById("broadcastSendBtn");
       if (!modal || !titleInput || !messageInput) return;
       titleInput.value = window.adminChatT("broadcastAllDefaultTitle") || "Mitteilung";
       messageInput.value = "";
+      if (sendBtn) {
+        sendBtn.dataset.busy = "0";
+        sendBtn.textContent = window.adminChatT("send");
+      }
       try {
         ensureBroadcastExclusionsState();
         window.__broadcastExcludeWorkerIds.clear();
@@ -3519,22 +3638,37 @@
       } catch (e) {
         // ignore
       }
+      syncBroadcastModalState();
       modal.classList.remove("hidden");
       messageInput.focus();
     }
     function closeBroadcastModal() {
+      const sendBtn = document.getElementById("broadcastSendBtn");
+      if (sendBtn) {
+        sendBtn.dataset.busy = "0";
+        sendBtn.disabled = false;
+        sendBtn.textContent = window.adminChatT("send");
+      }
       document.getElementById("broadcastModal")?.classList.add("hidden");
     }
     async function sendBroadcastToAllWorkers() {
       const title = String(document.getElementById("broadcastTitle")?.value || "").trim();
       const message = String(document.getElementById("broadcastMessage")?.value || "").trim();
+      const sendBtn = document.getElementById("broadcastSendBtn");
       const excludeSet = window.__broadcastExcludeWorkerIds instanceof Set ? window.__broadcastExcludeWorkerIds : new Set();
       const excludeWorkerIds = Array.from(excludeSet);
-      if (!message) return;
-      const workerCount = adminThreadRows.length;
-      const targetCount = Math.max(0, workerCount - excludeWorkerIds.length);
-      const confirmText = window.adminChatT("broadcastAllConfirm", { count: String(targetCount || workerCount || "alle") });
+      const counts = getBroadcastTargetCounts();
+      if (!message || counts.target <= 0) {
+        syncBroadcastModalState();
+        return;
+      }
+      const confirmText = window.adminChatT("broadcastAllConfirm", { count: String(counts.target) });
       if (!window.confirm(confirmText)) return;
+      if (sendBtn) {
+        sendBtn.dataset.busy = "1";
+        sendBtn.disabled = true;
+        sendBtn.textContent = window.adminChatT("sending") || "Senden…";
+      }
       try {
         const data = await api("/api/chat/broadcast", {
           method: "POST",
@@ -3544,10 +3678,15 @@
         closeBroadcastModal();
         await loadThreads();
         setThreadMeta(
-          window.adminChatT("broadcastAllSuccess", { count: String(data.messagesSent || data.notified || data.total || targetCount || 0) }),
+          window.adminChatT("broadcastAllSuccess", { count: String(data.messagesSent || data.notified || data.total || counts.target || 0) }),
           { dynamic: true },
         );
       } catch (error) {
+        if (sendBtn) {
+          sendBtn.dataset.busy = "0";
+          sendBtn.textContent = window.adminChatT("send");
+        }
+        syncBroadcastModalState();
         setThreadMeta(error.message || window.adminChatT("broadcastAllFailed"), { dynamic: true });
       }
     }
@@ -3556,8 +3695,15 @@
     document.getElementById("broadcastSendBtn")?.addEventListener("click", () => {
       void sendBroadcastToAllWorkers();
     });
+    document.getElementById("broadcastMessage")?.addEventListener("input", syncBroadcastModalState);
     document.getElementById("broadcastModal")?.addEventListener("click", (event) => {
       if (event.target instanceof Element && event.target.id === "broadcastModal") closeBroadcastModal();
+    });
+    document.getElementById("broadcastModal")?.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeBroadcastModal();
+      }
     });
 
     let activeVoiceCallSession = null;
@@ -3972,6 +4118,7 @@
       const ids = Array.from(window.__broadcastExcludeWorkerIds);
       if (!ids.length) {
         host.innerHTML = `<span class="muted" style="font-size:0.82rem;">${escapeHtml(window.adminChatT("broadcastExcludeNone") || "Keine Ausnahmen gewählt.")}</span>`;
+        syncBroadcastModalState();
         return;
       }
       host.innerHTML = ids
@@ -3992,6 +4139,7 @@
           renderBroadcastExcludeSuggest();
         });
       });
+      syncBroadcastModalState();
     }
 
     function renderBroadcastExcludeSuggest() {
@@ -4044,10 +4192,6 @@
 
     document.getElementById("broadcastExcludeSearch")?.addEventListener("input", () => {
       renderBroadcastExcludeSuggest();
-    });
-
-    document.getElementById("broadcastModal")?.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") closeBroadcastModal();
     });
 
     const broadcastModalInner = document.getElementById("broadcastModal");

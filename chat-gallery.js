@@ -73,17 +73,214 @@
 .chat-gallery-item .actions{display:flex;gap:.35rem;margin-top:auto}
 .chat-gallery-item .actions button{flex:1;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#e9edef;border-radius:8px;padding:.25rem;font-size:.65rem;cursor:pointer}
 .chat-gallery-empty{padding:1.25rem;color:rgba(233,237,239,.65);font-size:.9rem}
-.chat-media-lightbox{position:fixed;inset:0;z-index:1700;display:flex;flex-direction:column;background:rgba(0,0,0,.88);color:#fff}
+.chat-media-lightbox{position:fixed;inset:0;z-index:1700;display:flex;flex-direction:column;background:rgba(0,0,0,.88);color:#fff;touch-action:pan-y}
 .chat-media-lightbox.hidden{display:none}
-.chat-media-lightbox-head{display:flex;align-items:center;justify-content:space-between;padding:.75rem 1rem;background:rgba(0,0,0,.35)}
+.chat-media-lightbox-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 1rem;background:rgba(0,0,0,.35)}
+.chat-media-lightbox-head-meta{min-width:0;display:flex;flex-direction:column;gap:.15rem}
+.chat-media-lightbox-counter{font-size:.78rem;opacity:.75}
 .chat-media-lightbox-head button{border:none;background:transparent;color:#fff;font-size:1.4rem;cursor:pointer;padding:.25rem .5rem}
-.chat-media-lightbox-body{flex:1;display:grid;place-items:center;padding:1rem;overflow:auto}
-.chat-media-lightbox-body img,.chat-media-lightbox-body video{max-width:min(96vw,920px);max-height:min(78vh,820px);border-radius:8px;object-fit:contain}
+.chat-media-lightbox-stage{flex:1;position:relative;display:grid;place-items:center;min-height:0;overflow:hidden}
+.chat-media-lightbox-body{width:100%;height:100%;display:grid;place-items:center;padding:1rem;overflow:auto}
+.chat-media-lightbox-body img,.chat-media-lightbox-body video{max-width:min(96vw,920px);max-height:min(72vh,820px);border-radius:8px;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.chat-media-lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:1.35rem;display:grid;place-items:center;z-index:2}
+.chat-media-lightbox-nav:disabled{opacity:.28;cursor:default}
+.chat-media-lightbox-nav.prev{left:max(.65rem,env(safe-area-inset-left,0px))}
+.chat-media-lightbox-nav.next{right:max(.65rem,env(safe-area-inset-right,0px))}
 .chat-media-lightbox-actions{display:flex;gap:.5rem;justify-content:center;padding:.85rem 1rem calc(.85rem + env(safe-area-inset-bottom,0px));background:rgba(0,0,0,.35)}
 .chat-media-lightbox-actions button{border:none;border-radius:999px;padding:.55rem 1.1rem;font:inherit;font-weight:600;cursor:pointer;background:#00a884;color:#fff}
 .chat-media-lightbox-actions button.ghost{background:rgba(255,255,255,.12)}
+@media (max-width:720px){
+  .chat-media-lightbox-nav{width:38px;height:38px;font-size:1.15rem}
+}
 `;
     global.document.head.appendChild(style);
+  }
+
+  let lightboxState = {
+    items: [],
+    index: 0,
+    labels: {},
+    touchStartX: 0,
+    touchDeltaX: 0,
+  };
+  let lightboxKeyHandler = null;
+
+  function ensureLightbox() {
+    ensureStyles();
+    let box = global.document.getElementById("suppixChatMediaLightbox");
+    if (box) return box;
+    box = global.document.createElement("div");
+    box.id = "suppixChatMediaLightbox";
+    box.className = "chat-media-lightbox hidden";
+    box.innerHTML = `
+      <div class="chat-media-lightbox-head">
+        <div class="chat-media-lightbox-head-meta">
+          <span id="chatMediaLightboxTitle"></span>
+          <span id="chatMediaLightboxCounter" class="chat-media-lightbox-counter"></span>
+        </div>
+        <button type="button" id="chatMediaLightboxClose" aria-label="Schließen">✕</button>
+      </div>
+      <div class="chat-media-lightbox-stage">
+        <button type="button" class="chat-media-lightbox-nav prev" id="chatMediaLightboxPrev" aria-label="Zurück">‹</button>
+        <div class="chat-media-lightbox-body" id="chatMediaLightboxBody"></div>
+        <button type="button" class="chat-media-lightbox-nav next" id="chatMediaLightboxNext" aria-label="Weiter">›</button>
+      </div>
+      <div class="chat-media-lightbox-actions">
+        <button type="button" id="chatMediaLightboxDownload">Herunterladen</button>
+        <button type="button" class="ghost" id="chatMediaLightboxDismiss">Schließen</button>
+      </div>`;
+    global.document.body.appendChild(box);
+    const close = () => closeMediaLightbox();
+    box.querySelector("#chatMediaLightboxClose")?.addEventListener("click", close);
+    box.querySelector("#chatMediaLightboxDismiss")?.addEventListener("click", close);
+    box.querySelector("#chatMediaLightboxPrev")?.addEventListener("click", () => stepLightbox(-1));
+    box.querySelector("#chatMediaLightboxNext")?.addEventListener("click", () => stepLightbox(1));
+    box.addEventListener("click", (event) => {
+      if (event.target === box) close();
+    });
+    const stage = box.querySelector(".chat-media-lightbox-stage");
+    stage?.addEventListener("touchstart", (event) => {
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      lightboxState.touchStartX = touch.clientX;
+      lightboxState.touchDeltaX = 0;
+    }, { passive: true });
+    stage?.addEventListener("touchmove", (event) => {
+      const touch = event.changedTouches?.[0];
+      if (!touch) return;
+      lightboxState.touchDeltaX = touch.clientX - lightboxState.touchStartX;
+    }, { passive: true });
+    stage?.addEventListener("touchend", () => {
+      const delta = lightboxState.touchDeltaX;
+      lightboxState.touchDeltaX = 0;
+      if (Math.abs(delta) < 56) return;
+      stepLightbox(delta < 0 ? 1 : -1);
+    });
+    return box;
+  }
+
+  function closeMediaLightbox() {
+    const box = global.document.getElementById("suppixChatMediaLightbox");
+    box?.classList.add("hidden");
+    if (lightboxKeyHandler) {
+      global.document.removeEventListener("keydown", lightboxKeyHandler);
+      lightboxKeyHandler = null;
+    }
+  }
+
+  async function renderLightboxItem() {
+    const box = ensureLightbox();
+    const items = lightboxState.items;
+    const index = lightboxState.index;
+    const item = items[index];
+    const labels = lightboxState.labels || {};
+    const titleEl = box.querySelector("#chatMediaLightboxTitle");
+    const counterEl = box.querySelector("#chatMediaLightboxCounter");
+    const body = box.querySelector("#chatMediaLightboxBody");
+    const downloadBtn = box.querySelector("#chatMediaLightboxDownload");
+    const dismissBtn = box.querySelector("#chatMediaLightboxDismiss");
+    const prevBtn = box.querySelector("#chatMediaLightboxPrev");
+    const nextBtn = box.querySelector("#chatMediaLightboxNext");
+    const closeBtn = box.querySelector("#chatMediaLightboxClose");
+    if (!item || !body) return;
+
+    if (titleEl) titleEl.textContent = String(item.title || "");
+    if (counterEl) {
+      if (items.length > 1) {
+        const template = labels.of || "{current} / {total}";
+        counterEl.textContent = template
+          .replace("{current}", String(index + 1))
+          .replace("{total}", String(items.length));
+        counterEl.hidden = false;
+      } else {
+        counterEl.textContent = "";
+        counterEl.hidden = true;
+      }
+    }
+    if (prevBtn) {
+      prevBtn.disabled = items.length < 2 || index <= 0;
+      prevBtn.setAttribute("aria-label", labels.prev || "Zurück");
+      prevBtn.hidden = items.length < 2;
+    }
+    if (nextBtn) {
+      nextBtn.disabled = items.length < 2 || index >= items.length - 1;
+      nextBtn.setAttribute("aria-label", labels.next || "Weiter");
+      nextBtn.hidden = items.length < 2;
+    }
+    if (closeBtn) closeBtn.setAttribute("aria-label", labels.close || "Schließen");
+    if (dismissBtn) dismissBtn.textContent = labels.close || "Schließen";
+    if (downloadBtn) {
+      downloadBtn.textContent = labels.download || "Herunterladen";
+      downloadBtn.onclick = () => {
+        if (typeof item.onDownload === "function") item.onDownload();
+      };
+    }
+
+    body.innerHTML = `<p style="opacity:.7">${escapeHtml(labels.loading || "…")}</p>`;
+    let url = item.url || "";
+    try {
+      if (!url && typeof item.resolveUrl === "function") {
+        url = await item.resolveUrl(item) || "";
+        item.url = url;
+      }
+    } catch {
+      body.innerHTML = `<p>${escapeHtml(labels.failed || "Konnte nicht geladen werden")}</p>`;
+      return;
+    }
+    if (item.kind === "image" && url) {
+      body.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(item.title || "Bild")}" />`;
+    } else if (url) {
+      body.innerHTML = `<p>${escapeHtml(item.title || "Datei")}</p>`;
+    } else {
+      body.innerHTML = `<p>${escapeHtml(item.title || "Datei")}</p>`;
+    }
+  }
+
+  function stepLightbox(delta) {
+    const next = lightboxState.index + delta;
+    if (next < 0 || next >= lightboxState.items.length) return;
+    lightboxState.index = next;
+    void renderLightboxItem();
+  }
+
+  function openMediaLightbox(options = {}) {
+    const labels = options.labels || {};
+    let items = Array.isArray(options.items) ? options.items.filter(Boolean) : [];
+    if (!items.length) {
+      items = [{
+        title: options.title,
+        url: options.url,
+        kind: options.kind || "image",
+        onDownload: options.onDownload,
+      }];
+    }
+    lightboxState = {
+      items,
+      index: Math.max(0, Math.min(Number(options.index) || 0, items.length - 1)),
+      labels,
+      touchStartX: 0,
+      touchDeltaX: 0,
+    };
+    const box = ensureLightbox();
+    if (lightboxKeyHandler) {
+      global.document.removeEventListener("keydown", lightboxKeyHandler);
+    }
+    lightboxKeyHandler = (event) => {
+      if (box.classList.contains("hidden")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMediaLightbox();
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        stepLightbox(-1);
+      } else if (event.key === "ArrowRight") {
+        event.preventDefault();
+        stepLightbox(1);
+      }
+    };
+    global.document.addEventListener("keydown", lightboxKeyHandler);
+    box.classList.remove("hidden");
+    void renderLightboxItem();
   }
 
   function ensureModal(labels = {}) {
@@ -110,53 +307,10 @@
     return modal;
   }
 
-  function ensureLightbox() {
-    ensureStyles();
-    let box = global.document.getElementById("suppixChatMediaLightbox");
-    if (box) return box;
-    box = global.document.createElement("div");
-    box.id = "suppixChatMediaLightbox";
-    box.className = "chat-media-lightbox hidden";
-    box.innerHTML = `
-      <div class="chat-media-lightbox-head">
-        <span id="chatMediaLightboxTitle"></span>
-        <button type="button" id="chatMediaLightboxClose" aria-label="Schließen">✕</button>
-      </div>
-      <div class="chat-media-lightbox-body" id="chatMediaLightboxBody"></div>
-      <div class="chat-media-lightbox-actions">
-        <button type="button" id="chatMediaLightboxDownload">Herunterladen</button>
-        <button type="button" class="ghost" id="chatMediaLightboxDismiss">Schließen</button>
-      </div>`;
-    global.document.body.appendChild(box);
-    const close = () => box.classList.add("hidden");
-    box.querySelector("#chatMediaLightboxClose")?.addEventListener("click", close);
-    box.querySelector("#chatMediaLightboxDismiss")?.addEventListener("click", close);
-    box.addEventListener("click", (event) => {
-      if (event.target === box) close();
-    });
-    return box;
-  }
-
-  function openMediaLightbox({ title, url, kind, onDownload, labels = {} } = {}) {
-    const box = ensureLightbox();
-    const body = box.querySelector("#chatMediaLightboxBody");
-    const titleEl = box.querySelector("#chatMediaLightboxTitle");
-    const downloadBtn = box.querySelector("#chatMediaLightboxDownload");
-    if (titleEl) titleEl.textContent = String(title || "");
-    if (body) {
-      body.innerHTML = kind === "image"
-        ? `<img src="${escapeHtml(url)}" alt="${escapeHtml(title || "Bild")}" />`
-        : `<p>${escapeHtml(title || "Datei")}</p>`;
-    }
-    if (downloadBtn) {
-      downloadBtn.textContent = labels.download || "Herunterladen";
-      downloadBtn.onclick = () => { if (typeof onDownload === "function") onDownload(); };
-    }
-    box.classList.remove("hidden");
-  }
-
   function openChatGallery({ messages, labels = {}, onOpenItem, onDeleteItem, resolveItemUrl } = {}) {
     const modal = ensureModal(labels);
+    const titleEl = modal.querySelector("#chatGalleryTitle");
+    if (titleEl) titleEl.textContent = labels.title || "Medien";
     const items = collectMediaItems(messages, labels);
     const tabs = modal.querySelector("#chatGalleryTabs");
     const grid = modal.querySelector("#chatGalleryGrid");
@@ -240,5 +394,6 @@
     collectMediaItems,
     openChatGallery,
     openMediaLightbox,
+    closeMediaLightbox,
   };
 })(typeof window !== "undefined" ? window : globalThis);
