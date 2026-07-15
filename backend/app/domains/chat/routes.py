@@ -301,12 +301,14 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         events = []
         for evt in reversed(raw_events):
             evt_type = str(evt.get("type") or "")
-            if evt_type not in {"chat.message_created", "chat.typing"}:
-                continue
             payload = evt.get("payload") or {}
-            if evt_type == "chat.message_created" and str(payload.get("workerId") or "") != worker_id:
-                continue
-            if evt_type == "chat.typing" and str(payload.get("workerId") or "") != worker_id:
+            if evt_type in {"chat.message_created", "chat.typing"}:
+                if str(payload.get("workerId") or "") != worker_id:
+                    continue
+            elif evt_type.startswith("voice_call."):
+                if str(payload.get("workerId") or "") != worker_id:
+                    continue
+            else:
                 continue
             events.append(evt)
             if len(events) >= limit:

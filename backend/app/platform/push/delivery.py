@@ -130,7 +130,19 @@ def deliver_worker_push(
                             },
                         )
                         web_push += 1
-                    except Exception:
+                    except Exception as exc:
+                        status = getattr(getattr(exc, "response", None), "status_code", None)
+                        if status is None:
+                            status = getattr(exc, "status_code", None)
+                        if status in (404, 410):
+                            try:
+                                db.execute(
+                                    "DELETE FROM push_subscriptions WHERE endpoint = ?",
+                                    (str(sub["endpoint"] or ""),),
+                                )
+                                db.commit()
+                            except Exception:
+                                pass
                         pass
         except Exception:
             pass

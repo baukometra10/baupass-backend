@@ -34,6 +34,23 @@ class VoiceCallRepository {
     return null;
   }
 
+  Future<List<Map<String, dynamic>>> recentEvents(
+    WorkerSession session, {
+    String sinceId = '',
+    int limit = 25,
+  }) async {
+    var path = '/api/worker-app/chat/events/recent?limit=$limit';
+    if (sinceId.isNotEmpty) path += '&since_id=${Uri.encodeComponent(sinceId)}';
+    final data = await _api.getJson(
+      path,
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final rows = data['events'];
+    if (rows is! List) return const [];
+    return rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+  }
+
   Future<Map<String, dynamic>?> fetchCall(WorkerSession session, String callId) async {
     final data = await _api.getJson(
       '/api/worker-app/chat/calls/${Uri.encodeComponent(callId)}',

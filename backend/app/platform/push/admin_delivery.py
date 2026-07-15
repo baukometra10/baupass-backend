@@ -53,6 +53,7 @@ def deliver_admin_push(
         **(extra or {}),
     }
     sent = 0
+    removed = 0
     for row in rows:
         endpoint = str(row["endpoint"] or "").strip()
         if not endpoint:
@@ -68,6 +69,23 @@ def deliver_admin_push(
                 vapid_claims={"sub": vapid_email},
             )
             sent += 1
-        except Exception:
+        except Exception as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status is None:
+                status = getattr(exc, "status_code", None)
+            if status in (404, 410):
+                try:
+                    db.execute(
+                        "DELETE FROM admin_push_subscriptions WHERE endpoint = ?",
+                        (endpoint,),
+                    )
+                    removed += 1
+                except Exception:
+                    pass
             continue
-    return {"ok": True, "sent": sent}
+    if removed:
+        try:
+            db.commit()
+        except Exception:
+            pass
+    return {"ok": True, "sent": sent, "removed": removed}

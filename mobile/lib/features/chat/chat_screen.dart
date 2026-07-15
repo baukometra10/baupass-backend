@@ -1,6 +1,5 @@
-import 'dart:io';
 import 'dart:async';
-import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -14,9 +13,11 @@ import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
 import '../../services/voice_call_controller.dart';
+import 'chat_attachment_helpers.dart';
 import 'chat_location_helpers.dart';
 import 'chat_media_gallery.dart';
 import 'chat_voice_compose_bar.dart';
+import 'chat_voice_player.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -448,49 +449,9 @@ class _ChatScreenState extends State<ChatScreen> {
     return sender == 'worker';
   }
 
-  Map<String, dynamic>? _parseE2eAttachmentMeta(Map<String, dynamic> attachment) {
-    final raw = attachment['e2eMeta'] ?? attachment['e2e_meta'];
-    if (raw is Map) return Map<String, dynamic>.from(raw);
-    final text = raw?.toString().trim() ?? '';
-    if (text.isEmpty) return null;
-    try {
-      final decoded = jsonDecode(text);
-      if (decoded is Map) return Map<String, dynamic>.from(decoded);
-    } catch (_) {
-      /* ignore invalid meta */
-    }
-    return null;
-  }
+  bool _isImageAttachment(Map<String, dynamic> attachment) => isChatImageAttachment(attachment);
 
-  bool _isImageAttachment(Map<String, dynamic> attachment) {
-    final meta = _parseE2eAttachmentMeta(attachment);
-    final metaMime = (meta?['mime'] ?? '').toString().toLowerCase();
-    final metaName = (meta?['filename'] ?? '').toString().toLowerCase();
-    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? metaMime)
-        .toString()
-        .toLowerCase();
-    final filename = (metaName.isNotEmpty ? metaName : (attachment['filename'] ?? ''))
-        .toString()
-        .toLowerCase();
-    if (contentType.startsWith('image/')) return true;
-    return RegExp(r'\.(jpe?g|png|webp|gif|heic|heif)(\.e2e)?$', caseSensitive: false).hasMatch(filename);
-  }
-
-  bool _isAudioAttachment(Map<String, dynamic> attachment) {
-    if (_isImageAttachment(attachment)) return false;
-    final meta = _parseE2eAttachmentMeta(attachment);
-    final metaMime = (meta?['mime'] ?? '').toString().toLowerCase();
-    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? metaMime)
-        .toString()
-        .toLowerCase();
-    final filename = (attachment['filename'] ?? '').toString().toLowerCase();
-    if (contentType.startsWith('audio/')) return true;
-    return filename.endsWith('.m4a')
-        || filename.endsWith('.wav')
-        || filename.endsWith('.webm')
-        || filename.endsWith('.aac')
-        || filename.endsWith('.ogg');
-  }
+  bool _isAudioAttachment(Map<String, dynamic> attachment) => isChatAudioAttachment(attachment);
 
   Future<void> _showImageFullscreen(Map<String, dynamic> attachment) async {
     final id = attachment['id'] as String?;
@@ -834,28 +795,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 final map = Map<String, dynamic>.from(att);
                                                 return Padding(
                                                   padding: const EdgeInsets.only(top: 4),
-                                                  child: InkWell(
-                                                    onTap: () => _openAttachment(map),
-                                                    child: Row(
-                                                      mainAxisSize: MainAxisSize.min,
-                                                      children: [
-                                                        Icon(
-                                                          Icons.mic,
-                                                          size: 18,
-                                                          color: isWorker
-                                                              ? const Color(0xFF0F766E)
-                                                              : const Color(0xFF1D4ED8),
-                                                        ),
-                                                        const SizedBox(width: 8),
-                                                        Text(
-                                                          'Sprachnachricht abspielen',
-                                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                                                decoration: TextDecoration.underline,
-                                                                fontWeight: FontWeight.w600,
-                                                              ),
-                                                        ),
-                                                      ],
-                                                    ),
+                                                  child: ChatVoicePlayer(
+                                                    key: ValueKey<String>((map['id'] ?? '').toString()),
+                                                    attachment: map,
+                                                    chat: widget.chat,
+                                                    session: widget.session,
+                                                    isMine: isWorker,
                                                   ),
                                                 );
                                               }),

@@ -244,7 +244,18 @@
       }
       pollTimer = global.setTimeout(tick, POLL_MS);
     };
-    pollTimer = global.setTimeout(tick, POLL_MS);
+    pollTimer = global.setTimeout(tick, 200);
+  }
+
+  async function pollIncomingOnce(api) {
+    if (typeof api === "function") apiFn = api;
+    if (!apiFn || session) return;
+    try {
+      const data = await apiFn("/api/worker-app/chat/calls/incoming");
+      if (data?.call) await handleIncoming(data.call);
+    } catch (_) {
+      /* ignore */
+    }
   }
 
   function stopPolling() {
@@ -273,6 +284,7 @@
     },
     stop: stopPolling,
     wakeForCallId,
+    pollIncomingOnce,
     async startOutgoingCall(api) {
       if (typeof api !== "function" || !global.SUPPIXVoiceCall?.isSupported?.()) {
         return Promise.reject(new Error("voice_call_unsupported"));

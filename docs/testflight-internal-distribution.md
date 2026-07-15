@@ -96,7 +96,9 @@ Until secrets are configured, use local `flutter build ipa` + Transporter.
 ## CallKit & voice calls (iOS TestFlight)
 
 Build **0.1.9+26** and later include native incoming-call UI via `flutter_callkit_incoming`.  
-Build **0.1.10+27** and later add chat parity: inline images, media gallery, location sharing, WhatsApp-style voice recording bar.
+Build **0.1.10+27** and later add chat parity: inline images, media gallery, location sharing, WhatsApp-style voice recording bar.  
+Build **0.1.10+29** hardens image-vs-audio classification and worker missed-call visibility.  
+Build **0.1.10+30** adds **inline Sprachnachricht playback**, faster call wake (event poll + app-resume), and outgoing call from chat.
 
 ### What to test on a physical iPhone
 
@@ -105,6 +107,8 @@ Build **0.1.10+27** and later add chat parity: inline images, media gallery, loc
 3. Lock the phone or background the app — expect the **native CallKit** incoming screen (not only an in-app banner).
 4. Accept the call, verify two-way audio, then hang up from either side.
 5. Decline once and confirm the admin sees **declined** / missed state in chat.
+6. From Flutter chat, tap the **call** icon — employer should ring; cancel within 60s.
+7. Let an admin call ring out (~60s) — worker chat shows **Verpasst**; admin should **not** see a missed-call bubble for that outbound miss.
 
 ### iOS capabilities in this repo
 
@@ -114,20 +118,20 @@ Build **0.1.10+27** and later add chat parity: inline images, media gallery, loc
 
 ### If CallKit does not appear
 
-- Confirm the build number in TestFlight matches `pubspec.yaml` (`0.1.10+27` or newer for chat gallery/location/voice bar; `0.1.9+26`+ for CallKit).
+- Confirm the build number in TestFlight matches `pubspec.yaml` (`0.1.10+30` or newer for inline voice + call reliability; `0.1.10+27`+ for chat gallery/location/voice bar; `0.1.9+26`+ for CallKit).
 - Check iOS **Settings → WorkPass Worker → Notifications** and microphone permission.
 - First upload after adding CallKit must be a **new native build** (PWA-only changes are not enough).
 
 ---
 
-## Chat features (iOS TestFlight, build 0.1.10+27+)
+## Chat features (iOS TestFlight, build 0.1.10+30+)
 
 ### What to test
 
-1. **Sprachnachricht** — tap mic → WhatsApp-style bar (timer, waveform, pause, view-once toggle, send). Send to admin; admin should receive playable voice.
+1. **Sprachnachricht** — tap mic → WhatsApp-style bar (timer, waveform, pause, view-once toggle, send). Send to admin; admin should receive playable voice. **In Flutter**, tap the bubble (play icon + waveform); audio opens via the system player with in-bubble progress UX.
 2. **Standort** — pin icon in compose → GPS sheet → send. Admin chat shows location bubble; tap opens Maps.
-3. **Fotos** — attach image; inline preview in thread; tap for fullscreen. **Medien** icon (AppBar) opens gallery with tabs (Alle/Fotos/Sprache/Dateien).
-4. **View-once voice** — enable “1” toggle before send; recipient can listen once (PWA/admin); native playback opens file (view-once enforced on web clients).
+3. **Fotos** — attach image; inline preview in thread; tap for fullscreen. **Medien** icon (AppBar) opens gallery with tabs (Alle/Fotos/Sprache/Dateien). Admin image send must show as **photo**, never as audio player.
+4. **View-once voice** — enable “1” toggle before send; recipient can listen once (PWA/admin); native playback is inline (view-once still enforced on web clients).
 
 ### Build command (Mac)
 

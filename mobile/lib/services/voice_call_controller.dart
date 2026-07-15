@@ -21,6 +21,7 @@ class VoiceCallController extends ChangeNotifier {
 
   WorkerSession? _session;
   Timer? _pollTimer;
+  Timer? _eventTimer;
   Timer? _ringTimer;
   Timer? _ringTimeoutTimer;
   Timer? _ringCountdownTimer;
@@ -29,6 +30,7 @@ class VoiceCallController extends ChangeNotifier {
   Timer? _durationTimer;
   DateTime? _connectedAt;
   String? _pendingCallId;
+  String _lastEventId = '';
   WorkerVoiceCallSession? _sessionRtc;
   Map<String, dynamic>? _call;
   VoiceCallUiPhase _phase = VoiceCallUiPhase.idle;
@@ -98,10 +100,17 @@ class VoiceCallController extends ChangeNotifier {
       },
     ));
     _startPolling();
+    _startEventPolling();
+  }
+
+  void onAppResumed() {
+    unawaited(_pollIncoming(force: true));
+    unawaited(_pollEvents());
   }
 
   void unbind() {
     _pollTimer?.cancel();
+    _eventTimer?.cancel();
     _ringTimer?.cancel();
     _ringTimeoutTimer?.cancel();
     _ringCountdownTimer?.cancel();
@@ -113,6 +122,7 @@ class VoiceCallController extends ChangeNotifier {
     _phase = VoiceCallUiPhase.idle;
     _isOutgoing = false;
     _ringStartedAt = null;
+    _lastEventId = '';
   }
 
   void wakeForCall(String callId) {
@@ -124,12 +134,47 @@ class VoiceCallController extends ChangeNotifier {
 
   void _startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 1200), (_) {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 800), (_) {
       if (_phase == VoiceCallUiPhase.idle ||
           (_phase == VoiceCallUiPhase.ringing && !_isOutgoing)) {
         unawaited(_pollIncoming());
       }
     });
+  }
+
+  void _startEventPolling() {
+    _eventTimer?.cancel();
+    _eventTimer = Timer.periodic(const Duration(milliseconds: 1800), (_) {
+      unawaited(_pollEvents());
+    });
+  }
+
+  Future<void> _pollEvents() async {
+    final session = _session;
+    if (session == null) return;
+    if (_phase == VoiceCallUiPhase.connecting || _phase == VoiceCallUiPhase.connected) {
+      return;
+    }
+    try {
+      final events = await repo.recentEvents(session, sinceId: _lastEventId);
+      for (final evt in events) {
+        final id = (evt['id'] ?? '').toString();
+        if (id.isNotEmpty) _lastEventId = id;
+        final type = (evt['type'] ?? evt['event_type'] ?? '').toString();
+        if (!type.startsWith('voice_call.')) continue;
+        final payloadRaw = evt['payload'];
+        final payload = payloadRaw is Map
+            ? Map<String, dynamic>.from(payloadRaw)
+            : <String, dynamic>{};
+        final callId = (payload['callId'] ?? payload['call_id'] ?? '').toString();
+        if (type.contains('incoming') && callId.isNotEmpty) {
+          _pendingCallId = callId;
+          unawaited(_pollIncoming(force: true));
+        }
+      }
+    } catch (_) {
+      /* ignore transient errors */
+    }
   }
 
   Future<void> _pollIncoming({bool force = false}) async {

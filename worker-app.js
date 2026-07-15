@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260715chat34";
+const WORKER_BUILD_TAG = "20260715chat35";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -13323,11 +13323,19 @@ function startWorkerChatRealtimeFeed() {
   workerChatRealtimeStop = window.SUPPIXChatRealtime.startWorkerChatRealtime({
     headers: () => buildWorkerAuthHeaders(),
     onChatEvent: (evt) => {
-      if (String(evt?.type || "") === "chat.typing") {
+      const type = String(evt?.type || "");
+      if (type === "chat.typing") {
         workerTypingController?.handleRealtime?.(evt);
         return;
       }
-      if (String(evt?.type || "") === "chat.message_created" && String(evt?.payload?.senderType || "") === "admin") {
+      if (type.startsWith("voice_call.") || type.startsWith("chat.voice_call")) {
+        if (type.includes("incoming")) {
+          window.SUPPIXWorkerVoiceCall?.pollIncomingOnce?.(workerVoiceCallApi);
+        }
+        void loadWorkerChat({ quiet: true });
+        return;
+      }
+      if (type === "chat.message_created" && String(evt?.payload?.senderType || "") === "admin") {
         window.SUPPIXChatRealtime?.playWorkerMessageSound?.();
         if (!document?.hasFocus?.() && Notification?.permission === "granted") {
           try {

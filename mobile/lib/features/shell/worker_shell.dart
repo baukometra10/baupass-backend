@@ -77,7 +77,7 @@ class WorkerShell extends StatefulWidget {
   State<WorkerShell> createState() => WorkerShellState();
 }
 
-class WorkerShellState extends State<WorkerShell> {
+class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   int _index = 0;
   int _tasksSubTab = 0;
   int _offlinePending = 0;
@@ -88,6 +88,7 @@ class WorkerShellState extends State<WorkerShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _voiceCall = VoiceCallController(repo: widget.chat.voiceCalls);
     _voiceCall.bind(widget.session);
     _loadProfileAndGeofence();
@@ -98,6 +99,21 @@ class WorkerShellState extends State<WorkerShell> {
       deviceId: widget.session.deviceId,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowPrivacyConsent());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _voiceCall.onAppResumed();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _voiceCall.dispose();
+    widget.geofence.stop();
+    super.dispose();
   }
 
   Future<void> _maybeShowPrivacyConsent() async {
@@ -158,13 +174,6 @@ class WorkerShellState extends State<WorkerShell> {
 
   void wakeForVoiceCall(String callId) {
     _voiceCall.wakeForCall(callId);
-  }
-
-  @override
-  void dispose() {
-    _voiceCall.dispose();
-    widget.geofence.stop();
-    super.dispose();
   }
 
   Future<void> _loadProfileAndGeofence() async {
