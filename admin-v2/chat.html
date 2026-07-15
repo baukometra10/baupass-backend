@@ -22,9 +22,128 @@
     .brand-logo { width:28px; height:28px; border-radius:6px; object-fit:contain; }
     .header-lang { font-size:0.78rem; padding:0.3rem 0.4rem; border-radius:8px; border:1px solid var(--border); background:var(--input-bg); color:var(--text); }
     .chat-shell { flex:1; min-height:0; display:grid; grid-template-columns:minmax(300px, 360px) minmax(0, 1fr); gap:0.85rem; padding:0.85rem 1rem 1rem; max-width:1360px; width:100%; margin:0 auto; }
+    .chat-back-list {
+      display:none;
+      place-items:center;
+      width:36px;
+      height:36px;
+      flex-shrink:0;
+      border-radius:50%;
+      border:1px solid var(--border);
+      background:var(--input-bg);
+      color:var(--text);
+      cursor:pointer;
+      font-size:1.1rem;
+      padding:0;
+      line-height:1;
+    }
+    .chat-back-list:hover { border-color:rgba(94,234,212,.35); color:var(--accent); }
+    .thread-filter-bar { display:flex; gap:0.35rem; flex-wrap:wrap; padding:0 0.15rem; }
+    .thread-filter-chip {
+      border:1px solid var(--border);
+      background:transparent;
+      color:var(--muted);
+      border-radius:999px;
+      padding:0.28rem 0.7rem;
+      font-size:0.74rem;
+      font-weight:600;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .thread-filter-chip:hover { border-color:rgba(94,234,212,.35); color:var(--text); }
+    .thread-filter-chip.is-active {
+      background:rgba(94,234,212,0.14);
+      border-color:rgba(94,234,212,0.45);
+      color:var(--accent);
+    }
+    .chat-head-actions {
+      display:flex;
+      align-items:center;
+      gap:0.35rem;
+      flex-shrink:0;
+      margin-left:auto;
+    }
+    .chat-more-wrap { position:relative; flex-shrink:0; }
+    .chat-more-menu {
+      position:absolute;
+      right:0;
+      top:calc(100% + 8px);
+      min-width:220px;
+      background:#1f2c34;
+      border:1px solid rgba(134,150,160,.22);
+      border-radius:14px;
+      padding:0.35rem;
+      box-shadow:0 12px 32px rgba(0,0,0,.38);
+      z-index:50;
+      display:flex;
+      flex-direction:column;
+      gap:0.08rem;
+    }
+    .chat-more-menu.hidden { display:none; }
+    .chat-more-item {
+      display:flex;
+      align-items:center;
+      gap:0.55rem;
+      width:100%;
+      border:none;
+      background:transparent;
+      color:var(--text);
+      border-radius:10px;
+      padding:0.62rem 0.75rem;
+      cursor:pointer;
+      text-align:left;
+      font:inherit;
+      font-size:0.88rem;
+    }
+    .chat-more-item:hover { background:rgba(255,255,255,.06); }
+    .chat-more-item.is-danger { color:#f87171; }
+    .chat-pending-attach {
+      display:flex;
+      align-items:center;
+      gap:0.65rem;
+      margin:0 0 0.45rem;
+      padding:0.5rem 0.65rem;
+      border-radius:12px;
+      border:1px solid rgba(94,234,212,.28);
+      background:rgba(15,118,110,.12);
+    }
+    .chat-pending-attach.hidden { display:none; }
+    .chat-pending-attach-thumb {
+      width:48px;
+      height:48px;
+      border-radius:10px;
+      object-fit:cover;
+      flex-shrink:0;
+      background:rgba(0,0,0,.2);
+      display:grid;
+      place-items:center;
+      font-size:1.2rem;
+    }
+    .chat-pending-attach-thumb img { width:100%; height:100%; object-fit:cover; border-radius:10px; display:block; }
+    .chat-pending-attach-meta { flex:1; min-width:0; }
+    .chat-pending-attach-name { display:block; font-size:0.84rem; font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .chat-pending-attach-hint { display:block; font-size:0.72rem; color:var(--muted); margin-top:0.12rem; }
+    .chat-pending-attach-clear {
+      border:none;
+      background:transparent;
+      color:var(--muted);
+      cursor:pointer;
+      font-size:1rem;
+      padding:0.25rem;
+      flex-shrink:0;
+    }
+    .chat-pending-attach-clear:hover { color:var(--text); }
     @media (max-width: 980px) {
-      .chat-shell { grid-template-columns:1fr; padding:0.65rem; }
-      .chat-sidebar { max-height:38vh; }
+      .chat-shell { grid-template-columns:1fr; padding:0.65rem; gap:0; }
+      .chat-shell.chat-shell--list .chat-main { display:none; }
+      .chat-shell.chat-shell--thread .chat-sidebar { display:none; }
+      .chat-shell.chat-shell--list .chat-sidebar,
+      .chat-shell.chat-shell--thread .chat-main {
+        max-height:none;
+        height:100%;
+        min-height:0;
+      }
+      .chat-back-list { display:inline-grid; }
     }
     .panel { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:0.85rem 1rem; min-height:0; }
     .chat-sidebar { display:flex; flex-direction:column; gap:0.65rem; overflow:hidden; padding:0.7rem; }
@@ -76,7 +195,8 @@
     .thread-unread { flex-shrink:0; min-width:1.2rem; height:1.2rem; padding:0 0.35rem; border-radius:999px; background:#0d9488; color:#fff; font-size:0.66rem; font-weight:800; display:grid; place-items:center; }
     .thread-item.has-unread .thread-name { font-weight:800; }
     .thread-item.has-unread .thread-preview { color:var(--text); font-weight:600; }
-    .chat-main-head-inner { display:flex; align-items:center; gap:0.75rem; min-width:0; }
+    .chat-main-head-inner { display:flex; align-items:center; gap:0.75rem; min-width:0; width:100%; }
+    .chat-main-head-copy { min-width:0; flex:1; }
     .hidden { display:none !important; }
     .chat-compose.is-inactive { display:none; }
     .chat-reply-bar{display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(0,168,132,.1);border:1px solid rgba(0,168,132,.22)}
@@ -138,6 +258,7 @@
     .chat-forward-item-avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#5eead4,#93c5fd);color:#042f2e;font-weight:800;flex-shrink:0;font-size:.78rem}
     .chat-forward-modal-actions{display:flex;justify-content:flex-end;gap:.45rem}
     .chat-compose { flex-shrink:0; border-top:1px solid var(--border); padding:0.65rem 0.85rem 0.8rem; background:var(--panel); position:relative; }
+    .chat-compose.is-drag-over { outline:2px dashed rgba(94,234,212,.55); outline-offset:-4px; background:rgba(15,118,110,.1); }
     .chat-compose-bar { display:flex; align-items:flex-end; gap:0.45rem; }
     .chat-compose-attach-wrap { position:relative; flex-shrink:0; }
     .chat-compose-attach { display:inline-flex; align-items:center; justify-content:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--border); background:var(--input-bg); color:var(--muted); cursor:pointer; flex-shrink:0; font-size:1.35rem; line-height:1; font-weight:300; }
@@ -828,7 +949,7 @@
         <a href="/admin-v2/index.html" id="backLink" class="header-link" data-aci18n="back">Zurück zu Betrieb</a>
       </div>
     </header>
-    <main class="chat-shell">
+    <main class="chat-shell chat-shell--list" id="chatShell">
       <section class="panel chat-sidebar">
         <h3 data-aci18n="chatsTitle">Chats</h3>
         <div id="adminPushBanner" class="admin-push-banner hidden" role="region" aria-live="polite">
@@ -843,13 +964,20 @@
         </div>
         <p class="muted sidebar-hint" data-aci18n="sidebarHint">Alle aktiven Mitarbeiter — auch ohne bisherigen Chatverlauf.</p>
         <button type="button" id="broadcastAllBtn" class="broadcast-all-btn" data-aci18n="broadcastAllBtn">Alle Mitarbeiter benachrichtigen</button>
+        <div id="threadFilterBar" class="thread-filter-bar" role="tablist" aria-label="Chat-Filter">
+          <button type="button" class="thread-filter-chip is-active" data-thread-filter="all" data-aci18n="threadFilterAll">Alle</button>
+          <button type="button" class="thread-filter-chip" data-thread-filter="unread" data-aci18n="threadFilterUnread">Ungelesen</button>
+          <button type="button" class="thread-filter-chip" data-thread-filter="pinned" data-aci18n="threadFilterPinned">Angeheftet</button>
+          <button type="button" class="thread-filter-chip" data-thread-filter="muted" data-aci18n="threadFilterMuted">Stumm</button>
+        </div>
         <div id="threadList" class="thread-list"></div>
       </section>
       <section class="panel chat-main">
         <div class="chat-main-head">
           <div class="chat-main-head-inner">
+            <button type="button" id="chatBackToList" class="chat-back-list" data-aci18n="chatBackToList" data-aci18n-attr="title,aria-label" title="Zurück zur Liste" aria-label="Zurück zur Liste">←</button>
             <span id="chatHeadAvatar" class="chat-head-avatar hidden" aria-hidden="true"></span>
-            <div style="min-width:0;">
+            <div class="chat-main-head-copy">
               <h2 id="chatHeadTitle" data-aci18n="conversationTitle">Unterhaltung</h2>
               <p id="threadMeta" class="muted" data-aci18n="noThreadSelected">Noch kein Chat ausgewählt.</p>
               <p id="chatTypingIndicator" class="chat-typing-indicator" aria-live="polite"></p>
@@ -857,13 +985,19 @@
                 <input id="chatMessageSearch" type="search" data-aci18n="chatSearchPh" data-aci18n-attr="placeholder" placeholder="In Unterhaltung suchen…" autocomplete="off" />
                 <div id="chatSearchResults" class="chat-search-results hidden" aria-live="polite"></div>
               </div>
-              <div id="chatHeadActions" class="chat-head-actions hidden">
-                <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" title="Medien" aria-label="Medien">🖼</button>
-                <button type="button" id="chatExportBtn" class="chat-voice-history-btn" data-aci18n="chatExport" data-aci18n-attr="title,aria-label" title="Chat exportieren" aria-label="Chat exportieren">⬇</button>
-                <button type="button" id="chatVoiceHistoryBtn" class="chat-voice-history-btn" title="Anrufverlauf" aria-label="Anrufverlauf">🕘</button>
-                <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" title="Anrufen" aria-label="Anrufen">📞</button>
-                <button type="button" id="chatClearOwnBtn" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
-                <button type="button" id="chatClearAllBtn" data-aci18n="chatClearAll">Chat leeren</button>
+            </div>
+            <div id="chatHeadActions" class="chat-head-actions hidden">
+              <button type="button" id="chatSearchToggleBtn" class="chat-voice-history-btn" data-aci18n="chatSearchToggle" data-aci18n-attr="title,aria-label" title="Suchen" aria-label="Suchen">🔍</button>
+              <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" data-aci18n="chatGalleryTitle" data-aci18n-attr="title,aria-label" title="Medien" aria-label="Medien">🖼</button>
+              <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" data-aci18n="voiceCallTitle" data-aci18n-attr="title,aria-label" title="Anrufen" aria-label="Anrufen">📞</button>
+              <div class="chat-more-wrap">
+                <button type="button" id="chatMoreBtn" class="chat-voice-history-btn" data-aci18n="chatMoreMenu" data-aci18n-attr="title,aria-label" title="Mehr" aria-label="Mehr" aria-haspopup="true" aria-expanded="false">⋯</button>
+                <div id="chatMoreMenu" class="chat-more-menu hidden" role="menu">
+                  <button type="button" id="chatExportBtn" class="chat-more-item" role="menuitem" data-aci18n="chatExport">Chat exportieren</button>
+                  <button type="button" id="chatVoiceHistoryBtn" class="chat-more-item" role="menuitem" data-aci18n="voiceCallHistory">Anrufverlauf</button>
+                  <button type="button" id="chatClearOwnBtn" class="chat-more-item is-danger" role="menuitem" data-aci18n="chatClearOwn">Meine Nachrichten löschen</button>
+                  <button type="button" id="chatClearAllBtn" class="chat-more-item is-danger" role="menuitem" data-aci18n="chatClearAll">Chat leeren</button>
+                </div>
               </div>
             </div>
           </div>
@@ -878,6 +1012,14 @@
             <button type="button" id="chatReplyBarClear" aria-label="Antwort abbrechen">✕</button>
           </div>
           <div id="chatQuickReplies" class="chat-quick-replies hidden"></div>
+          <div id="chatPendingAttach" class="chat-pending-attach hidden" aria-live="polite">
+            <div id="chatPendingAttachThumb" class="chat-pending-attach-thumb" aria-hidden="true">📎</div>
+            <div class="chat-pending-attach-meta">
+              <span id="chatPendingAttachName" class="chat-pending-attach-name"></span>
+              <span class="chat-pending-attach-hint" data-aci18n="chatPendingAttachHint">Caption unten schreiben, dann senden</span>
+            </div>
+            <button type="button" id="chatPendingAttachClear" class="chat-pending-attach-clear" data-aci18n="chatPendingAttachRemove" data-aci18n-attr="title,aria-label" title="Anhang entfernen" aria-label="Anhang entfernen">✕</button>
+          </div>
           <div class="chat-compose-bar">
             <div class="chat-compose-attach-wrap">
               <button type="button" id="chatAttachBtn" class="chat-compose-attach chat-attach-trigger" aria-label="Anhang" title="Anhang">+</button>
@@ -1003,22 +1145,22 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
-  <script src="/ops-realtime.js?v=20260714chat33"></script>
-  <script src="/chat-realtime.js?v=20260714chat33"></script>
-  <script src="/chat-gallery.js?v=20260714chat33"></script>
-  <script src="/chat-typing.js?v=20260714chat33"></script>
-  <script src="/chat-search.js?v=20260714chat33"></script>
-  <script src="/chat-location.js?v=20260714chat33"></script>
-  <script src="/chat-attach-sheet.js?v=20260714chat33"></script>
-  <script src="/chat-thread-prefs.js?v=20260714chat33"></script>
-  <script src="/chat-message-prefs.js?v=20260714chat33"></script>
-  <script src="/chat-message-menu.js?v=20260714chat33"></script>
-  <script src="/chat-admin-push.js?v=20260714chat33"></script>
-  <script src="/chat-global-notify.js?v=20260714chat33"></script>
-  <script src="/chat-offline-queue.js?v=20260714chat33"></script>
-  <script src="/chat-voice.js?v=20260715chat35"></script>
-  <script src="/chat-voice-call.js?v=20260715chat35"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260714chat33"></script>
+  <script src="/ops-realtime.js?v=20260715chat36"></script>
+  <script src="/chat-realtime.js?v=20260715chat36"></script>
+  <script src="/chat-gallery.js?v=20260715chat36"></script>
+  <script src="/chat-typing.js?v=20260715chat36"></script>
+  <script src="/chat-search.js?v=20260715chat36"></script>
+  <script src="/chat-location.js?v=20260715chat36"></script>
+  <script src="/chat-attach-sheet.js?v=20260715chat36"></script>
+  <script src="/chat-thread-prefs.js?v=20260715chat36"></script>
+  <script src="/chat-message-prefs.js?v=20260715chat36"></script>
+  <script src="/chat-message-menu.js?v=20260715chat36"></script>
+  <script src="/chat-admin-push.js?v=20260715chat36"></script>
+  <script src="/chat-global-notify.js?v=20260715chat36"></script>
+  <script src="/chat-offline-queue.js?v=20260715chat36"></script>
+  <script src="/chat-voice.js?v=20260715chat36"></script>
+  <script src="/chat-voice-call.js?v=20260715chat36"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260715chat36"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1061,6 +1203,81 @@
     let adminE2EReadinessAt = 0;
     const ADMIN_E2E_READINESS_TTL_MS = 60000;
     let lastThreadMetaName = "";
+    let adminThreadFilter = "all";
+    let adminPendingAttachFile = null;
+    let adminPendingAttachObjectUrl = "";
+    function setAdminChatShellMode(mode) {
+      const shell = document.getElementById("chatShell");
+      if (!shell) return;
+      const isThread = mode === "thread";
+      shell.classList.toggle("chat-shell--thread", isThread);
+      shell.classList.toggle("chat-shell--list", !isThread);
+    }
+    function showAdminChatThreadView() {
+      setAdminChatShellMode("thread");
+    }
+    function showAdminChatListView() {
+      setAdminChatShellMode("list");
+      closeAdminChatMoreMenu();
+    }
+    function closeAdminChatMoreMenu() {
+      const menu = document.getElementById("chatMoreMenu");
+      const btn = document.getElementById("chatMoreBtn");
+      menu?.classList.add("hidden");
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    }
+    function clearAdminPendingAttach() {
+      if (adminPendingAttachObjectUrl) {
+        try { URL.revokeObjectURL(adminPendingAttachObjectUrl); } catch { /* ignore */ }
+        adminPendingAttachObjectUrl = "";
+      }
+      adminPendingAttachFile = null;
+      const tray = document.getElementById("chatPendingAttach");
+      const thumb = document.getElementById("chatPendingAttachThumb");
+      const nameEl = document.getElementById("chatPendingAttachName");
+      tray?.classList.add("hidden");
+      if (thumb) {
+        thumb.innerHTML = "📎";
+        thumb.classList.remove("is-image");
+      }
+      if (nameEl) nameEl.textContent = "";
+      const fileInput = document.getElementById("chatFile");
+      const photoInput = document.getElementById("chatPhotoFile");
+      if (fileInput) fileInput.value = "";
+      if (photoInput) photoInput.value = "";
+      syncAdminComposeAction();
+    }
+    function formatAdminAttachSize(bytes) {
+      const n = Number(bytes) || 0;
+      if (n < 1024) return `${n} B`;
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10 * 1024 ? 1 : 0)} KB`;
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+    }
+    function setAdminPendingAttach(file) {
+      if (!file) return;
+      clearAdminPendingAttach();
+      adminPendingAttachFile = file;
+      const tray = document.getElementById("chatPendingAttach");
+      const thumb = document.getElementById("chatPendingAttachThumb");
+      const nameEl = document.getElementById("chatPendingAttachName");
+      const baseName = file.name || window.adminChatT("attachment");
+      const sizeLabel = formatAdminAttachSize(file.size);
+      if (nameEl) nameEl.textContent = sizeLabel ? `${baseName} · ${sizeLabel}` : baseName;
+      if (thumb) {
+        const isImage = String(file.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(String(file.name || ""));
+        if (isImage) {
+          adminPendingAttachObjectUrl = URL.createObjectURL(file);
+          thumb.innerHTML = `<img src="${adminPendingAttachObjectUrl}" alt="" />`;
+          thumb.classList.add("is-image");
+        } else {
+          thumb.innerHTML = "📄";
+          thumb.classList.remove("is-image");
+        }
+      }
+      tray?.classList.remove("hidden");
+      syncAdminComposeAction();
+      document.getElementById("chatReply")?.focus();
+    }
     function chatLocale() {
       const lang = window.getAdminChatLang?.() || "de";
       const map = { de: "de-DE", en: "en-GB", ar: "ar-SA", tr: "tr-TR", fr: "fr-FR", es: "es-ES", it: "it-IT", pl: "pl-PL" };
@@ -1598,7 +1815,7 @@
         photoInput.addEventListener("change", () => {
           const file = photoInput.files?.[0];
           if (!file) return;
-          void sendAdminChatPayload({ body: `📎 ${file.name}`, file });
+          setAdminPendingAttach(file);
           photoInput.value = "";
         });
       }
@@ -1911,13 +2128,19 @@
       const micBtn = document.getElementById("chatVoiceMicBtn");
       const replyInput = document.getElementById("chatReply");
       const fileInput = document.getElementById("chatFile");
+      const photoInput = document.getElementById("chatPhotoFile");
       const callBtn = document.getElementById("chatVoiceCallBtn");
       const historyBtn = document.getElementById("chatVoiceHistoryBtn");
+      const attachBtn = document.getElementById("chatAttachBtn");
+      const moreBtn = document.getElementById("chatMoreBtn");
       if (micBtn) micBtn.disabled = !active;
       if (replyInput) replyInput.disabled = !active;
       if (fileInput) fileInput.disabled = !active;
+      if (photoInput) photoInput.disabled = !active;
       if (callBtn) callBtn.disabled = !active;
       if (historyBtn) historyBtn.disabled = !active;
+      if (attachBtn) attachBtn.disabled = !active;
+      if (moreBtn) moreBtn.disabled = !active;
       if (!active) {
         adminVoiceRecorder?.cancel?.();
         adminVoiceRecording = false;
@@ -1925,6 +2148,8 @@
         compose?.classList.remove("is-voice-recording");
         document.querySelector(".wa-voice-record-sheet")?.classList.add("hidden");
         updateAdminVoiceHint(0);
+        clearAdminPendingAttach();
+        closeAdminChatMoreMenu();
       }
       syncAdminComposeAction();
       renderAdminQuickReplies();
@@ -1935,7 +2160,7 @@
       const fileInput = document.getElementById("chatFile");
       if (!sendBtn) return "send";
       const hasText = window.SUPPIXChatVoice?.composeHasText?.(input, window.adminChatT("replyPh"));
-      const hasFile = Boolean(fileInput?.files?.length);
+      const hasFile = Boolean(adminPendingAttachFile) || Boolean(fileInput?.files?.length);
       sendBtn.hidden = !(hasText || hasFile);
       return hasText || hasFile ? "send" : "mic";
     }
@@ -2078,7 +2303,7 @@
     function syncAdminChatSearchUi() {
       const wrap = document.getElementById("chatSearchWrap");
       if (!wrap) return;
-      wrap.classList.toggle("hidden", !currentThreadId);
+      wrap.classList.add("hidden");
       if (adminChatSearchUnmount) {
         try { adminChatSearchUnmount(); } catch { /* ignore */ }
         adminChatSearchUnmount = null;
@@ -2732,7 +2957,14 @@
     function renderThreads() {
       const q = (document.getElementById("threadSearch").value || "").trim().toLowerCase();
       const host = document.getElementById("threadList");
-      const filtered = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
+      let filtered = threads.filter((row) => (`${row.subject || ""} ${row.first_name || ""} ${row.last_name || ""} ${row.badge_id || ""}`).toLowerCase().includes(q));
+      if (adminThreadFilter === "unread") {
+        filtered = filtered.filter((row) => Number(row.unread_count || 0) > 0);
+      } else if (adminThreadFilter === "pinned") {
+        filtered = filtered.filter((row) => window.SUPPIXChatThreadPrefs?.isPinned?.(companyId, row.worker_id));
+      } else if (adminThreadFilter === "muted") {
+        filtered = filtered.filter((row) => window.SUPPIXChatThreadPrefs?.isMuted?.(companyId, row.worker_id));
+      }
       const rows = sortThreadRows(filtered);
       host.innerHTML = rows.length
         ? rows.map((row) => {
@@ -2820,6 +3052,9 @@
       currentWorkerId = requestedWorkerId;
       currentThreadId = threadId || "";
       adminChatLastFingerprint = "";
+      clearAdminPendingAttach();
+      closeAdminChatMoreMenu();
+      showAdminChatThreadView();
       const row = threads.find((item) => String(item.worker_id) === requestedWorkerId);
       const name = row ? threadDisplayName(row) : requestedWorkerId;
       lastThreadMetaName = name || "";
@@ -3088,13 +3323,65 @@
       const replyInput = document.getElementById("chatReply");
       const fileInput = document.getElementById("chatFile");
       const body = String(replyInput?.value || "").trim();
-      const file = fileInput?.files?.[0] || null;
+      const file = adminPendingAttachFile || fileInput?.files?.[0] || null;
       if (!body && !file) return;
       if (replyInput) replyInput.value = "";
       if (fileInput) fileInput.value = "";
-      await sendAdminChatPayload({ body: body || (file ? `📎 ${file.name}` : ""), file });
+      const pendingFile = file;
+      clearAdminPendingAttach();
+      const sendBody = body || (pendingFile ? `📎 ${pendingFile.name}` : "");
+      await sendAdminChatPayload({ body: sendBody, file: pendingFile });
     }
     document.getElementById("threadSearch").addEventListener("input", renderThreads);
+    document.getElementById("threadFilterBar")?.addEventListener("click", (event) => {
+      const btn = event.target instanceof Element ? event.target.closest("[data-thread-filter]") : null;
+      if (!btn) return;
+      const next = btn.getAttribute("data-thread-filter") || "all";
+      adminThreadFilter = next;
+      document.querySelectorAll("#threadFilterBar [data-thread-filter]").forEach((chip) => {
+        chip.classList.toggle("is-active", chip.getAttribute("data-thread-filter") === next);
+      });
+      renderThreads();
+    });
+    document.getElementById("chatBackToList")?.addEventListener("click", () => {
+      showAdminChatListView();
+    });
+    document.getElementById("chatSearchToggleBtn")?.addEventListener("click", () => {
+      const wrap = document.getElementById("chatSearchWrap");
+      if (!wrap || !currentThreadId) return;
+      const opening = wrap.classList.contains("hidden");
+      wrap.classList.toggle("hidden", !opening);
+      if (opening) document.getElementById("chatMessageSearch")?.focus();
+    });
+    document.getElementById("chatMoreBtn")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const menu = document.getElementById("chatMoreMenu");
+      const btn = document.getElementById("chatMoreBtn");
+      if (!menu || !btn) return;
+      const opening = menu.classList.contains("hidden");
+      if (opening) {
+        menu.classList.remove("hidden");
+        btn.setAttribute("aria-expanded", "true");
+      } else {
+        closeAdminChatMoreMenu();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      const menu = document.getElementById("chatMoreMenu");
+      if (!menu || menu.classList.contains("hidden")) return;
+      const target = event.target;
+      if (target instanceof Element && (menu.contains(target) || document.getElementById("chatMoreBtn")?.contains(target))) {
+        return;
+      }
+      closeAdminChatMoreMenu();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeAdminChatMoreMenu();
+    });
+    document.getElementById("chatPendingAttachClear")?.addEventListener("click", () => {
+      clearAdminPendingAttach();
+    });
     const globalChatSearchInput = document.getElementById("globalChatSearch");
     if (globalChatSearchInput && !globalChatSearchInput.dataset.bound) {
       globalChatSearchInput.dataset.bound = "1";
@@ -3124,10 +3411,56 @@
           void handleAdminPrimaryAction();
         }
       });
+      chatReplyInput.addEventListener("paste", (event) => {
+        const items = event.clipboardData?.items;
+        if (!items || !currentThreadId) return;
+        for (const item of items) {
+          if (item.kind === "file" && String(item.type || "").startsWith("image/")) {
+            const file = item.getAsFile();
+            if (!file) continue;
+            event.preventDefault();
+            setAdminPendingAttach(file);
+            return;
+          }
+        }
+      });
+    }
+    const chatComposeEl = document.getElementById("chatCompose");
+    if (chatComposeEl && !chatComposeEl.dataset.dropBound) {
+      chatComposeEl.dataset.dropBound = "1";
+      const stopDrag = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      chatComposeEl.addEventListener("dragenter", stopDrag);
+      chatComposeEl.addEventListener("dragover", (event) => {
+        stopDrag(event);
+        if (currentThreadId) chatComposeEl.classList.add("is-drag-over");
+      });
+      chatComposeEl.addEventListener("dragleave", (event) => {
+        if (event.target === chatComposeEl) chatComposeEl.classList.remove("is-drag-over");
+      });
+      chatComposeEl.addEventListener("drop", (event) => {
+        stopDrag(event);
+        chatComposeEl.classList.remove("is-drag-over");
+        if (!currentThreadId) return;
+        const files = Array.from(event.dataTransfer?.files || []);
+        const image = files.find((f) => String(f.type || "").startsWith("image/") || /\.(jpe?g|png|webp|gif)$/i.test(f.name || ""));
+        const file = image || files[0];
+        if (file) setAdminPendingAttach(file);
+      });
     }
     if (chatFileInput && !chatFileInput.dataset.bound) {
       chatFileInput.dataset.bound = "1";
-      chatFileInput.addEventListener("change", () => syncAdminComposeAction());
+      chatFileInput.addEventListener("change", () => {
+        const file = chatFileInput.files?.[0];
+        if (!file) {
+          syncAdminComposeAction();
+          return;
+        }
+        setAdminPendingAttach(file);
+        chatFileInput.value = "";
+      });
     }
     document.getElementById("messageList").addEventListener("click", (event) => {
       const btn = event.target instanceof Element ? event.target.closest(".chat-attachment-btn[data-attachment-id]") : null;
@@ -3148,7 +3481,10 @@
     document.getElementById("chatHeadAvatar")?.addEventListener("click", () => {
       if (currentWorkerId) void openWorkerProfileModal(currentWorkerId);
     });
-    document.getElementById("chatExportBtn")?.addEventListener("click", exportAdminChatThread);
+    document.getElementById("chatExportBtn")?.addEventListener("click", () => {
+      closeAdminChatMoreMenu();
+      exportAdminChatThread();
+    });
     bindAdminChatAttachSheet();
     bindAdminChatMessageMenu();
     document.getElementById("chatForwardCancelBtn")?.addEventListener("click", closeAdminForwardModal);
@@ -3156,10 +3492,12 @@
       renderAdminForwardList(event.target?.value || "");
     });
     document.getElementById("chatClearOwnBtn")?.addEventListener("click", () => {
+      closeAdminChatMoreMenu();
       if (!window.confirm(window.adminChatT("chatClearOwnConfirm"))) return;
       clearAdminChatMessages("own").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
     });
     document.getElementById("chatClearAllBtn")?.addEventListener("click", () => {
+      closeAdminChatMoreMenu();
       if (!window.confirm(window.adminChatT("chatClearAllConfirm"))) return;
       clearAdminChatMessages("all").catch((error) => setThreadMeta(error.message || String(error), { dynamic: true }));
     });
@@ -3574,6 +3912,7 @@
       }
     }
     document.getElementById("chatVoiceHistoryBtn")?.addEventListener("click", () => {
+      closeAdminChatMoreMenu();
       void openVoiceCallHistoryModal();
     });
     document.getElementById("voiceCallHistoryCloseBtn")?.addEventListener("click", closeVoiceCallHistoryModal);
