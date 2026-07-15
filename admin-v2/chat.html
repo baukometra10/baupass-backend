@@ -478,6 +478,10 @@
     .admin-push-banner-text{flex:1;min-width:0;color:var(--text)}
     .admin-push-banner button{padding:.35rem .65rem;font-size:.76rem;border-radius:8px}
     .admin-push-banner button.primary{background:#0f766e;border-color:#5eead4;color:#ecfeff}
+    .admin-push-status{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;padding:.4rem .55rem;margin-bottom:.45rem;border-radius:10px;background:rgba(148,163,184,.08);border:1px solid var(--border);font-size:.76rem}
+    .admin-push-status.hidden{display:none}
+    .admin-push-status-text{flex:1;min-width:0;color:var(--muted)}
+    .admin-push-status-action{padding:.28rem .55rem;font-size:.72rem;border-radius:8px}
     .global-search-wrap{position:relative;margin-top:.35rem}
     .global-search-results{display:flex;flex-direction:column;gap:.1rem;max-height:220px;overflow-y:auto;margin-top:.35rem}
     .global-search-results.hidden{display:none}
@@ -970,6 +974,10 @@
           <button type="button" id="adminPushEnableBtn" class="primary" data-aci18n="adminPushEnable">Aktivieren</button>
           <button type="button" id="adminPushDismissBtn" data-aci18n="adminPushDismiss" aria-label="Schließen">✕</button>
         </div>
+        <div id="adminPushStatus" class="admin-push-status hidden" role="status" aria-live="polite">
+          <span id="adminPushStatusText" class="admin-push-status-text"></span>
+          <button type="button" id="adminPushStatusAction" class="admin-push-status-action"></button>
+        </div>
         <input id="threadSearch" type="search" data-aci18n="searchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter oder Thema suchen" />
         <div class="global-search-wrap">
           <input id="globalChatSearch" type="search" data-aci18n="globalSearchPh" data-aci18n-attr="placeholder" placeholder="Nachrichten in allen Chats…" autocomplete="off" />
@@ -1160,22 +1168,22 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
-  <script src="/ops-realtime.js?v=20260715chat37"></script>
-  <script src="/chat-realtime.js?v=20260715chat37"></script>
-  <script src="/chat-gallery.js?v=20260715chat37"></script>
-  <script src="/chat-typing.js?v=20260715chat37"></script>
-  <script src="/chat-search.js?v=20260715chat37"></script>
-  <script src="/chat-location.js?v=20260715chat37"></script>
-  <script src="/chat-attach-sheet.js?v=20260715chat37"></script>
-  <script src="/chat-thread-prefs.js?v=20260715chat37"></script>
-  <script src="/chat-message-prefs.js?v=20260715chat37"></script>
-  <script src="/chat-message-menu.js?v=20260715chat37"></script>
-  <script src="/chat-admin-push.js?v=20260715chat37"></script>
-  <script src="/chat-global-notify.js?v=20260715chat37"></script>
-  <script src="/chat-offline-queue.js?v=20260715chat37"></script>
-  <script src="/chat-voice.js?v=20260715chat37"></script>
-  <script src="/chat-voice-call.js?v=20260715chat37"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260715chat37"></script>
+  <script src="/ops-realtime.js?v=20260715chat38"></script>
+  <script src="/chat-realtime.js?v=20260715chat38"></script>
+  <script src="/chat-gallery.js?v=20260715chat38"></script>
+  <script src="/chat-typing.js?v=20260715chat38"></script>
+  <script src="/chat-search.js?v=20260715chat38"></script>
+  <script src="/chat-location.js?v=20260715chat38"></script>
+  <script src="/chat-attach-sheet.js?v=20260715chat38"></script>
+  <script src="/chat-thread-prefs.js?v=20260715chat38"></script>
+  <script src="/chat-message-prefs.js?v=20260715chat38"></script>
+  <script src="/chat-message-menu.js?v=20260715chat38"></script>
+  <script src="/chat-admin-push.js?v=20260715chat38"></script>
+  <script src="/chat-global-notify.js?v=20260715chat38"></script>
+  <script src="/chat-offline-queue.js?v=20260715chat38"></script>
+  <script src="/chat-voice.js?v=20260715chat38"></script>
+  <script src="/chat-voice-call.js?v=20260715chat38"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260715chat38"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4252,7 +4260,21 @@
             denied: window.adminChatT("adminPushDenied"),
           },
         },
+        status: {
+          statusEl: document.getElementById("adminPushStatus"),
+          textEl: document.getElementById("adminPushStatusText"),
+          actionBtn: document.getElementById("adminPushStatusAction"),
+          labels: {
+            enabled: window.adminChatT("adminPushEnabled"),
+            disabled: window.adminChatT("adminPushDisabled"),
+            unsupported: window.adminChatT("adminPushUnsupported"),
+            denied: window.adminChatT("adminPushDenied"),
+            enable: window.adminChatT("adminPushEnable"),
+            unsubscribe: window.adminChatT("adminPushUnsubscribe"),
+          },
+        },
       });
+      void window.SUPPIXChatThreadPrefs?.hydrateFromServer?.({ api, companyId }).then(() => renderThreads());
       startThreadListPolling();
       startAdminChatRealtimeFeed();
       startAdminIncomingCallPoll();

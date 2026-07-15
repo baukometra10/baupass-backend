@@ -146,9 +146,98 @@ class ChatService:
                     self.db.execute("ALTER TABLE chat_attachments ADD COLUMN e2e_meta TEXT")
                 except Exception:
                     pass
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_thread_preferences (
+                    id TEXT PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    worker_id TEXT NOT NULL,
+                    pinned_at TEXT,
+                    muted INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(company_id, user_id, worker_id)
+                )
+                """
+            )
             self.db.commit()
         except Exception:
             pass
+
+    def list_thread_prefs(self, *, company_id: str, user_id: str) -> dict[str, Any]:
+        rows = self.db.execute(
+            """
+            SELECT worker_id, pinned_at, muted, updated_at
+            FROM chat_thread_preferences
+            WHERE company_id = ? AND user_id = ?
+            """,
+            (company_id, user_id),
+        ).fetchall()
+        prefs: dict[str, Any] = {}
+        for row in rows:
+            wid = str(row["worker_id"] or "").strip()
+            if not wid:
+                continue
+            prefs[wid] = {
+                "pinnedAt": row["pinned_at"],
+                "muted": bool(int(row["muted"] or 0)),
+                "updatedAt": row["updated_at"],
+            }
+        return prefs
+
+    def upsert_thread_pref(
+        self,
+        *,
+        company_id: str,
+        user_id: str,
+        worker_id: str,
+        pinned: bool | None = None,
+        muted: bool | None = None,
+    ) -> dict[str, Any]:
+        import secrets
+        from backend.server import now_iso
+
+        wid = str(worker_id or "").strip()
+        if not wid:
+            raise ValueError("worker_required")
+        now = now_iso()
+        existing = self.db.execute(
+            """
+            SELECT pinned_at, muted FROM chat_thread_preferences
+            WHERE company_id = ? AND user_id = ? AND worker_id = ?
+            """,
+            (company_id, user_id, wid),
+        ).fetchone()
+        pinned_at = existing["pinned_at"] if existing else None
+        muted_val = int(existing["muted"] or 0) if existing else 0
+        if pinned is True:
+            pinned_at = now
+        elif pinned is False:
+            pinned_at = None
+        if muted is True:
+            muted_val = 1
+        elif muted is False:
+            muted_val = 0
+        if existing:
+            self.db.execute(
+                """
+                UPDATE chat_thread_preferences
+                SET pinned_at = ?, muted = ?, updated_at = ?
+                WHERE company_id = ? AND user_id = ? AND worker_id = ?
+                """,
+                (pinned_at, muted_val, now, company_id, user_id, wid),
+            )
+        else:
+            self.db.execute(
+                """
+                INSERT INTO chat_thread_preferences
+                (id, company_id, user_id, worker_id, pinned_at, muted, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (f"ctp-{secrets.token_hex(8)}", company_id, user_id, wid, pinned_at, muted_val, now),
+            )
+        self.db.commit()
+        return {"workerId": wid, "pinnedAt": pinned_at, "muted": bool(muted_val), "updatedAt": now}
 
     def list_threads(self, company_id: str, *, worker_id: str | None = None) -> list[dict[str, Any]]:
         params: list[Any] = [company_id]

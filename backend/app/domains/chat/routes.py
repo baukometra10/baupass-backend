@@ -245,6 +245,102 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         db.commit()
         return jsonify({"ok": True})
 
+    @chat_core_bp.get("/chat/push-status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_push_status():
+        user = getattr(g, "current_user", None) or {}
+        cid = str(request.args.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        db = get_db()
+        row = db.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM admin_push_subscriptions
+            WHERE user_id = ? AND company_id = ?
+            """,
+            (user_id, cid),
+        ).fetchone()
+        count = int((row["c"] if row else 0) or 0)
+        return jsonify({"ok": True, "subscribed": count > 0, "subscriptionCount": count})
+
+    @chat_core_bp.post("/chat/push-unsubscribe")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_push_unsubscribe():
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        cid = str(data.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        endpoint = str(data.get("endpoint") or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        db = get_db()
+        if endpoint:
+            db.execute(
+                "DELETE FROM admin_push_subscriptions WHERE endpoint = ? AND user_id = ?",
+                (endpoint, user_id),
+            )
+        else:
+            db.execute(
+                "DELETE FROM admin_push_subscriptions WHERE user_id = ? AND company_id = ?",
+                (user_id, cid),
+            )
+        db.commit()
+        return jsonify({"ok": True})
+
+    @chat_core_bp.get("/chat/thread-prefs")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_thread_prefs_list():
+        user = getattr(g, "current_user", None) or {}
+        cid = str(request.args.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        service = ChatService(get_db())
+        service._ensure_schema()
+        prefs = service.list_thread_prefs(company_id=cid, user_id=user_id)
+        return jsonify({"ok": True, "prefs": prefs})
+
+    @chat_core_bp.put("/chat/thread-prefs/<worker_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_thread_prefs_upsert(worker_id: str):
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        cid = str(data.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        pinned = data.get("pinned")
+        muted = data.get("muted")
+        pinned_bool = None if pinned is None else bool(pinned)
+        muted_bool = None if muted is None else bool(muted)
+        service = ChatService(get_db())
+        service._ensure_schema()
+        try:
+            pref = service.upsert_thread_pref(
+                company_id=cid,
+                user_id=user_id,
+                worker_id=worker_id,
+                pinned=pinned_bool,
+                muted=muted_bool,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True, "pref": pref})
+
     @chat_core_bp.post("/chat/threads/<thread_id>/messages")
     @require_auth
     @require_roles("superadmin", "company-admin")

@@ -262,12 +262,18 @@ class ChatRepository {
     required String threadId,
     required String outbound,
     required bool e2eClientUnavailable,
+    String? replyToMessageId,
   }) {
+    final body = <String, dynamic>{'body': outbound};
+    final replyId = replyToMessageId?.trim() ?? '';
+    if (replyId.isNotEmpty) {
+      body['reply_to_message_id'] = replyId;
+    }
     return _api.postJson(
       '/api/worker-app/chat/threads/$threadId/messages',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
-      body: <String, dynamic>{'body': outbound},
+      body: body,
       extraHeaders: e2eClientUnavailable ? {'X-E2E-Client-Unavailable': '1'} : null,
     );
   }
@@ -276,6 +282,7 @@ class ChatRepository {
     required WorkerSession session,
     required String threadId,
     required String body,
+    String? replyToMessageId,
   }) async {
     await ensureE2eReady(session);
     final prepared = await _prepareOutboundBody(session, body);
@@ -285,6 +292,7 @@ class ChatRepository {
         threadId: threadId,
         outbound: prepared.outbound,
         e2eClientUnavailable: prepared.e2eClientUnavailable,
+        replyToMessageId: replyToMessageId,
       );
     } on ApiException catch (e) {
       if (e.errorCode == 'thread_not_found' || e.errorCode == 'chat_send_failed') {
@@ -295,6 +303,7 @@ class ChatRepository {
           threadId: freshThreadId,
           outbound: prepared.outbound,
           e2eClientUnavailable: prepared.e2eClientUnavailable,
+          replyToMessageId: replyToMessageId,
         );
       }
       rethrow;

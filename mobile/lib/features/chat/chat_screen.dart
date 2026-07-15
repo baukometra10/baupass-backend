@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
@@ -52,6 +52,10 @@ class _ChatScreenState extends State<ChatScreen> {
   List<Map<String, dynamic>> _messages = <Map<String, dynamic>>[];
   bool _silentRefresh = false;
   Timer? _pollTimer;
+  Map<String, dynamic>? _replyTo;
+  bool _searchOpen = false;
+  String _searchQuery = '';
+  final TextEditingController _search = TextEditingController();
 
   @override
   void initState() {
@@ -71,6 +75,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _voiceTicker?.cancel();
     _message.removeListener(_onComposeChanged);
     _message.dispose();
+    _search.dispose();
     if (_voiceComposing) {
       unawaited(_recorder.stop());
     }
@@ -110,18 +115,21 @@ class _ChatScreenState extends State<ChatScreen> {
     final threadId = _threadId;
     final body = _message.text.trim();
     if (threadId == null || body.isEmpty || _sending) return;
+    final replyId = (_replyTo?['id'] as String?)?.trim();
     setState(() => _sending = true);
     try {
       final res = await widget.chat.sendMessage(
         session: widget.session,
         threadId: threadId,
         body: body,
+        replyToMessageId: replyId,
       );
       _message.clear();
       final msg = Map<String, dynamic>.from(res['message'] as Map);
       if (!mounted) return;
       setState(() {
         _messages = [..._messages, msg];
+        _replyTo = null;
       });
       await _boot(silent: true);
     } on StateError catch (e) {
@@ -651,13 +659,153 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  List<Map<String, dynamic>> get _visibleMessages {
+    final q = _searchQuery.trim().toLowerCase();
+    if (q.isEmpty) return _messages;
+    return _messages.where((item) {
+      final body = (item['body'] as String? ?? '').toLowerCase();
+      final reply = item['replyTo'];
+      final replyBody = reply is Map ? (reply['body'] as String? ?? '').toLowerCase() : '';
+      return body.contains(q) || replyBody.contains(q);
+    }).toList();
+  }
+
+  String _messagePreview(Map<String, dynamic> item) {
+    final body = (item['body'] as String? ?? '').trim();
+    if (body.isNotEmpty) return body;
+    final attachments = (item['attachments'] as List?) ?? const [];
+    if (attachments.isNotEmpty) return 'Anhang';
+    return 'Nachricht';
+  }
+
+  void _setReplyTo(Map<String, dynamic> item) {
+    final id = (item['id'] as String?)?.trim() ?? '';
+    if (id.isEmpty) return;
+    setState(() {
+      _replyTo = {
+        'id': id,
+        'body': _messagePreview(item),
+        'senderType': item['senderType'] ?? item['sender_type'] ?? '',
+      };
+    });
+  }
+
+  Future<void> _showMessageActions(Map<String, dynamic> item) async {
+    final isWorker = _isWorkerMessage(item);
+    final id = (item['id'] as String?)?.trim() ?? '';
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Antworten'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _setReplyTo(item);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Kopieren'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await Clipboard.setData(ClipboardData(text: _messagePreview(item)));
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Kopiert')),
+                  );
+                },
+              ),
+              if (isWorker && id.isNotEmpty)
+                ListTile(
+                  leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
+                  title: Text('Löschen', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      await widget.chat.deleteMessage(widget.session, id);
+                      await _boot(silent: true);
+                    } catch (e) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
+                      );
+                    }
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildReplyQuote(Map<String, dynamic> item) {
+    final reply = item['replyTo'];
+    if (reply is! Map) return const SizedBox.shrink();
+    final who = (reply['senderType'] ?? reply['sender_type'] ?? '') == 'worker' ? 'Du' : 'Arbeitgeber';
+    final body = (reply['body'] as String? ?? '').trim();
+    if (body.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(left: BorderSide(color: Color(0xFF00A884), width: 3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(who, style: Theme.of(context).textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
+          Text(
+            body,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final branding = TenantBrandingScope.of(context);
+    final visible = _visibleMessages;
     return Scaffold(
       appBar: AppBar(
-        title: Text(branding.chatTitle),
+        title: _searchOpen
+            ? TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'In Unterhaltung suchen…',
+                  border: InputBorder.none,
+                ),
+                onChanged: (value) => setState(() => _searchQuery = value),
+              )
+            : Text(branding.chatTitle),
         actions: [
+          IconButton(
+            icon: Icon(_searchOpen ? Icons.close : Icons.search),
+            tooltip: 'Suchen',
+            onPressed: () {
+              setState(() {
+                _searchOpen = !_searchOpen;
+                if (!_searchOpen) {
+                  _search.clear();
+                  _searchQuery = '';
+                }
+              });
+            },
+          ),
           if (widget.voiceCall != null)
             IconButton(
               icon: const Icon(Icons.call_rounded),
@@ -684,13 +832,19 @@ class _ChatScreenState extends State<ChatScreen> {
           : Column(
               children: [
                 Expanded(
-                  child: _messages.isEmpty
-                      ? const Center(child: Text('Noch keine Nachrichten'))
+                  child: visible.isEmpty
+                      ? Center(
+                          child: Text(
+                            _searchQuery.trim().isEmpty
+                                ? 'Noch keine Nachrichten'
+                                : 'Keine Treffer',
+                          ),
+                        )
                       : ListView.builder(
                           padding: const EdgeInsets.all(16),
-                          itemCount: _messages.length,
+                          itemCount: visible.length,
                           itemBuilder: (context, index) {
-                            final item = _messages[index];
+                            final item = visible[index];
                             final isWorker = _isWorkerMessage(item);
                             final callLogRaw = _parseVoiceCallLog(item['body'] as String?);
                             final callLog = callLogRaw != null && _shouldShowCallLogToWorker(callLogRaw)
@@ -720,7 +874,9 @@ class _ChatScreenState extends State<ChatScreen> {
                                       constraints: BoxConstraints(
                                         maxWidth: MediaQuery.sizeOf(context).width * 0.78,
                                       ),
-                                      child: Container(
+                                      child: GestureDetector(
+                                        onLongPress: () => unawaited(_showMessageActions(item)),
+                                        child: Container(
                                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                                         decoration: BoxDecoration(
                                           color: isWorker
@@ -769,6 +925,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                     ),
                                               ),
                                             const SizedBox(height: 4),
+                                            _buildReplyQuote(item),
                                             if (callLog != null)
                                               _buildCallLogBubble(
                                                 callLog,
@@ -872,6 +1029,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           ],
                                         ),
                                       ),
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -880,6 +1038,27 @@ class _ChatScreenState extends State<ChatScreen> {
                           },
                         ),
                 ),
+                if (_replyTo != null && !_voiceComposing)
+                  Material(
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    child: ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.reply, size: 20),
+                      title: Text(
+                        _isWorkerMessage(_replyTo!) ? 'Antwort auf dich' : 'Antwort auf Arbeitgeber',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        (_replyTo!['body'] as String? ?? ''),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => setState(() => _replyTo = null),
+                      ),
+                    ),
+                  ),
                 if (_voiceComposing)
                   ChatVoiceComposeBar(
                     elapsed: _voiceElapsed,
