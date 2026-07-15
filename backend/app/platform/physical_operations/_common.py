@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -338,6 +339,77 @@ def geo_offset(lat: float, lng: float, seed: str) -> tuple[float, float]:
     )
 
 
+def parse_geofence_id_from_note(note: str | None) -> str:
+    match = re.search(r"geofenceId=([^\s;,|]+)", str(note or ""))
+    return str(match.group(1)).strip() if match else ""
+
+
+def parse_device_coords_from_note(note: str | None) -> dict[str, float] | None:
+    text = str(note or "")
+    lat_match = re.search(r"deviceLat=(-?\d+(?:\.\d+)?)", text)
+    lng_match = re.search(r"deviceLng=(-?\d+(?:\.\d+)?)", text)
+    if not lat_match or not lng_match:
+        return None
+    try:
+        lat = float(lat_match.group(1))
+        lng = float(lng_match.group(1))
+    except (TypeError, ValueError):
+        return None
+    if is_usable_map_coordinate(lat, lng):
+        return {"lat": lat, "lng": lng}
+    return None
+
+
+def is_usable_map_coordinate(lat: Any, lng: Any) -> bool:
+    try:
+        la = float(lat)
+        ln = float(lng)
+    except (TypeError, ValueError):
+        return False
+    if not (-90.0 <= la <= 90.0 and -180.0 <= ln <= 180.0):
+        return False
+    # Reject unset DB defaults and "null island".
+    if abs(la) < 0.0001 and abs(ln) < 0.0001:
+        return False
+    return True
+
+
+def geofence_by_id(db, company_id: str, geofence_id: str) -> dict[str, Any] | None:
+    gid = str(geofence_id or "").strip()
+    cid = _cid_param(company_id)
+    if not gid or not cid:
+        return None
+    try:
+        row = db.execute(
+            """
+            SELECT id, site_name, latitude, longitude, radius_meters
+            FROM geofences
+            WHERE company_id = ? AND id = ? AND active = 1
+            LIMIT 1
+            """,
+            (cid, gid),
+        ).fetchone()
+        return dict(row) if row else None
+    except Exception:
+        return None
+
+
+def _match_geofence_site(idx: dict[str, dict[str, Any]], site_label: str) -> dict[str, Any] | None:
+    key = str(site_label or "").strip()
+    if not key or not idx:
+        return None
+    if key in idx:
+        return idx[key]
+    folded = key.casefold()
+    for name, zone in idx.items():
+        name_folded = str(name or "").casefold()
+        if not name_folded:
+            continue
+        if name_folded == folded or name_folded in folded or folded in name_folded:
+            return zone
+    return None
+
+
 def geofence_site_index(db, company_id: str) -> dict[str, dict[str, Any]]:
     cid = _cid_param(company_id)
     out: dict[str, dict[str, Any]] = {}
@@ -365,30 +437,46 @@ def resolve_map_coordinates(
     lat: Any = None,
     lng: Any = None,
     site: str = "",
+    geofence_id: str = "",
+    access_note: str = "",
     seed: str = "",
 ) -> dict[str, float] | None:
-    """Real lat/lng from worker site, geofence name, or company geofences — no synthetic grid."""
-    try:
-        if lat is not None and lng is not None:
-            la, ln = float(lat), float(lng)
+    """Real lat/lng from device GPS note, geofence, worker site, or company geofences."""
+    device_coords = parse_device_coords_from_note(access_note)
+    if device_coords:
+        la, ln = device_coords["lat"], device_coords["lng"]
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+
+    if is_usable_map_coordinate(lat, lng):
+        la, ln = float(lat), float(lng)
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+
+    zone = geofence_by_id(db, company_id, geofence_id)
+    if zone and is_usable_map_coordinate(zone.get("latitude"), zone.get("longitude")):
+        la, ln = float(zone["latitude"]), float(zone["longitude"])
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+
+    idx = geofence_site_index(db, company_id)
+    matched = _match_geofence_site(idx, site)
+    if matched and is_usable_map_coordinate(matched.get("latitude"), matched.get("longitude")):
+        la, ln = float(matched["latitude"]), float(matched["longitude"])
+        if seed:
+            la, ln = geo_offset(la, ln, seed)
+        return {"lat": la, "lng": ln}
+
+    if idx:
+        first = next(iter(idx.values()))
+        if is_usable_map_coordinate(first.get("latitude"), first.get("longitude")):
+            la, ln = float(first["latitude"]), float(first["longitude"])
             if seed:
                 la, ln = geo_offset(la, ln, seed)
             return {"lat": la, "lng": ln}
-    except (TypeError, ValueError):
-        pass
-    idx = geofence_site_index(db, company_id)
-    site_key = (site or "").strip()
-    if site_key and site_key in idx:
-        la, ln = float(idx[site_key]["latitude"]), float(idx[site_key]["longitude"])
-        if seed:
-            la, ln = geo_offset(la, ln, seed)
-        return {"lat": la, "lng": ln}
-    if idx:
-        first = next(iter(idx.values()))
-        la, ln = float(first["latitude"]), float(first["longitude"])
-        if seed:
-            la, ln = geo_offset(la, ln, seed)
-        return {"lat": la, "lng": ln}
     return None
 
 
@@ -401,10 +489,11 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
         SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                w.site_latitude, w.site_longitude,
                COALESCE(latest.gate, '') AS gate,
-               COALESCE(latest.timestamp, '') AS last_access
+               COALESCE(latest.timestamp, '') AS last_access,
+               COALESCE(latest.note, '') AS last_note
         FROM workers w
         LEFT JOIN (
-            SELECT al.worker_id, al.direction, al.gate, al.timestamp
+            SELECT al.worker_id, al.direction, al.gate, al.timestamp, al.note
             FROM access_logs al
             WHERE al.timestamp LIKE ?
               AND al.timestamp = (

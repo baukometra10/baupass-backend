@@ -3,7 +3,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from ._common import geofence_site_index, list_on_site_workers, resolve_map_coordinates, today_prefix
+from ._common import (
+    geofence_site_index,
+    list_on_site_workers,
+    parse_geofence_id_from_note,
+    resolve_map_coordinates,
+    today_prefix,
+)
 
 
 def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
@@ -27,12 +33,15 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
 
     workers: list[dict[str, Any]] = []
     for w in list_on_site_workers(db, cid, today):
+        last_note = str(w.get("last_note") or "")
         coords = resolve_map_coordinates(
             db,
             cid,
             lat=w.get("site_latitude"),
             lng=w.get("site_longitude"),
             site=str(w.get("site") or ""),
+            geofence_id=parse_geofence_id_from_note(last_note),
+            access_note=last_note,
             seed=str(w.get("id") or ""),
         )
         if not coords:
@@ -66,6 +75,16 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         for r in rows:
             gate = r["gate"] or "Gate"
             coords = resolve_map_coordinates(db, cid, site=gate, seed=gate)
+            if not coords and geofences:
+                anchor = geofences[0]
+                if anchor.get("latitude") is not None and anchor.get("longitude") is not None:
+                    coords = resolve_map_coordinates(
+                        db,
+                        cid,
+                        lat=anchor.get("latitude"),
+                        lng=anchor.get("longitude"),
+                        seed=gate,
+                    )
             if not coords:
                 continue
             gates.append(

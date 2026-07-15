@@ -11857,15 +11857,27 @@ def _parse_geofence_id_from_note(note):
     return str(match.group(1)).strip() if match else ""
 
 
-def _append_geofence_id_to_note(note, geofence_id):
+def _append_geofence_id_to_note(note, geofence_id, measured=None):
     base = str(note or "").strip()
     geofence_id = str(geofence_id or "").strip()
-    if not geofence_id:
-        return base
-    if _parse_geofence_id_from_note(base) == geofence_id:
-        return base
-    suffix = f"geofenceId={geofence_id}"
-    return f"{base} | {suffix}" if base else suffix
+    if geofence_id:
+        if _parse_geofence_id_from_note(base) != geofence_id:
+            suffix = f"geofenceId={geofence_id}"
+            base = f"{base} | {suffix}" if base else suffix
+    if isinstance(measured, dict):
+        device_lat = measured.get("deviceLatitude")
+        device_lng = measured.get("deviceLongitude")
+        if device_lat is not None and device_lng is not None:
+            try:
+                la = float(device_lat)
+                ln = float(device_lng)
+                if abs(la) > 0.0001 or abs(ln) > 0.0001:
+                    coord_suffix = f"deviceLat={la:.6f};deviceLng={ln:.6f}"
+                    if coord_suffix not in base:
+                        base = f"{base} | {coord_suffix}" if base else coord_suffix
+            except (TypeError, ValueError):
+                pass
+    return base
 
 
 def _get_active_checkin_geofence_id(db, worker_id):
@@ -12106,7 +12118,7 @@ def worker_has_site_app_login_today(db, worker_id):
     return bool(row)
 
 
-def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung", geofence_id=None):
+def record_site_app_login_activity(db, worker, *, note="Automatische Standort-Anmeldung", geofence_id=None, measured=None):
     """Visible in admin recent access and dashboard on-site counts."""
     if worker_auto_attendance_blocked_today(db, worker["id"]):
         return None
@@ -12114,7 +12126,7 @@ def record_site_app_login_activity(db, worker, *, note="Automatische Standort-An
         return None
     if worker_has_open_site_app_session_today(db, worker["id"]):
         return None
-    note = _append_geofence_id_to_note(note, geofence_id)
+    note = _append_geofence_id_to_note(note, geofence_id, measured=measured)
     log_id = create_access_log_entry(
         db,
         worker["id"],
@@ -13719,6 +13731,7 @@ def worker_app_login():
                     worker,
                     note="Manuelle Anmeldung am Standort",
                     geofence_id=geofence_id,
+                    measured=measured,
                 )
         if checkin_log_id:
             session_data["autoCheckInLogId"] = checkin_log_id
@@ -13822,12 +13835,14 @@ def worker_app_proximity_login():
                 pass
         checkin_log_id = None
         geofence_id = None
+        measured = None
         location = payload.get("location") if isinstance(payload.get("location"), dict) else None
         if location:
             try:
                 measured = measure_worker_site_distance(db, worker, location)
                 geofence_id = (measured or {}).get("geofenceId")
             except (ValueError, PermissionError):
+                measured = None
                 geofence_id = None
         checkin_log_id = maybe_site_app_auto_checkin(
             db, worker, via_proximity=True, geofence_id=geofence_id
@@ -13840,6 +13855,7 @@ def worker_app_proximity_login():
                 worker,
                 note="Standort-Auto-Login (ohne Einstempeln)",
                 geofence_id=geofence_id,
+                measured=measured,
             )
             if login_log_id:
                 session_data["siteLoginLogId"] = login_log_id
@@ -14178,6 +14194,7 @@ def worker_app_site_presence():
                         worker,
                         note="Standort erkannt (GPS)",
                         geofence_id=geofence_id,
+                        measured=measured,
                     )
                 else:
                     attendance_blocked = {

@@ -321,8 +321,10 @@
             feedEl: null,
             onMode: (mode) => {
               const st = document.getElementById("status");
-              if (st && !st.textContent.includes("websocket") && !st.textContent.includes("sse")) {
-                st.textContent += ` · ${mode}`;
+              if (!st || !mode) return;
+              const base = st.textContent.split(" · ")[0].trim();
+              if (mode === "websocket" || mode === "sse") {
+                st.textContent = `${base} · ${mode}`;
               }
             },
             onEvent: () => load().catch(() => {}),
