@@ -160,6 +160,33 @@ class ChatService:
                 )
                 """
             )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_message_preferences (
+                    id TEXT PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    thread_id TEXT NOT NULL,
+                    message_id TEXT NOT NULL,
+                    pinned_at TEXT,
+                    starred INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(company_id, user_id, thread_id, message_id)
+                )
+                """
+            )
+            self.db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chat_attachment_views (
+                    id TEXT PRIMARY KEY,
+                    attachment_id TEXT NOT NULL,
+                    viewer_type TEXT NOT NULL,
+                    viewer_id TEXT NOT NULL,
+                    consumed_at TEXT NOT NULL,
+                    UNIQUE(attachment_id, viewer_type, viewer_id)
+                )
+                """
+            )
             self.db.commit()
         except Exception:
             pass
@@ -238,6 +265,131 @@ class ChatService:
             )
         self.db.commit()
         return {"workerId": wid, "pinnedAt": pinned_at, "muted": bool(muted_val), "updatedAt": now}
+
+    def list_message_prefs(self, *, company_id: str, user_id: str, thread_id: str) -> dict[str, Any]:
+        rows = self.db.execute(
+            """
+            SELECT message_id, pinned_at, starred, updated_at
+            FROM chat_message_preferences
+            WHERE company_id = ? AND user_id = ? AND thread_id = ?
+            """,
+            (company_id, user_id, thread_id),
+        ).fetchall()
+        prefs: dict[str, Any] = {}
+        for row in rows:
+            mid = str(row["message_id"] or "").strip()
+            if not mid:
+                continue
+            prefs[mid] = {
+                "pinnedAt": row["pinned_at"],
+                "starred": bool(int(row["starred"] or 0)),
+                "updatedAt": row["updated_at"],
+            }
+        return prefs
+
+    def upsert_message_pref(
+        self,
+        *,
+        company_id: str,
+        user_id: str,
+        thread_id: str,
+        message_id: str,
+        pinned: bool | None = None,
+        starred: bool | None = None,
+    ) -> dict[str, Any]:
+        import secrets
+        from backend.server import now_iso
+
+        mid = str(message_id or "").strip()
+        tid = str(thread_id or "").strip()
+        if not mid or not tid:
+            raise ValueError("message_required")
+        now = now_iso()
+        existing = self.db.execute(
+            """
+            SELECT pinned_at, starred FROM chat_message_preferences
+            WHERE company_id = ? AND user_id = ? AND thread_id = ? AND message_id = ?
+            """,
+            (company_id, user_id, tid, mid),
+        ).fetchone()
+        pinned_at = existing["pinned_at"] if existing else None
+        starred_val = int(existing["starred"] or 0) if existing else 0
+        if pinned is True:
+            pinned_at = now
+        elif pinned is False:
+            pinned_at = None
+        if starred is True:
+            starred_val = 1
+        elif starred is False:
+            starred_val = 0
+        if existing:
+            self.db.execute(
+                """
+                UPDATE chat_message_preferences
+                SET pinned_at = ?, starred = ?, updated_at = ?
+                WHERE company_id = ? AND user_id = ? AND thread_id = ? AND message_id = ?
+                """,
+                (pinned_at, starred_val, now, company_id, user_id, tid, mid),
+            )
+        else:
+            self.db.execute(
+                """
+                INSERT INTO chat_message_preferences
+                (id, company_id, user_id, thread_id, message_id, pinned_at, starred, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (f"cmp-{secrets.token_hex(8)}", company_id, user_id, tid, mid, pinned_at, starred_val, now),
+            )
+        self.db.commit()
+        return {"messageId": mid, "threadId": tid, "pinnedAt": pinned_at, "starred": bool(starred_val), "updatedAt": now}
+
+    @staticmethod
+    def attachment_is_view_once(e2e_meta: Any = None, filename: Any = None) -> bool:
+        meta = str(e2e_meta or "")
+        if '"viewOnce":true' in meta.replace(" ", "") or "'viewOnce':true" in meta.replace(" ", ""):
+            return True
+        try:
+            import json
+            parsed = json.loads(meta) if meta.strip().startswith("{") else {}
+            if isinstance(parsed, dict) and parsed.get("viewOnce"):
+                return True
+        except Exception:
+            pass
+        return "viewonce" in str(filename or "").lower()
+
+    def attachment_view_consumed(self, *, attachment_id: str, viewer_type: str, viewer_id: str) -> bool:
+        row = self.db.execute(
+            """
+            SELECT id FROM chat_attachment_views
+            WHERE attachment_id = ? AND viewer_type = ? AND viewer_id = ?
+            """,
+            (attachment_id, viewer_type, viewer_id),
+        ).fetchone()
+        return bool(row)
+
+    def mark_attachment_view_consumed(self, *, attachment_id: str, viewer_type: str, viewer_id: str) -> dict[str, Any]:
+        import secrets
+        from backend.server import now_iso
+
+        now = now_iso()
+        existing = self.db.execute(
+            """
+            SELECT id, consumed_at FROM chat_attachment_views
+            WHERE attachment_id = ? AND viewer_type = ? AND viewer_id = ?
+            """,
+            (attachment_id, viewer_type, viewer_id),
+        ).fetchone()
+        if existing:
+            return {"attachmentId": attachment_id, "consumedAt": existing["consumed_at"], "already": True}
+        self.db.execute(
+            """
+            INSERT INTO chat_attachment_views (id, attachment_id, viewer_type, viewer_id, consumed_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (f"cav-{secrets.token_hex(8)}", attachment_id, viewer_type, viewer_id, now),
+        )
+        self.db.commit()
+        return {"attachmentId": attachment_id, "consumedAt": now, "already": False}
 
     def list_threads(self, company_id: str, *, worker_id: str | None = None) -> list[dict[str, Any]]:
         params: list[Any] = [company_id]

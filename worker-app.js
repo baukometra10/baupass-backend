@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260715chat35";
+const WORKER_BUILD_TAG = "20260715chat39";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3596,7 +3596,25 @@ async function downloadWorkerChatAudioBlob(attachmentId) {
 function hydrateWorkerChatAudioPlayers() {
   window.SUPPIXChatVoice?.hydrateAudioPlayers?.(elements.workerChatMessages, {
     downloadFn: async (attachmentId) => downloadWorkerChatAudioBlob(attachmentId),
-    onError: (error) => showWorkerNotice(formatWorkerApiError(error)),
+    consumeFn: async (attachmentId) => {
+      try {
+        await api(`/api/worker-app/chat/attachments/${encodeURIComponent(attachmentId)}/consume`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+      } catch {
+        /* download path already enforces */
+      }
+    },
+    onError: (error) => {
+      const raw = String(error?.message || error || "");
+      if (raw === "view_once_consumed" || /view_once_consumed|bereits gehört/i.test(raw)) {
+        showWorkerNotice(t("chatVoiceViewOnceConsumed") || "Einmal-Sprachnachricht bereits gehört.");
+        return;
+      }
+      showWorkerNotice(formatWorkerApiError(error));
+    },
   });
 }
 

@@ -1404,7 +1404,7 @@
     });
   }
 
-  async function toggleVoicePlayback(player, { downloadFn, onError } = {}) {
+  async function toggleVoicePlayback(player, { downloadFn, consumeFn, onError } = {}) {
     const playBtn = player.querySelector(".chat-voice-play");
     const progressWave = player.querySelector(".chat-voice-wave");
     const durationEl = player.querySelector(".chat-voice-duration");
@@ -1487,6 +1487,9 @@
           } catch {
             /* ignore */
           }
+          if (typeof consumeFn === "function") {
+            void Promise.resolve(consumeFn(attachmentId)).catch(() => {});
+          }
         }
         activeAudio = null;
         activePlayer = null;
@@ -1526,7 +1529,7 @@
     });
   }
 
-  function hydrateAudioPlayers(root, { downloadFn, onError } = {}) {
+  function hydrateAudioPlayers(root, { downloadFn, consumeFn, onError } = {}) {
     if (!root || typeof downloadFn !== "function") return;
     root.querySelectorAll(".chat-voice-note:not([data-audio-bound])").forEach((player) => {
       player.dataset.audioBound = "1";
@@ -1535,7 +1538,7 @@
       const handler = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        void toggleVoicePlayback(player, { downloadFn, onError });
+        void toggleVoicePlayback(player, { downloadFn, consumeFn, onError });
       };
       playBtn.addEventListener("click", handler);
       playBtn.addEventListener("dblclick", (event) => {
@@ -1562,7 +1565,7 @@
         playBtn.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
-          void toggleVoicePlayback(player, { downloadFn, onError });
+          void toggleVoicePlayback(player, { downloadFn, consumeFn, onError });
         });
       }
     });

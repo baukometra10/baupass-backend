@@ -379,18 +379,38 @@ class ChatRepository {
     String? e2eMeta,
     String? filename,
   }) async {
-    final bytes = await _api.getBytes(
-      '/api/worker-app/chat/attachments/$attachmentId/download',
+    try {
+      final bytes = await _api.getBytes(
+        '/api/worker-app/chat/attachments/$attachmentId/download',
+        bearerToken: session.bearer,
+        deviceId: session.deviceId,
+      );
+      final workerId = _workerId ?? '';
+      final meta = e2eMeta ?? '';
+      if (workerId.isNotEmpty && meta.isNotEmpty) {
+        final clear = await _e2e.decryptBlob(bytes, meta, 'worker', workerId);
+        return clear.bytes;
+      }
+      return bytes;
+    } on ApiException catch (e) {
+      if (e.statusCode == 410) {
+        throw ApiException(410, 'view_once_consumed', e.message ?? 'Bereits gehört');
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> consumeAttachment({
+    required WorkerSession session,
+    required String attachmentId,
+  }) async {
+    if (attachmentId.trim().isEmpty) return;
+    await _api.postJson(
+      '/api/worker-app/chat/attachments/$attachmentId/consume',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
+      body: const <String, dynamic>{},
     );
-    final workerId = _workerId ?? '';
-    final meta = e2eMeta ?? '';
-    if (workerId.isNotEmpty && meta.isNotEmpty) {
-      final clear = await _e2e.decryptBlob(bytes, meta, 'worker', workerId);
-      return clear.bytes;
-    }
-    return bytes;
   }
 
   VoiceCallRepository? _voiceCalls;

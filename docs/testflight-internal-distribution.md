@@ -83,11 +83,12 @@ BAUPASS_TESTFLIGHT_URL=https://testflight.apple.com/join/XXXXXXXX
 
 ---
 
-## CI: iOS build (manual secrets)
+## CI: iOS build
 
-Workflow `.github/workflows/flutter-worker-ios.yml` builds an **unsigned** `Runner.app` zip on macOS runners.
+- **Unsigned** zip: `.github/workflows/flutter-worker-ios.yml` → artifact `baupass-worker-ios-unsigned`.
+- **Signed TestFlight IPA**: `.github/workflows/ios-testflight.yml` (manual or push to `mobile/**`).
 
-For a **signed TestFlight IPA** you need GitHub secrets (manual `workflow_dispatch` recommended):
+### Secrets for signed upload
 
 | Secret | Purpose |
 |--------|---------|
@@ -97,8 +98,11 @@ For a **signed TestFlight IPA** you need GitHub secrets (manual `workflow_dispat
 | `IOS_DISTRIBUTION_CERT_P12_BASE64` | Base64 of distribution `.p12` |
 | `IOS_DISTRIBUTION_CERT_PASSWORD` | `.p12` password |
 | `IOS_PROVISIONING_PROFILE_BASE64` | Base64 of App Store provisioning profile |
+| `IOS_TEAM_ID` | Optional Apple Team ID for Xcode project |
 
-Until those are configured, use local signing:
+If any required secret is missing, the TestFlight job **skips** (unsigned workflow still builds).
+
+Until secrets are configured, use local signing:
 
 ```bash
 cd mobile
@@ -108,8 +112,6 @@ flutter build ipa --release \
 ```
 
 Upload `build/ios/ipa/*.ipa` via **Transporter** or Xcode Organizer.
-
-Planned follow-up: dedicated `ios-testflight.yml` that builds + uploads with `xcrun altool` / `notary`-style ASC API when secrets exist.
 
 ---
 
@@ -123,8 +125,9 @@ Planned follow-up: dedicated `ios-testflight.yml` that builds + uploads with `xc
 | **0.1.10+30** | Call event wake, voice bubble UX, MIME tests |
 | **0.1.10+31** | True inline voice playback (`just_audio`) |
 | **0.1.11+32** | Flutter reply / long-press menu / in-thread search |
+| **0.1.12+33** | View-once voice hard enforce; admin call screen polish |
 
-Current `mobile/pubspec.yaml` target: **0.1.11+32**.
+Current `mobile/pubspec.yaml` target: **0.1.12+33**.
 
 ---
 
@@ -167,7 +170,7 @@ Upload `build/ios/ipa/*.ipa` via **Transporter** or Xcode Organizer.
 
 ### If CallKit does not appear
 
-- Confirm TestFlight build = `0.1.11+32` (or newer).
+- Confirm TestFlight build = `0.1.12+33` (or newer).
 - iOS **Settings → WorkPass Worker → Notifications** + Microphone.
 - CallKit needs a **new native IPA** (PWA-only deploys are not enough).
 

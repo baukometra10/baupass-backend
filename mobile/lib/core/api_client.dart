@@ -266,6 +266,14 @@ class ApiClient {
       throw ApiException(0, 'network_error', e.toString());
     }
     if (response.statusCode >= 400) {
+      try {
+        final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+        if (decoded is Map<String, dynamic>) {
+          throw _apiException(response.statusCode, decoded, path);
+        }
+      } catch (e) {
+        if (e is ApiException) rethrow;
+      }
       throw ApiException(response.statusCode, 'http_${response.statusCode}');
     }
     return Uint8List.fromList(response.bodyBytes);

@@ -1,29 +1,19 @@
 # Chat follow-up tracks
 
-Status after admin Phase 1/2 (`chat36`/`chat37`) and multi-track sprint (`chat38` + Flutter `0.1.11+32`).
+Status after sprint `chat39` + Flutter `0.1.12+33` (admin call UI, view-once hard enforce, message pins, WebRTC E2E, TestFlight CI).
 
-## Done in this sprint
+## Done
 
 - Admin push status bar + activate/deactivate (`GET /api/chat/push-status`, `POST /api/chat/push-unsubscribe`)
 - Server-backed thread pin/mute (`GET/PUT /api/chat/thread-prefs`) with localStorage fallback
+- Server-backed per-message pin/star (`GET/PUT /api/chat/message-prefs`) with local fallback + admin hydrate on thread open
 - Flutter reply quotes, long-press menu (reply/copy/delete), in-conversation search
-- TestFlight docs: signing secret matrix + build `0.1.11+32`
+- Admin Anrufbildschirm: WA-style round controls, ring elapsed timer, connecting/unreachable states, missed outbound → „Nicht erreicht“
+- View-once voice: consume table + download 410; admin/worker `consumeFn`; Flutter clear-cache + block replay
+- WebRTC browser smoke: `tests/e2e/chat-calls.spec.js` (mocked getUserMedia/RTCPeerConnection + chat APIs)
+- Signed TestFlight workflow: `.github/workflows/ios-testflight.yml` (skips until ASC/signing secrets exist)
 
-## Still open
+## Optional next
 
-### WebRTC / calls E2E
-Backend unit coverage lives in `backend/tests/test_voice_calls.py`.
-Browser smoke is still missing. Preferred next step:
-
-- Add `tests/e2e/chat-calls.spec.js`
-- Mock `navigator.mediaDevices.getUserMedia` and `RTCPeerConnection`
-- Assert admin dial UI opens and worker accept/end overlays render without real media
-
-### View-once voice (native hard enforce)
-Soft flags exist on upload; Flutter/admin still need strict one-play + revoke semantics end-to-end.
-
-### Signed TestFlight CI
-Unsigned iOS zip already builds. Remaining work is wiring ASC API/cert secrets into a dedicated workflow and uploading IPA.
-
-### Message-level server pins
-Thread prefs are server-backed now. Per-message pin/star prefs remain client-local in `chat-message-prefs.js`.
+- Worker-side message-prefs API sync (admin sync is live; worker still primarily local)
+- Physical-device TestFlight QA checklist in `docs/testflight-internal-distribution.md`

@@ -1,0 +1,182 @@
+# Signed IPA → App Store Connect / TestFlight (secrets-gated).
+# Runs only when ASC + signing secrets are configured; otherwise the job is skipped.
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/ios-testflight.yml"
+
+jobs:
+  testflight:
+    runs-on: macos-latest
+    env:
+      ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      ASC_KEY_P8: ${{ secrets.APP_STORE_CONNECT_API_KEY_P8 }}
+      IOS_CERT_P12: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
+      IOS_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
+      IOS_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+      API_URL: https://baupass-production.up.railway.app
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          missing=0
+          for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 IOS_CERT_P12 IOS_CERT_PASSWORD IOS_PROFILE; do
+            val="${!name}"
+            if [ -z "$val" ]; then
+              echo "::warning::$name is not set"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## iOS TestFlight skipped"
+              echo ""
+              echo "Configure secrets listed in \`docs/testflight-internal-distribution.md\`,"
+              echo "then re-run this workflow."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: subosito/flutter-action@v2
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Complete Flutter platform scaffolding
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: |
+          rm -rf ios
+          flutter create . --org com.baupass --project-name worker
+
+      - name: Restore native customizations
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          git checkout HEAD -- \
+            mobile/ios/Runner/AppDelegate.swift \
+            mobile/ios/Runner/Info.plist \
+            mobile/ios/Runner/GoogleService-Info.plist \
+            mobile/ios/Runner/Runner.entitlements \
+            mobile/lib/firebase_bootstrap.dart \
+            mobile/lib/services/push_foreground_listener.dart \
+            mobile/lib/services/push_navigation.dart \
+            mobile/lib/services/push_notification_service.dart \
+            mobile/lib/features/auth/login_screen.dart \
+            mobile/lib/app.dart \
+            mobile/pubspec.yaml \
+            mobile/test/widget_test.dart
+
+      - name: Apply NFC entitlements to Xcode project
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: |
+          gem install xcodeproj --no-document
+          ruby <<'RUBY'
+          require 'xcodeproj'
+          project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
+          target = project.targets.find { |t| t.name == 'Runner' }
+          raise 'Runner target not found' unless target
+          target.build_configurations.each do |config|
+            config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+            config.build_settings['CODE_SIGN_STYLE'] = 'Manual'
+            config.build_settings['DEVELOPMENT_TEAM'] = ENV['IOS_TEAM_ID'] if ENV['IOS_TEAM_ID'] && !ENV['IOS_TEAM_ID'].empty?
+          end
+          project.save
+          puts 'Runner.entitlements linked'
+          RUBY
+
+      - name: Import signing assets
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          CERT_PATH="$RUNNER_TEMP/dist.p12"
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$IOS_CERT_P12" | base64 --decode > "$CERT_PATH"
+          echo "$IOS_PROFILE" | base64 --decode > "$PROFILE_PATH"
+          security import "$CERT_PATH" -P "$IOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          PROFILE_UUID="$(/usr/libexec/PlistBuddy -c 'Print UUID' /dev/stdin <<< "$(security cms -D -i "$PROFILE_PATH")")"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/${PROFILE_UUID}.mobileprovision"
+          echo "PROFILE_UUID=$PROFILE_UUID" >> "$GITHUB_ENV"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8"
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
+
+      - name: Resolve dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze Dart
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: flutter analyze --no-fatal-infos
+
+      - name: Build signed IPA
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: |
+          set -o pipefail
+          flutter build ipa --release \
+            --dart-define=BAUPASS_API_URL="$API_URL" \
+            --export-options-plist=ios/ExportOptions.plist 2>&1 | tee build-ipa.log || {
+            # Fallback without custom export options (uses automatic export when profile is present)
+            flutter build ipa --release \
+              --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee -a build-ipa.log
+          }
+
+      - name: Upload IPA artifact
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: baupass-worker-ios-ipa
+          path: mobile/build/ios/ipa/*.ipa
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload to App Store Connect
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          IPA="$(ls mobile/build/ios/ipa/*.ipa | head -n 1)"
+          xcrun altool --upload-app \
+            --type ios \
+            --file "$IPA" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Job summary
+        if: steps.secrets.outputs.ready == 'true' && success()
+        run: |
+          {
+            echo "## WorkPass Worker → TestFlight"
+            echo ""
+            echo "- Signed IPA uploaded via App Store Connect API"
+            echo "- Check TestFlight processing in App Store Connect"
+            echo "- Build target: see \`mobile/pubspec.yaml\`"
+          } >> "$GITHUB_STEP_SUMMARY"

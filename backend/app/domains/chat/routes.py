@@ -341,6 +341,77 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"ok": True, "pref": pref})
 
+    @chat_core_bp.get("/chat/message-prefs")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_message_prefs_list():
+        user = getattr(g, "current_user", None) or {}
+        cid = str(request.args.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        thread_id = str(request.args.get("thread_id") or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id or not thread_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        service = ChatService(get_db())
+        service._ensure_schema()
+        prefs = service.list_message_prefs(company_id=cid, user_id=user_id, thread_id=thread_id)
+        return jsonify({"ok": True, "prefs": prefs})
+
+    @chat_core_bp.put("/chat/message-prefs/<message_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_message_prefs_upsert(message_id: str):
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        cid = str(data.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
+        thread_id = str(data.get("thread_id") or data.get("threadId") or "").strip()
+        user_id = str(user.get("id") or "").strip()
+        if not cid or not user_id or not thread_id:
+            return jsonify({"error": "missing_fields"}), 400
+        if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
+            return jsonify({"error": "forbidden"}), 403
+        pinned = data.get("pinned")
+        starred = data.get("starred")
+        service = ChatService(get_db())
+        service._ensure_schema()
+        try:
+            pref = service.upsert_message_pref(
+                company_id=cid,
+                user_id=user_id,
+                thread_id=thread_id,
+                message_id=message_id,
+                pinned=None if pinned is None else bool(pinned),
+                starred=None if starred is None else bool(starred),
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True, "pref": pref})
+
+    @chat_core_bp.post("/chat/attachments/<attachment_id>/consume")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_attachment_consume(attachment_id: str):
+        user = getattr(g, "current_user", None) or {}
+        user_id = str(user.get("id") or "").strip()
+        row = get_db().execute(
+            "SELECT id, company_id, e2e_meta, filename FROM chat_attachments WHERE id = ?",
+            (attachment_id,),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "attachment_not_found"}), 404
+        if not _admin_can_access_company(str(row["company_id"] or "")):
+            return jsonify({"error": "attachment_not_found"}), 404
+        service = ChatService(get_db())
+        service._ensure_schema()
+        result = service.mark_attachment_view_consumed(
+            attachment_id=attachment_id,
+            viewer_type="admin",
+            viewer_id=user_id or "admin",
+        )
+        return jsonify({"ok": True, **result})
+
     @chat_core_bp.post("/chat/threads/<thread_id>/messages")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -476,8 +547,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("worker_chat")
     def download_chat_attachment(attachment_id: str):
+        user = getattr(g, "current_user", None) or {}
+        user_id = str(user.get("id") or "").strip()
         row = get_db().execute(
-            "SELECT filename, content_type, file_path, company_id, worker_id FROM chat_attachments WHERE id = ?",
+            "SELECT filename, content_type, file_path, company_id, worker_id, e2e_meta, message_id FROM chat_attachments WHERE id = ?",
             (attachment_id,),
         ).fetchone()
         if not row:
@@ -485,7 +558,25 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         attachment_company_id = str(row["company_id"] or "")
         if not _admin_can_access_company(attachment_company_id):
             return jsonify({"error": "attachment_not_found"}), 404
-        file_path = ChatService(get_db()).resolve_attachment_path(row)
+        service = ChatService(get_db())
+        service._ensure_schema()
+        e2e_meta = row["e2e_meta"] if "e2e_meta" in row.keys() else ""
+        if service.attachment_is_view_once(e2e_meta, row["filename"]):
+            # Admin viewing worker-sent view-once: enforce one download.
+            sender_type = None
+            try:
+                msg = get_db().execute(
+                    "SELECT sender_type FROM chat_messages WHERE id = ?",
+                    (row["message_id"],),
+                ).fetchone()
+                sender_type = str(msg["sender_type"] or "") if msg else ""
+            except Exception:
+                sender_type = ""
+            if sender_type == "worker":
+                if service.attachment_view_consumed(attachment_id=attachment_id, viewer_type="admin", viewer_id=user_id or "admin"):
+                    return jsonify({"error": "view_once_consumed", "message": "Einmal-Sprachnachricht bereits gehört."}), 410
+                service.mark_attachment_view_consumed(attachment_id=attachment_id, viewer_type="admin", viewer_id=user_id or "admin")
+        file_path = service.resolve_attachment_path(row)
         if not file_path:
             return jsonify({"error": "attachment_missing", "message": "Datei nicht mehr auf dem Server vorhanden."}), 404
         return send_file(file_path, mimetype=str(row["content_type"] or "application/octet-stream"), as_attachment=True, download_name=str(row["filename"] or "attachment.bin"))
@@ -616,16 +707,57 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         blocked = _worker_chat_allowed(company_id)
         if blocked:
             return blocked
+        service = ChatService(get_db())
+        service._ensure_schema()
         row = get_db().execute(
-            "SELECT filename, content_type, file_path, worker_id, company_id FROM chat_attachments WHERE id = ?",
+            "SELECT filename, content_type, file_path, worker_id, company_id, e2e_meta, message_id FROM chat_attachments WHERE id = ?",
             (attachment_id,),
         ).fetchone()
         if not row or str(row["worker_id"]) != worker_id:
             return jsonify({"error": "attachment_not_found"}), 404
-        file_path = ChatService(get_db()).resolve_attachment_path(row)
+        e2e_meta = row["e2e_meta"] if "e2e_meta" in row.keys() else ""
+        if service.attachment_is_view_once(e2e_meta, row["filename"]):
+            sender_type = ""
+            try:
+                msg = get_db().execute(
+                    "SELECT sender_type FROM chat_messages WHERE id = ?",
+                    (row["message_id"],),
+                ).fetchone()
+                sender_type = str(msg["sender_type"] or "") if msg else ""
+            except Exception:
+                sender_type = ""
+            if sender_type == "admin":
+                if service.attachment_view_consumed(attachment_id=attachment_id, viewer_type="worker", viewer_id=worker_id):
+                    return jsonify({"error": "view_once_consumed", "message": "Einmal-Sprachnachricht bereits gehört."}), 410
+                service.mark_attachment_view_consumed(attachment_id=attachment_id, viewer_type="worker", viewer_id=worker_id)
+        file_path = service.resolve_attachment_path(row)
         if not file_path:
             return jsonify({"error": "attachment_missing", "message": "Datei nicht mehr auf dem Server vorhanden."}), 404
         return send_file(file_path, mimetype=str(row["content_type"] or "application/octet-stream"), as_attachment=True, download_name=str(row["filename"] or "attachment.bin"))
+
+    @chat_core_bp.post("/worker-app/chat/attachments/<attachment_id>/consume")
+    @require_worker_session
+    def worker_chat_attachment_consume(attachment_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        row = get_db().execute(
+            "SELECT id, worker_id FROM chat_attachments WHERE id = ?",
+            (attachment_id,),
+        ).fetchone()
+        if not row or str(row["worker_id"]) != worker_id:
+            return jsonify({"error": "attachment_not_found"}), 404
+        service = ChatService(get_db())
+        service._ensure_schema()
+        result = service.mark_attachment_view_consumed(
+            attachment_id=attachment_id,
+            viewer_type="worker",
+            viewer_id=worker_id,
+        )
+        return jsonify({"ok": True, **result})
 
     @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/messages")
     @require_worker_session

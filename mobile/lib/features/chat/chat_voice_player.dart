@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../services/chat_repository.dart';
 import 'chat_attachment_helpers.dart';
@@ -35,6 +35,7 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
   static AudioPlayer? _sharedPlayer;
   static String? _activeId;
   static final Map<String, String> _fileCache = {};
+  static final Set<String> _consumedIds = {};
 
   final AudioPlayer _player = AudioPlayer();
   StreamSubscription<Duration>? _posSub;
@@ -42,15 +43,20 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
 
   bool _loading = false;
   bool _playing = false;
+  bool _consumed = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   String? _error;
 
   String get _id => (widget.attachment['id'] ?? '').toString();
 
+  bool get _isIncomingViewOnce =>
+      !widget.isMine && isChatViewOnceAttachment(widget.attachment);
+
   @override
   void initState() {
     super.initState();
+    _consumed = _isIncomingViewOnce && _consumedIds.contains(_id);
     final preset = parseE2eDurationSec(widget.attachment);
     if (preset > 0) _duration = Duration(seconds: preset);
     _posSub = _player.positionStream.listen((pos) {
@@ -69,6 +75,9 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
           _activeId = null;
         }
       });
+      if (state.processingState == ProcessingState.completed && _isIncomingViewOnce) {
+        unawaited(_finalizeViewOnce());
+      }
     });
   }
 
@@ -84,9 +93,48 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
     super.dispose();
   }
 
+  Future<void> _clearLocalCache() async {
+    final cached = _fileCache.remove(_id);
+    if (cached == null) return;
+    try {
+      final file = File(cached);
+      if (await file.exists()) await file.delete();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  Future<void> _finalizeViewOnce() async {
+    if (_consumed || _id.isEmpty) return;
+    _consumedIds.add(_id);
+    if (mounted) {
+      setState(() {
+        _consumed = true;
+        _error = 'Bereits gehört';
+      });
+    }
+    await _clearLocalCache();
+    try {
+      await widget.chat.consumeAttachment(
+        session: widget.session,
+        attachmentId: _id,
+      );
+    } catch (_) {
+      /* download/server already enforces */
+    }
+  }
+
   Future<String> _ensureLocalFile() async {
+    if (_isIncomingViewOnce && _consumed) {
+      throw ApiException(410, 'view_once_consumed', 'Bereits gehört');
+    }
     final cached = _fileCache[_id];
-    if (cached != null && File(cached).existsSync()) return cached;
+    if (cached != null && File(cached).existsSync()) {
+      if (_isIncomingViewOnce) {
+        // Do not keep a durable cache for view-once after first fetch.
+      }
+      return cached;
+    }
     final filename = (widget.attachment['filename'] ?? 'voice.m4a').toString();
     final e2eMeta = widget.attachment['e2eMeta'] as String? ?? widget.attachment['e2e_meta'] as String?;
     final bytes = await widget.chat.downloadAttachment(
@@ -99,13 +147,22 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
     final safe = filename.replaceAll(RegExp(r'[^\w.\-]'), '_');
     final path = '${dir.path}/voice_${_id}_$safe';
     await File(path).writeAsBytes(Uint8List.fromList(bytes), flush: true);
-    _fileCache[_id] = path;
+    if (!_isIncomingViewOnce) {
+      _fileCache[_id] = path;
+    } else {
+      _fileCache[_id] = path; // cleared after complete
+    }
     return path;
   }
 
   Future<void> _toggle() async {
     if (_id.isEmpty) return;
+    if (_isIncomingViewOnce && _consumed) {
+      setState(() => _error = 'Bereits gehört');
+      return;
+    }
     if (_playing && _activeId == _id) {
+      if (_isIncomingViewOnce) return; // no pause/replay mid-play for view-once
       await _player.pause();
       if (mounted) setState(() => _playing = false);
       return;
@@ -132,6 +189,27 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
         setState(() {
           _playing = true;
           _loading = false;
+        });
+      }
+    } on ApiException catch (e) {
+      if (e.statusCode == 410 || e.errorCode == 'view_once_consumed') {
+        _consumedIds.add(_id);
+        await _clearLocalCache();
+        if (mounted) {
+          setState(() {
+            _loading = false;
+            _playing = false;
+            _consumed = true;
+            _error = 'Bereits gehört';
+          });
+        }
+        return;
+      }
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _playing = false;
+          _error = 'Abspielen fehlgeschlagen';
         });
       }
     } catch (_) {
@@ -167,7 +245,7 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
       color: bg,
       borderRadius: BorderRadius.circular(999),
       child: InkWell(
-        onTap: _loading ? null : _toggle,
+        onTap: _loading || (_isIncomingViewOnce && _consumed) ? null : _toggle,
         borderRadius: BorderRadius.circular(999),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(6, 7, 12, 7),
@@ -190,7 +268,9 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
                         ),
                       )
                     : Icon(
-                        _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        _consumed
+                            ? Icons.visibility_off_rounded
+                            : (_playing ? Icons.pause_rounded : Icons.play_arrow_rounded),
                         color: Colors.white,
                         size: 22,
                       ),

@@ -796,34 +796,55 @@
       transition: height 0.08s linear;
     }
     .voice-call-round-btn {
-      min-width: 108px;
-      min-height: 92px;
-      border-radius: 20px;
-      padding: 0.72rem 0.55rem 0.62rem;
+      width: 56px;
+      height: 56px;
+      min-width: 56px;
+      min-height: 56px;
+      border-radius: 50%;
+      padding: 0;
       border: 1px solid rgba(255, 255, 255, 0.14);
       background: rgba(31, 41, 55, 0.92);
       color: #f8fafc;
       cursor: pointer;
       display: grid;
-      gap: 0.28rem;
-      justify-items: center;
+      place-items: center;
+      gap: 0;
     }
     .voice-call-round-btn .voice-call-btn-icon {
-      font-size: 1.35rem;
+      font-size: 1.25rem;
       line-height: 1;
+      display: grid;
+      place-items: center;
     }
     .voice-call-round-btn .voice-call-btn-label {
-      font-size: 0.68rem;
-      font-weight: 600;
-      opacity: 0.88;
+      display: none;
     }
     .voice-call-round-btn.is-active {
       background: rgba(127, 29, 29, 0.55);
       border-color: rgba(248, 113, 113, 0.45);
     }
     .voice-call-round-btn.danger {
-      background: #b91c1c;
+      background: #e53935;
       border-color: #ef4444;
+    }
+    .voice-call-round-btn.accept {
+      background: #00a884;
+      border-color: #34d399;
+    }
+    .voice-call-controls { display: flex; gap: 1.25rem; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+    .voice-call-controls .voice-call-round-btn { position: relative; }
+    .voice-call-controls .voice-call-round-btn::after {
+      content: attr(title);
+      position: absolute;
+      top: calc(100% + 0.45rem);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.68rem;
+      font-weight: 600;
+      white-space: nowrap;
+      opacity: 0.82;
+      color: #e2e8f0;
+      pointer-events: none;
     }
     .chat-call-log {
       display: inline-flex;
@@ -1168,22 +1189,22 @@
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
-  <script src="/ops-realtime.js?v=20260715chat38"></script>
-  <script src="/chat-realtime.js?v=20260715chat38"></script>
-  <script src="/chat-gallery.js?v=20260715chat38"></script>
-  <script src="/chat-typing.js?v=20260715chat38"></script>
-  <script src="/chat-search.js?v=20260715chat38"></script>
-  <script src="/chat-location.js?v=20260715chat38"></script>
-  <script src="/chat-attach-sheet.js?v=20260715chat38"></script>
-  <script src="/chat-thread-prefs.js?v=20260715chat38"></script>
-  <script src="/chat-message-prefs.js?v=20260715chat38"></script>
-  <script src="/chat-message-menu.js?v=20260715chat38"></script>
-  <script src="/chat-admin-push.js?v=20260715chat38"></script>
-  <script src="/chat-global-notify.js?v=20260715chat38"></script>
-  <script src="/chat-offline-queue.js?v=20260715chat38"></script>
-  <script src="/chat-voice.js?v=20260715chat38"></script>
-  <script src="/chat-voice-call.js?v=20260715chat38"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260715chat38"></script>
+  <script src="/ops-realtime.js?v=20260715chat39"></script>
+  <script src="/chat-realtime.js?v=20260715chat39"></script>
+  <script src="/chat-gallery.js?v=20260715chat39"></script>
+  <script src="/chat-typing.js?v=20260715chat39"></script>
+  <script src="/chat-search.js?v=20260715chat39"></script>
+  <script src="/chat-location.js?v=20260715chat39"></script>
+  <script src="/chat-attach-sheet.js?v=20260715chat39"></script>
+  <script src="/chat-thread-prefs.js?v=20260715chat39"></script>
+  <script src="/chat-message-prefs.js?v=20260715chat39"></script>
+  <script src="/chat-message-menu.js?v=20260715chat39"></script>
+  <script src="/chat-admin-push.js?v=20260715chat39"></script>
+  <script src="/chat-global-notify.js?v=20260715chat39"></script>
+  <script src="/chat-offline-queue.js?v=20260715chat39"></script>
+  <script src="/chat-voice.js?v=20260715chat39"></script>
+  <script src="/chat-voice-call.js?v=20260715chat39"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260715chat39"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -1319,8 +1340,11 @@
       else delete el.dataset.dynamic;
     }
     function showVoicePlaybackError(error) {
-      const msg = String(error?.message || error || "").trim();
+      let msg = String(error?.message || error || "").trim();
       if (!msg || msg === "voice_playback_failed") return;
+      if (msg === "view_once_consumed" || /view_once_consumed|already.?heard|bereits gehört/i.test(msg)) {
+        msg = window.adminChatT("chatVoiceViewOnceConsumed") || "Einmal-Sprachnachricht bereits gehört.";
+      }
       setThreadMeta(msg, { dynamic: true });
       window.setTimeout(() => {
         if (lastThreadMetaName) {
@@ -2096,6 +2120,17 @@
     function hydrateChatAudioPreviews() {
       window.SUPPIXChatVoice?.hydrateAudioPlayers?.(document.getElementById("messageList"), {
         downloadFn: async (attachmentId) => downloadChatAudioBlob(attachmentId),
+        consumeFn: async (attachmentId) => {
+          try {
+            await api(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/consume`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: "{}",
+            });
+          } catch {
+            /* download path already enforces */
+          }
+        },
         onError: (error) => showVoicePlaybackError(error),
       });
     }
@@ -2894,21 +2929,22 @@
     function shouldShowCallLogToAdmin(meta) {
       const audience = String(meta?.audience || "both").toLowerCase();
       if (audience === "worker") return false;
-      const status = String(meta?.status || "");
-      const initiatedBy = String(meta?.initiatedBy || "admin").toLowerCase();
-      if (status === "missed" && initiatedBy === "admin") return false;
       return true;
     }
     function voiceCallLogSummary(meta) {
       const status = String(meta?.status || "ended");
       const duration = Number(meta?.duration || 0);
-      const statusKey = {
+      const initiatedBy = String(meta?.initiatedBy || "admin").toLowerCase();
+      let statusKey = {
         ended: "voiceCallLogEnded",
         declined: "voiceCallLogDeclined",
         missed: "voiceCallLogMissed",
         cancelled: "voiceCallLogCancelled",
         callback_requested: "voiceCallLogCallbackRequested",
       }[status] || "voiceCallLogEnded";
+      if (status === "missed" && initiatedBy === "admin") {
+        statusKey = "voiceCallUnreachable";
+      }
       const statusText = window.adminChatT(statusKey);
       if (duration > 0) return `${statusText} · ${formatVoiceCallDuration(duration * 1000)}`;
       return statusText;
@@ -3149,6 +3185,15 @@
         await loadMessages(resolvedId, requestedWorkerId);
         startAdminTypingController();
         syncAdminChatSearchUi();
+        void window.SUPPIXChatMessagePrefs?.hydrateFromServer?.({
+          api,
+          companyId,
+          threadId: resolvedId,
+        }).then(() => {
+          if (String(currentThreadId) === String(resolvedId)) {
+            refreshAdminMessageListView?.();
+          }
+        });
         startChatPolling();
         renderThreads();
       } catch (error) {
@@ -3818,7 +3863,7 @@
       document.getElementById("voiceCallWave")?.classList.add("hidden");
     }
     function startVoiceCallTimer() {
-      stopVoiceCallTimer();
+      if (voiceCallTimerInterval) return;
       voiceCallStartedAt = Date.now();
       const timerEl = document.getElementById("voiceCallTimer");
       const waveEl = document.getElementById("voiceCallWave");
@@ -3830,6 +3875,26 @@
       }, 1000);
       if (timerEl) timerEl.textContent = "00:00";
     }
+    let voiceCallRingTimerInterval = null;
+    let voiceCallRingStartedAt = 0;
+    function stopVoiceCallRingTimer() {
+      if (voiceCallRingTimerInterval) clearInterval(voiceCallRingTimerInterval);
+      voiceCallRingTimerInterval = null;
+      voiceCallRingStartedAt = 0;
+    }
+    function startVoiceCallRingTimer(labelPrefix) {
+      if (voiceCallRingTimerInterval) return;
+      voiceCallRingStartedAt = Date.now();
+      const status = document.getElementById("voiceCallStatus");
+      const prefix = labelPrefix || window.adminChatT("voiceCallRinging");
+      const tick = () => {
+        if (!status || !voiceCallRingStartedAt) return;
+        const elapsed = formatVoiceCallDuration(Date.now() - voiceCallRingStartedAt);
+        status.textContent = `${prefix} · ${elapsed}`;
+      };
+      voiceCallRingTimerInterval = setInterval(tick, 1000);
+      tick();
+    }
     function setVoiceCallOverlay(visible, statusText, state, mode = "active") {
       const overlay = document.getElementById("voiceCallOverlay");
       const status = document.getElementById("voiceCallStatus");
@@ -3839,6 +3904,7 @@
       const meters = document.getElementById("voiceCallMeters");
       const volume = document.querySelector(".voice-call-volume-row");
       const quality = document.getElementById("voiceCallQuality");
+      const subtitle = document.getElementById("voiceCallSubtitle");
       if (status && statusText) status.textContent = statusText;
       overlay?.classList.toggle("hidden", !visible);
       const isIncoming = mode === "incoming";
@@ -3849,31 +3915,55 @@
       document.getElementById("voiceCallLiveWave")?.classList.toggle("hidden", isIncoming);
       if (!visible) {
         stopVoiceCallTimer();
+        stopVoiceCallRingTimer();
         resetVoiceCallControls();
         rings?.classList.remove("hidden");
         quality?.classList.add("hidden");
-        document.getElementById("voiceCallSubtitle")?.classList.add("hidden");
+        subtitle?.classList.add("hidden");
         return;
       }
       const connected = state === "connected" || state === "accepted";
+      const ringing = state === "ringing" || state === "dialing" || state === "connecting";
       if (connected) {
         rings?.classList.add("hidden");
+        stopVoiceCallRingTimer();
         startVoiceCallTimer();
         quality?.classList.remove("hidden");
         if (quality) quality.textContent = window.adminChatT("voiceCallQualityGood") || "Verbindung stabil";
+        if (subtitle) {
+          subtitle.textContent = window.adminChatT("voiceCallSecure") || "";
+          subtitle.classList.remove("hidden");
+        }
       } else {
         rings?.classList.remove("hidden");
         stopVoiceCallTimer();
         quality?.classList.add("hidden");
+        if (ringing) {
+          const prefix = isIncoming
+            ? (window.adminChatT("voiceCallIncomingRinging") || statusText)
+            : (window.adminChatT("voiceCallRinging") || statusText);
+          startVoiceCallRingTimer(prefix);
+        } else {
+          stopVoiceCallRingTimer();
+        }
+        if (subtitle && statusText) {
+          subtitle.textContent = isIncoming
+            ? (window.adminChatT("voiceCallIncomingFromWorker") || "")
+            : (window.adminChatT("voiceCallDialing") || "");
+          subtitle.classList.toggle("hidden", !subtitle.textContent);
+        }
       }
     }
     function voiceCallStatusLabel(state) {
       const map = {
         dialing: window.adminChatT("voiceCallDialing"),
         ringing: window.adminChatT("voiceCallRinging"),
+        connecting: window.adminChatT("voiceCallConnecting") || window.adminChatT("voiceCallConnected"),
         accepted: window.adminChatT("voiceCallConnected"),
         connected: window.adminChatT("voiceCallConnected"),
         ended: window.adminChatT("voiceCallEnded"),
+        missed: window.adminChatT("voiceCallLogMissed"),
+        unreachable: window.adminChatT("voiceCallUnreachable") || "Nicht erreicht",
       };
       return map[state] || state || "";
     }

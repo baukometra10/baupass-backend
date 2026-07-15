@@ -52,3 +52,10 @@ int parseE2eDurationSec(Map<String, dynamic> attachment) {
   if (fromMeta > 0) return fromMeta;
   return int.tryParse('${attachment['durationSec'] ?? attachment['duration_sec'] ?? ''}') ?? 0;
 }
+
+bool isChatViewOnceAttachment(Map<String, dynamic> attachment) {
+  final meta = parseE2eAttachmentMeta(attachment['e2eMeta'] ?? attachment['e2e_meta']);
+  if (meta?['viewOnce'] == true || meta?['view_once'] == true) return true;
+  final filename = (attachment['filename'] ?? '').toString().toLowerCase();
+  return filename.contains('viewonce') || filename.contains('view-once');
+}
