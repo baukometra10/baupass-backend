@@ -335,6 +335,11 @@
       });
       return meta.status ? meta : null;
     },
+    shouldShowCallLogToWorker(meta) {
+      const audience = String(meta?.audience || "both").toLowerCase();
+      if (audience === "admin") return false;
+      return true;
+    },
     renderCallLogHtml(meta, options = {}) {
       const status = String(meta?.status || "ended");
       const duration = Number(meta?.duration || 0);

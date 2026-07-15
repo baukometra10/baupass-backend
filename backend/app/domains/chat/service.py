@@ -174,6 +174,8 @@ class ChatService:
         content_type: Any = None,
         e2e_meta: Any = None,
     ) -> bool:
+        if self._is_image_attachment(filename, content_type, e2e_meta):
+            return False
         mime = str(content_type or "").lower()
         name = str(filename or "").lower()
         if mime.startswith("audio/"):
@@ -187,12 +189,24 @@ class ChatService:
             return any(token in meta for token in ("audio", "voice", "webm", "m4a", "ogg", "mp3", "wav"))
         return False
 
-    def _is_image_attachment(self, filename: Any = None, content_type: Any = None) -> bool:
+    def _is_image_attachment(
+        self,
+        filename: Any = None,
+        content_type: Any = None,
+        e2e_meta: Any = None,
+    ) -> bool:
         mime = str(content_type or "").lower()
         name = str(filename or "").lower()
+        meta = str(e2e_meta or "").lower()
         if mime.startswith("image/"):
             return True
-        return any(name.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"))
+        if any(name.endswith(ext) for ext in (".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic", ".heif")):
+            return True
+        if any(name.endswith(ext) for ext in (".jpg.e2e", ".jpeg.e2e", ".png.e2e", ".webp.e2e", ".gif.e2e")):
+            return True
+        if meta and any(token in meta for token in ('"mime":"image/', '"mime": "image/')):
+            return True
+        return False
 
     def _message_preview_text(
         self,
@@ -203,10 +217,14 @@ class ChatService:
         attachment_content_type: Any = None,
         attachment_e2e_meta: Any = None,
     ) -> str:
+        if self._is_image_attachment(
+            attachment_filename,
+            attachment_content_type,
+            attachment_e2e_meta,
+        ):
+            return "photo"
         if self._is_audio_attachment(attachment_filename, attachment_content_type, attachment_e2e_meta):
             return "voice"
-        if self._is_image_attachment(attachment_filename, attachment_content_type):
-            return "photo"
         raw = maybe_decrypt_field(body, company_id=company_id) if body else ""
         text = str(raw or "").strip()
         if not text:
@@ -485,7 +503,11 @@ class ChatService:
                 for item in attachments
             )
             has_photo = preview == "photo" or any(
-                self._is_image_attachment(item.get("filename"), item.get("contentType"))
+                self._is_image_attachment(
+                    item.get("filename"),
+                    item.get("contentType"),
+                    item.get("e2eMeta"),
+                )
                 for item in attachments
             )
             match = False

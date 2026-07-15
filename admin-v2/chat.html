@@ -1016,7 +1016,7 @@
   <script src="/chat-admin-push.js?v=20260714chat33"></script>
   <script src="/chat-global-notify.js?v=20260714chat33"></script>
   <script src="/chat-offline-queue.js?v=20260714chat33"></script>
-  <script src="/chat-voice.js?v=20260714chat33"></script>
+  <script src="/chat-voice.js?v=20260715chat34"></script>
   <script src="/chat-voice-call.js?v=20260714chat33"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260714chat33"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
@@ -1200,6 +1200,7 @@
     const adminWorkerAvatarCache = new Map();
     function prepareAdminUploadFile(file) {
       if (!file) return null;
+      if (window.SUPPIXChatVoice?.isImageAttachment?.(file.name, file.type)) return file;
       if (window.SUPPIXChatVoice?.prepareChatUploadFile) {
         return window.SUPPIXChatVoice.prepareChatUploadFile(file);
       }
@@ -1207,7 +1208,7 @@
     }
     function adminAttachmentPreviewKey(file) {
       if (!file) return null;
-      if (isImageAttachment(file.name, file.type)) return "photo";
+      if (window.SUPPIXChatVoice?.isImageAttachment?.(file.name, file.type) || isImageAttachment(file.name, file.type)) return "photo";
       if (window.SUPPIXChatVoice?.isAudioAttachment?.(file.name, file.type)) return "voice";
       return "file";
     }
@@ -1709,12 +1710,14 @@
         .join("");
       return `${messages.length}:${String(last?.id || "")}:${String(last?.createdAt || last?.created_at || "")}:${readState}`;
     }
-    function isImageAttachment(filename, contentType) {
+    function isImageAttachment(filename, contentType, e2eMeta) {
+      if (window.SUPPIXChatVoice?.isImageAttachment?.(filename, contentType, e2eMeta)) return true;
       const mime = String(contentType || "").toLowerCase();
       if (/^image\//i.test(mime)) return true;
-      return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
+      return /\.(jpe?g|png|webp|gif|heic|heif)(\.e2e)?$/i.test(String(filename || ""));
     }
     function isAudioAttachment(filename, contentType, e2eMeta) {
+      if (isImageAttachment(filename, contentType, e2eMeta)) return false;
       return window.SUPPIXChatVoice?.isAudioAttachment?.(filename, contentType, e2eMeta) || false;
     }
     function downloadHeaders() {
@@ -1757,18 +1760,16 @@
       const contentType = img.getAttribute("data-content-type") || "";
       if (!attachmentId || img.dataset.loaded === "1") return;
       try {
-        const res = await fetch(`/api/chat/attachments/${encodeURIComponent(attachmentId)}/download`, {
-          headers: downloadHeaders(),
-          credentials: "include",
+        const url = await resolveAdminAttachmentObjectUrl({
+          id: attachmentId,
+          contentType,
+          e2eMeta: adminChatAttachmentMetaById[attachmentId] || "",
         });
-        if (!res.ok) return;
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
         img.src = url;
         img.dataset.loaded = "1";
         img.title = window.adminChatT("clickToOpen", { name: filename }) || filename;
         img.addEventListener("click", () => {
-          openAdminChatImageLightbox(attachmentId, filename, contentType || blob.type);
+          openAdminChatImageLightbox(attachmentId, filename, contentType);
         });
       } catch {
         img.remove();
@@ -2670,8 +2671,14 @@
             const id = escapeHtml(rawId);
             const name = escapeHtml(a.filename || window.adminChatT("attachment"));
             const type = escapeHtml(a.contentType || "");
-            const image = isImageAttachment(a.filename, a.contentType);
+            const image = isImageAttachment(a.filename, a.contentType, meta);
             const audio = isAudioAttachment(a.filename, a.contentType, meta);
+            if (image) {
+              return `<div class="chat-image-actions">
+                <button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">⬇ ${name}</button>
+              </div>
+              <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
+            }
             if (audio) {
               hasVoice = true;
               const side = msg.senderType === "admin" ? "mine" : "them";
@@ -2679,12 +2686,6 @@
                 voice: window.adminChatT("chatVoiceMessage"),
                 side,
               });
-            }
-            if (image) {
-              return `<div class="chat-image-actions">
-                <button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">⬇ ${name}</button>
-              </div>
-              <img class="chat-image-preview" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
             }
             return `<button type="button" class="chat-attachment-btn" data-attachment-id="${id}" data-filename="${name}" data-content-type="${type}">📎 ${name}</button>`;
           }).join("")}</div>`

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -447,30 +448,48 @@ class _ChatScreenState extends State<ChatScreen> {
     return sender == 'worker';
   }
 
+  Map<String, dynamic>? _parseE2eAttachmentMeta(Map<String, dynamic> attachment) {
+    final raw = attachment['e2eMeta'] ?? attachment['e2e_meta'];
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    final text = raw?.toString().trim() ?? '';
+    if (text.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (_) {
+      /* ignore invalid meta */
+    }
+    return null;
+  }
+
+  bool _isImageAttachment(Map<String, dynamic> attachment) {
+    final meta = _parseE2eAttachmentMeta(attachment);
+    final metaMime = (meta?['mime'] ?? '').toString().toLowerCase();
+    final metaName = (meta?['filename'] ?? '').toString().toLowerCase();
+    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? metaMime)
+        .toString()
+        .toLowerCase();
+    final filename = (metaName.isNotEmpty ? metaName : (attachment['filename'] ?? ''))
+        .toString()
+        .toLowerCase();
+    if (contentType.startsWith('image/')) return true;
+    return RegExp(r'\.(jpe?g|png|webp|gif|heic|heif)(\.e2e)?$', caseSensitive: false).hasMatch(filename);
+  }
+
   bool _isAudioAttachment(Map<String, dynamic> attachment) {
-    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? '')
+    if (_isImageAttachment(attachment)) return false;
+    final meta = _parseE2eAttachmentMeta(attachment);
+    final metaMime = (meta?['mime'] ?? '').toString().toLowerCase();
+    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? metaMime)
         .toString()
         .toLowerCase();
     final filename = (attachment['filename'] ?? '').toString().toLowerCase();
     if (contentType.startsWith('audio/')) return true;
     return filename.endsWith('.m4a')
-        || filename.endsWith('.mp4')
         || filename.endsWith('.wav')
         || filename.endsWith('.webm')
-        || filename.endsWith('.aac');
-  }
-
-  bool _isImageAttachment(Map<String, dynamic> attachment) {
-    final contentType = (attachment['contentType'] ?? attachment['content_type'] ?? '')
-        .toString()
-        .toLowerCase();
-    final filename = (attachment['filename'] ?? '').toString().toLowerCase();
-    if (contentType.startsWith('image/')) return true;
-    return filename.endsWith('.jpg')
-        || filename.endsWith('.jpeg')
-        || filename.endsWith('.png')
-        || filename.endsWith('.webp')
-        || filename.endsWith('.gif');
+        || filename.endsWith('.aac')
+        || filename.endsWith('.ogg');
   }
 
   Future<void> _showImageFullscreen(Map<String, dynamic> attachment) async {
@@ -556,6 +575,11 @@ class _ChatScreenState extends State<ChatScreen> {
     final h = date.hour.toString().padLeft(2, '0');
     final m = date.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  bool _shouldShowCallLogToWorker(Map<String, String> meta) {
+    final audience = (meta['audience'] ?? 'both').toLowerCase();
+    return audience != 'admin';
   }
 
   Map<String, String>? _parseVoiceCallLog(String? body) {
@@ -707,7 +731,10 @@ class _ChatScreenState extends State<ChatScreen> {
                           itemBuilder: (context, index) {
                             final item = _messages[index];
                             final isWorker = _isWorkerMessage(item);
-                            final callLog = _parseVoiceCallLog(item['body'] as String?);
+                            final callLogRaw = _parseVoiceCallLog(item['body'] as String?);
+                            final callLog = callLogRaw != null && _shouldShowCallLogToWorker(callLogRaw)
+                                ? callLogRaw
+                                : null;
                             final location = parseChatLocationBody(item['body'] as String?);
                             final attachments = (item['attachments'] as List?) ?? const [];
                             final audioAttachments = attachments
@@ -837,13 +864,13 @@ class _ChatScreenState extends State<ChatScreen> {
                                               const SizedBox(height: 6),
                                               ...attachments.map((att) {
                                                 final map = Map<String, dynamic>.from(att as Map);
-                                                if (_isAudioAttachment(map)) return const SizedBox.shrink();
                                                 if (_isImageAttachment(map)) {
                                                   return Padding(
                                                     padding: const EdgeInsets.only(top: 4),
                                                     child: _buildImageAttachment(map),
                                                   );
                                                 }
+                                                if (_isAudioAttachment(map)) return const SizedBox.shrink();
                                                 return InkWell(
                                                   onTap: () => _openAttachment(map),
                                                   child: Padding(

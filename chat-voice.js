@@ -448,7 +448,20 @@
     return String(parseE2eAttachmentMeta(e2eMeta)?.filename || "");
   }
 
+  function isImageAttachment(filename, contentType, e2eMeta) {
+    const metaFilename = parseE2eAttachmentFilename(e2eMeta).toLowerCase();
+    const e2eMime = parseE2eAttachmentMime(e2eMeta);
+    const mime = String(contentType || e2eMime || "").toLowerCase().split(";")[0].trim();
+    const storageName = String(filename || "").toLowerCase();
+    const name = metaFilename || storageName;
+    if (/^image\//i.test(mime)) return true;
+    if (/\.(jpe?g|png|webp|gif|heic|heif)$/i.test(name)) return true;
+    if (/\.(jpe?g|png|webp|gif|heic|heif)\.e2e$/i.test(storageName)) return true;
+    return false;
+  }
+
   function isAudioAttachment(filename, contentType, e2eMeta) {
+    if (isImageAttachment(filename, contentType, e2eMeta)) return false;
     const metaFilename = parseE2eAttachmentFilename(e2eMeta).toLowerCase();
     const e2eMime = parseE2eAttachmentMime(e2eMeta);
     const mime = String(contentType || e2eMime || "").toLowerCase().split(";")[0].trim();
@@ -1633,6 +1646,7 @@
 
   function prepareChatUploadFile(file) {
     if (!file) return null;
+    if (isImageAttachment(file.name, file.type)) return file;
     if (isLikelyVoiceCaptureFile(file)) {
       return asUploadFile(file, "voice", file.durationSec, file.durationSec);
     }
@@ -1658,6 +1672,7 @@
     isNativeCaptureAvailable,
     shouldPreferNativeVoiceCapture,
     isLikelyVoiceCaptureFile,
+    isImageAttachment,
     normalizeCaptureFile,
     pickMimeType,
     formatDuration,

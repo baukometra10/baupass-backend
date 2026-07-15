@@ -1,4 +1,4 @@
-﻿function resolveDefaultProductionApiBase() {
+function resolveDefaultProductionApiBase() {
   try {
     const host = String(window.location.hostname || "").toLowerCase();
     const localHosts = new Set(["localhost", "127.0.0.1", "::1"]);
@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260714chat33";
+const WORKER_BUILD_TAG = "20260715chat34";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -12843,10 +12843,11 @@ let workerChatAttachmentMetaById = {};
 let workerChatAttachmentNameById = {};
 const workerChatImageObjectUrls = new Map();
 
-function isWorkerImageAttachment(filename, contentType) {
+function isWorkerImageAttachment(filename, contentType, e2eMeta) {
+  if (window.SUPPIXChatVoice?.isImageAttachment?.(filename, contentType, e2eMeta)) return true;
   const mime = String(contentType || "").toLowerCase();
   if (/^image\//i.test(mime)) return true;
-  return /\.(jpe?g|png|webp|gif)$/i.test(String(filename || ""));
+  return /\.(jpe?g|png|webp|gif|heic|heif)(\.e2e)?$/i.test(String(filename || ""));
 }
 
 async function resolveWorkerAttachmentBlob(attachmentId, filename, e2eMeta) {
@@ -12948,14 +12949,14 @@ function renderWorkerChatAttachmentHtml(attachments, options = {}) {
       const safeId = escapeHtmlBasic(id);
       const name = escapeHtmlBasic(String(attachment.filename || t("workerChatDownload")));
       const contentType = String(attachment.contentType || attachment.content_type || "");
+      if (isWorkerImageAttachment(attachment.filename, contentType, meta)) {
+        return `<img class="worker-chat-image-preview" data-attachment-id="${safeId}" data-filename="${name}" data-content-type="${escapeHtmlBasic(contentType)}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
+      }
       if (window.SUPPIXChatVoice?.isAudioAttachment?.(attachment.filename, contentType, meta)) {
         return window.SUPPIXChatVoice.renderAudioPlayerHtml(attachment, {
           voice: t("chatVoiceMessage"),
           side: voiceSide,
         });
-      }
-      if (isWorkerImageAttachment(attachment.filename, contentType)) {
-        return `<img class="worker-chat-image-preview" data-attachment-id="${safeId}" data-filename="${name}" data-content-type="${escapeHtmlBasic(contentType)}" alt="${name}" loading="lazy" role="button" tabindex="0" />`;
       }
       return `<button type="button" class="worker-chat-attachment-btn" data-attachment-id="${safeId}" data-filename="${name}">⬇ ${escapeHtmlBasic(t("workerChatDownload"))}: ${name}</button>`;
     })
@@ -13011,8 +13012,9 @@ function renderWorkerChatMessages(messages, options = {}) {
       );
       const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, t("chatVoiceMessage"));
       const callLog = window.SUPPIXWorkerVoiceCall?.parseCallLogBody?.(msg.body);
+      const callLogVisible = callLog && window.SUPPIXWorkerVoiceCall?.shouldShowCallLogToWorker?.(callLog);
       const location = window.SUPPIXChatLocation?.parseLocationBody?.(msg.body);
-      const body = voiceOnly || callLog || location ? "" : escapeHtmlBasic(String(msg.body || ""));
+      const body = voiceOnly || (callLog && callLogVisible) || location ? "" : escapeHtmlBasic(String(msg.body || ""));
       const bodyHtml = body ? `<div class="worker-chat-body">${body}</div>` : "";
       const locationHtml = location
         ? window.SUPPIXChatLocation.renderLocationBubbleHtml(location, workerLocationLabels(), {
@@ -13020,7 +13022,7 @@ function renderWorkerChatMessages(messages, options = {}) {
           metaHtml: `${time ? `<span class="chat-location-time">${escapeHtmlBasic(time)}</span>` : ""}${ticksHtml}`,
         })
         : "";
-      const callLogHtml = callLog
+      const callLogHtml = callLogVisible
         ? window.SUPPIXWorkerVoiceCall.renderCallLogHtml(callLog, {
           showCallback: side !== "mine" && ["missed", "declined", "cancelled", "ended"].includes(String(callLog.status || "")),
         })
