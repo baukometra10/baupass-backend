@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260715chat39";
+const WORKER_BUILD_TAG = "20260715chat40";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -3598,9 +3598,9 @@ function hydrateWorkerChatAudioPlayers() {
     downloadFn: async (attachmentId) => downloadWorkerChatAudioBlob(attachmentId),
     consumeFn: async (attachmentId) => {
       try {
-        await api(`/api/worker-app/chat/attachments/${encodeURIComponent(attachmentId)}/consume`, {
+        await fetchJson(`${API_BASE}/chat/attachments/${encodeURIComponent(attachmentId)}/consume`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
           body: "{}",
         });
       } catch {
@@ -3615,6 +3615,30 @@ function hydrateWorkerChatAudioPlayers() {
       }
       showWorkerNotice(formatWorkerApiError(error));
     },
+  });
+}
+
+async function workerChatPrefsApi(path, options = {}) {
+  let relative = String(path || "");
+  if (relative.startsWith("/api/worker-app")) {
+    relative = relative.slice("/api/worker-app".length);
+  } else if (relative.startsWith("api/worker-app")) {
+    relative = relative.slice("api/worker-app".length);
+  }
+  if (!relative.startsWith("/")) relative = `/${relative}`;
+  const headers = {
+    ...buildWorkerAuthHeaders(options.headers || {}),
+  };
+  return fetchJson(`${API_BASE}${relative}`, { ...options, headers });
+}
+
+async function hydrateWorkerChatMessagePrefs(threadId) {
+  const tid = String(threadId || workerChatThreadId || "").trim();
+  if (!tid) return;
+  await window.SUPPIXChatMessagePrefs?.hydrateFromServer?.({
+    api: workerChatPrefsApi,
+    role: "worker",
+    threadId: tid,
   });
 }
 
@@ -13453,6 +13477,11 @@ async function loadWorkerChat(options = {}) {
       return;
     }
     workerChatLastFingerprint = fingerprint;
+    try {
+      await hydrateWorkerChatMessagePrefs(threadId);
+    } catch {
+      /* local prefs */
+    }
     renderWorkerChatMessages(messages, { quiet });
     bindWorkerChatClearActions();
     bindWorkerChatComposeEvents();

@@ -90,17 +90,32 @@ BAUPASS_TESTFLIGHT_URL=https://testflight.apple.com/join/XXXXXXXX
 
 ### Secrets for signed upload
 
+Add these under GitHub → **Settings → Secrets and variables → Actions**:
+
 | Secret | Purpose |
 |--------|---------|
 | `APP_STORE_CONNECT_API_KEY_ID` | ASC API Key ID |
 | `APP_STORE_CONNECT_ISSUER_ID` | ASC Issuer ID |
-| `APP_STORE_CONNECT_API_KEY_P8` | Contents of `.p8` key |
-| `IOS_DISTRIBUTION_CERT_P12_BASE64` | Base64 of distribution `.p12` |
+| `APP_STORE_CONNECT_API_KEY_P8` | Full contents of `.p8` key (including `BEGIN`/`END` lines) |
+| `IOS_DISTRIBUTION_CERT_P12_BASE64` | `base64 -i dist.p12` (macOS) / PowerShell `[Convert]::ToBase64String(...)` |
 | `IOS_DISTRIBUTION_CERT_PASSWORD` | `.p12` password |
-| `IOS_PROVISIONING_PROFILE_BASE64` | Base64 of App Store provisioning profile |
+| `IOS_PROVISIONING_PROFILE_BASE64` | Base64 of App Store `.mobileprovision` |
 | `IOS_TEAM_ID` | Optional Apple Team ID for Xcode project |
 
-If any required secret is missing, the TestFlight job **skips** (unsigned workflow still builds).
+Then run workflow **iOS TestFlight** (Actions → Run workflow). If any required secret is missing, the job **skips** (unsigned workflow still builds).
+
+**Encode examples**
+
+```bash
+# macOS
+base64 -i YourDistCert.p12 | pbcopy
+base64 -i YourAppStore.mobileprovision | pbcopy
+```
+
+```powershell
+# Windows
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\dist.p12")) | Set-Clipboard
+```
 
 Until secrets are configured, use local signing:
 

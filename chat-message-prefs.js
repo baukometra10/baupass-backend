@@ -1,10 +1,13 @@
 /**
  * SUPPIX chat message preferences — pin & star (local + optional server sync).
+ * Admin: /api/chat/message-prefs
+ * Worker: /api/worker-app/chat/message-prefs
  */
 (function initSuppixChatMessagePrefs(global) {
   const KEY = "suppix-chat-message-prefs";
   let syncApi = null;
   let syncCompanyId = "";
+  let syncBasePath = "/api/chat/message-prefs";
 
   function readAll() {
     try {
@@ -49,14 +52,16 @@
   }
 
   function pushPref(threadId, messageId, patch) {
-    if (!syncApi || !syncCompanyId) return;
+    if (!syncApi) return;
     const mid = messageKey(messageId);
     const tid = String(threadId || "").trim();
     if (!mid || !tid) return;
-    void syncApi(`/api/chat/message-prefs/${encodeURIComponent(mid)}`, {
+    const body = { thread_id: tid, ...patch };
+    if (syncCompanyId) body.company_id = syncCompanyId;
+    void syncApi(`${syncBasePath}/${encodeURIComponent(mid)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ company_id: syncCompanyId, thread_id: tid, ...patch }),
+      body: JSON.stringify(body),
     }).catch(() => {});
   }
 
@@ -115,15 +120,19 @@
       .map(([id]) => id);
   }
 
-  async function hydrateFromServer({ api, companyId, threadId } = {}) {
+  async function hydrateFromServer({ api, companyId, threadId, role } = {}) {
     syncApi = typeof api === "function" ? api : null;
     syncCompanyId = String(companyId || "").trim();
+    syncBasePath = String(role || "").toLowerCase() === "worker"
+      ? "/api/worker-app/chat/message-prefs"
+      : "/api/chat/message-prefs";
     const tid = String(threadId || "").trim();
-    if (!syncApi || !syncCompanyId || !tid) return;
+    if (!syncApi || !tid) return;
+    if (syncBasePath.indexOf("worker-app") < 0 && !syncCompanyId) return;
     try {
-      const data = await syncApi(
-        `/api/chat/message-prefs?company_id=${encodeURIComponent(syncCompanyId)}&thread_id=${encodeURIComponent(tid)}`,
-      );
+      const qs = new URLSearchParams({ thread_id: tid });
+      if (syncCompanyId) qs.set("company_id", syncCompanyId);
+      const data = await syncApi(`${syncBasePath}?${qs.toString()}`);
       const prefs = data?.prefs && typeof data.prefs === "object" ? data.prefs : {};
       const bucket = threadBucket(tid);
       Object.entries(prefs).forEach(([mid, pref]) => {

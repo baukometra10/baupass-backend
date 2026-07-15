@@ -388,6 +388,69 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"ok": True, "pref": pref})
 
+    @chat_core_bp.get("/worker-app/chat/message-prefs")
+    @require_worker_session
+    def worker_chat_message_prefs_list():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        thread_id = str(request.args.get("thread_id") or "").strip()
+        if not thread_id:
+            return jsonify({"error": "missing_fields"}), 400
+        thread = get_db().execute(
+            "SELECT id FROM chat_threads WHERE id = ? AND company_id = ? AND worker_id = ?",
+            (thread_id, company_id, worker_id),
+        ).fetchone()
+        if not thread:
+            return jsonify({"error": "thread_not_found"}), 404
+        service = ChatService(get_db())
+        service._ensure_schema()
+        prefs = service.list_message_prefs(
+            company_id=company_id,
+            user_id=f"worker:{worker_id}",
+            thread_id=thread_id,
+        )
+        return jsonify({"ok": True, "prefs": prefs})
+
+    @chat_core_bp.put("/worker-app/chat/message-prefs/<message_id>")
+    @require_worker_session
+    def worker_chat_message_prefs_upsert(message_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        data = request.get_json(silent=True) or {}
+        thread_id = str(data.get("thread_id") or data.get("threadId") or "").strip()
+        if not thread_id:
+            return jsonify({"error": "missing_fields"}), 400
+        thread = get_db().execute(
+            "SELECT id FROM chat_threads WHERE id = ? AND company_id = ? AND worker_id = ?",
+            (thread_id, company_id, worker_id),
+        ).fetchone()
+        if not thread:
+            return jsonify({"error": "thread_not_found"}), 404
+        pinned = data.get("pinned")
+        starred = data.get("starred")
+        service = ChatService(get_db())
+        service._ensure_schema()
+        try:
+            pref = service.upsert_message_pref(
+                company_id=company_id,
+                user_id=f"worker:{worker_id}",
+                thread_id=thread_id,
+                message_id=message_id,
+                pinned=None if pinned is None else bool(pinned),
+                starred=None if starred is None else bool(starred),
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True, "pref": pref})
+
     @chat_core_bp.post("/chat/attachments/<attachment_id>/consume")
     @require_auth
     @require_roles("superadmin", "company-admin")
