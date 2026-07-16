@@ -16,6 +16,7 @@ import '../../services/voice_call_controller.dart';
 import 'chat_attachment_helpers.dart';
 import 'chat_location_helpers.dart';
 import 'chat_media_gallery.dart';
+import 'chat_message_prefs.dart';
 import 'chat_voice_compose_bar.dart';
 import 'chat_voice_player.dart';
 
@@ -56,6 +57,9 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _searchOpen = false;
   String _searchQuery = '';
   final TextEditingController _search = TextEditingController();
+  final ChatMessagePrefsState _messagePrefs = ChatMessagePrefsState();
+  final ScrollController _messageScroll = ScrollController();
+  final Map<String, GlobalKey> _messageKeys = {};
 
   @override
   void initState() {
@@ -76,6 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _message.removeListener(_onComposeChanged);
     _message.dispose();
     _search.dispose();
+    _messageScroll.dispose();
     if (_voiceComposing) {
       unawaited(_recorder.stop());
     }
@@ -97,10 +102,20 @@ class _ChatScreenState extends State<ChatScreen> {
       await widget.chat.ensureE2eReady(widget.session);
       final threadId = await widget.chat.resolveThread(widget.session);
       final messages = await widget.chat.listMessages(widget.session, threadId);
+      Map<String, dynamic> prefs = {};
+      try {
+        prefs = await widget.chat.listMessagePrefs(
+          session: widget.session,
+          threadId: threadId,
+        );
+      } catch (_) {
+        /* local prefs remain */
+      }
       if (!mounted) return;
       setState(() {
         _threadId = threadId;
         _messages = messages;
+        _messagePrefs.applyServerPrefs(prefs);
         _loading = false;
       });
     } catch (_) {
@@ -690,9 +705,141 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Map<String, dynamic>? _messageById(String id) {
+    final mid = id.trim();
+    if (mid.isEmpty) return null;
+    for (final item in _messages) {
+      if ('${item['id'] ?? ''}'.trim() == mid) return item;
+    }
+    return null;
+  }
+
+  void _scrollToMessage(String messageId) {
+    final key = _messageKeys[messageId.trim()];
+    final ctx = key?.currentContext;
+    if (ctx == null) return;
+    unawaited(Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOut,
+      alignment: 0.25,
+    ));
+  }
+
+  Future<void> _toggleMessagePin(Map<String, dynamic> item) async {
+    final threadId = _threadId;
+    final id = (item['id'] as String?)?.trim() ?? '';
+    if (threadId == null || id.isEmpty) return;
+    final pinned = _messagePrefs.togglePin(id);
+    setState(() {});
+    try {
+      await widget.chat.upsertMessagePref(
+        session: widget.session,
+        threadId: threadId,
+        messageId: id,
+        pinned: pinned,
+      );
+    } catch (_) {
+      _messagePrefs.togglePin(id);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Anheften fehlgeschlagen')),
+      );
+    }
+  }
+
+  Future<void> _toggleMessageStar(Map<String, dynamic> item) async {
+    final threadId = _threadId;
+    final id = (item['id'] as String?)?.trim() ?? '';
+    if (threadId == null || id.isEmpty) return;
+    final starred = _messagePrefs.toggleStar(id);
+    setState(() {});
+    try {
+      await widget.chat.upsertMessagePref(
+        session: widget.session,
+        threadId: threadId,
+        messageId: id,
+        starred: starred,
+      );
+    } catch (_) {
+      _messagePrefs.toggleStar(id);
+      if (!mounted) return;
+      setState(() {});
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Markieren fehlgeschlagen')),
+      );
+    }
+  }
+
+  Widget _buildPinnedBar() {
+    final ids = _messagePrefs.pinnedIdsSorted();
+    if (ids.isEmpty || _searchQuery.trim().isNotEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF00A884).withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF00A884).withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Angeheftet',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: const Color(0xFF00A884),
+                ),
+          ),
+          const SizedBox(height: 6),
+          ...ids.take(3).map((id) {
+            final item = _messageById(id);
+            final preview = item != null ? _messagePreview(item) : 'Nachricht';
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(10),
+                onTap: () => _scrollToMessage(id),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    children: [
+                      const Text('📌', style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          preview,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                      Text(
+                        'Springen',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: const Color(0xFF53BDEB),
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
   Future<void> _showMessageActions(Map<String, dynamic> item) async {
     final isWorker = _isWorkerMessage(item);
     final id = (item['id'] as String?)?.trim() ?? '';
+    final pinned = id.isNotEmpty && _messagePrefs.isPinned(id);
+    final starred = id.isNotEmpty && _messagePrefs.isStarred(id);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -709,6 +856,27 @@ class _ChatScreenState extends State<ChatScreen> {
                   _setReplyTo(item);
                 },
               ),
+              if (id.isNotEmpty)
+                ListTile(
+                  leading: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined),
+                  title: Text(pinned ? 'Loslösen' : 'Anheften'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _toggleMessagePin(item);
+                  },
+                ),
+              if (id.isNotEmpty)
+                ListTile(
+                  leading: Icon(
+                    starred ? Icons.star : Icons.star_border,
+                    color: starred ? const Color(0xFFF59E0B) : null,
+                  ),
+                  title: Text(starred ? 'Stern entfernen' : 'Mit Stern markieren'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    await _toggleMessageStar(item);
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.copy),
                 title: const Text('Kopieren'),
@@ -831,6 +999,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
               children: [
+                _buildPinnedBar(),
                 Expanded(
                   child: visible.isEmpty
                       ? Center(
@@ -841,6 +1010,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           ),
                         )
                       : ListView.builder(
+                          controller: _messageScroll,
                           padding: const EdgeInsets.all(16),
                           itemCount: visible.length,
                           itemBuilder: (context, index) {
@@ -862,7 +1032,14 @@ class _ChatScreenState extends State<ChatScreen> {
                             final read = item['readByRecipient'] == true || item['read_by_recipient'] == true;
                             final readLabel = _readStatusLabel(item);
                             final timeLabel = _formatTime(item['createdAt'] as String?);
+                            final messageId = (item['id'] as String?)?.trim() ?? '';
+                            if (messageId.isNotEmpty) {
+                              _messageKeys.putIfAbsent(messageId, GlobalKey.new);
+                            }
+                            final pinned = messageId.isNotEmpty && _messagePrefs.isPinned(messageId);
+                            final starred = messageId.isNotEmpty && _messagePrefs.isStarred(messageId);
                             return Padding(
+                              key: messageId.isNotEmpty ? _messageKeys[messageId] : null,
                               padding: const EdgeInsets.only(bottom: 10),
                               child: Row(
                                 mainAxisAlignment:
@@ -889,9 +1066,12 @@ class _ChatScreenState extends State<ChatScreen> {
                                             bottomRight: Radius.circular(isWorker ? 6 : 18),
                                           ),
                                           border: Border.all(
-                                            color: isWorker
-                                                ? const Color(0xFF93C5FD)
-                                                : Theme.of(context).colorScheme.outlineVariant,
+                                            color: pinned
+                                                ? const Color(0xFF00A884).withValues(alpha: 0.55)
+                                                : (isWorker
+                                                    ? const Color(0xFF93C5FD)
+                                                    : Theme.of(context).colorScheme.outlineVariant),
+                                            width: pinned ? 1.5 : 1,
                                           ),
                                           boxShadow: [
                                             BoxShadow(
@@ -993,6 +1173,16 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 mainAxisSize: MainAxisSize.min,
                                                 mainAxisAlignment: MainAxisAlignment.end,
                                                 children: [
+                                                  if (pinned)
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(right: 4),
+                                                      child: Icon(Icons.push_pin, size: 14, color: Color(0xFF00A884)),
+                                                    ),
+                                                  if (starred)
+                                                    const Padding(
+                                                      padding: EdgeInsets.only(right: 4),
+                                                      child: Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
+                                                    ),
                                                   if (timeLabel.isNotEmpty)
                                                     Text(
                                                       timeLabel,

@@ -1,13 +1,13 @@
 # Chat follow-up tracks
 
-Status after sprint `chat40` (worker message-prefs sync) on top of `chat39` + Flutter `0.1.12+33`.
+Status after sprint `chat40` + Flutter `0.1.13+34` (pin/star UI).
 
 ## Done
 
 - Admin push status bar + activate/deactivate (`GET /api/chat/push-status`, `POST /api/chat/push-unsubscribe`)
 - Server-backed thread pin/mute (`GET/PUT /api/chat/thread-prefs`) with localStorage fallback
 - Server-backed per-message pin/star for **admin and worker** (`GET/PUT …/message-prefs`)
-- Flutter reply quotes, long-press menu (reply/copy/delete), in-conversation search
+- Flutter reply quotes, long-press menu (reply/copy/delete/pin/star), in-conversation search, pinned bar
 - Admin Anrufbildschirm: WA-style round controls, ring elapsed timer, connecting/unreachable states, missed outbound → „Nicht erreicht“
 - View-once voice: consume table + download 410; admin/worker `consumeFn`; Flutter clear-cache + block replay
 - WebRTC browser smoke: `tests/e2e/chat-calls.spec.js` (mocked getUserMedia/RTCPeerConnection + chat APIs)
@@ -21,5 +21,9 @@ Status after sprint `chat40` (worker message-prefs sync) on top of `chat39` + Fl
 
 ## Optional later
 
-- Flutter pin/star UI parity with worker web
 - Live (non-mocked) WebRTC Playwright against staging fixtures
+
+## Docs (QA & release)
+
+- [testflight-github-secrets.md](./testflight-github-secrets.md) — ASC + Signing Secrets
+- [chat-qa-testplan.md](./chat-qa-testplan.md) — Geräte-QA Checkliste

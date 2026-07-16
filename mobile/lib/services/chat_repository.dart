@@ -426,6 +426,43 @@ class ChatRepository {
     );
   }
 
+  Future<Map<String, dynamic>> listMessagePrefs({
+    required WorkerSession session,
+    required String threadId,
+  }) async {
+    final tid = threadId.trim();
+    if (tid.isEmpty) return {};
+    final data = await _api.getJson(
+      '/api/worker-app/chat/message-prefs?thread_id=${Uri.encodeComponent(tid)}',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final prefs = data['prefs'];
+    if (prefs is Map) return Map<String, dynamic>.from(prefs);
+    return {};
+  }
+
+  Future<void> upsertMessagePref({
+    required WorkerSession session,
+    required String threadId,
+    required String messageId,
+    bool? pinned,
+    bool? starred,
+  }) async {
+    final tid = threadId.trim();
+    final mid = messageId.trim();
+    if (tid.isEmpty || mid.isEmpty) return;
+    final body = <String, dynamic>{'thread_id': tid};
+    if (pinned != null) body['pinned'] = pinned;
+    if (starred != null) body['starred'] = starred;
+    await _api.putJson(
+      '/api/worker-app/chat/message-prefs/$mid',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: body,
+    );
+  }
+
   Future<void> deleteMessage(WorkerSession session, String messageId) async {
     if (messageId.trim().isEmpty) return;
     await _api.deleteJson(

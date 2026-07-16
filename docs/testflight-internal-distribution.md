@@ -85,6 +85,8 @@ BAUPASS_TESTFLIGHT_URL=https://testflight.apple.com/join/XXXXXXXX
 
 ## CI: iOS build
 
+Siehe auch **[testflight-github-secrets.md](./testflight-github-secrets.md)** (Schritt-für-Schritt) und **[chat-qa-testplan.md](./chat-qa-testplan.md)** (QA nach Upload).
+
 - **Unsigned** zip: `.github/workflows/flutter-worker-ios.yml` → artifact `baupass-worker-ios-unsigned`.
 - **Signed TestFlight IPA**: `.github/workflows/ios-testflight.yml` (manual or push to `mobile/**`).
 
@@ -141,8 +143,9 @@ Upload `build/ios/ipa/*.ipa` via **Transporter** or Xcode Organizer.
 | **0.1.10+31** | True inline voice playback (`just_audio`) |
 | **0.1.11+32** | Flutter reply / long-press menu / in-thread search |
 | **0.1.12+33** | View-once voice hard enforce; admin call screen polish |
+| **0.1.13+34** | Flutter message pin/star + server sync |
 
-Current `mobile/pubspec.yaml` target: **0.1.12+33**.
+Current `mobile/pubspec.yaml` target: **0.1.13+34**.
 
 ---
 
@@ -185,7 +188,7 @@ Upload `build/ios/ipa/*.ipa` via **Transporter** or Xcode Organizer.
 
 ### If CallKit does not appear
 
-- Confirm TestFlight build = `0.1.12+33` (or newer).
+- Confirm TestFlight build = `0.1.13+34` (or newer).
 - iOS **Settings → WorkPass Worker → Notifications** + Microphone.
 - CallKit needs a **new native IPA** (PWA-only deploys are not enough).
 
