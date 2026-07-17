@@ -1171,6 +1171,10 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 "hasUrl": diag.get("hasUrl"),
                 "hasApiKey": diag.get("hasApiKey"),
                 "hasApiSecret": diag.get("hasApiSecret"),
+                "urlLen": diag.get("urlLen"),
+                "apiKeyLen": diag.get("apiKeyLen"),
+                "apiSecretLen": diag.get("apiSecretLen"),
+                "seenLivekitEnvNames": diag.get("seenLivekitEnvNames") or [],
             }
         )
 

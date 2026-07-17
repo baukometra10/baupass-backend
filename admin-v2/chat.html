@@ -4301,9 +4301,15 @@
       }
       if (!status?.configured) {
         const missing = Array.isArray(status?.missing) ? status.missing.filter(Boolean) : [];
-        const hint = missing.length
-          ? ` Fehlt: ${missing.join(", ")}`
-          : " (Railway: SUPPIX_LIVEKIT_URL / API_KEY / API_SECRET am API-Service + Redeploy)";
+        const seen = Array.isArray(status?.seenLivekitEnvNames) ? status.seenLivekitEnvNames.filter(Boolean) : [];
+        const parts = [];
+        if (missing.length) parts.push(`Fehlt: ${missing.join(", ")}`);
+        if (seen.length) parts.push(`Railway sieht: ${seen.join(", ")}`);
+        else parts.push("Railway sieht keine LIVEKIT-Variablen am API-Service");
+        if (status?.apiSecretLen === 0 && (status?.hasApiKey || status?.apiKeyLen > 0)) {
+          parts.push("Secret-Länge 0 — Variable leer oder falscher Name");
+        }
+        const hint = parts.length ? ` ${parts.join(" | ")}` : "";
         setThreadMeta(`${window.adminChatT("conferenceUnavailable")}${hint}`, { dynamic: true });
         return;
       }

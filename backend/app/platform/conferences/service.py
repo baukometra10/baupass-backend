@@ -19,15 +19,65 @@ def _clean_env_value(raw: str | None) -> str:
     value = str(raw or "").strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
         value = value[1:-1].strip()
+    # LiveKit "copy env" sometimes pastes KEY=value into the value field
+    if "=" in value and value.upper().startswith(("LIVEKIT_", "SUPPIX_", "BAUPASS_")):
+        value = value.split("=", 1)[1].strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1].strip()
     return value
 
 
+def _env_candidates(name: str) -> list[str]:
+    """Ordered env key names to try for a LiveKit setting."""
+    aliases = {
+        "LIVEKIT_API_SECRET": (
+            "LIVEKIT_API_SECRET",
+            "LIVEKIT_SECRET",
+            "SUPPIX_LIVEKIT_API_SECRET",
+            "BAUPASS_LIVEKIT_API_SECRET",
+            "SUPPIX_LIVEKIT_SECRET",
+            "BAUPASS_LIVEKIT_SECRET",
+        ),
+        "LIVEKIT_API_KEY": (
+            "LIVEKIT_API_KEY",
+            "SUPPIX_LIVEKIT_API_KEY",
+            "BAUPASS_LIVEKIT_API_KEY",
+        ),
+        "LIVEKIT_URL": (
+            "LIVEKIT_URL",
+            "SUPPIX_LIVEKIT_URL",
+            "BAUPASS_LIVEKIT_URL",
+            "LIVEKIT_HOST",
+            "SUPPIX_LIVEKIT_HOST",
+        ),
+    }
+    return list(aliases.get(name, (name, f"SUPPIX_{name}", f"BAUPASS_{name}")))
+
+
 def _livekit_env(name: str) -> str:
-    """Prefer SUPPIX_/BAUPASS_ prefix; accept plain LIVEKIT_* from LiveKit Cloud dashboard."""
+    """Prefer SUPPIX_/BAUPASS_ prefix; accept plain LIVEKIT_* and common aliases."""
     via_platform = _clean_env_value(platform_env(name))
     if via_platform:
         return via_platform
-    return _clean_env_value(os.environ.get(name))
+
+    wanted = {c.upper() for c in _env_candidates(name)}
+    # Exact names first
+    for candidate in _env_candidates(name):
+        value = _clean_env_value(os.environ.get(candidate))
+        if value:
+            return value
+    # Case-insensitive fallback (Railway is case-sensitive; typos happen)
+    for key, raw in os.environ.items():
+        if key.upper() in wanted:
+            value = _clean_env_value(raw)
+            if value:
+                return value
+    return ""
+
+
+def _livekit_related_env_names() -> list[str]:
+    """Env key names containing LIVEKIT (values never returned)."""
+    return sorted({k for k in os.environ if "LIVEKIT" in k.upper()})
 
 
 def _livekit_url_normalized() -> str:
@@ -48,9 +98,9 @@ class ConferenceService:
 
     def config_diagnostics(self) -> dict[str, Any]:
         """Safe diagnostics for admins (no secret values)."""
-        key = bool(_livekit_env("LIVEKIT_API_KEY"))
-        secret = bool(_livekit_env("LIVEKIT_API_SECRET"))
-        url = bool(_livekit_url_normalized())
+        key = _livekit_env("LIVEKIT_API_KEY")
+        secret = _livekit_env("LIVEKIT_API_SECRET")
+        url = _livekit_url_normalized()
         missing: list[str] = []
         if not url:
             missing.append("SUPPIX_LIVEKIT_URL (or LIVEKIT_URL)")
@@ -59,9 +109,13 @@ class ConferenceService:
         if not secret:
             missing.append("SUPPIX_LIVEKIT_API_SECRET (or LIVEKIT_API_SECRET)")
         return {
-            "hasUrl": url,
-            "hasApiKey": key,
-            "hasApiSecret": secret,
+            "hasUrl": bool(url),
+            "hasApiKey": bool(key),
+            "hasApiSecret": bool(secret),
+            "urlLen": len(url),
+            "apiKeyLen": len(key),
+            "apiSecretLen": len(secret),
+            "seenLivekitEnvNames": _livekit_related_env_names(),
             "missing": missing,
         }
 
