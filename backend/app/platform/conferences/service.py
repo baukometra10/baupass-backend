@@ -84,11 +84,22 @@ def _livekit_url_normalized() -> str:
     url = _livekit_env("LIVEKIT_URL")
     if not url:
         return ""
+    # Strip accidental KEY=value paste and whitespace
+    url = url.strip().rstrip("/")
+    if url.upper().startswith("LIVEKIT_URL="):
+        url = url.split("=", 1)[1].strip().rstrip("/")
     if url.startswith("https://"):
-        return "wss://" + url[len("https://") :]
-    if url.startswith("http://"):
-        return "ws://" + url[len("http://") :]
-    return url
+        url = "wss://" + url[len("https://") :]
+    elif url.startswith("http://"):
+        url = "ws://" + url[len("http://") :]
+    elif not url.startswith(("wss://", "ws://")):
+        url = "wss://" + url.lstrip("/")
+    # Clients append /rtc themselves — strip if pasted from docs
+    for suffix in ("/rtc", "/rtc/", "/"):
+        if url.endswith(suffix) and suffix != "/":
+            url = url[: -len(suffix)]
+            break
+    return url.rstrip("/")
 
 
 class ConferenceService:
@@ -115,6 +126,8 @@ class ConferenceService:
             "urlLen": len(url),
             "apiKeyLen": len(key),
             "apiSecretLen": len(secret),
+            "apiKeyPrefix": (key[:6] + "…") if len(key) >= 6 else ("set" if key else ""),
+            "livekitHost": url.replace("wss://", "").replace("ws://", "").split("/")[0] if url else "",
             "seenLivekitEnvNames": _livekit_related_env_names(),
             "missing": missing,
         }

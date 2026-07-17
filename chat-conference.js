@@ -100,7 +100,17 @@
     room.on(LK.RoomEvent.Disconnected, () => {
       onDisconnect?.();
     });
-    await room.connect(livekitUrl, token);
+    const url = String(livekitUrl || "").trim();
+    if (!url || !token) {
+      throw new Error("livekit_connect_missing_url_or_token");
+    }
+    try {
+      await room.connect(url, token);
+    } catch (err) {
+      const msg = String(err?.message || err || "connect_failed");
+      const host = url.replace(/^wss?:\/\//i, "").split("/")[0];
+      throw new Error(`${msg} (LiveKit: ${host || url})`);
+    }
     await room.localParticipant.setMicrophoneEnabled(true);
     try {
       await room.localParticipant.setCameraEnabled(false);
