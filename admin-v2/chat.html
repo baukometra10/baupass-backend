@@ -1465,13 +1465,13 @@
   <script src="/chat-thread-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
-  <script src="/chat-admin-push.js?v=20260717chat42d"></script>
+  <script src="/chat-admin-push.js?v=20260717chat42e"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260717chat42d"></script>
-  <script src="/chat-voice-call.js?v=20260717chat42d"></script>
-  <script src="/chat-conference.js?v=20260717chat42d"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260717chat42d"></script>
+  <script src="/chat-voice.js?v=20260717chat42e"></script>
+  <script src="/chat-voice-call.js?v=20260717chat42e"></script>
+  <script src="/chat-conference.js?v=20260717chat42e"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat42e"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4109,11 +4109,26 @@
       btn.setAttribute("aria-label", text);
       btn.title = text;
     }
+    function updateVoiceCallCamBtn(on) {
+      const btn = document.getElementById("voiceCallCamBtn");
+      if (!btn) return;
+      btn.classList.toggle("is-active", Boolean(on));
+      const icon = btn.querySelector(".voice-call-btn-icon");
+      if (icon) icon.innerHTML = on ? VOICE_CALL_SVG.camera : VOICE_CALL_SVG.camera;
+      const label = btn.querySelector(".voice-call-btn-label");
+      const text = on
+        ? (window.adminChatT("voiceCallCameraOff") || "Kamera aus")
+        : (window.adminChatT("voiceCallCamera") || "Kamera");
+      if (label) label.textContent = text;
+      btn.setAttribute("aria-label", text);
+      btn.title = text;
+    }
     function resetVoiceCallControls() {
       resetVoiceCallMeters();
       resetVoiceCallLiveWave();
       updateVoiceCallMuteBtn(false);
       updateVoiceCallSpeakerBtn(true);
+      updateVoiceCallCamBtn(false);
       const volume = document.getElementById("voiceCallVolume");
       if (volume) volume.value = "100";
       ensureVoiceCallLiveWave();
@@ -4123,6 +4138,8 @@
       if (muteIcon) muteIcon.innerHTML = VOICE_CALL_SVG.mic;
       const speakerIcon = document.querySelector("#voiceCallSpeakerBtn .voice-call-btn-icon");
       if (speakerIcon) speakerIcon.innerHTML = VOICE_CALL_SVG.speaker;
+      const camIcon = document.querySelector("#voiceCallCamBtn .voice-call-btn-icon");
+      if (camIcon) camIcon.innerHTML = VOICE_CALL_SVG.camera;
     }
     function voiceCallInitials(name) {
       const parts = String(name || "").trim().split(/\s+/).filter(Boolean).slice(0, 2);
@@ -4646,11 +4663,42 @@
         setThreadMeta(String(error?.message || error), { dynamic: true });
       }
     });
-    document.getElementById("voiceCallCamBtn")?.addEventListener("click", async () => {
-      if (!window.SUPPIXConference?.isActive?.()) return;
-      conferenceCamOn = !conferenceCamOn;
-      await window.SUPPIXConference.setCameraEnabled(conferenceCamOn);
-      document.getElementById("voiceCallCamBtn")?.classList.toggle("is-active", conferenceCamOn);
+    document.getElementById("voiceCallCamBtn")?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const btn = document.getElementById("voiceCallCamBtn");
+      if (window.SUPPIXConference?.isActive?.()) {
+        try {
+          const next = !Boolean(window.SUPPIXConference.isCameraOn?.());
+          await window.SUPPIXConference.setCameraEnabled(next);
+          conferenceCamOn = Boolean(window.SUPPIXConference.isCameraOn?.());
+          btn?.classList.toggle("is-active", conferenceCamOn);
+          updateVoiceCallCamBtn(conferenceCamOn);
+        } catch (error) {
+          setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")), { dynamic: true });
+          const sub = document.getElementById("voiceCallSubtitle");
+          if (sub) {
+            sub.textContent = String(error?.message || error || window.adminChatT("voiceCallCameraFailed"));
+            sub.classList.remove("hidden");
+          }
+        }
+        return;
+      }
+      if (activeVoiceCallSession) {
+        const msg = window.adminChatT("voiceCallCameraConferenceOnly") || "Kamera nur in der Konferenz verfügbar.";
+        const sub = document.getElementById("voiceCallSubtitle");
+        if (sub) {
+          sub.textContent = msg;
+          sub.classList.remove("hidden");
+        }
+        return;
+      }
+      const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
+      const sub = document.getElementById("voiceCallSubtitle");
+      if (sub) {
+        sub.textContent = waitMsg;
+        sub.classList.remove("hidden");
+      }
     });
     document.getElementById("voiceCallNoteBtn")?.addEventListener("click", async () => {
       const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
@@ -4784,23 +4832,72 @@
         }
       })();
     });
-    document.getElementById("voiceCallMuteBtn")?.addEventListener("click", () => {
-      if (!activeVoiceCallSession) return;
-      const muted = activeVoiceCallSession.toggleMute();
-      updateVoiceCallMuteBtn(muted);
+    document.getElementById("voiceCallMuteBtn")?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        if (activeVoiceCallSession) {
+          const muted = activeVoiceCallSession.toggleMute();
+          updateVoiceCallMuteBtn(muted);
+          return;
+        }
+        if (window.SUPPIXConference?.isActive?.()) {
+          const muted = await window.SUPPIXConference.toggleMute();
+          if (muted == null) return;
+          updateVoiceCallMuteBtn(Boolean(muted));
+          return;
+        }
+        const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
+        const sub = document.getElementById("voiceCallSubtitle");
+        if (sub) {
+          sub.textContent = waitMsg;
+          sub.classList.remove("hidden");
+        }
+      } catch (error) {
+        console.warn("[voice-call] mute failed", error);
+      }
     });
-    document.getElementById("voiceCallSpeakerBtn")?.addEventListener("click", () => {
-      if (!activeVoiceCallSession) return;
-      const on = activeVoiceCallSession.toggleSpeaker();
-      updateVoiceCallSpeakerBtn(on);
-      const volume = document.getElementById("voiceCallVolume");
-      if (volume && on) volume.value = String(Math.round((activeVoiceCallSession.outputVolume || 1) * 100) || 100);
+    document.getElementById("voiceCallSpeakerBtn")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        if (activeVoiceCallSession) {
+          const on = activeVoiceCallSession.toggleSpeaker();
+          updateVoiceCallSpeakerBtn(on);
+          const volume = document.getElementById("voiceCallVolume");
+          if (volume && on) volume.value = String(Math.round((activeVoiceCallSession.outputVolume || 1) * 100) || 100);
+          return;
+        }
+        if (window.SUPPIXConference?.isActive?.()) {
+          const on = window.SUPPIXConference.toggleSpeaker();
+          updateVoiceCallSpeakerBtn(Boolean(on));
+          return;
+        }
+        const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
+        const sub = document.getElementById("voiceCallSubtitle");
+        if (sub) {
+          sub.textContent = waitMsg;
+          sub.classList.remove("hidden");
+        }
+      } catch (error) {
+        console.warn("[voice-call] speaker failed", error);
+      }
     });
     document.getElementById("voiceCallVolume")?.addEventListener("input", (event) => {
-      if (!activeVoiceCallSession) return;
       const value = Number(event.target.value);
-      activeVoiceCallSession.setOutputVolume(value / 100);
-      updateVoiceCallSpeakerBtn(activeVoiceCallSession.speakerOn && value > 0);
+      if (activeVoiceCallSession) {
+        activeVoiceCallSession.setOutputVolume(value / 100);
+        updateVoiceCallSpeakerBtn(activeVoiceCallSession.speakerOn && value > 0);
+        return;
+      }
+      if (window.SUPPIXConference?.isActive?.()) {
+        const on = value > 0;
+        window.SUPPIXConference.setSpeakerEnabled(on);
+        document.querySelectorAll("audio[data-identity]").forEach((audio) => {
+          audio.volume = Math.max(0, Math.min(1, value / 100));
+        });
+        updateVoiceCallSpeakerBtn(on);
+      }
     });
 
     syncAdminComposeAction();

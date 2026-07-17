@@ -216,14 +216,30 @@
       setOverlay(false);
     },
     toggleMute() {
-      if (!session) return;
-      const muted = session.toggleMute();
-      document.getElementById("workerVoiceCallMuteBtn")?.classList.toggle("is-active", muted);
+      if (session) {
+        const muted = session.toggleMute();
+        document.getElementById("workerVoiceCallMuteBtn")?.classList.toggle("is-active", muted);
+        return muted;
+      }
+      if (conferenceActive && global.SUPPIXConference?.isActive?.()) {
+        void global.SUPPIXConference.toggleMute?.().then((muted) => {
+          if (muted == null) return;
+          document.getElementById("workerVoiceCallMuteBtn")?.classList.toggle("is-active", Boolean(muted));
+        });
+        return;
+      }
     },
     toggleSpeaker() {
-      if (!session) return;
-      const on = session.toggleSpeaker();
-      document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
+      if (session) {
+        const on = session.toggleSpeaker();
+        document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
+        return on;
+      }
+      if (conferenceActive && global.SUPPIXConference?.isActive?.()) {
+        const on = global.SUPPIXConference.toggleSpeaker?.();
+        document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
+        return on;
+      }
     },
   };
 

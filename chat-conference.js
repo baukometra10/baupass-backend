@@ -7,6 +7,9 @@
   let room = null;
   let activeRoomId = "";
   let localVideoEl = null;
+  let micMuted = false;
+  let speakerOn = true;
+  let cameraOn = false;
 
   function loadLiveKit() {
     if (global.LivekitClient || global.LiveKit) {
@@ -61,16 +64,30 @@
     );
   }
 
+  function applySpeakerToRemoteAudio() {
+    document.querySelectorAll("audio[data-identity]").forEach((audio) => {
+      audio.muted = !speakerOn;
+      if (speakerOn && audio.paused) {
+        void audio.play?.().catch?.(() => {});
+      }
+    });
+  }
+
   function attachTrack(track, identity, isLocal) {
     const grid = ensureVideoGrid();
     if (!grid || !track) return;
     if (track.kind === "audio" && !isLocal) {
-      const audio = document.createElement("audio");
-      audio.autoplay = true;
-      audio.playsInline = true;
-      audio.dataset.identity = identity;
+      let audio = document.querySelector(`audio[data-identity="${CSS.escape(identity)}"]`);
+      if (!audio) {
+        audio = document.createElement("audio");
+        audio.autoplay = true;
+        audio.playsInline = true;
+        audio.dataset.identity = identity;
+        document.body.appendChild(audio);
+      }
       track.attach(audio);
-      document.body.appendChild(audio);
+      audio.muted = !speakerOn;
+      void audio.play?.().catch?.(() => {});
       return;
     }
     if (track.kind !== "video") return;
@@ -109,6 +126,9 @@
     if (!LK?.Room) throw new Error("livekit_unavailable");
     await disconnect();
     activeRoomId = String(roomId || "");
+    micMuted = false;
+    speakerOn = true;
+    cameraOn = false;
     let didConnect = false;
     const overlay = document.getElementById("voiceCallOverlay");
     overlay?.classList.add("is-conference");
@@ -171,17 +191,37 @@
 
   async function setCameraEnabled(enabled) {
     if (!room) return false;
-    await room.localParticipant.setCameraEnabled(Boolean(enabled));
+    const next = Boolean(enabled);
+    await room.localParticipant.setCameraEnabled(next);
+    cameraOn = next;
     room.localParticipant.videoTrackPublications?.forEach?.((pub) => {
       if (pub.track) attachTrack(pub.track, "local", true);
     });
-    return Boolean(enabled);
+    return cameraOn;
   }
 
   async function setMicrophoneEnabled(enabled) {
     if (!room) return false;
-    await room.localParticipant.setMicrophoneEnabled(Boolean(enabled));
-    return Boolean(enabled);
+    const next = Boolean(enabled);
+    await room.localParticipant.setMicrophoneEnabled(next);
+    micMuted = !next;
+    return next;
+  }
+
+  async function toggleMute() {
+    if (!room) return null;
+    await setMicrophoneEnabled(micMuted);
+    return micMuted;
+  }
+
+  function setSpeakerEnabled(enabled) {
+    speakerOn = Boolean(enabled);
+    applySpeakerToRemoteAudio();
+    return speakerOn;
+  }
+
+  function toggleSpeaker() {
+    return setSpeakerEnabled(!speakerOn);
   }
 
   async function disconnect() {
@@ -192,6 +232,9 @@
     }
     room = null;
     activeRoomId = "";
+    micMuted = false;
+    speakerOn = true;
+    cameraOn = false;
     document.querySelectorAll("audio[data-identity]").forEach((el) => el.remove());
     const grid = ensureVideoGrid();
     if (grid) grid.innerHTML = "";
@@ -210,8 +253,14 @@
     disconnect,
     setCameraEnabled,
     setMicrophoneEnabled,
+    toggleMute,
+    setSpeakerEnabled,
+    toggleSpeaker,
     renderParticipantRail,
     getActiveRoomId: () => activeRoomId,
     isActive: () => Boolean(room),
+    isMicMuted: () => micMuted,
+    isSpeakerOn: () => speakerOn,
+    isCameraOn: () => cameraOn,
   };
 })(typeof window !== "undefined" ? window : globalThis);

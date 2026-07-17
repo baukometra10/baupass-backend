@@ -20,8 +20,8 @@
   }
 
   /**
-   * Rich dual-voice ring / ringback (Web Audio).
-   * mode: "incoming" = classic phone dual-tone; "outgoing" = melodic ringback.
+   * Messenger-style ring / ringback (Web Audio).
+   * mode: "incoming" = WhatsApp-like bubble melody; "outgoing" = soft waiting motif.
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
@@ -31,12 +31,13 @@
     let master = null;
     let filter = null;
 
-    function tone(freqs, start, dur, peak = 0.14, types = ["sine", "triangle"]) {
+    function tone(freqs, start, dur, peak = 0.16, types = ["sine", "triangle"]) {
       if (!ctx || !master) return;
       const g = ctx.createGain();
+      // Soft “bubble” attack like messenger ringtones
       g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(peak, start + 0.035);
-      g.gain.exponentialRampToValueAtTime(peak * 0.82, start + dur * 0.45);
+      g.gain.exponentialRampToValueAtTime(peak, start + 0.028);
+      g.gain.exponentialRampToValueAtTime(peak * 0.7, start + Math.max(0.06, dur * 0.4));
       g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
       const dest = filter || master;
       g.connect(dest);
@@ -44,21 +45,12 @@
         const osc = ctx.createOscillator();
         osc.type = types[i % types.length] || "sine";
         osc.frequency.setValueAtTime(hz, start);
-        // Subtle vibrato for a more “phone” feel
-        const lfo = ctx.createOscillator();
-        const lfoGain = ctx.createGain();
-        lfo.frequency.value = mode === "incoming" ? 5.5 : 4.2;
-        lfoGain.gain.value = mode === "incoming" ? 3.2 : 2.2;
-        lfo.connect(lfoGain);
-        lfoGain.connect(osc.frequency);
         const og = ctx.createGain();
-        og.gain.value = i === 0 ? 0.9 : 0.34;
+        og.gain.value = i === 0 ? 0.92 : 0.28;
         osc.connect(og);
         og.connect(g);
-        lfo.start(start);
         osc.start(start);
-        lfo.stop(start + dur + 0.03);
-        osc.stop(start + dur + 0.03);
+        osc.stop(start + dur + 0.02);
       });
     }
 
@@ -66,15 +58,20 @@
       if (stopped || !ctx) return;
       const t0 = ctx.currentTime + 0.02;
       if (mode === "incoming") {
-        // Classic dual-tone ring: two long bursts (approx. North-American cadence)
-        tone([440, 480], t0, 0.95, 0.2);
-        tone([440, 480], t0 + 1.15, 0.95, 0.2);
+        // WhatsApp-inspired ascending marimba / bubble motif
+        // G4 → C5 → E5 → G5 → C6, then a short echo
+        tone([392.0], t0, 0.16, 0.15);
+        tone([523.25], t0 + 0.14, 0.16, 0.17);
+        tone([659.25], t0 + 0.28, 0.16, 0.18);
+        tone([783.99], t0 + 0.42, 0.18, 0.19);
+        tone([1046.5, 783.99], t0 + 0.58, 0.32, 0.2, ["sine", "triangle"]);
+        tone([659.25], t0 + 1.05, 0.14, 0.12);
+        tone([783.99, 1046.5], t0 + 1.2, 0.28, 0.16, ["sine", "sine"]);
       } else {
-        // Warm ascending ringback motif with harmony
-        tone([392.0, 493.88], t0, 0.22, 0.12, ["sine", "sine"]);
-        tone([523.25, 659.25], t0 + 0.2, 0.24, 0.14);
-        tone([659.25, 783.99], t0 + 0.42, 0.28, 0.15);
-        tone([783.99, 987.77, 523.25], t0 + 0.72, 0.5, 0.16, ["sine", "triangle", "sine"]);
+        // Soft messenger ringback: two bright “waiting” chimes
+        tone([880, 1174.66], t0, 0.18, 0.14, ["sine", "sine"]);
+        tone([880, 1174.66], t0 + 0.28, 0.18, 0.14, ["sine", "sine"]);
+        tone([659.25, 987.77], t0 + 0.72, 0.35, 0.12, ["triangle", "sine"]);
       }
     }
 
@@ -87,8 +84,8 @@
           master.gain.value = 1;
           filter = ctx.createBiquadFilter();
           filter.type = "lowpass";
-          filter.frequency.value = mode === "incoming" ? 3200 : 4200;
-          filter.Q.value = 0.7;
+          filter.frequency.value = mode === "incoming" ? 5200 : 4000;
+          filter.Q.value = 0.85;
           filter.connect(master);
           master.connect(ctx.destination);
           const resume = () => {
@@ -97,8 +94,8 @@
           resume();
           global.addEventListener?.("pointerdown", resume, { once: true });
           playPattern();
-          // Incoming: ~4s cycle (2s ring + pause). Outgoing: slightly faster motif.
-          timer = global.setInterval(playPattern, mode === "incoming" ? 4000 : 2800);
+          // Incoming: ~2.6s cycle like messenger loops; outgoing: ~2.2s
+          timer = global.setInterval(playPattern, mode === "incoming" ? 2600 : 2200);
         } catch (_) {
           /* ignore */
         }
