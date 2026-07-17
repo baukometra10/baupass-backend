@@ -1597,7 +1597,10 @@
     };
     function voiceCallApi(path, options = {}) {
       let url = String(path || "");
-      if (companyId && url.startsWith("/api/chat/calls")) {
+      if (
+        companyId &&
+        (url.startsWith("/api/chat/calls") || url.startsWith("/api/chat/conferences"))
+      ) {
         url += `${url.includes("?") ? "&" : "?"}company_id=${encodeURIComponent(companyId)}`;
       }
       return api(url, options);
@@ -4286,6 +4289,10 @@
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
     async function startAdminConference(initialWorkerIds) {
+      if (!companyId) {
+        setThreadMeta("company_required — bitte Chat mit Firma öffnen (?company_id=…)", { dynamic: true });
+        return;
+      }
       let status;
       try {
         status = await voiceCallApi("/api/chat/conferences/status");
@@ -4320,7 +4327,11 @@
         const data = await voiceCallApi("/api/chat/conferences", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ worker_ids: workerIds, title: "Firmenkonferenz" }),
+          body: JSON.stringify({
+            worker_ids: workerIds,
+            title: "Firmenkonferenz",
+            company_id: companyId || undefined,
+          }),
         });
         const room = data.room || {};
         activeConferenceRoomId = String(room.id || "");
