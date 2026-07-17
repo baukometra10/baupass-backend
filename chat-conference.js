@@ -3,6 +3,7 @@
  * Requires LIVEKIT_* env on server; loads livekit-client from CDN on demand.
  */
 (function initSuppixConference(global) {
+  const LIVEKIT_CDN = "https://cdn.jsdelivr.net/npm/livekit-client@2.20.1/dist/livekit-client.umd.min.js";
   let room = null;
   let activeRoomId = "";
   let localVideoEl = null;
@@ -15,11 +16,11 @@
       const existing = document.querySelector("script[data-livekit]");
       if (existing) {
         existing.addEventListener("load", () => resolve(global.LivekitClient || global.LiveKit));
-        existing.addEventListener("error", reject);
+        existing.addEventListener("error", () => reject(new Error("livekit_cdn_failed")));
         return;
       }
       const s = document.createElement("script");
-      s.src = "https://cdn.jsdelivr.net/npm/livekit-client@2.9.1/dist/livekit-client.umd.min.js";
+      s.src = LIVEKIT_CDN;
       s.async = true;
       s.dataset.livekit = "1";
       s.onload = () => resolve(global.LivekitClient || global.LiveKit);
@@ -30,6 +31,21 @@
 
   function ensureVideoGrid() {
     return document.getElementById("voiceCallVideoGrid");
+  }
+
+  function formatConnectError(err, url) {
+    const host = String(url || "").replace(/^wss?:\/\//i, "").split("/")[0];
+    const msg = String(err?.message || err || "connect_failed");
+    const reason = err?.reasonName || err?.reason || "";
+    const status = err?.status != null ? ` status=${err.status}` : "";
+    const ctx = err?.context ? ` ctx=${JSON.stringify(err.context)}` : "";
+    const parts = [msg];
+    if (reason) parts.push(`reason=${reason}`);
+    if (status) parts.push(status.trim());
+    if (ctx) parts.push(ctx.trim());
+    parts.push(`(LiveKit: ${host || url || "?"})`);
+    parts.push("Tipp: VPN aus / https://livekit.io/connection-test");
+    return parts.join(" ");
   }
 
   function attachTrack(track, identity, isLocal) {
@@ -100,16 +116,30 @@
     room.on(LK.RoomEvent.Disconnected, () => {
       onDisconnect?.();
     });
-    const url = String(livekitUrl || "").trim();
+    const url = String(livekitUrl || "").trim().replace(/\/+$/, "");
     if (!url || !token) {
       throw new Error("livekit_connect_missing_url_or_token");
     }
     try {
-      await room.connect(url, token);
+      if (typeof room.prepareConnection === "function") {
+        try {
+          await room.prepareConnection(url, token);
+        } catch (_) {
+          /* prepare is best-effort */
+        }
+      }
+      await room.connect(url, token, {
+        autoSubscribe: true,
+        maxRetries: 2,
+      });
     } catch (err) {
-      const msg = String(err?.message || err || "connect_failed");
-      const host = url.replace(/^wss?:\/\//i, "").split("/")[0];
-      throw new Error(`${msg} (LiveKit: ${host || url})`);
+      try {
+        await room.disconnect();
+      } catch (_) {
+        /* ignore */
+      }
+      room = null;
+      throw new Error(formatConnectError(err, url));
     }
     await room.localParticipant.setMicrophoneEnabled(true);
     try {

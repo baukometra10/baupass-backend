@@ -1378,7 +1378,7 @@
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260717chat41"></script>
   <script src="/chat-voice-call.js?v=20260717chat41"></script>
-  <script src="/chat-conference.js?v=20260717chat41c"></script>
+  <script src="/chat-conference.js?v=20260717chat41d"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260717chat41"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -4330,6 +4330,11 @@
         );
         return;
       }
+      const authHint = status?.livekitAuthOk === true
+        ? " [server-auth=ok]"
+        : status?.livekitAuthDetail
+          ? ` [server-auth=${status.livekitAuthDetail}]`
+          : "";
       const workerIds = Array.isArray(initialWorkerIds) && initialWorkerIds.length
         ? initialWorkerIds
         : (currentWorkerId ? [currentWorkerId] : []);
@@ -4364,7 +4369,11 @@
         });
         window.SUPPIXConference?.renderParticipantRail?.(room.participants || []);
       } catch (error) {
-        setThreadMeta(String(error?.message || error || window.adminChatT("conferenceUnavailable")), { dynamic: true });
+        try { setVoiceCallOverlay(false); } catch (_) { /* ignore */ }
+        setThreadMeta(
+          `${String(error?.message || error || window.adminChatT("conferenceUnavailable"))}${authHint}`,
+          { dynamic: true }
+        );
       }
     }
     function openConferenceInviteModal() {

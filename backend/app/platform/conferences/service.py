@@ -323,7 +323,11 @@ class ConferenceService:
             except Exception:
                 pass
         self.db.commit()
-        token = self._token_for(identity=f"admin:{host_user_id}", name=host_name or "Admin", room=livekit_room)
+        token = self._token_for(
+            identity=f"admin:{host_user_id or secrets.token_hex(6)}",
+            name=host_name or "Admin",
+            room=livekit_room,
+        )
         return {
             "id": room_id,
             "livekitRoom": livekit_room,
