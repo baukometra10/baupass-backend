@@ -79,25 +79,31 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             continue
 
         fake_user = {"role": "company-admin", "company_id": company_id, "email": ""}
-        snapshot = _operations_snapshot_for_user(db, fake_user)
-        snapshot["companyName"] = str(company["name"] or "")
-        guidance = build_operational_guidance(snapshot)
-        from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
+        try:
+            snapshot = _operations_snapshot_for_user(db, fake_user)
+            snapshot["companyName"] = str(company["name"] or "")
+            guidance = build_operational_guidance(snapshot)
+            from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
 
-        company_branding = resolve_report_branding(db, company_id)
-        pdf_bytes = build_operations_report_pdf(
-            title="Tagesbericht",
-            company_name=str(company["name"] or "WorkPass"),
-            snapshot=snapshot,
-            guidance=guidance,
-            branding=company_branding,
-        )
-        period = local_day
-        filename = build_report_filename(
-            company_name=str(company["name"] or "WorkPass"),
-            report_kind="tagesbericht",
-            period=period,
-        )
+            company_branding = resolve_report_branding(db, company_id)
+            pdf_bytes = build_operations_report_pdf(
+                title="Tagesbericht",
+                company_name=str(company["name"] or "WorkPass"),
+                snapshot=snapshot,
+                guidance=guidance,
+                branding=company_branding,
+            )
+            period = local_day
+            filename = build_report_filename(
+                company_name=str(company["name"] or "WorkPass"),
+                report_kind="tagesbericht",
+                period=period,
+            )
+        except Exception as exc:
+            errors.append(f"{company_id}:pdf:{str(exc)[:200]}")
+            skipped += 1
+            continue
+
         extra_attachments: list[dict[str, Any]] = []
         if attach_datev:
             datev_att = build_datev_csv_attachment(db, company_id, period=now_iso()[:7])

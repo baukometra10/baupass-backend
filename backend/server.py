@@ -18647,7 +18647,11 @@ def reporting_daily_pdf_run():
     from backend.app.platform.reports.scheduled_runner import run_scheduled_reports
 
     db = get_db()
-    result = run_scheduled_reports(db, force=True)
+    try:
+        result = run_scheduled_reports(db, force=True)
+    except Exception as exc:
+        app.logger.exception("[reporting] daily-pdf/run failed")
+        return jsonify({"error": "daily_pdf_run_failed", "detail": str(exc)[:300]}), 500
     log_audit(
         "reporting.daily_pdf_manual",
         f"Manueller Tages-PDF-Lauf: sent={result.get('sent', 0)} skipped={result.get('skipped', 0)}",
@@ -18755,7 +18759,11 @@ def reporting_email_companies_pdf():
     platform_name = str(branding.get("companyName") or branding.get("platformName") or "WorkPass")
     from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
-    pdf_bytes = build_companies_document_email_pdf(db, branding=branding)
+    try:
+        pdf_bytes = build_companies_document_email_pdf(db, branding=branding)
+    except Exception as exc:
+        app.logger.exception("[reporting] companies pdf build failed")
+        return jsonify({"error": "pdf_build_failed", "detail": str(exc)[:300]}), 500
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = build_report_filename(company_name=platform_name, report_kind="firmenuebersicht", period=period)

@@ -18,7 +18,7 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
             "SELECT * FROM scheduled_report_jobs WHERE enabled = 1"
         ).fetchall()
     except Exception:
-        return {"ok": True, "skipped": True, "reason": "no_scheduled_report_jobs_table"}
+        jobs = []
 
     if not jobs:
         return deliver_daily_ops_pdfs(db, force=force)

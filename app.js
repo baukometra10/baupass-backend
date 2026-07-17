@@ -20038,7 +20038,7 @@ function renderDocumentInboxList() {
         });
         await loadDocumentInbox({ silent: true });
       } catch (error) {
-        showToast(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
       } finally {
         event.currentTarget.disabled = false;
       }
@@ -20279,7 +20279,7 @@ async function loadDocumentInbox(options = {}) {
     state.documentInboxEntries = [];
     renderDocumentInboxList();
     if (!silent) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     }
   }
 }
@@ -20325,7 +20325,7 @@ async function rematchDocumentInboxLinks(button) {
     if (isForbidden) {
       showToast(uiT("toastReassignSuperadminOnly"));
     } else {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     }
   } finally {
     button.disabled = false;
@@ -20378,7 +20378,7 @@ function bindDocumentInboxControls() {
         await downloadPayrollDatevCsv();
         showToast(uiT("toastDatevDownloaded"));
       } catch (error) {
-        showToast(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
       } finally {
         datevButton.disabled = false;
       }
@@ -20393,7 +20393,7 @@ function bindDocumentInboxControls() {
       try {
         await startDatevOAuthConnect();
       } catch (error) {
-        showToast(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
       } finally {
         datevConnectButton.disabled = false;
       }
@@ -23710,7 +23710,17 @@ async function runDailyOpsPdfReportsNow() {
   const sent = Number(result?.sent || 0);
   const skipped = Number(result?.skipped || 0);
   const errs = Array.isArray(result?.errors) ? result.errors.length : 0;
+  if (result?.skipped && result?.reason) {
+    showToast(`Tages-PDF übersprungen: ${result.reason}`);
+    return;
+  }
   showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errs ? `, ${errs} Fehler` : ""}.`);
+}
+
+function reportingErrorMessage(error) {
+  const detail = error?.payload?.detail || error?.payload?.message;
+  if (detail) return String(detail);
+  return String(error?.message || "Unbekannter Fehler");
 }
 
 function bindReportingEmailEnterpriseButton(selector = "#reportingEmailEnterprisePdfBtn") {
@@ -23722,7 +23732,7 @@ function bindReportingEmailEnterpriseButton(selector = "#reportingEmailEnterpris
     try {
       await sendReportingEnterprisePdfByEmail();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23738,7 +23748,7 @@ function bindReportingEmailInvoicesButton() {
     try {
       await sendReportingInvoicesPdfByEmail();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23758,7 +23768,7 @@ function bindReportingEmailCompaniesButton() {
     try {
       await sendReportingCompaniesPdfByEmail();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23788,7 +23798,7 @@ function bindReportingDailyPdfRunButton() {
     try {
       await runDailyOpsPdfReportsNow();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23896,7 +23906,7 @@ function bindReportingEmailPdfButton() {
     try {
       await sendReportingPdfByEmail();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23925,7 +23935,7 @@ function bindReportingEmailIncidentsVisitsButton() {
       });
       showToast(uiT("reportingEmailSentOk"));
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -23941,7 +23951,7 @@ function bindReportingEmailDatevButton() {
     try {
       await sendReportingDatevCsvByEmail();
     } catch (error) {
-      showToast(uiT("alertGenericError").replace("{error}", error.message));
+      showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
     } finally {
       btn.disabled = false;
     }
@@ -25188,7 +25198,7 @@ function bindCompanyRowActions() {
           showToast(`Kundennummer bereits vergeben (Firma: ${conflictName}).`);
           return;
         }
-        showToast(uiT("alertGenericError").replace("{error}", error.message));
+        showToast(uiT("alertGenericError").replace("{error}", reportingErrorMessage(error)));
       }
       return;
     }

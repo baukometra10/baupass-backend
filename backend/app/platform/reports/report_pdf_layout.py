@@ -12,7 +12,6 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
-    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -204,11 +203,28 @@ def _kpi_cards(kpis: dict[str, Any], labels: Sequence[tuple[str, str]], accent_h
     if not items:
         return None
 
+    styles = getSampleStyleSheet()
     accent = colors.HexColor(accent_hex)
     light = colors.HexColor("#f8fafc")
-    data = [[Paragraph(f"<b>{_escape(l)}</b>", ParagraphStyle("k", fontSize=8, textColor=colors.HexColor("#64748b"))),
-             Paragraph(f"<font size='11'><b>{_escape(v)}</b></font>", ParagraphStyle("v", fontSize=11))]
-            for l, v in items]
+    label_style = ParagraphStyle(
+        "ReportKpiLabel",
+        parent=styles["Normal"],
+        fontSize=8,
+        textColor=colors.HexColor("#64748b"),
+    )
+    value_style = ParagraphStyle(
+        "ReportKpiValue",
+        parent=styles["Normal"],
+        fontSize=11,
+        fontName="Helvetica-Bold",
+    )
+    data = [
+        [
+            Paragraph(f"<b>{_escape(label)}</b>", label_style),
+            Paragraph(f"<b>{_escape(value)}</b>", value_style),
+        ]
+        for label, value in items
+    ]
 
     table = Table(data, colWidths=[55 * mm, 35 * mm], hAlign="LEFT")
     table.setStyle(
@@ -366,7 +382,7 @@ def build_branded_table_report_pdf(
         subtitle=subtitle,
         doc_width=doc.width,
     )
-    story.append(KeepTogether([table]))
+    story.append(table)
 
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     return buffer.getvalue()
