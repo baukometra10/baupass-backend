@@ -252,6 +252,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         user = getattr(g, "current_user", None) or {}
         cid = str(request.args.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
         user_id = str(user.get("id") or "").strip()
+        endpoint = str(request.args.get("endpoint") or "").strip()
         if not cid or not user_id:
             return jsonify({"error": "missing_fields"}), 400
         if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
@@ -266,7 +267,34 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             (user_id, cid),
         ).fetchone()
         count = int((row["c"] if row else 0) or 0)
-        return jsonify({"ok": True, "subscribed": count > 0, "subscriptionCount": count})
+        endpoint_matched = False
+        if endpoint:
+            ep = db.execute(
+                """
+                SELECT id, user_id FROM admin_push_subscriptions
+                WHERE endpoint = ? AND company_id = ?
+                LIMIT 1
+                """,
+                (endpoint, cid),
+            ).fetchone()
+            if ep:
+                endpoint_matched = True
+                # Heal user_id mismatch from older clients / session quirks
+                if str(ep["user_id"] or "") != user_id:
+                    from backend.server import now_iso
+
+                    db.execute(
+                        "UPDATE admin_push_subscriptions SET user_id = ?, updated_at = ? WHERE endpoint = ?",
+                        (user_id, now_iso(), endpoint),
+                    )
+                    db.commit()
+                count = max(count, 1)
+        return jsonify({
+            "ok": True,
+            "subscribed": count > 0 or endpoint_matched,
+            "subscriptionCount": count,
+            "endpointMatched": endpoint_matched,
+        })
 
     @chat_core_bp.post("/chat/push-unsubscribe")
     @require_auth

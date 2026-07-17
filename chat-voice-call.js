@@ -19,28 +19,68 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  function createRingtone() {
+  /**
+   * Pleasant dual-voice ring / ringback (Web Audio).
+   * mode: "incoming" = phone-like dual tone; "outgoing" = soft melodic ringback.
+   */
+  function createRingtone(options = {}) {
+    const mode = options.mode === "incoming" ? "incoming" : "outgoing";
     let ctx = null;
     let timer = null;
     let stopped = false;
+    let master = null;
+
+    function tone(freqs, start, dur, peak = 0.11) {
+      if (!ctx || !master) return;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(peak, start + 0.04);
+      g.gain.exponentialRampToValueAtTime(peak * 0.75, start + dur * 0.55);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+      g.connect(master);
+      freqs.forEach((hz, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = i === 0 ? "sine" : "triangle";
+        osc.frequency.setValueAtTime(hz, start);
+        const og = ctx.createGain();
+        og.gain.value = i === 0 ? 0.85 : 0.28;
+        osc.connect(og);
+        og.connect(g);
+        osc.start(start);
+        osc.stop(start + dur + 0.02);
+      });
+    }
+
+    function playPattern() {
+      if (stopped || !ctx) return;
+      const t0 = ctx.currentTime + 0.02;
+      if (mode === "incoming") {
+        // Classic dual-tone ring (approx. 440 + 480), two bursts
+        tone([440, 480], t0, 0.42, 0.13);
+        tone([440, 480], t0 + 0.55, 0.42, 0.13);
+      } else {
+        // Soft ascending ringback motif
+        tone([523.25], t0, 0.22, 0.09);
+        tone([659.25], t0 + 0.2, 0.22, 0.1);
+        tone([783.99, 523.25], t0 + 0.4, 0.38, 0.11);
+      }
+    }
+
     return {
       start() {
+        if (stopped) return;
         try {
           ctx = new (global.AudioContext || global.webkitAudioContext)();
-          const playPulse = () => {
-            if (stopped || !ctx) return;
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.value = 440;
-            gain.gain.value = 0.08;
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start();
-            osc.stop(ctx.currentTime + 0.35);
+          master = ctx.createGain();
+          master.gain.value = 0.85;
+          master.connect(ctx.destination);
+          const resume = () => {
+            if (ctx?.state === "suspended") void ctx.resume();
           };
-          playPulse();
-          timer = global.setInterval(playPulse, 1200);
+          resume();
+          global.addEventListener?.("pointerdown", resume, { once: true });
+          playPattern();
+          timer = global.setInterval(playPattern, mode === "incoming" ? 2200 : 2400);
         } catch (_) {
           /* ignore */
         }
@@ -53,6 +93,7 @@
           ctx.close().catch(() => {});
           ctx = null;
         }
+        master = null;
       },
     };
   }
@@ -445,7 +486,7 @@
       this.callId = String(call.id || "");
       this.iceServers = call.iceServers || [];
       if (!this.callId) throw new Error("call_start_failed");
-      this.ringtone = createRingtone();
+      this.ringtone = createRingtone({ mode: "outgoing" });
       this.ringtone.start();
       this.ringDeadline = Date.now() + RING_TIMEOUT_MS;
       this.onState("ringing");
@@ -470,7 +511,7 @@
       this.callId = String(call.id || "");
       this.iceServers = call.iceServers || [];
       if (!this.callId) throw new Error("call_start_failed");
-      this.ringtone = createRingtone();
+      this.ringtone = createRingtone({ mode: "outgoing" });
       this.ringtone.start();
       this.ringDeadline = Date.now() + RING_TIMEOUT_MS;
       this.onState("ringing");
@@ -478,7 +519,18 @@
       this._scheduleRingTimeout();
     }
 
+    startIncomingRingtone() {
+      this._stopRingtone();
+      this.ringtone = createRingtone({ mode: "incoming" });
+      this.ringtone.start();
+    }
+
+    stopIncomingRingtone() {
+      this._stopRingtone();
+    }
+
     async acceptIncoming(callPayload) {
+      this._stopRingtone();
       const call = callPayload || {};
       this.callId = String(call.id || "");
       this.iceServers = call.iceServers || [];
@@ -491,6 +543,7 @@
     }
 
     async declineIncoming(callId) {
+      this._stopRingtone();
       this.callId = String(callId || this.callId || "");
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
       if (!this.callId) return;
@@ -544,5 +597,6 @@
     createSession(options) {
       return new VoiceCallSession(options);
     },
+    createRingtone,
   };
 })(window);

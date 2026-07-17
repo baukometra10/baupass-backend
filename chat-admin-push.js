@@ -89,7 +89,17 @@
   async function fetchAdminPushStatus({ api, companyId } = {}) {
     if (!api || !companyId) return { subscribed: false, subscriptionCount: 0 };
     try {
-      return await api(`/api/chat/push-status?company_id=${encodeURIComponent(companyId)}`);
+      let endpoint = "";
+      try {
+        const registration = await ensureAdminSw();
+        const subscription = await registration?.pushManager?.getSubscription?.();
+        endpoint = subscription?.endpoint || "";
+      } catch {
+        /* ignore */
+      }
+      const q = new URLSearchParams({ company_id: companyId });
+      if (endpoint) q.set("endpoint", endpoint);
+      return await api(`/api/chat/push-status?${q.toString()}`);
     } catch {
       return { subscribed: false, subscriptionCount: 0 };
     }
@@ -247,7 +257,11 @@
               await unsubscribeAdminPush({ api, companyId });
             } else {
               const result = await subscribeAdminPush({ api, companyId });
-              if (!result.ok && textEl) {
+              if (result.ok) {
+                if (textEl) textEl.textContent = labels.enabled || "Push aktiv — Mitarbeiter-Nachrichten erreichen dieses Gerät.";
+                actionBtn.dataset.mode = "unsubscribe";
+                actionBtn.textContent = labels.unsubscribe || "Deaktivieren";
+              } else if (textEl) {
                 textEl.textContent = pushErrorLabel(result.error, labels);
               }
             }

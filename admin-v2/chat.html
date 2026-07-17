@@ -1010,6 +1010,20 @@
       display: grid;
       place-items: center;
     }
+    .voice-call-round-btn .voice-call-btn-icon svg {
+      display: block;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+    }
+    .voice-call-round-btn {
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.32);
+    }
+    .voice-call-round-btn:hover {
+      transform: translateY(-1px);
+    }
+    .voice-call-round-btn:active {
+      transform: scale(0.96);
+    }
     .voice-call-round-btn .voice-call-btn-label {
       display: none;
     }
@@ -1368,29 +1382,29 @@
       </div>
       <div class="voice-call-controls incoming-only hidden" id="voiceCallIncomingControls">
         <button type="button" id="voiceCallDeclineBtn" class="voice-call-round-btn danger" data-aci18n="voiceCallDecline" data-aci18n-attr="aria-label,title" aria-label="Ablehnen" title="Ablehnen">
-          <span class="voice-call-btn-icon" aria-hidden="true">✕</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallDecline">Ablehnen</span>
         </button>
         <button type="button" id="voiceCallAcceptBtn" class="voice-call-round-btn accept" data-aci18n="voiceCallAccept" data-aci18n-attr="aria-label,title" aria-label="Annehmen" title="Annehmen">
-          <span class="voice-call-btn-icon" aria-hidden="true">📞</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallAccept">Annehmen</span>
         </button>
       </div>
       <div class="voice-call-controls active-only" id="voiceCallActiveControls">
         <button type="button" id="voiceCallMuteBtn" class="voice-call-round-btn" data-aci18n="voiceCallMute" data-aci18n-attr="aria-label,title" aria-label="Stumm" title="Stumm">
-          <span class="voice-call-btn-icon" aria-hidden="true">🎤</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 19v3"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallMute">Stumm</span>
         </button>
         <button type="button" id="voiceCallCamBtn" class="voice-call-round-btn" data-aci18n="voiceCallCamera" data-aci18n-attr="aria-label,title" aria-label="Kamera" title="Kamera">
-          <span class="voice-call-btn-icon" aria-hidden="true">📷</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallCamera">Kamera</span>
         </button>
         <button type="button" id="voiceCallSpeakerBtn" class="voice-call-round-btn" data-aci18n="voiceCallSpeaker" data-aci18n-attr="aria-label,title" aria-label="Lautsprecher" title="Lautsprecher">
-          <span class="voice-call-btn-icon" aria-hidden="true">🔊</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallSpeaker">Lautsprecher</span>
         </button>
         <button type="button" id="voiceCallHangupBtn" class="voice-call-round-btn danger" data-aci18n="voiceCallHangup" data-aci18n-attr="aria-label,title" aria-label="Auflegen" title="Auflegen">
-          <span class="voice-call-btn-icon" aria-hidden="true">📞</span>
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallHangup">Auflegen</span>
         </button>
       </div>
@@ -1425,13 +1439,13 @@
   <script src="/chat-thread-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
-  <script src="/chat-admin-push.js?v=20260717chat42b"></script>
+  <script src="/chat-admin-push.js?v=20260717chat42c"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260717chat42b"></script>
-  <script src="/chat-voice-call.js?v=20260717chat42b"></script>
-  <script src="/chat-conference.js?v=20260717chat42b"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260717chat42b"></script>
+  <script src="/chat-voice.js?v=20260717chat42c"></script>
+  <script src="/chat-voice-call.js?v=20260717chat42c"></script>
+  <script src="/chat-conference.js?v=20260717chat42c"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat42c"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4156,9 +4170,14 @@
         stopVoiceCallTimer();
         stopVoiceCallRingTimer();
         resetVoiceCallControls();
+        try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
+        try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
+        window.__adminIncomingRingtone = null;
+        window.__conferenceRingtone = null;
         rings?.classList.remove("hidden");
         quality?.classList.add("hidden");
         subtitle?.classList.add("hidden");
+        document.getElementById("voiceCallRetryBtn")?.classList.add("hidden");
         return;
       }
       const connected = state === "connected" || state === "accepted";
@@ -4261,10 +4280,17 @@
       }
       resetVoiceCallControls();
       setVoiceCallOverlay(true, window.adminChatT("voiceCallIncomingRinging"), "ringing", "incoming");
+      try {
+        window.__adminIncomingRingtone?.stop?.();
+        window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({ mode: "incoming" });
+        window.__adminIncomingRingtone?.start?.();
+      } catch (_) { /* ignore */ }
     }
     async function acceptAdminIncomingCall() {
       const call = pendingIncomingCall;
       if (!call?.id || !window.SUPPIXVoiceCall?.isSupported?.()) return;
+      try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
+      window.__adminIncomingRingtone = null;
       activeVoiceCallSession = buildAdminVoiceCallSession();
       activeVoiceCallSession._incomingCall = call;
       try {
@@ -4279,6 +4305,8 @@
     }
     async function declineAdminIncomingCall() {
       const call = pendingIncomingCall;
+      try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
+      window.__adminIncomingRingtone = null;
       if (!call?.id) {
         setVoiceCallOverlay(false);
         return;
@@ -4362,9 +4390,13 @@
         onDisconnect: () => {
           activeConferenceRoomId = "";
           pendingConferenceConnect = null;
+          try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
+          window.__conferenceRingtone = null;
           setVoiceCallOverlay(false);
         },
       });
+      try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
+      window.__conferenceRingtone = null;
       pendingConferenceConnect = null;
       if (statusEl) statusEl.textContent = t("conferenceJoined");
       if (sub) {
@@ -4451,11 +4483,18 @@
           participants: room.participants || [],
         };
         try {
+          window.__conferenceRingtone?.stop?.();
+          window.__conferenceRingtone = window.SUPPIXVoiceCall?.createRingtone?.({ mode: "outgoing" });
+          window.__conferenceRingtone?.start?.();
+        } catch (_) { /* ignore */ }
+        try {
           await connectPendingConference({ payload: pendingConferenceConnect });
+          try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
+          window.__conferenceRingtone = null;
         } catch (connectErr) {
           const raw = String(connectErr?.message || connectErr || "");
           const isNet = /ServerUnreachable|websocket|Internal error|nicht erreichbar|unreachable/i.test(raw);
-          // Server-side conference is fine (auth ok) — keep overlay, soft status, no scary thread banner.
+          // Server-side conference is fine (auth ok) — keep overlay + ringback, soft status, no scary thread banner.
           if (isNet && status?.livekitAuthOk !== false) {
             document.getElementById("voiceCallOverlay")?.classList.add("is-net-error");
             if (sub) {
@@ -4469,6 +4508,8 @@
             if (retryBtn) retryBtn.classList.remove("hidden");
             return;
           }
+          try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
+          window.__conferenceRingtone = null;
           throw connectErr;
         }
       } catch (error) {

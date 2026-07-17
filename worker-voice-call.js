@@ -99,6 +99,7 @@
   let startedAt = 0;
   let apiFn = null;
   let dismissedCallId = "";
+  let incomingTone = null;
 
   function setOverlay(visible, statusText, mode) {
     const overlay = ensureOverlay();
@@ -109,7 +110,12 @@
     overlay.classList.toggle("hidden", !visible);
     incoming?.classList.toggle("hidden", mode !== "incoming");
     active?.classList.toggle("hidden", mode !== "active");
-    if (!visible) stopTimer();
+    if (!visible) {
+      stopTimer();
+      try { incomingTone?.stop?.(); } catch (_) { /* ignore */ }
+      incomingTone = null;
+      overlay.classList.remove("is-conference");
+    }
   }
 
   function stopTimer() {
@@ -154,16 +160,30 @@
       .join("") || "AG";
   }
 
+  function stopIncomingTone() {
+    try { incomingTone?.stop?.(); } catch (_) { /* ignore */ }
+    incomingTone = null;
+  }
+  function startIncomingTone() {
+    stopIncomingTone();
+    try {
+      incomingTone = global.SUPPIXVoiceCall?.createRingtone?.({ mode: "incoming" });
+      incomingTone?.start?.();
+    } catch (_) { /* ignore */ }
+  }
+
   function showIncoming(call) {
     const name = call.callerName || call.caller_name || call.companyName || call.company_name || t("senderCompany", "Arbeitgeber");
     document.getElementById("workerVoiceCallTitle").textContent = name;
     document.getElementById("workerVoiceCallAvatar").textContent = initials(name);
     setOverlay(true, t("voiceCallRinging", "Eingehender Anruf…"), "incoming");
+    startIncomingTone();
   }
 
   controller = {
     async accept() {
       if (!session || !global.SUPPIXVoiceCall) return;
+      stopIncomingTone();
       setOverlay(true, t("voiceCallConnected", "Verbunden"), "active");
       try {
         await session.acceptIncoming(session._incomingCall);
@@ -175,6 +195,7 @@
     },
     async decline() {
       if (!session) return;
+      stopIncomingTone();
       const callId = session.callId;
       try {
         await session.declineIncoming(callId);
@@ -186,6 +207,7 @@
       setOverlay(false);
     },
     async hangup() {
+      stopIncomingTone();
       if (!session) return;
       await session.end("hangup");
       session = null;
@@ -242,11 +264,13 @@
     if (title) title.textContent = invite.title || t("conferenceJoined", "Firmenkonferenz");
     if (status) status.textContent = t("voiceCallIncomingRinging", "Einladung zur Konferenz…");
     setOverlay(true, status?.textContent || "", "incoming");
+    startIncomingTone();
     const accept = document.getElementById("workerVoiceCallAcceptBtn");
     const decline = document.getElementById("workerVoiceCallDeclineBtn");
     const onAccept = async () => {
       accept?.removeEventListener("click", onAccept);
       decline?.removeEventListener("click", onDecline);
+      stopIncomingTone();
       try {
         const data = await apiFn(`/api/worker-app/chat/conferences/${encodeURIComponent(invite.id)}/join`, {
           method: "POST",
@@ -290,6 +314,7 @@
     const onDecline = async () => {
       accept?.removeEventListener("click", onAccept);
       decline?.removeEventListener("click", onDecline);
+      stopIncomingTone();
       try {
         await apiFn(`/api/worker-app/chat/conferences/${encodeURIComponent(invite.id)}/leave`, { method: "POST" });
       } catch (_) { /* ignore */ }
