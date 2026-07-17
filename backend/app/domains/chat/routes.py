@@ -1152,6 +1152,224 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     def _assert_worker_call_access(call: dict, worker_id: str) -> bool:
         return str(call.get("workerId") or "") == str(worker_id or "")
 
+    @chat_core_bp.get("/chat/conferences/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_status():
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        return jsonify({"ok": True, "configured": svc.livekit_configured(), "livekitUrl": svc.livekit_url() if svc.livekit_configured() else ""})
+
+    @chat_core_bp.post("/chat/conferences")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_create():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        worker_ids = data.get("worker_ids") or data.get("workerIds") or []
+        if not isinstance(worker_ids, list):
+            worker_ids = []
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            room = svc.create_room(
+                company_id=cid,
+                host_user_id=str(user.get("id") or ""),
+                host_name=str(user.get("name") or user.get("username") or "Admin"),
+                title=str(data.get("title") or "").strip() or None,
+                worker_ids=[str(x) for x in worker_ids],
+            )
+            return jsonify({"ok": True, "room": room})
+        except RuntimeError as exc:
+            if str(exc) == "livekit_not_configured":
+                return jsonify({"error": "livekit_not_configured", "message": "LiveKit Keys fehlen (LIVEKIT_URL/API_KEY/API_SECRET)."}), 503
+            return jsonify({"error": str(exc)}), 400
+
+    @chat_core_bp.post("/chat/conferences/<room_id>/invite")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_invite(room_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        worker_ids = data.get("worker_ids") or data.get("workerIds") or []
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            result = svc.invite_workers(room_id=room_id, company_id=cid, worker_ids=[str(x) for x in worker_ids])
+            return jsonify(result)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404 if str(exc) == "room_not_found" else 400
+
+    @chat_core_bp.get("/chat/conferences/<room_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_get(room_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        room = svc.get_room(room_id, company_id=cid)
+        if not room:
+            return jsonify({"error": "room_not_found"}), 404
+        return jsonify({"ok": True, "room": room, "participants": svc.list_participants(room_id)})
+
+    @chat_core_bp.post("/chat/conferences/<room_id>/join")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_join(room_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        user = getattr(g, "current_user", None) or {}
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            payload = svc.join_as_admin(
+                room_id=room_id,
+                company_id=cid,
+                user_id=str(user.get("id") or ""),
+                user_name=str(user.get("name") or user.get("username") or "Admin"),
+            )
+            return jsonify({"ok": True, **payload})
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
+
+    @chat_core_bp.post("/chat/conferences/<room_id>/end")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_end(room_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        user = getattr(g, "current_user", None) or {}
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            return jsonify(svc.end_room(room_id=room_id, company_id=cid, user_id=str(user.get("id") or "")))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 404
+
+    @chat_core_bp.post("/chat/conferences/<room_id>/notes")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_conference_note(room_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        user = getattr(g, "current_user", None) or {}
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            note = svc.post_note(
+                room_id=room_id,
+                company_id=cid,
+                author_type="admin",
+                author_id=str(user.get("id") or ""),
+                body=str(data.get("body") or data.get("text") or ""),
+            )
+            return jsonify({"ok": True, "note": note})
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    @chat_core_bp.get("/worker-app/chat/conferences/incoming")
+    @require_worker_session
+    def worker_conference_incoming():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        invite = svc.worker_incoming(company_id=company_id, worker_id=worker_id)
+        return jsonify({"ok": True, "conference": invite})
+
+    @chat_core_bp.post("/worker-app/chat/conferences/<room_id>/join")
+    @require_worker_session
+    def worker_conference_join(room_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        worker = getattr(g, "worker", None) or {}
+        name = f"{worker.get('first_name') or ''} {worker.get('last_name') or ''}".strip() or worker_id
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            payload = svc.join_as_worker(
+                room_id=room_id,
+                company_id=company_id,
+                worker_id=worker_id,
+                worker_name=name,
+            )
+            return jsonify({"ok": True, **payload})
+        except ValueError as exc:
+            code = str(exc)
+            return jsonify({"error": code}), 404 if code in ("room_not_found", "not_invited") else 400
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 503
+
+    @chat_core_bp.post("/worker-app/chat/conferences/<room_id>/leave")
+    @require_worker_session
+    def worker_conference_leave(room_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        from backend.app.platform.conferences import ConferenceService
+
+        ConferenceService(get_db()).leave(room_id=room_id, participant_type="worker", participant_id=worker_id)
+        return jsonify({"ok": True})
+
+    @chat_core_bp.post("/worker-app/chat/conferences/<room_id>/notes")
+    @require_worker_session
+    def worker_conference_note(room_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        try:
+            note = svc.post_note(
+                room_id=room_id,
+                company_id=company_id,
+                author_type="worker",
+                author_id=worker_id,
+                body=str(data.get("body") or data.get("text") or ""),
+            )
+            return jsonify({"ok": True, "note": note})
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
     @chat_core_bp.get("/chat/calls/ice-config")
     @require_auth
     @require_roles("superadmin", "company-admin")

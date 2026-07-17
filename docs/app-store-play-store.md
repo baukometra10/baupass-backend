@@ -2,11 +2,13 @@
 
 ## Android (Play Store)
 
-1. Build signed AAB in CI: `.github/workflows/flutter-worker-apk.yml`
-2. Host APK for pilots: `BAUPASS_WORKER_APK_URL` (GitHub Releases or CDN)
-3. Play Console: package `com.baupass.worker`, privacy policy URL, data safety form
-4. Internal testing track → closed → production
+1. Pilot APK: `.github/workflows/flutter-worker-apk.yml`
+2. Signed AAB: `.github/workflows/flutter-worker-aab.yml` (needs `ANDROID_KEYSTORE_*` secrets)
+3. Host APK for pilots: `BAUPASS_WORKER_APK_URL` (GitHub Releases or CDN)
+4. Play Console: package `com.baupass.worker`, privacy policy URL, data safety form
+5. Internal testing track → closed → production
 
+See also [android-play-tomorrow.md](./android-play-tomorrow.md).
 ## iOS (TestFlight → App Store)
 
 1. Workflow: `.github/workflows/flutter-worker-ios.yml`

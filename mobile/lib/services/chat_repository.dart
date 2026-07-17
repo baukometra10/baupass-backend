@@ -15,6 +15,9 @@ class ChatRepository {
   Map<String, dynamic>? _security;
   String? _cachedThreadId;
 
+  /// Exposed for conference / call helpers that share the same auth client.
+  ApiClient get apiClient => _api;
+
   String? _extractThreadId(Map<String, dynamic>? row) {
     if (row == null) return null;
     for (final key in ['id', 'threadId', 'thread_id', 'ID']) {

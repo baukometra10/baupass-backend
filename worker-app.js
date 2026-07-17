@@ -13321,6 +13321,20 @@ function syncWorkerChatSearchUi() {
       bubble?.classList.add("chat-search-flash");
       setTimeout(() => bubble?.classList.remove("chat-search-flash"), 1400);
     },
+    searchServer: (query) => window.SUPPIXChatSearch.searchOnServer({
+      api: async (path, options) => {
+        let relative = String(path || "");
+        if (relative.startsWith("/api/worker-app")) relative = relative.slice("/api/worker-app".length);
+        if (!relative.startsWith("/")) relative = `/${relative}`;
+        return fetchJson(`${API_BASE}${relative}`, {
+          ...options,
+          headers: { ...buildWorkerAuthHeaders(options?.headers || {}) },
+        });
+      },
+      threadId: workerChatThreadId,
+      query,
+      role: "worker",
+    }),
   });
 }
 

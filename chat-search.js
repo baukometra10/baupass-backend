@@ -69,6 +69,7 @@
     getMessages,
     labels = {},
     onSelect,
+    searchServer,
   } = {}) {
     if (!inputEl || inputEl.dataset.searchBound) return () => {};
     inputEl.dataset.searchBound = "1";
@@ -81,7 +82,15 @@
         resultsEl.classList.remove("hidden");
         return;
       }
-      resultsEl.innerHTML = matches.slice(0, 12).map((msg) => {
+      const seen = new Set();
+      const unique = [];
+      matches.forEach((msg) => {
+        const id = String(msg?.id || "");
+        if (id && seen.has(id)) return;
+        if (id) seen.add(id);
+        unique.push(msg);
+      });
+      resultsEl.innerHTML = unique.slice(0, 16).map((msg) => {
         const text = messageSearchText(msg, labels).slice(0, 90);
         const time = String(msg?.createdAt || "").slice(11, 16);
         return `<button type="button" class="chat-search-result" data-search-id="${String(msg.id || "")}">
@@ -106,8 +115,15 @@
         resultsEl?.classList.add("hidden");
         return;
       }
-      const matches = filterMessages(getMessages?.() || [], q, labels);
-      renderResults(matches);
+      const local = filterMessages(getMessages?.() || [], q, labels);
+      renderResults(local);
+      if (typeof searchServer === "function") {
+        void Promise.resolve(searchServer(inputEl.value)).then((remote) => {
+          if (normalizeQuery(inputEl.value) !== q) return;
+          const merged = [...local, ...(Array.isArray(remote) ? remote : [])];
+          renderResults(merged);
+        }).catch(() => {});
+      }
     };
 
     inputEl.addEventListener("input", () => {
@@ -132,11 +148,29 @@
     };
   }
 
+  async function searchOnServer({ api, threadId, companyId, query, role } = {}) {
+    const q = String(query || "").trim();
+    const tid = String(threadId || "").trim();
+    if (!api || !tid || !q) return [];
+    try {
+      const isWorker = String(role || "").toLowerCase() === "worker";
+      const path = isWorker
+        ? `/api/worker-app/chat/threads/${encodeURIComponent(tid)}/search?q=${encodeURIComponent(q)}`
+        : `/api/chat/threads/${encodeURIComponent(tid)}/search?company_id=${encodeURIComponent(companyId || "")}&q=${encodeURIComponent(q)}`;
+      const data = await api(path);
+      const rows = Array.isArray(data?.messages) ? data.messages : (Array.isArray(data?.results) ? data.results : []);
+      return rows;
+    } catch {
+      return [];
+    }
+  }
+
   global.SUPPIXChatSearch = {
     filterMessages,
     messageSearchText,
     scrollToMessage,
     mountSearchBar,
     highlightBubble,
+    searchOnServer,
   };
 })(typeof window !== "undefined" ? window : globalThis);

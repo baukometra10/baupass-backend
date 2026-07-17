@@ -525,16 +525,161 @@
       position: fixed;
       inset: 0;
       z-index: 1300;
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      justify-content: space-between;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
       padding: 0;
       background:
-        radial-gradient(ellipse 90% 60% at 50% 0%, rgba(0, 168, 132, 0.14), transparent 58%),
-        #0b141a;
+        radial-gradient(ellipse 120% 80% at 50% -10%, rgba(0, 168, 132, 0.22), transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, rgba(37, 99, 235, 0.12), transparent 50%),
+        linear-gradient(165deg, #071018 0%, #0b141a 45%, #0a1620 100%);
       animation: voiceCallFadeIn 0.35s ease;
+      color: #e9edef;
     }
+    .voice-call-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.85rem 1.1rem;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(12px);
+      background: rgba(7, 16, 24, 0.55);
+    }
+    .voice-call-topbar-left { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; }
+    .voice-call-mode-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.28rem 0.7rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      border: 1px solid rgba(94, 234, 212, 0.35);
+      background: rgba(0, 168, 132, 0.18);
+      color: #99f6e4;
+    }
+    .voice-call-mode-chip.is-conference {
+      border-color: rgba(96, 165, 250, 0.45);
+      background: rgba(37, 99, 235, 0.22);
+      color: #bfdbfe;
+    }
+    .voice-call-participant-rail {
+      display: flex;
+      gap: 0.55rem;
+      overflow-x: auto;
+      padding: 0.65rem 1rem 0;
+      max-width: 920px;
+      margin: 0 auto;
+      width: 100%;
+      scrollbar-width: thin;
+    }
+    .voice-call-participant-rail.hidden { display: none; }
+    .voice-call-participant-chip {
+      flex: 0 0 auto;
+      min-width: 88px;
+      max-width: 120px;
+      padding: 0.55rem 0.5rem;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      text-align: center;
+    }
+    .voice-call-participant-chip .ava {
+      width: 40px; height: 40px; border-radius: 50%; margin: 0 auto 0.35rem;
+      display: grid; place-items: center; font-weight: 800; font-size: 0.85rem;
+      background: linear-gradient(145deg, #00a884, #0f766e);
+    }
+    .voice-call-participant-chip .nm {
+      font-size: 0.68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      opacity: 0.9;
+    }
+    .voice-call-participant-chip .st {
+      font-size: 0.6rem; color: #5eead4; margin-top: 0.15rem; font-weight: 600;
+    }
+    .voice-call-video-grid {
+      display: none;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.65rem;
+      width: min(920px, 94vw);
+      margin: 0.75rem auto 0;
+      max-height: 42vh;
+      overflow: auto;
+    }
+    .voice-call-overlay.is-conference .voice-call-video-grid { display: grid; }
+    .voice-call-overlay.is-conference .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
+    .voice-call-video-tile {
+      position: relative;
+      aspect-ratio: 16/10;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #111b21;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .voice-call-video-tile video {
+      width: 100%; height: 100%; object-fit: cover; background: #0b141a;
+    }
+    .voice-call-video-tile .tile-label {
+      position: absolute; left: 8px; bottom: 8px;
+      padding: 0.2rem 0.5rem; border-radius: 8px;
+      background: rgba(0,0,0,0.55); font-size: 0.7rem; font-weight: 600;
+    }
+    .voice-call-invite-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+    .voice-call-toolbar-extra {
+      display: flex; gap: 0.65rem; justify-content: center; flex-wrap: wrap; margin-top: 0.75rem;
+    }
+    .voice-call-pill-btn {
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(255,255,255,0.08);
+      color: #e9edef;
+      border-radius: 999px;
+      padding: 0.45rem 0.9rem;
+      font: inherit;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .voice-call-pill-btn:hover:not([disabled]) { background: rgba(255,255,255,0.14); }
+    .voice-call-pill-btn.primary {
+      background: rgba(0, 168, 132, 0.35);
+      border-color: rgba(0, 168, 132, 0.55);
+    }
+    .conference-invite-modal {
+      position: fixed; inset: 0; z-index: 1400;
+      background: rgba(0,0,0,0.55);
+      display: grid; place-items: center; padding: 1rem;
+    }
+    .conference-invite-modal.hidden { display: none; }
+    .conference-invite-inner {
+      width: min(440px, 100%);
+      background: #111b21;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 18px;
+      padding: 1rem 1.1rem 1.15rem;
+      color: #e9edef;
+      max-height: min(70vh, 560px);
+      display: flex; flex-direction: column; gap: 0.65rem;
+    }
+    .conference-invite-list {
+      overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .conference-invite-row {
+      display: flex; align-items: center; gap: 0.55rem;
+      padding: 0.45rem 0.5rem; border-radius: 10px;
+      background: rgba(255,255,255,0.04);
+    }
+    .conference-invite-row input { accent-color: #00a884; }
+    .chat-voice-call-btn.conference {
+      border-color: rgba(96, 165, 250, 0.45);
+      background: rgba(37, 99, 235, 0.28);
+    }
+    .voice-call-diag {
+      margin-top: 0.55rem;
+      font-size: 0.68rem;
+      color: rgba(226,232,240,0.55);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .voice-call-diag.hidden { display: none; }
     @keyframes voiceCallFadeIn {
       from { opacity: 0; transform: scale(1.02); }
       to { opacity: 1; transform: scale(1); }
@@ -1031,6 +1176,7 @@
             <div id="chatHeadActions" class="chat-head-actions hidden">
               <button type="button" id="chatSearchToggleBtn" class="chat-voice-history-btn" data-aci18n="chatSearchToggle" data-aci18n-attr="title,aria-label" title="Suchen" aria-label="Suchen">🔍</button>
               <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" data-aci18n="chatGalleryTitle" data-aci18n-attr="title,aria-label" title="Medien" aria-label="Medien">🖼</button>
+              <button type="button" id="chatConferenceBtn" class="chat-voice-call-btn conference" data-aci18n="conferenceStart" data-aci18n-attr="title,aria-label" title="Konferenz" aria-label="Konferenz">👥</button>
               <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" data-aci18n="voiceCallTitle" data-aci18n-attr="title,aria-label" title="Anrufen" aria-label="Anrufen">📞</button>
               <div class="chat-more-wrap">
                 <button type="button" id="chatMoreBtn" class="chat-voice-history-btn" data-aci18n="chatMoreMenu" data-aci18n-attr="title,aria-label" title="Mehr" aria-label="Mehr" aria-haspopup="true" aria-expanded="false">⋯</button>
@@ -1133,15 +1279,24 @@
     </div>
   </div>
   <div id="voiceCallOverlay" class="voice-call-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
+    <div class="voice-call-topbar">
+      <div class="voice-call-topbar-left">
+        <span id="voiceCallModeChip" class="voice-call-mode-chip" data-aci18n="voiceCallModeDirect">1:1 Anruf</span>
+        <span class="voice-call-secure-badge" data-aci18n="voiceCallSecure">🔒 Sicherer Sprachkanal · DTLS-SRTP</span>
+      </div>
+      <button type="button" id="voiceCallIceDiagBtn" class="voice-call-pill-btn" data-aci18n="voiceCallIceDiag" title="ICE">Netz</button>
+    </div>
+    <div id="voiceCallParticipantRail" class="voice-call-participant-rail hidden" aria-live="polite"></div>
     <div class="voice-call-stage">
-      <div class="voice-call-secure-badge" data-aci18n="voiceCallSecure">🔒 Sicherer Sprachkanal · DTLS-SRTP</div>
       <div class="voice-call-rings" aria-hidden="true"><span></span><span></span><span></span></div>
       <div id="voiceCallAvatar" class="voice-call-avatar" aria-hidden="true">AG</div>
+      <div id="voiceCallVideoGrid" class="voice-call-video-grid" aria-hidden="true"></div>
       <h4 id="voiceCallTitle" data-aci18n="voiceCallTitle">Sprachanruf</h4>
       <p id="voiceCallSubtitle" class="voice-call-subtitle hidden"></p>
       <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
       <p id="voiceCallQuality" class="voice-call-quality hidden" aria-live="polite"></p>
       <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
+      <p id="voiceCallDiag" class="voice-call-diag hidden" aria-live="polite"></p>
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
         <span></span><span></span><span></span><span></span><span></span><span></span>
       </div>
@@ -1177,6 +1332,10 @@
           <span class="voice-call-btn-icon" aria-hidden="true">🎤</span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallMute">Stumm</span>
         </button>
+        <button type="button" id="voiceCallCamBtn" class="voice-call-round-btn" data-aci18n="voiceCallCamera" data-aci18n-attr="aria-label,title" aria-label="Kamera" title="Kamera">
+          <span class="voice-call-btn-icon" aria-hidden="true">📷</span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallCamera">Kamera</span>
+        </button>
         <button type="button" id="voiceCallSpeakerBtn" class="voice-call-round-btn" data-aci18n="voiceCallSpeaker" data-aci18n-attr="aria-label,title" aria-label="Lautsprecher" title="Lautsprecher">
           <span class="voice-call-btn-icon" aria-hidden="true">🔊</span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallSpeaker">Lautsprecher</span>
@@ -1186,6 +1345,21 @@
           <span class="voice-call-btn-label" data-aci18n="voiceCallHangup">Auflegen</span>
         </button>
       </div>
+      <div class="voice-call-toolbar-extra">
+        <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" disabled title="Konferenz (LiveKit)">+ Einladen</button>
+        <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" title="Notiz">Notiz</button>
+      </div>
+    </div>
+  </div>
+  <div id="conferenceInviteModal" class="conference-invite-modal hidden" role="dialog" aria-modal="true">
+    <div class="conference-invite-inner">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
+        <strong data-aci18n="conferenceInviteTitle">Zur Konferenz einladen</strong>
+        <button type="button" id="conferenceInviteCloseBtn" aria-label="Schließen">✕</button>
+      </div>
+      <input type="search" id="conferenceInviteSearch" data-aci18n-placeholder="searchPh" placeholder="Mitarbeiter suchen…" style="width:100%;padding:0.5rem 0.65rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:#0b141a;color:#e9edef;" />
+      <div id="conferenceInviteList" class="conference-invite-list"></div>
+      <button type="button" id="conferenceInviteSendBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInviteSend">Einladen</button>
     </div>
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
@@ -1202,9 +1376,10 @@
   <script src="/chat-admin-push.js?v=20260715chat40"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260715chat40"></script>
-  <script src="/chat-voice-call.js?v=20260715chat40"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260715chat40"></script>
+  <script src="/chat-voice.js?v=20260717chat41"></script>
+  <script src="/chat-voice-call.js?v=20260717chat41"></script>
+  <script src="/chat-conference.js?v=20260717chat41"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat41"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -2224,6 +2399,7 @@
       const fileInput = document.getElementById("chatFile");
       const photoInput = document.getElementById("chatPhotoFile");
       const callBtn = document.getElementById("chatVoiceCallBtn");
+      const conferenceBtn = document.getElementById("chatConferenceBtn");
       const historyBtn = document.getElementById("chatVoiceHistoryBtn");
       const attachBtn = document.getElementById("chatAttachBtn");
       const moreBtn = document.getElementById("chatMoreBtn");
@@ -2232,6 +2408,7 @@
       if (fileInput) fileInput.disabled = !active;
       if (photoInput) photoInput.disabled = !active;
       if (callBtn) callBtn.disabled = !active;
+      if (conferenceBtn) conferenceBtn.disabled = !active;
       if (historyBtn) historyBtn.disabled = !active;
       if (attachBtn) attachBtn.disabled = !active;
       if (moreBtn) moreBtn.disabled = !active;
@@ -2419,6 +2596,13 @@
           location: window.adminChatT("chatLocationPreview"),
         },
         onSelect: (id) => window.SUPPIXChatSearch?.scrollToMessage?.(id),
+        searchServer: (query) => window.SUPPIXChatSearch.searchOnServer({
+          api,
+          threadId: currentThreadId,
+          companyId,
+          query,
+          role: "admin",
+        }),
       });
     }
     function bindAdminOfflineChatQueue() {
@@ -4099,6 +4283,137 @@
     document.getElementById("chatVoiceCallBtn")?.addEventListener("click", () => {
       void startVoiceCallToCurrentWorker();
     });
+    let activeConferenceRoomId = "";
+    let conferenceCamOn = false;
+    async function startAdminConference(initialWorkerIds) {
+      const status = await voiceCallApi("/api/chat/conferences/status").catch(() => ({ configured: false }));
+      if (!status?.configured) {
+        setThreadMeta(window.adminChatT("conferenceUnavailable"), { dynamic: true });
+        return;
+      }
+      const workerIds = Array.isArray(initialWorkerIds) && initialWorkerIds.length
+        ? initialWorkerIds
+        : (currentWorkerId ? [currentWorkerId] : []);
+      try {
+        const data = await voiceCallApi("/api/chat/conferences", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ worker_ids: workerIds, title: "Firmenkonferenz" }),
+        });
+        const room = data.room || {};
+        activeConferenceRoomId = String(room.id || "");
+        if (activeVoiceCallSession) {
+          try { await activeVoiceCallSession.end("busy"); } catch (_) { /* ignore */ }
+          activeVoiceCallSession = null;
+        }
+        document.getElementById("voiceCallTitle").textContent = room.title || window.adminChatT("voiceCallModeConference");
+        document.getElementById("voiceCallAvatar").textContent = "CF";
+        setVoiceCallOverlay(true, window.adminChatT("conferenceJoined"), "connected", "active");
+        await window.SUPPIXConference?.connect?.({
+          livekitUrl: room.livekitUrl,
+          token: room.token,
+          roomId: room.id,
+          participants: room.participants || [],
+          onDisconnect: () => {
+            activeConferenceRoomId = "";
+            setVoiceCallOverlay(false);
+          },
+        });
+        window.SUPPIXConference?.renderParticipantRail?.(room.participants || []);
+      } catch (error) {
+        setThreadMeta(String(error?.message || error || window.adminChatT("conferenceUnavailable")), { dynamic: true });
+      }
+    }
+    function openConferenceInviteModal() {
+      const modal = document.getElementById("conferenceInviteModal");
+      const list = document.getElementById("conferenceInviteList");
+      if (!modal || !list) return;
+      const rows = Array.isArray(adminThreadRows) ? adminThreadRows : threads;
+      list.innerHTML = rows
+        .map((row) => {
+          const wid = String(row.worker_id || "").trim();
+          if (!wid) return "";
+          const label = `${row.first_name || ""} ${row.last_name || ""}`.trim() || wid;
+          return `<label class="conference-invite-row"><input type="checkbox" value="${escapeAttr(wid)}" /><span>${escapeHtml(label)}</span></label>`;
+        })
+        .filter(Boolean)
+        .join("");
+      modal.classList.remove("hidden");
+    }
+    document.getElementById("chatConferenceBtn")?.addEventListener("click", () => {
+      void startAdminConference(currentWorkerId ? [currentWorkerId] : []);
+    });
+    document.getElementById("voiceCallInviteBtn")?.addEventListener("click", () => {
+      if (!activeConferenceRoomId && !window.SUPPIXConference?.getActiveRoomId?.()) return;
+      openConferenceInviteModal();
+    });
+    document.getElementById("conferenceInviteCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("conferenceInviteModal")?.classList.add("hidden");
+    });
+    document.getElementById("conferenceInviteSendBtn")?.addEventListener("click", async () => {
+      const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
+      if (!roomId) return;
+      const ids = Array.from(document.querySelectorAll("#conferenceInviteList input:checked")).map((el) => el.value);
+      if (!ids.length) return;
+      try {
+        const data = await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(roomId)}/invite`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ worker_ids: ids }),
+        });
+        window.SUPPIXConference?.renderParticipantRail?.(data.participants || []);
+        document.getElementById("conferenceInviteModal")?.classList.add("hidden");
+      } catch (error) {
+        setThreadMeta(String(error?.message || error), { dynamic: true });
+      }
+    });
+    document.getElementById("voiceCallCamBtn")?.addEventListener("click", async () => {
+      if (!window.SUPPIXConference?.isActive?.()) return;
+      conferenceCamOn = !conferenceCamOn;
+      await window.SUPPIXConference.setCameraEnabled(conferenceCamOn);
+      document.getElementById("voiceCallCamBtn")?.classList.toggle("is-active", conferenceCamOn);
+    });
+    document.getElementById("voiceCallNoteBtn")?.addEventListener("click", async () => {
+      const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
+      if (!roomId) return;
+      const text = window.prompt(window.adminChatT("conferenceNotePrompt") || "Notiz", "");
+      if (!text || !String(text).trim()) return;
+      try {
+        await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(roomId)}/notes`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body: String(text).trim() }),
+        });
+        setThreadMeta(`📝 ${String(text).trim().slice(0, 80)}`, { dynamic: true });
+      } catch (error) {
+        setThreadMeta(String(error?.message || error), { dynamic: true });
+      }
+    });
+    document.getElementById("voiceCallIceDiagBtn")?.addEventListener("click", async () => {
+      const el = document.getElementById("voiceCallDiag");
+      if (!el) return;
+      try {
+        const data = await voiceCallApi("/api/chat/calls/ice-config");
+        const ice = data.ice || {};
+        el.textContent = `ICE servers: ${ice.serverCount ?? (ice.servers || []).length} · TURN: ${ice.hasTurn ? "yes" : "no"}`;
+        el.classList.remove("hidden");
+      } catch (error) {
+        el.textContent = String(error?.message || error);
+        el.classList.remove("hidden");
+      }
+    });
+    const _origHangup = document.getElementById("voiceCallHangupBtn");
+    _origHangup?.addEventListener("click", async () => {
+      const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
+      if (roomId && window.SUPPIXConference?.isActive?.()) {
+        try {
+          await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(roomId)}/end`, { method: "POST" });
+        } catch (_) { /* ignore */ }
+        await window.SUPPIXConference.disconnect();
+        activeConferenceRoomId = "";
+        setVoiceCallOverlay(false);
+      }
+    }, true);
     document.getElementById("voiceCallAcceptBtn")?.addEventListener("click", () => {
       void acceptAdminIncomingCall();
     });

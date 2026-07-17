@@ -28,3 +28,13 @@ Status after sprint `chat40` + Flutter `0.1.13+34` (pin/star UI).
 - [testflight-github-secrets.md](./testflight-github-secrets.md) — ASC + Signing Secrets
 - [chat-qa-testplan.md](./chat-qa-testplan.md) — Geräte-QA Checkliste
 - [android-play-tomorrow.md](./android-play-tomorrow.md) — Play Store Kurzplan (iOS pausiert)
+- [conference-livekit.md](./conference-livekit.md) — Firmenkonferenz (LiveKit SFU)
+
+## Conference sprint (chat41 / Flutter 0.1.14+35)
+
+- Admin call UI premium + conference controls
+- Backend conference rooms + LiveKit JWT
+- Worker PWA + Flutter invite join
+- Server-backed chat search merge
+- Flutter call history sheet
+- Android AAB workflow (secrets-gated)

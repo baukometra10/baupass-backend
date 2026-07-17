@@ -12,7 +12,9 @@ import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
+import '../../services/conference_repository.dart';
 import '../../services/voice_call_controller.dart';
+import '../voice_call/conference_invite_sheet.dart';
 import 'chat_attachment_helpers.dart';
 import 'chat_location_helpers.dart';
 import 'chat_media_gallery.dart';
@@ -60,6 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatMessagePrefsState _messagePrefs = ChatMessagePrefsState();
   final ScrollController _messageScroll = ScrollController();
   final Map<String, GlobalKey> _messageKeys = {};
+  String? _shownConferenceId;
 
   @override
   void initState() {
@@ -69,8 +72,71 @@ class _ChatScreenState extends State<ChatScreen> {
     _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!_sending && !_silentRefresh && !_voiceComposing && mounted) {
         _boot(silent: true);
+        unawaited(_pollConferenceInvite());
       }
     });
+    unawaited(_pollConferenceInvite());
+  }
+
+  Future<void> _pollConferenceInvite() async {
+    try {
+      final repo = ConferenceRepository(widget.chat.apiClient);
+      final invite = await repo.incoming(widget.session);
+      if (!mounted || invite == null) return;
+      final id = (invite['id'] ?? '').toString();
+      if (id.isEmpty || id == _shownConferenceId) return;
+      _shownConferenceId = id;
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => ConferenceInviteSheet(
+          session: widget.session,
+          repo: repo,
+          invite: invite,
+        ),
+      );
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  Future<void> _openCallHistory() async {
+    try {
+      final repo = ConferenceRepository(widget.chat.apiClient);
+      final calls = await repo.callHistory(widget.session);
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) {
+          if (calls.isEmpty) {
+            return const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text('Noch keine Anrufe.'),
+            );
+          }
+          return ListView.builder(
+            shrinkWrap: true,
+            itemCount: calls.length,
+            itemBuilder: (context, index) {
+              final c = calls[index];
+              final status = (c['status'] ?? c['endReason'] ?? '').toString();
+              final when = (c['createdAt'] ?? c['endedAt'] ?? '').toString();
+              return ListTile(
+                leading: const Icon(Icons.call),
+                title: Text(status.isEmpty ? 'Anruf' : status),
+                subtitle: Text(when),
+              );
+            },
+          );
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Anrufverlauf: $e')),
+      );
+    }
   }
 
   @override
@@ -988,6 +1054,11 @@ class _ChatScreenState extends State<ChatScreen> {
             icon: const Icon(Icons.photo_library_outlined),
             tooltip: 'Medien',
             onPressed: _messages.isEmpty ? null : _openGallery,
+          ),
+          IconButton(
+            icon: const Icon(Icons.history),
+            tooltip: 'Anrufverlauf',
+            onPressed: () => unawaited(_openCallHistory()),
           ),
           IconButton(
             icon: const Icon(Icons.refresh),

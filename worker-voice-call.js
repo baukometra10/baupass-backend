@@ -228,17 +228,91 @@
     showIncoming(call);
   }
 
+  let conferenceActive = false;
+
+  async function handleConferenceInvite(invite) {
+    if (!invite?.id || conferenceActive) return;
+    const overlay = ensureOverlay();
+    const title = document.getElementById("workerVoiceCallTitle");
+    const status = document.getElementById("workerVoiceCallStatus");
+    if (title) title.textContent = invite.title || t("conferenceJoined", "Firmenkonferenz");
+    if (status) status.textContent = t("voiceCallIncomingRinging", "Einladung zur Konferenz…");
+    setOverlay(true, status?.textContent || "", "incoming");
+    const accept = document.getElementById("workerVoiceCallAcceptBtn");
+    const decline = document.getElementById("workerVoiceCallDeclineBtn");
+    const onAccept = async () => {
+      accept?.removeEventListener("click", onAccept);
+      decline?.removeEventListener("click", onDecline);
+      try {
+        const data = await apiFn(`/api/worker-app/chat/conferences/${encodeURIComponent(invite.id)}/join`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        conferenceActive = true;
+        setOverlay(true, t("conferenceJoined", "In Konferenz"), "active");
+        // Reuse admin video grid if present; else create minimal stage
+        if (!document.getElementById("voiceCallVideoGrid")) {
+          const stage = overlay.querySelector(".worker-voice-call-stage");
+          const grid = document.createElement("div");
+          grid.id = "voiceCallVideoGrid";
+          grid.className = "voice-call-video-grid";
+          grid.style.cssText = "display:grid;grid-template-columns:1fr;gap:8px;width:min(420px,92vw);margin:12px auto;";
+          stage?.insertBefore(grid, status);
+        }
+        document.getElementById("voiceCallOverlay")?.classList.add("is-conference");
+        await global.SUPPIXConference?.connect?.({
+          livekitUrl: data.livekitUrl,
+          token: data.token,
+          roomId: data.id,
+          participants: data.participants || [],
+          onDisconnect: async () => {
+            conferenceActive = false;
+            setOverlay(false);
+          },
+        });
+      } catch (error) {
+        conferenceActive = false;
+        setOverlay(false);
+        global.showWorkerNotice?.(String(error?.message || error));
+      }
+    };
+    const onDecline = async () => {
+      accept?.removeEventListener("click", onAccept);
+      decline?.removeEventListener("click", onDecline);
+      try {
+        await apiFn(`/api/worker-app/chat/conferences/${encodeURIComponent(invite.id)}/leave`, { method: "POST" });
+      } catch (_) { /* ignore */ }
+      setOverlay(false);
+    };
+    accept?.addEventListener("click", onAccept, { once: true });
+    decline?.addEventListener("click", onDecline, { once: true });
+    document.getElementById("workerVoiceCallHangupBtn")?.addEventListener("click", async () => {
+      if (!conferenceActive) return;
+      try {
+        await apiFn(`/api/worker-app/chat/conferences/${encodeURIComponent(invite.id)}/leave`, { method: "POST" });
+      } catch (_) { /* ignore */ }
+      await global.SUPPIXConference?.disconnect?.();
+      conferenceActive = false;
+      setOverlay(false);
+    }, { once: true });
+  }
+
   function startPolling() {
     stopPolling();
-    if (!apiFn || !global.SUPPIXVoiceCall?.isSupported?.()) return;
+    if (!apiFn) return;
     const tick = async () => {
-      if (session) {
+      if (session || conferenceActive) {
         pollTimer = global.setTimeout(tick, POLL_MS);
         return;
       }
       try {
-        const data = await apiFn("/api/worker-app/chat/calls/incoming");
-        if (data?.call) await handleIncoming(data.call);
+        if (global.SUPPIXVoiceCall?.isSupported?.()) {
+          const data = await apiFn("/api/worker-app/chat/calls/incoming");
+          if (data?.call) await handleIncoming(data.call);
+        }
+        const conf = await apiFn("/api/worker-app/chat/conferences/incoming");
+        if (conf?.conference) await handleConferenceInvite(conf.conference);
       } catch (_) {
         /* ignore */
       }

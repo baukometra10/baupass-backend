@@ -1,0 +1,123 @@
+# Signed Android App Bundle for Google Play (secrets-gated).
+name: Build worker Android AAB
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: Backend base URL baked into the AAB
+        required: false
+        default: https://baupass-production.up.railway.app
+  push:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/flutter-worker-aab.yml"
+
+jobs:
+  aab:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+    steps:
+      - name: Check signing secrets
+        id: secrets
+        run: |
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::warning::$name is not set"
+              missing=1
+            fi
+          done
+          if [ "$missing" = "1" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Android AAB skipped"
+              echo "Set ANDROID_KEYSTORE_* secrets, then re-run."
+              echo "Meanwhile use **Build worker APK** for pilots."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - uses: actions/setup-java@v4
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        if: steps.secrets.outputs.ready == 'true'
+        with:
+          channel: stable
+          cache: true
+
+      - name: Import keystore
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
+          cat > mobile/android/key.properties <<EOF
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyPassword=$ANDROID_KEY_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          storeFile=$RUNNER_TEMP/upload.jks
+          EOF
+
+      - name: Complete Flutter platform scaffolding
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: flutter create . --org com.baupass --project-name worker
+
+      - name: Restore native customizations
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          git checkout HEAD -- \
+            mobile/android/app/build.gradle.kts \
+            mobile/android/settings.gradle.kts \
+            mobile/android/gradle.properties \
+            mobile/android/build.gradle.kts \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/NfcReaderPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/BrandingPlugin.kt \
+            mobile/android/app/src/main/kotlin/com/baupass/worker/MainActivity.kt \
+            mobile/android/app/src/main/AndroidManifest.xml \
+            mobile/android/app/src/main/res \
+            mobile/lib \
+            mobile/pubspec.yaml \
+            mobile/test || true
+
+      - name: Wire release signing from key.properties
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile/android/app
+        run: |
+          if ! grep -q 'key.properties' build.gradle.kts; then
+            echo "::warning::build.gradle.kts may need manual signingConfig — attempting default release build"
+          fi
+
+      - name: Resolve dependencies
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build App Bundle
+        if: steps.secrets.outputs.ready == 'true'
+        working-directory: mobile
+        env:
+          API_URL: ${{ github.event.inputs.api_base_url || 'https://baupass-production.up.railway.app' }}
+        run: |
+          flutter build appbundle --release --dart-define=BAUPASS_API_URL="$API_URL"
+
+      - name: Upload AAB
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: baupass-worker-aab
+          path: mobile/build/app/outputs/bundle/release/*.aab
+          if-no-files-found: error
+          retention-days: 30
