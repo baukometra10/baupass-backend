@@ -23,13 +23,14 @@
   async function ensureAdminSw() {
     if (!("serviceWorker" in global.navigator)) return null;
     try {
-      let registration = await global.navigator.serviceWorker.getRegistration("/admin-sw.js");
+      let registration = await global.navigator.serviceWorker.getRegistration();
       if (!registration) {
         registration = await global.navigator.serviceWorker.register("/admin-sw.js", { scope: "/" });
       }
       await global.navigator.serviceWorker.ready;
       return registration;
-    } catch {
+    } catch (err) {
+      console.warn("[admin-push] SW register failed", err);
       return null;
     }
   }
@@ -43,22 +44,25 @@
   }
 
   async function subscribeAdminPush({ api, companyId } = {}) {
-    if (!api || !companyId) return false;
-    if (!("Notification" in global) || !("PushManager" in global)) return false;
-    if (Notification.permission === "denied") return false;
+    if (!api) return { ok: false, error: "api_required" };
+    if (!companyId) return { ok: false, error: "company_required" };
+    if (!("Notification" in global) || !("PushManager" in global)) {
+      return { ok: false, error: "unsupported" };
+    }
+    if (Notification.permission === "denied") return { ok: false, error: "denied" };
     try {
       if (Notification.permission === "default") {
         const perm = await Notification.requestPermission();
-        if (perm !== "granted") return false;
+        if (perm !== "granted") return { ok: false, error: perm === "denied" ? "denied" : "permission_dismissed" };
       }
       const registration = await ensureAdminSw();
-      if (!registration) return false;
+      if (!registration) return { ok: false, error: "sw_failed" };
 
       let subscription = await registration.pushManager.getSubscription();
       if (!subscription) {
         const vapidRes = await api("/api/worker-app/push-vapid-key");
         const vapidKey = String(vapidRes?.vapidPublicKey || vapidRes?.publicKey || "").trim();
-        if (!vapidKey) return false;
+        if (!vapidKey) return { ok: false, error: "vapid_missing" };
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidKey),
@@ -75,9 +79,10 @@
           company_id: companyId,
         }),
       });
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (err) {
+      console.warn("[admin-push] subscribe failed", err);
+      return { ok: false, error: String(err?.message || err || "subscribe_failed") };
     }
   }
 
@@ -121,6 +126,16 @@
     return true;
   }
 
+  function pushErrorLabel(code, labels = {}) {
+    if (code === "denied") return labels.denied || "Push blockiert — in den Browser-Einstellungen erlauben.";
+    if (code === "unsupported") return labels.unsupported || "Push wird in diesem Browser nicht unterstützt.";
+    if (code === "company_required") return labels.companyRequired || "Bitte Chat mit Firma öffnen, dann Push aktivieren.";
+    if (code === "vapid_missing") return labels.vapidMissing || "Push-Server-Schlüssel fehlen (VAPID).";
+    if (code === "sw_failed") return labels.swFailed || "Service Worker konnte nicht geladen werden.";
+    if (code === "permission_dismissed") return labels.permissionDismissed || "Benachrichtigung nicht erlaubt.";
+    return labels.subscribeFailed || "Push konnte nicht aktiviert werden. Bitte erneut versuchen.";
+  }
+
   function mountPushBanner({ bannerEl, textEl, enableBtn, dismissBtn, labels = {}, onSubscribed } = {}) {
     if (!bannerEl) return;
     const sync = () => {
@@ -133,15 +148,37 @@
           ? (labels.denied || "Push blockiert — in den Browser-Einstellungen erlauben.")
           : (labels.prompt || "Push aktivieren, um Mitarbeiter-Nachrichten auch bei geschlossenem Tab zu erhalten.");
       }
+      if (enableBtn) {
+        enableBtn.disabled = Notification.permission === "denied";
+        enableBtn.textContent = labels.enable || "Aktivieren";
+      }
       bannerEl.classList.remove("hidden");
     };
     sync();
-    enableBtn?.addEventListener("click", () => {
-      void onSubscribed?.().then((ok) => {
-        if (ok) bannerEl.classList.add("hidden");
-        else sync();
+    if (enableBtn && !enableBtn.dataset.pushBound) {
+      enableBtn.dataset.pushBound = "1";
+      enableBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        enableBtn.disabled = true;
+        const prev = enableBtn.textContent;
+        enableBtn.textContent = "…";
+        void (async () => {
+          const result = await onSubscribed?.();
+          const ok = result === true || result?.ok === true;
+          if (ok) {
+            bannerEl.classList.add("hidden");
+            return;
+          }
+          enableBtn.disabled = false;
+          enableBtn.textContent = prev || labels.enable || "Aktivieren";
+          if (textEl && result?.error) {
+            textEl.textContent = pushErrorLabel(result.error, labels);
+          }
+          sync();
+        })();
       });
-    });
+    }
     dismissBtn?.addEventListener("click", () => {
       try { global.sessionStorage?.setItem(DISMISS_KEY, "1"); } catch { /* ignore */ }
       bannerEl.classList.add("hidden");
@@ -157,8 +194,14 @@
     companyId,
     labels = {},
   } = {}) {
-    if (!statusEl || !api || !companyId) return () => {};
+    if (!statusEl || !api) return () => {};
     const render = async () => {
+      if (!companyId) {
+        statusEl.classList.remove("hidden");
+        if (textEl) textEl.textContent = pushErrorLabel("company_required", labels);
+        if (actionBtn) actionBtn.classList.add("hidden");
+        return;
+      }
       const support = pushSupportState();
       if (support === "unsupported") {
         statusEl.classList.remove("hidden");
@@ -182,36 +225,53 @@
       }
       if (actionBtn) {
         actionBtn.classList.remove("hidden");
+        actionBtn.disabled = false;
         actionBtn.textContent = subscribed
           ? (labels.unsubscribe || "Deaktivieren")
           : (labels.enable || "Aktivieren");
         actionBtn.dataset.mode = subscribed ? "unsubscribe" : "subscribe";
       }
     };
-    actionBtn?.addEventListener("click", () => {
-      void (async () => {
-        const mode = actionBtn.dataset.mode || "subscribe";
-        if (mode === "unsubscribe") {
-          await unsubscribeAdminPush({ api, companyId });
-        } else {
-          await subscribeAdminPush({ api, companyId });
-        }
-        await render();
-      })();
-    });
+    if (actionBtn && !actionBtn.dataset.pushBound) {
+      actionBtn.dataset.pushBound = "1";
+      actionBtn.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        void (async () => {
+          const mode = actionBtn.dataset.mode || "subscribe";
+          actionBtn.disabled = true;
+          const prev = actionBtn.textContent;
+          actionBtn.textContent = "…";
+          try {
+            if (mode === "unsubscribe") {
+              await unsubscribeAdminPush({ api, companyId });
+            } else {
+              const result = await subscribeAdminPush({ api, companyId });
+              if (!result.ok && textEl) {
+                textEl.textContent = pushErrorLabel(result.error, labels);
+              }
+            }
+          } finally {
+            actionBtn.disabled = false;
+            actionBtn.textContent = prev;
+            await render();
+          }
+        })();
+      });
+    }
     void render();
     return render;
   }
 
   function initAdminChatPush({ api, companyId, prompt = true, banner, status } = {}) {
-    if (!api || !companyId) return;
+    if (!api) return;
     if (banner) {
       mountPushBanner({
         ...banner,
         onSubscribed: async () => {
-          const ok = await subscribeAdminPush({ api, companyId });
-          if (ok && status?.refresh) await status.refresh();
-          return ok;
+          const result = await subscribeAdminPush({ api, companyId });
+          if (result.ok && status?.refresh) await status.refresh();
+          return result;
         },
       });
     }
@@ -222,8 +282,10 @@
     }
     if (!prompt) return;
     if (!("Notification" in global)) return;
-    if (Notification.permission === "granted") {
-      void subscribeAdminPush({ api, companyId }).then(() => refresh?.());
+    if (Notification.permission === "granted" && companyId) {
+      void subscribeAdminPush({ api, companyId }).then((result) => {
+        if (result.ok) refresh?.();
+      });
     }
   }
 

@@ -668,8 +668,14 @@
       background: rgba(0,0,0,0.55); font-size: 0.7rem; font-weight: 600;
     }
     .voice-call-invite-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+    .voice-call-pill-btn.hidden { display: none; }
     .voice-call-toolbar-extra {
-      display: flex; gap: 0.65rem; justify-content: center; flex-wrap: wrap; margin-top: 0.75rem;
+      display: flex;
+      gap: 0.65rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+      padding: 0.35rem 1rem 0.85rem;
     }
     .voice-call-pill-btn {
       border: 1px solid rgba(255,255,255,0.14);
@@ -1389,6 +1395,7 @@
         </button>
       </div>
       <div class="voice-call-toolbar-extra">
+        <button type="button" id="voiceCallRetryBtn" class="voice-call-pill-btn primary hidden" data-aci18n="conferenceRetry" data-aci18n-attr="title" title="Erneut verbinden">Erneut verbinden</button>
         <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" data-aci18n-attr="title" disabled title="Einladen">+ Einladen</button>
         <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" data-aci18n-attr="title" title="Notiz">Notiz</button>
       </div>
@@ -1418,7 +1425,7 @@
   <script src="/chat-thread-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
-  <script src="/chat-admin-push.js?v=20260715chat40"></script>
+  <script src="/chat-admin-push.js?v=20260717chat42b"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260717chat42"></script>
@@ -4333,6 +4340,42 @@
     });
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
+    let pendingConferenceConnect = null;
+
+    async function connectPendingConference(opts = {}) {
+      const payload = opts.payload || pendingConferenceConnect;
+      if (!payload?.livekitUrl || !payload?.token) return false;
+      const t = (key, vars) => window.adminChatT?.(key, vars) || key;
+      const statusEl = document.getElementById("voiceCallStatus");
+      const sub = document.getElementById("voiceCallSubtitle");
+      document.getElementById("voiceCallOverlay")?.classList.remove("is-net-error");
+      if (statusEl) statusEl.textContent = t("voiceCallConnecting");
+      if (sub) {
+        sub.textContent = t("conferenceConnectSoft");
+        sub.classList.remove("hidden", "is-error");
+      }
+      await window.SUPPIXConference?.connect?.({
+        livekitUrl: payload.livekitUrl,
+        token: payload.token,
+        roomId: payload.roomId,
+        participants: payload.participants || [],
+        onDisconnect: () => {
+          activeConferenceRoomId = "";
+          pendingConferenceConnect = null;
+          setVoiceCallOverlay(false);
+        },
+      });
+      pendingConferenceConnect = null;
+      if (statusEl) statusEl.textContent = t("conferenceJoined");
+      if (sub) {
+        sub.textContent = "";
+        sub.classList.add("hidden");
+        sub.classList.remove("is-error");
+      }
+      window.SUPPIXConference?.renderParticipantRail?.(payload.participants || []);
+      return true;
+    }
+
     async function startAdminConference(initialWorkerIds) {
       const t = (key, vars) => window.adminChatT?.(key, vars) || key;
       if (!companyId) {
@@ -4373,11 +4416,6 @@
         );
         return;
       }
-      const authHint = status?.livekitAuthOk === true
-        ? " [server-auth=ok]"
-        : status?.livekitAuthDetail
-          ? ` [server-auth=${status.livekitAuthDetail}]`
-          : "";
       const workerIds = Array.isArray(initialWorkerIds) && initialWorkerIds.length
         ? initialWorkerIds
         : (currentWorkerId ? [currentWorkerId] : []);
@@ -4402,38 +4440,47 @@
         document.getElementById("voiceCallOverlay")?.classList.remove("is-net-error");
         const sub = document.getElementById("voiceCallSubtitle");
         if (sub) {
-          sub.textContent = "";
-          sub.classList.add("hidden");
-          sub.classList.remove("is-error");
+          sub.textContent = t("conferenceConnectSoft");
+          sub.classList.remove("hidden", "is-error");
         }
-        setVoiceCallOverlay(true, t("conferenceJoined"), "connected", "active");
-        await window.SUPPIXConference?.connect?.({
+        setVoiceCallOverlay(true, t("voiceCallConnecting"), "connecting", "active");
+        pendingConferenceConnect = {
           livekitUrl: room.livekitUrl,
           token: room.token,
           roomId: room.id,
           participants: room.participants || [],
-          onDisconnect: () => {
-            activeConferenceRoomId = "";
-            setVoiceCallOverlay(false);
-          },
-        });
-        window.SUPPIXConference?.renderParticipantRail?.(room.participants || []);
-      } catch (error) {
-        try { setVoiceCallOverlay(false); } catch (_) { /* ignore */ }
-        const raw = String(error?.message || error || t("conferenceUnavailable"));
-        const isNet = /ServerUnreachable|websocket|Internal error|nicht erreichbar/i.test(raw);
-        const msg = isNet ? `${t("conferenceNetworkUnreachable")}${authHint}` : `${raw}${authHint}`;
-        setThreadMeta(msg, { dynamic: true });
-        const overlay = document.getElementById("voiceCallOverlay");
-        if (overlay && isNet) {
-          overlay.classList.add("is-net-error");
-          const sub = document.getElementById("voiceCallSubtitle");
-          if (sub) {
-            sub.textContent = t("conferenceNetworkUnreachable");
-            sub.classList.remove("hidden");
-            sub.classList.add("is-error");
+        };
+        try {
+          await connectPendingConference({ payload: pendingConferenceConnect });
+        } catch (connectErr) {
+          const raw = String(connectErr?.message || connectErr || "");
+          const isNet = /ServerUnreachable|websocket|Internal error|nicht erreichbar|unreachable/i.test(raw);
+          // Server-side conference is fine (auth ok) — keep overlay, soft status, no scary thread banner.
+          if (isNet && status?.livekitAuthOk !== false) {
+            document.getElementById("voiceCallOverlay")?.classList.add("is-net-error");
+            if (sub) {
+              sub.textContent = t("conferenceNetworkUnreachable");
+              sub.classList.remove("hidden");
+              sub.classList.remove("is-error");
+            }
+            const statusEl = document.getElementById("voiceCallStatus");
+            if (statusEl) statusEl.textContent = t("conferenceConnectSoft");
+            const retryBtn = document.getElementById("voiceCallRetryBtn");
+            if (retryBtn) retryBtn.classList.remove("hidden");
+            return;
           }
+          throw connectErr;
         }
+      } catch (error) {
+        try {
+          if (activeConferenceRoomId) {
+            await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(activeConferenceRoomId)}/end`, { method: "POST" });
+          }
+        } catch (_) { /* ignore */ }
+        activeConferenceRoomId = "";
+        pendingConferenceConnect = null;
+        try { setVoiceCallOverlay(false); } catch (_) { /* ignore */ }
+        setThreadMeta(String(error?.message || error || t("conferenceUnavailable")), { dynamic: true });
       }
     }
     function updateConferenceInviteSelection() {
@@ -4550,15 +4597,31 @@
     const _origHangup = document.getElementById("voiceCallHangupBtn");
     _origHangup?.addEventListener("click", async () => {
       const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
-      if (roomId && window.SUPPIXConference?.isActive?.()) {
+      if (roomId) {
         try {
           await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(roomId)}/end`, { method: "POST" });
         } catch (_) { /* ignore */ }
-        await window.SUPPIXConference.disconnect();
+        try { await window.SUPPIXConference?.disconnect?.(); } catch (_) { /* ignore */ }
         activeConferenceRoomId = "";
+        pendingConferenceConnect = null;
+        document.getElementById("voiceCallRetryBtn")?.classList.add("hidden");
         setVoiceCallOverlay(false);
       }
     }, true);
+    document.getElementById("voiceCallRetryBtn")?.addEventListener("click", () => {
+      const btn = document.getElementById("voiceCallRetryBtn");
+      btn?.classList.add("hidden");
+      void connectPendingConference().catch((error) => {
+        const t = (key, vars) => window.adminChatT?.(key, vars) || key;
+        const sub = document.getElementById("voiceCallSubtitle");
+        if (sub) {
+          sub.textContent = t("conferenceNetworkUnreachable");
+          sub.classList.remove("hidden");
+        }
+        btn?.classList.remove("hidden");
+        console.warn("[conference] retry failed", error);
+      });
+    });
     document.getElementById("voiceCallAcceptBtn")?.addEventListener("click", () => {
       void acceptAdminIncomingCall();
     });

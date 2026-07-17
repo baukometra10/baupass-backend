@@ -109,6 +109,7 @@
     if (!LK?.Room) throw new Error("livekit_unavailable");
     await disconnect();
     activeRoomId = String(roomId || "");
+    let didConnect = false;
     const overlay = document.getElementById("voiceCallOverlay");
     overlay?.classList.add("is-conference");
     const chip = document.getElementById("voiceCallModeChip");
@@ -127,7 +128,8 @@
       track.detach().forEach((el) => el.remove());
     });
     room.on(LK.RoomEvent.Disconnected, () => {
-      onDisconnect?.();
+      // Only notify after a successful connect — failed connect must not auto-hangup the UI.
+      if (didConnect) onDisconnect?.();
     });
     const url = String(livekitUrl || "").trim().replace(/\/+$/, "");
     if (!url || !token) {
@@ -145,6 +147,7 @@
         autoSubscribe: true,
         maxRetries: 2,
       });
+      didConnect = true;
     } catch (err) {
       try {
         await room.disconnect();
