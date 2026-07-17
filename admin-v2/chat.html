@@ -4392,7 +4392,7 @@
         const data = await voiceCallApi(`/api/chat/conferences/${encodeURIComponent(roomId)}/invite`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ worker_ids: ids }),
+          body: JSON.stringify({ worker_ids: ids, company_id: companyId || undefined }),
         });
         window.SUPPIXConference?.renderParticipantRail?.(data.participants || []);
         document.getElementById("conferenceInviteModal")?.classList.add("hidden");
