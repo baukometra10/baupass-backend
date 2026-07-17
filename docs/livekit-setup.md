@@ -51,7 +51,10 @@ Wenn Keys fehlen: API `503 livekit_not_configured`, Admin zeigt Hinweis.
 GET /api/chat/conferences/status
 ```
 
-Erwartung: `{ "ok": true, "configured": true, "livekitUrl": "wss://..." }`
+Erwartung: `{ "ok": true, "configured": true, "livekitAuthOk": true, "livekitUrl": "wss://..." }`
+
+- `livekitAuthOk: false` → Key/Secret passen nicht zum Projekt  
+- `livekitAuthOk: true` + Browser **Internal error** → meist VPN/Firewall/WebSocket (nicht die Railway-Keys). Test: [livekit.io/connection-test](https://livekit.io/connection-test), VPN aus, Inkognito.
 
 ## 4. Firewall / Browser
 
