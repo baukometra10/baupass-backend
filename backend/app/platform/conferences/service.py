@@ -113,12 +113,21 @@ class ConferenceService:
         secret = _livekit_env("LIVEKIT_API_SECRET")
         url = _livekit_url_normalized()
         missing: list[str] = []
+        warnings: list[str] = []
         if not url:
             missing.append("SUPPIX_LIVEKIT_URL (or LIVEKIT_URL)")
         if not key:
             missing.append("SUPPIX_LIVEKIT_API_KEY (or LIVEKIT_API_KEY)")
         if not secret:
             missing.append("SUPPIX_LIVEKIT_API_SECRET (or LIVEKIT_API_SECRET)")
+        if key and not key.startswith("API"):
+            warnings.append("api_key_should_start_with_API — Key/Secret evtl. vertauscht")
+        if key and secret and len(secret) < len(key):
+            warnings.append("api_secret_shorter_than_key — Key/Secret evtl. vertauscht")
+        auth_ok = None
+        auth_detail = ""
+        if key and secret and url:
+            auth_ok, auth_detail = self.verify_livekit_credentials()
         return {
             "hasUrl": bool(url),
             "hasApiKey": bool(key),
@@ -130,7 +139,66 @@ class ConferenceService:
             "livekitHost": url.replace("wss://", "").replace("ws://", "").split("/")[0] if url else "",
             "seenLivekitEnvNames": _livekit_related_env_names(),
             "missing": missing,
+            "warnings": warnings,
+            "livekitAuthOk": auth_ok,
+            "livekitAuthDetail": auth_detail,
         }
+
+    def verify_livekit_credentials(self) -> tuple[bool | None, str]:
+        """Call LiveKit RoomService.ListRooms to verify API key/secret against the URL host."""
+        import json
+        import urllib.error
+        import urllib.request
+
+        key = _livekit_env("LIVEKIT_API_KEY")
+        secret = _livekit_env("LIVEKIT_API_SECRET")
+        url = _livekit_url_normalized()
+        if not key or not secret or not url:
+            return None, "not_configured"
+        http_base = url.replace("wss://", "https://").replace("ws://", "http://").rstrip("/")
+        try:
+            token = create_livekit_token(
+                api_key=key,
+                api_secret=secret,
+                identity="suppix-diag",
+                name="diag",
+                room="",
+                room_join=False,
+                room_list=True,
+                ttl_seconds=120,
+            )
+        except Exception as exc:  # noqa: BLE001
+            return False, f"token_error:{exc}"
+        endpoint = f"{http_base}/twirp/livekit.RoomService/ListRooms"
+        req = urllib.request.Request(
+            endpoint,
+            data=b"{}",
+            method="POST",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                body = resp.read().decode("utf-8", errors="replace")
+                if resp.status >= 400:
+                    return False, f"http_{resp.status}"
+                # Valid JSON response means auth worked
+                json.loads(body or "{}")
+                return True, "ok"
+        except urllib.error.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read().decode("utf-8", errors="replace")[:200]
+            except Exception:  # noqa: BLE001
+                detail = str(exc.reason or "")
+            if exc.code in (401, 403):
+                return False, f"auth_rejected_{exc.code}:{detail}"
+            return False, f"http_{exc.code}:{detail}"
+        except Exception as exc:  # noqa: BLE001
+            return False, f"network:{exc}"
 
     def _ensure_schema(self) -> None:
         self.db.execute(
@@ -187,6 +255,8 @@ class ConferenceService:
             identity=identity,
             name=name,
             room=room,
+            room_join=True,
+            room_create=True,
         )
 
     def create_room(

@@ -1378,7 +1378,7 @@
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260717chat41"></script>
   <script src="/chat-voice-call.js?v=20260717chat41"></script>
-  <script src="/chat-conference.js?v=20260717chat41b"></script>
+  <script src="/chat-conference.js?v=20260717chat41c"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260717chat41"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -4318,6 +4318,16 @@
         }
         const hint = parts.length ? ` ${parts.join(" | ")}` : "";
         setThreadMeta(`${window.adminChatT("conferenceUnavailable")}${hint}`, { dynamic: true });
+        return;
+      }
+      if (status?.livekitAuthOk === false) {
+        const warn = Array.isArray(status?.warnings) && status.warnings.length
+          ? ` ${status.warnings.join("; ")}`
+          : "";
+        setThreadMeta(
+          `LiveKit Auth fehlgeschlagen (${status.livekitAuthDetail || "auth"}). Key+Secret müssen zum Projekt ${status.livekitHost || ""} passen.${warn}`,
+          { dynamic: true }
+        );
         return;
       }
       const workerIds = Array.isArray(initialWorkerIds) && initialWorkerIds.length

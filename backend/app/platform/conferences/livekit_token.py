@@ -18,12 +18,16 @@ def create_livekit_token(
     api_key: str,
     api_secret: str,
     identity: str,
-    name: str,
-    room: str,
+    name: str = "",
+    room: str = "",
     ttl_seconds: int = 7200,
     can_publish: bool = True,
     can_subscribe: bool = True,
     can_publish_data: bool = True,
+    room_join: bool = True,
+    room_list: bool = False,
+    room_create: bool = False,
+    room_admin: bool = False,
 ) -> str:
     """Mint a LiveKit access token compatible with LiveKit Cloud / open-source SFU.
 
@@ -35,33 +39,42 @@ def create_livekit_token(
     room = str(room or "").strip()
     if not api_key or not api_secret:
         raise ValueError("api_key and api_secret required")
-    if not identity or not room:
-        raise ValueError("identity and room required")
+    if not identity:
+        raise ValueError("identity required")
+    if room_join and not room:
+        raise ValueError("identity and room required when room_join")
 
     now = int(time.time())
     header = {"alg": "HS256", "typ": "JWT"}
-    video_grant: dict[str, Any] = {
-        "roomJoin": True,
-        "room": room,
-        "canPublish": can_publish,
-        "canSubscribe": can_subscribe,
-        "canPublishData": can_publish_data,
-    }
-    # Keep payload minimal (official SDK drops empty strings / None).
+    video_grant: dict[str, Any] = {}
+    if room_join:
+        video_grant["roomJoin"] = True
+        video_grant["room"] = room
+        video_grant["canPublish"] = can_publish
+        video_grant["canSubscribe"] = can_subscribe
+        video_grant["canPublishData"] = can_publish_data
+    if room_list:
+        video_grant["roomList"] = True
+    if room_create:
+        video_grant["roomCreate"] = True
+    if room_admin:
+        video_grant["roomAdmin"] = True
+        if room:
+            video_grant["room"] = room
+
     payload: dict[str, Any] = {
-        "iss": api_key,
-        "sub": identity,
-        "nbf": now - 10,
         "exp": now + max(60, int(ttl_seconds)),
+        "iss": api_key,
+        "nbf": now - 10,
+        "sub": identity,
         "video": video_grant,
     }
     display = str(name or "").strip()
     if display:
         payload["name"] = display
 
-    # Do not sort_keys — match typical PyJWT serialization order expectations.
-    h = _b64url(json.dumps(header, separators=(",", ":")).encode())
-    p = _b64url(json.dumps(payload, separators=(",", ":")).encode())
-    signing_input = f"{h}.{p}".encode()
+    h = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
+    p = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    signing_input = f"{h}.{p}".encode("utf-8")
     sig = hmac.new(api_secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
     return f"{h}.{p}.{_b64url(sig)}"

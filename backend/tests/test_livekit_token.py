@@ -14,3 +14,15 @@ def test_livekit_token_shape():
     parts = token.split(".")
     assert len(parts) == 3
     assert all(parts)
+
+
+def test_livekit_room_list_token_without_room():
+    token = create_livekit_token(
+        api_key="APIkey",
+        api_secret="secret-value-for-tests-only",
+        identity="diag",
+        room_join=False,
+        room_list=True,
+        ttl_seconds=60,
+    )
+    assert token.count(".") == 2

@@ -1176,6 +1176,9 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 "apiSecretLen": diag.get("apiSecretLen"),
                 "apiKeyPrefix": diag.get("apiKeyPrefix") or "",
                 "livekitHost": diag.get("livekitHost") or "",
+                "warnings": diag.get("warnings") or [],
+                "livekitAuthOk": diag.get("livekitAuthOk"),
+                "livekitAuthDetail": diag.get("livekitAuthDetail") or "",
                 "seenLivekitEnvNames": diag.get("seenLivekitEnvNames") or [],
             }
         )
