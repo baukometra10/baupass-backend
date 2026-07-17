@@ -39,13 +39,26 @@
     const reason = err?.reasonName || err?.reason || "";
     const status = err?.status != null ? ` status=${err.status}` : "";
     const ctx = err?.context ? ` ctx=${JSON.stringify(err.context)}` : "";
+    const hint =
+      (typeof global.adminChatT === "function" && global.adminChatT("conferenceConnectHint"))
+      || (typeof global.t === "function" && global.t("conferenceConnectHint"))
+      || "Tip: VPN off · https://livekit.io/connection-test";
     const parts = [msg];
     if (reason) parts.push(`reason=${reason}`);
     if (status) parts.push(status.trim());
     if (ctx) parts.push(ctx.trim());
     parts.push(`(LiveKit: ${host || url || "?"})`);
-    parts.push("Tipp: VPN aus / https://livekit.io/connection-test");
+    parts.push(hint);
     return parts.join(" ");
+  }
+
+  function youLabel() {
+    return (
+      (typeof global.adminChatT === "function" && global.adminChatT("conferenceYou"))
+      || (typeof global.t === "function" && global.t("conferenceYou"))
+      || (typeof global.t === "function" && global.t("voiceCallMicLabel"))
+      || "You"
+    );
   }
 
   function attachTrack(track, identity, isLocal) {
@@ -71,7 +84,7 @@
     }
     const video = tile.querySelector("video");
     const label = tile.querySelector(".tile-label");
-    if (label) label.textContent = isLocal ? "Sie" : identity;
+    if (label) label.textContent = isLocal ? youLabel() : identity;
     track.attach(video);
     if (isLocal) localVideoEl = video;
   }
@@ -100,7 +113,7 @@
     overlay?.classList.add("is-conference");
     const chip = document.getElementById("voiceCallModeChip");
     if (chip) {
-      chip.textContent = global.adminChatT?.("voiceCallModeConference") || "Firmenkonferenz";
+      chip.textContent = global.adminChatT?.("voiceCallModeConference") || global.t?.("voiceCallModeConference") || "Conference";
       chip.classList.add("is-conference");
     }
     document.getElementById("voiceCallInviteBtn")?.removeAttribute("disabled");
@@ -183,7 +196,7 @@
     const chip = document.getElementById("voiceCallModeChip");
     if (chip) {
       chip.classList.remove("is-conference");
-      chip.textContent = global.adminChatT?.("voiceCallModeDirect") || "1:1 Anruf";
+      chip.textContent = global.adminChatT?.("voiceCallModeDirect") || global.t?.("voiceCallModeDirect") || "1:1";
     }
     document.getElementById("voiceCallInviteBtn")?.setAttribute("disabled", "disabled");
     document.getElementById("voiceCallParticipantRail")?.classList.add("hidden");

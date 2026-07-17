@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260715chat40";
+const WORKER_BUILD = "20260717chat42";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -32,7 +32,9 @@ const STATIC_ASSETS = [
   { path: "/chat-voice.js", rev: WORKER_BUILD },
   { path: "/chat-global-notify.js", rev: WORKER_BUILD },
   { path: "/chat-voice-call.js", rev: WORKER_BUILD },
+  { path: "/chat-conference.js", rev: WORKER_BUILD },
   { path: "/worker-voice-call.js", rev: WORKER_BUILD },
+  { path: "/worker-i18n.js", rev: WORKER_BUILD },
   { path: "/emp-app-manifest.json", rev: WORKER_BUILD },
   { path: "/branding/suppix-icon-192.png" },
   { path: "/branding/suppix-icon-512.png" },

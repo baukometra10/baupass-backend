@@ -6,10 +6,12 @@
 
   function t(key, fallback) {
     try {
-      return global.t?.(key) || fallback || key;
+      const v = typeof global.t === "function" ? global.t(key) : "";
+      if (v && v !== key) return v;
     } catch (_) {
-      return fallback || key;
+      /* ignore */
     }
+    return fallback || key;
   }
 
   function formatDuration(ms) {
@@ -53,13 +55,14 @@
       const style = document.createElement("style");
       style.id = "workerVoiceCallStyles";
       style.textContent = `
-.worker-voice-call-overlay{position:fixed;inset:0;z-index:14000;display:flex;flex-direction:column;justify-content:space-between;background:#0b141a;padding:0}
+.worker-voice-call-overlay{position:fixed;inset:0;z-index:14000;display:flex;flex-direction:column;justify-content:space-between;padding:0;background:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(0,168,132,.22),transparent 55%),radial-gradient(ellipse 60% 40% at 100% 100%,rgba(37,99,235,.12),transparent 50%),linear-gradient(165deg,#071018 0%,#0b141a 45%,#0a1620 100%)}
 .worker-voice-call-overlay.hidden{display:none}
+.worker-voice-call-overlay.is-conference .worker-voice-call-avatar{width:120px;height:120px;font-size:2.2rem}
 .worker-voice-call-stage{width:100%;max-width:520px;margin:0 auto;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#e9edef;padding:2rem 1.25rem 1rem}
-.worker-voice-call-badge{display:inline-flex;padding:.35rem .75rem;border-radius:999px;border:1px solid rgba(0,168,132,.35);font-size:.75rem;margin-bottom:1rem;color:rgba(233,237,239,.85)}
+.worker-voice-call-badge{display:inline-flex;padding:.35rem .75rem;border-radius:999px;border:1px solid rgba(0,168,132,.35);font-size:.75rem;margin-bottom:1rem;color:rgba(233,237,239,.85);background:rgba(0,168,132,.12)}
 .worker-voice-call-avatar{width:180px;height:180px;margin:0 auto 1.25rem;border-radius:50%;display:grid;place-items:center;font-size:3rem;font-weight:800;background:linear-gradient(145deg,#00a884,#128c7e);color:#e9edef;box-shadow:0 24px 64px rgba(0,168,132,.28)}
 .worker-voice-call-stage h4{margin:0 0 .35rem;font-size:2rem;color:#e9edef}
-.worker-voice-call-stage p{color:rgba(233,237,239,.72)}
+.worker-voice-call-stage p{color:rgba(233,237,239,.72);max-width:22rem;line-height:1.35}
 .worker-voice-call-timer.hidden{display:none}
 .worker-voice-call-live-wave{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:72px;width:min(320px,88vw);margin:1rem auto}
 .worker-voice-call-live-wave span{width:3px;border-radius:999px;height:18%;background:linear-gradient(180deg,#00a884,#128c7e);transition:height .08s linear}
@@ -67,13 +70,14 @@
 .worker-voice-call-meter{display:grid;grid-template-columns:4.5rem 1fr;gap:.5rem;align-items:center;font-size:.72rem;text-transform:uppercase;opacity:.8}
 .worker-voice-call-meter div{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
 .worker-voice-call-meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#00a884,#128c7e)}
-.worker-voice-call-controls{display:flex;gap:2rem;justify-content:center;flex-wrap:wrap;padding:1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,rgba(0,0,0,.55))}
+.worker-voice-call-controls{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;padding:1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,rgba(0,0,0,.55))}
 .worker-voice-call-controls.hidden{display:none}
 .worker-voice-call-controls button{min-width:68px;min-height:68px;width:68px;height:68px;border-radius:50%;border:none;color:#fff;font-weight:600;cursor:pointer;font-size:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,.35)}
 .worker-voice-call-controls button.primary{background:#00a884}
 .worker-voice-call-controls button.danger{background:#e53935}
 .worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:76px;height:76px;min-width:76px;min-height:76px}
 .worker-voice-call-controls button.is-active{background:rgba(229,57,53,.85)}
+#voiceCallVideoGrid{width:min(920px,94vw);margin:.75rem auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;max-height:36vh;overflow:auto}
 .chat-call-log,.worker-chat-call-log{display:inline-flex;align-items:center;gap:.55rem;padding:.45rem .75rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(0,168,132,.22)}
 .chat-call-log-btn,.worker-chat-call-log-btn{margin-top:.35rem;border-radius:999px;padding:.35rem .75rem;border:1px solid rgba(0,168,132,.35);background:rgba(0,168,132,.18);color:#ecfeff;font-size:.75rem;font-weight:600;cursor:pointer}`;
       document.head.appendChild(style);
@@ -251,13 +255,13 @@
         });
         conferenceActive = true;
         setOverlay(true, t("conferenceJoined", "In Konferenz"), "active");
+        overlay.classList.add("is-conference");
         // Reuse admin video grid if present; else create minimal stage
         if (!document.getElementById("voiceCallVideoGrid")) {
           const stage = overlay.querySelector(".worker-voice-call-stage");
           const grid = document.createElement("div");
           grid.id = "voiceCallVideoGrid";
           grid.className = "voice-call-video-grid";
-          grid.style.cssText = "display:grid;grid-template-columns:1fr;gap:8px;width:min(420px,92vw);margin:12px auto;";
           stage?.insertBefore(grid, status);
         }
         document.getElementById("voiceCallOverlay")?.classList.add("is-conference");
@@ -268,13 +272,19 @@
           participants: data.participants || [],
           onDisconnect: async () => {
             conferenceActive = false;
+            overlay.classList.remove("is-conference");
             setOverlay(false);
           },
         });
       } catch (error) {
         conferenceActive = false;
+        overlay.classList.remove("is-conference");
+        const raw = String(error?.message || error || "");
+        const msg = /ServerUnreachable|websocket|Internal error/i.test(raw)
+          ? t("conferenceNetworkUnreachable", "Konferenz-Server nicht erreichbar (VPN/Netz).")
+          : raw;
         setOverlay(false);
-        global.showWorkerNotice?.(String(error?.message || error));
+        global.showWorkerNotice?.(msg);
       }
     };
     const onDecline = async () => {

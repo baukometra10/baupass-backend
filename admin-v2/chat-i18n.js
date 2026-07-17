@@ -195,6 +195,18 @@ window.AdminChatI18n = {
     conferenceNotePrompt: "Notiz an alle Teilnehmer",
     conferenceUnavailable: "Konferenz nicht konfiguriert (LiveKit Keys fehlen).",
     conferenceJoined: "In Konferenz",
+    conferenceCompanyRequired: "Bitte Chat mit einer Firma öffnen (?company_id=…).",
+    conferenceAuthFailed: "LiveKit-Anmeldung fehlgeschlagen ({detail}). Key und Secret müssen zum Projekt {host} passen.",
+    conferenceMissingVars: "Fehlt: {missing}",
+    conferenceSeenVars: "Railway sieht: {seen}",
+    conferenceNoVars: "Railway sieht keine LIVEKIT-Variablen am API-Service",
+    conferenceSecretEmpty: "Secret-Länge 0 — Variable leer oder falscher Name",
+    conferenceNetworkUnreachable: "LiveKit vom Browser nicht erreichbar (VPN/Firewall). Server-Auth ist ok — anderes Netz oder https://livekit.io/connection-test versuchen.",
+    conferenceConnectHint: "Tipp: VPN aus · Connection-Test",
+    conferenceYou: "Sie",
+    conferenceClose: "Schließen",
+    conferenceInviteEmpty: "Keine Mitarbeiter zum Einladen.",
+    conferenceInviteSelected: "{count} ausgewählt",
     chatBackToList: "Zurück zur Liste",
     chatMoreMenu: "Mehr",
     chatSearchToggle: "Suchen",
@@ -410,6 +422,18 @@ window.AdminChatI18n = {
     conferenceNotePrompt: "Note for all participants",
     conferenceUnavailable: "Conference not configured (LiveKit keys missing).",
     conferenceJoined: "In conference",
+    conferenceCompanyRequired: "Open chat with a company selected (?company_id=…).",
+    conferenceAuthFailed: "LiveKit auth failed ({detail}). Key and secret must match project {host}.",
+    conferenceMissingVars: "Missing: {missing}",
+    conferenceSeenVars: "Railway sees: {seen}",
+    conferenceNoVars: "Railway sees no LIVEKIT variables on the API service",
+    conferenceSecretEmpty: "Secret length 0 — empty value or wrong name",
+    conferenceNetworkUnreachable: "LiveKit unreachable from this browser (VPN/firewall). Server auth is ok — try another network or https://livekit.io/connection-test.",
+    conferenceConnectHint: "Tip: turn off VPN · connection test",
+    conferenceYou: "You",
+    conferenceClose: "Close",
+    conferenceInviteEmpty: "No employees to invite.",
+    conferenceInviteSelected: "{count} selected",
     chatBackToList: "Back to list",
     chatMoreMenu: "More",
     chatSearchToggle: "Search",
@@ -511,6 +535,30 @@ window.AdminChatI18n = {
     voiceCallQualityGood: "اتصال مستقر",
     voiceCallConnecting: "جاري الاتصال…",
     voiceCallUnreachable: "تعذر الوصول",
+    voiceCallModeDirect: "مكالمة 1:1",
+    voiceCallModeConference: "مؤتمر الشركة",
+    voiceCallCamera: "كاميرا",
+    voiceCallIceDiag: "الشبكة",
+    conferenceStart: "مؤتمر",
+    conferenceInvite: "+ دعوة",
+    conferenceInviteTitle: "دعوة إلى المؤتمر",
+    conferenceInviteSend: "دعوة",
+    conferenceNote: "ملاحظة",
+    conferenceNotePrompt: "ملاحظة لجميع المشاركين",
+    conferenceUnavailable: "المؤتمر غير مُعد (مفاتيح LiveKit ناقصة).",
+    conferenceJoined: "في المؤتمر",
+    conferenceCompanyRequired: "افتح الدردشة مع شركة محددةة (?company_id=…).",
+    conferenceAuthFailed: "فشل مصادقة LiveKit ({detail}). يجب أن يطابق المفتاح والسر المشروع {host}.",
+    conferenceMissingVars: "ناقص: {missing}",
+    conferenceSeenVars: "Railway يرى: {seen}",
+    conferenceNoVars: "Railway لا يرى متغيرات LIVEKIT على خدمة API",
+    conferenceSecretEmpty: "طول السر 0 — قيمة فارغة أو اسم خاطئ",
+    conferenceNetworkUnreachable: "LiveKit غير متاح من هذا المتصفح (VPN/جدار ناري). مصادقة الخادم ناجحة — جرّب شبكة أخرى أو https://livekit.io/connection-test.",
+    conferenceConnectHint: "نصيحة: أوقف VPN · اختبار الاتصال",
+    conferenceYou: "أنت",
+    conferenceClose: "إغلاق",
+    conferenceInviteEmpty: "لا موظفون للدعوة.",
+    conferenceInviteSelected: "{count} محدد",
     chatVoiceViewOnce: "استماع لمرة واحدة",
     chatVoiceViewOnceConsumed: "تم الاستماع للرسالة الصوتية لمرة واحدة مسبقاً.",
     chatBackToList: "العودة إلى القائمة",
@@ -825,8 +873,16 @@ window.applyAdminChatI18n = function applyAdminChatI18n() {
     const key = el.getAttribute("data-aci18n");
     if (!key) return;
     if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
-      const attr = el.getAttribute("data-aci18n-attr") || "placeholder";
-      el.setAttribute(attr, window.adminChatT(key));
+      const attrList = (el.getAttribute("data-aci18n-attr") || "placeholder")
+        .split(",")
+        .map((p) => p.trim())
+        .filter(Boolean);
+      const val = window.adminChatT(key);
+      attrList.forEach((name) => {
+        if (name === "placeholder") el.placeholder = val;
+        else if (name === "title") el.title = val;
+        else el.setAttribute(name, val);
+      });
     } else {
       const attr = el.getAttribute("data-aci18n-attr");
       if (attr) {

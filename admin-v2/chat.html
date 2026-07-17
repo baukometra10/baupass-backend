@@ -608,6 +608,25 @@
     }
     .voice-call-overlay.is-conference .voice-call-video-grid { display: grid; }
     .voice-call-overlay.is-conference .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
+    .voice-call-overlay.is-conference .voice-call-rings { opacity: 0.35; }
+    .voice-call-overlay.is-net-error .voice-call-stage::after {
+      content: "";
+      position: absolute;
+      inset: auto 8% 18%;
+      height: 3px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, transparent, #f87171, transparent);
+      opacity: 0.7;
+    }
+    .voice-call-subtitle {
+      margin: 0.15rem 0 0.35rem;
+      font-size: 0.82rem;
+      color: rgba(233, 237, 239, 0.72);
+      max-width: 28rem;
+      margin-inline: auto;
+      line-height: 1.35;
+    }
+    .voice-call-subtitle.is-error { color: #fca5a5; }
     .voice-call-video-tile {
       position: relative;
       aspect-ratio: 16/10;
@@ -615,6 +634,30 @@
       overflow: hidden;
       background: #111b21;
       border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+    }
+    .conference-invite-empty {
+      margin: 0.35rem 0 0;
+      font-size: 0.85rem;
+      color: rgba(233, 237, 239, 0.65);
+    }
+    .conference-invite-empty.hidden { display: none; }
+    .conference-invite-selected {
+      margin: 0.25rem 0 0;
+      font-size: 0.78rem;
+      color: #5eead4;
+      font-weight: 600;
+      min-height: 1.1em;
+    }
+    .conference-invite-modal .conference-invite-inner {
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .conference-invite-row {
+      transition: background 0.15s ease;
+    }
+    .conference-invite-row:hover {
+      background: rgba(255,255,255,0.05);
     }
     .voice-call-video-tile video {
       width: 100%; height: 100%; object-fit: cover; background: #0b141a;
@@ -1346,8 +1389,8 @@
         </button>
       </div>
       <div class="voice-call-toolbar-extra">
-        <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" disabled title="Konferenz (LiveKit)">+ Einladen</button>
-        <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" title="Notiz">Notiz</button>
+        <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" data-aci18n-attr="title" disabled title="Einladen">+ Einladen</button>
+        <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" data-aci18n-attr="title" title="Notiz">Notiz</button>
       </div>
     </div>
   </div>
@@ -1355,9 +1398,11 @@
     <div class="conference-invite-inner">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">
         <strong data-aci18n="conferenceInviteTitle">Zur Konferenz einladen</strong>
-        <button type="button" id="conferenceInviteCloseBtn" aria-label="Schließen">✕</button>
+        <button type="button" id="conferenceInviteCloseBtn" data-aci18n="conferenceClose" data-aci18n-attr="aria-label,title" aria-label="Schließen" title="Schließen">✕</button>
       </div>
-      <input type="search" id="conferenceInviteSearch" data-aci18n-placeholder="searchPh" placeholder="Mitarbeiter suchen…" style="width:100%;padding:0.5rem 0.65rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:#0b141a;color:#e9edef;" />
+      <input type="search" id="conferenceInviteSearch" data-aci18n="searchPh" data-aci18n-attr="placeholder" placeholder="Mitarbeiter suchen…" style="width:100%;padding:0.5rem 0.65rem;border-radius:10px;border:1px solid rgba(255,255,255,0.12);background:#0b141a;color:#e9edef;" />
+      <p id="conferenceInviteEmpty" class="conference-invite-empty hidden" data-aci18n="conferenceInviteEmpty">Keine Mitarbeiter zum Einladen.</p>
+      <p id="conferenceInviteSelected" class="conference-invite-selected" aria-live="polite"></p>
       <div id="conferenceInviteList" class="conference-invite-list"></div>
       <button type="button" id="conferenceInviteSendBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInviteSend">Einladen</button>
     </div>
@@ -1376,10 +1421,10 @@
   <script src="/chat-admin-push.js?v=20260715chat40"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260717chat41"></script>
-  <script src="/chat-voice-call.js?v=20260717chat41"></script>
-  <script src="/chat-conference.js?v=20260717chat41d"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260717chat41"></script>
+  <script src="/chat-voice.js?v=20260717chat42"></script>
+  <script src="/chat-voice-call.js?v=20260717chat42"></script>
+  <script src="/chat-conference.js?v=20260717chat42"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat42"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4289,8 +4334,9 @@
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
     async function startAdminConference(initialWorkerIds) {
+      const t = (key, vars) => window.adminChatT?.(key, vars) || key;
       if (!companyId) {
-        setThreadMeta("company_required — bitte Chat mit Firma öffnen (?company_id=…)", { dynamic: true });
+        setThreadMeta(t("conferenceCompanyRequired"), { dynamic: true });
         return;
       }
       let status;
@@ -4299,9 +4345,7 @@
       } catch (error) {
         const detail = String(error?.message || error || "").trim();
         setThreadMeta(
-          detail
-            ? `${window.adminChatT("conferenceUnavailable")} (${detail})`
-            : window.adminChatT("conferenceUnavailable"),
+          detail ? `${t("conferenceUnavailable")} (${detail})` : t("conferenceUnavailable"),
           { dynamic: true }
         );
         return;
@@ -4310,22 +4354,21 @@
         const missing = Array.isArray(status?.missing) ? status.missing.filter(Boolean) : [];
         const seen = Array.isArray(status?.seenLivekitEnvNames) ? status.seenLivekitEnvNames.filter(Boolean) : [];
         const parts = [];
-        if (missing.length) parts.push(`Fehlt: ${missing.join(", ")}`);
-        if (seen.length) parts.push(`Railway sieht: ${seen.join(", ")}`);
-        else parts.push("Railway sieht keine LIVEKIT-Variablen am API-Service");
+        if (missing.length) parts.push(t("conferenceMissingVars", { missing: missing.join(", ") }));
+        if (seen.length) parts.push(t("conferenceSeenVars", { seen: seen.join(", ") }));
+        else parts.push(t("conferenceNoVars"));
         if (status?.apiSecretLen === 0 && (status?.hasApiKey || status?.apiKeyLen > 0)) {
-          parts.push("Secret-Länge 0 — Variable leer oder falscher Name");
+          parts.push(t("conferenceSecretEmpty"));
         }
-        const hint = parts.length ? ` ${parts.join(" | ")}` : "";
-        setThreadMeta(`${window.adminChatT("conferenceUnavailable")}${hint}`, { dynamic: true });
+        setThreadMeta(`${t("conferenceUnavailable")} ${parts.join(" · ")}`, { dynamic: true });
         return;
       }
       if (status?.livekitAuthOk === false) {
-        const warn = Array.isArray(status?.warnings) && status.warnings.length
-          ? ` ${status.warnings.join("; ")}`
-          : "";
         setThreadMeta(
-          `LiveKit Auth fehlgeschlagen (${status.livekitAuthDetail || "auth"}). Key+Secret müssen zum Projekt ${status.livekitHost || ""} passen.${warn}`,
+          t("conferenceAuthFailed", {
+            detail: status.livekitAuthDetail || "auth",
+            host: status.livekitHost || "",
+          }),
           { dynamic: true }
         );
         return;
@@ -4354,9 +4397,16 @@
           try { await activeVoiceCallSession.end("busy"); } catch (_) { /* ignore */ }
           activeVoiceCallSession = null;
         }
-        document.getElementById("voiceCallTitle").textContent = room.title || window.adminChatT("voiceCallModeConference");
+        document.getElementById("voiceCallTitle").textContent = room.title || t("voiceCallModeConference");
         document.getElementById("voiceCallAvatar").textContent = "CF";
-        setVoiceCallOverlay(true, window.adminChatT("conferenceJoined"), "connected", "active");
+        document.getElementById("voiceCallOverlay")?.classList.remove("is-net-error");
+        const sub = document.getElementById("voiceCallSubtitle");
+        if (sub) {
+          sub.textContent = "";
+          sub.classList.add("hidden");
+          sub.classList.remove("is-error");
+        }
+        setVoiceCallOverlay(true, t("conferenceJoined"), "connected", "active");
         await window.SUPPIXConference?.connect?.({
           livekitUrl: room.livekitUrl,
           token: room.token,
@@ -4370,26 +4420,69 @@
         window.SUPPIXConference?.renderParticipantRail?.(room.participants || []);
       } catch (error) {
         try { setVoiceCallOverlay(false); } catch (_) { /* ignore */ }
-        setThreadMeta(
-          `${String(error?.message || error || window.adminChatT("conferenceUnavailable"))}${authHint}`,
-          { dynamic: true }
-        );
+        const raw = String(error?.message || error || t("conferenceUnavailable"));
+        const isNet = /ServerUnreachable|websocket|Internal error|nicht erreichbar/i.test(raw);
+        const msg = isNet ? `${t("conferenceNetworkUnreachable")}${authHint}` : `${raw}${authHint}`;
+        setThreadMeta(msg, { dynamic: true });
+        const overlay = document.getElementById("voiceCallOverlay");
+        if (overlay && isNet) {
+          overlay.classList.add("is-net-error");
+          const sub = document.getElementById("voiceCallSubtitle");
+          if (sub) {
+            sub.textContent = t("conferenceNetworkUnreachable");
+            sub.classList.remove("hidden");
+            sub.classList.add("is-error");
+          }
+        }
       }
+    }
+    function updateConferenceInviteSelection() {
+      const count = document.querySelectorAll("#conferenceInviteList input:checked").length;
+      const el = document.getElementById("conferenceInviteSelected");
+      const send = document.getElementById("conferenceInviteSendBtn");
+      if (el) {
+        el.textContent = count
+          ? (window.adminChatT?.("conferenceInviteSelected", { count }) || `${count}`)
+          : "";
+      }
+      if (send) send.disabled = count === 0;
     }
     function openConferenceInviteModal() {
       const modal = document.getElementById("conferenceInviteModal");
       const list = document.getElementById("conferenceInviteList");
+      const empty = document.getElementById("conferenceInviteEmpty");
+      const search = document.getElementById("conferenceInviteSearch");
       if (!modal || !list) return;
       const rows = Array.isArray(adminThreadRows) ? adminThreadRows : threads;
-      list.innerHTML = rows
+      const html = rows
         .map((row) => {
           const wid = String(row.worker_id || "").trim();
           if (!wid) return "";
           const label = `${row.first_name || ""} ${row.last_name || ""}`.trim() || wid;
-          return `<label class="conference-invite-row"><input type="checkbox" value="${escapeAttr(wid)}" /><span>${escapeHtml(label)}</span></label>`;
+          return `<label class="conference-invite-row" data-label="${escapeAttr(label.toLowerCase())}"><input type="checkbox" value="${escapeAttr(wid)}" /><span>${escapeHtml(label)}</span></label>`;
         })
         .filter(Boolean)
         .join("");
+      list.innerHTML = html;
+      if (empty) empty.classList.toggle("hidden", Boolean(html));
+      if (search) {
+        search.value = "";
+        if (!search.dataset.bound) {
+          search.dataset.bound = "1";
+          search.addEventListener("input", () => {
+            const q = String(search.value || "").trim().toLowerCase();
+            list.querySelectorAll(".conference-invite-row").forEach((row) => {
+              const label = row.getAttribute("data-label") || "";
+              row.style.display = !q || label.includes(q) ? "" : "none";
+            });
+          });
+        }
+      }
+      if (!list.dataset.boundSelect) {
+        list.dataset.boundSelect = "1";
+        list.addEventListener("change", updateConferenceInviteSelection);
+      }
+      updateConferenceInviteSelection();
       modal.classList.remove("hidden");
     }
     document.getElementById("chatConferenceBtn")?.addEventListener("click", () => {

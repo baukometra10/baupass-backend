@@ -471,6 +471,35 @@ const TRANSLATIONS = {
     compactShowLess: "Weniger anzeigen",
     lateCheckInMessage: "Achtung: Du bist heute zu spät eingestempelt!",
     lateMinutesUnit: "Min.",
+    voiceCallTitle: "Sprachanruf",
+    voiceCallSecure: "🔒 Sicherer Sprachkanal",
+    voiceCallDialing: "Wählt…",
+    voiceCallRinging: "Eingehender Anruf…",
+    voiceCallIncomingRinging: "Einladung zur Konferenz…",
+    voiceCallConnected: "Verbunden",
+    voiceCallEnded: "Anruf beendet",
+    voiceCallHangup: "Auflegen",
+    voiceCallMute: "Stumm",
+    voiceCallUnmute: "Ton an",
+    voiceCallMicLabel: "Sie",
+    voiceCallRemoteLabel: "Arbeitgeber",
+    voiceCallSpeaker: "Lautsprecher",
+    voiceCallSpeakerOff: "Leise",
+    voiceCallAccept: "Annehmen",
+    voiceCallDecline: "Ablehnen",
+    voiceCallFailed: "Anruf fehlgeschlagen",
+    voiceCallLogEnded: "Anruf beendet",
+    voiceCallLogDeclined: "Abgelehnt",
+    voiceCallLogMissed: "Verpasst",
+    voiceCallLogCancelled: "Abgebrochen",
+    voiceCallLogCallbackRequested: "Rückruf angefordert",
+    voiceCallRequestCallback: "Rückruf anfordern",
+    voiceCallModeConference: "Firmenkonferenz",
+    voiceCallModeDirect: "1:1 Anruf",
+    conferenceJoined: "In Konferenz",
+    conferenceYou: "Sie",
+    conferenceConnectHint: "Tipp: VPN aus · Connection-Test",
+    conferenceNetworkUnreachable: "Konferenz-Server vom Gerät nicht erreichbar (VPN/Netz).",
   },
   en: {
     pageTitle: "Worker App",
@@ -860,6 +889,35 @@ const TRANSLATIONS = {
     compactShowLess: "Show less",
     lateCheckInMessage: "Notice: You clocked in late today!",
     lateMinutesUnit: "min.",
+    voiceCallTitle: "Voice call",
+    voiceCallSecure: "🔒 Secure voice channel",
+    voiceCallDialing: "Dialing…",
+    voiceCallRinging: "Incoming call…",
+    voiceCallIncomingRinging: "Conference invite…",
+    voiceCallConnected: "Connected",
+    voiceCallEnded: "Call ended",
+    voiceCallHangup: "Hang up",
+    voiceCallMute: "Mute",
+    voiceCallUnmute: "Unmute",
+    voiceCallMicLabel: "You",
+    voiceCallRemoteLabel: "Employer",
+    voiceCallSpeaker: "Speaker",
+    voiceCallSpeakerOff: "Quiet",
+    voiceCallAccept: "Accept",
+    voiceCallDecline: "Decline",
+    voiceCallFailed: "Call failed",
+    voiceCallLogEnded: "Call ended",
+    voiceCallLogDeclined: "Declined",
+    voiceCallLogMissed: "Missed",
+    voiceCallLogCancelled: "Cancelled",
+    voiceCallLogCallbackRequested: "Callback requested",
+    voiceCallRequestCallback: "Request callback",
+    voiceCallModeConference: "Company conference",
+    voiceCallModeDirect: "1:1 call",
+    conferenceJoined: "In conference",
+    conferenceYou: "You",
+    conferenceConnectHint: "Tip: turn off VPN · connection test",
+    conferenceNetworkUnreachable: "Conference server unreachable from this device (VPN/network).",
   },
   tr: {
     pageTitle: "Çalışan Uygulaması",
@@ -1198,6 +1256,35 @@ const TRANSLATIONS = {
     pageBackBtn: "← نظرة عامة",
     lateCheckInMessage: "تنبيه: لقد تسجّلت اليوم متأخراً!",
     lateMinutesUnit: "د.",
+    voiceCallTitle: "مكالمة صوتية",
+    voiceCallSecure: "🔒 قناة صوت آمنة",
+    voiceCallDialing: "جاري الاتصال…",
+    voiceCallRinging: "مكالمة واردة…",
+    voiceCallIncomingRinging: "دعوة مؤتمر…",
+    voiceCallConnected: "متصل",
+    voiceCallEnded: "انتهت المكالمة",
+    voiceCallHangup: "إنهاء",
+    voiceCallMute: "كتم",
+    voiceCallUnmute: "إلغاء الكتم",
+    voiceCallMicLabel: "أنت",
+    voiceCallRemoteLabel: "صاحب العمل",
+    voiceCallSpeaker: "مكبر الصوت",
+    voiceCallSpeakerOff: "صامت",
+    voiceCallAccept: "قبول",
+    voiceCallDecline: "رفض",
+    voiceCallFailed: "فشلت المكالمة",
+    voiceCallLogEnded: "انتهت المكالمة",
+    voiceCallLogDeclined: "مرفوضة",
+    voiceCallLogMissed: "فائتة",
+    voiceCallLogCancelled: "ملغاة",
+    voiceCallLogCallbackRequested: "طلب معاودة الاتصال",
+    voiceCallRequestCallback: "طلب معاودة الاتصال",
+    voiceCallModeConference: "مؤتمر الشركة",
+    voiceCallModeDirect: "مكالمة 1:1",
+    conferenceJoined: "في المؤتمر",
+    conferenceYou: "أنت",
+    conferenceConnectHint: "نصيحة: أوقف VPN · اختبار الاتصال",
+    conferenceNetworkUnreachable: "خادم المؤتمر غير متاح من هذا الجهاز (VPN/شبكة).",
   },
 };
   TRANSLATIONS.fr = {
@@ -2890,13 +2977,14 @@ if (!TRANSLATIONS[currentLang]) {
   currentLang = "de";
 }
 
-function t(key) {
+function t(key, fallback) {
   const sectorTerm = window.__workerSectorTerms?.[key];
   if (sectorTerm) return sectorTerm;
   const pack = TRANSLATIONS[currentLang];
   if (pack && pack[key] !== undefined) return pack[key];
-  if (currentLang !== "en" && TRANSLATIONS.en[key] !== undefined) return TRANSLATIONS.en[key];
-  if (currentLang !== "de" && TRANSLATIONS.de[key] !== undefined) return TRANSLATIONS.de[key];
+  if (currentLang !== "en" && TRANSLATIONS.en?.[key] !== undefined) return TRANSLATIONS.en[key];
+  if (currentLang !== "de" && TRANSLATIONS.de?.[key] !== undefined) return TRANSLATIONS.de[key];
+  if (fallback !== undefined && fallback !== null && fallback !== "") return fallback;
   return key;
 }
 
