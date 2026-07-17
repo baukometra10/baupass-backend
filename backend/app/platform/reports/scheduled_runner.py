@@ -49,7 +49,12 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
             recipients = [r["email"] for r in admins]
 
         company = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-        company_name = company["name"] if company else "SUPPIX"
+        company_name = str(company["name"] if company else "")
+        from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
+
+        branding = resolve_report_branding(db, company_id)
+        if not company_name:
+            company_name = str(branding.get("companyName") or "WorkPass")
         report_type = str(job["report_type"] or "daily_ops")
 
         for email in recipients:
@@ -68,9 +73,12 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                     pdf = build_executive_summary_pdf(
                         company_name=company_name,
                         snapshot=snapshot,
+                        branding=branding,
                     )
-                    filename = f"executive-summary-{day_key}.pdf"
-                    subject = f"SUPPIX Executive Summary {day_key}"
+                    filename = build_report_filename(
+                        company_name=company_name, report_kind="executive", period=day_key
+                    )
+                    subject = f"{company_name} — Executive Summary {day_key}"
                 else:
                     from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
 
@@ -82,20 +90,34 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                     snapshot = _operations_snapshot_for_user(db, user_dict)
                     guidance = build_operational_guidance(snapshot)
                     pdf = build_operations_report_pdf(
-                        title="SUPPIX Operations Report",
+                        title="Betriebsbericht",
                         company_name=company_name,
                         snapshot=snapshot,
                         guidance=guidance,
+                        branding=branding,
                     )
-                    filename = f"ops-report-{day_key}.pdf"
-                    subject = f"SUPPIX Operations Report {day_key}"
+                    filename = build_report_filename(
+                        company_name=company_name, report_kind="betriebsbericht", period=day_key
+                    )
+                    subject = f"{company_name} — Betriebsbericht {day_key}"
 
+                from backend.app.platform.reports.report_email_template import build_report_meta
+
+                report_meta = build_report_meta(
+                    report_title="Executive Summary" if report_type == "executive" else "Betriebsbericht",
+                    message=f"Geplanter Bericht ({report_type}) für {company_name}.",
+                    company_name=company_name,
+                    company_id=company_id,
+                    period=day_key,
+                    pdf_filename=filename,
+                )
                 ok, err = send_pdf_report_email(
                     to=email,
                     subject=subject,
-                    body_text=f"Scheduled report ({report_type}) for {company_name}.",
+                    body_text=f"Geplanter Bericht ({report_type}) für {company_name}.",
                     pdf_bytes=pdf,
                     filename=filename,
+                    report_meta=report_meta,
                 )
                 if not ok:
                     errors.append(f"{company_id}:{email}:{err}")

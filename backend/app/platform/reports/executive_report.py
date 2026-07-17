@@ -1,8 +1,6 @@
-﻿"""Executive summary PDF for leadership (Phase B)."""
+﻿"""Executive summary PDF for leadership."""
 from __future__ import annotations
 
-import io
-from datetime import datetime, timezone
 from typing import Any
 
 
@@ -11,65 +9,56 @@ def build_executive_summary_pdf(
     company_name: str,
     snapshot: dict[str, Any],
     reporting_summary: dict[str, Any] | None = None,
+    branding: dict[str, Any] | None = None,
 ) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
+    from backend.app.platform.reports.report_pdf_layout import build_branded_narrative_report_pdf
 
-    buffer = io.BytesIO()
-    page_w, page_h = A4
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-    y = page_h - 20 * mm
-    margin = 18 * mm
+    brand = dict(branding or {})
+    if company_name:
+        brand["companyName"] = company_name
 
-    def line(text: str, *, bold: bool = False, size: int = 10) -> None:
-        nonlocal y
-        if y < 25 * mm:
-            pdf.showPage()
-            y = page_h - 20 * mm
-        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", size)
-        pdf.drawString(margin, y, str(text)[:120])
-        y -= 5.5 * mm
-
-    pdf.setFont("Helvetica-Bold", 18)
-    pdf.drawString(margin, y, "SUPPIX Executive Summary")
-    y -= 10 * mm
-    line(f"Organization: {company_name or '-'}", size=9)
-    line(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", size=9)
-    y -= 4 * mm
-
+    sections: list[dict[str, Any]] = []
     kpis = (reporting_summary or {}).get("kpis") or snapshot.get("kpis") or {}
     if kpis:
-        line("Financial & compliance KPIs", bold=True, size=12)
-        for key, label in (
-            ("paidTotal", "Paid total"),
-            ("openTotal", "Open total"),
-            ("overdueInvoiceCount", "Overdue invoices"),
-            ("overdueTotal", "Overdue amount"),
-            ("lockedCompanies", "Locked tenants"),
-            ("suspensionsLast30d", "Auto-suspensions (30d)"),
-        ):
-            if key in kpis:
-                line(f"  {label}: {kpis[key]}")
+        sections.append(
+            {
+                "title": "Finanzen & Compliance",
+                "kpi_labels": (
+                    ("paidTotal", "Bezahlt"),
+                    ("openTotal", "Offen"),
+                    ("overdueInvoiceCount", "Überfällige Rechnungen"),
+                    ("overdueTotal", "Überfällig"),
+                    ("lockedCompanies", "Gesperrte Mandanten"),
+                    ("suspensionsLast30d", "Auto-Sperren (30 Tage)"),
+                ),
+                "kpis": kpis,
+            }
+        )
 
     on_site = snapshot.get("workersOnSite") or snapshot.get("onSiteCount")
     if on_site is not None:
-        line("Operations", bold=True, size=12)
-        line(f"  Personnel on site: {on_site}")
+        sections.append({"title": "Operations", "lines": [f"Mitarbeiter auf Baustelle: {on_site}"]})
 
     hr = snapshot.get("hrCompliance") or {}
     if hr:
-        line("HR / compliance snapshot", bold=True, size=12)
-        for k, v in list(hr.items())[:12]:
-            line(f"  {k}: {v}")
+        sections.append(
+            {
+                "title": "HR / Compliance",
+                "lines": [f"{k}: {v}" for k, v in list(hr.items())[:12]],
+            }
+        )
 
     guidance = snapshot.get("guidance") or []
     if isinstance(guidance, list) and guidance:
-        line("Top recommendations", bold=True, size=12)
+        bullets = []
         for item in guidance[:5]:
             if isinstance(item, dict):
-                line(f"  - {item.get('title') or item.get('message') or item}")
+                bullets.append(str(item.get("title") or item.get("message") or item))
+        sections.append({"title": "Top-Empfehlungen", "bullets": bullets})
 
-    line("— End of executive summary —", size=8)
-    pdf.save()
-    return buffer.getvalue()
+    return build_branded_narrative_report_pdf(
+        report_title="Executive Summary",
+        subtitle=f"Management-Kurzbericht · {company_name or '-'}",
+        branding=brand,
+        sections=sections,
+    )

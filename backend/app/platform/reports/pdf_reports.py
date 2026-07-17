@@ -1,9 +1,6 @@
-"""Generate platform operational reports as PDF (ReportLab)."""
+"""Generate platform operational reports as PDF (ReportLab, company branding)."""
 from __future__ import annotations
 
-import io
-import json
-from datetime import datetime, timezone
 from typing import Any
 
 
@@ -13,99 +10,96 @@ def build_operations_report_pdf(
     company_name: str,
     snapshot: dict[str, Any],
     guidance: list[dict[str, Any]] | None = None,
+    branding: dict[str, Any] | None = None,
 ) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.units import mm
-    from reportlab.pdfgen import canvas as rl_canvas
+    from backend.app.platform.reports.report_pdf_layout import build_branded_narrative_report_pdf
 
-    buffer = io.BytesIO()
-    page_w, page_h = A4
-    pdf = rl_canvas.Canvas(buffer, pagesize=A4)
-    y = page_h - 20 * mm
-    margin = 18 * mm
+    brand = dict(branding or {})
+    if company_name and not brand.get("companyName"):
+        brand["companyName"] = company_name
 
-    def line(text: str, *, bold: bool = False, size: int = 10) -> None:
-        nonlocal y
-        if y < 25 * mm:
-            pdf.showPage()
-            y = page_h - 20 * mm
-        pdf.setFont("Helvetica-Bold" if bold else "Helvetica", size)
-        pdf.drawString(margin, y, str(text)[:110])
-        y -= 5.5 * mm
-
-    pdf.setFont("Helvetica-Bold", 16)
-    pdf.drawString(margin, y, title[:80])
-    y -= 8 * mm
-    line(f"Firma / Company: {company_name or '-'}", size=9)
-    line(f"Erstellt / Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", size=9)
-    y -= 3 * mm
+    sections: list[dict[str, Any]] = []
 
     kpis = snapshot.get("kpis") or {}
     if kpis:
-        line("KPIs", bold=True, size=11)
-        for key, label in (
-            ("paidTotal", "Bezahlt"),
-            ("openTotal", "Offen"),
-            ("overdueInvoiceCount", "Überfällige Rechnungen"),
-            ("overdueTotal", "Überfällig (Summe)"),
-            ("lockedCompanies", "Gesperrte Firmen"),
-            ("workersOnSite", "Mitarbeiter auf Baustelle"),
-        ):
-            if key in kpis or key.replace("workersOnSite", "") == key:
-                val = kpis.get(key, snapshot.get(key))
-                if val is not None:
-                    line(f"  {label}: {val}")
+        sections.append(
+            {
+                "title": "KPIs",
+                "kpi_labels": (
+                    ("paidTotal", "Bezahlt"),
+                    ("openTotal", "Offen"),
+                    ("overdueInvoiceCount", "Überfällige Rechnungen"),
+                    ("overdueTotal", "Überfällig (Summe)"),
+                    ("lockedCompanies", "Gesperrte Firmen"),
+                    ("workersOnSite", "Mitarbeiter auf Baustelle"),
+                ),
+                "kpis": kpis,
+            }
+        )
 
     hr = snapshot.get("hrCompliance") or {}
     if hr:
-        line("Lohn & Compliance", bold=True, size=11)
-        line(f"  Mitarbeiter gesamt: {hr.get('workersTotal', 0)}", size=9)
-        line(f"  Pflichtdokumente fehlend/abgelaufen: {hr.get('workersMissingRequiredDocs', 0)}", size=9)
-        line(f"  Abgelaufene Dokumente (Mitarbeiter): {hr.get('workersWithExpiredDocs', 0)}", size=9)
-        line(f"  Läuft in 14 Tagen ab: {hr.get('workersExpiringDocs14d', 0)}", size=9)
-        line(f"  Lohnabrechnungen ({hr.get('period', '-')}): {hr.get('payrollDocsThisMonth', 0)}", size=9)
-        line(f"  Posteingang ungelesen: {hr.get('inboxUnread', 0)}", size=9)
-        datev_ok = "ja" if hr.get("datevConnected") else "nein"
-        line(f"  DATEV verbunden: {datev_ok}", size=9)
-        y -= 2 * mm
+        sections.append(
+            {
+                "title": "Lohn & Compliance",
+                "lines": [
+                    f"Mitarbeiter gesamt: {hr.get('workersTotal', 0)}",
+                    f"Pflichtdokumente fehlend/abgelaufen: {hr.get('workersMissingRequiredDocs', 0)}",
+                    f"Abgelaufene Dokumente (Mitarbeiter): {hr.get('workersWithExpiredDocs', 0)}",
+                    f"Läuft in 14 Tagen ab: {hr.get('workersExpiringDocs14d', 0)}",
+                    f"Lohnabrechnungen ({hr.get('period', '-')}): {hr.get('payrollDocsThisMonth', 0)}",
+                    f"Posteingang ungelesen: {hr.get('inboxUnread', 0)}",
+                    f"DATEV verbunden: {'ja' if hr.get('datevConnected') else 'nein'}",
+                ],
+            }
+        )
 
     access = snapshot.get("accessDaily") or []
     if access:
-        line("Zutritte (7 Tage)", bold=True, size=11)
-        for row in access[-7:]:
-            line(
-                f"  {row.get('day', '-')}: Check-in {row.get('checkIn', 0)} / Check-out {row.get('checkOut', 0)}",
-                size=9,
-            )
+        sections.append(
+            {
+                "title": "Zutritte (7 Tage)",
+                "lines": [
+                    f"{row.get('day', '-')}: Check-in {row.get('checkIn', 0)} / Check-out {row.get('checkOut', 0)}"
+                    for row in access[-7:]
+                ],
+            }
+        )
 
     sec = snapshot.get("security") or {}
     if sec:
-        line("Sicherheit", bold=True, size=11)
-        line(f"  Offene Findings: {sec.get('openFindings', len(sec.get('findings') or []))}", size=9)
+        sections.append(
+            {
+                "title": "Sicherheit",
+                "lines": [f"Offene Findings: {sec.get('openFindings', len(sec.get('findings') or []))}"],
+            }
+        )
 
     layers = snapshot.get("enterpriseLayers") or {}
     if layers:
-        line("Enterprise (6 Layers)", bold=True, size=11)
-        for layer_name, summary in layers.items():
-            line(f"  {layer_name}: {summary}", size=8)
+        sections.append(
+            {
+                "title": "Enterprise (6 Ebenen)",
+                "lines": [f"{layer_name}: {summary}" for layer_name, summary in layers.items()],
+            }
+        )
 
     if guidance:
-        line("Empfohlene Maßnahmen / Guidance", bold=True, size=11)
+        bullets = []
         for item in guidance[:12]:
             pri = str(item.get("priority") or "info").upper()
-            title_ar = str(item.get("titleAr") or item.get("title") or "")
-            title_de = str(item.get("titleDe") or "")
-            line(f"  [{pri}] {title_de or title_ar}", size=9)
-            body = str(item.get("detailAr") or item.get("detailDe") or item.get("detail") or "")
-            if body:
-                line(f"     {body[:100]}", size=8)
+            title_de = str(item.get("titleDe") or item.get("titleAr") or item.get("title") or "")
+            detail = str(item.get("detailDe") or item.get("detailAr") or item.get("detail") or "")
+            line = f"[{pri}] {title_de}"
+            if detail:
+                line += f" — {detail[:120]}"
+            bullets.append(line)
+        sections.append({"title": "Empfohlene Maßnahmen", "bullets": bullets})
 
-    extra = snapshot.get("commandCenter") or snapshot.get("siteIntelligence")
-    if extra and not kpis:
-        line("Operations Snapshot (JSON excerpt)", bold=True, size=11)
-        excerpt = json.dumps(extra, ensure_ascii=False)[:600]
-        for chunk in [excerpt[i : i + 90] for i in range(0, len(excerpt), 90)]:
-            line(chunk, size=8)
-
-    pdf.save()
-    return buffer.getvalue()
+    subtitle = f"Firma: {company_name or '-'} · Operations Report"
+    return build_branded_narrative_report_pdf(
+        report_title=title,
+        subtitle=subtitle,
+        branding=brand,
+        sections=sections,
+    )

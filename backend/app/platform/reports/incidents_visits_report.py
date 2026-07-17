@@ -1,12 +1,8 @@
 ﻿"""Incidents + active visitors PDF for email reporting."""
 from __future__ import annotations
 
-import io
 from datetime import datetime, timezone
 from typing import Any
-
-from reportlab.lib.pagesizes import A4, landscape
-from reportlab.pdfgen import canvas as rl_canvas
 
 
 def _company_id_filter(user: dict[str, Any]) -> str | None:
@@ -72,80 +68,36 @@ def fetch_visitor_rows(db, company_id: str | None, *, limit: int = 150) -> list[
     ]
 
 
-def _draw_table(pdf, pw, ph, margin, y_start, title, headers, rows):
-    col_count = len(headers)
-    col_width = (pw - 2 * margin) / max(1, col_count)
-    y = y_start
+def build_incidents_visits_pdf(
+    db,
+    user: dict[str, Any],
+    company_name: str,
+    *,
+    branding: dict[str, Any] | None = None,
+) -> bytes:
+    from backend.app.platform.reports.report_pdf_layout import build_branded_multi_table_report_pdf
 
-    def header_block():
-        nonlocal y
-        pdf.setFont("Helvetica-Bold", 12)
-        pdf.drawString(margin, y, title[:90])
-        y -= 14
-        pdf.setFont("Helvetica-Bold", 7)
-        for idx, h in enumerate(headers):
-            pdf.drawString(margin + idx * col_width, y, str(h)[:26])
-        y -= 10
-        pdf.line(margin, y, pw - margin, y)
-        y -= 8
-        pdf.setFont("Helvetica", 7)
-
-    header_block()
-    for row in rows:
-        if y < 40:
-            pdf.showPage()
-            y = ph - margin
-            header_block()
-        for idx, cell in enumerate(row[:col_count]):
-            pdf.drawString(margin + idx * col_width, y, str(cell if cell is not None else "")[:30])
-        y -= 10
-    if not rows:
-        pdf.drawString(margin, y, "—")
-        y -= 12
-    return y - 8
-
-
-def build_incidents_visits_pdf(db, user: dict[str, Any], company_name: str) -> bytes:
     company_id = _company_id_filter(user)
-    period = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    incidents = fetch_incidents_rows(db, company_id)
-    visitors = fetch_visitor_rows(db, company_id)
+    period = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    brand = dict(branding or {})
+    if company_name:
+        brand["companyName"] = company_name
 
-    page_size = landscape(A4)
-    pw, ph = page_size
-    buffer = io.BytesIO()
-    pdf = rl_canvas.Canvas(buffer, pagesize=page_size)
-    margin = 36
-    y = ph - margin
-    pdf.setFont("Helvetica-Bold", 14)
-    pdf.drawString(margin, y, "SUPPIX — Incidents & Visitors")
-    y -= 12
-    pdf.setFont("Helvetica", 8)
-    pdf.drawString(margin, y, f"{company_name} · {period}")
-    y -= 18
-
-    y = _draw_table(
-        pdf,
-        pw,
-        ph,
-        margin,
-        y,
-        "Incidents / الحوادث",
-        ["Type", "Severity", "Status", "Description", "Created", "Resolved"],
-        incidents,
+    return build_branded_multi_table_report_pdf(
+        report_title="Havarien & Besucher",
+        subtitle=f"{company_name} · {period}",
+        branding=brand,
+        landscape_mode=True,
+        tables=[
+            {
+                "title": "Incidents / Sicherheitsvorfälle",
+                "headers": ["Typ", "Schwere", "Status", "Beschreibung", "Erstellt", "Gelöst"],
+                "rows": fetch_incidents_rows(db, company_id),
+            },
+            {
+                "title": "Besucher vor Ort",
+                "headers": ["Name", "Firma", "Zweck", "Gastgeber", "Gültig bis", "Standort"],
+                "rows": fetch_visitor_rows(db, company_id),
+            },
+        ],
     )
-    if y < 80:
-        pdf.showPage()
-        y = ph - margin
-    _draw_table(
-        pdf,
-        pw,
-        ph,
-        margin,
-        y,
-        "Visitors on site / الزوار",
-        ["Name", "Company", "Purpose", "Host", "Valid until", "Site"],
-        visitors,
-    )
-    pdf.save()
-    return buffer.getvalue()

@@ -55,7 +55,7 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
 def _api_attachments(
     *,
     pdf_bytes: bytes | None = None,
-    pdf_filename: str = "baupass-report.pdf",
+    pdf_filename: str = "bericht.pdf",
     attachments: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     api_atts: list[dict[str, str]] = []
@@ -97,7 +97,7 @@ def _send_via_smtp(
     sender: str,
     sender_name: str,
     pdf_bytes: bytes | None = None,
-    pdf_filename: str = "baupass-report.pdf",
+    pdf_filename: str = "bericht.pdf",
     attachments: list[dict[str, Any]] | None = None,
 ) -> Tuple[bool, str]:
     msg = EmailMessage()
@@ -163,6 +163,7 @@ def _resolve_report_bodies(
             report_title=str(report_meta.get("report_title") or subject),
             message=str(report_meta.get("message") or body_text),
             company_name=str(report_meta.get("company_name") or ""),
+            company_id=str(report_meta.get("company_id") or "").strip() or None,
             period=str(report_meta.get("period") or ""),
             report_badge=str(report_meta.get("report_badge") or "Reporting"),
             report_subtitle=str(report_meta.get("report_subtitle") or ""),
@@ -194,7 +195,7 @@ def _send_report_email(
     subject: str,
     body_text: str,
     pdf_bytes: bytes | None = None,
-    pdf_filename: str = "baupass-report.pdf",
+    pdf_filename: str = "bericht.pdf",
     attachments: list[dict[str, Any]] | None = None,
     report_meta: dict[str, Any] | None = None,
     html_body: str | None = None,
@@ -287,7 +288,7 @@ def send_pdf_report_email(
     subject: str,
     body_text: str,
     pdf_bytes: bytes,
-    filename: str = "baupass-report.pdf",
+    filename: str = "bericht.pdf",
     extra_attachments: list[dict[str, Any]] | None = None,
     report_meta: dict[str, Any] | None = None,
     html_body: str | None = None,

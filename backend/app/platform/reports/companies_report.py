@@ -1,10 +1,12 @@
 ﻿"""Companies document-email overview PDF."""
 from __future__ import annotations
 
+from typing import Any
+
 from backend.app.platform.reports.table_pdf import build_table_report_pdf
 
 
-def build_companies_document_email_pdf(db) -> bytes:
+def build_companies_document_email_pdf(db, *, branding: dict[str, Any] | None = None) -> bytes:
     from backend.server import datetime, now_iso
 
     rows = db.execute(
@@ -41,10 +43,12 @@ def build_companies_document_email_pdf(db) -> bytes:
         )
     subtitle = f"Erstellt: {datetime.now().strftime('%d.%m.%Y %H:%M')} / {now_iso()[:10]}"
     headers = ("Firma", "Dokument-E-Mail", "Status", "Rechnungs-E-Mail", "Letzter Eingang", "Offen", "Ungelöst", "Gelöscht")
+    platform = (branding or {}).get("companyName") or (branding or {}).get("platformName") or "WorkPass"
     return build_table_report_pdf(
-        title="SUPPIX — Firmen Dokument-E-Mails",
+        title=f"Firmenübersicht — {platform}",
         subtitle=subtitle,
         headers=headers,
         rows=table_rows,
         landscape_mode=True,
+        branding=branding,
     )

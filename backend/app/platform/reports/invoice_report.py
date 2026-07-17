@@ -48,13 +48,25 @@ def fetch_invoice_report_rows(db, *, company_id: str | None = None, include_paid
     return result
 
 
-def build_invoices_report_pdf(db, *, company_id: str | None = None, company_name: str = "") -> bytes:
+def build_invoices_report_pdf(
+    db,
+    *,
+    company_id: str | None = None,
+    company_name: str = "",
+    branding: dict[str, Any] | None = None,
+) -> bytes:
     from backend.server import now_iso
 
     rows = fetch_invoice_report_rows(db, company_id=company_id)
-    title = "SUPPIX Rechnungsübersicht"
-    if company_name:
-        title = f"{title} — {company_name}"
+    display = company_name or (branding or {}).get("companyName") or "Mandant"
+    title = f"Rechnungsübersicht — {display}"
     subtitle = f"Erstellt: {now_iso()[:19]} UTC · {len(rows)} Position(en)"
     headers = ("Firma", "Rechnung", "Datum", "Fällig", "Betrag EUR", "Status", "Bezahlt")
-    return build_table_report_pdf(title=title, subtitle=subtitle, headers=headers, rows=rows, landscape_mode=True)
+    return build_table_report_pdf(
+        title=title,
+        subtitle=subtitle,
+        headers=headers,
+        rows=rows,
+        landscape_mode=True,
+        branding=branding,
+    )

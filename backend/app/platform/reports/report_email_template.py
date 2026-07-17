@@ -7,46 +7,38 @@ from datetime import datetime, timezone
 from typing import Any
 
 
-def _load_branding() -> dict[str, str]:
-    from backend.server import (
-        DEFAULT_BRAND_ACCENT,
-        DEFAULT_BRAND_PRIMARY,
-        DEFAULT_OPERATOR_NAME,
-        DEFAULT_PLATFORM_NAME,
-        get_db,
-    )
+def _load_branding(company_id: str | None = None) -> dict[str, str]:
+    from backend.server import get_db
 
-    platform_name = DEFAULT_PLATFORM_NAME
-    operator_name = DEFAULT_OPERATOR_NAME
-    primary = DEFAULT_BRAND_PRIMARY
-    accent = DEFAULT_BRAND_ACCENT
+    from backend.app.platform.reports.report_pdf_layout import resolve_report_branding
+
     try:
-        row = get_db().execute(
-            """
-            SELECT platform_name, operator_name, invoice_primary_color, invoice_accent_color
-            FROM settings WHERE id = 1
-            """
-        ).fetchone()
-        if row:
-            platform_name = str(row["platform_name"] or platform_name).strip() or platform_name
-            operator_name = str(row["operator_name"] or operator_name).strip() or operator_name
-            primary = str(row["invoice_primary_color"] or primary).strip() or primary
-            accent = str(row["invoice_accent_color"] or accent).strip() or accent
+        brand = resolve_report_branding(get_db(), company_id)
     except Exception:
-        pass
+        brand = {}
     return {
-        "platform_name": platform_name,
-        "operator_name": operator_name,
-        "primary": primary,
-        "accent": accent,
+        "company_name": str(brand.get("companyName") or "WorkPass"),
+        "platform_name": str(brand.get("platformName") or brand.get("companyName") or "WorkPass"),
+        "operator_name": str(brand.get("operatorName") or "WorkPass"),
+        "primary": str(brand.get("accent") or "#06b6d4"),
+        "accent": str(brand.get("accentLight") or brand.get("accent") or "#a855f7"),
+        "logo_data": str(brand.get("logoData") or ""),
+        "sector_label": str(brand.get("sectorLabel") or ""),
     }
 
 
-def _logo_svg(primary: str) -> str:
+def _logo_html(brand: dict[str, str]) -> str:
+    logo_data = str(brand.get("logo_data") or "").strip()
+    primary = html.escape(brand.get("primary") or "#06b6d4")
+    if logo_data.lower().startswith("data:image/"):
+        return (
+            f'<img src="{html.escape(logo_data, quote=True)}" width="52" height="52" '
+            f'alt="Logo" style="display:block;border-radius:12px;object-fit:contain;background:#fff;padding:4px;">'
+        )
     return (
         '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 310 310" '
         'role="img" aria-label="Logo">'
-        f'<rect width="310" height="310" rx="46" fill="{html.escape(primary)}"/>'
+        f'<rect width="310" height="310" rx="46" fill="{primary}"/>'
         '<path d="M56 224 L156 92 L256 224 Z" fill="#ffffff" opacity="0.94"/>'
         '<path d="M96 224 L156 144 L216 224 Z" fill="#12343b" opacity="0.95"/>'
         '<circle cx="235" cy="88" r="20" fill="#fff4e6"/>'
@@ -58,7 +50,7 @@ def _split_message_lines(message: str) -> list[str]:
     lines: list[str] = []
     for raw in re.split(r"\r?\n+", (message or "").strip()):
         line = raw.strip()
-        if line and line.lower() not in {"suppix", "workpass"}:
+        if line and line.lower() not in {"suppix", "workpass", "baupass"}:
             lines.append(line)
     return lines or ["Ihr Bericht liegt als Anhang bei dieser E-Mail."]
 
@@ -106,13 +98,15 @@ def build_report_email_bodies(
     report_title: str,
     message: str,
     company_name: str = "",
+    company_id: str | None = None,
     period: str = "",
     report_badge: str = "Reporting",
     report_subtitle: str = "",
     attachment_labels: list[dict[str, str]] | None = None,
 ) -> tuple[str, str]:
     """Return (plain_text, html) for a branded reporting e-mail."""
-    brand = _load_branding()
+    brand = _load_branding(company_id)
+    display_company = (company_name or brand["company_name"]).strip()
     platform = brand["platform_name"]
     operator = brand["operator_name"]
     primary = brand["primary"]
@@ -123,45 +117,37 @@ def build_report_email_bodies(
 
     title_safe = report_title.strip() or "Bericht"
     subtitle_safe = (report_subtitle or "Automatischer Export aus dem Reporting-Bereich").strip()
-    company_safe = company_name.strip()
     badge_safe = report_badge.strip() or "Reporting"
 
     plain_parts = [
+        display_company,
         title_safe,
         "",
         *message_lines,
         "",
         f"Zeitraum: {period_label}",
     ]
-    if company_safe:
-        plain_parts.insert(2, f"Firma: {company_safe}")
     if attachments:
         plain_parts.extend(["", "Anhänge:"])
         plain_parts.extend(f"  • {a.get('name', 'Anhang')} ({a.get('kind', 'Datei')})" for a in attachments)
     plain_parts.extend(["", f"{platform} · {operator}", "Diese E-Mail wurde automatisch generiert."])
     plain = "\n".join(plain_parts)
 
-    company_chip = ""
-    if company_safe:
-        company_chip = (
-            f'<span style="display:inline-block;margin-top:10px;padding:6px 12px;'
-            f'border-radius:999px;background:rgba(255,255,255,0.16);color:#fff;'
-            f'font-size:12px;font-weight:600;letter-spacing:0.3px;">'
-            f"{html.escape(company_safe)}</span>"
+    sector_chip = ""
+    sector = str(brand.get("sector_label") or "").strip()
+    if sector:
+        sector_chip = (
+            f'<span style="display:inline-block;margin-top:8px;margin-right:6px;padding:5px 10px;'
+            f'border-radius:999px;background:rgba(255,255,255,0.12);color:rgba(255,255,255,0.9);'
+            f'font-size:11px;font-weight:600;">{html.escape(sector)}</span>'
         )
-
-    message_html = "".join(
-        f'<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.65;">'
-        f"{html.escape(line)}</p>"
-        for line in message_lines
-    )
 
     html_out = f"""<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{html.escape(title_safe)}</title>
+  <title>{html.escape(title_safe)} — {html.escape(display_company)}</title>
 </head>
 <body style="margin:0;padding:0;background:#eef2f7;font-family:'Segoe UI',Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:34px 12px;">
@@ -176,17 +162,17 @@ def build_report_email_bodies(
                 <td style="padding:28px 32px 22px;">
                   <table cellpadding="0" cellspacing="0">
                     <tr>
-                      <td style="vertical-align:middle;padding-right:14px;">{_logo_svg(primary)}</td>
+                      <td style="vertical-align:middle;padding-right:14px;">{_logo_html(brand)}</td>
                       <td style="vertical-align:middle;">
                         <div style="color:rgba(255,255,255,0.82);font-size:11px;font-weight:700;
                           letter-spacing:2.4px;text-transform:uppercase;">{html.escape(badge_safe)}</div>
-                        <div style="color:#ffffff;font-size:24px;font-weight:800;line-height:1.2;margin-top:4px;">
-                          {html.escape(platform)}
+                        <div style="color:#ffffff;font-size:26px;font-weight:800;line-height:1.2;margin-top:4px;">
+                          {html.escape(display_company)}
                         </div>
                         <div style="color:rgba(255,255,255,0.78);font-size:13px;margin-top:4px;">
                           {html.escape(subtitle_safe)}
                         </div>
-                        {company_chip}
+                        {sector_chip}
                       </td>
                     </tr>
                   </table>
@@ -214,7 +200,11 @@ def build_report_email_bodies(
               border:1px solid #e2e8f0;border-radius:12px;">
               <tr>
                 <td style="padding:22px 22px 18px;">
-                  {message_html}
+                  {''.join(
+                    f'<p style="margin:0 0 12px;color:#334155;font-size:15px;line-height:1.65;">'
+                    f"{html.escape(line)}</p>"
+                    for line in message_lines
+                  )}
                 </td>
               </tr>
             </table>
@@ -240,7 +230,7 @@ def build_report_email_bodies(
               {html.escape(platform)} · {html.escape(operator)}
             </p>
             <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;">
-              Automatisch generiert aus dem Reporting-Bereich.<br>
+              Automatisch generiert für {html.escape(display_company)}.<br>
               Bitte antworten Sie nicht auf diese E-Mail.
             </p>
           </td>
@@ -272,6 +262,7 @@ def build_report_meta(
     report_title: str,
     message: str,
     company_name: str = "",
+    company_id: str = "",
     period: str = "",
     report_badge: str = "Reporting",
     report_subtitle: str = "",
@@ -282,11 +273,13 @@ def build_report_meta(
     if pdf_filename:
         labels.append(attachment_label_from_filename(pdf_filename))
     for fn in extra_filenames or []:
-        labels.append(attachment_label_from_filename(fn))
+        if fn:
+            labels.append(attachment_label_from_filename(fn))
     return {
         "report_title": report_title,
         "message": message,
         "company_name": company_name,
+        "company_id": company_id,
         "period": period,
         "report_badge": report_badge,
         "report_subtitle": report_subtitle,

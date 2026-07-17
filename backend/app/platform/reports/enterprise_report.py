@@ -57,20 +57,24 @@ def build_enterprise_ops_pdf(
     company_id: str,
     company_name: str,
     role: str = "company-admin",
+    branding: dict[str, Any] | None = None,
 ) -> bytes:
     from backend.app.platform.physical_operations.copilot import build_copilot_context
     from backend.app.platform.reports.guidance import build_operational_guidance
     from backend.app.platform.reports.hr_snapshot import build_hr_compliance_snapshot
     from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
+    from backend.app.platform.reports.report_pdf_layout import resolve_report_branding
 
     snapshot = build_copilot_context(db, company_id, role=role)
     snapshot["hrCompliance"] = build_hr_compliance_snapshot(db, company_id)
     snapshot["companyName"] = company_name
     snapshot["enterpriseLayers"] = build_enterprise_layers_snapshot(db, company_id)
     guidance = build_operational_guidance(snapshot)
+    brand = branding or resolve_report_branding(db, company_id)
     return build_operations_report_pdf(
-        title="SUPPIX Enterprise & Operations Report",
-        company_name=company_name or "WorkPass",
+        title="Enterprise & Operations Report",
+        company_name=company_name or str(brand.get("companyName") or "WorkPass"),
         snapshot=snapshot,
         guidance=guidance,
+        branding=brand,
     )

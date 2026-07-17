@@ -18427,11 +18427,18 @@ def operations_guidance():
     )
 
 
+def _reporting_brand(db, company_id: str | None = None):
+    from backend.app.platform.reports.report_pdf_layout import resolve_report_branding
+
+    return resolve_report_branding(db, company_id)
+
+
 def _reporting_email_meta(
     *,
     report_title: str,
     message: str,
     company_name: str = "",
+    company_id: str = "",
     period: str = "",
     report_subtitle: str = "",
     pdf_filename: str = "",
@@ -18443,11 +18450,20 @@ def _reporting_email_meta(
         report_title=report_title,
         message=message,
         company_name=company_name,
+        company_id=company_id,
         period=period,
         report_subtitle=report_subtitle,
         pdf_filename=pdf_filename,
         extra_filenames=extra_filenames,
     )
+
+
+def _reporting_subject(company_name: str, report_label: str, period: str = "") -> str:
+    name = str(company_name or "").strip()
+    label = str(report_label or "Bericht").strip()
+    if period:
+        return f"{name} — {label} {period}" if name else f"{label} {period}"
+    return f"{name} — {label}" if name else label
 
 
 @require_auth
@@ -18456,6 +18472,7 @@ def reporting_email_pdf():
     from backend.app.platform.reports.email_delivery import send_pdf_report_email
     from backend.app.platform.reports.guidance import build_operational_guidance
     from backend.app.platform.reports.pdf_reports import build_operations_report_pdf
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
     payload = request.get_json(silent=True) or {}
     db = get_db()
@@ -18465,23 +18482,31 @@ def reporting_email_pdf():
     if not recipient or "@" not in recipient:
         return jsonify({"error": "missing_recipient_email", "message": "Bitte E-Mail in den Einstellungen hinterlegen."}), 400
 
+    company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
     snapshot = _operations_snapshot_for_user(db, user)
     guidance = build_operational_guidance(snapshot)
     company_name = str(snapshot.get("companyName") or "")
-    if not company_name and user.get("company_id"):
-        row = db.execute("SELECT name FROM companies WHERE id = ?", (user["company_id"],)).fetchone()
-        company_name = row["name"] if row else "WorkPass"
+    if not company_name and company_id:
+        row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+        company_name = row["name"] if row else ""
+    branding = _reporting_brand(db, company_id or None)
+    if not company_name:
+        company_name = str(branding.get("companyName") or "WorkPass")
 
     pdf_bytes = build_operations_report_pdf(
-        title="SUPPIX Operations Report",
-        company_name=company_name or "WorkPass",
+        title="Betriebsbericht",
+        company_name=company_name,
         snapshot=snapshot,
         guidance=guidance,
+        branding=branding,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-report-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"SUPPIX Bericht {period}"), max_len=200)
+    filename = build_report_filename(company_name=company_name, report_kind="betriebsbericht", period=period)
+    subject = clean_text_input(
+        payload.get("subject", _reporting_subject(company_name, "Betriebsbericht", period_label)),
+        max_len=200,
+    )
     body = clean_text_input(
         payload.get(
             "body",
@@ -18494,7 +18519,6 @@ def reporting_email_pdf():
     if attach_datev is not False and str(attach_datev).lower() not in {"0", "false", "no"}:
         from backend.app.platform.reports.datev_attachment import build_datev_csv_attachment
 
-        company_id = str(user.get("company_id") or "").strip()
         if company_id:
             datev_att = build_datev_csv_attachment(db, company_id)
             if datev_att:
@@ -18511,7 +18535,8 @@ def reporting_email_pdf():
             report_title="Betriebsbericht",
             report_subtitle="Operations, Zutritte & Live-KPIs",
             message=body,
-            company_name=company_name or "",
+            company_name=company_name,
+            company_id=company_id,
             period=period_label,
             pdf_filename=filename,
             extra_filenames=[str(a.get("filename") or "") for a in extra_attachments],
@@ -18568,15 +18593,23 @@ def reporting_email_datev_csv():
 
     period_label = period or datetime.now(timezone.utc).strftime("%Y-%m")
     period_display = period_label if len(period_label) == 7 else datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    subject = clean_text_input(payload.get("subject", f"SUPPIX DATEV Lohn-CSV {period_label}"), max_len=200)
-    body = clean_text_input(
-        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label} — bereit für Ihre Buchhaltung."),
-        max_len=4000,
-    )
     company_name = ""
     crow = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
     if crow:
         company_name = str(crow["name"] or "")
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
+
+    csv_filename = str(datev_att.get("filename") or build_report_filename(
+        company_name=company_name, report_kind="datev-lohn", period=period_label
+    ))
+    subject = clean_text_input(
+        payload.get("subject", _reporting_subject(company_name, "DATEV Lohn-CSV", period_label)),
+        max_len=200,
+    )
+    body = clean_text_input(
+        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label} — bereit für Ihre Buchhaltung."),
+        max_len=4000,
+    )
     ok, err = send_attachments_email(
         to=recipient,
         subject=subject,
@@ -18587,9 +18620,10 @@ def reporting_email_datev_csv():
             report_subtitle="Payroll CSV für Buchhaltung",
             message=body,
             company_name=company_name,
+            company_id=company_id,
             period=period_display,
             pdf_filename="",
-            extra_filenames=[str(datev_att.get("filename") or "datev-export.csv")],
+            extra_filenames=[csv_filename],
         ),
     )
     if not ok:
@@ -18649,12 +18683,26 @@ def reporting_email_invoices_pdf():
     if company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
         company_name = row["name"] if row else ""
+    branding = _reporting_brand(db, company_id)
+    if not company_name:
+        company_name = str(branding.get("companyName") or "")
 
-    pdf_bytes = build_invoices_report_pdf(db, company_id=company_id, company_name=company_name)
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
+
+    pdf_bytes = build_invoices_report_pdf(
+        db, company_id=company_id, company_name=company_name, branding=branding
+    )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-invoices-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"SUPPIX Rechnungsübersicht {period}"), max_len=200)
+    filename = build_report_filename(
+        company_name=company_name or str(branding.get("platformName") or "mandant"),
+        report_kind="rechnungen",
+        period=period,
+    )
+    subject = clean_text_input(
+        payload.get("subject", _reporting_subject(company_name, "Rechnungsübersicht", period_label)),
+        max_len=200,
+    )
     body = clean_text_input(
         payload.get("body", "Anbei die Rechnungsübersicht als PDF — alle relevanten Positionen auf einen Blick."),
         max_len=4000,
@@ -18670,6 +18718,7 @@ def reporting_email_invoices_pdf():
             report_subtitle="Offene und bezahlte Rechnungen",
             message=body,
             company_name=company_name,
+            company_id=str(company_id or ""),
             period=period_label,
             pdf_filename=filename,
         ),
@@ -18702,11 +18751,18 @@ def reporting_email_companies_pdf():
         return jsonify({"error": "missing_recipient_email"}), 400
 
     db = get_db()
-    pdf_bytes = build_companies_document_email_pdf(db)
+    branding = _reporting_brand(db, None)
+    platform_name = str(branding.get("companyName") or branding.get("platformName") or "WorkPass")
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
+
+    pdf_bytes = build_companies_document_email_pdf(db, branding=branding)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-companies-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"SUPPIX Firmenübersicht {period}"), max_len=200)
+    filename = build_report_filename(company_name=platform_name, report_kind="firmenuebersicht", period=period)
+    subject = clean_text_input(
+        payload.get("subject", _reporting_subject(platform_name, "Firmenübersicht", period_label)),
+        max_len=200,
+    )
     body = clean_text_input(payload.get("body", "Anbei die Firmenübersicht mit Dokument- und E-Mail-Status aller Mandanten."), max_len=4000)
     ok, err = send_pdf_report_email(
         to=recipient,
@@ -18718,6 +18774,7 @@ def reporting_email_companies_pdf():
             report_title="Firmenübersicht",
             report_subtitle="Mandanten & Dokument-E-Mail-Status",
             message=body,
+            company_name=platform_name,
             period=period_label,
             pdf_filename=filename,
         ),
@@ -18758,20 +18815,25 @@ def reporting_email_enterprise_pdf():
         return jsonify({"error": "missing_company", "message": "companyId erforderlich für Enterprise-PDF."}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "WorkPass"
+    company_name = str(row["name"] if row else "")
     role = str(user.get("role") or "company-admin")
+    branding = _reporting_brand(db, company_id)
+    if not company_name:
+        company_name = str(branding.get("companyName") or "WorkPass")
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
     pdf_bytes = build_enterprise_ops_pdf(
         db,
         company_id=company_id,
-        company_name=str(company_name or ""),
+        company_name=company_name,
         role=role,
+        branding=branding,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-enterprise-{company_id}-{period}.pdf"
+    filename = build_report_filename(company_name=company_name, report_kind="enterprise", period=period)
     subject = clean_text_input(
-        payload.get("subject", f"SUPPIX Enterprise-Bericht {period}"),
+        payload.get("subject", _reporting_subject(company_name, "Enterprise-Bericht", period_label)),
         max_len=200,
     )
     body = clean_text_input(
@@ -18800,7 +18862,8 @@ def reporting_email_enterprise_pdf():
             report_title="Enterprise-Bericht",
             report_subtitle="6 Ebenen, KPIs, Lohn & Compliance",
             message=body,
-            company_name=str(company_name or ""),
+            company_name=company_name,
+            company_id=company_id,
             period=period_label,
             pdf_filename=filename,
             extra_filenames=[str(a.get("filename") or "") for a in extra],
@@ -18853,15 +18916,26 @@ def reporting_email_executive_pdf():
         return jsonify({"error": "missing_company"}), 400
 
     row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-    company_name = row["name"] if row else "WorkPass"
+    company_name = str(row["name"] if row else "")
+    branding = _reporting_brand(db, company_id)
+    if not company_name:
+        company_name = str(branding.get("companyName") or "WorkPass")
     snapshot = _operations_snapshot_for_user(db, user)
     snapshot["guidance"] = build_operational_guidance(snapshot)
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
-    pdf_bytes = build_executive_summary_pdf(company_name=str(company_name or ""), snapshot=snapshot)
+    pdf_bytes = build_executive_summary_pdf(
+        company_name=company_name,
+        snapshot=snapshot,
+        branding=branding,
+    )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-executive-{period}.pdf"
-    subject = clean_text_input(payload.get("subject", f"SUPPIX Executive Summary {period}"), max_len=200)
+    filename = build_report_filename(company_name=company_name, report_kind="executive", period=period)
+    subject = clean_text_input(
+        payload.get("subject", _reporting_subject(company_name, "Executive Summary", period_label)),
+        max_len=200,
+    )
     body = clean_text_input(
         payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary) für Ihre nächste Besprechung."),
         max_len=4000,
@@ -18876,7 +18950,8 @@ def reporting_email_executive_pdf():
             report_title="Executive Summary",
             report_subtitle="Management-Kurzbericht",
             message=body,
-            company_name=str(company_name or ""),
+            company_name=company_name,
+            company_id=company_id,
             period=period_label,
             pdf_filename=filename,
         ),
@@ -18915,17 +18990,23 @@ def reporting_email_incidents_visits_pdf():
     if user["role"] == "superadmin" and payload.get("companyId"):
         company_id = str(payload.get("companyId")).strip()
 
-    company_name = "WorkPass"
+    company_name = ""
     if company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
-        company_name = row["name"] if row else company_name
+        company_name = str(row["name"] if row else "")
+    branding = _reporting_brand(db, company_id or None)
+    if not company_name:
+        company_name = str(branding.get("companyName") or "WorkPass")
+    from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
-    pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "WorkPass"))
+    pdf_bytes = build_incidents_visits_pdf(
+        db, user, company_name, branding=branding
+    )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-    filename = f"baupass-incidents-visitors-{period}.pdf"
+    filename = build_report_filename(company_name=company_name, report_kind="havarien-besucher", period=period)
     subject = clean_text_input(
-        payload.get("subject", f"SUPPIX Incidents & Visitors {period}"),
+        payload.get("subject", _reporting_subject(company_name, "Havarien & Besucher", period_label)),
         max_len=200,
     )
     body = clean_text_input(
@@ -18945,7 +19026,8 @@ def reporting_email_incidents_visits_pdf():
             report_title="Havarien & Besucher",
             report_subtitle="Sicherheitsvorfälle und aktive Besucher",
             message=body,
-            company_name=str(company_name or ""),
+            company_name=company_name,
+            company_id=company_id,
             period=period_label,
             pdf_filename=filename,
         ),

@@ -82,14 +82,22 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
         snapshot = _operations_snapshot_for_user(db, fake_user)
         snapshot["companyName"] = str(company["name"] or "")
         guidance = build_operational_guidance(snapshot)
+        from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
+
+        company_branding = resolve_report_branding(db, company_id)
         pdf_bytes = build_operations_report_pdf(
-            title="SUPPIX Daily Operations Report",
+            title="Tagesbericht",
             company_name=str(company["name"] or "WorkPass"),
             snapshot=snapshot,
             guidance=guidance,
+            branding=company_branding,
         )
         period = local_day
-        filename = f"baupass-daily-{company_id}-{period}.pdf"
+        filename = build_report_filename(
+            company_name=str(company["name"] or "WorkPass"),
+            report_kind="tagesbericht",
+            period=period,
+        )
         extra_attachments: list[dict[str, Any]] = []
         if attach_datev:
             datev_att = build_datev_csv_attachment(db, company_id, period=now_iso()[:7])
@@ -101,7 +109,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             recipient = str(admin["email"] or "").strip()
             if not recipient or "@" not in recipient:
                 continue
-            subject = f"SUPPIX Tagesbericht {period} — {company['name']}"
+            subject = f"{company['name']} — Tagesbericht {period}"
             body = (
                 f"Guten Tag,\n\n"
                 f"anbei der automatische Tagesbericht (PDF) für {company['name']}.\n"
@@ -116,6 +124,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
                 report_subtitle="Automatischer Morgen-Report",
                 message=body,
                 company_name=str(company["name"] or ""),
+                company_id=company_id,
                 period=period,
                 pdf_filename=filename,
                 extra_filenames=[str(a.get("filename") or "") for a in extra_attachments],
