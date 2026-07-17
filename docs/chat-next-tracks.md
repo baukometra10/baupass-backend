@@ -27,3 +27,4 @@ Status after sprint `chat40` + Flutter `0.1.13+34` (pin/star UI).
 
 - [testflight-github-secrets.md](./testflight-github-secrets.md) — ASC + Signing Secrets
 - [chat-qa-testplan.md](./chat-qa-testplan.md) — Geräte-QA Checkliste
+- [android-play-tomorrow.md](./android-play-tomorrow.md) — Play Store Kurzplan (iOS pausiert)
