@@ -2,10 +2,18 @@
 
 ## Env (LiveKit Cloud)
 
+Schritt-für-Schritt: **[livekit-setup.md](./livekit-setup.md)**
+
 ```env
-LIVEKIT_URL=wss://YOUR_PROJECT.livekit.cloud
-LIVEKIT_API_KEY=...
-LIVEKIT_API_SECRET=...
+# Empfohlen (SUPPIX-Prefix):
+SUPPIX_LIVEKIT_URL=wss://YOUR_PROJECT.livekit.cloud
+SUPPIX_LIVEKIT_API_KEY=...
+SUPPIX_LIVEKIT_API_SECRET=...
+
+# Oder 1:1 aus dem LiveKit Dashboard (ohne Prefix):
+# LIVEKIT_URL=...
+# LIVEKIT_API_KEY=...
+# LIVEKIT_API_SECRET=...
 ```
 
 Ohne Keys: API liefert `503 livekit_not_configured`; Admin zeigt Hinweis. 1:1 Calls bleiben unabhängig.
@@ -23,4 +31,4 @@ Ohne Keys: API liefert `503 livekit_not_configured`; Admin zeigt Hinweis. 1:1 Ca
 
 ## Kosten
 
-Siehe Plan: LiveKit Cloud participant-minutes (Video 50–100 Personen).
+LiveKit Cloud participant-minutes (Video 50–100 Personen).

@@ -10,6 +10,8 @@
 | [`README.md`](../README.md) | Lokaler Start, Demo-Zugänge, API-Hinweise |
 | [`backend/app/domains/README.md`](../backend/app/domains/README.md) | Domain-Blueprints, Registrierung, Migrations-Regeln |
 | [`docs/HANDOVER-PLATFORM-AR.md`](HANDOVER-PLATFORM-AR.md) | Betrieb ohne Code (Railway, Kameras, Health) |
+| [`docs/livekit-setup.md`](livekit-setup.md) | Firmenkonferenz: LiveKit Cloud + Railway Env |
+| [`docs/android-play-keystore-secrets.md`](android-play-keystore-secrets.md) | Play AAB: Keystore + GitHub Secrets |
 | [`docs/engineering/server-decomposition-roadmap.md`](engineering/server-decomposition-roadmap.md) | Auslagerung aus `server.py` |
 | [`docs/postgres-cutover-runbook.md`](postgres-cutover-runbook.md) | SQLite → PostgreSQL Cutover |
 | [`docs/postgres-staging-checklist-AR.md`](postgres-staging-checklist-AR.md) | Staging Go/No-Go vor PG-Produktion |

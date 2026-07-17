@@ -1,6 +1,7 @@
 """Company conference rooms (LiveKit SFU) — separate from 1:1 voice calls."""
 from __future__ import annotations
 
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Any
@@ -14,10 +15,55 @@ def utc_now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _clean_env_value(raw: str | None) -> str:
+    value = str(raw or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+        value = value[1:-1].strip()
+    return value
+
+
+def _livekit_env(name: str) -> str:
+    """Prefer SUPPIX_/BAUPASS_ prefix; accept plain LIVEKIT_* from LiveKit Cloud dashboard."""
+    via_platform = _clean_env_value(platform_env(name))
+    if via_platform:
+        return via_platform
+    return _clean_env_value(os.environ.get(name))
+
+
+def _livekit_url_normalized() -> str:
+    url = _livekit_env("LIVEKIT_URL")
+    if not url:
+        return ""
+    if url.startswith("https://"):
+        return "wss://" + url[len("https://") :]
+    if url.startswith("http://"):
+        return "ws://" + url[len("http://") :]
+    return url
+
+
 class ConferenceService:
     def __init__(self, db):
         self.db = db
         self._ensure_schema()
+
+    def config_diagnostics(self) -> dict[str, Any]:
+        """Safe diagnostics for admins (no secret values)."""
+        key = bool(_livekit_env("LIVEKIT_API_KEY"))
+        secret = bool(_livekit_env("LIVEKIT_API_SECRET"))
+        url = bool(_livekit_url_normalized())
+        missing: list[str] = []
+        if not url:
+            missing.append("SUPPIX_LIVEKIT_URL (or LIVEKIT_URL)")
+        if not key:
+            missing.append("SUPPIX_LIVEKIT_API_KEY (or LIVEKIT_API_KEY)")
+        if not secret:
+            missing.append("SUPPIX_LIVEKIT_API_SECRET (or LIVEKIT_API_SECRET)")
+        return {
+            "hasUrl": url,
+            "hasApiKey": key,
+            "hasApiSecret": secret,
+            "missing": missing,
+        }
 
     def _ensure_schema(self) -> None:
         self.db.execute(
@@ -54,14 +100,18 @@ class ConferenceService:
         self.db.commit()
 
     def livekit_configured(self) -> bool:
-        return bool(platform_env("LIVEKIT_API_KEY") and platform_env("LIVEKIT_API_SECRET") and platform_env("LIVEKIT_URL"))
+        return bool(
+            _livekit_env("LIVEKIT_API_KEY")
+            and _livekit_env("LIVEKIT_API_SECRET")
+            and _livekit_url_normalized()
+        )
 
     def livekit_url(self) -> str:
-        return str(platform_env("LIVEKIT_URL") or "").strip()
+        return _livekit_url_normalized()
 
     def _token_for(self, *, identity: str, name: str, room: str) -> str:
-        key = str(platform_env("LIVEKIT_API_KEY") or "")
-        secret = str(platform_env("LIVEKIT_API_SECRET") or "")
+        key = _livekit_env("LIVEKIT_API_KEY")
+        secret = _livekit_env("LIVEKIT_API_SECRET")
         if not key or not secret:
             raise RuntimeError("livekit_not_configured")
         return create_livekit_token(

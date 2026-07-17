@@ -8,15 +8,18 @@ iPhone/TestFlight bleibt pausiert, bis Firmen-Team-Zugang da ist.
 1. **Play Console** (Firmen-Account, ~25 \$ einmalig falls neu)
    - App anlegen oder vorhandene öffnen
    - Package: `com.baupass.worker`
-2. **Build holen**
-   - GitHub → Actions → **Build worker APK** → Artifact `baupass-worker-apk`
-   - Oder lokal: `cd mobile && flutter build appbundle --release`
-3. **Internal testing track**
+2. **Release-Keystore + GitHub Secrets** (einmalig)
+   - Anleitung: [android-play-keystore-secrets.md](./android-play-keystore-secrets.md)
+   - Secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
+3. **AAB bauen**
+   - GitHub → Actions → **Build worker Android AAB** → Artifact `baupass-worker-aab`
+   - Oder lokal: `cd mobile && flutter build appbundle --release` (mit `mobile/android/key.properties`)
+4. **Internal testing track**
    - AAB hochladen (Play will **AAB**, nicht nur APK)
    - Tester-E-Mails hinzufügen
-4. **Listing Minimum**
+5. **Listing Minimum**
    - Kurzbeschreibung, 2–4 Screenshots, Datenschutz-URL, Data Safety
-5. **Railway**
+6. **Railway**
    ```env
    BAUPASS_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.baupass.worker
    ```
@@ -27,11 +30,12 @@ iPhone/TestFlight bleibt pausiert, bis Firmen-Team-Zugang da ist.
 | APK (jetzt) | AAB (Play) |
 |-------------|------------|
 | Gut für Direkt-Download / Pilot | Pflicht für Play Store Upload |
-| CI: `flutter-worker-apk.yml` | `flutter build appbundle --release` + Release-Keystore |
+| CI: `flutter-worker-apk.yml` | CI: `flutter-worker-aab.yml` + Release-Keystore |
 
-Release-Signing (Keystore) muss einmal eingerichtet werden — ohne Firmen-Keystore nur Debug/Upload-Key von Play möglich (Play App Signing).
+Ohne Firmen-Keystore nur Debug-Signing lokal — Play-Upload braucht den Upload-Key (siehe Secrets-Doku).
 
 ## Siehe auch
 
+- [android-play-keystore-secrets.md](./android-play-keystore-secrets.md)
 - [app-store-play-store.md](./app-store-play-store.md)
 - [store-listing-DE.md](./store-listing-DE.md)

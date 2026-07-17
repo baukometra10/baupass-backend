@@ -11,7 +11,7 @@
 ## Known remaining (not blockers for 1:1)
 
 - Flutter conference UI is invite/join-token sheet; full LiveKit video grid still best on Admin/PWA until native LiveKit SDK wired
-- LiveKit requires `LIVEKIT_URL` / `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` or conference returns 503
+- LiveKit requires `SUPPIX_LIVEKIT_URL` / `SUPPIX_LIVEKIT_API_KEY` / `SUPPIX_LIVEKIT_API_SECRET` (or plain `LIVEKIT_*`) or conference returns 503 — setup: [livekit-setup.md](./livekit-setup.md)
 - iOS TestFlight signed upload still blocked without Apple team access
 - Android AAB workflow skips without `ANDROID_KEYSTORE_*` secrets (APK workflow still works)
 

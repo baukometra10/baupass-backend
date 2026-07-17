@@ -8,7 +8,7 @@
 4. Play Console: package `com.baupass.worker`, privacy policy URL, data safety form
 5. Internal testing track → closed → production
 
-See also [android-play-tomorrow.md](./android-play-tomorrow.md).
+See also [android-play-tomorrow.md](./android-play-tomorrow.md) and [android-play-keystore-secrets.md](./android-play-keystore-secrets.md).
 ## iOS (TestFlight → App Store)
 
 1. Workflow: `.github/workflows/flutter-worker-ios.yml`

@@ -63,12 +63,12 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         run: |
           echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.jks"
-          cat > mobile/android/key.properties <<EOF
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyPassword=$ANDROID_KEY_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          storeFile=$RUNNER_TEMP/upload.jks
-          EOF
+          {
+            echo "storePassword=$ANDROID_KEYSTORE_PASSWORD"
+            echo "keyPassword=$ANDROID_KEY_PASSWORD"
+            echo "keyAlias=$ANDROID_KEY_ALIAS"
+            echo "storeFile=$RUNNER_TEMP/upload.jks"
+          } > mobile/android/key.properties
 
       - name: Complete Flutter platform scaffolding
         if: steps.secrets.outputs.ready == 'true'
@@ -91,14 +91,6 @@ jobs:
             mobile/lib \
             mobile/pubspec.yaml \
             mobile/test || true
-
-      - name: Wire release signing from key.properties
-        if: steps.secrets.outputs.ready == 'true'
-        working-directory: mobile/android/app
-        run: |
-          if ! grep -q 'key.properties' build.gradle.kts; then
-            echo "::warning::build.gradle.kts may need manual signingConfig — attempting default release build"
-          fi
 
       - name: Resolve dependencies
         if: steps.secrets.outputs.ready == 'true'

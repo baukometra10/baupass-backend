@@ -4286,9 +4286,25 @@
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
     async function startAdminConference(initialWorkerIds) {
-      const status = await voiceCallApi("/api/chat/conferences/status").catch(() => ({ configured: false }));
+      let status;
+      try {
+        status = await voiceCallApi("/api/chat/conferences/status");
+      } catch (error) {
+        const detail = String(error?.message || error || "").trim();
+        setThreadMeta(
+          detail
+            ? `${window.adminChatT("conferenceUnavailable")} (${detail})`
+            : window.adminChatT("conferenceUnavailable"),
+          { dynamic: true }
+        );
+        return;
+      }
       if (!status?.configured) {
-        setThreadMeta(window.adminChatT("conferenceUnavailable"), { dynamic: true });
+        const missing = Array.isArray(status?.missing) ? status.missing.filter(Boolean) : [];
+        const hint = missing.length
+          ? ` Fehlt: ${missing.join(", ")}`
+          : " (Railway: SUPPIX_LIVEKIT_URL / API_KEY / API_SECRET am API-Service + Redeploy)";
+        setThreadMeta(`${window.adminChatT("conferenceUnavailable")}${hint}`, { dynamic: true });
         return;
       }
       const workerIds = Array.isArray(initialWorkerIds) && initialWorkerIds.length

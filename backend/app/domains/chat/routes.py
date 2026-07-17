@@ -1160,7 +1160,19 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         from backend.app.platform.conferences import ConferenceService
 
         svc = ConferenceService(get_db())
-        return jsonify({"ok": True, "configured": svc.livekit_configured(), "livekitUrl": svc.livekit_url() if svc.livekit_configured() else ""})
+        configured = svc.livekit_configured()
+        diag = svc.config_diagnostics()
+        return jsonify(
+            {
+                "ok": True,
+                "configured": configured,
+                "livekitUrl": svc.livekit_url() if configured else "",
+                "missing": diag.get("missing") or [],
+                "hasUrl": diag.get("hasUrl"),
+                "hasApiKey": diag.get("hasApiKey"),
+                "hasApiSecret": diag.get("hasApiSecret"),
+            }
+        )
 
     @chat_core_bp.post("/chat/conferences")
     @require_auth
@@ -1189,7 +1201,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return jsonify({"ok": True, "room": room})
         except RuntimeError as exc:
             if str(exc) == "livekit_not_configured":
-                return jsonify({"error": "livekit_not_configured", "message": "LiveKit Keys fehlen (LIVEKIT_URL/API_KEY/API_SECRET)."}), 503
+                return jsonify({"error": "livekit_not_configured", "message": "LiveKit Keys fehlen (SUPPIX_LIVEKIT_URL / API_KEY / API_SECRET)."}), 503
             return jsonify({"error": str(exc)}), 400
 
     @chat_core_bp.post("/chat/conferences/<room_id>/invite")
