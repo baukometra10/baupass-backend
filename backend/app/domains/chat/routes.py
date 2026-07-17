@@ -202,6 +202,15 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         )
         return jsonify({"actors": actors})
 
+    @chat_core_bp.get("/chat/push-vapid-key")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_chat_push_vapid_key():
+        """Admin-facing VAPID public key (same keys as worker-app)."""
+        from backend.server import get_vapid_public_key
+
+        return get_vapid_public_key()
+
     @chat_core_bp.post("/chat/push-subscribe")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -217,11 +226,13 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         auth_key = str(data.get("auth") or "").strip()
         cid = str(data.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
         if not endpoint or not p256dh or not auth_key or not cid:
-            return jsonify({"error": "missing_fields"}), 400
+            return jsonify({"error": "missing_fields", "detail": "endpoint_p256dh_auth_company_required"}), 400
         if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
             return jsonify({"error": "forbidden"}), 403
         db = get_db()
-        user_id = str(user.get("id") or "")
+        user_id = str(user.get("id") or user.get("user_id") or "").strip()
+        if not user_id:
+            return jsonify({"error": "missing_user", "detail": "session_user_id_required"}), 400
         existing = db.execute("SELECT id FROM admin_push_subscriptions WHERE endpoint = ?", (endpoint,)).fetchone()
         now = now_iso()
         if existing:
@@ -243,7 +254,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 (f"apsub-{secrets.token_hex(8)}", user_id, cid, endpoint, p256dh, auth_key, now, now),
             )
         db.commit()
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "subscribed": True, "companyId": cid})
 
     @chat_core_bp.get("/chat/push-status")
     @require_auth
@@ -251,22 +262,24 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     def admin_chat_push_status():
         user = getattr(g, "current_user", None) or {}
         cid = str(request.args.get("company_id") or user.get("company_id") or company_id_from_user() or "").strip()
-        user_id = str(user.get("id") or "").strip()
+        user_id = str(user.get("id") or user.get("user_id") or "").strip()
         endpoint = str(request.args.get("endpoint") or "").strip()
-        if not cid or not user_id:
-            return jsonify({"error": "missing_fields"}), 400
+        if not cid:
+            return jsonify({"error": "missing_fields", "detail": "company_required"}), 400
         if user.get("role") == "company-admin" and str(user.get("company_id") or "") != cid:
             return jsonify({"error": "forbidden"}), 403
         db = get_db()
-        row = db.execute(
-            """
-            SELECT COUNT(*) AS c
-            FROM admin_push_subscriptions
-            WHERE user_id = ? AND company_id = ?
-            """,
-            (user_id, cid),
-        ).fetchone()
-        count = int((row["c"] if row else 0) or 0)
+        count = 0
+        if user_id:
+            row = db.execute(
+                """
+                SELECT COUNT(*) AS c
+                FROM admin_push_subscriptions
+                WHERE user_id = ? AND company_id = ?
+                """,
+                (user_id, cid),
+            ).fetchone()
+            count = int((row["c"] if row else 0) or 0)
         endpoint_matched = False
         if endpoint:
             ep = db.execute(
@@ -280,7 +293,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             if ep:
                 endpoint_matched = True
                 # Heal user_id mismatch from older clients / session quirks
-                if str(ep["user_id"] or "") != user_id:
+                if user_id and str(ep["user_id"] or "") != user_id:
                     from backend.server import now_iso
 
                     db.execute(

@@ -1,5 +1,5 @@
 /* SUPPIX admin service worker — web push for employer chat. */
-const ADMIN_SW_BUILD = "20260714chat33";
+const ADMIN_SW_BUILD = "20260717chat42d";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());

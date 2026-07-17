@@ -508,7 +508,8 @@
     .thread-item-action.is-active{color:#5eead4}
     .thread-item.is-pinned .thread-name::before{content:"📌 ";font-size:.72rem}
     .thread-item.is-muted .thread-preview{opacity:.65}
-    .chat-voice-call-btn {
+    .chat-voice-call-btn,
+    .chat-voice-history-btn {
       border-radius: 999px;
       width: 38px;
       height: 38px;
@@ -519,8 +520,45 @@
       background: rgba(15, 118, 110, 0.25);
       color: #ecfeff;
       cursor: pointer;
+      transition: transform .12s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
     }
-    .chat-voice-call-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .chat-voice-history-btn {
+      border-color: rgba(148, 163, 184, 0.35);
+      background: rgba(30, 41, 59, 0.55);
+      color: #e2e8f0;
+    }
+    .chat-voice-call-btn.conference {
+      border-color: rgba(96, 165, 250, 0.45);
+      background: rgba(37, 99, 235, 0.28);
+      color: #dbeafe;
+    }
+    .chat-voice-call-btn svg,
+    .chat-voice-history-btn svg { width: 18px; height: 18px; display: block; }
+    .chat-voice-call-btn:hover:not(:disabled),
+    .chat-voice-history-btn:hover:not(:disabled) {
+      transform: translateY(-1px);
+      filter: brightness(1.08);
+    }
+    .chat-voice-call-btn:active:not(:disabled),
+    .chat-voice-history-btn:active:not(:disabled) {
+      transform: scale(0.92);
+    }
+    .chat-voice-call-btn:disabled,
+    .chat-voice-history-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .admin-push-status.is-error .admin-push-status-text { color: #fca5a5; }
+    .admin-push-status.is-ok .admin-push-status-text { color: #5eead4; }
+    .admin-push-status-action {
+      border: 1px solid rgba(94, 234, 212, 0.4);
+      background: rgba(15, 118, 110, 0.35);
+      color: #ecfeff;
+      cursor: pointer;
+      font-weight: 600;
+      transition: transform .12s ease, background .15s ease;
+    }
+    .admin-push-status-action:hover:not(:disabled) { filter: brightness(1.1); }
+    .admin-push-status-action:active:not(:disabled) { transform: scale(0.96); }
+    .voice-call-round-btn:active:not(:disabled) { transform: scale(0.92); }
+    .voice-call-pill-btn:active:not(:disabled) { transform: scale(0.96); }
     .voice-call-overlay {
       position: fixed;
       inset: 0;
@@ -1129,18 +1167,6 @@
     .voice-call-history-item:last-child { border-bottom: none; }
     .voice-call-history-item strong { display: block; font-size: 0.88rem; }
     .voice-call-history-item small { color: rgba(226, 232, 240, 0.72); font-size: 0.75rem; }
-    .chat-voice-history-btn {
-      border-radius: 999px;
-      width: 38px;
-      height: 38px;
-      padding: 0;
-      display: inline-grid;
-      place-items: center;
-      border: 1px solid rgba(148, 163, 184, 0.35);
-      background: rgba(30, 41, 59, 0.55);
-      color: #e2e8f0;
-      cursor: pointer;
-    }
     .voice-call-actions {
       display: flex;
       gap: 0.75rem;
@@ -1237,12 +1263,12 @@
               </div>
             </div>
             <div id="chatHeadActions" class="chat-head-actions hidden">
-              <button type="button" id="chatSearchToggleBtn" class="chat-voice-history-btn" data-aci18n="chatSearchToggle" data-aci18n-attr="title,aria-label" title="Suchen" aria-label="Suchen">🔍</button>
-              <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" data-aci18n="chatGalleryTitle" data-aci18n-attr="title,aria-label" title="Medien" aria-label="Medien">🖼</button>
-              <button type="button" id="chatConferenceBtn" class="chat-voice-call-btn conference" data-aci18n="conferenceStart" data-aci18n-attr="title,aria-label" title="Konferenz" aria-label="Konferenz">👥</button>
-              <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" data-aci18n="voiceCallTitle" data-aci18n-attr="title,aria-label" title="Anrufen" aria-label="Anrufen">📞</button>
+              <button type="button" id="chatSearchToggleBtn" class="chat-voice-history-btn" data-aci18n="chatSearchToggle" data-aci18n-attr="title,aria-label" title="Suchen" aria-label="Suchen"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" data-aci18n="chatGalleryTitle" data-aci18n-attr="title,aria-label" title="Medien" aria-label="Medien"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.6" fill="currentColor"/><path d="M7 16l3.5-3.5L14 15l2-2 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <button type="button" id="chatConferenceBtn" class="chat-voice-call-btn conference" data-aci18n="conferenceStart" data-aci18n-attr="title,aria-label" title="Konferenz" aria-label="Konferenz"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="2"/><path d="M3.5 18.5c.8-2.8 3-4.5 5.5-4.5s4.7 1.7 5.5 4.5M14 14.2c1.5-.4 3.1.1 4.3 1.4.7.8 1.2 1.8 1.4 2.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+              <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" data-aci18n="voiceCallTitle" data-aci18n-attr="title,aria-label" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></button>
               <div class="chat-more-wrap">
-                <button type="button" id="chatMoreBtn" class="chat-voice-history-btn" data-aci18n="chatMoreMenu" data-aci18n-attr="title,aria-label" title="Mehr" aria-label="Mehr" aria-haspopup="true" aria-expanded="false">⋯</button>
+                <button type="button" id="chatMoreBtn" class="chat-voice-history-btn" data-aci18n="chatMoreMenu" data-aci18n-attr="title,aria-label" title="Mehr" aria-label="Mehr" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
                 <div id="chatMoreMenu" class="chat-more-menu hidden" role="menu">
                   <button type="button" id="chatExportBtn" class="chat-more-item" role="menuitem" data-aci18n="chatExport">Chat exportieren</button>
                   <button type="button" id="chatVoiceHistoryBtn" class="chat-more-item" role="menuitem" data-aci18n="voiceCallHistory">Anrufverlauf</button>
@@ -1439,13 +1465,13 @@
   <script src="/chat-thread-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
-  <script src="/chat-admin-push.js?v=20260717chat42c"></script>
+  <script src="/chat-admin-push.js?v=20260717chat42d"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260717chat42c"></script>
-  <script src="/chat-voice-call.js?v=20260717chat42c"></script>
-  <script src="/chat-conference.js?v=20260717chat42c"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260717chat42c"></script>
+  <script src="/chat-voice.js?v=20260717chat42d"></script>
+  <script src="/chat-voice-call.js?v=20260717chat42d"></script>
+  <script src="/chat-conference.js?v=20260717chat42d"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat42d"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -3213,7 +3239,7 @@
       const callbackBtn = showCallback
         ? `<button type="button" class="chat-call-log-btn" data-voice-callback="1">${escapeHtml(window.adminChatT("voiceCallCallback") || "Zurückrufen")}</button>`
         : "";
-      return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true">📞</span><span class="chat-call-log-text">${summary}</span></div>${callbackBtn}<div class="bubble-meta"><span>${time}</span></div></div>`;
+      return `<div class="${classes}" data-message-id="${messageId}"><div class="chat-call-log"><span class="chat-call-log-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span><span class="chat-call-log-text">${summary}</span></div>${callbackBtn}<div class="bubble-meta"><span>${time}</span></div></div>`;
     }
     function threadSortKey(row) {
       return String(row.last_message_at || row.updated_at || "");
@@ -4020,7 +4046,10 @@
       micOff: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V6a3 3 0 0 0-5.94-.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M17 11a7 7 0 0 1-7 7M5 5l14 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
       speaker: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M16 9a4 4 0 0 1 0 6M19 7a7 7 0 0 1 0 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
       speakerOff: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M22 9 16 15M16 9l6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
-      hangup: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7.5 7.5c2.4-2.4 6.6-2.4 9 0l1.5 1.5M9 9l6 6M4 4l16 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+      hangup: `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg>`,
+      camera: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 10l5-3v10l-5-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`,
+      phone: `<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg>`,
+      users: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="2"/><path d="M3.5 18.5c.8-2.8 3-4.5 5.5-4.5s4.7 1.7 5.5 4.5M14 14.2c1.5-.4 3.1.1 4.3 1.4.7.8 1.2 1.8 1.4 2.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
     };
     function ensureVoiceCallLiveWave() {
       const wave = document.getElementById("voiceCallLiveWave");
@@ -4332,7 +4361,10 @@
       }, 1400);
     }
     async function startVoiceCallToCurrentWorker() {
-      if (!currentWorkerId) return;
+      if (!currentWorkerId) {
+        setThreadMeta(window.adminChatT("pickWorkerHint") || "Bitte zuerst einen Mitarbeiter auswählen.", { dynamic: true });
+        return;
+      }
       if (!window.SUPPIXVoiceCall?.isSupported?.()) {
         setThreadMeta(window.adminChatT("voiceCallUnsupported"), { dynamic: true });
         return;
@@ -4363,7 +4395,14 @@
         setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
       }
     }
-    document.getElementById("chatVoiceCallBtn")?.addEventListener("click", () => {
+    document.getElementById("chatVoiceCallBtn")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const btn = event.currentTarget;
+      if (btn?.disabled) {
+        setThreadMeta(window.adminChatT("pickWorkerHint") || "Bitte zuerst einen Mitarbeiter auswählen.", { dynamic: true });
+        return;
+      }
       void startVoiceCallToCurrentWorker();
     });
     let activeConferenceRoomId = "";
@@ -4573,8 +4612,15 @@
       updateConferenceInviteSelection();
       modal.classList.remove("hidden");
     }
-    document.getElementById("chatConferenceBtn")?.addEventListener("click", () => {
-      void startAdminConference(currentWorkerId ? [currentWorkerId] : []);
+    document.getElementById("chatConferenceBtn")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const btn = event.currentTarget;
+      if (btn?.disabled || !currentWorkerId) {
+        setThreadMeta(window.adminChatT("pickWorkerHint") || "Bitte zuerst einen Mitarbeiter auswählen.", { dynamic: true });
+        return;
+      }
+      void startAdminConference([currentWorkerId]);
     });
     document.getElementById("voiceCallInviteBtn")?.addEventListener("click", () => {
       if (!activeConferenceRoomId && !window.SUPPIXConference?.getActiveRoomId?.()) return;
@@ -4903,6 +4949,7 @@
       window.SUPPIXAdminChatPush?.initAdminChatPush?.({
         api,
         companyId,
+        getCompanyId: () => companyId,
         prompt: true,
         banner: {
           bannerEl: document.getElementById("adminPushBanner"),
@@ -4912,6 +4959,12 @@
           labels: {
             prompt: window.adminChatT("adminPushPrompt"),
             denied: window.adminChatT("adminPushDenied"),
+            enable: window.adminChatT("adminPushEnable"),
+            vapidMissing: window.adminChatT("adminPushVapidMissing"),
+            companyRequired: window.adminChatT("adminPushCompanyRequired"),
+            swFailed: window.adminChatT("adminPushSwFailed"),
+            subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
+            sessionRequired: window.adminChatT("adminPushSessionRequired"),
           },
         },
         status: {
@@ -4925,6 +4978,11 @@
             denied: window.adminChatT("adminPushDenied"),
             enable: window.adminChatT("adminPushEnable"),
             unsubscribe: window.adminChatT("adminPushUnsubscribe"),
+            vapidMissing: window.adminChatT("adminPushVapidMissing"),
+            companyRequired: window.adminChatT("adminPushCompanyRequired"),
+            swFailed: window.adminChatT("adminPushSwFailed"),
+            subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
+            sessionRequired: window.adminChatT("adminPushSessionRequired"),
           },
         },
       });

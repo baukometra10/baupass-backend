@@ -20,8 +20,8 @@
   }
 
   /**
-   * Pleasant dual-voice ring / ringback (Web Audio).
-   * mode: "incoming" = phone-like dual tone; "outgoing" = soft melodic ringback.
+   * Rich dual-voice ring / ringback (Web Audio).
+   * mode: "incoming" = classic phone dual-tone; "outgoing" = melodic ringback.
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
@@ -29,25 +29,36 @@
     let timer = null;
     let stopped = false;
     let master = null;
+    let filter = null;
 
-    function tone(freqs, start, dur, peak = 0.11) {
+    function tone(freqs, start, dur, peak = 0.14, types = ["sine", "triangle"]) {
       if (!ctx || !master) return;
       const g = ctx.createGain();
       g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(peak, start + 0.04);
-      g.gain.exponentialRampToValueAtTime(peak * 0.75, start + dur * 0.55);
+      g.gain.exponentialRampToValueAtTime(peak, start + 0.035);
+      g.gain.exponentialRampToValueAtTime(peak * 0.82, start + dur * 0.45);
       g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-      g.connect(master);
+      const dest = filter || master;
+      g.connect(dest);
       freqs.forEach((hz, i) => {
         const osc = ctx.createOscillator();
-        osc.type = i === 0 ? "sine" : "triangle";
+        osc.type = types[i % types.length] || "sine";
         osc.frequency.setValueAtTime(hz, start);
+        // Subtle vibrato for a more “phone” feel
+        const lfo = ctx.createOscillator();
+        const lfoGain = ctx.createGain();
+        lfo.frequency.value = mode === "incoming" ? 5.5 : 4.2;
+        lfoGain.gain.value = mode === "incoming" ? 3.2 : 2.2;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
         const og = ctx.createGain();
-        og.gain.value = i === 0 ? 0.85 : 0.28;
+        og.gain.value = i === 0 ? 0.9 : 0.34;
         osc.connect(og);
         og.connect(g);
+        lfo.start(start);
         osc.start(start);
-        osc.stop(start + dur + 0.02);
+        lfo.stop(start + dur + 0.03);
+        osc.stop(start + dur + 0.03);
       });
     }
 
@@ -55,14 +66,15 @@
       if (stopped || !ctx) return;
       const t0 = ctx.currentTime + 0.02;
       if (mode === "incoming") {
-        // Classic dual-tone ring (approx. 440 + 480), two bursts
-        tone([440, 480], t0, 0.42, 0.13);
-        tone([440, 480], t0 + 0.55, 0.42, 0.13);
+        // Classic dual-tone ring: two long bursts (approx. North-American cadence)
+        tone([440, 480], t0, 0.95, 0.2);
+        tone([440, 480], t0 + 1.15, 0.95, 0.2);
       } else {
-        // Soft ascending ringback motif
-        tone([523.25], t0, 0.22, 0.09);
-        tone([659.25], t0 + 0.2, 0.22, 0.1);
-        tone([783.99, 523.25], t0 + 0.4, 0.38, 0.11);
+        // Warm ascending ringback motif with harmony
+        tone([392.0, 493.88], t0, 0.22, 0.12, ["sine", "sine"]);
+        tone([523.25, 659.25], t0 + 0.2, 0.24, 0.14);
+        tone([659.25, 783.99], t0 + 0.42, 0.28, 0.15);
+        tone([783.99, 987.77, 523.25], t0 + 0.72, 0.5, 0.16, ["sine", "triangle", "sine"]);
       }
     }
 
@@ -72,7 +84,12 @@
         try {
           ctx = new (global.AudioContext || global.webkitAudioContext)();
           master = ctx.createGain();
-          master.gain.value = 0.85;
+          master.gain.value = 1;
+          filter = ctx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.value = mode === "incoming" ? 3200 : 4200;
+          filter.Q.value = 0.7;
+          filter.connect(master);
           master.connect(ctx.destination);
           const resume = () => {
             if (ctx?.state === "suspended") void ctx.resume();
@@ -80,7 +97,8 @@
           resume();
           global.addEventListener?.("pointerdown", resume, { once: true });
           playPattern();
-          timer = global.setInterval(playPattern, mode === "incoming" ? 2200 : 2400);
+          // Incoming: ~4s cycle (2s ring + pause). Outgoing: slightly faster motif.
+          timer = global.setInterval(playPattern, mode === "incoming" ? 4000 : 2800);
         } catch (_) {
           /* ignore */
         }
@@ -94,6 +112,7 @@
           ctx = null;
         }
         master = null;
+        filter = null;
       },
     };
   }

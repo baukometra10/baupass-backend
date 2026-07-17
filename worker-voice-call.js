@@ -41,13 +41,13 @@
           <div class="worker-voice-call-meter"><span>${t("voiceCallRemoteLabel", "Arbeitgeber")}</span><div><i id="workerVoiceCallRemoteFill"></i></div></div>
         </div>
         <div class="worker-voice-call-controls incoming-only">
-          <button type="button" id="workerVoiceCallDeclineBtn" class="danger">${t("voiceCallDecline", "Ablehnen")}</button>
-          <button type="button" id="workerVoiceCallAcceptBtn" class="primary">${t("voiceCallAccept", "Annehmen")}</button>
+          <button type="button" id="workerVoiceCallDeclineBtn" class="danger" aria-label="${t("voiceCallDecline", "Ablehnen")}" title="${t("voiceCallDecline", "Ablehnen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
+          <button type="button" id="workerVoiceCallAcceptBtn" class="primary" aria-label="${t("voiceCallAccept", "Annehmen")}" title="${t("voiceCallAccept", "Annehmen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span></button>
         </div>
         <div class="worker-voice-call-controls active-only hidden">
-          <button type="button" id="workerVoiceCallMuteBtn">${t("voiceCallMute", "Stumm")}</button>
-          <button type="button" id="workerVoiceCallSpeakerBtn">${t("voiceCallSpeaker", "Lautsprecher")}</button>
-          <button type="button" id="workerVoiceCallHangupBtn" class="danger">${t("voiceCallHangup", "Auflegen")}</button>
+          <button type="button" id="workerVoiceCallMuteBtn" aria-label="${t("voiceCallMute", "Stumm")}" title="${t("voiceCallMute", "Stumm")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 19v3"/></svg></span></button>
+          <button type="button" id="workerVoiceCallSpeakerBtn" aria-label="${t("voiceCallSpeaker", "Lautsprecher")}" title="${t("voiceCallSpeaker", "Lautsprecher")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span></button>
+          <button type="button" id="workerVoiceCallHangupBtn" class="danger" aria-label="${t("voiceCallHangup", "Auflegen")}" title="${t("voiceCallHangup", "Auflegen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span></button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -72,7 +72,9 @@
 .worker-voice-call-meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#00a884,#128c7e)}
 .worker-voice-call-controls{display:flex;gap:1.5rem;justify-content:center;flex-wrap:wrap;padding:1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,rgba(0,0,0,.55))}
 .worker-voice-call-controls.hidden{display:none}
-.worker-voice-call-controls button{min-width:68px;min-height:68px;width:68px;height:68px;border-radius:50%;border:none;color:#fff;font-weight:600;cursor:pointer;font-size:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.worker-voice-call-controls button{min-width:68px;min-height:68px;width:68px;height:68px;border-radius:50%;border:none;color:#fff;font-weight:600;cursor:pointer;font-size:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,.35);display:inline-grid;place-items:center;transition:transform .12s ease,filter .15s ease;background:rgba(255,255,255,.12)}
+.worker-voice-call-controls button:active{transform:scale(.92)}
+.worker-voice-call-controls button .wvc-ico{display:grid;place-items:center;line-height:0}
 .worker-voice-call-controls button.primary{background:#00a884}
 .worker-voice-call-controls button.danger{background:#e53935}
 .worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:76px;height:76px;min-width:76px;min-height:76px}
@@ -476,7 +478,7 @@
       const callbackBtn = options.showCallback && ["missed", "declined", "ended", "cancelled"].includes(status)
         ? `<button type="button" class="worker-chat-call-log-btn" data-voice-callback="1" data-call-id="${String(meta.callId || "")}">${t("voiceCallRequestCallback", "Rückruf anfordern")}</button>`
         : "";
-      return `<div class="worker-chat-call-log"><span aria-hidden="true">📞</span><span>${summary}</span>${callbackBtn}</div>`;
+      return `<div class="worker-chat-call-log"><span aria-hidden="true"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span><span>${summary}</span>${callbackBtn}</div>`;
     },
   };
 })(window);
