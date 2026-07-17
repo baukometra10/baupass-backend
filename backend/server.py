@@ -18427,6 +18427,29 @@ def operations_guidance():
     )
 
 
+def _reporting_email_meta(
+    *,
+    report_title: str,
+    message: str,
+    company_name: str = "",
+    period: str = "",
+    report_subtitle: str = "",
+    pdf_filename: str = "",
+    extra_filenames: list | None = None,
+):
+    from backend.app.platform.reports.report_email_template import build_report_meta
+
+    return build_report_meta(
+        report_title=report_title,
+        message=message,
+        company_name=company_name,
+        period=period,
+        report_subtitle=report_subtitle,
+        pdf_filename=pdf_filename,
+        extra_filenames=extra_filenames,
+    )
+
+
 @require_auth
 @require_roles("superadmin", "company-admin")
 def reporting_email_pdf():
@@ -18456,12 +18479,13 @@ def reporting_email_pdf():
         guidance=guidance,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-report-{period}.pdf"
     subject = clean_text_input(payload.get("subject", f"SUPPIX Bericht {period}"), max_len=200)
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei finden Sie Ihren aktuellen SUPPIX-Betriebsbericht als PDF.\n\nMit freundlichen Grüßen\nSUPPIX",
+            "Anbei finden Sie Ihren aktuellen Betriebsbericht als PDF — inkl. Live-KPIs, Zutrittsstatistik und empfohlener Maßnahmen.",
         ),
         max_len=4000,
     )
@@ -18483,6 +18507,15 @@ def reporting_email_pdf():
         pdf_bytes=pdf_bytes,
         filename=filename,
         extra_attachments=extra_attachments,
+        report_meta=_reporting_email_meta(
+            report_title="Betriebsbericht",
+            report_subtitle="Operations, Zutritte & Live-KPIs",
+            message=body,
+            company_name=company_name or "",
+            period=period_label,
+            pdf_filename=filename,
+            extra_filenames=[str(a.get("filename") or "") for a in extra_attachments],
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18534,16 +18567,30 @@ def reporting_email_datev_csv():
         return jsonify({"error": "no_payroll_data", "message": "Keine DATEV-Exportdaten für diese Firma."}), 404
 
     period_label = period or datetime.now(timezone.utc).strftime("%Y-%m")
+    period_display = period_label if len(period_label) == 7 else datetime.now(timezone.utc).strftime("%d.%m.%Y")
     subject = clean_text_input(payload.get("subject", f"SUPPIX DATEV Lohn-CSV {period_label}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label}.\n\nSUPPIX"),
+        payload.get("body", f"Anbei die DATEV-Lohn-CSV für {period_label} — bereit für Ihre Buchhaltung."),
         max_len=4000,
     )
+    company_name = ""
+    crow = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    if crow:
+        company_name = str(crow["name"] or "")
     ok, err = send_attachments_email(
         to=recipient,
         subject=subject,
         body_text=body,
         attachments=[datev_att],
+        report_meta=_reporting_email_meta(
+            report_title="DATEV Lohn-Export",
+            report_subtitle="Payroll CSV für Buchhaltung",
+            message=body,
+            company_name=company_name,
+            period=period_display,
+            pdf_filename="",
+            extra_filenames=[str(datev_att.get("filename") or "datev-export.csv")],
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18605,10 +18652,11 @@ def reporting_email_invoices_pdf():
 
     pdf_bytes = build_invoices_report_pdf(db, company_id=company_id, company_name=company_name)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-invoices-{period}.pdf"
     subject = clean_text_input(payload.get("subject", f"SUPPIX Rechnungsübersicht {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Rechnungsübersicht als PDF.\n\nSUPPIX"),
+        payload.get("body", "Anbei die Rechnungsübersicht als PDF — alle relevanten Positionen auf einen Blick."),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -18617,6 +18665,14 @@ def reporting_email_invoices_pdf():
         body_text=body,
         pdf_bytes=pdf_bytes,
         filename=filename,
+        report_meta=_reporting_email_meta(
+            report_title="Rechnungsübersicht",
+            report_subtitle="Offene und bezahlte Rechnungen",
+            message=body,
+            company_name=company_name,
+            period=period_label,
+            pdf_filename=filename,
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18648,15 +18704,23 @@ def reporting_email_companies_pdf():
     db = get_db()
     pdf_bytes = build_companies_document_email_pdf(db)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-companies-{period}.pdf"
     subject = clean_text_input(payload.get("subject", f"SUPPIX Firmenübersicht {period}"), max_len=200)
-    body = clean_text_input(payload.get("body", "Anbei die Firmen-Dokument-E-Mail-Übersicht.\n\nSUPPIX"), max_len=4000)
+    body = clean_text_input(payload.get("body", "Anbei die Firmenübersicht mit Dokument- und E-Mail-Status aller Mandanten."), max_len=4000)
     ok, err = send_pdf_report_email(
         to=recipient,
         subject=subject,
         body_text=body,
         pdf_bytes=pdf_bytes,
         filename=filename,
+        report_meta=_reporting_email_meta(
+            report_title="Firmenübersicht",
+            report_subtitle="Mandanten & Dokument-E-Mail-Status",
+            message=body,
+            period=period_label,
+            pdf_filename=filename,
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18704,6 +18768,7 @@ def reporting_email_enterprise_pdf():
         role=role,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-enterprise-{company_id}-{period}.pdf"
     subject = clean_text_input(
         payload.get("subject", f"SUPPIX Enterprise-Bericht {period}"),
@@ -18712,7 +18777,7 @@ def reporting_email_enterprise_pdf():
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei der Enterprise- und Operations-Bericht (6 Ebenen, KPIs, Lohn/Compliance, Guidance).\n\nSUPPIX",
+            "Anbei der Enterprise- und Operations-Bericht: 6 Ebenen, KPIs, Lohn/Compliance und Guidance.",
         ),
         max_len=4000,
     )
@@ -18731,6 +18796,15 @@ def reporting_email_enterprise_pdf():
         pdf_bytes=pdf_bytes,
         filename=filename,
         extra_attachments=extra,
+        report_meta=_reporting_email_meta(
+            report_title="Enterprise-Bericht",
+            report_subtitle="6 Ebenen, KPIs, Lohn & Compliance",
+            message=body,
+            company_name=str(company_name or ""),
+            period=period_label,
+            pdf_filename=filename,
+            extra_filenames=[str(a.get("filename") or "") for a in extra],
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18785,10 +18859,11 @@ def reporting_email_executive_pdf():
 
     pdf_bytes = build_executive_summary_pdf(company_name=str(company_name or ""), snapshot=snapshot)
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-executive-{period}.pdf"
     subject = clean_text_input(payload.get("subject", f"SUPPIX Executive Summary {period}"), max_len=200)
     body = clean_text_input(
-        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary).\n\nSUPPIX"),
+        payload.get("body", "Anbei die Management-Zusammenfassung (Executive Summary) für Ihre nächste Besprechung."),
         max_len=4000,
     )
     ok, err = send_pdf_report_email(
@@ -18797,6 +18872,14 @@ def reporting_email_executive_pdf():
         body_text=body,
         pdf_bytes=pdf_bytes,
         filename=filename,
+        report_meta=_reporting_email_meta(
+            report_title="Executive Summary",
+            report_subtitle="Management-Kurzbericht",
+            message=body,
+            company_name=str(company_name or ""),
+            period=period_label,
+            pdf_filename=filename,
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500
@@ -18839,6 +18922,7 @@ def reporting_email_incidents_visits_pdf():
 
     pdf_bytes = build_incidents_visits_pdf(db, user, str(company_name or "WorkPass"))
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
     filename = f"baupass-incidents-visitors-{period}.pdf"
     subject = clean_text_input(
         payload.get("subject", f"SUPPIX Incidents & Visitors {period}"),
@@ -18847,7 +18931,7 @@ def reporting_email_incidents_visits_pdf():
     body = clean_text_input(
         payload.get(
             "body",
-            "Anbei: PDF mit Sicherheitsvorfaellen / Incidents und aktiven Besuchern auf der Baustelle.\n\nSUPPIX",
+            "Anbei das PDF zu Sicherheitsvorfällen (Havarien) und aktiven Besuchern auf der Baustelle.",
         ),
         max_len=4000,
     )
@@ -18857,6 +18941,14 @@ def reporting_email_incidents_visits_pdf():
         body_text=body,
         pdf_bytes=pdf_bytes,
         filename=filename,
+        report_meta=_reporting_email_meta(
+            report_title="Havarien & Besucher",
+            report_subtitle="Sicherheitsvorfälle und aktive Besucher",
+            message=body,
+            company_name=str(company_name or ""),
+            period=period_label,
+            pdf_filename=filename,
+        ),
     )
     if not ok:
         return jsonify({"error": "email_send_failed", "detail": err}), 500

@@ -88,6 +88,7 @@ def _send_via_smtp(
     to: str,
     subject: str,
     body_text: str,
+    html: str,
     host: str,
     port: int,
     user: str,
@@ -105,7 +106,7 @@ def _send_via_smtp(
     msg["To"] = to.strip()
     plain = (body_text or "").strip()
     msg.set_content(plain)
-    msg.add_alternative(_html_body(plain), subtype="html")
+    msg.add_alternative(html or _html_body(plain), subtype="html")
     if pdf_bytes:
         msg.add_attachment(
             pdf_bytes,
@@ -143,6 +144,50 @@ def _send_via_smtp(
         return False, str(exc)[:300]
 
 
+def _resolve_report_bodies(
+    *,
+    subject: str,
+    body_text: str,
+    pdf_filename: str,
+    attachments: list[dict[str, Any]] | None,
+    report_meta: dict[str, Any] | None,
+    html_body: str | None,
+    branded: bool,
+) -> tuple[str, str]:
+    if html_body:
+        return (body_text or "").strip(), html_body
+    if report_meta:
+        from backend.app.platform.reports.report_email_template import build_report_email_bodies
+
+        return build_report_email_bodies(
+            report_title=str(report_meta.get("report_title") or subject),
+            message=str(report_meta.get("message") or body_text),
+            company_name=str(report_meta.get("company_name") or ""),
+            period=str(report_meta.get("period") or ""),
+            report_badge=str(report_meta.get("report_badge") or "Reporting"),
+            report_subtitle=str(report_meta.get("report_subtitle") or ""),
+            attachment_labels=list(report_meta.get("attachment_labels") or []),
+        )
+    if branded:
+        from backend.app.platform.reports.report_email_template import (
+            attachment_label_from_filename,
+            build_report_email_bodies,
+        )
+
+        labels = []
+        if pdf_filename:
+            labels.append(attachment_label_from_filename(pdf_filename))
+        for att in attachments or []:
+            labels.append(attachment_label_from_filename(str(att.get("filename") or "anhang.bin")))
+        return build_report_email_bodies(
+            report_title=subject,
+            message=body_text,
+            attachment_labels=labels,
+        )
+    plain = (body_text or "").strip()
+    return plain, _html_body(plain)
+
+
 def _send_report_email(
     *,
     to: str,
@@ -151,6 +196,9 @@ def _send_report_email(
     pdf_bytes: bytes | None = None,
     pdf_filename: str = "baupass-report.pdf",
     attachments: list[dict[str, Any]] | None = None,
+    report_meta: dict[str, Any] | None = None,
+    html_body: str | None = None,
+    branded: bool = True,
 ) -> Tuple[bool, str]:
     api_atts = _api_attachments(
         pdf_bytes=pdf_bytes,
@@ -161,8 +209,15 @@ def _send_report_email(
         return False, "Keine Anhänge."
 
     host, port, user, password, use_tls, sender, sender_name = _smtp_config()
-    plain = (body_text or "").strip()
-    html = _html_body(plain)
+    plain, html = _resolve_report_bodies(
+        subject=subject,
+        body_text=body_text,
+        pdf_filename=pdf_filename,
+        attachments=attachments,
+        report_meta=report_meta,
+        html_body=html_body,
+        branded=branded,
+    )
 
     from backend.server import _send_via_any_api
 
@@ -182,7 +237,8 @@ def _send_report_email(
         ok_smtp, smtp_err = _send_via_smtp(
             to=to,
             subject=subject,
-            body_text=body_text,
+            body_text=plain,
+            html=html,
             host=host,
             port=port,
             user=user,
@@ -209,6 +265,9 @@ def send_attachments_email(
     subject: str,
     body_text: str,
     attachments: list[dict[str, Any]],
+    report_meta: dict[str, Any] | None = None,
+    html_body: str | None = None,
+    branded: bool = True,
 ) -> Tuple[bool, str]:
     """Send email with one or more attachments (no PDF required)."""
     return _send_report_email(
@@ -216,6 +275,9 @@ def send_attachments_email(
         subject=subject,
         body_text=body_text,
         attachments=attachments,
+        report_meta=report_meta,
+        html_body=html_body,
+        branded=branded,
     )
 
 
@@ -227,6 +289,9 @@ def send_pdf_report_email(
     pdf_bytes: bytes,
     filename: str = "baupass-report.pdf",
     extra_attachments: list[dict[str, Any]] | None = None,
+    report_meta: dict[str, Any] | None = None,
+    html_body: str | None = None,
+    branded: bool = True,
 ) -> Tuple[bool, str]:
     return _send_report_email(
         to=to,
@@ -235,4 +300,7 @@ def send_pdf_report_email(
         pdf_bytes=pdf_bytes,
         pdf_filename=filename,
         attachments=extra_attachments,
+        report_meta=report_meta,
+        html_body=html_body,
+        branded=branded,
     )

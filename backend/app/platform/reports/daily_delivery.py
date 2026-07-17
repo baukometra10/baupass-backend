@@ -109,7 +109,17 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             )
             if extra_attachments:
                 body += "Zusätzlich: DATEV-Lohn-CSV für den aktuellen Monat.\n"
-            body += "\nSUPPIX / Auto-Report"
+            from backend.app.platform.reports.report_email_template import build_report_meta
+
+            report_meta = build_report_meta(
+                report_title="Tagesbericht",
+                report_subtitle="Automatischer Morgen-Report",
+                message=body,
+                company_name=str(company["name"] or ""),
+                period=period,
+                pdf_filename=filename,
+                extra_filenames=[str(a.get("filename") or "") for a in extra_attachments],
+            )
 
             ok, err = send_pdf_report_email(
                 to=recipient,
@@ -118,6 +128,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
                 pdf_bytes=pdf_bytes,
                 filename=filename,
                 extra_attachments=extra_attachments,
+                report_meta=report_meta,
             )
             if ok:
                 company_sent += 1
