@@ -78,7 +78,8 @@
 .worker-voice-call-controls button.primary{background:#00a884}
 .worker-voice-call-controls button.danger{background:#e53935}
 .worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:76px;height:76px;min-width:76px;min-height:76px}
-.worker-voice-call-controls button.is-active{background:rgba(229,57,53,.85)}
+.worker-voice-call-controls button.is-active{background:#f8fafc!important;color:#b91c1c!important;box-shadow:0 0 0 3px rgba(248,113,113,.35)}
+.worker-voice-call-controls button.is-active .wvc-ico{color:#b91c1c}
 #voiceCallVideoGrid{width:min(920px,94vw);margin:.75rem auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;max-height:36vh;overflow:auto}
 .chat-call-log,.worker-chat-call-log{display:inline-flex;align-items:center;gap:.55rem;padding:.45rem .75rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(0,168,132,.22)}
 .chat-call-log-btn,.worker-chat-call-log-btn{margin-top:.35rem;border-radius:999px;padding:.35rem .75rem;border:1px solid rgba(0,168,132,.35);background:rgba(0,168,132,.18);color:#ecfeff;font-size:.75rem;font-weight:600;cursor:pointer}`;
@@ -228,18 +229,25 @@
         });
         return;
       }
+      const btn = document.getElementById("workerVoiceCallMuteBtn");
+      const next = !btn?.classList.contains("is-active");
+      btn?.classList.toggle("is-active", next);
+      return next;
     },
     toggleSpeaker() {
+      let on = true;
       if (session) {
-        const on = session.toggleSpeaker();
-        document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
-        return on;
+        on = session.toggleSpeaker();
+      } else if (conferenceActive && global.SUPPIXConference?.isActive?.()) {
+        on = Boolean(global.SUPPIXConference.toggleSpeaker?.());
+      } else {
+        const btn = document.getElementById("workerVoiceCallSpeakerBtn");
+        const currentlyOff = btn?.classList.contains("is-active");
+        on = Boolean(currentlyOff); // if off → turn on
       }
-      if (conferenceActive && global.SUPPIXConference?.isActive?.()) {
-        const on = global.SUPPIXConference.toggleSpeaker?.();
-        document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
-        return on;
-      }
+      document.getElementById("workerVoiceCallSpeakerBtn")?.classList.toggle("is-active", !on);
+      try { incomingTone?.setOutputEnabled?.(on); } catch (_) { /* ignore */ }
+      return on;
     },
   };
 

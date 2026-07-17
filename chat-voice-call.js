@@ -20,8 +20,9 @@
   }
 
   /**
-   * Messenger-style ring / ringback (Web Audio).
-   * mode: "incoming" = WhatsApp-like bubble melody; "outgoing" = soft waiting motif.
+   * Facebook Messenger–style ring / ringback (Web Audio).
+   * Classic Messenger call ping: F–A–C–E (Fmaj7 / “FACE”) arpeggio.
+   * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
@@ -30,14 +31,22 @@
     let stopped = false;
     let master = null;
     let filter = null;
+    let outputEnabled = true;
 
-    function tone(freqs, start, dur, peak = 0.16, types = ["sine", "triangle"]) {
+    // F4 A4 C5 E5 — Facebook Messenger FACE chord
+    const FACE = [349.23, 440.0, 523.25, 659.25];
+
+    function applyMasterGain() {
+      if (!master) return;
+      master.gain.setTargetAtTime(outputEnabled ? 1 : 0.0001, ctx?.currentTime || 0, 0.02);
+    }
+
+    function tone(freqs, start, dur, peak = 0.18, types = ["sine", "triangle"]) {
       if (!ctx || !master) return;
       const g = ctx.createGain();
-      // Soft “bubble” attack like messenger ringtones
       g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(peak, start + 0.028);
-      g.gain.exponentialRampToValueAtTime(peak * 0.7, start + Math.max(0.06, dur * 0.4));
+      g.gain.exponentialRampToValueAtTime(peak, start + 0.02);
+      g.gain.exponentialRampToValueAtTime(peak * 0.55, start + Math.max(0.05, dur * 0.45));
       g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
       const dest = filter || master;
       g.connect(dest);
@@ -46,7 +55,7 @@
         osc.type = types[i % types.length] || "sine";
         osc.frequency.setValueAtTime(hz, start);
         const og = ctx.createGain();
-        og.gain.value = i === 0 ? 0.92 : 0.28;
+        og.gain.value = i === 0 ? 1 : 0.22;
         osc.connect(og);
         og.connect(g);
         osc.start(start);
@@ -54,24 +63,29 @@
       });
     }
 
+    function playFacePulse(t0, peakScale = 1) {
+      // Two quick F-A-C-E arpeggio pulses (Messenger incoming call ping)
+      FACE.forEach((hz, i) => {
+        tone([hz], t0 + i * 0.11, 0.13, 0.17 * peakScale);
+      });
+      FACE.forEach((hz, i) => {
+        tone([hz], t0 + 0.62 + i * 0.11, 0.13, 0.17 * peakScale);
+      });
+      // Soft resolving chord (FACE together)
+      tone(FACE, t0 + 1.2, 0.38, 0.12 * peakScale, ["sine", "sine", "triangle", "sine"]);
+    }
+
     function playPattern() {
       if (stopped || !ctx) return;
       const t0 = ctx.currentTime + 0.02;
       if (mode === "incoming") {
-        // WhatsApp-inspired ascending marimba / bubble motif
-        // G4 → C5 → E5 → G5 → C6, then a short echo
-        tone([392.0], t0, 0.16, 0.15);
-        tone([523.25], t0 + 0.14, 0.16, 0.17);
-        tone([659.25], t0 + 0.28, 0.16, 0.18);
-        tone([783.99], t0 + 0.42, 0.18, 0.19);
-        tone([1046.5, 783.99], t0 + 0.58, 0.32, 0.2, ["sine", "triangle"]);
-        tone([659.25], t0 + 1.05, 0.14, 0.12);
-        tone([783.99, 1046.5], t0 + 1.2, 0.28, 0.16, ["sine", "sine"]);
+        playFacePulse(t0, 1);
       } else {
-        // Soft messenger ringback: two bright “waiting” chimes
-        tone([880, 1174.66], t0, 0.18, 0.14, ["sine", "sine"]);
-        tone([880, 1174.66], t0 + 0.28, 0.18, 0.14, ["sine", "sine"]);
-        tone([659.25, 987.77], t0 + 0.72, 0.35, 0.12, ["triangle", "sine"]);
+        // Softer ringback while dialing — same FACE DNA, quieter / shorter
+        FACE.forEach((hz, i) => {
+          tone([hz], t0 + i * 0.1, 0.11, 0.12);
+        });
+        tone([FACE[0], FACE[2]], t0 + 0.55, 0.22, 0.1, ["sine", "sine"]);
       }
     }
 
@@ -81,11 +95,11 @@
         try {
           ctx = new (global.AudioContext || global.webkitAudioContext)();
           master = ctx.createGain();
-          master.gain.value = 1;
+          master.gain.value = outputEnabled ? 1 : 0.0001;
           filter = ctx.createBiquadFilter();
           filter.type = "lowpass";
-          filter.frequency.value = mode === "incoming" ? 5200 : 4000;
-          filter.Q.value = 0.85;
+          filter.frequency.value = 5600;
+          filter.Q.value = 0.9;
           filter.connect(master);
           master.connect(ctx.destination);
           const resume = () => {
@@ -94,11 +108,18 @@
           resume();
           global.addEventListener?.("pointerdown", resume, { once: true });
           playPattern();
-          // Incoming: ~2.6s cycle like messenger loops; outgoing: ~2.2s
-          timer = global.setInterval(playPattern, mode === "incoming" ? 2600 : 2200);
+          // Messenger loops ~ every 2.4–2.8s
+          timer = global.setInterval(playPattern, mode === "incoming" ? 2500 : 2200);
         } catch (_) {
           /* ignore */
         }
+      },
+      setOutputEnabled(on) {
+        outputEnabled = Boolean(on);
+        applyMasterGain();
+      },
+      isOutputEnabled() {
+        return outputEnabled;
       },
       stop() {
         stopped = true;
@@ -188,6 +209,12 @@
       return this.muted;
     }
 
+    setMuted(muted) {
+      this.muted = Boolean(muted);
+      this._applyMuteToLocalTracks();
+      return this.muted;
+    }
+
     _applyMuteToLocalTracks() {
       if (!this.localStream) return;
       this.localStream.getAudioTracks().forEach((track) => {
@@ -197,6 +224,12 @@
 
     toggleSpeaker() {
       this.speakerOn = !this.speakerOn;
+      this._applySpeakerToRemoteAudio();
+      return this.speakerOn;
+    }
+
+    setSpeakerOn(on) {
+      this.speakerOn = Boolean(on);
       this._applySpeakerToRemoteAudio();
       return this.speakerOn;
     }

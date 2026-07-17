@@ -564,7 +564,7 @@
       inset: 0;
       z-index: 1300;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
       padding: 0;
       background:
         radial-gradient(ellipse 120% 80% at 50% -10%, rgba(0, 168, 132, 0.22), transparent 55%),
@@ -792,6 +792,16 @@
       margin: 0 auto;
       padding: 1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
       background: linear-gradient(180deg, transparent, rgba(0,0,0,.55));
+      position: relative;
+      z-index: 20;
+      pointer-events: auto;
+    }
+    .voice-call-footer .voice-call-round-btn,
+    .voice-call-footer .voice-call-pill-btn,
+    .voice-call-footer input {
+      pointer-events: auto;
+      position: relative;
+      z-index: 21;
     }
     .voice-call-secure-badge {
       display: inline-flex;
@@ -1066,8 +1076,13 @@
       display: none;
     }
     .voice-call-round-btn.is-active {
-      background: rgba(127, 29, 29, 0.55);
-      border-color: rgba(248, 113, 113, 0.45);
+      background: #f8fafc !important;
+      color: #0f172a !important;
+      border: 2px solid #f87171 !important;
+      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+    }
+    .voice-call-round-btn.is-active .voice-call-btn-icon {
+      color: #b91c1c;
     }
     .voice-call-round-btn.danger {
       background: #e53935;
@@ -1465,13 +1480,13 @@
   <script src="/chat-thread-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
-  <script src="/chat-admin-push.js?v=20260717chat42e"></script>
+  <script src="/chat-admin-push.js?v=20260717chat42f"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260717chat42e"></script>
-  <script src="/chat-voice-call.js?v=20260717chat42e"></script>
-  <script src="/chat-conference.js?v=20260717chat42e"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260717chat42e"></script>
+  <script src="/chat-voice.js?v=20260717chat42f"></script>
+  <script src="/chat-voice-call.js?v=20260717chat42f"></script>
+  <script src="/chat-conference.js?v=20260717chat42f"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260717chat42f"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4124,6 +4139,14 @@
       btn.title = text;
     }
     function resetVoiceCallControls() {
+      if (typeof resetCallControlState === "function") resetCallControlState();
+      else {
+        try {
+          callControlState.muted = false;
+          callControlState.speakerOn = true;
+          callControlState.camOn = false;
+        } catch (_) { /* ignore */ }
+      }
       resetVoiceCallMeters();
       resetVoiceCallLiveWave();
       updateVoiceCallMuteBtn(false);
@@ -4329,6 +4352,7 @@
       try {
         window.__adminIncomingRingtone?.stop?.();
         window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({ mode: "incoming" });
+        window.__adminIncomingRingtone?.setOutputEnabled?.(callControlState.speakerOn !== false);
         window.__adminIncomingRingtone?.start?.();
       } catch (_) { /* ignore */ }
     }
@@ -4399,6 +4423,9 @@
       activeVoiceCallSession = buildAdminVoiceCallSession();
       try {
         await activeVoiceCallSession.startOutgoing({ workerId: currentWorkerId, companyId });
+        syncRingtoneOutput();
+        if (callControlState.muted) activeVoiceCallSession.setMuted?.(true);
+        if (!callControlState.speakerOn) activeVoiceCallSession.setSpeakerOn?.(false);
       } catch (error) {
         if (activeVoiceCallSession) {
           try {
@@ -4425,6 +4452,116 @@
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
     let pendingConferenceConnect = null;
+    const callControlState = { muted: false, speakerOn: true, camOn: false };
+
+    function activeRingtones() {
+      return [window.__conferenceRingtone, window.__adminIncomingRingtone, activeVoiceCallSession?.ringtone].filter(Boolean);
+    }
+
+    function syncRingtoneOutput() {
+      activeRingtones().forEach((tone) => {
+        try { tone.setOutputEnabled?.(callControlState.speakerOn); } catch (_) { /* ignore */ }
+      });
+    }
+
+    function flashCallControlFeedback(message) {
+      const sub = document.getElementById("voiceCallSubtitle");
+      const status = document.getElementById("voiceCallStatus");
+      if (sub) {
+        sub.textContent = message;
+        sub.classList.remove("hidden", "is-error");
+      } else if (status && message) {
+        status.dataset.prev = status.textContent || "";
+        status.textContent = message;
+      }
+    }
+
+    async function applyCallMute(muted) {
+      callControlState.muted = Boolean(muted);
+      updateVoiceCallMuteBtn(callControlState.muted);
+      if (activeVoiceCallSession) {
+        activeVoiceCallSession.setMuted?.(callControlState.muted);
+        if (typeof activeVoiceCallSession.setMuted !== "function") {
+          if (activeVoiceCallSession.muted !== callControlState.muted) activeVoiceCallSession.toggleMute();
+        }
+      }
+      if (window.SUPPIXConference?.isActive?.()) {
+        await window.SUPPIXConference.setMicrophoneEnabled(!callControlState.muted);
+      }
+      flashCallControlFeedback(
+        callControlState.muted
+          ? (window.adminChatT("voiceCallMute") || "Stumm")
+          : (window.adminChatT("voiceCallUnmute") || "Ton an")
+      );
+      return callControlState.muted;
+    }
+
+    async function applyCallSpeaker(on) {
+      callControlState.speakerOn = Boolean(on);
+      updateVoiceCallSpeakerBtn(callControlState.speakerOn);
+      syncRingtoneOutput();
+      if (activeVoiceCallSession) {
+        if (typeof activeVoiceCallSession.setSpeakerOn === "function") {
+          activeVoiceCallSession.setSpeakerOn(callControlState.speakerOn);
+        } else if (activeVoiceCallSession.speakerOn !== callControlState.speakerOn) {
+          activeVoiceCallSession.toggleSpeaker();
+        }
+      }
+      if (window.SUPPIXConference?.isActive?.()) {
+        window.SUPPIXConference.setSpeakerEnabled(callControlState.speakerOn);
+      }
+      const volume = document.getElementById("voiceCallVolume");
+      if (volume && callControlState.speakerOn && Number(volume.value) === 0) volume.value = "100";
+      if (volume && !callControlState.speakerOn) {
+        /* keep slider; audio muted via speaker flag */
+      }
+      flashCallControlFeedback(
+        callControlState.speakerOn
+          ? (window.adminChatT("voiceCallSpeaker") || "Lautsprecher")
+          : (window.adminChatT("voiceCallSpeakerOff") || "Leise")
+      );
+      return callControlState.speakerOn;
+    }
+
+    async function applyCallCamera(on) {
+      callControlState.camOn = Boolean(on);
+      conferenceCamOn = callControlState.camOn;
+      updateVoiceCallCamBtn(callControlState.camOn);
+      if (window.SUPPIXConference?.isActive?.()) {
+        try {
+          await window.SUPPIXConference.setCameraEnabled(callControlState.camOn);
+          callControlState.camOn = Boolean(window.SUPPIXConference.isCameraOn?.());
+          conferenceCamOn = callControlState.camOn;
+          updateVoiceCallCamBtn(callControlState.camOn);
+        } catch (error) {
+          callControlState.camOn = false;
+          conferenceCamOn = false;
+          updateVoiceCallCamBtn(false);
+          flashCallControlFeedback(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")));
+          return false;
+        }
+        flashCallControlFeedback(
+          callControlState.camOn
+            ? (window.adminChatT("voiceCallCamera") || "Kamera")
+            : (window.adminChatT("voiceCallCameraOff") || "Kamera aus")
+        );
+        return callControlState.camOn;
+      }
+      // 1:1 / waiting: still toggle UI so the button clearly reacts
+      flashCallControlFeedback(
+        callControlState.camOn
+          ? (window.adminChatT("voiceCallCameraConferenceOnly") || "Kamera nur in der Konferenz verfügbar.")
+          : (window.adminChatT("voiceCallCameraOff") || "Kamera aus")
+      );
+      return callControlState.camOn;
+    }
+
+    function resetCallControlState() {
+      callControlState.muted = false;
+      callControlState.speakerOn = true;
+      callControlState.camOn = false;
+      conferenceCamOn = false;
+    }
 
     async function connectPendingConference(opts = {}) {
       const payload = opts.payload || pendingConferenceConnect;
@@ -4454,6 +4591,16 @@
       try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
       window.__conferenceRingtone = null;
       pendingConferenceConnect = null;
+      try {
+        await window.SUPPIXConference?.setMicrophoneEnabled?.(!callControlState.muted);
+        window.SUPPIXConference?.setSpeakerEnabled?.(callControlState.speakerOn);
+        if (callControlState.camOn) {
+          await window.SUPPIXConference?.setCameraEnabled?.(true);
+        }
+        updateVoiceCallMuteBtn(callControlState.muted);
+        updateVoiceCallSpeakerBtn(callControlState.speakerOn);
+        updateVoiceCallCamBtn(callControlState.camOn);
+      } catch (_) { /* ignore */ }
       if (statusEl) statusEl.textContent = t("conferenceJoined");
       if (sub) {
         sub.textContent = "";
@@ -4541,6 +4688,7 @@
         try {
           window.__conferenceRingtone?.stop?.();
           window.__conferenceRingtone = window.SUPPIXVoiceCall?.createRingtone?.({ mode: "outgoing" });
+          window.__conferenceRingtone?.setOutputEnabled?.(callControlState.speakerOn);
           window.__conferenceRingtone?.start?.();
         } catch (_) { /* ignore */ }
         try {
@@ -4666,39 +4814,7 @@
     document.getElementById("voiceCallCamBtn")?.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const btn = document.getElementById("voiceCallCamBtn");
-      if (window.SUPPIXConference?.isActive?.()) {
-        try {
-          const next = !Boolean(window.SUPPIXConference.isCameraOn?.());
-          await window.SUPPIXConference.setCameraEnabled(next);
-          conferenceCamOn = Boolean(window.SUPPIXConference.isCameraOn?.());
-          btn?.classList.toggle("is-active", conferenceCamOn);
-          updateVoiceCallCamBtn(conferenceCamOn);
-        } catch (error) {
-          setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")), { dynamic: true });
-          const sub = document.getElementById("voiceCallSubtitle");
-          if (sub) {
-            sub.textContent = String(error?.message || error || window.adminChatT("voiceCallCameraFailed"));
-            sub.classList.remove("hidden");
-          }
-        }
-        return;
-      }
-      if (activeVoiceCallSession) {
-        const msg = window.adminChatT("voiceCallCameraConferenceOnly") || "Kamera nur in der Konferenz verfügbar.";
-        const sub = document.getElementById("voiceCallSubtitle");
-        if (sub) {
-          sub.textContent = msg;
-          sub.classList.remove("hidden");
-        }
-        return;
-      }
-      const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
-      const sub = document.getElementById("voiceCallSubtitle");
-      if (sub) {
-        sub.textContent = waitMsg;
-        sub.classList.remove("hidden");
-      }
+      await applyCallCamera(!callControlState.camOn);
     });
     document.getElementById("voiceCallNoteBtn")?.addEventListener("click", async () => {
       const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
@@ -4836,68 +4952,40 @@
       event.preventDefault();
       event.stopPropagation();
       try {
-        if (activeVoiceCallSession) {
-          const muted = activeVoiceCallSession.toggleMute();
-          updateVoiceCallMuteBtn(muted);
-          return;
-        }
-        if (window.SUPPIXConference?.isActive?.()) {
-          const muted = await window.SUPPIXConference.toggleMute();
-          if (muted == null) return;
-          updateVoiceCallMuteBtn(Boolean(muted));
-          return;
-        }
-        const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
-        const sub = document.getElementById("voiceCallSubtitle");
-        if (sub) {
-          sub.textContent = waitMsg;
-          sub.classList.remove("hidden");
-        }
+        await applyCallMute(!callControlState.muted);
       } catch (error) {
         console.warn("[voice-call] mute failed", error);
+        flashCallControlFeedback(String(error?.message || error || "mute_failed"));
       }
     });
-    document.getElementById("voiceCallSpeakerBtn")?.addEventListener("click", (event) => {
+    document.getElementById("voiceCallSpeakerBtn")?.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
       try {
-        if (activeVoiceCallSession) {
-          const on = activeVoiceCallSession.toggleSpeaker();
-          updateVoiceCallSpeakerBtn(on);
-          const volume = document.getElementById("voiceCallVolume");
-          if (volume && on) volume.value = String(Math.round((activeVoiceCallSession.outputVolume || 1) * 100) || 100);
-          return;
-        }
-        if (window.SUPPIXConference?.isActive?.()) {
-          const on = window.SUPPIXConference.toggleSpeaker();
-          updateVoiceCallSpeakerBtn(Boolean(on));
-          return;
-        }
-        const waitMsg = window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.";
-        const sub = document.getElementById("voiceCallSubtitle");
-        if (sub) {
-          sub.textContent = waitMsg;
-          sub.classList.remove("hidden");
-        }
+        await applyCallSpeaker(!callControlState.speakerOn);
       } catch (error) {
         console.warn("[voice-call] speaker failed", error);
+        flashCallControlFeedback(String(error?.message || error || "speaker_failed"));
       }
     });
     document.getElementById("voiceCallVolume")?.addEventListener("input", (event) => {
       const value = Number(event.target.value);
-      if (activeVoiceCallSession) {
-        activeVoiceCallSession.setOutputVolume(value / 100);
-        updateVoiceCallSpeakerBtn(activeVoiceCallSession.speakerOn && value > 0);
+      if (value <= 0 && callControlState.speakerOn) {
+        void applyCallSpeaker(false);
         return;
       }
+      if (value > 0 && !callControlState.speakerOn) {
+        void applyCallSpeaker(true);
+      }
+      if (activeVoiceCallSession) {
+        activeVoiceCallSession.setOutputVolume(value / 100);
+      }
       if (window.SUPPIXConference?.isActive?.()) {
-        const on = value > 0;
-        window.SUPPIXConference.setSpeakerEnabled(on);
         document.querySelectorAll("audio[data-identity]").forEach((audio) => {
           audio.volume = Math.max(0, Math.min(1, value / 100));
         });
-        updateVoiceCallSpeakerBtn(on);
       }
+      syncRingtoneOutput();
     });
 
     syncAdminComposeAction();
