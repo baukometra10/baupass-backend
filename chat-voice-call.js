@@ -20,72 +20,84 @@
   }
 
   /**
-   * Facebook Messenger–style ring / ringback (Web Audio).
-   * Classic Messenger call ping: F–A–C–E (Fmaj7 / “FACE”) arpeggio.
+   * Call ringtone from project asset (Freesound phone-call sample).
+   * Falls back to a short Web Audio FACE motif if the MP3 cannot play.
    * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
-    let ctx = null;
-    let timer = null;
+    const src =
+      String(options.src || global.SUPPIX_CALL_RINGTONE_URL || "/sounds/phone-call-ring.mp3").trim()
+      || "/sounds/phone-call-ring.mp3";
+    let audio = null;
     let stopped = false;
-    let master = null;
-    let filter = null;
     let outputEnabled = true;
+    let fallbackTimer = null;
+    let fallbackCtx = null;
+    let fallbackMaster = null;
 
-    // F4 A4 C5 E5 — Facebook Messenger FACE chord
-    const FACE = [349.23, 440.0, 523.25, 659.25];
-
-    function applyMasterGain() {
-      if (!master) return;
-      master.gain.setTargetAtTime(outputEnabled ? 1 : 0.0001, ctx?.currentTime || 0, 0.02);
+    function targetVolume() {
+      if (!outputEnabled) return 0;
+      return mode === "outgoing" ? 0.82 : 1;
     }
 
-    function tone(freqs, start, dur, peak = 0.18, types = ["sine", "triangle"]) {
-      if (!ctx || !master) return;
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, start);
-      g.gain.exponentialRampToValueAtTime(peak, start + 0.02);
-      g.gain.exponentialRampToValueAtTime(peak * 0.55, start + Math.max(0.05, dur * 0.45));
-      g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
-      const dest = filter || master;
-      g.connect(dest);
-      freqs.forEach((hz, i) => {
-        const osc = ctx.createOscillator();
-        osc.type = types[i % types.length] || "sine";
-        osc.frequency.setValueAtTime(hz, start);
-        const og = ctx.createGain();
-        og.gain.value = i === 0 ? 1 : 0.22;
-        osc.connect(og);
-        og.connect(g);
-        osc.start(start);
-        osc.stop(start + dur + 0.02);
-      });
+    function applyOutput() {
+      if (!audio) return;
+      audio.muted = !outputEnabled;
+      audio.volume = targetVolume();
+      if (fallbackMaster) {
+        try {
+          fallbackMaster.gain.value = outputEnabled ? 0.7 : 0.0001;
+        } catch (_) {
+          /* ignore */
+        }
+      }
     }
 
-    function playFacePulse(t0, peakScale = 1) {
-      // Two quick F-A-C-E arpeggio pulses (Messenger incoming call ping)
-      FACE.forEach((hz, i) => {
-        tone([hz], t0 + i * 0.11, 0.13, 0.17 * peakScale);
-      });
-      FACE.forEach((hz, i) => {
-        tone([hz], t0 + 0.62 + i * 0.11, 0.13, 0.17 * peakScale);
-      });
-      // Soft resolving chord (FACE together)
-      tone(FACE, t0 + 1.2, 0.38, 0.12 * peakScale, ["sine", "sine", "triangle", "sine"]);
+    function stopFallback() {
+      if (fallbackTimer) {
+        global.clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+      if (fallbackCtx) {
+        fallbackCtx.close().catch(() => {});
+        fallbackCtx = null;
+      }
+      fallbackMaster = null;
     }
 
-    function playPattern() {
-      if (stopped || !ctx) return;
-      const t0 = ctx.currentTime + 0.02;
-      if (mode === "incoming") {
-        playFacePulse(t0, 1);
-      } else {
-        // Softer ringback while dialing — same FACE DNA, quieter / shorter
-        FACE.forEach((hz, i) => {
-          tone([hz], t0 + i * 0.1, 0.11, 0.12);
-        });
-        tone([FACE[0], FACE[2]], t0 + 0.55, 0.22, 0.1, ["sine", "sine"]);
+    function startFallbackSynth() {
+      if (stopped || fallbackCtx) return;
+      try {
+        const ctx = new (global.AudioContext || global.webkitAudioContext)();
+        fallbackCtx = ctx;
+        const FACE = [349.23, 440.0, 523.25, 659.25];
+        const master = ctx.createGain();
+        fallbackMaster = master;
+        master.gain.value = outputEnabled ? 0.7 : 0.0001;
+        master.connect(ctx.destination);
+        const beep = () => {
+          if (stopped || !fallbackCtx) return;
+          const t0 = ctx.currentTime + 0.02;
+          FACE.forEach((hz, i) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = hz;
+            g.gain.setValueAtTime(0.0001, t0 + i * 0.1);
+            g.gain.exponentialRampToValueAtTime(0.14, t0 + i * 0.1 + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.1 + 0.12);
+            osc.connect(g);
+            g.connect(master);
+            osc.start(t0 + i * 0.1);
+            osc.stop(t0 + i * 0.1 + 0.14);
+          });
+        };
+        if (ctx.state === "suspended") void ctx.resume();
+        beep();
+        fallbackTimer = global.setInterval(beep, 2400);
+      } catch (_) {
+        /* ignore */
       }
     }
 
@@ -93,44 +105,46 @@
       start() {
         if (stopped) return;
         try {
-          ctx = new (global.AudioContext || global.webkitAudioContext)();
-          master = ctx.createGain();
-          master.gain.value = outputEnabled ? 1 : 0.0001;
-          filter = ctx.createBiquadFilter();
-          filter.type = "lowpass";
-          filter.frequency.value = 5600;
-          filter.Q.value = 0.9;
-          filter.connect(master);
-          master.connect(ctx.destination);
-          const resume = () => {
-            if (ctx?.state === "suspended") void ctx.resume();
-          };
-          resume();
-          global.addEventListener?.("pointerdown", resume, { once: true });
-          playPattern();
-          // Messenger loops ~ every 2.4–2.8s
-          timer = global.setInterval(playPattern, mode === "incoming" ? 2500 : 2200);
+          audio = new global.Audio();
+          audio.preload = "auto";
+          audio.loop = true;
+          audio.playsInline = true;
+          audio.setAttribute("playsinline", "true");
+          audio.src = src.includes("?") ? src : `${src}?v=20260717chat42g`;
+          applyOutput();
+          const playPromise = audio.play();
+          if (playPromise && typeof playPromise.then === "function") {
+            playPromise.catch(() => {
+              if (!stopped) startFallbackSynth();
+            });
+          }
+          audio.addEventListener("error", () => {
+            if (!stopped) startFallbackSynth();
+          }, { once: true });
         } catch (_) {
-          /* ignore */
+          startFallbackSynth();
         }
       },
       setOutputEnabled(on) {
         outputEnabled = Boolean(on);
-        applyMasterGain();
+        applyOutput();
       },
       isOutputEnabled() {
         return outputEnabled;
       },
       stop() {
         stopped = true;
-        if (timer) global.clearInterval(timer);
-        timer = null;
-        if (ctx) {
-          ctx.close().catch(() => {});
-          ctx = null;
+        stopFallback();
+        if (audio) {
+          try {
+            audio.pause();
+            audio.removeAttribute("src");
+            audio.load();
+          } catch (_) {
+            /* ignore */
+          }
+          audio = null;
         }
-        master = null;
-        filter = null;
       },
     };
   }

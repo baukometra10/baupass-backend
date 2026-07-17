@@ -1,10 +1,10 @@
 {
-  "build": "20260717chat42f",
+  "build": "20260717chat42g",
   "kind": "hybrid_flutter",
   "entry": "/join.html",
   "launcher": "/join.html?launch=1",
   "legacyPwa": "/emp-app.html",
-  "manifest": "/emp-app-manifest.json?v=20260717chat42f",
+  "manifest": "/emp-app-manifest.json?v=20260717chat42g",
   "mobileSetup": "/api/worker-app/mobile-setup",
   "joinConfig": "/worker-join-config.json",
   "recommended": "native",
