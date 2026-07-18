@@ -21,17 +21,24 @@
 
   /**
    * Call ringtone from project asset (Freesound phone-call sample).
-   * Falls back to a short Web Audio FACE motif if the MP3 cannot play.
+   * Plays a full ~12s cycle through, pauses briefly, then repeats until stop().
+   * Falls back to a short Web Audio motif if the MP3 cannot play.
    * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
+    // Long cycle (~12s) so the ring does not cut mid-phrase; short clip is fallback only.
     const src =
-      String(options.src || global.SUPPIX_CALL_RINGTONE_URL || "/sounds/phone-call-ring.mp3").trim()
-      || "/sounds/phone-call-ring.mp3";
+      String(
+        options.src
+        || global.SUPPIX_CALL_RINGTONE_URL
+        || "/sounds/phone-call-ring-cycle.mp3"
+      ).trim() || "/sounds/phone-call-ring-cycle.mp3";
+    const pauseMs = Math.max(500, Number(options.pauseMs) || (mode === "outgoing" ? 2800 : 2200));
     let audio = null;
     let stopped = false;
     let outputEnabled = true;
+    let pauseTimer = null;
     let fallbackTimer = null;
     let fallbackCtx = null;
     let fallbackMaster = null;
@@ -54,8 +61,16 @@
       }
     }
 
+    function clearPauseTimer() {
+      if (pauseTimer) {
+        global.clearTimeout(pauseTimer);
+        pauseTimer = null;
+      }
+    }
+
     function stopFallback() {
       if (fallbackTimer) {
+        global.clearTimeout(fallbackTimer);
         global.clearInterval(fallbackTimer);
         fallbackTimer = null;
       }
@@ -64,6 +79,22 @@
         fallbackCtx = null;
       }
       fallbackMaster = null;
+    }
+
+    function scheduleNextCycle() {
+      clearPauseTimer();
+      if (stopped) return;
+      pauseTimer = global.setTimeout(() => {
+        pauseTimer = null;
+        if (stopped || !audio) return;
+        try {
+          audio.currentTime = 0;
+          const p = audio.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        } catch (_) {
+          /* ignore */
+        }
+      }, pauseMs);
     }
 
     function startFallbackSynth() {
@@ -94,8 +125,20 @@
           });
         };
         if (ctx.state === "suspended") void ctx.resume();
-        beep();
-        fallbackTimer = global.setInterval(beep, 2400);
+        // Play a longer synth burst (~12s of motif), then pause, like the MP3 cycle
+        let burstCount = 0;
+        const burst = () => {
+          if (stopped || !fallbackCtx) return;
+          beep();
+          burstCount += 1;
+          if (burstCount < 10) {
+            fallbackTimer = global.setTimeout(burst, 1200);
+          } else {
+            burstCount = 0;
+            fallbackTimer = global.setTimeout(burst, pauseMs + 200);
+          }
+        };
+        burst();
       } catch (_) {
         /* ignore */
       }
@@ -107,11 +150,14 @@
         try {
           audio = new global.Audio();
           audio.preload = "auto";
-          audio.loop = true;
+          audio.loop = false; // full cycle must finish; we restart after a pause
           audio.playsInline = true;
           audio.setAttribute("playsinline", "true");
-          audio.src = src.includes("?") ? src : `${src}?v=20260717chat42g`;
+          audio.src = src.includes("?") ? src : `${src}?v=20260717chat42h`;
           applyOutput();
+          audio.addEventListener("ended", () => {
+            if (!stopped) scheduleNextCycle();
+          });
           const playPromise = audio.play();
           if (playPromise && typeof playPromise.then === "function") {
             playPromise.catch(() => {
@@ -134,6 +180,7 @@
       },
       stop() {
         stopped = true;
+        clearPauseTimer();
         stopFallback();
         if (audio) {
           try {
