@@ -13386,24 +13386,102 @@ def _qr_png_response(payload_text):
     return Response(buf.getvalue(), mimetype="image/png", headers={"Cache-Control": "no-store"})
 
 
+def _resolve_worker_apk_url() -> str:
+    """Public APK URL for Android sideload (Railway / GitHub Release / CDN)."""
+    for key in (
+        "BAUPASS_WORKER_APK_URL",
+        "SUPPIX_WORKER_APK_URL",
+        "BAUPASS_ANDROID_APK_URL",
+        "SUPPIX_ANDROID_APK_URL",
+    ):
+        value = (os.getenv(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def worker_join_config_public():
     """Public distribution URLs for join.html (hybrid Flutter app first)."""
     from backend.app.domains.workers.mobile_distribution import build_mobile_distribution
 
     install = build_mobile_distribution(get_public_base_url()).get("install") or {}
+    apk_url = _resolve_worker_apk_url() or (install.get("apkUrl") or "").strip()
+    # Prefer same-origin proxy on Android — avoids broken cross-origin downloads.
+    apk_download = f"{get_public_base_url().rstrip('/')}/api/public/worker-apk" if apk_url else ""
     return jsonify(
         {
             "workerAppKind": "hybrid_native",
             "primaryChannel": "flutter_fcm",
             "pwaFallbackOnly": True,
-            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or install.get("apkUrl") or "").strip(),
-            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or install.get("testFlightUrl") or "").strip(),
-            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or install.get("playStoreUrl") or "").strip(),
-            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or install.get("appStoreUrl") or "").strip(),
+            "apkUrl": apk_url,
+            "apkDownloadUrl": apk_download or apk_url,
+            "apkConfigured": bool(apk_url),
+            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or os.getenv("SUPPIX_TESTFLIGHT_URL") or install.get("testFlightUrl") or "").strip(),
+            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or os.getenv("SUPPIX_PLAY_STORE_URL") or install.get("playStoreUrl") or "").strip(),
+            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or os.getenv("SUPPIX_APP_STORE_URL") or install.get("appStoreUrl") or "").strip(),
             "joinPage": install.get("joinPage") or f"{get_public_base_url()}/join.html",
             "deepLinkScheme": "baupass://join",
         }
     )
+
+
+def public_worker_apk_download():
+    """
+    Same-origin APK download for Android Chrome.
+    Proxies BAUPASS_WORKER_APK_URL with correct Content-Type / Disposition.
+    """
+    import urllib.error
+    import urllib.request
+
+    source = _resolve_worker_apk_url()
+    if not source:
+        return jsonify({
+            "error": "apk_not_configured",
+            "message": "BAUPASS_WORKER_APK_URL (oder SUPPIX_WORKER_APK_URL) fehlt auf dem Server.",
+        }), 404
+    if not (source.startswith("https://") or source.startswith("http://")):
+        return jsonify({"error": "apk_url_invalid"}), 400
+    try:
+        req = urllib.request.Request(
+            source,
+            headers={
+                "User-Agent": "SUPPIX-Worker-APK-Proxy/1.0",
+                "Accept": "*/*",
+            },
+            method="GET",
+        )
+        with urllib.request.urlopen(req, timeout=90) as upstream:
+            data = upstream.read()
+            upstream_type = (upstream.headers.get("Content-Type") or "").split(";")[0].strip()
+    except urllib.error.HTTPError as err:
+        return jsonify({
+            "error": "apk_upstream_http",
+            "status": int(getattr(err, "code", 0) or 0),
+            "message": "APK-Server antwortet mit Fehler — Release-URL prüfen.",
+        }), 502
+    except Exception as err:
+        return jsonify({
+            "error": "apk_upstream_failed",
+            "message": f"APK konnte nicht geladen werden: {err}",
+        }), 502
+    if not data or len(data) < 1024:
+        return jsonify({"error": "apk_empty", "message": "APK-Datei ist leer oder zu klein."}), 502
+    # Reject HTML error pages mistaken for APKs
+    head = data[:200].lstrip().lower()
+    if head.startswith(b"<!doctype") or head.startswith(b"<html"):
+        return jsonify({
+            "error": "apk_not_binary",
+            "message": "Download-URL liefert HTML statt APK (Login/404-Seite?).",
+        }), 502
+    mime = "application/vnd.android.package-archive"
+    if upstream_type and "html" not in upstream_type and "json" not in upstream_type:
+        mime = upstream_type
+    response = Response(data, mimetype=mime)
+    response.headers["Content-Disposition"] = 'attachment; filename="suppix-worker.apk"'
+    response.headers["Content-Length"] = str(len(data))
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 
 def _public_host_from_base() -> str:

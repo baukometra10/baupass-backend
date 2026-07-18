@@ -34,7 +34,7 @@
         || global.SUPPIX_CALL_RINGTONE_URL
         || "/sounds/phone-call-ring-cycle.mp3"
       ).trim() || "/sounds/phone-call-ring-cycle.mp3";
-    const pauseMs = Math.max(500, Number(options.pauseMs) || (mode === "outgoing" ? 2800 : 2200));
+    const pauseMs = Math.max(400, Number(options.pauseMs) || (mode === "outgoing" ? 1200 : 900));
     let audio = null;
     let stopped = false;
     let outputEnabled = true;
@@ -153,7 +153,7 @@
           audio.loop = false; // full cycle must finish; we restart after a pause
           audio.playsInline = true;
           audio.setAttribute("playsinline", "true");
-          audio.src = src.includes("?") ? src : `${src}?v=20260717chat42h`;
+          audio.src = src.includes("?") ? src : `${src}?v=20260718chat42i`;
           applyOutput();
           audio.addEventListener("ended", () => {
             if (!stopped) scheduleNextCycle();

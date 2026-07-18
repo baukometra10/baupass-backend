@@ -1,7 +1,7 @@
 # Call sounds
 
-- `phone-call-ring.mp3` — original short Freesound community sample
-  (`freesound_community-phone-call-14472.mp3`, ~1.1s).
-- `phone-call-ring-cycle.mp3` — ~12s continuous ring built from the sample
-  (soft fade in/out). Played fully, then a short pause, then repeated until
-  hangup / answer.
+- `phone-call-ring.mp3` — classic US dual-tone burst (440 Hz + 480 Hz, ~2s).
+- `phone-call-ring-cycle.mp3` — ~12s phone cadence (2s ring / 4s silence × 2),
+  then a short pause and repeat until hangup/answer.
+
+Generated with ffmpeg (clean sine tones), not the short Freesound clip.

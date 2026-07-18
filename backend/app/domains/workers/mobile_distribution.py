@@ -67,7 +67,7 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
             "pwaLauncher": f"{base}{launcher}?v={build_tag}",
             "pwaEntry": f"{base}{entry}?worker=1&v={build_tag}",
             "joinPage": f"{base}/join.html",
-            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or "").strip(),
+            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or os.getenv("SUPPIX_WORKER_APK_URL") or "").strip(),
             "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip(),
             "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or "").strip(),
             "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or "").strip(),
