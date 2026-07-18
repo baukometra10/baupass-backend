@@ -627,7 +627,7 @@ REQUEST_RATE_LIMITS = {
     "import": {"max": 10, "window_seconds": 60},
     "login": _rate_limit_rule("BAUPASS_LOGIN_RATE_MAX", 120),
     "company_create": _rate_limit_rule("BAUPASS_COMPANY_CREATE_RATE_MAX", 20),
-    "worker_login": _rate_limit_rule("BAUPASS_WORKER_LOGIN_RATE_MAX", 60),
+    "worker_login": _rate_limit_rule("BAUPASS_WORKER_LOGIN_RATE_MAX", 120),
     "worker_api": {"max": 180, "window_seconds": 60},
     "worker_api_auth_fail": {"max": 25, "window_seconds": 60},
     "password_reset": {"max": 5, "window_seconds": 300},
@@ -1451,7 +1451,14 @@ def require_rate_limit(scope):
         def wrapper(*args, **kwargs):
             allowed, retry_after = check_rate_limit(scope)
             if not allowed:
-                return jsonify({"error": "rate_limited", "retryAfterSeconds": retry_after}), 429
+                retry_seconds = max(1, int(retry_after or 1))
+                return jsonify({
+                    "error": "rate_limited",
+                    "retryAfterSeconds": retry_seconds,
+                    "message": (
+                        f"Zu viele Anmeldeversuche. Bitte in {retry_seconds} Sekunden erneut versuchen."
+                    ),
+                }), 429
             return handler(*args, **kwargs)
 
         return wrapper

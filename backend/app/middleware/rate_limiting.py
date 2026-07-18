@@ -305,7 +305,9 @@ def register_rate_limit_middleware(app: Flask) -> None:
             )
             response = jsonify({
                 "error": "rate_limited",
-                "message": "Too many requests. Please try again later.",
+                "message": (
+                    f"Zu viele Anfragen. Bitte in {max(1, int(retry_after or 1))} Sekunden erneut versuchen."
+                ),
                 "retryAfterSeconds": retry_after,
             })
             response.headers["Retry-After"] = str(retry_after)
@@ -323,6 +325,12 @@ def _detect_scope(path: str, method: str) -> str:
         return "auth_login"
     if "/api/auth/login" in path or "/api/worker-app/auth" in path:
         return "auth_login"
+    if path in {
+        "/api/worker-app/login",
+        "/api/worker-app/join-preview",
+        "/api/worker-app/activate",
+    }:
+        return "worker_login"
     if "/api/gate/" in path or "/api/scan" in path:
         return "gate_api"
     if "/api/worker-app/" in path:

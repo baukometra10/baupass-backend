@@ -77,6 +77,8 @@ class BaseConfig:
         "ai_api":               (120,  60),   # transcribe + stream + speak per voice turn
         "auth_login":           (30,   300),  # 30 login/OTP steps per 5 min (2FA needs multiple POSTs)
         "auth_login_fail":      (10,   900),  # 10 فشل / 15 دقيقة ثم lockout
+        "worker_login":         (120,  60),   # join-preview + login retries (QR/manual)
+        "password_reset":       (5,    300),
         "worker_api":           (120,  60),   # 120 req/min للعمال
         "worker_api_auth_fail": (5,    300),
         "admin_api":            (200,  60),

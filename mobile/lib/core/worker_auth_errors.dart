@@ -23,6 +23,13 @@ String formatWorkerAuthError(ApiException error) {
   switch (code) {
     case 'network_error':
       return 'Keine Verbindung zum Server — Internet prüfen.';
+    case 'rate_limited':
+      final retry = error.payload?['retryAfterSeconds'];
+      final seconds = retry is num ? retry.toInt() : int.tryParse('$retry') ?? 0;
+      if (seconds > 0) {
+        return 'Zu viele Anmeldeversuche — bitte in $seconds Sekunden erneut versuchen.';
+      }
+      return 'Zu viele Anmeldeversuche — kurz warten und erneut versuchen.';
     case 'access_token_already_used':
       return 'Einmal-Link bereits verwendet — bitte Badge-ID und PIN eingeben.';
     case 'invalid_access_token':

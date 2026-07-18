@@ -17,13 +17,15 @@ from flask import Flask
 logger = logging.getLogger("baupass.bootstrap")
 
 # Maps server.py rate-limit scope names to shared limiter scope keys.
+# Keep worker_login / password_reset separate from auth_login — merging them
+# caused password_reset's (5 / 300s) to overwrite the login bucket and 429 workers.
 LEGACY_RATE_SCOPE_MAP: dict[str, str] = {
     "import": "admin_api",
     "login": "auth_login",
-    "worker_login": "auth_login",
+    "worker_login": "worker_login",
     "worker_api": "worker_api",
     "worker_api_auth_fail": "worker_api_auth_fail",
-    "password_reset": "auth_login",
+    "password_reset": "password_reset",
 }
 
 
@@ -60,8 +62,17 @@ def build_rate_limit_scopes(legacy_limits: dict[str, dict[str, int]]) -> dict[st
         mapped = LEGACY_RATE_SCOPE_MAP.get(legacy_scope, legacy_scope)
         max_req = int(rule.get("max") or 0)
         window = int(rule.get("window_seconds") or 60)
-        if max_req > 0 and window > 0:
-            scopes[mapped] = (max_req, window)
+        if max_req <= 0 or window <= 0:
+            continue
+        existing = scopes.get(mapped)
+        # If multiple legacy scopes map to one key, keep the more permissive limit.
+        if existing is not None:
+            prev_max, prev_window = existing
+            rate_new = max_req / float(window)
+            rate_old = prev_max / float(prev_window) if prev_window else 0.0
+            if rate_new < rate_old:
+                continue
+        scopes[mapped] = (max_req, window)
     return scopes
 
 
