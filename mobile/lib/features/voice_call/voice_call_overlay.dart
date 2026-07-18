@@ -72,6 +72,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   Future<void> _disposeRenderer() async {
     final renderer = _remoteRenderer;
     _remoteRenderer = null;
+    _remoteRendererReady = false;
     if (renderer == null) return;
     await renderer.dispose();
   }
