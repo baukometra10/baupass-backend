@@ -1496,7 +1496,90 @@ class CompaniesService:
 
         from backend.app.platform.physical_operations._common import pair_presence_sessions
         from backend.app.platform.reports.schedule import resolve_company_timezone
-        from backend.server import get_effective_work_start_time
+        from backend.app.platform.workforce.attendance_eligibility import (
+            is_real_deployment_location,
+        )
+        from backend.app.platform.workforce.deployment_store import list_deployment_days
+        from backend.server import get_effective_work_end_time, get_effective_work_start_time
+
+        def _hhmm(value: Any) -> str:
+            raw = str(value or "").strip()
+            if not raw:
+                return ""
+            if "T" in raw and len(raw) >= 16:
+                return raw[11:16]
+            if ":" in raw:
+                return raw[:5]
+            return ""
+
+        year = int(month_prefix[:4])
+        month = int(month_prefix[5:7])
+        shift_by_day: dict[str, dict[str, str]] = {}
+        for row in list_deployment_days(
+            db, company_id=company_id, worker_id=worker_id, year=year, month=month
+        ):
+            work_date = str(row.get("work_date") or "")[:10]
+            if not work_date:
+                continue
+            location = str(row.get("location_label") or "").strip()
+            start_hm = _hhmm(row.get("shift_start"))
+            end_hm = _hhmm(row.get("shift_end"))
+            if not is_real_deployment_location(location):
+                shift_by_day[work_date] = {
+                    "shiftStart": "",
+                    "shiftEnd": "",
+                    "shiftSource": "free",
+                    "location": location,
+                }
+                continue
+            if start_hm or end_hm:
+                shift_by_day[work_date] = {
+                    "shiftStart": start_hm,
+                    "shiftEnd": end_hm,
+                    "shiftSource": "deployment",
+                    "location": location,
+                }
+
+        # Fallback: shift_assignments for days without Einsatzplan times
+        missing_days = [day for day in by_day if day not in shift_by_day or not shift_by_day[day].get("shiftStart")]
+        if missing_days:
+            try:
+                start_bound, end_bound = f"{month_prefix}-01", f"{month_prefix}-31"
+                assignment_rows = db.execute(
+                    """
+                    SELECT start_time, end_time, site
+                    FROM shift_assignments
+                    WHERE company_id = ? AND worker_id = ? AND status != 'cancelled'
+                      AND date(start_time) >= ? AND date(start_time) <= ?
+                    ORDER BY start_time ASC
+                    """,
+                    (company_id, worker_id, start_bound, end_bound),
+                ).fetchall()
+                for row in assignment_rows:
+                    work_date = str(row["start_time"] or "")[:10]
+                    if not work_date or work_date not in missing_days:
+                        continue
+                    existing = shift_by_day.get(work_date) or {}
+                    if existing.get("shiftStart") and existing.get("shiftEnd"):
+                        continue
+                    start_hm = _hhmm(row["start_time"])
+                    end_hm = _hhmm(row["end_time"])
+                    if start_hm or end_hm:
+                        shift_by_day[work_date] = {
+                            "shiftStart": start_hm,
+                            "shiftEnd": end_hm,
+                            "shiftSource": "shift_assignment",
+                            "location": str(row["site"] or "").strip(),
+                        }
+            except Exception:
+                pass
+
+        work_start = get_effective_work_start_time(db, worker_id)
+        work_end = get_effective_work_end_time(db, worker_id)
+        has_per_day_shifts = any(
+            bool(entry.get("shiftStart") and entry.get("shiftEnd"))
+            for entry in shift_by_day.values()
+        )
 
         days = []
         for day, events in by_day.items():
@@ -1506,19 +1589,18 @@ class CompaniesService:
                 for session in sessions
                 if isinstance(session.get("durationMinutes"), int)
             )
-            days.append({"date": day, "sessions": sessions, "dayMinutes": day_minutes})
-
-        work_start = get_effective_work_start_time(db, worker_id)
-        company_row = db.execute(
-            "SELECT work_end_time FROM companies WHERE id = ?",
-            (company_id,),
-        ).fetchone()
-        settings_row = db.execute(
-            "SELECT work_end_time FROM settings WHERE id = 1"
-        ).fetchone()
-        work_end = str(company_row["work_end_time"] or "").strip() if company_row else ""
-        if not work_end and settings_row:
-            work_end = str(settings_row["work_end_time"] or "").strip()
+            planned = shift_by_day.get(day) or {}
+            days.append(
+                {
+                    "date": day,
+                    "sessions": sessions,
+                    "dayMinutes": day_minutes,
+                    "shiftStart": planned.get("shiftStart") or "",
+                    "shiftEnd": planned.get("shiftEnd") or "",
+                    "shiftSource": planned.get("shiftSource") or "",
+                    "location": planned.get("location") or "",
+                }
+            )
 
         return {
             "body": {
@@ -1529,6 +1611,7 @@ class CompaniesService:
                 "badgeId": worker.get("badge_id") or "",
                 "workStartTime": work_start,
                 "workEndTime": work_end,
+                "hasPerDayShifts": has_per_day_shifts,
                 "timezone": resolve_company_timezone(db, company_id),
                 "days": days,
             }

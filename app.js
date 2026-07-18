@@ -24259,7 +24259,7 @@ function formatMinutesToHm(totalMinutes) {
   return `${h}h ${String(m).padStart(2, "0")}min`;
 }
 
-function getWorkerWorkTimeWindow(worker, timelinePayload = null) {
+function getCompanyFallbackWorkTimeWindow(worker, timelinePayload = null) {
   const company = state.companies.find((entry) => String(entry?.id || "") === String(worker?.companyId || worker?.company_id || "")) || null;
   const startCandidates = [
     timelinePayload?.workStartTime,
@@ -24291,30 +24291,53 @@ function getWorkerWorkTimeWindow(worker, timelinePayload = null) {
       break;
     }
   }
-  const usedDefault = !startRaw || !endRaw;
-  if (!startRaw) startRaw = "08:00";
-  if (!endRaw) endRaw = "17:00";
   return {
     start: parseHmToMinutes(startRaw),
     end: parseHmToMinutes(endRaw),
     startLabel: startRaw,
     endLabel: endRaw,
-    usedDefault,
+    configured: Boolean(startRaw && endRaw),
     timezone: String(timelinePayload?.timezone || company?.reportTimezone || company?.report_timezone || "Europe/Berlin").trim() || "Europe/Berlin",
   };
 }
 
+function resolveDayWorkTimeWindow(dayEntry, companyFallback) {
+  const dayStart = String(dayEntry?.shiftStart || "").trim().slice(0, 5);
+  const dayEnd = String(dayEntry?.shiftEnd || "").trim().slice(0, 5);
+  const dayStartMin = parseHmToMinutes(dayStart);
+  const dayEndMin = parseHmToMinutes(dayEnd);
+  if (dayStartMin != null && dayEndMin != null) {
+    return {
+      start: dayStartMin,
+      end: dayEndMin,
+      startLabel: dayStart,
+      endLabel: dayEnd,
+      source: String(dayEntry?.shiftSource || "deployment"),
+    };
+  }
+  if (companyFallback?.configured) {
+    return {
+      start: companyFallback.start,
+      end: companyFallback.end,
+      startLabel: companyFallback.startLabel,
+      endLabel: companyFallback.endLabel,
+      source: "company",
+    };
+  }
+  return null;
+}
+
 function renderWorkerInsightsPanelHtml(result) {
   if (!elements.workerInsightsPanel) return;
-  const { workerName, monthKey, totalMinutes, lateDays, earlyLeaveDays, startLabel, endLabel, note } = result;
+  const { workerName, monthKey, totalMinutes, lateDays, earlyLeaveDays, windowLabel, note } = result;
   const lateTable = lateDays.length
     ? `
       <table class="worker-insights-table">
         <thead>
-          <tr><th>Datum</th><th>Minuten</th></tr>
+          <tr><th>Datum</th><th>Soll</th><th>Minuten</th></tr>
         </thead>
         <tbody>
-          ${lateDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+          ${lateDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
         </tbody>
       </table>
     `
@@ -24323,10 +24346,10 @@ function renderWorkerInsightsPanelHtml(result) {
     ? `
       <table class="worker-insights-table">
         <thead>
-          <tr><th>Datum</th><th>Minuten</th></tr>
+          <tr><th>Datum</th><th>Soll</th><th>Minuten</th></tr>
         </thead>
         <tbody>
-          ${earlyLeaveDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+          ${earlyLeaveDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
         </tbody>
       </table>
     `
@@ -24354,7 +24377,7 @@ function renderWorkerInsightsPanelHtml(result) {
         </div>
       </div>
     </div>
-    <p class="helper-text worker-insights-window">${escapeHtml(runtimeText("workerInsightsTimeWindow"))}: ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</p>
+    <p class="helper-text worker-insights-window">${escapeHtml(runtimeText("workerInsightsTimeWindow"))}: ${escapeHtml(windowLabel || runtimeText("workerInsightsNotSet"))}</p>
     ${note ? `<p class="helper-text worker-insights-note">${escapeHtml(note)}</p>` : ""}
     <div class="worker-insights-grid">
       <section class="worker-insights-card">
@@ -24401,16 +24424,22 @@ async function runWorkerInsightsByName() {
   try {
     const payload = await apiRequest(`${API_BASE}/api/companies/${companyId}/workers/${encodeURIComponent(target.id)}/timeline?month=${encodeURIComponent(monthKey)}`);
     const days = Array.isArray(payload?.days) ? payload.days : [];
-    const windowCfg = getWorkerWorkTimeWindow(target, payload);
+    const companyFallback = getCompanyFallbackWorkTimeWindow(target, payload);
     const lateDays = [];
     const earlyLeaveDays = [];
     let totalMinutes = 0;
-    const tz = windowCfg.timezone || "Europe/Berlin";
+    let evaluatedDays = 0;
+    const tz = companyFallback.timezone || "Europe/Berlin";
+    const hasPerDayShifts = Boolean(payload?.hasPerDayShifts);
 
     days.forEach((dayEntry) => {
       const day = String(dayEntry?.date || "");
       const sessions = Array.isArray(dayEntry?.sessions) ? dayEntry.sessions : [];
       totalMinutes += Number(dayEntry?.dayMinutes || 0);
+      const dayWindow = resolveDayWorkTimeWindow(dayEntry, companyFallback);
+      if (!dayWindow) return;
+      evaluatedDays += 1;
+
       const checkIns = sessions.map((session) => session?.checkIn).filter(Boolean);
       const checkOuts = sessions.map((session) => session?.checkOut).filter(Boolean);
       const firstIn = checkIns.length ? checkIns.sort()[0] : null;
@@ -24418,12 +24447,17 @@ async function runWorkerInsightsByName() {
 
       const firstInMin = getTimestampMinutes(firstIn, tz);
       const lastOutMin = getTimestampMinutes(lastOut, tz);
+      const planned = `${dayWindow.startLabel}–${dayWindow.endLabel}`;
+      const overnight = dayWindow.end < dayWindow.start;
 
-      if (windowCfg.start != null && firstInMin != null && firstInMin > windowCfg.start) {
-        lateDays.push({ date: day, minutes: firstInMin - windowCfg.start });
+      if (dayWindow.start != null && firstInMin != null && firstInMin > dayWindow.start) {
+        // Overnight: morning check-in after midnight is not "late" vs previous evening start
+        if (!(overnight && firstInMin < dayWindow.end)) {
+          lateDays.push({ date: day, minutes: firstInMin - dayWindow.start, planned });
+        }
       }
-      if (windowCfg.end != null && lastOutMin != null && lastOutMin < windowCfg.end) {
-        earlyLeaveDays.push({ date: day, minutes: windowCfg.end - lastOutMin });
+      if (!overnight && dayWindow.end != null && lastOutMin != null && lastOutMin < dayWindow.end) {
+        earlyLeaveDays.push({ date: day, minutes: dayWindow.end - lastOutMin, planned });
       }
     });
 
@@ -24431,17 +24465,26 @@ async function runWorkerInsightsByName() {
     if (candidates.length > 1 && !exact) {
       notes.push(runtimeTextTemplate("workerInsightsMultipleMatches", { name: workerName }));
     }
-    if (windowCfg.usedDefault) {
-      notes.push("Sollzeit nicht konfiguriert — Auswertung mit Standard 08:00–17:00. Bitte Arbeitsbeginn/-ende in Firma oder Einstellungen setzen.");
+    if (!evaluatedDays) {
+      notes.push("Keine Schichtzeiten gefunden — Zu spät/Früh nur mit Einsatzplan-Schichten oder Firmen-Sollzeit möglich.");
+    } else if (hasPerDayShifts) {
+      notes.push("Auswertung je Schicht laut Einsatzplan (pro Mitarbeiter und Tag).");
     }
+
+    let windowLabel = runtimeText("workerInsightsNotSet");
+    if (hasPerDayShifts) {
+      windowLabel = "pro Schicht (Einsatzplan)";
+    } else if (companyFallback.configured) {
+      windowLabel = `${companyFallback.startLabel} - ${companyFallback.endLabel}`;
+    }
+
     renderWorkerInsightsPanelHtml({
       workerName,
       monthKey,
       totalMinutes,
       lateDays,
       earlyLeaveDays,
-      startLabel: windowCfg.startLabel || minutesToHmLabel(windowCfg.start) || runtimeText("workerInsightsNotSet"),
-      endLabel: windowCfg.endLabel || minutesToHmLabel(windowCfg.end) || runtimeText("workerInsightsNotSet"),
+      windowLabel,
       note: notes.join(" "),
     });
   } catch (error) {
