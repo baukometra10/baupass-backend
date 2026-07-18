@@ -10,6 +10,26 @@ from pathlib import Path
 from typing import Any
 
 
+def sanitize_public_download_url(value: str | None) -> str:
+    """Normalize env URLs: strip quotes/BOM that Railway/paste often leave behind."""
+    text = (value or "").strip().lstrip("\ufeff")
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"', "`"):
+        text = text[1:-1].strip()
+    # KEY=https://… pasted as the whole value
+    for prefix in (
+        "BAUPASS_WORKER_APK_URL=",
+        "SUPPIX_WORKER_APK_URL=",
+        "BAUPASS_ANDROID_APK_URL=",
+        "SUPPIX_ANDROID_APK_URL=",
+    ):
+        if text.upper().startswith(prefix.upper()):
+            text = text[len(prefix) :].strip()
+            if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"', "`"):
+                text = text[1:-1].strip()
+            break
+    return text
+
+
 def build_mobile_distribution(public_base: str) -> dict[str, Any]:
     base = (public_base or "").rstrip("/")
     build_path = Path(__file__).resolve().parents[4] / "worker-build.json"
@@ -67,10 +87,12 @@ def build_mobile_distribution(public_base: str) -> dict[str, Any]:
             "pwaLauncher": f"{base}{launcher}?v={build_tag}",
             "pwaEntry": f"{base}{entry}?worker=1&v={build_tag}",
             "joinPage": f"{base}/join.html",
-            "apkUrl": (os.getenv("BAUPASS_WORKER_APK_URL") or os.getenv("SUPPIX_WORKER_APK_URL") or "").strip(),
-            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or "").strip(),
-            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or "").strip(),
-            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or "").strip(),
+            "apkUrl": sanitize_public_download_url(
+                os.getenv("BAUPASS_WORKER_APK_URL") or os.getenv("SUPPIX_WORKER_APK_URL")
+            ),
+            "testFlightUrl": sanitize_public_download_url(os.getenv("BAUPASS_TESTFLIGHT_URL")),
+            "playStoreUrl": sanitize_public_download_url(os.getenv("BAUPASS_PLAY_STORE_URL")),
+            "appStoreUrl": sanitize_public_download_url(os.getenv("BAUPASS_APP_STORE_URL")),
             "flutterProject": "mobile/",
             "hceCompanion": "android-hce-companion/",
         },

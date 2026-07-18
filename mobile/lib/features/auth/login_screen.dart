@@ -278,13 +278,17 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               const Text(
                 'Nach APK-Installation: Admin-QR hier scannen. '
-                'Alternativ „Manuell“ → Einmal-Link einfügen (aus Browser kopieren). '
-                'Kamera-Berechtigung für SUPPIX erlauben.',
+                'Wenn die Kamera blockiert: Einstellungen → Apps → SUPPIX → Kamera erlauben. '
+                'Oder oben „Manuell“ → Badge-ID + PIN (oder Einmal-Link aus dem Browser).',
               ),
               const SizedBox(height: 16),
               QrScanPanel(
                 busy: _loading,
                 onScanned: _handleQrPayload,
+                onRequestManualLogin: () => setState(() {
+                  _manualMode = true;
+                  _error = null;
+                }),
               ),
             ] else ...[
               _manualForm(),
@@ -304,6 +308,12 @@ class _LoginScreenState extends State<LoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Manuelle Anmeldung', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        Text(
+          'Ohne Kamera: Badge-ID + PIN vom Admin, oder den kompletten join-Link '
+          'aus dem Browser hier einfügen. Ein QR-Link funktioniert nur einmal.',
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
         const SizedBox(height: 12),
         TextField(
           controller: _badgeIdController,
@@ -339,8 +349,12 @@ class _LoginScreenState extends State<LoginScreen> {
           onPressed: _loading
               ? null
               : () async {
-                  final token = _tokenController.text.trim();
-                  if (token.isNotEmpty) {
+                  final raw = _tokenController.text.trim();
+                  if (raw.isNotEmpty) {
+                    final parsed = QrActivationParser.parse(raw);
+                    final token = (parsed?.accessToken ?? '').trim().isNotEmpty
+                        ? parsed!.accessToken!.trim()
+                        : raw;
                     final preview = await widget.auth.previewJoin(token);
                     await _applyCompanyBranding(preview);
                     await _loginToken(token);

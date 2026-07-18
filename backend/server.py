@@ -13398,13 +13398,15 @@ def _qr_png_response(payload_text):
 
 def _resolve_worker_apk_url() -> str:
     """Public APK URL for Android sideload (Railway / GitHub Release / CDN)."""
+    from backend.app.domains.workers.mobile_distribution import sanitize_public_download_url
+
     for key in (
         "BAUPASS_WORKER_APK_URL",
         "SUPPIX_WORKER_APK_URL",
         "BAUPASS_ANDROID_APK_URL",
         "SUPPIX_ANDROID_APK_URL",
     ):
-        value = (os.getenv(key) or "").strip()
+        value = sanitize_public_download_url(os.getenv(key))
         if value:
             return value
     return ""
@@ -13412,7 +13414,10 @@ def _resolve_worker_apk_url() -> str:
 
 def worker_join_config_public():
     """Public distribution URLs for join.html (hybrid Flutter app first)."""
-    from backend.app.domains.workers.mobile_distribution import build_mobile_distribution
+    from backend.app.domains.workers.mobile_distribution import (
+        build_mobile_distribution,
+        sanitize_public_download_url,
+    )
 
     install = build_mobile_distribution(get_public_base_url()).get("install") or {}
     apk_url = _resolve_worker_apk_url() or (install.get("apkUrl") or "").strip()
@@ -13426,9 +13431,15 @@ def worker_join_config_public():
             "apkUrl": apk_url,
             "apkDownloadUrl": apk_download or apk_url,
             "apkConfigured": bool(apk_url),
-            "testFlightUrl": (os.getenv("BAUPASS_TESTFLIGHT_URL") or os.getenv("SUPPIX_TESTFLIGHT_URL") or install.get("testFlightUrl") or "").strip(),
-            "playStoreUrl": (os.getenv("BAUPASS_PLAY_STORE_URL") or os.getenv("SUPPIX_PLAY_STORE_URL") or install.get("playStoreUrl") or "").strip(),
-            "appStoreUrl": (os.getenv("BAUPASS_APP_STORE_URL") or os.getenv("SUPPIX_APP_STORE_URL") or install.get("appStoreUrl") or "").strip(),
+            "testFlightUrl": sanitize_public_download_url(
+                os.getenv("BAUPASS_TESTFLIGHT_URL") or os.getenv("SUPPIX_TESTFLIGHT_URL") or install.get("testFlightUrl")
+            ),
+            "playStoreUrl": sanitize_public_download_url(
+                os.getenv("BAUPASS_PLAY_STORE_URL") or os.getenv("SUPPIX_PLAY_STORE_URL") or install.get("playStoreUrl")
+            ),
+            "appStoreUrl": sanitize_public_download_url(
+                os.getenv("BAUPASS_APP_STORE_URL") or os.getenv("SUPPIX_APP_STORE_URL") or install.get("appStoreUrl")
+            ),
             "joinPage": install.get("joinPage") or f"{get_public_base_url()}/join.html",
             "deepLinkScheme": "baupass://join",
         }
@@ -13450,7 +13461,15 @@ def public_worker_apk_download():
             "message": "BAUPASS_WORKER_APK_URL (oder SUPPIX_WORKER_APK_URL) fehlt auf dem Server.",
         }), 404
     if not (source.startswith("https://") or source.startswith("http://")):
-        return jsonify({"error": "apk_url_invalid"}), 400
+        preview = source[:80] + ("…" if len(source) > 80 else "")
+        return jsonify({
+            "error": "apk_url_invalid",
+            "message": (
+                "BAUPASS_WORKER_APK_URL muss mit https:// beginnen "
+                "(keine Anführungszeichen in Railway)."
+            ),
+            "preview": preview,
+        }), 400
     try:
         req = urllib.request.Request(
             source,

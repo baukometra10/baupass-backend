@@ -11,48 +11,93 @@ class QrScanPanel extends StatefulWidget {
     super.key,
     required this.onScanned,
     this.busy = false,
+    this.onRequestManualLogin,
   });
 
   final QrScanHandler onScanned;
   final bool busy;
+  final VoidCallback? onRequestManualLogin;
 
   @override
   State<QrScanPanel> createState() => _QrScanPanelState();
 }
 
 class _QrScanPanelState extends State<QrScanPanel> with WidgetsBindingObserver {
-  final MobileScannerController _controller = MobileScannerController(
+  // autoStart must stay false — explicit start() + default autoStart races and
+  // surfaces as "Kamera-Fehler — App neu starten…" (controllerAlreadyInitialized).
+  late final MobileScannerController _controller = MobileScannerController(
+    autoStart: false,
     detectionSpeed: DetectionSpeed.normal,
     facing: CameraFacing.back,
     formats: const [BarcodeFormat.qrCode],
   );
   bool _handled = false;
+  bool _starting = false;
   String? _cameraError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Start explicitly: some devices return a black camera preview until start() is called after first render.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        await _controller.start();
-      } catch (_) {
-        // errorBuilder will handle permission/unsupported; ignore here.
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _safeStart();
     });
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // After install / returning from settings, the app resumes and the camera must be restarted.
+    // Permission dialogs also emit lifecycle events — guard before start/stop.
+    if (!_controller.value.isInitialized &&
+        _controller.value.error?.errorCode == MobileScannerErrorCode.permissionDenied) {
+      return;
+    }
     if (state == AppLifecycleState.resumed) {
-      _controller.start().catchError((_) {});
+      _safeStart();
       return;
     }
     if (state == AppLifecycleState.inactive || state == AppLifecycleState.paused) {
-      _controller.stop().catchError((_) {});
+      _safeStop();
     }
+  }
+
+  Future<void> _safeStart() async {
+    if (!mounted || _starting) return;
+    if (_controller.value.isRunning) return;
+    _starting = true;
+    try {
+      await _controller.start();
+      if (mounted) setState(() => _cameraError = null);
+    } on MobileScannerException catch (err) {
+      if (err.errorCode == MobileScannerErrorCode.controllerAlreadyInitialized) {
+        // Benign race — camera is already up.
+        if (mounted) setState(() => _cameraError = null);
+        return;
+      }
+      if (mounted) setState(() => _cameraError = _errorText(err));
+    } catch (_) {
+      if (mounted) {
+        setState(() => _cameraError = 'Kamera-Fehler — erneut versuchen oder Manuell-Login nutzen.');
+      }
+    } finally {
+      _starting = false;
+    }
+  }
+
+  Future<void> _safeStop() async {
+    try {
+      if (_controller.value.isRunning) {
+        await _controller.stop();
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _retryCamera() async {
+    setState(() => _cameraError = null);
+    try {
+      await _controller.stop();
+    } catch (_) {}
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+    await _safeStart();
   }
 
   @override
@@ -87,12 +132,51 @@ class _QrScanPanelState extends State<QrScanPanel> with WidgetsBindingObserver {
   String _errorText(MobileScannerException error) {
     switch (error.errorCode) {
       case MobileScannerErrorCode.permissionDenied:
-        return 'Kamera blockiert — in Einstellungen für SUPPIX erlauben.';
+        return 'Kamera blockiert — in den Handy-Einstellungen für SUPPIX erlauben, dann „Erneut versuchen“.';
       case MobileScannerErrorCode.unsupported:
-        return 'Kamera auf diesem Gerät nicht unterstützt.';
+        return 'Kamera auf diesem Gerät nicht unterstützt — bitte Manuell-Login nutzen.';
+      case MobileScannerErrorCode.controllerAlreadyInitialized:
+        return '';
+      case MobileScannerErrorCode.controllerDisposed:
+        return 'Kamera wurde beendet — „Erneut versuchen“ tippen.';
+      case MobileScannerErrorCode.controllerUninitialized:
+        return 'Kamera startet… kurz warten oder „Erneut versuchen“.';
       default:
-        return 'Kamera-Fehler — App neu starten oder Manuell-Login nutzen.';
+        return 'Kamera-Fehler — „Erneut versuchen“ oder Manuell-Login (Badge + PIN) nutzen.';
     }
+  }
+
+  Widget _errorOverlay(String message) {
+    return ColoredBox(
+      color: Colors.black87,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: _retryCamera,
+                child: const Text('Erneut versuchen'),
+              ),
+              if (widget.onRequestManualLogin != null) ...[
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: widget.onRequestManualLogin,
+                  child: const Text('Manuell anmelden', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -111,19 +195,12 @@ class _QrScanPanelState extends State<QrScanPanel> with WidgetsBindingObserver {
               controller: _controller,
               onDetect: _onDetect,
               errorBuilder: (context, error, child) {
-                return ColoredBox(
-                  color: Colors.black87,
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Text(
-                        _errorText(error),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                  ),
-                );
+                final text = _errorText(error);
+                if (text.isEmpty) {
+                  // Already-started is not fatal — keep trying preview.
+                  return child ?? const ColoredBox(color: Colors.black);
+                }
+                return _errorOverlay(text);
               },
             ),
             Container(
@@ -171,6 +248,27 @@ class _QrScanPanelState extends State<QrScanPanel> with WidgetsBindingObserver {
                     ),
               ),
             ),
+            if (_cameraError != null && _cameraError!.isNotEmpty)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 56,
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  spacing: 8,
+                  children: [
+                    TextButton(
+                      onPressed: _retryCamera,
+                      child: const Text('Erneut versuchen', style: TextStyle(color: Colors.white)),
+                    ),
+                    if (widget.onRequestManualLogin != null)
+                      TextButton(
+                        onPressed: widget.onRequestManualLogin,
+                        child: const Text('Manuell', style: TextStyle(color: Colors.white)),
+                      ),
+                  ],
+                ),
+              ),
             if (widget.busy)
               Container(
                 color: Colors.black45,
