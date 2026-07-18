@@ -27,22 +27,48 @@ def _load_branding(company_id: str | None = None) -> dict[str, str]:
     }
 
 
+def _initials(name: str) -> str:
+    parts = [p for p in re.split(r"[\s\-_/]+", str(name or "").strip()) if p]
+    if not parts:
+        return "WP"
+    if len(parts) == 1:
+        word = parts[0]
+        return (word[:2] if len(word) > 1 else word[:1]).upper()
+    return f"{parts[0][0]}{parts[1][0]}".upper()
+
+
 def _logo_html(brand: dict[str, str]) -> str:
-    logo_data = str(brand.get("logo_data") or "").strip()
+    """
+    Email-safe logo mark.
+
+    Never use data:image URLs — Gmail/Outlook/etc. block them and show a broken image.
+    Use a solid-color HTML badge with company initials (works in all major clients).
+    Absolute https:// logo URLs are allowed when available.
+    """
     primary = html.escape(brand.get("primary") or "#06b6d4")
-    if logo_data.lower().startswith("data:image/"):
+    label = html.escape(_initials(brand.get("company_name") or brand.get("platform_name") or "WorkPass"))
+    logo_data = str(brand.get("logo_data") or "").strip()
+
+    # Public HTTPS logos are fine; data: and relative paths are not for mail clients.
+    if logo_data.lower().startswith("https://") and " " not in logo_data:
         return (
-            f'<img src="{html.escape(logo_data, quote=True)}" width="52" height="52" '
-            f'alt="Logo" style="display:block;border-radius:12px;object-fit:contain;background:#fff;padding:4px;">'
+            f'<img src="{html.escape(logo_data, quote=True)}" width="52" height="52" alt="{label}" '
+            f'style="display:block;border:0;border-radius:12px;object-fit:contain;background:#ffffff;">'
         )
+
+    # Bulletproof HTML badge (no SVG, no data URLs — Outlook-safe).
     return (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52" viewBox="0 0 310 310" '
-        'role="img" aria-label="Logo">'
-        f'<rect width="310" height="310" rx="46" fill="{primary}"/>'
-        '<path d="M56 224 L156 92 L256 224 Z" fill="#ffffff" opacity="0.94"/>'
-        '<path d="M96 224 L156 144 L216 224 Z" fill="#12343b" opacity="0.95"/>'
-        '<circle cx="235" cy="88" r="20" fill="#fff4e6"/>'
-        "</svg>"
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" '
+        'style="border-collapse:collapse;">'
+        "<tr>"
+        f'<td width="52" height="52" bgcolor="{primary}" '
+        f'style="width:52px;height:52px;background-color:{primary};border-radius:12px;'
+        'text-align:center;vertical-align:middle;">'
+        f'<span style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:800;'
+        f'color:#ffffff;line-height:52px;letter-spacing:0.5px;">{label}</span>'
+        "</td>"
+        "</tr>"
+        "</table>"
     )
 
 

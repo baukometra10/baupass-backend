@@ -6644,14 +6644,24 @@ def _send_email_api_then_smtp(
 
 def _build_email_html(platform_name: str, primary_color: str, accent_color: str, title: str, body_html: str, footer_name: str) -> str:
     """Return a branded HTML email string."""
-    # Inline SVG logo (simplified icon part only for email compatibility)
-    logo_svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 310 310">'
-        f'<rect width="310" height="310" rx="46" fill="{primary_color}"/>'
-        '<path d="M56 224 L156 92 L256 224 Z" fill="#ffffff" opacity="0.94"/>'
-        '<path d="M96 224 L156 144 L216 224 Z" fill="#12343b" opacity="0.95"/>'
-        '<circle cx="235" cy="88" r="20" fill="#fff4e6"/>'
-        '</svg>'
+    # Email-safe HTML badge (no data: URLs / fragile SVG — Gmail & Outlook compatible).
+    parts = [p for p in str(platform_name or "WP").strip().split() if p]
+    if len(parts) >= 2:
+        initials = f"{parts[0][0]}{parts[1][0]}".upper()
+    else:
+        word = parts[0] if parts else "WP"
+        initials = (word[:2] if len(word) > 1 else word[:1]).upper()
+    safe_primary = sanitize_hex_color(primary_color, DEFAULT_BRAND_PRIMARY)
+    safe_accent = sanitize_hex_color(accent_color, DEFAULT_BRAND_ACCENT)
+    logo_mark = (
+        '<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">'
+        "<tr>"
+        f'<td width="48" height="48" bgcolor="{safe_primary}" '
+        f'style="width:48px;height:48px;background-color:{safe_primary};border-radius:10px;'
+        'text-align:center;vertical-align:middle;">'
+        f'<span style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;'
+        f'color:#ffffff;line-height:48px;">{html.escape(initials)}</span>'
+        "</td></tr></table>"
     )
     return f"""<!DOCTYPE html>
 <html lang="de">
@@ -6663,12 +6673,12 @@ def _build_email_html(platform_name: str, primary_color: str, accent_color: str,
     <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:600px;width:100%;">
       <!-- Header -->
       <tr>
-        <td style="background:linear-gradient(135deg,{primary_color} 0%,{accent_color} 100%);padding:28px 36px;text-align:left;">
+        <td style="background:linear-gradient(135deg,{safe_primary} 0%,{safe_accent} 100%);padding:28px 36px;text-align:left;">
           <table cellpadding="0" cellspacing="0">
             <tr>
-              <td style="vertical-align:middle;padding-right:14px;">{logo_svg}</td>
+              <td style="vertical-align:middle;padding-right:14px;">{logo_mark}</td>
               <td style="vertical-align:middle;">
-                <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">{platform_name}</span><br>
+                <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:0.5px;">{html.escape(str(platform_name or ""))}</span><br>
                 <span style="color:rgba(255,255,255,0.75);font-size:12px;letter-spacing:2px;text-transform:uppercase;">Digitale Baustellenkontrolle</span>
               </td>
             </tr>
@@ -6678,7 +6688,7 @@ def _build_email_html(platform_name: str, primary_color: str, accent_color: str,
       <!-- Body -->
       <tr>
         <td style="padding:36px 36px 28px;">
-          <h2 style="margin:0 0 20px;color:{primary_color};font-size:20px;font-weight:700;">{title}</h2>
+          <h2 style="margin:0 0 20px;color:{safe_primary};font-size:20px;font-weight:700;">{html.escape(str(title or ""))}</h2>
           {body_html}
         </td>
       </tr>
@@ -6686,7 +6696,7 @@ def _build_email_html(platform_name: str, primary_color: str, accent_color: str,
       <tr>
         <td style="background:#f8f9fa;border-top:1px solid #e9ecef;padding:18px 36px;text-align:center;">
           <p style="margin:0;color:#6c757d;font-size:12px;">
-            {footer_name} &nbsp;·&nbsp; Diese E-Mail wurde automatisch generiert.<br>
+            {html.escape(str(footer_name or ""))} &nbsp;·&nbsp; Diese E-Mail wurde automatisch generiert.<br>
             Bitte antworten Sie nicht auf diese E-Mail.
           </p>
         </td>
