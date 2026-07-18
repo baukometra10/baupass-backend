@@ -23727,7 +23727,48 @@ async function runDailyOpsPdfReportsNow() {
 function reportingErrorMessage(error) {
   const detail = error?.payload?.detail || error?.payload?.message;
   if (detail) return String(detail);
-  return String(error?.message || "Unbekannter Fehler");
+  const code = String(error?.code || error?.message || "").trim();
+  if (code === "email_send_failed") {
+    return "E-Mail-Versand fehlgeschlagen. Bitte Mail-Einstellungen (Resend/Brevo/SMTP) prüfen.";
+  }
+  if (code === "missing_recipient_email") {
+    return "Bitte eine gültige Empfänger-E-Mail eingeben.";
+  }
+  if (code === "pdf_build_failed") {
+    return String(error?.payload?.detail || "PDF konnte nicht erzeugt werden.");
+  }
+  return code || "Unbekannter Fehler";
+}
+
+function defaultReportingRecipientEmail() {
+  const user = getCurrentUser() || {};
+  const candidates = [
+    user.email,
+    user.Email,
+    user.contactEmail,
+    user.contact_email,
+    state?.settings?.smtpSenderEmail,
+    state?.settings?.billingEmail,
+  ];
+  for (const value of candidates) {
+    const email = String(value || "").trim();
+    if (email.includes("@")) return email;
+  }
+  return "";
+}
+
+function promptReportingRecipientEmail(label) {
+  const email = window.prompt(
+    `${label}\nEmpfänger-E-Mail:`,
+    defaultReportingRecipientEmail(),
+  );
+  if (email === null) return null;
+  const trimmed = String(email || "").trim();
+  if (!trimmed.includes("@") || trimmed.indexOf("@") < 1) {
+    showToast(uiT("toastInvalidEmail"));
+    return null;
+  }
+  return trimmed;
 }
 
 function bindReportingEmailEnterpriseButton(selector = "#reportingEmailEnterprisePdfBtn") {
@@ -23817,12 +23858,8 @@ function bindReportingDailyPdfRunButton() {
 }
 
 async function sendReportingPdfByEmail() {
-  const email = window.prompt("E-Mail für PDF-Bericht:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
-  if (email === null) return;
-  if (!email.includes("@")) {
-    showToast(uiT("toastInvalidEmail"));
-    return;
-  }
+  const email = promptReportingRecipientEmail("E-Mail für PDF-Bericht");
+  if (!email) return;
   const result = await apiRequest(`${API_BASE}/api/reporting/email-pdf`, {
     method: "POST",
     body: { email, attachDatevCsv: true },
@@ -23855,12 +23892,8 @@ async function ensureReportingCompanyId() {
 }
 
 async function sendReportingEnterprisePdfByEmail() {
-  const email = window.prompt(`${uiT("reportingEmailEnterpriseBtn")}:`, String(getCurrentUser()?.email || "").trim());
-  if (email === null) return;
-  if (!email.includes("@")) {
-    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
-    return;
-  }
+  const email = promptReportingRecipientEmail(uiT("reportingEmailEnterpriseBtn"));
+  if (!email) return;
   const companyId = await ensureReportingCompanyId();
   const body = { email, attachDatevCsv: true };
   if (companyId) body.companyId = companyId;
@@ -23870,34 +23903,22 @@ async function sendReportingEnterprisePdfByEmail() {
 }
 
 async function sendReportingInvoicesPdfByEmail() {
-  const email = window.prompt(uiT("reportingEmailInvoicesBtn") + ":", String(getCurrentUser()?.email || "").trim());
-  if (email === null) return;
-  if (!email.includes("@")) {
-    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
-    return;
-  }
+  const email = promptReportingRecipientEmail(uiT("reportingEmailInvoicesBtn"));
+  if (!email) return;
   await apiRequest(`${API_BASE}/api/reporting/email-invoices-pdf`, { method: "POST", body: { email } });
   showToast(uiT("reportingEmailSentOk"));
 }
 
 async function sendReportingCompaniesPdfByEmail() {
-  const email = window.prompt(uiT("reportingEmailCompaniesBtn") + ":", String(getCurrentUser()?.email || "").trim());
-  if (email === null) return;
-  if (!email.includes("@")) {
-    showToast(uiT("alertGenericError").replace("{error}", "E-Mail"));
-    return;
-  }
+  const email = promptReportingRecipientEmail(uiT("reportingEmailCompaniesBtn"));
+  if (!email) return;
   await apiRequest(`${API_BASE}/api/reporting/email-companies-pdf`, { method: "POST", body: { email } });
-  showToast(uiT("toastOk"));
+  showToast(uiT("reportingEmailSentOk"));
 }
 
 async function sendReportingDatevCsvByEmail() {
-  const email = window.prompt("E-Mail für DATEV-Lohn-CSV:", String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim());
-  if (email === null) return;
-  if (!email.includes("@")) {
-    showToast(uiT("toastInvalidEmail"));
-    return;
-  }
+  const email = promptReportingRecipientEmail("E-Mail für DATEV-Lohn-CSV");
+  if (!email) return;
   const companyId = await ensureReportingCompanyId();
   const body = { email };
   if (companyId) body.companyId = companyId;
@@ -23931,15 +23952,8 @@ function bindReportingEmailIncidentsVisitsButton() {
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
-      const email = window.prompt(
-        "E-Mail:",
-        String(getCurrentUser()?.email || getCurrentUser()?.Email || "").trim(),
-      );
-      if (email === null) return;
-      if (!email.includes("@")) {
-        showToast(uiT("toastInvalidEmail"));
-        return;
-      }
+      const email = promptReportingRecipientEmail("E-Mail für Havarien & Besucher-PDF");
+      if (!email) return;
       await apiRequest(`${API_BASE}/api/reporting/email-incidents-visits-pdf`, {
         method: "POST",
         body: { email },

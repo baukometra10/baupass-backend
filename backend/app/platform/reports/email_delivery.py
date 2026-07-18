@@ -25,20 +25,43 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
     use_tls = str(os.getenv("SMTP_USE_TLS", "1")).strip().lower() in {"1", "true", "yes"}
     sender = (os.getenv("SMTP_SENDER_EMAIL") or user or default_noreply_email()).strip()
     sender_name = (os.getenv("SMTP_SENDER_NAME") or "WorkPass").strip()
+    # Prefer API-provider from-addresses when SMTP is not the primary path.
+    api_from = (
+        (os.getenv("RESEND_FROM_EMAIL") or "").strip()
+        or (os.getenv("BREVO_FROM_EMAIL") or "").strip()
+    )
+    if api_from and not host:
+        sender = api_from
     if host:
         return host, port, user, password, use_tls, sender, sender_name
     from backend.server import get_db
 
-    row = get_db().execute(
-        """
-        SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
-               smtp_sender_email, smtp_sender_name
-        FROM settings WHERE id = 1
-        """
-    ).fetchone()
+    try:
+        row = get_db().execute(
+            """
+            SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
+                   smtp_sender_email, smtp_sender_name, resend_from_email, brevo_from_email
+            FROM settings WHERE id = 1
+            """
+        ).fetchone()
+    except Exception:
+        row = get_db().execute(
+            """
+            SELECT smtp_host, smtp_port, smtp_username, smtp_password, smtp_use_tls,
+                   smtp_sender_email, smtp_sender_name
+            FROM settings WHERE id = 1
+            """
+        ).fetchone()
     if not row or not str(row["smtp_host"] or "").strip():
         if row:
-            sender = str(row["smtp_sender_email"] or row["smtp_username"] or sender).strip()
+            keys = row.keys() if hasattr(row, "keys") else []
+            sender = str(
+                (row["resend_from_email"] if "resend_from_email" in keys else "")
+                or (row["brevo_from_email"] if "brevo_from_email" in keys else "")
+                or row["smtp_sender_email"]
+                or row["smtp_username"]
+                or sender
+            ).strip()
             sender_name = str(row["smtp_sender_name"] or sender_name).strip()
         return "", port, user, password, use_tls, sender, sender_name
     return (
@@ -50,6 +73,28 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
         str(row["smtp_sender_email"] or row["smtp_username"] or default_noreply_email()).strip(),
         str(row["smtp_sender_name"] or "WorkPass").strip(),
     )
+
+
+def _humanize_mail_error(err: str) -> str:
+    text = str(err or "").strip()
+    lower = text.lower()
+    if not text:
+        return "E-Mail-Versand fehlgeschlagen."
+    if "no_api_provider" in lower or "mail_not_configured" in lower:
+        return "Kein E-Mail-Provider konfiguriert. Bitte Resend/Brevo oder SMTP in den Einstellungen hinterlegen."
+    if "resend_not_configured" in lower:
+        return "Resend ist nicht konfiguriert (API-Key fehlt)."
+    if "resend_missing_from_email" in lower:
+        return "Resend Absender-E-Mail fehlt (RESEND_FROM_EMAIL / Einstellungen)."
+    if "brevo_not_configured" in lower:
+        return "Brevo ist nicht konfiguriert (API-Key fehlt)."
+    if "brevo_missing_from_email" in lower:
+        return "Brevo Absender-E-Mail fehlt."
+    if "smtp nicht konfiguriert" in lower:
+        return "SMTP nicht konfiguriert (Einstellungen oder Railway Variables)."
+    if "resend_http_422" in lower or "validation" in lower:
+        return f"E-Mail-Provider hat die Nachricht abgelehnt: {text[:220]}"
+    return text[:280]
 
 
 def _api_attachments(
@@ -256,8 +301,8 @@ def _send_report_email(
         err = f"{err}; SMTP: {smtp_err}" if err else smtp_err
 
     if not host and err:
-        return False, err
-    return False, err or "SMTP nicht konfiguriert (Einstellungen oder Railway Variables)."
+        return False, _humanize_mail_error(err)
+    return False, _humanize_mail_error(err or "SMTP nicht konfiguriert (Einstellungen oder Railway Variables).")
 
 
 def send_attachments_email(

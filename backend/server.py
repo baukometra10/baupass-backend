@@ -6360,7 +6360,8 @@ def _send_via_resend(subject, sender_email, sender_name, recipient, text_body, h
         method="POST",
     )
     try:
-        with urlopen(req, timeout=15) as resp:
+        # PDF reports can be larger; allow more time than OTP/text-only mails.
+        with urlopen(req, timeout=45) as resp:
             status = int(getattr(resp, "status", 200) or 200)
             if 200 <= status < 300:
                 return True, ""
