@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_callkit_incoming/entities/android_params.dart';
+import 'package:flutter_callkit_incoming/entities/call_event.dart';
 import 'package:flutter_callkit_incoming/entities/call_kit_params.dart';
 import 'package:flutter_callkit_incoming/entities/ios_params.dart';
 import 'package:flutter_callkit_incoming/entities/notification_params.dart';
@@ -13,7 +14,7 @@ typedef CallKitActionHandler = void Function(String callId);
 class CallKitService {
   CallKitService();
 
-  StreamSubscription<dynamic>? _eventSub;
+  StreamSubscription<CallEvent?>? _eventSub;
   CallKitActionHandler? onAccept;
   CallKitActionHandler? onDecline;
   CallKitActionHandler? onEnded;
@@ -24,7 +25,12 @@ class CallKitService {
     CallKitActionHandler? onDecline,
     CallKitActionHandler? onEnded,
   }) async {
-    if (_ready) return;
+    if (_ready) {
+      this.onAccept = onAccept ?? this.onAccept;
+      this.onDecline = onDecline ?? this.onDecline;
+      this.onEnded = onEnded ?? this.onEnded;
+      return;
+    }
     this.onAccept = onAccept;
     this.onDecline = onDecline;
     this.onEnded = onEnded;
@@ -53,21 +59,24 @@ class CallKitService {
     }
   }
 
-  void _handleEvent(dynamic raw) {
-    final event = raw?.event?.toString() ?? '';
-    final body = raw?.body;
-    final callId = _extractCallId(body);
+  void _handleEvent(CallEvent? raw) {
+    if (raw == null) return;
+    final event = raw.event;
+    final callId = _extractCallId(raw.body);
     if (callId.isEmpty) return;
-    if (event.contains('Accept')) {
-      onAccept?.call(callId);
-      return;
-    }
-    if (event.contains('Decline')) {
-      onDecline?.call(callId);
-      return;
-    }
-    if (event.contains('Ended') || event.contains('Timeout')) {
-      onEnded?.call(callId);
+    switch (event) {
+      case Event.actionCallAccept:
+        onAccept?.call(callId);
+        break;
+      case Event.actionCallDecline:
+        onDecline?.call(callId);
+        break;
+      case Event.actionCallEnded:
+      case Event.actionCallTimeout:
+        onEnded?.call(callId);
+        break;
+      default:
+        break;
     }
   }
 
@@ -106,7 +115,8 @@ class CallKitService {
       ),
       extra: <String, dynamic>{'callId': callId},
       android: const AndroidParams(
-        isCustomNotification: true,
+        // Standard system incoming UI — custom notifications often hide Accept/Decline.
+        isCustomNotification: false,
         isShowLogo: false,
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#0b141a',
@@ -114,6 +124,7 @@ class CallKitService {
         textColor: '#ffffff',
         incomingCallNotificationChannelName: 'Eingehende Anrufe',
         missedCallNotificationChannelName: 'Verpasste Anrufe',
+        isShowFullLockedScreen: true,
       ),
       ios: const IOSParams(
         handleType: 'generic',

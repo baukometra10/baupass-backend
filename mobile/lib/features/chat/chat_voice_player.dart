@@ -209,7 +209,7 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
         setState(() {
           _loading = false;
           _playing = false;
-          _error = 'Abspielen fehlgeschlagen';
+          _error = 'Sprachnachricht konnte nicht entschlüsselt/abgespielt werden.';
         });
       }
     } catch (_) {
@@ -217,7 +217,7 @@ class _ChatVoicePlayerState extends State<ChatVoicePlayer> {
         setState(() {
           _loading = false;
           _playing = false;
-          _error = 'Abspielen fehlgeschlagen';
+          _error = 'Sprachnachricht konnte nicht entschlüsselt/abgespielt werden.';
         });
       }
     }

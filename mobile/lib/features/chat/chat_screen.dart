@@ -21,6 +21,7 @@ import 'chat_media_gallery.dart';
 import 'chat_message_prefs.dart';
 import 'chat_voice_compose_bar.dart';
 import 'chat_voice_player.dart';
+import '../../widgets/company_contacts_sheet.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
@@ -1042,8 +1043,23 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           if (widget.voiceCall != null)
             IconButton(
+              icon: const Icon(Icons.contacts_rounded),
+              tooltip: 'Kontakte',
+              onPressed: () {
+                unawaited(CompanyContactsSheet.show(
+                  context,
+                  session: widget.session,
+                  api: widget.chat.apiClient,
+                  onCallEmployer: widget.voiceCall!.isActive
+                      ? null
+                      : () => widget.voiceCall!.startOutgoingCall(),
+                ));
+              },
+            ),
+          if (widget.voiceCall != null)
+            IconButton(
               icon: const Icon(Icons.call_rounded),
-              tooltip: 'Anrufen',
+              tooltip: 'Firma anrufen',
               onPressed: widget.voiceCall!.isActive
                   ? null
                   : () {

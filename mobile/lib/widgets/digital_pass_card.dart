@@ -76,6 +76,7 @@ class DigitalPassCard extends StatelessWidget {
                         photoData: photoData,
                         palette: palette,
                         cardW: cardW,
+                        onQrTap: () => _showFullscreenQr(context, qrValue, remaining),
                       ),
                     ),
                     SizedBox(height: cardH * 0.02),
@@ -104,6 +105,50 @@ class DigitalPassCard extends StatelessWidget {
   static bool _isActiveStatus(String value) {
     final s = value.trim().toLowerCase();
     return s.isEmpty || s == 'aktiv' || s == 'active' || s == 'ok';
+  }
+
+  static void _showFullscreenQr(BuildContext context, String qrValue, int remaining) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        final side = MediaQuery.sizeOf(ctx).shortestSide * 0.78;
+        return Dialog(
+          backgroundColor: Colors.white,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Zugangscode',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                ),
+                if (remaining > 0) ...[
+                  const SizedBox(height: 4),
+                  Text('Noch ${remaining}s gültig', style: Theme.of(ctx).textTheme.bodySmall),
+                ],
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: side,
+                  height: side,
+                  child: QrImageView(
+                    data: qrValue,
+                    backgroundColor: Colors.white,
+                    padding: EdgeInsets.zero,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Schließen'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   static String _formatDate(String raw) {
@@ -343,6 +388,7 @@ class _MiddleRow extends StatelessWidget {
     required this.photoData,
     required this.palette,
     required this.cardW,
+    this.onQrTap,
   });
 
   final String qrValue;
@@ -350,83 +396,81 @@ class _MiddleRow extends StatelessWidget {
   final String? photoData;
   final _WalletPalette palette;
   final double cardW;
+  final VoidCallback? onQrTap;
 
   @override
   Widget build(BuildContext context) {
-    final qrSize = (cardW * 0.32).clamp(82.0, 132.0);
-    final photoSize = (cardW * 0.21).clamp(68.0, 96.0);
+    final qrSize = (cardW * 0.42).clamp(108.0, 168.0);
+    final photoSize = (cardW * 0.18).clamp(56.0, 84.0);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-          width: qrSize,
-          height: qrSize,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: LinearGradient(
-                      colors: palette.qrFrameColors,
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+        GestureDetector(
+          onTap: onQrTap,
+          child: SizedBox(
+            width: qrSize,
+            height: qrSize,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: LinearGradient(
+                        colors: palette.qrFrameColors,
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: palette.qrFrameColors[1].withValues(alpha: 0.38),
+                          blurRadius: 14,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
-                    boxShadow: [
-                      BoxShadow(
-                        color: palette.qrFrameColors[1].withValues(alpha: 0.38),
-                        blurRadius: 14,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(9),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.22),
-                            blurRadius: 9,
-                            offset: const Offset(0, 4),
+                    child: Padding(
+                      padding: const EdgeInsets.all(5),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
+                          child: QrImageView(
+                            data: qrValue,
+                            backgroundColor: Colors.white,
+                            padding: EdgeInsets.zero,
                           ),
-                        ],
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: QrImageView(
-                          data: qrValue,
-                          backgroundColor: Colors.white,
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-              if (remaining > 0)
-                Positioned(
-                  right: -6,
-                  top: -6,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.55),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                    ),
-                    child: Text(
-                      '${remaining}s',
-                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                if (remaining > 0)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.55),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        '${remaining}s',
+                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         _PhotoTile(size: photoSize, photoData: photoData),
@@ -502,11 +546,12 @@ class _BottomSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final nameSize = (cardW * 0.042).clamp(11.0, 14.5);
-    final roleSize = (cardW * 0.03).clamp(8.0, 10.5);
-    final labelSize = (cardW * 0.024).clamp(7.0, 8.5);
-    final valueSize = (cardW * 0.03).clamp(8.5, 11.0);
-    final badgeSize = (cardW * 0.038).clamp(10.0, 13.5);
+    final longName = name.length > 22;
+    final nameSize = (cardW * (longName ? 0.032 : 0.036)).clamp(10.0, 12.5);
+    final roleSize = (cardW * 0.028).clamp(8.0, 10.0);
+    final labelSize = (cardW * 0.022).clamp(6.5, 8.0);
+    final valueSize = (cardW * 0.028).clamp(8.0, 10.5);
+    final badgeSize = (cardW * 0.034).clamp(9.0, 12.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

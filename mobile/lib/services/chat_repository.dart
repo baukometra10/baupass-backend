@@ -227,7 +227,16 @@ class ChatRepository {
       final msg = Map<String, dynamic>.from(item as Map);
       final body = msg['body']?.toString() ?? '';
       if (workerId.isNotEmpty && _e2e.isE2eEnvelope(body)) {
-        msg['body'] = await _e2e.decryptUtf8(body, 'worker', workerId);
+        try {
+          msg['body'] = await _e2e.decryptUtf8(body, 'worker', workerId);
+        } catch (_) {
+          msg['body'] =
+              'Verschlüsselte Nachricht — Schlüssel aktualisieren (App neu öffnen / erneut anmelden).';
+          msg['e2eDecryptFailed'] = true;
+        }
+      } else if (body.trim().toLowerCase() == 'encrypted') {
+        msg['body'] = 'Verschlüsselte Nachricht';
+        msg['e2eDecryptFailed'] = true;
       }
       out.add(msg);
     }

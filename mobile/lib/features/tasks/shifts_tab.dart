@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
@@ -24,6 +25,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
   List<Map<String, dynamic>> _coworkers = [];
   bool _loading = true;
   String? _error;
+  String? _warning;
 
   @override
   void initState() {
@@ -38,31 +40,63 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  String _friendlyError(Object e) {
+    if (e is ApiException) {
+      return e.message?.trim().isNotEmpty == true
+          ? e.message!.trim()
+          : 'Serverfehler (${e.statusCode}${e.errorCode != null ? ', ${e.errorCode}' : ''})';
+    }
+    return e.toString();
+  }
+
+  Future<List<Map<String, dynamic>>> _safeList(
+    Future<List<Map<String, dynamic>>> Function() load,
+    String label,
+    List<String> warnings,
+  ) async {
+    try {
+      return await load();
+    } catch (e) {
+      warnings.add('$label: ${_friendlyError(e)}');
+      return <Map<String, dynamic>>[];
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
+      _warning = null;
     });
-    try {
-      final results = await Future.wait([
-        widget.tasks.listShiftAssignments(widget.session),
-        widget.tasks.listShiftSwaps(widget.session),
-        widget.tasks.listShiftCoworkers(widget.session),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        _assignments = results[0];
-        _swaps = results[1];
-        _coworkers = results[2];
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
-    }
+    final warnings = <String>[];
+    final assignments = await _safeList(
+      () => widget.tasks.listShiftAssignments(widget.session),
+      'Schichten',
+      warnings,
+    );
+    final swaps = await _safeList(
+      () => widget.tasks.listShiftSwaps(widget.session),
+      'Tausch-Anfragen',
+      warnings,
+    );
+    final coworkers = await _safeList(
+      () => widget.tasks.listShiftCoworkers(widget.session),
+      'Kollegen',
+      warnings,
+    );
+    if (!mounted) return;
+    final allFailed = assignments.isEmpty &&
+        swaps.isEmpty &&
+        coworkers.isEmpty &&
+        warnings.length >= 3;
+    setState(() {
+      _assignments = assignments;
+      _swaps = swaps;
+      _coworkers = coworkers;
+      _warning = warnings.isEmpty ? null : warnings.join('\n');
+      _error = allFailed ? 'Schichtdaten konnten nicht geladen werden.' : null;
+      _loading = false;
+    });
   }
 
   String _fmt(String? iso) {
@@ -71,10 +105,14 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
   }
 
   Future<void> _proposeSwap(Map<String, dynamic> assignment) async {
-    final coworkers = _coworkers.where((c) => c['id'] != null).toList();
+    final coworkers = _coworkers.where((c) => (c['id'] ?? '').toString().isNotEmpty).toList();
     if (coworkers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Keine Kollegen für Tausch verfügbar')),
+        const SnackBar(
+          content: Text(
+            'Keine Kollegen für Tausch verfügbar. Bitte später erneut laden oder Admin prüfen.',
+          ),
+        ),
       );
       return;
     }
@@ -83,7 +121,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Schicht tauschen'),
+        title: const Text('Schicht abgeben / tauschen'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -129,7 +167,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     }
   }
 
@@ -147,7 +185,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     }
   }
 
@@ -164,6 +202,10 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(_error!, textAlign: TextAlign.center),
+              if (_warning != null) ...[
+                const SizedBox(height: 8),
+                Text(_warning!, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodySmall),
+              ],
               const SizedBox(height: 12),
               FilledButton(onPressed: _load, child: const Text('Erneut laden')),
             ],
@@ -173,6 +215,28 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
     }
     return Column(
       children: [
+        if (_warning != null)
+          Material(
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _warning!,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer, fontSize: 12),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh, size: 18),
+                    onPressed: _load,
+                    tooltip: 'Erneut laden',
+                  ),
+                ],
+              ),
+            ),
+          ),
         TabBar(
           controller: _tabs,
           tabs: const [
@@ -224,7 +288,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
               subtitle: Text(sub),
               trailing: IconButton(
                 icon: const Icon(Icons.swap_horiz),
-                tooltip: 'Tauschen',
+                tooltip: 'Abgeben / tauschen',
                 onPressed: () => _proposeSwap(a),
               ),
               isThreeLine: notes.isNotEmpty,

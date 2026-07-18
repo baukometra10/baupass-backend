@@ -9,7 +9,10 @@ import 'package:path_provider/path_provider.dart';
 import '../core/api_client.dart';
 import '../core/session_store.dart';
 import '../core/tenant_branding.dart';
+import '../features/chat/chat_attachment_helpers.dart';
+import '../features/chat/chat_voice_player.dart';
 import '../services/chat_repository.dart';
+import 'company_contacts_sheet.dart';
 
 /// Kompakter Chat auf dem Start-Tab (wie PWA home-chat-card).
 class WorkerHomeChatPanel extends StatefulWidget {
@@ -18,11 +21,13 @@ class WorkerHomeChatPanel extends StatefulWidget {
     required this.session,
     required this.chat,
     this.onOpenFullScreen,
+    this.onCallEmployer,
   });
 
   final WorkerSession session;
   final ChatRepository chat;
   final VoidCallback? onOpenFullScreen;
+  final Future<void> Function()? onCallEmployer;
 
   @override
   State<WorkerHomeChatPanel> createState() => _WorkerHomeChatPanelState();
@@ -176,6 +181,19 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
+                if (widget.onCallEmployer != null)
+                  IconButton(
+                    tooltip: 'Kontakte / Anrufen',
+                    onPressed: () {
+                      unawaited(CompanyContactsSheet.show(
+                        context,
+                        session: widget.session,
+                        api: widget.chat.apiClient,
+                        onCallEmployer: widget.onCallEmployer,
+                      ));
+                    },
+                    icon: const Icon(Icons.call_rounded, size: 20),
+                  ),
                 if (widget.onOpenFullScreen != null)
                   TextButton(
                     onPressed: widget.onOpenFullScreen,
@@ -216,6 +234,21 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
                     final item = _messages[index];
                     final isWorker = item['senderType'] == 'worker';
                     final attachments = (item['attachments'] as List?) ?? const [];
+                    final audioAttachments = attachments
+                        .whereType<Map>()
+                        .map((e) => Map<String, dynamic>.from(e))
+                        .where(isChatAudioAttachment)
+                        .toList();
+                    final otherAttachments = attachments
+                        .whereType<Map>()
+                        .map((e) => Map<String, dynamic>.from(e))
+                        .where((a) => !isChatAudioAttachment(a))
+                        .toList();
+                    final body = (item['body'] as String? ?? '').trim();
+                    final voiceOnly = audioAttachments.isNotEmpty &&
+                        (body.isEmpty ||
+                            body.toLowerCase() == 'sprachnachricht' ||
+                            body.toLowerCase() == 'voice');
                     return Align(
                       alignment: isWorker ? Alignment.centerRight : Alignment.centerLeft,
                       child: Container(
@@ -236,23 +269,32 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
                               style: theme.textTheme.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 2),
-                            Text(item['body'] as String? ?? ''),
-                            if (attachments.isNotEmpty)
-                              ...attachments.map((att) {
-                                final map = Map<String, dynamic>.from(att as Map);
-                                return InkWell(
-                                  onTap: () => _openAttachment(map),
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      '📎 ${map['filename'] ?? 'Anhang'}',
-                                      style: theme.textTheme.bodySmall?.copyWith(
-                                        decoration: TextDecoration.underline,
-                                      ),
+                            if (!voiceOnly && body.isNotEmpty) Text(body),
+                            ...audioAttachments.map(
+                              (map) => Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: ChatVoicePlayer(
+                                  attachment: map,
+                                  chat: widget.chat,
+                                  session: widget.session,
+                                  isMine: isWorker,
+                                ),
+                              ),
+                            ),
+                            ...otherAttachments.map((map) {
+                              return InkWell(
+                                onTap: () => _openAttachment(map),
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    '📎 ${map['filename'] ?? 'Anhang'}',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      decoration: TextDecoration.underline,
                                     ),
                                   ),
-                                );
-                              }),
+                                ),
+                              );
+                            }),
                           ],
                         ),
                       ),

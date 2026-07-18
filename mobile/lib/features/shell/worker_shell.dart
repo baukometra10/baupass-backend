@@ -272,6 +272,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           _tasksSubTab = 0;
         }),
         onOpenChat: () => setState(() => _index = 3),
+        voiceCall: _voiceCall,
       ),
       AttendanceScreen(
         session: widget.session,
@@ -313,10 +314,20 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
               IndexedStack(index: _index, children: pages),
               ListenableBuilder(
                 listenable: _voiceCall,
-                builder: (context, _) => VoiceCallOverlay(
-                  controller: _voiceCall,
-                  branding: _branding,
-                ),
+                builder: (context, _) {
+                  if (_voiceCall.phase == VoiceCallUiPhase.idle) {
+                    return const SizedBox.shrink();
+                  }
+                  return Positioned.fill(
+                    child: Material(
+                      type: MaterialType.transparency,
+                      child: VoiceCallOverlay(
+                        controller: _voiceCall,
+                        branding: _branding,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),

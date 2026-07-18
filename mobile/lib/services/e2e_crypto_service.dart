@@ -5,6 +5,8 @@ import 'package:cryptography/cryptography.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Client-side E2E crypto for Flutter (X25519 + AES-GCM). Private keys never leave secure storage.
+///
+/// Public keys are stored/published as real SPKI (RFC 8410) so Web Crypto admin clients can import them.
 class E2eCryptoService {
   E2eCryptoService({FlutterSecureStorage? storage})
       : _storage = storage ?? const FlutterSecureStorage();
@@ -13,10 +15,59 @@ class E2eCryptoService {
   final X25519 _x25519 = X25519();
   final AesGcm _aesGcm = AesGcm.with256bits();
 
+  /// ASN.1 SPKI prefix for X25519 SubjectPublicKeyInfo (RFC 8410).
+  static final Uint8List _x25519SpkiPrefix = Uint8List.fromList(<int>[
+    0x30, 0x2a, // SEQUENCE, 42 bytes
+    0x30, 0x05, // AlgorithmIdentifier SEQUENCE
+    0x06, 0x03, 0x2b, 0x65, 0x6e, // OID 1.3.101.110 (X25519)
+    0x03, 0x21, 0x00, // BIT STRING, 33 bytes, 0 unused bits
+  ]);
+
   String _identityKey(String entityType, String entityId) =>
       'suppix-e2e:$entityType:$entityId';
 
   static const _macLength = 16;
+
+  /// Convert raw 32-byte X25519 public key to SPKI base64 (Web-compatible).
+  static String rawPublicKeyToSpkiB64(List<int> raw) {
+    if (raw.length != 32) {
+      throw StateError('e2e_public_key_raw_invalid');
+    }
+    return base64Encode(Uint8List.fromList([..._x25519SpkiPrefix, ...raw]));
+  }
+
+  /// Accept SPKI or legacy raw-32 base64; return raw 32 bytes for cryptography package.
+  static Uint8List publicKeySpkiOrRawToBytes(String spkiOrRawB64) {
+    final bytes = base64Decode(spkiOrRawB64.trim());
+    if (bytes.length == 32) return Uint8List.fromList(bytes);
+    if (bytes.length == 44 &&
+        bytes.length >= _x25519SpkiPrefix.length + 32 &&
+        _startsWith(bytes, _x25519SpkiPrefix)) {
+      return Uint8List.fromList(bytes.sublist(bytes.length - 32));
+    }
+    // Some exporters omit unused-bits byte variations — take last 32 if long enough.
+    if (bytes.length > 32) {
+      return Uint8List.fromList(bytes.sublist(bytes.length - 32));
+    }
+    throw StateError('e2e_public_key_spki_invalid');
+  }
+
+  static bool _startsWith(List<int> bytes, List<int> prefix) {
+    if (bytes.length < prefix.length) return false;
+    for (var i = 0; i < prefix.length; i++) {
+      if (bytes[i] != prefix[i]) return false;
+    }
+    return true;
+  }
+
+  static bool _looksLikeSpki(String b64) {
+    try {
+      final bytes = base64Decode(b64.trim());
+      return bytes.length == 44 && _startsWith(bytes, _x25519SpkiPrefix);
+    } catch (_) {
+      return false;
+    }
+  }
 
   Uint8List _gcmWireBytes(SecretBox box) {
     return Uint8List.fromList([...box.cipherText, ...box.mac.bytes]);
@@ -54,17 +105,19 @@ class E2eCryptoService {
     final key = _identityKey(entityType, entityId);
     final existing = await _storage.read(key: key);
     if (existing != null && existing.isNotEmpty) {
-      final parsed = jsonDecode(existing) as Map<String, dynamic>;
+      final parsed = Map<String, dynamic>.from(jsonDecode(existing) as Map);
+      final migrated = await _migrateIdentityIfNeeded(key, parsed);
       return {
         'entityType': entityType,
         'entityId': entityId,
-        'publicKeySpkiB64': parsed['publicKeySpkiB64'] as String,
+        'publicKeySpkiB64': migrated['publicKeySpkiB64'] as String,
         'algorithm': 'X25519',
+        if (migrated['needsRepublish'] == true) 'needsRepublish': true,
       };
     }
     final keyPair = await _x25519.newKeyPair();
     final publicKey = await keyPair.extractPublicKey();
-    final publicKeySpkiB64 = base64Encode(publicKey.bytes);
+    final publicKeySpkiB64 = rawPublicKeyToSpkiB64(publicKey.bytes);
     final privateKeyBytes = await keyPair.extractPrivateKeyBytes();
     await _storage.write(
       key: key,
@@ -72,6 +125,7 @@ class E2eCryptoService {
         'publicKeySpkiB64': publicKeySpkiB64,
         'privateKeyBytes': base64Encode(privateKeyBytes),
         'algorithm': 'X25519',
+        'format': 'spki-v1',
       }),
     );
     return {
@@ -79,7 +133,35 @@ class E2eCryptoService {
       'entityId': entityId,
       'publicKeySpkiB64': publicKeySpkiB64,
       'algorithm': 'X25519',
+      'needsRepublish': true,
     };
+  }
+
+  /// Upgrade legacy raw-32 public keys stored as publicKeySpkiB64 to real SPKI.
+  Future<Map<String, dynamic>> _migrateIdentityIfNeeded(
+    String storageKey,
+    Map<String, dynamic> parsed,
+  ) async {
+    final pubB64 = (parsed['publicKeySpkiB64'] as String? ?? '').trim();
+    if (pubB64.isEmpty) throw StateError('e2e_public_key_missing');
+    if (_looksLikeSpki(pubB64) && parsed['format'] == 'spki-v1') {
+      return parsed;
+    }
+    final raw = publicKeySpkiOrRawToBytes(pubB64);
+    final spkiB64 = rawPublicKeyToSpkiB64(raw);
+    final next = <String, dynamic>{
+      ...parsed,
+      'publicKeySpkiB64': spkiB64,
+      'format': 'spki-v1',
+      'needsRepublish': true,
+    };
+    await _storage.write(key: storageKey, value: jsonEncode({
+      'publicKeySpkiB64': spkiB64,
+      'privateKeyBytes': parsed['privateKeyBytes'],
+      'algorithm': 'X25519',
+      'format': 'spki-v1',
+    }));
+    return next;
   }
 
   Future<Map<String, dynamic>> ensureLocalIdentity({
@@ -92,6 +174,9 @@ class E2eCryptoService {
     try {
       final parsed = jsonDecode(value);
       if (parsed is! Map) return false;
+      if (parsed['e2e'] == true && parsed['multi'] == true && parsed['envelopes'] is List) {
+        return true;
+      }
       return parsed['e2e'] == true && parsed['v'] != null && parsed['ct'] != null;
     } catch (_) {
       return false;
@@ -176,21 +261,20 @@ class E2eCryptoService {
   Future<SimpleKeyPair> _loadPrivateKey(String entityType, String entityId) async {
     final raw = await _storage.read(key: _identityKey(entityType, entityId));
     if (raw == null || raw.isEmpty) throw StateError('e2e_private_key_missing');
-    final parsed = jsonDecode(raw) as Map<String, dynamic>;
+    final parsed = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+    final migrated = await _migrateIdentityIfNeeded(_identityKey(entityType, entityId), parsed);
+    final pubRaw = publicKeySpkiOrRawToBytes(migrated['publicKeySpkiB64'] as String);
     return SimpleKeyPairData(
-      base64Decode(parsed['privateKeyBytes'] as String),
+      base64Decode(migrated['privateKeyBytes'] as String),
       type: KeyPairType.x25519,
-      publicKey: SimplePublicKey(
-        base64Decode(parsed['publicKeySpkiB64'] as String),
-        type: KeyPairType.x25519,
-      ),
+      publicKey: SimplePublicKey(pubRaw, type: KeyPairType.x25519),
     );
   }
 
   Future<Map<String, dynamic>> _sealForRecipient(String plaintext, String recipientPublicKeySpkiB64) async {
     final ephemeral = await _x25519.newKeyPair();
     final recipientPublic = SimplePublicKey(
-      base64Decode(recipientPublicKeySpkiB64),
+      publicKeySpkiOrRawToBytes(recipientPublicKeySpkiB64),
       type: KeyPairType.x25519,
     );
     final shared = await _x25519.sharedSecretKey(
@@ -217,7 +301,7 @@ class E2eCryptoService {
 
   Future<String> _openEnvelope(Map<String, dynamic> envelope, SimpleKeyPair privateKey) async {
     final ephemeralPublic = SimplePublicKey(
-      base64Decode(envelope['epk'] as String),
+      publicKeySpkiOrRawToBytes(envelope['epk'] as String),
       type: KeyPairType.x25519,
     );
     final shared = await _x25519.sharedSecretKey(

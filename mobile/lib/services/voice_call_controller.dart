@@ -84,18 +84,26 @@ class VoiceCallController extends ChangeNotifier {
     _session = session;
     unawaited(_callKit.initialize(
       onAccept: (callId) {
-        if ((_call?['id'] ?? '').toString() == callId || _phase == VoiceCallUiPhase.ringing) {
+        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+        if (_phase == VoiceCallUiPhase.ringing &&
+            !_isOutgoing &&
+            (current.isEmpty || current == callId || callId.isNotEmpty)) {
           unawaited(accept());
         }
       },
       onDecline: (callId) {
-        if ((_call?['id'] ?? '').toString() == callId || _phase == VoiceCallUiPhase.ringing) {
+        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+        if (_phase == VoiceCallUiPhase.ringing &&
+            (current.isEmpty || current == callId || callId.isNotEmpty)) {
           unawaited(decline());
         }
       },
       onEnded: (callId) {
-        if ((_call?['id'] ?? '').toString() == callId) {
-          unawaited(decline());
+        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+        if (current == callId || (_phase == VoiceCallUiPhase.ringing && callId.isNotEmpty)) {
+          if (_phase == VoiceCallUiPhase.ringing || _phase == VoiceCallUiPhase.connecting) {
+            unawaited(decline());
+          }
         }
       },
     ));
@@ -303,6 +311,10 @@ class VoiceCallController extends ChangeNotifier {
     if (session == null || call == null) return;
     _stopRingFeedback();
     _clearRingTimeout();
+    final callId = (call['id'] ?? call['callId'] ?? '').toString();
+    if (callId.isNotEmpty) {
+      unawaited(_callKit.endCall(callId));
+    }
     _phase = VoiceCallUiPhase.connecting;
     _statusNote = 'Verbindung wird aufgebaut…';
     notifyListeners();

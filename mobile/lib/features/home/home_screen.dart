@@ -16,6 +16,8 @@ import '../../services/worker_cache.dart';
 import '../../core/tenant_branding.dart';
 import '../../widgets/tenant_brand_mark.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../services/voice_call_controller.dart';
+import '../../widgets/company_contacts_sheet.dart';
 import '../notifications/notifications_sheet.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -32,6 +34,7 @@ class HomeScreen extends StatefulWidget {
     this.onOpenTasks,
     this.onOpenDeploymentPlan,
     this.onOpenChat,
+    this.voiceCall,
   });
 
   final WorkerSession session;
@@ -45,6 +48,7 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback? onOpenTasks;
   final VoidCallback? onOpenDeploymentPlan;
   final VoidCallback? onOpenChat;
+  final VoiceCallController? voiceCall;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -240,6 +244,31 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.chat_bubble_outline),
             onPressed: _openChatFullScreen,
           ),
+          if (widget.voiceCall != null)
+            IconButton(
+              tooltip: 'Kontakte',
+              icon: const Icon(Icons.contacts_rounded),
+              onPressed: () {
+                unawaited(CompanyContactsSheet.show(
+                  context,
+                  session: widget.session,
+                  api: widget.chat.apiClient,
+                  onCallEmployer: widget.voiceCall!.isActive
+                      ? null
+                      : () => widget.voiceCall!.startOutgoingCall(),
+                ));
+              },
+            ),
+          if (widget.voiceCall != null)
+            IconButton(
+              tooltip: 'Firma anrufen',
+              icon: const Icon(Icons.call_rounded),
+              onPressed: widget.voiceCall!.isActive
+                  ? null
+                  : () {
+                      unawaited(widget.voiceCall!.startOutgoingCall());
+                    },
+            ),
           IconButton(icon: const Icon(Icons.refresh), onPressed: _load),
         ],
       ),

@@ -41,6 +41,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: "3.29.3"
           cache: true
 
       - name: Accept Android licenses
@@ -99,12 +100,12 @@ jobs:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
         run: |
           set -o pipefail
-          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" --verbose 2>&1 | tee build-apk.log || {
-            echo "::error title=APK build failed::$(tail -n 40 build-apk.log | tr '\n' ' ')"
+          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+            echo "::error title=APK build failed::$(grep -E 'What went wrong|Execution failed|error:|Error:|FAILURE:' build-apk.log | tail -n 20 | tr '\n' ' ')"
             {
               echo "### Build failed"
               echo '```'
-              cat build-apk.log
+              tail -n 200 build-apk.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             exit 1
