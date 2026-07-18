@@ -7,7 +7,9 @@ from backend.app.platform.reports.table_pdf import build_table_report_pdf
 
 
 def build_companies_document_email_pdf(db, *, branding: dict[str, Any] | None = None) -> bytes:
-    from backend.server import datetime, now_iso
+    from datetime import datetime
+
+    from backend.server import now_iso
 
     rows = db.execute(
         """

@@ -23709,12 +23709,19 @@ async function runDailyOpsPdfReportsNow() {
   const result = await apiRequest(`${API_BASE}/api/reporting/daily-pdf/run`, { method: "POST" });
   const sent = Number(result?.sent || 0);
   const skipped = Number(result?.skipped || 0);
-  const errs = Array.isArray(result?.errors) ? result.errors.length : 0;
+  const errorList = [
+    ...(Array.isArray(result?.errors) ? result.errors : []),
+    ...(Array.isArray(result?.scheduledErrors) ? result.scheduledErrors : []),
+  ];
   if (result?.skipped && result?.reason) {
     showToast(`Tages-PDF übersprungen: ${result.reason}`);
     return;
   }
-  showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errs ? `, ${errs} Fehler` : ""}.`);
+  if (sent === 0 && errorList.length) {
+    showToast(uiT("alertGenericError").replace("{error}", String(errorList[0]).slice(0, 180)));
+    return;
+  }
+  showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errorList.length ? `, ${errorList.length} Fehler` : ""}.`);
 }
 
 function reportingErrorMessage(error) {
@@ -23757,12 +23764,14 @@ function bindReportingEmailInvoicesButton() {
 
 function bindReportingEmailCompaniesButton() {
   const btn = document.querySelector("#reportingEmailCompaniesPdfBtn");
-  if (!btn || btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
+  if (!btn) return;
   const isSuperadmin = String(getCurrentUser()?.role || "").toLowerCase() === "superadmin";
   btn.hidden = !isSuperadmin;
   btn.style.display = isSuperadmin ? "" : "none";
+  // Do not mark bound until a session exists — early boot runs before login and would skip handlers forever.
   if (!isSuperadmin) return;
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {
@@ -23786,13 +23795,15 @@ function bindDecisionsTodayPanel() {
 
 function bindReportingDailyPdfRunButton() {
   const btn = document.querySelector("#reportingDailyPdfRunBtn");
-  if (!btn || btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
+  if (!btn) return;
   const actualRole = String(getCurrentUser()?.role || "").toLowerCase();
   const isSuperadmin = actualRole === "superadmin";
   btn.hidden = !isSuperadmin;
   btn.style.display = isSuperadmin ? "" : "none";
+  // Do not mark bound until a session exists — early boot runs before login and would skip handlers forever.
   if (!isSuperadmin) return;
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
   btn.addEventListener("click", async () => {
     btn.disabled = true;
     try {

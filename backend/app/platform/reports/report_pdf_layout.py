@@ -24,6 +24,16 @@ def _escape(text: str) -> str:
     return html.escape(str(text or ""), quote=True)
 
 
+def _safe_hex_color(value: str, fallback: str = "#06b6d4"):
+    raw = str(value or "").strip()
+    if not re.match(r"^#[0-9a-fA-F]{6}$", raw):
+        raw = fallback
+    try:
+        return colors.HexColor(raw)
+    except Exception:
+        return colors.HexColor(fallback)
+
+
 def slugify_filename_part(text: str, *, max_len: int = 28) -> str:
     raw = str(text or "").strip().lower()
     raw = raw.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
@@ -106,7 +116,7 @@ def _header_flowables(
     from backend.app.platform.workforce.deployment_branding import logo_image_flowable
 
     styles = getSampleStyleSheet()
-    accent = colors.HexColor(str(branding.get("accent") or "#06b6d4"))
+    accent = _safe_hex_color(str(branding.get("accent") or "#06b6d4"))
     display_name = str(branding.get("companyName") or "WorkPass")
     sector = str(branding.get("sectorLabel") or "").strip()
 
@@ -168,7 +178,7 @@ def _section_heading(text: str, accent_hex: str) -> Paragraph:
         parent=styles["Heading2"],
         fontSize=11,
         leading=13,
-        textColor=colors.HexColor(accent_hex),
+        textColor=_safe_hex_color(accent_hex),
         spaceBefore=6,
         spaceAfter=4,
         fontName="Helvetica-Bold",
@@ -204,7 +214,7 @@ def _kpi_cards(kpis: dict[str, Any], labels: Sequence[tuple[str, str]], accent_h
         return None
 
     styles = getSampleStyleSheet()
-    accent = colors.HexColor(accent_hex)
+    accent = _safe_hex_color(accent_hex)
     light = colors.HexColor("#f8fafc")
     label_style = ParagraphStyle(
         "ReportKpiLabel",
@@ -322,7 +332,7 @@ def build_branded_table_report_pdf(
     buffer = io.BytesIO()
     brand = branding or {}
     accent_hex = str(brand.get("accent") or "#06b6d4")
-    accent = colors.HexColor(accent_hex)
+    accent = _safe_hex_color(accent_hex)
     footer = _footer_text(brand)
 
     doc = SimpleDocTemplate(
@@ -401,7 +411,7 @@ def build_branded_multi_table_report_pdf(
     buffer = io.BytesIO()
     brand = branding or {}
     accent_hex = str(brand.get("accent") or "#06b6d4")
-    accent = colors.HexColor(accent_hex)
+    accent = _safe_hex_color(accent_hex)
     footer = _footer_text(brand)
 
     doc = SimpleDocTemplate(
