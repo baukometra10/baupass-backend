@@ -1495,6 +1495,8 @@ class CompaniesService:
             )
 
         from backend.app.platform.physical_operations._common import pair_presence_sessions
+        from backend.app.platform.reports.schedule import resolve_company_timezone
+        from backend.server import get_effective_work_start_time
 
         days = []
         for day, events in by_day.items():
@@ -1506,6 +1508,18 @@ class CompaniesService:
             )
             days.append({"date": day, "sessions": sessions, "dayMinutes": day_minutes})
 
+        work_start = get_effective_work_start_time(db, worker_id)
+        company_row = db.execute(
+            "SELECT work_end_time FROM companies WHERE id = ?",
+            (company_id,),
+        ).fetchone()
+        settings_row = db.execute(
+            "SELECT work_end_time FROM settings WHERE id = 1"
+        ).fetchone()
+        work_end = str(company_row["work_end_time"] or "").strip() if company_row else ""
+        if not work_end and settings_row:
+            work_end = str(settings_row["work_end_time"] or "").strip()
+
         return {
             "body": {
                 "month": month_prefix,
@@ -1513,6 +1527,9 @@ class CompaniesService:
                 "firstName": worker.get("first_name") or "",
                 "lastName": worker.get("last_name") or "",
                 "badgeId": worker.get("badge_id") or "",
+                "workStartTime": work_start,
+                "workEndTime": work_end,
+                "timezone": resolve_company_timezone(db, company_id),
                 "days": days,
             }
         }

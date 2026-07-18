@@ -24210,7 +24210,7 @@ function renderWorkerList() {
 
 function parseHmToMinutes(value) {
   const raw = String(value || "").trim();
-  const match = raw.match(/^(\d{1,2}):(\d{2})$/);
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
   if (!match) return null;
   const h = Number(match[1]);
   const m = Number(match[2]);
@@ -24218,10 +24218,38 @@ function parseHmToMinutes(value) {
   return h * 60 + m;
 }
 
-function getTimestampMinutes(timestampValue) {
-  const text = String(timestampValue || "");
-  const hm = text.substring(11, 16);
-  return parseHmToMinutes(hm);
+function minutesToHmLabel(totalMinutes) {
+  if (totalMinutes == null || !Number.isFinite(Number(totalMinutes))) return "";
+  const safe = Math.max(0, Math.min(24 * 60 - 1, Number(totalMinutes)));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function getTimestampMinutes(timestampValue, timeZone = "Europe/Berlin") {
+  const text = String(timestampValue || "").trim();
+  if (!text) return null;
+  const date = new Date(text);
+  if (!Number.isNaN(date.getTime())) {
+    try {
+      const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: timeZone || "Europe/Berlin",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(date);
+      const hour = parts.find((part) => part.type === "hour")?.value;
+      const minute = parts.find((part) => part.type === "minute")?.value;
+      const parsed = parseHmToMinutes(`${hour}:${minute}`);
+      if (parsed != null) return parsed;
+    } catch {
+      // fall through
+    }
+  }
+  // Fallback for plain "YYYY-MM-DD HH:MM:SS" / ISO without reliable Date parsing
+  const match = text.match(/(?:T|\s)(\d{2}):(\d{2})/);
+  if (match) return parseHmToMinutes(`${match[1]}:${match[2]}`);
+  return parseHmToMinutes(text.substring(11, 16));
 }
 
 function formatMinutesToHm(totalMinutes) {
@@ -24231,13 +24259,48 @@ function formatMinutesToHm(totalMinutes) {
   return `${h}h ${String(m).padStart(2, "0")}min`;
 }
 
-function getWorkerWorkTimeWindow(worker) {
+function getWorkerWorkTimeWindow(worker, timelinePayload = null) {
   const company = state.companies.find((entry) => String(entry?.id || "") === String(worker?.companyId || worker?.company_id || "")) || null;
-  const startRaw = String(company?.workStartTime || company?.work_start_time || state.settings?.workStartTime || "").trim();
-  const endRaw = String(company?.workEndTime || company?.work_end_time || state.settings?.workEndTime || "").trim();
+  const startCandidates = [
+    timelinePayload?.workStartTime,
+    company?.workStartTime,
+    company?.work_start_time,
+    state.settings?.workStartTime,
+    state.settings?.work_start_time,
+  ];
+  const endCandidates = [
+    timelinePayload?.workEndTime,
+    company?.workEndTime,
+    company?.work_end_time,
+    state.settings?.workEndTime,
+    state.settings?.work_end_time,
+  ];
+  let startRaw = "";
+  let endRaw = "";
+  for (const value of startCandidates) {
+    const text = String(value || "").trim();
+    if (parseHmToMinutes(text) != null) {
+      startRaw = text.slice(0, 5);
+      break;
+    }
+  }
+  for (const value of endCandidates) {
+    const text = String(value || "").trim();
+    if (parseHmToMinutes(text) != null) {
+      endRaw = text.slice(0, 5);
+      break;
+    }
+  }
+  const usedDefault = !startRaw || !endRaw;
+  if (!startRaw) startRaw = "08:00";
+  if (!endRaw) endRaw = "17:00";
   return {
     start: parseHmToMinutes(startRaw),
     end: parseHmToMinutes(endRaw),
+    startLabel: startRaw,
+    endLabel: endRaw,
+    usedDefault,
+    timezone: String(timelinePayload?.timezone || company?.reportTimezone || company?.report_timezone || "Europe/Berlin").trim() || "Europe/Berlin",
   };
 }
 
@@ -24338,10 +24401,11 @@ async function runWorkerInsightsByName() {
   try {
     const payload = await apiRequest(`${API_BASE}/api/companies/${companyId}/workers/${encodeURIComponent(target.id)}/timeline?month=${encodeURIComponent(monthKey)}`);
     const days = Array.isArray(payload?.days) ? payload.days : [];
-    const windowCfg = getWorkerWorkTimeWindow(target);
+    const windowCfg = getWorkerWorkTimeWindow(target, payload);
     const lateDays = [];
     const earlyLeaveDays = [];
     let totalMinutes = 0;
+    const tz = windowCfg.timezone || "Europe/Berlin";
 
     days.forEach((dayEntry) => {
       const day = String(dayEntry?.date || "");
@@ -24352,8 +24416,8 @@ async function runWorkerInsightsByName() {
       const firstIn = checkIns.length ? checkIns.sort()[0] : null;
       const lastOut = checkOuts.length ? checkOuts.sort().slice(-1)[0] : null;
 
-      const firstInMin = getTimestampMinutes(firstIn);
-      const lastOutMin = getTimestampMinutes(lastOut);
+      const firstInMin = getTimestampMinutes(firstIn, tz);
+      const lastOutMin = getTimestampMinutes(lastOut, tz);
 
       if (windowCfg.start != null && firstInMin != null && firstInMin > windowCfg.start) {
         lateDays.push({ date: day, minutes: firstInMin - windowCfg.start });
@@ -24363,18 +24427,22 @@ async function runWorkerInsightsByName() {
       }
     });
 
-    const note = candidates.length > 1 && !exact
-      ? runtimeTextTemplate("workerInsightsMultipleMatches", { name: workerName })
-      : "";
+    const notes = [];
+    if (candidates.length > 1 && !exact) {
+      notes.push(runtimeTextTemplate("workerInsightsMultipleMatches", { name: workerName }));
+    }
+    if (windowCfg.usedDefault) {
+      notes.push("Sollzeit nicht konfiguriert — Auswertung mit Standard 08:00–17:00. Bitte Arbeitsbeginn/-ende in Firma oder Einstellungen setzen.");
+    }
     renderWorkerInsightsPanelHtml({
       workerName,
       monthKey,
       totalMinutes,
       lateDays,
       earlyLeaveDays,
-      startLabel: windowCfg.start == null ? runtimeText("workerInsightsNotSet") : String((target.workStartTime || target.work_start_time || state.settings?.workStartTime || "")).trim(),
-      endLabel: windowCfg.end == null ? runtimeText("workerInsightsNotSet") : String((target.workEndTime || target.work_end_time || state.settings?.workEndTime || "")).trim(),
-      note,
+      startLabel: windowCfg.startLabel || minutesToHmLabel(windowCfg.start) || runtimeText("workerInsightsNotSet"),
+      endLabel: windowCfg.endLabel || minutesToHmLabel(windowCfg.end) || runtimeText("workerInsightsNotSet"),
+      note: notes.join(" "),
     });
   } catch (error) {
     panel.style.display = "block";
