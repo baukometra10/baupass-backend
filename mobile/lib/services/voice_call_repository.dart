@@ -289,7 +289,7 @@ class WorkerVoiceCallSession {
         final stats = await pc.getStats();
         var local = 0.0;
         var remote = 0.0;
-        stats.forEach((_, report) {
+        for (final report in stats) {
           final values = report.values;
           final type = report.type;
           if (type == 'media-source' && values['kind'] == 'audio') {
@@ -300,7 +300,7 @@ class WorkerVoiceCallSession {
             final level = values['audioLevel'];
             if (level is num) remote = math.max(remote, level.toDouble().clamp(0.0, 1.0));
           }
-        });
+        }
         if (_muted) local = 0;
         onAudioLevels?.call(local, remote);
       } catch (_) {

@@ -27,6 +27,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   late final AnimationController _pulseController;
   late final AnimationController _waveController;
   RTCVideoRenderer? _remoteRenderer;
+  bool _remoteRendererReady = false;
 
   @override
   void initState() {
@@ -60,8 +61,9 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
       return;
     }
     _remoteRenderer ??= RTCVideoRenderer();
-    if (!_remoteRenderer!.initialized) {
+    if (!_remoteRendererReady) {
       await _remoteRenderer!.initialize();
+      _remoteRendererReady = true;
     }
     _remoteRenderer!.srcObject = stream;
     if (mounted) setState(() {});
