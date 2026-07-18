@@ -23703,7 +23703,7 @@ async function loadDecisionsTodayPanel() {
 }
 
 async function runDailyOpsPdfReportsNow() {
-  if (!window.confirm("Tages-PDF an alle Firmen-Admins jetzt senden? (Bereits gesendete Firmen heute werden übersprungen.)")) {
+  if (!window.confirm("Tages-PDF jetzt an alle Firmen-Admins senden?\n\nAuch Firmen, die heute schon einen Bericht bekommen haben, werden erneut angeschrieben.")) {
     return;
   }
   const result = await apiRequest(`${API_BASE}/api/reporting/daily-pdf/run`, { method: "POST" });
@@ -23713,7 +23713,8 @@ async function runDailyOpsPdfReportsNow() {
     ...(Array.isArray(result?.errors) ? result.errors : []),
     ...(Array.isArray(result?.scheduledErrors) ? result.scheduledErrors : []),
   ];
-  if (result?.skipped && result?.reason) {
+  const skipReasons = Array.isArray(result?.skipReasons) ? result.skipReasons : [];
+  if (result?.skipped === true && result?.reason) {
     showToast(`Tages-PDF übersprungen: ${result.reason}`);
     return;
   }
@@ -23721,7 +23722,11 @@ async function runDailyOpsPdfReportsNow() {
     showToast(uiT("alertGenericError").replace("{error}", String(errorList[0]).slice(0, 180)));
     return;
   }
-  showToast(`Tages-PDF: ${sent} gesendet, ${skipped} übersprungen${errorList.length ? `, ${errorList.length} Fehler` : ""}.`);
+  if (sent === 0 && skipReasons.length) {
+    showToast(`Tages-PDF: nichts gesendet. ${String(skipReasons[0]).slice(0, 160)}`);
+    return;
+  }
+  showToast(`Tages-PDF: ${sent} gesendet${skipped ? `, ${skipped} übersprungen` : ""}${errorList.length ? `, ${errorList.length} Fehler` : ""}.`);
 }
 
 function reportingErrorMessage(error) {

@@ -8,7 +8,8 @@ from typing import Any
 def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
     """
     Send one operations PDF per active company to each company-admin with email.
-    Skips companies already dispatched today (audit log dedup, local company date).
+    Skips companies already dispatched today (audit log dedup, local company date),
+    unless force=True (manual "jetzt senden" re-runs even if already sent today).
     By default only sends during the local 08:00 window (see schedule.py).
     """
     from backend.app.platform.reports.datev_attachment import build_datev_csv_attachment
@@ -39,9 +40,11 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
     skipped = 0
     waiting_tz = 0
     errors: list[str] = []
+    skip_reasons: list[str] = []
 
     for company in companies:
         company_id = str(company["id"])
+        company_name = str(company["name"] or company_id)
         tz_name = resolve_company_timezone(db, company_id)
         local_day = local_day_key(tz_name)
 
@@ -60,8 +63,10 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             """,
             (company_id, dedup_key),
         ).fetchone()
-        if already:
+        # Manual "jetzt senden" must re-send; scheduled runs keep daily dedup.
+        if already and not force:
             skipped += 1
+            skip_reasons.append(f"{company_name}: heute bereits gesendet")
             continue
 
         admins = db.execute(
@@ -71,37 +76,40 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             WHERE company_id = ?
               AND role = 'company-admin'
               AND COALESCE(email, '') != ''
+              AND instr(COALESCE(email, ''), '@') > 1
             """,
             (company_id,),
         ).fetchall()
         if not admins:
             skipped += 1
+            skip_reasons.append(f"{company_name}: kein Firmen-Admin mit E-Mail")
             continue
 
         fake_user = {"role": "company-admin", "company_id": company_id, "email": ""}
         try:
             snapshot = _operations_snapshot_for_user(db, fake_user)
-            snapshot["companyName"] = str(company["name"] or "")
+            snapshot["companyName"] = company_name
             guidance = build_operational_guidance(snapshot)
             from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
 
             company_branding = resolve_report_branding(db, company_id)
             pdf_bytes = build_operations_report_pdf(
                 title="Tagesbericht",
-                company_name=str(company["name"] or "WorkPass"),
+                company_name=company_name or "WorkPass",
                 snapshot=snapshot,
                 guidance=guidance,
                 branding=company_branding,
             )
             period = local_day
             filename = build_report_filename(
-                company_name=str(company["name"] or "WorkPass"),
+                company_name=company_name or "WorkPass",
                 report_kind="tagesbericht",
                 period=period,
             )
         except Exception as exc:
-            errors.append(f"{company_id}:pdf:{str(exc)[:200]}")
+            errors.append(f"{company_name}:pdf:{str(exc)[:200]}")
             skipped += 1
+            skip_reasons.append(f"{company_name}: PDF fehlgeschlagen")
             continue
 
         extra_attachments: list[dict[str, Any]] = []
@@ -115,10 +123,10 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
             recipient = str(admin["email"] or "").strip()
             if not recipient or "@" not in recipient:
                 continue
-            subject = f"{company['name']} — Tagesbericht {period}"
+            subject = f"{company_name} — Tagesbericht {period}"
             body = (
                 f"Guten Tag,\n\n"
-                f"anbei der automatische Tagesbericht (PDF) für {company['name']}.\n"
+                f"anbei der automatische Tagesbericht (PDF) für {company_name}.\n"
                 f"Enthalten sind Live-KPIs, Zutritte, Lohn/Compliance und empfohlene Maßnahmen.\n"
             )
             if extra_attachments:
@@ -129,7 +137,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
                 report_title="Tagesbericht",
                 report_subtitle="Automatischer Morgen-Report",
                 message=body,
-                company_name=str(company["name"] or ""),
+                company_name=company_name,
                 company_id=company_id,
                 period=period,
                 pdf_filename=filename,
@@ -149,19 +157,30 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
                 company_sent += 1
                 sent += 1
             else:
-                errors.append(f"{company_id}:{recipient}:{err}")
+                errors.append(f"{company_name}:{recipient}:{err}")
 
         if company_sent > 0:
-            log_audit(
-                "reporting.daily_pdf_sent",
-                f"Tages-PDF ({local_day} {tz_name}) an {company_sent} Admin(s) für {company['name']}",
-                target_type="company",
-                target_id=dedup_key,
-                company_id=company_id,
-            )
+            # Only write dedup marker for automatic runs; force can be repeated.
+            if not already:
+                log_audit(
+                    "reporting.daily_pdf_sent",
+                    f"Tages-PDF ({local_day} {tz_name}) an {company_sent} Admin(s) für {company_name}",
+                    target_type="company",
+                    target_id=dedup_key,
+                    company_id=company_id,
+                )
+            else:
+                log_audit(
+                    "reporting.daily_pdf_resent",
+                    f"Tages-PDF manuell erneut ({local_day} {tz_name}) an {company_sent} Admin(s) für {company_name}",
+                    target_type="company",
+                    target_id=f"resend-{dedup_key}",
+                    company_id=company_id,
+                )
             db.commit()
         else:
             skipped += 1
+            skip_reasons.append(f"{company_name}: Versand an Admins fehlgeschlagen")
 
     return {
         "ok": True,
@@ -170,4 +189,5 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
         "waitingTimezoneWindow": waiting_tz,
         "forced": bool(force),
         "errors": errors[:20],
+        "skipReasons": skip_reasons[:20],
     }
