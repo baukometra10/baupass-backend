@@ -43,6 +43,22 @@
 
   function playWorkerMessageSound() {
     try {
+      // Prefer soft chime asset when available; warmer multi-tone fallback otherwise.
+      const audio = new global.Audio("/sounds/admin-message-chime.mp3");
+      audio.volume = 0.72;
+      const play = audio.play();
+      if (play && typeof play.then === "function") {
+        play.catch(() => playWorkerMessageSynth());
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    playWorkerMessageSynth();
+  }
+
+  function playWorkerMessageSynth() {
+    try {
       const Ctx = global.AudioContext || global.webkitAudioContext;
       if (!Ctx) return;
       if (!notifyAudioCtx) notifyAudioCtx = new Ctx();
@@ -51,31 +67,27 @@
         void ctx.resume();
       }
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.exponentialRampToValueAtTime(660, now + 0.12);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.3);
-      global.setTimeout(() => {
-        const osc2 = ctx.createOscillator();
-        const gain2 = ctx.createGain();
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(988, ctx.currentTime);
-        gain2.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain2.gain.exponentialRampToValueAtTime(0.14, ctx.currentTime + 0.02);
-        gain2.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.22);
-        osc2.connect(gain2);
-        gain2.connect(ctx.destination);
-        osc2.start();
-        osc2.stop(ctx.currentTime + 0.24);
-      }, 140);
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.0001, now);
+      master.gain.exponentialRampToValueAtTime(0.22, now + 0.02);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
+      master.connect(ctx.destination);
+      // Soft major triad: C6 → E6 → G6 (message pop, not ringtone).
+      const notes = [1046.5, 1318.5, 1568.0];
+      notes.forEach((hz, i) => {
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = hz;
+        const t = now + i * 0.07;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.16, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+        osc.connect(g);
+        g.connect(master);
+        osc.start(t);
+        osc.stop(t + 0.24);
+      });
     } catch {
       /* ignore */
     }

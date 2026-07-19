@@ -21,24 +21,23 @@
 
   /**
    * Call ringtone from project asset (Freesound phone-call sample).
-   * Plays a full ~12s cycle through, pauses briefly, then repeats until stop().
-   * Falls back to a short Web Audio motif if the MP3 cannot play.
+   * Incoming: short classic dual-tone (WhatsApp-like) with pause between rings.
+   * Outgoing: longer cycle / arpeggio ringback so caller hears "it is ringing".
    * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
-    const whatsappStyle = Boolean(options.whatsappStyle) || mode === "incoming";
-    // Incoming: short classic dual-tone bursts with WhatsApp-like pause between rings.
-    // Outgoing: longer cycle so it feels like dial tone progress.
+    // Never mix styles: incoming ≠ outgoing.
+    const whatsappStyle = mode === "incoming" ? (options.whatsappStyle !== false) : false;
     const src =
       String(
         options.src
         || global.SUPPIX_CALL_RINGTONE_URL
-        || (whatsappStyle ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3")
-      ).trim() || "/sounds/phone-call-ring-cycle.mp3";
+        || (mode === "incoming" ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3")
+      ).trim() || (mode === "incoming" ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3");
     const pauseMs = Math.max(
       400,
-      Number(options.pauseMs) || (whatsappStyle ? 1800 : (mode === "outgoing" ? 1200 : 900)),
+      Number(options.pauseMs) || (mode === "incoming" ? 1800 : 900),
     );
     let audio = null;
     let stopped = false;
@@ -266,7 +265,10 @@
           .then((data) => {
             const status = data.call?.status || "";
             if (!this.ended && (status === "ringing" || status === "accepted")) {
-              if (status === "ringing") void this.end("timeout");
+              if (status === "ringing") {
+                this.onState("unreachable");
+                void this.end("timeout");
+              }
             }
           })
           .catch(() => {});

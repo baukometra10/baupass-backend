@@ -165,8 +165,26 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     }
   }
 
+  bool _isFree(Map<String, dynamic> day) {
+    if (day['isFree'] == true) return true;
+    final loc = (day['location'] as String? ?? '').trim().toLowerCase();
+    const markers = {
+      'frei',
+      'free',
+      'off',
+      'urlaub',
+      'ferien',
+      'kein einsatz',
+      'keine arbeit',
+      'rest day',
+    };
+    return markers.contains(loc);
+  }
+
   bool _dayHasAssignment(Map<String, dynamic> day) {
-    return (day['location'] as String? ?? '').trim().isNotEmpty;
+    final loc = (day['location'] as String? ?? '').trim();
+    if (loc.isEmpty) return false;
+    return !_isFree(day);
   }
 
   bool _isDeclined(Map<String, dynamic> day) {
@@ -182,6 +200,22 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     final d = DateTime(parsed.year, parsed.month, parsed.day);
     final t = DateTime(today.year, today.month, today.day);
     return !d.isBefore(t);
+  }
+
+  Color? _dayColor(Map<String, dynamic> day) {
+    final raw = (day['dayColor'] as String? ?? day['day_color'] as String? ?? '').trim();
+    if (raw.isEmpty) {
+      if (_isFree(day)) return const Color(0xFF10B981);
+      return null;
+    }
+    var hex = raw.replaceFirst('#', '');
+    if (hex.length == 3) {
+      hex = hex.split('').map((c) => '$c$c').join();
+    }
+    if (hex.length != 6) return null;
+    final value = int.tryParse(hex, radix: 16);
+    if (value == null) return null;
+    return Color(0xFF000000 | value);
   }
 
   @override
@@ -259,43 +293,74 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
             ...days.where((d) {
               final loc = (d['location'] as String? ?? '').trim();
               final declined = _isDeclined(d);
+              final free = _isFree(d);
               final weekend = d['isWeekend'] == true;
-              return loc.isNotEmpty || declined || !weekend;
+              return loc.isNotEmpty || free || declined || !weekend;
             }).map((day) {
               final iso = (day['date'] as String? ?? '').substring(0, 10);
               final loc = (day['location'] as String? ?? '').trim();
+              final free = _isFree(day);
               final declined = _isDeclined(day);
               final start = (day['shiftStart'] as String? ?? '').trim();
               final end = (day['shiftEnd'] as String? ?? '').trim();
               String time = '';
-              if (start.isNotEmpty || end.isNotEmpty) {
+              if (!free && (start.isNotEmpty || end.isNotEmpty)) {
                 time = [start, end].where((s) => s.isNotEmpty).join(' – ');
               }
+              final accent = _dayColor(day);
+              final cardColor = declined
+                  ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35)
+                  : (accent?.withValues(alpha: 0.22));
+              final titleDate = iso.length >= 10 ? iso.substring(8, 10) : iso;
+              final weekday = (day['weekday'] as String? ?? '').toString();
+              final subtitleLines = <String>[
+                if (free) 'Frei' else if (loc.isNotEmpty) loc else 'Kein Einsatz',
+                if (time.isNotEmpty) time,
+                if (declined) 'Abgelehnt',
+              ];
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
-                color: declined
-                    ? Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35)
-                    : null,
-                child: ListTile(
-                  title: Text('${iso.length >= 10 ? iso.substring(8, 10) : iso}. · ${day['weekday'] ?? ''}'),
-                  subtitle: Text(
-                    [
-                      if (loc.isNotEmpty) loc else 'Kein Einsatz',
-                      if (time.isNotEmpty) time,
-                      if (declined) 'Abgelehnt',
-                    ].join('\n'),
+                color: cardColor,
+                clipBehavior: Clip.antiAlias,
+                child: IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Container(
+                        width: 6,
+                        color: declined
+                            ? Theme.of(context).colorScheme.error
+                            : (accent ?? Theme.of(context).colorScheme.outlineVariant),
+                      ),
+                      Expanded(
+                        child: ListTile(
+                          title: Text(
+                            '$titleDate. · $weekday',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text(subtitleLines.join('\n')),
+                          trailing: free
+                              ? Chip(
+                                  label: const Text('Frei'),
+                                  visualDensity: VisualDensity.compact,
+                                  backgroundColor: (accent ?? const Color(0xFF10B981)).withValues(alpha: 0.18),
+                                  side: BorderSide.none,
+                                )
+                              : (declined
+                                  ? TextButton(
+                                      onPressed: () => _undoDecline(iso),
+                                      child: const Text('Zurück'),
+                                    )
+                                  : (_canDecline(day, canRespond)
+                                      ? TextButton(
+                                          onPressed: () => _declineDay(day),
+                                          child: const Text('Kann nicht'),
+                                        )
+                                      : null)),
+                        ),
+                      ),
+                    ],
                   ),
-                  trailing: declined
-                      ? TextButton(
-                          onPressed: () => _undoDecline(iso),
-                          child: const Text('Zurück'),
-                        )
-                      : (_canDecline(day, canRespond)
-                          ? TextButton(
-                              onPressed: () => _declineDay(day),
-                              child: const Text('Kann nicht'),
-                            )
-                          : null),
                 ),
               );
             }),

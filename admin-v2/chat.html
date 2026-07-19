@@ -1471,7 +1471,7 @@
   </div>
   <script src="/geo-precision.js?v=20260714chat26"></script>
   <script src="/ops-realtime.js?v=20260715chat40"></script>
-  <script src="/chat-realtime.js?v=20260715chat40"></script>
+  <script src="/chat-realtime.js?v=20260719chat44"></script>
   <script src="/chat-gallery.js?v=20260715chat40"></script>
   <script src="/chat-typing.js?v=20260715chat40"></script>
   <script src="/chat-search.js?v=20260715chat40"></script>
@@ -1481,12 +1481,12 @@
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
   <script src="/chat-admin-push.js?v=20260718chat42i"></script>
-  <script src="/chat-global-notify.js?v=20260715chat40"></script>
+  <script src="/chat-global-notify.js?v=20260719chat44"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
-  <script src="/chat-voice-call.js?v=20260719chat43"></script>
+  <script src="/chat-voice-call.js?v=20260719chat44"></script>
   <script src="/chat-conference.js?v=20260719confCam1"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260719chat43"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260719chat44"></script>
   <script src="/e2e-crypto.js?v=20260719e2e5"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -4267,6 +4267,7 @@
       }
       const connected = state === "connected" || state === "accepted";
       const ringing = state === "ringing" || state === "dialing" || state === "connecting";
+      const unreachable = state === "unreachable";
       if (connected) {
         rings?.classList.add("hidden");
         stopVoiceCallRingTimer();
@@ -4275,6 +4276,16 @@
         if (quality) quality.textContent = window.adminChatT("voiceCallQualityGood") || "Verbindung stabil";
         if (subtitle) {
           subtitle.textContent = window.adminChatT("voiceCallSecure") || "";
+          subtitle.classList.remove("hidden");
+        }
+      } else if (unreachable) {
+        rings?.classList.add("hidden");
+        stopVoiceCallTimer();
+        stopVoiceCallRingTimer();
+        quality?.classList.add("hidden");
+        if (subtitle) {
+          subtitle.textContent = window.adminChatT("voiceCallWorkerUnreachable") || "Mitarbeiter nicht erreichbar";
+          subtitle.classList.add("is-error");
           subtitle.classList.remove("hidden");
         }
       } else {
@@ -4324,11 +4335,38 @@
           if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
           updateVoiceCallLiveWave(local, remote);
         },
-        onState: (state) => {
+        onState: (state, reason) => {
+          if (state === "unreachable") {
+            setVoiceCallOverlay(
+              true,
+              window.adminChatT("voiceCallWorkerUnreachable") || "Mitarbeiter nicht erreichbar",
+              "unreachable",
+              "active"
+            );
+            return;
+          }
           if (state === "ended") {
-            setVoiceCallOverlay(false);
+            const why = String(reason || "");
+            const unreachable = /timeout|missed|unreachable/i.test(why);
             activeVoiceCallSession = null;
             pendingIncomingCall = null;
+            if (unreachable) {
+              setVoiceCallOverlay(
+                true,
+                window.adminChatT("voiceCallWorkerUnreachable") || "Mitarbeiter nicht erreichbar",
+                "unreachable",
+                "active"
+              );
+              globalThis.setTimeout?.(() => {
+                setVoiceCallOverlay(false);
+                if (currentThreadId) {
+                  void loadMessages(currentThreadId, currentWorkerId);
+                  void loadThreads();
+                }
+              }, 2600);
+              return;
+            }
+            setVoiceCallOverlay(false);
             if (currentThreadId) {
               void loadMessages(currentThreadId, currentWorkerId);
               void loadThreads();

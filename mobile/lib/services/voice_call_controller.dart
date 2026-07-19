@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
 
 import '../core/session_store.dart';
 import 'voice_call_repository.dart';
@@ -42,6 +43,7 @@ class VoiceCallController extends ChangeNotifier {
   double _remoteLevel = 0;
   String? _lastDismissedCallId;
   bool _isOutgoing = false;
+  AudioPlayer? _ringPlayer;
 
   VoiceCallUiPhase get phase => _phase;
   bool get isOutgoing => _isOutgoing;
@@ -119,9 +121,8 @@ class VoiceCallController extends ChangeNotifier {
   void unbind() {
     _pollTimer?.cancel();
     _eventTimer?.cancel();
-    _ringTimer?.cancel();
-    _ringTimeoutTimer?.cancel();
-    _ringCountdownTimer?.cancel();
+    _stopRingFeedback();
+    _clearRingTimeout();
     _durationTimer?.cancel();
     unawaited(_sessionRtc?.end('dispose'));
     _sessionRtc = null;
@@ -165,24 +166,42 @@ class VoiceCallController extends ChangeNotifier {
     }
     try {
       final events = await repo.recentEvents(session, sinceId: _lastEventId);
+      // First bind after login: advance cursor only — never ring for historical calls.
+      final bootstrap = _lastEventId.isEmpty;
       for (final evt in events) {
         final id = (evt['id'] ?? '').toString();
         if (id.isNotEmpty) _lastEventId = id;
+        if (bootstrap) continue;
         final type = (evt['type'] ?? evt['event_type'] ?? '').toString();
         if (!type.startsWith('voice_call.')) continue;
+        if (!type.contains('incoming')) continue;
         final payloadRaw = evt['payload'];
         final payload = payloadRaw is Map
             ? Map<String, dynamic>.from(payloadRaw)
             : <String, dynamic>{};
         final callId = (payload['callId'] ?? payload['call_id'] ?? '').toString();
-        if (type.contains('incoming') && callId.isNotEmpty) {
-          _pendingCallId = callId;
-          unawaited(_pollIncoming(force: true));
+        if (callId.isEmpty) continue;
+        final evtAt = DateTime.tryParse(
+          (evt['createdAt'] ?? evt['created_at'] ?? payload['createdAt'] ?? '').toString(),
+        );
+        if (evtAt != null && DateTime.now().toUtc().difference(evtAt.toUtc()) > ringTimeout) {
+          continue;
         }
+        _pendingCallId = callId;
+        unawaited(_pollIncoming(force: true));
       }
     } catch (_) {
       /* ignore transient errors */
     }
+  }
+
+  bool _isActionableIncoming(Map<String, dynamic> call) {
+    final status = (call['status'] ?? '').toString().trim().toLowerCase();
+    if (status.isNotEmpty && status != 'ringing') return false;
+    final createdRaw = (call['createdAt'] ?? call['created_at'] ?? '').toString();
+    final created = DateTime.tryParse(createdRaw);
+    if (created == null) return status == 'ringing' || status.isEmpty;
+    return DateTime.now().toUtc().difference(created.toUtc()) <= ringTimeout;
   }
 
   Future<void> _pollIncoming({bool force = false}) async {
@@ -200,6 +219,14 @@ class VoiceCallController extends ChangeNotifier {
       }
       incoming ??= await repo.incomingCall(session);
       if (incoming == null) return;
+      if (!_isActionableIncoming(incoming)) {
+        final staleId = (incoming['id'] ?? incoming['callId'] ?? '').toString();
+        if (staleId.isNotEmpty) {
+          _lastDismissedCallId = staleId;
+          unawaited(_callKit.endCall(staleId));
+        }
+        return;
+      }
       final callId = (incoming['id'] ?? incoming['callId'] ?? '').toString();
       if (callId.isEmpty || callId == _lastDismissedCallId) return;
       if (_phase == VoiceCallUiPhase.ringing && _call != null) {
@@ -213,6 +240,7 @@ class VoiceCallController extends ChangeNotifier {
   }
 
   void _presentIncoming(Map<String, dynamic> call) {
+    if (!_isActionableIncoming(call)) return;
     _call = call;
     _isOutgoing = false;
     _phase = VoiceCallUiPhase.ringing;
@@ -292,17 +320,51 @@ class VoiceCallController extends ChangeNotifier {
   }
 
   void _startRingFeedback() {
-    _ringTimer?.cancel();
-    _ringTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
-      HapticFeedback.heavyImpact();
-      SystemSound.play(SystemSoundType.click);
+    _stopRingFeedback();
+    _ringTimer = Timer.periodic(const Duration(milliseconds: 1600), (_) {
+      HapticFeedback.mediumImpact();
     });
     HapticFeedback.heavyImpact();
+    unawaited(_playRingAsset());
+  }
+
+  Future<void> _playRingAsset() async {
+    try {
+      final player = AudioPlayer();
+      _ringPlayer = player;
+      final asset = _isOutgoing
+          ? 'assets/sounds/outgoing_ringback.mp3'
+          : 'assets/sounds/incoming_ring.mp3';
+      await player.setAsset(asset);
+      await player.setLoopMode(LoopMode.one);
+      await player.setVolume(_isOutgoing ? 0.85 : 1.0);
+      await player.play();
+    } catch (_) {
+      // Fallback when asset/player unavailable.
+      SystemSound.play(SystemSoundType.alert);
+      _ringTimer?.cancel();
+      _ringTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
+        HapticFeedback.heavyImpact();
+        SystemSound.play(SystemSoundType.click);
+      });
+    }
   }
 
   void _stopRingFeedback() {
     _ringTimer?.cancel();
     _ringTimer = null;
+    final player = _ringPlayer;
+    _ringPlayer = null;
+    if (player != null) {
+      unawaited(() async {
+        try {
+          await player.stop();
+        } catch (_) {}
+        try {
+          await player.dispose();
+        } catch (_) {}
+      }());
+    }
   }
 
   Future<void> accept() async {
