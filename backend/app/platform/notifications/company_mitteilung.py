@@ -163,3 +163,124 @@ def notify_company_deployment_day_declined(
         "emailsSent": emails_sent,
         "recipientCount": len(recipients),
     }
+
+
+def notify_company_shift_swap_accepted(
+    db,
+    *,
+    company_id: str,
+    from_worker_id: str,
+    from_worker_name: str,
+    to_worker_id: str,
+    to_worker_name: str,
+    start_time: str = "",
+    end_time: str = "",
+    site: str = "",
+    target_start_time: str = "",
+    target_end_time: str = "",
+    target_site: str = "",
+    mutual: bool = False,
+) -> dict[str, Any]:
+    """Alert Betrieb when two workers complete a shift handoff/swap."""
+    window = f"{(start_time or '')[:16]} – {(end_time or '')[:16]}".strip(" –")
+    loc = str(site or "").strip()
+    loc_bit = f" · {loc}" if loc else ""
+    if mutual and (target_start_time or target_end_time):
+        other = f"{(target_start_time or '')[:16]} – {(target_end_time or '')[:16]}".strip(" –")
+        other_loc = f" · {str(target_site or '').strip()}" if str(target_site or "").strip() else ""
+        message = (
+            f"Schichttausch: {from_worker_name} ↔ {to_worker_name}. "
+            f"{from_worker_name} übernimmt {other}{other_loc}; "
+            f"{to_worker_name} übernimmt {window}{loc_bit}."
+        ).strip()
+    else:
+        message = (
+            f"Schicht abgegeben: {from_worker_name} → {to_worker_name} "
+            f"({window}{loc_bit})."
+        ).strip()
+
+    alert_id = None
+    try:
+        from backend.server import create_system_alert
+
+        alert_id = create_system_alert(
+            db,
+            code="shift_swap_accepted",
+            severity="info",
+            message=message[:500],
+            details=json.dumps(
+                {
+                    "companyId": str(company_id),
+                    "fromWorkerId": str(from_worker_id),
+                    "toWorkerId": str(to_worker_id),
+                    "mutual": bool(mutual),
+                    "startTime": start_time,
+                    "endTime": end_time,
+                    "site": loc,
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=2,
+        )
+    except Exception:
+        pass
+
+    try:
+        from backend.app.platform.inbox.events import notify_inbox_changed
+
+        notify_inbox_changed(
+            str(company_id),
+            source="shift_swap",
+            alert_title="Schichttausch",
+            alert_message=message[:240],
+            severity="info",
+        )
+    except Exception:
+        pass
+
+    emails_sent = 0
+    recipients = _company_admin_recipients(db, company_id)
+    if recipients:
+        try:
+            from backend.app.core.platform_env import default_noreply_email
+            from backend.server import _send_via_any_api, get_public_base_url
+
+            settings = db.execute("SELECT smtp_sender_email, smtp_sender_name FROM settings WHERE id = 1").fetchone()
+            sender_email = (settings["smtp_sender_email"] if settings else "") or default_noreply_email()
+            sender_name = (settings["smtp_sender_name"] if settings else "") or "WorkPass"
+            base = get_public_base_url().rstrip("/")
+            admin_hint = f"{base}/admin-v2/index.html" if base else ""
+            subject = f"WorkPass: Schichttausch — {from_worker_name} / {to_worker_name}"
+            text_body = f"{message}\n\nBitte Schichten im Betrieb-Portal prüfen.\n{admin_hint}\n"
+            msg_safe = html.escape(message)
+            html_body = f"""<!DOCTYPE html>
+<html lang="de"><head><meta charset="UTF-8"></head>
+<body style="font-family:'Segoe UI',Arial,sans-serif;background:#f4f6f8;margin:0;padding:24px;">
+<table width="100%"><tr><td align="center">
+<table width="560" style="background:#fff;border-radius:10px;padding:24px;max-width:560px;">
+  <tr><td>
+    <h2 style="margin:0 0 12px;color:#0f766e;">Schichttausch</h2>
+    <p style="color:#333;line-height:1.5;">{msg_safe}</p>
+    <p style="margin-top:20px;color:#666;font-size:13px;">Bitte den Schichtplan prüfen.</p>
+  </td></tr>
+</table></td></tr></table></body></html>"""
+            for recipient in recipients:
+                ok, _, _provider = _send_via_any_api(
+                    subject,
+                    sender_email,
+                    sender_name,
+                    recipient,
+                    text_body,
+                    html_body,
+                )
+                if ok:
+                    emails_sent += 1
+        except Exception:
+            pass
+
+    return {
+        "ok": True,
+        "alertId": alert_id,
+        "emailsSent": emails_sent,
+        "recipientCount": len(recipients),
+    }

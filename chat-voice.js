@@ -1357,6 +1357,14 @@
     const payload = await downloadFn(attachmentId);
     const mime = String(payload?.blob?.type || "").toLowerCase();
     if (!payload?.blob || (!mime.startsWith("audio/") && !mime.startsWith("video/webm") && isEncryptedBlob(payload.blob))) {
+      // Last-chance: treat unknown binary as audio when downloadFn already decrypted.
+      if (payload?.blob && !isEncryptedBlob(payload.blob) && (mime === "application/octet-stream" || !mime)) {
+        const patched = new Blob([await payload.blob.arrayBuffer()], { type: "audio/mp4" });
+        const duration = Number(payload.duration || 0) || (await probeBlobDuration(patched)) || 0;
+        const url = global.URL.createObjectURL(patched);
+        audioCache.set(cacheKey, { url, duration, mime: "audio/mp4" });
+        return audioCache.get(cacheKey);
+      }
       throw new Error("voice_playback_failed");
     }
     let duration = Number(payload.duration || 0);

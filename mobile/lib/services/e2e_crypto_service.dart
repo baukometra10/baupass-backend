@@ -224,6 +224,16 @@ class E2eCryptoService {
     final keyBytes = await secretKey.extractBytes();
     final keyB64 = base64Encode(keyBytes);
     final wrappedKey = await encryptUtf8(keyB64, recipientPublicKeysSpkiB64);
+    // Mirror web E2ECrypto.encryptBlob: also publish discrete keyEnvelopes so admin
+    // decryptBlob can open attachments even if wrappedKey parsing differs.
+    final keyEnvelopes = <Map<String, dynamic>>[];
+    for (final pub in recipientPublicKeysSpkiB64.where((k) => k.trim().isNotEmpty)) {
+      try {
+        keyEnvelopes.add(await _sealForRecipient(keyB64, pub));
+      } catch (_) {
+        /* skip unusable keys */
+      }
+    }
     final meta = {
       'e2e': true,
       'v': 1,
@@ -236,6 +246,10 @@ class E2eCryptoService {
       'iv': base64Encode(nonce),
       'ct': base64Encode(wireBytes),
       'wrappedKey': wrappedKey,
+      if (keyEnvelopes.length == 1)
+        'keyEnvelopes': keyEnvelopes.first
+      else if (keyEnvelopes.length > 1)
+        'keyEnvelopes': {'multi': true, 'envelopes': keyEnvelopes},
     };
     return {'blob': wireBytes, 'meta': jsonEncode(meta)};
   }

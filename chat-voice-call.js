@@ -534,7 +534,7 @@
           /* ignore duplicate */
         }
       } else if (signal.signalType === "hangup") {
-        await this.end("remote_hangup");
+        await this.end("remote_hangup", { remote: true });
       }
     }
 
@@ -564,7 +564,7 @@
           const data = await this.api(this._pollPath());
           const call = data.call || {};
           if (call.status === "declined" || call.status === "missed" || call.status === "ended") {
-            await this.end(call.endReason || call.status);
+            await this.end(call.endReason || call.status, { remote: true });
             return;
           }
           const signals = Array.isArray(data.signals) ? data.signals : [];
@@ -675,7 +675,7 @@
       await this.end("declined");
     }
 
-    async end(reason) {
+    async end(reason, opts = {}) {
       if (this.ended) return;
       this.ended = true;
       this._stopPolling();
@@ -683,7 +683,8 @@
       this._stopRingtone();
       this._stopAudioMeters();
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
-      if (this.callId) {
+      const remote = Boolean(opts?.remote) || /^(remote_|ended|missed|declined)/i.test(String(reason || ""));
+      if (this.callId && !remote) {
         try {
           await this.api(`${prefix}/chat/calls/${encodeURIComponent(this.callId)}/end`, {
             method: "POST",

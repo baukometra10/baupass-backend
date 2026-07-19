@@ -95,11 +95,26 @@ class TasksRepository {
     return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
+  Future<List<Map<String, dynamic>>> listShiftCoworkerAssignments(
+    WorkerSession session,
+    String coworkerId,
+  ) async {
+    final data = await _api.getJson(
+      '/api/shift/coworker-assignments?workerId=${Uri.encodeQueryComponent(coworkerId)}',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+    final raw = data['assignments'];
+    if (raw is! List) return [];
+    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
   Future<Map<String, dynamic>> proposeShiftSwap({
     required WorkerSession session,
     required String assignmentId,
     required String toWorkerId,
     String reason = '',
+    String? targetAssignmentId,
   }) {
     return _api.postJson(
       '/api/shift/propose-swap',
@@ -109,6 +124,8 @@ class TasksRepository {
         'assignmentId': assignmentId,
         'toWorkerId': toWorkerId,
         'reason': reason,
+        if (targetAssignmentId != null && targetAssignmentId.isNotEmpty)
+          'targetAssignmentId': targetAssignmentId,
       },
     );
   }

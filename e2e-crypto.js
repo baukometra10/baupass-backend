@@ -752,7 +752,11 @@
       try {
         return await decryptUtf8WithArchive(wrapped, entityType, entityId);
       } catch (_) {
-        return await decryptUtf8(wrapped, entityType, entityId);
+        try {
+          return await decryptUtf8(wrapped, entityType, entityId);
+        } catch (_) {
+          return "";
+        }
       }
     };
     const tryKeyEnvelopes = async () => {
@@ -773,7 +777,28 @@
     keyB64 = (await tryWrapped()) || (await tryKeyEnvelopes());
     if (!keyB64) throw new Error("e2e_attachment_key_missing");
     const dataKey = await crypto.subtle.importKey("raw", b64Decode(keyB64), "AES-GCM", false, ["decrypt"]);
-    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Decode(meta.iv) }, dataKey, cipherBytes instanceof Uint8Array ? cipherBytes : new Uint8Array(cipherBytes));
+    const wireCandidates = [];
+    if (cipherBytes && (cipherBytes.byteLength || cipherBytes.length)) {
+      wireCandidates.push(cipherBytes instanceof Uint8Array ? cipherBytes : new Uint8Array(cipherBytes));
+    }
+    if (meta.ct) {
+      try {
+        wireCandidates.push(b64Decode(meta.ct));
+      } catch (_) {
+        /* ignore bad ct */
+      }
+    }
+    let plain = null;
+    let lastErr = null;
+    for (const wire of wireCandidates) {
+      try {
+        plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Decode(meta.iv) }, dataKey, wire);
+        break;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (!plain) throw lastErr || new Error("e2e_attachment_decrypt_failed");
     return {
       bytes: new Uint8Array(plain),
       filename: meta.filename || "download.bin",

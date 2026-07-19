@@ -38,7 +38,8 @@ class DigitalPassCard extends StatelessWidget {
   final String? subcompany;
   final TenantBranding? branding;
 
-  static const _cardAspect = 85.6 / 56;
+  /// Mobile-friendly card proportions (taller than ISO wallet CR80).
+  static const _cardAspect = 0.72;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +54,7 @@ class DigitalPassCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 430.0;
-        final cardW = math.min(maxW, 430.0);
+        final cardW = math.min(maxW, 380.0);
         final cardH = cardW / _cardAspect;
 
         return Center(
@@ -190,23 +191,23 @@ class _WalletPalette {
   factory _WalletPalette.fromBranding(Color? accent) {
     if (accent == null) {
       return const _WalletPalette(
-        backgroundStart: Color(0xFF241005),
-        backgroundMid: Color(0xFF663C15),
-        backgroundEnd: Color(0xFF261206),
-        stripeStart: Color(0xFFC06E22),
-        stripeMid: Color(0xFFE2AD62),
-        stripeEnd: Color(0xFFC06E22),
-        markStart: Color(0xFFBC6F2D),
-        markEnd: Color(0xFFD6964E),
+        backgroundStart: Color(0xFF0F172A),
+        backgroundMid: Color(0xFF1E293B),
+        backgroundEnd: Color(0xFF0B1220),
+        stripeStart: Color(0xFF06B6D4),
+        stripeMid: Color(0xFF22D3EE),
+        stripeEnd: Color(0xFF0891B2),
+        markStart: Color(0xFF0E7490),
+        markEnd: Color(0xFF22D3EE),
         qrFrameColors: [
-          Color(0xFF6A3D18),
-          Color(0xFFC07C35),
-          Color(0xFFE8C886),
-          Color(0xFFD49344),
-          Color(0xFF774519),
+          Color(0xFF164E63),
+          Color(0xFF06B6D4),
+          Color(0xFFA5F3FC),
+          Color(0xFF22D3EE),
+          Color(0xFF155E75),
         ],
-        badgeGold: Color(0xFFFFE9A6),
-        borderGlow: Color(0xFFD49650),
+        badgeGold: Color(0xFFE0F2FE),
+        borderGlow: Color(0xFF67E8F9),
       );
     }
     final primary = accent;
@@ -324,7 +325,7 @@ class _TopRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final markSize = (cardW * 0.074).clamp(26.0, 32.0);
+    final markSize = (cardW * 0.09).clamp(30.0, 38.0);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -334,9 +335,9 @@ class _TopRow extends StatelessWidget {
               TenantBrandMark(
                 branding: tenant,
                 size: markSize,
-                borderRadius: 8,
+                borderRadius: 10,
               ),
-              SizedBox(width: cardW * 0.018),
+              SizedBox(width: cardW * 0.022),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -347,20 +348,20 @@ class _TopRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        fontSize: (cardW * 0.042).clamp(11.0, 14.0),
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        fontSize: (cardW * 0.048).clamp(14.0, 18.0),
                         height: 1.1,
                       ),
                     ),
                     Text(
                       'MITARBEITERAUSWEIS',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.52),
-                        fontSize: (cardW * 0.026).clamp(7.5, 9.5),
-                        letterSpacing: 0.9,
-                        fontWeight: FontWeight.w500,
-                        height: 1.1,
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: (cardW * 0.032).clamp(10.0, 12.0),
+                        letterSpacing: 1.0,
+                        fontWeight: FontWeight.w600,
+                        height: 1.15,
                       ),
                     ),
                   ],
@@ -400,78 +401,92 @@ class _MiddleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final qrSize = (cardW * 0.42).clamp(108.0, 168.0);
-    final photoSize = (cardW * 0.18).clamp(56.0, 84.0);
+    final qrSize = (cardW * 0.52).clamp(140.0, 200.0);
+    final photoSize = (cardW * 0.24).clamp(72.0, 100.0);
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        GestureDetector(
-          onTap: onQrTap,
-          child: SizedBox(
-            width: qrSize,
-            height: qrSize,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      gradient: LinearGradient(
-                        colors: palette.qrFrameColors,
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: palette.qrFrameColors[1].withValues(alpha: 0.38),
-                          blurRadius: 14,
-                          offset: const Offset(0, 8),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(5),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: onQrTap,
+              child: SizedBox(
+                width: qrSize,
+                height: qrSize,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(18),
+                          gradient: LinearGradient(
+                            colors: palette.qrFrameColors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.qrFrameColors[1].withValues(alpha: 0.38),
+                              blurRadius: 14,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(3),
-                          child: QrImageView(
-                            data: qrValue,
-                            backgroundColor: Colors.white,
-                            padding: EdgeInsets.zero,
+                          padding: const EdgeInsets.all(7),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: QrImageView(
+                                data: qrValue,
+                                backgroundColor: Colors.white,
+                                padding: EdgeInsets.zero,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                    if (remaining > 0)
+                      Positioned(
+                        right: -6,
+                        top: -6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                          ),
+                          child: Text(
+                            '${remaining}s',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                if (remaining > 0)
-                  Positioned(
-                    right: -6,
-                    top: -6,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.55),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                      ),
-                      child: Text(
-                        '${remaining}s',
-                        style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
-          ),
+            const SizedBox(height: 6),
+            Text(
+              'Zum Vergrößern tippen',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55),
+                fontSize: 10,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
         _PhotoTile(size: photoSize, photoData: photoData),
       ],
@@ -547,11 +562,11 @@ class _BottomSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final longName = name.length > 22;
-    final nameSize = (cardW * (longName ? 0.032 : 0.036)).clamp(10.0, 12.5);
-    final roleSize = (cardW * 0.028).clamp(8.0, 10.0);
-    final labelSize = (cardW * 0.022).clamp(6.5, 8.0);
-    final valueSize = (cardW * 0.028).clamp(8.0, 10.5);
-    final badgeSize = (cardW * 0.034).clamp(9.0, 12.0);
+    final nameSize = (cardW * (longName ? 0.052 : 0.058)).clamp(16.0, 22.0);
+    final roleSize = (cardW * 0.036).clamp(11.0, 14.0);
+    final labelSize = (cardW * 0.028).clamp(9.0, 11.0);
+    final valueSize = (cardW * 0.034).clamp(11.0, 13.5);
+    final badgeSize = (cardW * 0.042).clamp(12.0, 15.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

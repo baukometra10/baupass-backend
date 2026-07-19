@@ -117,40 +117,88 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       return;
     }
     String? pickId;
+    String? targetAssignmentId;
+    List<Map<String, dynamic>> peerShifts = [];
     final reasonCtrl = TextEditingController();
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Schicht abgeben / tauschen'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<String>(
-                decoration: const InputDecoration(labelText: 'Kollege'),
-                items: coworkers
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: (c['id'] ?? '').toString(),
-                        child: Text((c['name'] as String?) ?? (c['id'] ?? '').toString()),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            return AlertDialog(
+              title: const Text('Schicht tauschen'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Deine Schicht: ${_fmt(assignment['startTime'] as String?)}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(labelText: 'Kollege'),
+                      items: coworkers
+                          .map(
+                            (c) => DropdownMenuItem(
+                              value: (c['id'] ?? '').toString(),
+                              child: Text((c['name'] as String?) ?? (c['id'] ?? '').toString()),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (v) async {
+                        pickId = v;
+                        targetAssignmentId = null;
+                        peerShifts = [];
+                        setLocal(() {});
+                        if (v == null || v.isEmpty) return;
+                        try {
+                          peerShifts = await widget.tasks.listShiftCoworkerAssignments(widget.session, v);
+                        } catch (_) {
+                          peerShifts = [];
+                        }
+                        if (ctx.mounted) setLocal(() {});
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    if (pickId != null && peerShifts.isEmpty)
+                      const Text(
+                        'Kollege hat keine anstehende Schicht — dann wird deine Schicht nur abgegeben (Übernahme).',
+                        style: TextStyle(fontSize: 12),
                       ),
-                    )
-                    .toList(),
-                onChanged: (v) => pickId = v,
+                    if (peerShifts.isNotEmpty)
+                      DropdownButtonFormField<String>(
+                        decoration: const InputDecoration(labelText: 'Schicht des Kollegen (Tausch)'),
+                        items: [
+                          const DropdownMenuItem(value: '', child: Text('Nur abgeben (kein Gegentausch)')),
+                          ...peerShifts.map(
+                            (s) => DropdownMenuItem(
+                              value: (s['id'] ?? '').toString(),
+                              child: Text(
+                                '${_fmt(s['startTime'] as String?)}'
+                                '${((s['site'] as String?)?.isNotEmpty == true) ? ' · ${s['site']}' : ''}',
+                              ),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) => targetAssignmentId = (v == null || v.isEmpty) ? null : v,
+                      ),
+                    TextField(
+                      controller: reasonCtrl,
+                      decoration: const InputDecoration(labelText: 'Grund (optional)'),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
               ),
-              TextField(
-                controller: reasonCtrl,
-                decoration: const InputDecoration(labelText: 'Grund (optional)'),
-                maxLines: 2,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Senden')),
-        ],
-      ),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Senden')),
+              ],
+            );
+          },
+        );
+      },
     );
     if (ok != true || pickId == null || pickId!.isEmpty) return;
     try {
@@ -159,10 +207,17 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         assignmentId: (assignment['id'] ?? '').toString(),
         toWorkerId: pickId!,
         reason: reasonCtrl.text.trim(),
+        targetAssignmentId: targetAssignmentId,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tausch-Anfrage gesendet')),
+        SnackBar(
+          content: Text(
+            targetAssignmentId == null || targetAssignmentId!.isEmpty
+                ? 'Tausch-Anfrage gesendet (Abgabe)'
+                : 'Tausch-Anfrage gesendet (Gegenschicht)',
+          ),
+        ),
       );
       await _load();
     } catch (e) {

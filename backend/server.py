@@ -4250,6 +4250,10 @@ def init_db():
     )
     cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_swaps_to_worker ON shift_swaps(to_worker_id, status, requested_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_shift_swaps_company_status ON shift_swaps(company_id, status)")
+    try:
+        cur.execute("ALTER TABLE shift_swaps ADD COLUMN target_shift_assignment_id TEXT")
+    except Exception:
+        pass
 
     # ── Neu: Benachrichtigungs-Verlauf ───────────────────────
     cur.execute(
@@ -15631,16 +15635,28 @@ def shift_coworkers():
     """Mitarbeiter: Kollegen derselben Firma (für Schicht-Tausch)."""
     db = get_db()
     worker = g.worker
-    rows = db.execute(
-        """
-        SELECT id, first_name, last_name, badge_id, site
-        FROM workers
-        WHERE company_id = ? AND id != ? AND deleted_at IS NULL
-        ORDER BY last_name, first_name
-        LIMIT 200
-        """,
-        (worker["company_id"], worker["id"]),
-    ).fetchall()
+    try:
+        rows = db.execute(
+            """
+            SELECT id, first_name, last_name, badge_id, site
+            FROM workers
+            WHERE company_id = ? AND id != ? AND deleted_at IS NULL
+            ORDER BY last_name, first_name
+            LIMIT 200
+            """,
+            (worker["company_id"], worker["id"]),
+        ).fetchall()
+    except Exception:
+        rows = db.execute(
+            """
+            SELECT id, first_name, last_name, badge_id, site
+            FROM workers
+            WHERE company_id = ? AND id != ?
+            ORDER BY last_name, first_name
+            LIMIT 200
+            """,
+            (worker["company_id"], worker["id"]),
+        ).fetchall()
     return jsonify(
         {
             "coworkers": [
@@ -15701,6 +15717,44 @@ def shift_get_swaps():
 
 
 @require_worker_session
+def shift_coworker_assignments():
+    """Mitarbeiter: Anstehende Schichten eines Kollegen (für echten Tausch)."""
+    db = get_db()
+    worker = g.worker
+    coworker_id = str(request.args.get("workerId") or request.args.get("worker_id") or "").strip()
+    if not coworker_id:
+        return jsonify({"error": "missing_worker_id"}), 400
+    coworker = db.execute(
+        "SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL",
+        (coworker_id,),
+    ).fetchone()
+    if not coworker or coworker["company_id"] != worker["company_id"]:
+        return jsonify({"error": "not_found"}), 404
+    assignments = db.execute(
+        """
+        SELECT id, start_time, end_time, site, status, notes
+        FROM shift_assignments
+        WHERE worker_id = ? AND status != 'cancelled'
+          AND end_time >= datetime('now', '-1 day')
+        ORDER BY start_time ASC
+        LIMIT 30
+        """,
+        (coworker_id,),
+    ).fetchall()
+    result = []
+    for a in assignments:
+        result.append({
+            "id": a["id"],
+            "startTime": a["start_time"],
+            "endTime": a["end_time"],
+            "site": a["site"],
+            "status": a["status"],
+            "notes": a["notes"],
+        })
+    return jsonify({"assignments": result})
+
+
+@require_worker_session
 def shift_propose_swap():
     """Mitarbeiter: Schicht-Tausch mit anderem Mitarbeiter vorschlagen."""
     db = get_db()
@@ -15709,6 +15763,7 @@ def shift_propose_swap():
 
     to_worker_id = str(payload.get("toWorkerId") or "").strip()
     assignment_id = str(payload.get("assignmentId") or "").strip()
+    target_assignment_id = str(payload.get("targetAssignmentId") or payload.get("target_assignment_id") or "").strip()
     reason = str(payload.get("reason") or "").strip()
 
     if not to_worker_id or not assignment_id:
@@ -15722,14 +15777,47 @@ def shift_propose_swap():
     if not assignment or assignment["worker_id"] != worker["id"]:
         return jsonify({"error": "not_authorized"}), 403
 
+    target_assignment = None
+    if target_assignment_id:
+        target_assignment = db.execute(
+            "SELECT * FROM shift_assignments WHERE id = ?",
+            (target_assignment_id,),
+        ).fetchone()
+        if not target_assignment or target_assignment["worker_id"] != to_worker_id:
+            return jsonify({"error": "target_shift_invalid"}), 400
+        if target_assignment["company_id"] != worker["company_id"]:
+            return jsonify({"error": "not_found"}), 404
+
     swap_id = f"swap-{secrets.token_hex(8)}"
-    db.execute(
-        """
-        INSERT INTO shift_swaps (id, company_id, from_worker_id, to_worker_id, shift_assignment_id, status, reason, requested_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (swap_id, worker["company_id"], worker["id"], to_worker_id, assignment_id, "pending", reason, now_iso())
-    )
+    try:
+        db.execute(
+            """
+            INSERT INTO shift_swaps (
+                id, company_id, from_worker_id, to_worker_id, shift_assignment_id,
+                target_shift_assignment_id, status, reason, requested_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                swap_id,
+                worker["company_id"],
+                worker["id"],
+                to_worker_id,
+                assignment_id,
+                target_assignment_id or None,
+                "pending",
+                reason,
+                now_iso(),
+            ),
+        )
+    except Exception:
+        db.execute(
+            """
+            INSERT INTO shift_swaps (id, company_id, from_worker_id, to_worker_id, shift_assignment_id, status, reason, requested_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (swap_id, worker["company_id"], worker["id"], to_worker_id, assignment_id, "pending", reason, now_iso()),
+        )
     db.commit()
 
     push_delivery = {"pushSent": 0}
@@ -15747,7 +15835,7 @@ def shift_propose_swap():
     except Exception:
         pass
 
-    return jsonify({"ok": True, "swapId": swap_id, "pushDelivery": push_delivery})
+    return jsonify({"ok": True, "swapId": swap_id, "pushDelivery": push_delivery, "mutual": bool(target_assignment_id)})
 
 
 @require_worker_session
@@ -15770,11 +15858,43 @@ def shift_respond_swap(swap_id):
         "UPDATE shift_swaps SET status = ?, responded_at = ? WHERE id = ?",
         (new_status, now_iso(), swap_id)
     )
-    if new_status == "accepted":
-        db.execute(
-            "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
-            (worker["id"], swap["shift_assignment_id"]),
-        )
+
+    assignment = db.execute(
+        "SELECT * FROM shift_assignments WHERE id = ?",
+        (swap["shift_assignment_id"],),
+    ).fetchone()
+    target_assignment = None
+    target_id = ""
+    try:
+        target_id = str(swap["target_shift_assignment_id"] or "").strip()
+    except Exception:
+        target_id = ""
+    if target_id:
+        target_assignment = db.execute(
+            "SELECT * FROM shift_assignments WHERE id = ?",
+            (target_id,),
+        ).fetchone()
+
+    mutual = False
+    if new_status == "accepted" and assignment:
+        from_worker_id = swap["from_worker_id"]
+        to_worker_id = worker["id"]
+        if target_assignment and str(target_assignment["worker_id"]) == str(to_worker_id):
+            # True swap: exchange both assignments.
+            db.execute(
+                "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
+                (to_worker_id, assignment["id"]),
+            )
+            db.execute(
+                "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
+                (from_worker_id, target_assignment["id"]),
+            )
+            mutual = True
+        else:
+            db.execute(
+                "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
+                (to_worker_id, assignment["id"]),
+            )
     db.commit()
 
     push_delivery = {"pushSent": 0}
@@ -15793,7 +15913,46 @@ def shift_respond_swap(swap_id):
     except Exception:
         pass
 
-    return jsonify({"ok": True, "status": new_status, "pushDelivery": push_delivery})
+    admin_notify = None
+    if new_status == "accepted" and assignment:
+        try:
+            from backend.app.platform.notifications.company_mitteilung import notify_company_shift_swap_accepted
+
+            from_row = db.execute(
+                "SELECT first_name, last_name FROM workers WHERE id = ?",
+                (swap["from_worker_id"],),
+            ).fetchone()
+            to_row = db.execute(
+                "SELECT first_name, last_name FROM workers WHERE id = ?",
+                (worker["id"],),
+            ).fetchone()
+            from_name = (
+                f"{(from_row['first_name'] if from_row else '')} {(from_row['last_name'] if from_row else '')}".strip()
+                or swap["from_worker_id"]
+            )
+            to_name = (
+                f"{(to_row['first_name'] if to_row else '')} {(to_row['last_name'] if to_row else '')}".strip()
+                or worker["id"]
+            )
+            admin_notify = notify_company_shift_swap_accepted(
+                db,
+                company_id=swap["company_id"],
+                from_worker_id=swap["from_worker_id"],
+                from_worker_name=from_name,
+                to_worker_id=worker["id"],
+                to_worker_name=to_name,
+                start_time=assignment["start_time"] if assignment else "",
+                end_time=assignment["end_time"] if assignment else "",
+                site=assignment["site"] if assignment else "",
+                target_start_time=target_assignment["start_time"] if target_assignment else "",
+                target_end_time=target_assignment["end_time"] if target_assignment else "",
+                target_site=target_assignment["site"] if target_assignment else "",
+                mutual=mutual,
+            )
+        except Exception:
+            admin_notify = None
+
+    return jsonify({"ok": True, "status": new_status, "pushDelivery": push_delivery, "adminNotify": admin_notify, "mutual": mutual})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

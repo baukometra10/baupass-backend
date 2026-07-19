@@ -11,6 +11,7 @@ SHIFT_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/shift/assignments", "shift_get_assignments", ["GET"]),
     ("/shift/assignments", "shift_create_assignment", ["POST"]),
     ("/shift/coworkers", "shift_coworkers", ["GET"]),
+    ("/shift/coworker-assignments", "shift_coworker_assignments", ["GET"]),
     ("/shift/swaps", "shift_get_swaps", ["GET"]),
     ("/shift/propose-swap", "shift_propose_swap", ["POST"]),
     ("/shift/respond-swap/<swap_id>", "shift_respond_swap", ["POST"]),

@@ -1483,11 +1483,11 @@
   <script src="/chat-admin-push.js?v=20260718chat42i"></script>
   <script src="/chat-global-notify.js?v=20260715chat40"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
-  <script src="/chat-voice.js?v=20260718chat42i"></script>
-  <script src="/chat-voice-call.js?v=20260718chat42i"></script>
+  <script src="/chat-voice.js?v=20260719chat43"></script>
+  <script src="/chat-voice-call.js?v=20260719chat43"></script>
   <script src="/chat-conference.js?v=20260719confCam1"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260718chat42i"></script>
-  <script src="/e2e-crypto.js?v=20260714e2e4"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260719chat43"></script>
+  <script src="/e2e-crypto.js?v=20260719e2e5"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
@@ -2392,9 +2392,16 @@
         await ensureAdminE2EIdentity();
         const buffer = new Uint8Array(await blob.arrayBuffer());
         const decrypted = await window.E2ECrypto.decryptBlob(buffer, meta, "user", getAdminUserId());
-        outBlob = new Blob([decrypted.bytes], { type: decrypted.mime || "audio/webm" });
+        const mime = String(decrypted.mime || "").trim() || "audio/mp4";
+        outBlob = new Blob([decrypted.bytes], { type: mime.startsWith("audio/") ? mime : "audio/mp4" });
       } else if (!String(outBlob.type || "").startsWith("audio/")) {
-        outBlob = new Blob([await outBlob.arrayBuffer()], { type: "audio/webm" });
+        const name = String(adminChatAttachmentNameById[attachmentId] || "").toLowerCase();
+        const fallbackMime = name.endsWith(".m4a") || name.endsWith(".mp4")
+          ? "audio/mp4"
+          : name.endsWith(".webm")
+            ? "audio/webm"
+            : "audio/webm";
+        outBlob = new Blob([await outBlob.arrayBuffer()], { type: fallbackMime });
       }
       let duration = window.SUPPIXChatVoice?.parseE2eAttachmentDuration?.(meta) || 0;
       if (!duration) {
@@ -2630,6 +2637,15 @@
             })
             .catch(() => {});
         } else if (callId && (type.includes("ended") || type.includes("missed") || type.includes("declined"))) {
+          const activeId = String(activeVoiceCallSession?.callId || "").trim();
+          if (activeVoiceCallSession && activeId && activeId === callId) {
+            void activeVoiceCallSession.end("remote_ended");
+          } else if (pendingIncomingCall && String(pendingIncomingCall.id || "") === callId) {
+            pendingIncomingCall = null;
+            try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
+            window.__adminIncomingRingtone = null;
+            setVoiceCallOverlay(false);
+          }
           void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
           void loadThreads();
         }
@@ -4319,8 +4335,13 @@
             }
             return;
           }
-          const mode = pendingIncomingCall && (state === "ringing" || state === "connecting") ? "incoming" : "active";
-          if (state === "connected" || state === "accepted") pendingIncomingCall = null;
+          // Once accepted, never stay in "incoming" — that hides mute/speaker/hangup.
+          if (state === "connecting" || state === "connected" || state === "accepted") {
+            pendingIncomingCall = null;
+          }
+          const mode = pendingIncomingCall && !activeVoiceCallSession && state === "ringing"
+            ? "incoming"
+            : "active";
           setVoiceCallOverlay(true, voiceCallStatusLabel(state), state, mode);
         },
         onError: (error) => {
@@ -4365,10 +4386,12 @@
       if (!call?.id || !window.SUPPIXVoiceCall?.isSupported?.()) return;
       try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
       window.__adminIncomingRingtone = null;
+      // Clear immediately so connecting/active UI shows hangup + controls.
+      pendingIncomingCall = null;
       activeVoiceCallSession = buildAdminVoiceCallSession();
       activeVoiceCallSession._incomingCall = call;
       try {
-        setVoiceCallOverlay(true, window.adminChatT("voiceCallConnected"), "connecting", "active");
+        setVoiceCallOverlay(true, window.adminChatT("voiceCallConnecting") || window.adminChatT("voiceCallConnected"), "connecting", "active");
         await activeVoiceCallSession.acceptIncoming(call);
       } catch (error) {
         activeVoiceCallSession = null;
