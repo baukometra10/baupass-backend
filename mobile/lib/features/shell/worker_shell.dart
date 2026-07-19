@@ -1,38 +1,41 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/worker_auth_errors.dart';
+import '../../core/privacy_consent_store.dart';
 import '../../services/ai_assistant_service.dart';
 import '../../services/attendance_repository.dart';
 import '../../services/branding_applier.dart';
 import '../../services/chat_repository.dart';
+import '../../services/conference_repository.dart';
 import '../../services/digital_card_repository.dart';
+import '../../services/deep_link_service.dart';
 import '../../services/geofence_service.dart';
 import '../../services/location_service.dart';
 import '../../services/nfc_service.dart';
 import '../../services/offline_attendance_store.dart';
 import '../../services/offline_sync_service.dart';
-import 'package:url_launcher/url_launcher.dart';
-
 import '../../services/push_notification_service.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/usage_repository.dart';
+import '../../services/voice_call_controller.dart';
 import '../../services/worker_cache.dart';
 import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
 import '../ai/worker_ai_screen.dart';
 import '../chat/chat_screen.dart';
+import '../legal/privacy_consent_dialog.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
-import '../../services/deep_link_service.dart';
-import '../../services/voice_call_controller.dart';
+import '../voice_call/conference_invite_sheet.dart';
 import '../voice_call/voice_call_overlay.dart';
-import '../../core/privacy_consent_store.dart';
-import '../legal/privacy_consent_dialog.dart';
 
 /// Unified post-login shell — sole employee UI for Android and iOS.
 class WorkerShell extends StatefulWidget {
@@ -84,6 +87,10 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   TenantBranding _branding = TenantBranding.fallback;
   final _brandingApplier = BrandingApplier();
   late final VoiceCallController _voiceCall;
+  late final ConferenceRepository _conferenceRepo;
+  Timer? _conferencePollTimer;
+  String? _shownConferenceId;
+  bool _conferenceSheetOpen = false;
 
   @override
   void initState() {
@@ -91,6 +98,11 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _voiceCall = VoiceCallController(repo: widget.chat.voiceCalls);
     _voiceCall.bind(widget.session);
+    _conferenceRepo = ConferenceRepository(widget.chat.apiClient);
+    _conferencePollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      unawaited(_pollConferenceInvite());
+    });
+    unawaited(_pollConferenceInvite());
     _loadProfileAndGeofence();
     _refreshBadges();
     widget.usage.trackTab(
@@ -105,15 +117,42 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _voiceCall.onAppResumed();
+      unawaited(_pollConferenceInvite());
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _conferencePollTimer?.cancel();
     _voiceCall.dispose();
     widget.geofence.stop();
     super.dispose();
+  }
+
+  Future<void> _pollConferenceInvite() async {
+    if (!mounted || _conferenceSheetOpen || _voiceCall.isActive) return;
+    try {
+      final invite = await _conferenceRepo.incoming(widget.session);
+      if (!mounted || invite == null) return;
+      final id = (invite['id'] ?? '').toString();
+      if (id.isEmpty || id == _shownConferenceId) return;
+      _shownConferenceId = id;
+      _conferenceSheetOpen = true;
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (_) => ConferenceInviteSheet(
+          session: widget.session,
+          repo: _conferenceRepo,
+          invite: invite,
+        ),
+      );
+    } catch (_) {
+      /* ignore transient */
+    } finally {
+      _conferenceSheetOpen = false;
+    }
   }
 
   Future<void> _maybeShowPrivacyConsent() async {

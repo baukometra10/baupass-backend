@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260718chat42i";
+const WORKER_BUILD = "20260719callFix1";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -238,6 +238,8 @@ self.addEventListener("push", (event) => {
             title,
             body: data.body || "",
             preview: data.preview || data.body || "",
+            callId: data.callId || data.call_id || "",
+            roomId: data.roomId || data.room_id || "",
           });
         });
       }),

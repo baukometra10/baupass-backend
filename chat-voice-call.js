@@ -250,6 +250,7 @@
       this.remoteMeterData = null;
       this.deferredOffer = false;
       this.offerSent = false;
+      this.pendingIce = [];
     }
 
     _callStatusPath() {
@@ -521,15 +522,21 @@
       const payload = signal.payload || {};
       if (signal.signalType === "offer") {
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
+        await this._flushPendingIce(pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await this._sendSignal("answer", { type: answer.type, sdp: answer.sdp });
         this.onState("connected");
       } else if (signal.signalType === "answer") {
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
+        await this._flushPendingIce(pc);
         this._stopRingtone();
         this.onState("connected");
       } else if (signal.signalType === "ice-candidate" && payload) {
+        if (!pc.remoteDescription) {
+          this.pendingIce.push(payload);
+          return;
+        }
         try {
           await pc.addIceCandidate(new RTCIceCandidate(payload));
         } catch (_) {
@@ -537,6 +544,17 @@
         }
       } else if (signal.signalType === "hangup") {
         await this.end("remote_hangup", { remote: true });
+      }
+    }
+
+    async _flushPendingIce(pc) {
+      const queued = this.pendingIce.splice(0, this.pendingIce.length);
+      for (const candidate of queued) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } catch (_) {
+          /* ignore */
+        }
       }
     }
 

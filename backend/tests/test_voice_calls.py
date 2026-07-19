@@ -119,6 +119,47 @@ def test_worker_can_accept_and_exchange_signals(client_and_db):
     assert any("@voice-call|" in str(row.get("body") or "") for row in rows)
 
 
+def test_signal_pagination_keeps_same_timestamp_candidates(client_and_db, monkeypatch):
+    """ICE bursts often share a second; since_id must not drop sibling rows."""
+    from backend.app.platform.voice_calls import service as voice_service
+
+    fixed = "2026-07-19T12:00:00.000000Z"
+    monkeypatch.setattr(voice_service, "utc_now_iso", lambda: fixed)
+
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    company_id, worker_id = _create_company_and_worker(client, headers)
+    client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
+
+    start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
+    call_id = start.get_json()["call"]["id"]
+    worker_headers = _worker_session_headers(client, worker_id)
+    client.post(f"/api/worker-app/chat/calls/{call_id}/accept", headers=worker_headers)
+
+    for i in range(3):
+        res = client.post(
+            f"/api/chat/calls/{call_id}/signal",
+            json={"type": "ice-candidate", "payload": {"candidate": f"cand-{i}", "sdpMid": "0", "sdpMLineIndex": 0}},
+            headers=headers,
+        )
+        assert res.status_code == 200
+
+    first = client.get(f"/api/worker-app/chat/calls/{call_id}/signals", headers=worker_headers)
+    assert first.status_code == 200
+    batch = first.get_json().get("signals") or []
+    assert len(batch) == 3
+    since_id = batch[0]["id"]
+
+    rest = client.get(
+        f"/api/worker-app/chat/calls/{call_id}/signals?since_id={since_id}",
+        headers=worker_headers,
+    )
+    assert rest.status_code == 200
+    remaining = rest.get_json().get("signals") or []
+    assert len(remaining) == 2
+    assert {row["payload"]["candidate"] for row in remaining} == {"cand-1", "cand-2"}
+
+
 def test_voice_call_history_and_worker_callback(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)

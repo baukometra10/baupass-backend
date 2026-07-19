@@ -99,8 +99,35 @@
 
   function handleSwPush(data = {}) {
     const tag = String(data.tag || data.logicalTag || "");
+    const isAdminSurface = data.role === "admin"
+      || /\/admin-v2\//i.test(String(global.location?.pathname || ""));
     if (tag === "voice-call") {
-      void handleAdminVoiceCallPush(data);
+      if (isAdminSurface) {
+        void handleAdminVoiceCallPush(data);
+        return;
+      }
+      const callId = String(data.callId || data.call_id || "").trim();
+      if (callId) {
+        global.SUPPIXWorkerVoiceCall?.wakeForCallId?.(callId);
+      } else {
+        void global.SUPPIXWorkerVoiceCall?.pollIncomingOnce?.();
+      }
+      notifyWorkerIncoming({
+        title: data.title || "Eingehender Anruf",
+        body: data.body || data.preview || "Ihr Arbeitgeber ruft an",
+        tag: "voice-call",
+      });
+      return;
+    }
+    if (tag === "conference-invite") {
+      if (!isAdminSurface) {
+        void global.SUPPIXWorkerVoiceCall?.pollIncomingOnce?.();
+        notifyWorkerIncoming({
+          title: data.title || "Konferenz-Einladung",
+          body: data.body || data.preview || "Tippen zum Beitreten",
+          tag: "conference-invite",
+        });
+      }
       return;
     }
     const isChatTag = tag === "admin-chat" || tag === "worker-chat" || tag.includes("chat");

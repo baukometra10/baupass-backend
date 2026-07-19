@@ -203,6 +203,7 @@ class WorkerVoiceCallSession {
   bool _muted = false;
   bool _deferredOffer = false;
   bool _offerSent = false;
+  final List<Map<String, dynamic>> _pendingIce = <Map<String, dynamic>>[];
 
   String get callId => (call['id'] ?? call['callId'] ?? '').toString();
 
@@ -332,6 +333,24 @@ class WorkerVoiceCallSession {
     }
   }
 
+  Future<void> _flushPendingIce(RTCPeerConnection pc) async {
+    final queued = List<Map<String, dynamic>>.from(_pendingIce);
+    _pendingIce.clear();
+    for (final payload in queued) {
+      try {
+        await pc.addCandidate(RTCIceCandidate(
+          payload['candidate']?.toString(),
+          payload['sdpMid']?.toString(),
+          payload['sdpMLineIndex'] is int
+              ? payload['sdpMLineIndex'] as int
+              : int.tryParse('${payload['sdpMLineIndex']}'),
+        ));
+      } catch (_) {
+        /* ignore */
+      }
+    }
+  }
+
   Future<void> _applySignal(Map<String, dynamic> signal) async {
     final pc = _pc;
     if (pc == null) return;
@@ -342,6 +361,7 @@ class WorkerVoiceCallSession {
         : <String, dynamic>{};
     if (type == 'offer') {
       await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'offer'));
+      await _flushPendingIce(pc);
       final answer = await pc.createAnswer({
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': false,
@@ -357,8 +377,14 @@ class WorkerVoiceCallSession {
       onState('connected');
     } else if (type == 'answer') {
       await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'answer'));
+      await _flushPendingIce(pc);
       onState('connected');
     } else if (type == 'ice-candidate') {
+      final hasRemote = (await pc.getRemoteDescription()) != null;
+      if (!hasRemote) {
+        _pendingIce.add(payload);
+        return;
+      }
       try {
         await pc.addCandidate(RTCIceCandidate(
           payload['candidate']?.toString(),
@@ -411,6 +437,7 @@ class WorkerVoiceCallSession {
     _ended = true;
     _pollTimer?.cancel();
     _stopMeters();
+    _pendingIce.clear();
     try {
       await repo.endCall(session, callId, reason: reason);
     } catch (_) {

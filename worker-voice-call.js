@@ -384,10 +384,14 @@
 
   async function pollIncomingOnce(api) {
     if (typeof api === "function") apiFn = api;
-    if (!apiFn || session) return;
+    if (!apiFn || session || conferenceActive) return;
     try {
-      const data = await apiFn("/api/worker-app/chat/calls/incoming");
-      if (data?.call) await handleIncoming(data.call);
+      if (global.SUPPIXVoiceCall?.isSupported?.()) {
+        const data = await apiFn("/api/worker-app/chat/calls/incoming");
+        if (data?.call) await handleIncoming(data.call);
+      }
+      const conf = await apiFn("/api/worker-app/chat/conferences/incoming");
+      if (conf?.conference) await handleConferenceInvite(conf.conference);
     } catch (_) {
       /* ignore */
     }

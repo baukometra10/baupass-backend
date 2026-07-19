@@ -310,15 +310,31 @@ class ConferenceService:
                 (f"cnp-{secrets.token_hex(6)}", room_id, company_id, wid, name, now),
             )
             invited.append({"workerId": wid, "displayName": name, "status": "invited"})
+            conf_title = title or "Firmenkonferenz"
             try:
                 publish_event(
                     "conference.invite",
+                    company_id,
                     {
                         "companyId": company_id,
                         "roomId": room_id,
                         "workerId": wid,
-                        "title": title or "Firmenkonferenz",
+                        "title": conf_title,
                     },
+                )
+            except Exception:
+                pass
+            try:
+                from backend.app.platform.push.delivery import deliver_worker_push
+
+                deliver_worker_push(
+                    self.db,
+                    wid,
+                    title="Konferenz-Einladung",
+                    body=f"{conf_title} — tippen zum Beitreten.",
+                    tag="conference-invite",
+                    company_id=company_id,
+                    extra={"roomId": room_id, "type": "conference_invite", "title": conf_title},
                 )
             except Exception:
                 pass
@@ -380,10 +396,31 @@ class ConferenceService:
                     (f"cnp-{secrets.token_hex(6)}", room_id, company_id, wid, name, now),
                 )
                 invited.append({"workerId": wid, "displayName": name, "status": "invited"})
+            conf_title = str(room.get("title") or "Firmenkonferenz")
             try:
                 publish_event(
                     "conference.invite",
-                    {"companyId": company_id, "roomId": room_id, "workerId": wid, "title": room.get("title")},
+                    company_id,
+                    {
+                        "companyId": company_id,
+                        "roomId": room_id,
+                        "workerId": wid,
+                        "title": conf_title,
+                    },
+                )
+            except Exception:
+                pass
+            try:
+                from backend.app.platform.push.delivery import deliver_worker_push
+
+                deliver_worker_push(
+                    self.db,
+                    wid,
+                    title="Konferenz-Einladung",
+                    body=f"{conf_title} — tippen zum Beitreten.",
+                    tag="conference-invite",
+                    company_id=company_id,
+                    extra={"roomId": room_id, "type": "conference_invite", "title": conf_title},
                 )
             except Exception:
                 pass
@@ -556,7 +593,7 @@ class ConferenceService:
             "at": utc_now_iso(),
         }
         try:
-            publish_event("conference.note", note)
+            publish_event("conference.note", company_id, note)
         except Exception:
             pass
         return note

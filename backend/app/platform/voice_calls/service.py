@@ -15,7 +15,8 @@ ACTIVE_STATUSES = frozenset({"ringing", "accepted"})
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Microseconds avoid same-second collisions for ICE trickle signaling.
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def ice_servers() -> list[dict[str, Any]]:
@@ -691,11 +692,15 @@ class VoiceCallService:
             WHERE call_id = ? AND sender_role = ?
         """
         if since_id:
-            row = self.db.execute("SELECT created_at FROM chat_voice_call_signals WHERE id = ?", (since_id,)).fetchone()
+            row = self.db.execute(
+                "SELECT created_at FROM chat_voice_call_signals WHERE id = ?",
+                (since_id,),
+            ).fetchone()
             if row:
-                sql += " AND created_at > ?"
-                params.append(row["created_at"])
-        sql += " ORDER BY created_at ASC LIMIT 200"
+                # Include same-timestamp rows after the cursor id (ICE bursts).
+                sql += " AND (created_at > ? OR (created_at = ? AND id > ?))"
+                params.extend([row["created_at"], row["created_at"], since_id])
+        sql += " ORDER BY created_at ASC, id ASC LIMIT 200"
         rows = self.db.execute(sql, tuple(params)).fetchall()
         out: list[dict[str, Any]] = []
         for row in rows:
