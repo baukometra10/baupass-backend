@@ -176,3 +176,20 @@ def test_attachment_meta_validation():
 
     assert is_e2e_attachment_meta(fake_e2e_attachment_meta()) is True
     assert is_e2e_attachment_meta("{}") is False
+
+
+def test_e2e_attachment_rejects_audio_mime_when_encrypted():
+    from backend.app.platform.security.e2e_envelope import assert_e2e_attachment
+
+    meta = fake_e2e_attachment_meta()
+    try:
+        assert_e2e_attachment(e2e_meta=meta, content_type="audio/mp4", encrypted=True)
+        raise AssertionError("expected e2e_attachment_content_type_invalid")
+    except ValueError as exc:
+        assert str(exc) == "e2e_attachment_content_type_invalid"
+
+    assert_e2e_attachment(
+        e2e_meta=meta,
+        content_type="application/vnd.suppix.e2e+binary",
+        encrypted=True,
+    )

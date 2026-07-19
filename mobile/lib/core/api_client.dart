@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import 'config.dart';
 
@@ -287,6 +288,8 @@ class ApiClient {
     String? bearerToken,
     String? deviceId,
     Map<String, String>? extraHeaders,
+    String? filename,
+    String? contentType,
   }) async {
     final uri = Uri.parse('$_baseUrl$path');
     final request = http.MultipartRequest('POST', uri);
@@ -296,7 +299,14 @@ class ApiClient {
       extraHeaders: extraHeaders,
     ));
     request.fields.addAll(fields);
-    request.files.add(await http.MultipartFile.fromPath(fileField, file.path));
+    request.files.add(await http.MultipartFile.fromPath(
+      fileField,
+      file.path,
+      filename: filename,
+      contentType: contentType != null && contentType.trim().isNotEmpty
+          ? MediaType.parse(contentType.trim())
+          : null,
+    ));
     http.StreamedResponse streamed;
     try {
       streamed = await request.send();

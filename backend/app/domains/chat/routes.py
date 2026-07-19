@@ -615,8 +615,22 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         try:
             from backend.server import normalize_upload_mimetype
 
-            filename = str(upload.filename or "upload.bin")
-            content_type = normalize_upload_mimetype(str(upload.mimetype or "application/octet-stream"), filename)
+            encrypted = str(
+                request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or ""
+            ).strip().lower() in ("1", "true", "yes")
+            filename = str(
+                request.form.get("original_filename") or upload.filename or "upload.bin"
+            ).strip() or "upload.bin"
+            if filename.lower().endswith(".e2e"):
+                filename = filename[:-4] or "upload.bin"
+            # Encrypted wire blobs must not inherit audio/image MIME from the cleartext name.
+            if encrypted:
+                content_type = "application/vnd.suppix.e2e+binary"
+            else:
+                content_type = normalize_upload_mimetype(
+                    str(upload.mimetype or "application/octet-stream"),
+                    filename,
+                )
             attachment = ChatService(db).save_attachment(
                 message_id=message_id,
                 company_id=cid,
@@ -625,7 +639,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 content_type=content_type,
                 blob=upload.read(),
                 e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
-                encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),
+                encrypted=encrypted,
             )
             return jsonify({"ok": True, "attachment": attachment, "threadId": thread_id})
         except Exception:
@@ -1032,9 +1046,24 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         if not message:
             return jsonify({"error": "message_not_found", "message": "Nachricht nicht gefunden."}), 404
         blob = upload.read()
-        filename = str(request.form.get("original_filename") or upload.filename or "upload.bin").strip() or "upload.bin"
+        encrypted = str(
+            request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or ""
+        ).strip().lower() in ("1", "true", "yes")
+        filename = str(
+            request.form.get("original_filename") or upload.filename or "upload.bin"
+        ).strip() or "upload.bin"
+        if filename.lower().endswith(".e2e"):
+            filename = filename[:-4] or "upload.bin"
         from backend.server import normalize_upload_mimetype
-        content_type = normalize_upload_mimetype(str(upload.mimetype or "application/octet-stream"), filename)
+
+        # Encrypted wire blobs must not inherit audio/image MIME from the cleartext name.
+        if encrypted:
+            content_type = "application/vnd.suppix.e2e+binary"
+        else:
+            content_type = normalize_upload_mimetype(
+                str(upload.mimetype or "application/octet-stream"),
+                filename,
+            )
         service = ChatService(db)
         try:
             attachment = service.save_attachment(
@@ -1045,7 +1074,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 content_type=content_type,
                 blob=blob,
                 e2e_meta=str(request.form.get("e2e_meta") or "").strip(),
-                encrypted=str(request.form.get("e2e_encrypted") or request.headers.get("X-E2E-Attachment") or "").strip().lower() in ("1", "true", "yes"),
+                encrypted=encrypted,
             )
             doc_type = str(request.form.get("doc_type") or "sonstiges").strip() or "sonstiges"
             document_id = service.register_worker_chat_submission(

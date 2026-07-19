@@ -245,8 +245,22 @@ class _ChatScreenState extends State<ChatScreen> {
     if (threadId == null || _sending) return;
     final file = File(filePath);
     if (!await file.exists()) return;
+    final fileLen = await file.length();
+    if (fileLen < 64) {
+      try {
+        await file.delete();
+      } catch (_) {
+        /* ignore */
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aufnahme leer — bitte erneut versuchen.')),
+      );
+      return;
+    }
     final voiceName = 'voice-${DateTime.now().millisecondsSinceEpoch}.m4a';
     setState(() => _sending = true);
+    String? messageId;
     try {
       final res = await widget.chat.sendMessage(
         session: widget.session,
@@ -254,10 +268,14 @@ class _ChatScreenState extends State<ChatScreen> {
         body: 'Sprachnachricht',
       );
       final msg = Map<String, dynamic>.from(res['message'] as Map);
+      messageId = (msg['id'] ?? '').toString().trim();
+      if (messageId!.isEmpty) {
+        throw StateError('message_id_missing');
+      }
       await widget.chat.uploadAttachment(
         session: widget.session,
         threadId: threadId,
-        messageId: msg['id'] as String,
+        messageId: messageId!,
         file: file,
         durationSec: durationSec,
         displayFilename: voiceName,
@@ -266,14 +284,19 @@ class _ChatScreenState extends State<ChatScreen> {
       if (!mounted) return;
       await _boot(silent: true);
     } on StateError catch (e) {
+      await _rollbackVoicePlaceholder(messageId);
       if (!mounted) return;
       final text = e.message == 'e2e_keys_missing'
           ? 'Sprachnachricht: Chat-Verschlüsselung nicht bereit.'
-          : e.toString();
+          : (e.message == 'attachment_empty'
+              ? 'Aufnahme leer — bitte erneut versuchen.'
+              : e.toString());
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(text), duration: const Duration(seconds: 6)),
       );
+      await _boot(silent: true);
     } on ApiException catch (e) {
+      await _rollbackVoicePlaceholder(messageId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -281,11 +304,14 @@ class _ChatScreenState extends State<ChatScreen> {
           duration: const Duration(seconds: 6),
         ),
       );
+      await _boot(silent: true);
     } catch (e) {
+      await _rollbackVoicePlaceholder(messageId);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Sprachnachricht fehlgeschlagen: $e')),
       );
+      await _boot(silent: true);
     } finally {
       if (mounted) setState(() => _sending = false);
       try {
@@ -293,6 +319,16 @@ class _ChatScreenState extends State<ChatScreen> {
       } catch (_) {
         /* ignore */
       }
+    }
+  }
+
+  Future<void> _rollbackVoicePlaceholder(String? messageId) async {
+    final id = (messageId ?? '').trim();
+    if (id.isEmpty) return;
+    try {
+      await widget.chat.deleteMessage(widget.session, id);
+    } catch (_) {
+      /* ignore */
     }
   }
 

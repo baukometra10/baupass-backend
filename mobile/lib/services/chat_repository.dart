@@ -339,6 +339,7 @@ class ChatRepository {
       final keys = await _chatRecipientKeys(session);
       if (keys.isEmpty) throw StateError('e2e_keys_missing');
       final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) throw StateError('attachment_empty');
       final packed = await _e2e.encryptBlob(
         Uint8List.fromList(bytes),
         keys,
@@ -351,12 +352,16 @@ class ChatRepository {
       final tempFile = File('${tempDir.path}/suppix-${DateTime.now().millisecondsSinceEpoch}.e2e');
       await tempFile.writeAsBytes(packed['blob'] as Uint8List, flush: true);
       try {
+        // Match PWA: wire filename ends with .e2e and MIME is the E2E binary type.
+        // Cleartext name stays in e2e_meta (+ original_filename for display).
         return await _api.postMultipart(
           '/api/worker-app/chat/threads/$threadId/attachments',
           bearerToken: session.bearer,
           deviceId: session.deviceId,
           file: tempFile,
           fileField: 'file',
+          filename: '$originalName.e2e',
+          contentType: 'application/vnd.suppix.e2e+binary',
           fields: <String, String>{
             'message_id': messageId,
             'e2e_meta': packed['meta'] as String,
@@ -371,12 +376,16 @@ class ChatRepository {
         } catch (_) {}
       }
     }
+    final clearBytes = await file.readAsBytes();
+    if (clearBytes.isEmpty) throw StateError('attachment_empty');
     return _api.postMultipart(
       '/api/worker-app/chat/threads/$threadId/attachments',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
       file: file,
       fileField: 'file',
+      filename: originalName,
+      contentType: _guessAttachmentMime(originalName),
       fields: <String, String>{
         'message_id': messageId,
         if (displayFilename != null && displayFilename.isNotEmpty)
