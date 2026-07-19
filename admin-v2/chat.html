@@ -1481,7 +1481,9 @@
   <script src="/chat-message-prefs.js?v=20260715chat40"></script>
   <script src="/chat-message-menu.js?v=20260715chat40"></script>
   <script src="/chat-admin-push.js?v=20260718chat42i"></script>
-  <script src="/chat-global-notify.js?v=20260719chat44"></script>
+  <script src="/chat-global-notify.js?v=20260719chat45"></script>
+  <script src="/admin-incoming-call.js?v=20260719chat45"></script>
+  <script src="/admin-voice-call.js?v=20260719chat45"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
   <script src="/chat-voice-call.js?v=20260719chat44"></script>
@@ -2644,6 +2646,7 @@
             pendingIncomingCall = null;
             try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
             window.__adminIncomingRingtone = null;
+            try { window.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(callId); } catch (_) { /* ignore */ }
             setVoiceCallOverlay(false);
           }
           void loadMessages(currentThreadId, currentWorkerId, { quiet: true });
@@ -4259,6 +4262,11 @@
         try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
         window.__adminIncomingRingtone = null;
         window.__conferenceRingtone = null;
+        try {
+          window.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(
+            pendingIncomingCall?.id || activeVoiceCallSession?.callId
+          );
+        } catch (_) { /* ignore */ }
         rings?.classList.remove("hidden");
         quality?.classList.add("hidden");
         subtitle?.classList.add("hidden");
@@ -4348,6 +4356,11 @@
           if (state === "ended") {
             const why = String(reason || "");
             const unreachable = /timeout|missed|unreachable/i.test(why);
+            try {
+              window.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(
+                activeVoiceCallSession?.callId || pendingIncomingCall?.id
+              );
+            } catch (_) { /* ignore */ }
             activeVoiceCallSession = null;
             pendingIncomingCall = null;
             if (unreachable) {
@@ -4409,6 +4422,11 @@
       resetVoiceCallControls();
       setVoiceCallOverlay(true, window.adminChatT("voiceCallIncomingRinging"), "ringing", "incoming");
       try {
+        window.SUPPIXAdminIncomingCall?.announceIncomingCall?.(call, {
+          labels: { body: window.adminChatT("voiceCallIncomingFromWorker") },
+        });
+      } catch (_) { /* ignore */ }
+      try {
         window.__adminIncomingRingtone?.stop?.();
         window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({
           mode: "incoming",
@@ -4424,6 +4442,7 @@
       if (!call?.id || !window.SUPPIXVoiceCall?.isSupported?.()) return;
       try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
       window.__adminIncomingRingtone = null;
+      try { window.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(call.id); } catch (_) { /* ignore */ }
       // Clear immediately so connecting/active UI shows hangup + controls.
       pendingIncomingCall = null;
       activeVoiceCallSession = buildAdminVoiceCallSession();
@@ -4442,6 +4461,7 @@
       const call = pendingIncomingCall;
       try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
       window.__adminIncomingRingtone = null;
+      try { window.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(call?.id); } catch (_) { /* ignore */ }
       if (!call?.id) {
         setVoiceCallOverlay(false);
         return;
@@ -5208,6 +5228,63 @@
       });
     }
     window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });
+    window.SUPPIXAdminVoiceCallGlobal?.init?.();
+    if (window.baupassDesktop?.onIncomingCallAction && !window.__adminChatDesktopCallBound) {
+      window.__adminChatDesktopCallBound = true;
+      window.baupassDesktop.onIncomingCallAction((payload) => {
+        const action = String(payload?.action || "").toLowerCase();
+        const callId = String(payload?.callId || "").trim();
+        const workerId = String(payload?.workerId || "").trim();
+        if (workerId) {
+          void openThread("", workerId).catch(() => {});
+        }
+        if (action === "accept") {
+          void (async () => {
+            try {
+              const data = await voiceCallApi("/api/chat/calls/incoming");
+              if (data?.call && String(data.call.id) === callId) {
+                pendingIncomingCall = data.call;
+                await acceptAdminIncomingCall();
+                return;
+              }
+            } catch (_) { /* ignore */ }
+            if (callId) {
+              try {
+                const call = await voiceCallApi(`/api/chat/calls/${encodeURIComponent(callId)}`);
+                if (call?.call || call?.id) {
+                  pendingIncomingCall = call.call || call;
+                  await acceptAdminIncomingCall();
+                }
+              } catch (_) { /* ignore */ }
+            }
+          })();
+        } else if (action === "decline" && callId) {
+          dismissedAdminCallId = callId;
+          pendingIncomingCall = pendingIncomingCall && String(pendingIncomingCall.id) === callId
+            ? pendingIncomingCall
+            : { id: callId };
+          void declineAdminIncomingCall();
+        }
+      });
+    }
+    window.addEventListener("suppix:admin-incoming-call", (event) => {
+      const detail = event?.detail || {};
+      if (detail.workerId) void openThread("", detail.workerId).catch(() => {});
+      void voiceCallApi("/api/chat/calls/incoming")
+        .then((data) => { if (data?.call) void handleAdminIncomingCall(data.call); })
+        .catch(() => {});
+    });
+    // Deep-link from Desktop / push: ?call_id=...
+    void (async () => {
+      const deepCallId = String(params.get("call_id") || params.get("callId") || "").trim();
+      if (!deepCallId) return;
+      try {
+        const data = await voiceCallApi("/api/chat/calls/incoming");
+        if (data?.call && String(data.call.id) === deepCallId) {
+          await handleAdminIncomingCall(data.call);
+        }
+      } catch (_) { /* ignore */ }
+    })();
     void window.SUPPIXChatLocation?.prefetchChatLocation?.();
     void (async () => {
       await ensureAdminSession();

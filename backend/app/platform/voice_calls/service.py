@@ -455,10 +455,29 @@ class VoiceCallService:
         except Exception:
             pass
         try:
+            from backend.app.platform.push.admin_delivery import deliver_admin_push
+
+            deliver_admin_push(
+                self.db,
+                company_id,
+                "Eingehender Anruf",
+                f"{wname} ruft an…",
+                tag="voice-call",
+                extra={
+                    "callId": call_id,
+                    "workerId": worker_id,
+                    "workerName": wname,
+                    "companyId": company_id,
+                    "url": f"/admin-v2/chat.html?worker_id={worker_id}&call_id={call_id}&company_id={company_id}",
+                },
+            )
+        except Exception:
+            pass
+        try:
             publish_event(
                 "voice_call.incoming",
                 company_id,
-                {"callId": call_id, "workerId": worker_id, "initiatedBy": "worker"},
+                {"callId": call_id, "workerId": worker_id, "initiatedBy": "worker", "workerName": wname},
             )
         except Exception:
             pass

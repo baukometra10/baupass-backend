@@ -53,12 +53,60 @@
     }
   }
 
+  async function handleAdminVoiceCallPush(data = {}) {
+    const callId = String(data.callId || data.call_id || "").trim();
+    const workerId = String(data.workerId || data.worker_id || "").trim();
+    const workerName = String(data.workerName || data.title || "Mitarbeiter").trim() || "Mitarbeiter";
+    const companyId = String(data.companyId || data.company_id || getAdminCredentials().companyId || "").trim();
+    const call = {
+      id: callId,
+      callId,
+      workerId,
+      worker_id: workerId,
+      callerName: workerName,
+      companyId,
+      status: "ringing",
+    };
+    // Prefer live incoming payload when possible.
+    try {
+      const { token } = getAdminCredentials();
+      if (token) {
+        const res = await fetch("/api/chat/calls/incoming", {
+          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+          credentials: "include",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok && body?.call) {
+          global.SUPPIXAdminIncomingCall?.announceIncomingCall?.(body.call, {
+            forceNotification: true,
+            labels: { body: "Eingehender Anruf vom Mitarbeiter" },
+          });
+          return;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+    if (callId) {
+      global.SUPPIXAdminIncomingCall?.announceIncomingCall?.(call, {
+        forceNotification: true,
+        labels: { body: "Eingehender Anruf vom Mitarbeiter" },
+      });
+    } else {
+      global.SUPPIXChatRealtime?.playWorkerMessageSound?.();
+    }
+  }
+
   function handleSwPush(data = {}) {
     const tag = String(data.tag || data.logicalTag || "");
-    const isChatTag = tag === "admin-chat" || tag === "worker-chat" || tag === "voice-call" || tag.includes("chat");
+    if (tag === "voice-call") {
+      void handleAdminVoiceCallPush(data);
+      return;
+    }
+    const isChatTag = tag === "admin-chat" || tag === "worker-chat" || tag.includes("chat");
     if (!isChatTag) return;
 
-    if (data.role === "admin" || tag === "admin-chat" || tag === "voice-call") {
+    if (data.role === "admin" || tag === "admin-chat") {
       if (global.SUPPIXChatRealtime?.notifyAdminWorkerMessage) {
         global.SUPPIXChatRealtime.notifyAdminWorkerMessage({
           type: "chat.message_created",
@@ -78,6 +126,30 @@
     notifyWorkerIncoming(data);
   }
 
+  function handleAdminRealtimeEvent(evt) {
+    const type = String(evt?.type || "");
+    if (!(type.startsWith("voice_call.") || type.startsWith("chat.voice_call"))) {
+      global.SUPPIXChatRealtime?.notifyAdminWorkerMessage?.(evt, {
+        workerMessageTitle: "Neue Mitarbeiter-Nachricht",
+      });
+      return;
+    }
+    if (type.includes("incoming")) {
+      void handleAdminVoiceCallPush({
+        callId: evt?.payload?.callId || evt?.payload?.call_id,
+        workerId: evt?.payload?.workerId || evt?.payload?.worker_id,
+        companyId: evt?.payload?.companyId || evt?.payload?.company_id,
+        workerName: evt?.payload?.workerName || evt?.payload?.callerName,
+        tag: "voice-call",
+      });
+      return;
+    }
+    if (type.includes("ended") || type.includes("missed") || type.includes("declined")) {
+      const callId = String(evt?.payload?.callId || evt?.payload?.call_id || "").trim();
+      global.SUPPIXAdminIncomingCall?.dismissDesktopIncomingCall?.(callId);
+    }
+  }
+
   function startAdminGlobalRealtime() {
     if (adminRealtimeStop || isAdminChatPage()) return;
     const { token, companyId } = getAdminCredentials();
@@ -87,6 +159,7 @@
       companyId,
       getHeaders: () => (token ? { Authorization: `Bearer ${token}` } : {}),
       labels: { workerMessageTitle: "Neue Mitarbeiter-Nachricht" },
+      onChatEvent: handleAdminRealtimeEvent,
     }).then((stop) => {
       adminRealtimeStop = typeof stop === "function" ? stop : null;
     });
@@ -107,6 +180,7 @@
     const role = String(options.role || "").trim();
     if (role === "admin" || /\/admin-v2\//i.test(String(global.location?.pathname || ""))) {
       startAdminGlobalRealtime();
+      global.SUPPIXAdminVoiceCallGlobal?.init?.();
     }
   }
 
@@ -115,5 +189,6 @@
     handleSwPush,
     startAdminGlobalRealtime,
     notifyWorkerIncoming,
+    handleAdminVoiceCallPush,
   };
 })(typeof window !== "undefined" ? window : globalThis);

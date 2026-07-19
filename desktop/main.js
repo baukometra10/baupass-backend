@@ -23,9 +23,11 @@ const AUTOSTART_BACKEND = IS_LOCAL && String(process.env.BAUPASS_DESKTOP_AUTOSTA
 
 let mainWindow = null;
 let splashWindow = null;
+let incomingCallWindow = null;
 let backendProcess = null;
 let backendStartedByDesktop = false;
 const SPLASH_MAX_VISIBLE_MS = 1500;
+let mainWasAlwaysOnTop = false;
 
 function updateSplashProgress(percent, message, detail) {
   if (!splashWindow || splashWindow.isDestroyed()) {
@@ -188,6 +190,145 @@ function sendWindowState() {
   });
 }
 
+function closeIncomingCallWindow() {
+  if (!incomingCallWindow || incomingCallWindow.isDestroyed()) {
+    incomingCallWindow = null;
+    return;
+  }
+  try {
+    incomingCallWindow.close();
+  } catch {
+    /* ignore */
+  }
+  incomingCallWindow = null;
+}
+
+function raiseMainForCall(payload = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    mainWindow.flashFrame(false);
+    if (!mainWasAlwaysOnTop) {
+      mainWindow.setAlwaysOnTop(false);
+    }
+  } catch {
+    /* ignore */
+  }
+  const callId = String(payload.callId || "").trim();
+  const workerId = String(payload.workerId || "").trim();
+  const companyId = String(payload.companyId || "").trim();
+  const params = new URLSearchParams();
+  if (companyId) params.set("company_id", companyId);
+  if (workerId) params.set("worker_id", workerId);
+  if (callId) params.set("call_id", callId);
+  const qs = params.toString();
+  const path = `/admin-v2/chat.html${qs ? `?${qs}` : ""}`;
+  try {
+    mainWindow.webContents.send("desktop:incoming-call-action", {
+      action: String(payload.action || "focus"),
+      callId,
+      workerId,
+      companyId,
+      workerName: String(payload.workerName || ""),
+      path,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+function showIncomingCallWindow(payload = {}) {
+  const callId = String(payload.callId || "").trim();
+  if (!callId) return { ok: false, reason: "call_id_missing" };
+
+  if (incomingCallWindow && !incomingCallWindow.isDestroyed()) {
+    try {
+      incomingCallWindow.focus();
+      incomingCallWindow.webContents.send("desktop:incoming-call-update", payload);
+    } catch {
+      /* ignore */
+    }
+    return { ok: true, reused: true };
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWasAlwaysOnTop = Boolean(mainWindow.isAlwaysOnTop?.());
+      mainWindow.flashFrame(true);
+      mainWindow.setAlwaysOnTop(true, "screen-saver");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const iconPath = path.join(
+    PROJECT_ROOT,
+    process.platform === "win32" ? "branding/suppix-icon-512.ico" : "branding/suppix-icon-512.png",
+  );
+  incomingCallWindow = new BrowserWindow({
+    width: 380,
+    height: 560,
+    minWidth: 360,
+    minHeight: 520,
+    resizable: false,
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    focusable: true,
+    show: false,
+    center: true,
+    backgroundColor: "#0b141a",
+    autoHideMenuBar: true,
+    icon: iconPath,
+    webPreferences: {
+      preload: path.join(__dirname, "incoming-call-preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      spellcheck: false,
+    },
+  });
+
+  try {
+    incomingCallWindow.setAlwaysOnTop(true, "screen-saver");
+  } catch {
+    /* ignore */
+  }
+
+  const query = {
+    callId,
+    workerName: String(payload.workerName || "Mitarbeiter"),
+    workerId: String(payload.workerId || ""),
+    companyId: String(payload.companyId || ""),
+  };
+
+  incomingCallWindow.loadFile(path.join(__dirname, "incoming-call.html"), { query }).catch(() => {
+    closeIncomingCallWindow();
+  });
+
+  incomingCallWindow.once("ready-to-show", () => {
+    if (!incomingCallWindow || incomingCallWindow.isDestroyed()) return;
+    incomingCallWindow.show();
+    incomingCallWindow.focus();
+  });
+
+  incomingCallWindow.on("closed", () => {
+    incomingCallWindow = null;
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      try {
+        mainWindow.flashFrame(false);
+        if (!mainWasAlwaysOnTop) mainWindow.setAlwaysOnTop(false);
+      } catch {
+        /* ignore */
+      }
+    }
+  });
+
+  return { ok: true };
+}
+
 function closeSplashWindow() {
   if (!splashWindow || splashWindow.isDestroyed()) {
     splashWindow = null;
@@ -318,6 +459,7 @@ function createWindow() {
 
   mainWindow.on("closed", () => {
     closeSplashWindow();
+    closeIncomingCallWindow();
     mainWindow = null;
   });
 }
@@ -380,6 +522,28 @@ ipcMain.handle("desktop:ensure-signotec-bridge", async () => {
   }
 });
 
+ipcMain.handle("desktop:show-incoming-call", (_event, payload = {}) => showIncomingCallWindow(payload || {}));
+
+ipcMain.handle("desktop:dismiss-incoming-call", () => {
+  closeIncomingCallWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.flashFrame(false);
+      if (!mainWasAlwaysOnTop) mainWindow.setAlwaysOnTop(false);
+    } catch {
+      /* ignore */
+    }
+  }
+  return { ok: true };
+});
+
+ipcMain.handle("desktop:incoming-call-respond", async (_event, payload = {}) => {
+  const action = String(payload.action || "").trim().toLowerCase();
+  closeIncomingCallWindow();
+  raiseMainForCall({ ...payload, action: action || "focus" });
+  return { ok: true, action };
+});
+
 async function bootstrap() {
   await resolveDesktopUrl();
   if (process.platform === "win32") {
@@ -406,6 +570,9 @@ app.on("second-instance", () => {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
+  }
+  if (incomingCallWindow && !incomingCallWindow.isDestroyed()) {
+    incomingCallWindow.focus();
   }
 });
 

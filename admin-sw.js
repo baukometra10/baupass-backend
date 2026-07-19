@@ -1,5 +1,5 @@
 /* SUPPIX admin service worker — web push for employer chat. */
-const ADMIN_SW_BUILD = "20260717chat42d";
+const ADMIN_SW_BUILD = "20260719chat45";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -14,10 +14,12 @@ function resolveAdminPushUrl(data) {
   if (direct) return direct;
   const companyId = String(data?.companyId || data?.company_id || "").trim();
   const workerId = String(data?.workerId || data?.worker_id || "").trim();
+  const callId = String(data?.callId || data?.call_id || "").trim();
   let url = "/admin-v2/chat.html";
   const params = new URLSearchParams();
   if (companyId) params.set("company_id", companyId);
   if (workerId) params.set("worker_id", workerId);
+  if (callId) params.set("call_id", callId);
   const qs = params.toString();
   if (qs) url += `?${qs}`;
   return url;
@@ -40,7 +42,13 @@ self.addEventListener("push", (event) => {
         tag,
         icon: "/branding/suppix-icon-192.png",
         badge: "/branding/suppix-icon-192.png",
-        data: { url: targetUrl, tag },
+        data: {
+          url: targetUrl,
+          tag,
+          callId: data.callId || data.call_id || "",
+          workerId: data.workerId || data.worker_id || "",
+          companyId: data.companyId || data.company_id || "",
+        },
         renotify: true,
         requireInteraction: tag === "admin-chat" || tag === "voice-call",
       }),
@@ -55,7 +63,10 @@ self.addEventListener("push", (event) => {
             workerId: data.workerId || data.worker_id || "",
             workerName: data.workerName || "",
             threadId: data.threadId || data.thread_id || "",
+            callId: data.callId || data.call_id || "",
+            companyId: data.companyId || data.company_id || "",
             preview: data.preview || data.body || "",
+            url: targetUrl,
           });
         });
       }),
