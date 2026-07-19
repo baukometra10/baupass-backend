@@ -398,17 +398,22 @@ class VoiceCallController extends ChangeNotifier {
       _connectedAt = DateTime.now();
       _startDurationTimer();
       _stopRingFeedback();
-    } else if (state == 'connecting') {
+    } else if (state == 'accepted' || state == 'connecting') {
       _clearRingTimeout();
+      _stopRingFeedback();
       _phase = VoiceCallUiPhase.connecting;
-      _statusNote = 'Verbindung wird aufgebaut…';
+      _statusNote = state == 'accepted'
+          ? 'Angenommen — Verbindung wird aufgebaut…'
+          : 'Verbindung wird aufgebaut…';
     } else if (state == 'ringing') {
-      if (_isOutgoing) {
+      if (_isOutgoing && _phase != VoiceCallUiPhase.connecting && _phase != VoiceCallUiPhase.connected) {
         _phase = VoiceCallUiPhase.ringing;
         _statusNote = 'Klingelt beim Arbeitgeber…';
       }
     } else if (state == 'ended') {
-      final note = _isOutgoing ? 'Nicht angenommen' : 'Anruf beendet';
+      final note = (_phase == VoiceCallUiPhase.connected || _phase == VoiceCallUiPhase.connecting)
+          ? 'Anruf beendet'
+          : (_isOutgoing ? 'Nicht angenommen' : 'Anruf beendet');
       _finishEnded(note);
     }
     notifyListeners();

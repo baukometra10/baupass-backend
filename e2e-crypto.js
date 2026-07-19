@@ -390,9 +390,26 @@
     if (!raw) {
       throw new DOMException("Invalid key material", "DataError");
     }
+    const bytes = b64Decode(raw);
+    // Legacy Flutter envelopes used raw 32-byte X25519 public keys as epk.
+    if (bytes && bytes.length === 32) {
+      const spkiPrefix = new Uint8Array([
+        0x30, 0x2a, 0x30, 0x05, 0x06, 0x03, 0x2b, 0x65, 0x6e, 0x03, 0x21, 0x00,
+      ]);
+      const spki = new Uint8Array(spkiPrefix.length + 32);
+      spki.set(spkiPrefix, 0);
+      spki.set(bytes, spkiPrefix.length);
+      return crypto.subtle.importKey(
+        "spki",
+        spki,
+        { name: ALGORITHM, namedCurve: ALGORITHM },
+        true,
+        [],
+      );
+    }
     return crypto.subtle.importKey(
       "spki",
-      b64Decode(raw),
+      bytes,
       { name: ALGORITHM, namedCurve: ALGORITHM },
       true,
       [],
@@ -729,15 +746,32 @@
     const meta = typeof metaJson === "string" ? JSON.parse(metaJson) : metaJson;
     if (!meta || meta.kind !== "attachment") throw new Error("e2e_attachment_meta_invalid");
     let keyB64 = "";
-    if (meta.wrappedKey) {
-      keyB64 = await decryptUtf8(typeof meta.wrappedKey === "string" ? meta.wrappedKey : JSON.stringify(meta.wrappedKey), entityType, entityId);
-    } else if (meta.keyEnvelopes) {
+    const tryWrapped = async () => {
+      if (!meta.wrappedKey) return "";
+      const wrapped = typeof meta.wrappedKey === "string" ? meta.wrappedKey : JSON.stringify(meta.wrappedKey);
+      try {
+        return await decryptUtf8WithArchive(wrapped, entityType, entityId);
+      } catch (_) {
+        return await decryptUtf8(wrapped, entityType, entityId);
+      }
+    };
+    const tryKeyEnvelopes = async () => {
+      if (!meta.keyEnvelopes) return "";
       const privateKey = await loadPrivateKey(entityType, entityId);
-      const env = meta.keyEnvelopes.multi ? meta.keyEnvelopes.envelopes?.[0] : meta.keyEnvelopes;
-      keyB64 = await openEnvelope(env, privateKey);
-    } else {
-      throw new Error("e2e_attachment_key_missing");
-    }
+      const list = meta.keyEnvelopes.multi
+        ? (meta.keyEnvelopes.envelopes || [])
+        : [meta.keyEnvelopes];
+      for (const env of list) {
+        try {
+          return await openEnvelope(env, privateKey);
+        } catch (_) {
+          /* try next */
+        }
+      }
+      return "";
+    };
+    keyB64 = (await tryWrapped()) || (await tryKeyEnvelopes());
+    if (!keyB64) throw new Error("e2e_attachment_key_missing");
     const dataKey = await crypto.subtle.importKey("raw", b64Decode(keyB64), "AES-GCM", false, ["decrypt"]);
     const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Decode(meta.iv) }, dataKey, cipherBytes instanceof Uint8Array ? cipherBytes : new Uint8Array(cipherBytes));
     return {

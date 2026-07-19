@@ -1485,7 +1485,7 @@
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260718chat42i"></script>
   <script src="/chat-voice-call.js?v=20260718chat42i"></script>
-  <script src="/chat-conference.js?v=20260718chat42i"></script>
+  <script src="/chat-conference.js?v=20260719confCam1"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260718chat42i"></script>
   <script src="/e2e-crypto.js?v=20260714e2e4"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -4351,7 +4351,11 @@
       setVoiceCallOverlay(true, window.adminChatT("voiceCallIncomingRinging"), "ringing", "incoming");
       try {
         window.__adminIncomingRingtone?.stop?.();
-        window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({ mode: "incoming" });
+        window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({
+          mode: "incoming",
+          pauseMs: 1800,
+          whatsappStyle: true,
+        });
         window.__adminIncomingRingtone?.setOutputEnabled?.(callControlState.speakerOn !== false);
         window.__adminIncomingRingtone?.start?.();
       } catch (_) { /* ignore */ }
@@ -4393,13 +4397,31 @@
     function startAdminIncomingCallPoll() {
       if (adminIncomingPollTimer) clearInterval(adminIncomingPollTimer);
       adminIncomingPollTimer = setInterval(() => {
-        if (activeVoiceCallSession || pendingIncomingCall || !companyId) return;
+        if (!companyId) return;
+        // While ringing for a pending worker call, watch call status so hangup/end stops the ringtone.
+        if (pendingIncomingCall?.id && !activeVoiceCallSession) {
+          const watchId = String(pendingIncomingCall.id);
+          voiceCallApi(`/api/chat/calls/${encodeURIComponent(watchId)}`)
+            .then((data) => {
+              const call = data?.call || data;
+              const status = String(call?.status || "").toLowerCase();
+              if (!status || status === "ringing") return;
+              try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
+              window.__adminIncomingRingtone = null;
+              dismissedAdminCallId = watchId;
+              pendingIncomingCall = null;
+              if (!activeVoiceCallSession) setVoiceCallOverlay(false);
+            })
+            .catch(() => {});
+          return;
+        }
+        if (activeVoiceCallSession || pendingIncomingCall) return;
         voiceCallApi("/api/chat/calls/incoming")
           .then((data) => {
             if (data?.call) void handleAdminIncomingCall(data.call);
           })
           .catch(() => {});
-      }, 1400);
+      }, 900);
     }
     async function startVoiceCallToCurrentWorker() {
       if (!currentWorkerId) {
@@ -4474,6 +4496,16 @@
         status.dataset.prev = status.textContent || "";
         status.textContent = message;
       }
+    }
+
+    try {
+      window.SUPPIXConference?.setOnCameraIntent?.((name) => {
+        const msg = window.adminChatT("conferenceCameraIntent", { name: name || "?" })
+          || `${name || "Teilnehmer"} möchte die Kamera öffnen`;
+        flashCallControlFeedback(msg);
+      });
+    } catch (_) {
+      /* ignore */
     }
 
     async function applyCallMute(muted) {

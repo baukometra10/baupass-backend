@@ -293,7 +293,8 @@ class E2eCryptoService {
       'e2e': true,
       'v': 1,
       'alg': 'X25519-AES-GCM',
-      'epk': base64Encode(ephemeralPublic.bytes),
+      // SPKI so Web Crypto (admin) can importKey("spki") — raw-32 breaks admin decrypt.
+      'epk': rawPublicKeyToSpkiB64(ephemeralPublic.bytes),
       'iv': base64Encode(nonce),
       'ct': base64Encode(_gcmWireBytes(secretBox)),
     };

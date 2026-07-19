@@ -192,10 +192,6 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                       onDecline: widget.controller.decline,
                       onAccept: widget.controller.accept,
                     )
-                  else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
-                    _OutgoingActions(
-                      onCancel: widget.controller.decline,
-                    )
                   else if (isConnected)
                     _ActiveControls(
                       accent: _accent,
@@ -206,7 +202,15 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                       onHangup: widget.controller.hangup,
                     )
                   else if (isConnecting)
-                    _OutgoingActions(onCancel: widget.controller.hangup)
+                    _ConnectingActions(
+                      accent: _accent,
+                      note: widget.controller.statusNote,
+                      onHangup: widget.controller.hangup,
+                    )
+                  else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
+                    _OutgoingActions(
+                      onCancel: widget.controller.decline,
+                    )
                   else if (isEnded)
                     _EndedHint(note: widget.controller.statusNote)
                   else
@@ -494,6 +498,44 @@ class _IncomingActions extends StatelessWidget {
           color: const Color(0xFF00A884),
           onTap: onAccept,
           glow: const Color(0xFF00A884),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConnectingActions extends StatelessWidget {
+  const _ConnectingActions({
+    required this.accent,
+    required this.note,
+    required this.onHangup,
+  });
+
+  final Color accent;
+  final String note;
+  final Future<void> Function() onHangup;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          note.isNotEmpty ? note : 'Verbindung wird aufgebaut…',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          width: 28,
+          height: 28,
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: accent),
+        ),
+        const SizedBox(height: 28),
+        _RoundActionButton(
+          icon: Icons.call_end_rounded,
+          label: 'Auflegen',
+          color: const Color(0xFFE53935),
+          onTap: onHangup,
         ),
       ],
     );

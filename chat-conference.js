@@ -10,6 +10,44 @@
   let micMuted = false;
   let speakerOn = true;
   let cameraOn = false;
+  let onCameraIntent = null;
+
+  function notifyCameraIntent(name) {
+    const label = String(name || "").trim() || "Teilnehmer";
+    try {
+      onCameraIntent?.(label);
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function handleDataReceived(payload, participant) {
+    try {
+      const text = typeof payload === "string"
+        ? payload
+        : new TextDecoder().decode(payload instanceof ArrayBuffer ? new Uint8Array(payload) : payload);
+      const data = JSON.parse(text);
+      if (!data || data.type !== "camera_intent") return;
+      const name = String(data.name || participant?.name || participant?.identity || "").trim();
+      notifyCameraIntent(name);
+    } catch (_) {
+      /* ignore malformed */
+    }
+  }
+
+  async function broadcastCameraIntent() {
+    if (!room?.localParticipant) return;
+    const lp = room.localParticipant;
+    const name = String(lp.name || lp.identity || "Teilnehmer").trim();
+    const bytes = new TextEncoder().encode(JSON.stringify({ type: "camera_intent", name }));
+    try {
+      if (typeof lp.publishData === "function") {
+        await lp.publishData(bytes, { reliable: true, topic: "suppix.camera" });
+      }
+    } catch (_) {
+      /* best-effort */
+    }
+  }
 
   function loadLiveKit() {
     if (global.LivekitClient || global.LiveKit) {
@@ -151,6 +189,10 @@
       // Only notify after a successful connect — failed connect must not auto-hangup the UI.
       if (didConnect) onDisconnect?.();
     });
+    const dataEvt = LK.RoomEvent.DataReceived || "dataReceived";
+    room.on(dataEvt, (payload, participant) => {
+      handleDataReceived(payload, participant);
+    });
     const url = String(livekitUrl || "").trim().replace(/\/+$/, "");
     if (!url || !token) {
       throw new Error("livekit_connect_missing_url_or_token");
@@ -192,6 +234,10 @@
   async function setCameraEnabled(enabled) {
     if (!room) return false;
     const next = Boolean(enabled);
+    if (next && !cameraOn) {
+      await broadcastCameraIntent();
+      await new Promise((r) => setTimeout(r, 350));
+    }
     await room.localParticipant.setCameraEnabled(next);
     cameraOn = next;
     room.localParticipant.videoTrackPublications?.forEach?.((pub) => {
@@ -257,6 +303,7 @@
     setSpeakerEnabled,
     toggleSpeaker,
     renderParticipantRail,
+    setOnCameraIntent: (fn) => { onCameraIntent = typeof fn === "function" ? fn : null; },
     getActiveRoomId: () => activeRoomId,
     isActive: () => Boolean(room),
     isMicMuted: () => micMuted,

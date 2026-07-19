@@ -387,6 +387,7 @@ class WorkerVoiceCallSession {
             return;
           }
           if (_deferredOffer && !_offerSent && status == 'accepted') {
+            onState('accepted');
             await _sendOfferAfterAccept();
           }
         }

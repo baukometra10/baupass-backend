@@ -27,14 +27,19 @@
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
-    // Long cycle (~12s) so the ring does not cut mid-phrase; short clip is fallback only.
+    const whatsappStyle = Boolean(options.whatsappStyle) || mode === "incoming";
+    // Incoming: short classic dual-tone bursts with WhatsApp-like pause between rings.
+    // Outgoing: longer cycle so it feels like dial tone progress.
     const src =
       String(
         options.src
         || global.SUPPIX_CALL_RINGTONE_URL
-        || "/sounds/phone-call-ring-cycle.mp3"
+        || (whatsappStyle ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3")
       ).trim() || "/sounds/phone-call-ring-cycle.mp3";
-    const pauseMs = Math.max(400, Number(options.pauseMs) || (mode === "outgoing" ? 1200 : 900));
+    const pauseMs = Math.max(
+      400,
+      Number(options.pauseMs) || (whatsappStyle ? 1800 : (mode === "outgoing" ? 1200 : 900)),
+    );
     let audio = null;
     let stopped = false;
     let outputEnabled = true;
@@ -102,36 +107,45 @@
       try {
         const ctx = new (global.AudioContext || global.webkitAudioContext)();
         fallbackCtx = ctx;
-        const FACE = [349.23, 440.0, 523.25, 659.25];
+        // WhatsApp-like dual tone (US ring: 440 + 480 Hz) for incoming; arpeggio for outgoing.
         const master = ctx.createGain();
         fallbackMaster = master;
-        master.gain.value = outputEnabled ? 0.7 : 0.0001;
+        master.gain.value = outputEnabled ? 0.75 : 0.0001;
         master.connect(ctx.destination);
-        const beep = () => {
+        const ringBurst = () => {
           if (stopped || !fallbackCtx) return;
           const t0 = ctx.currentTime + 0.02;
-          FACE.forEach((hz, i) => {
-            const osc = ctx.createOscillator();
-            const g = ctx.createGain();
-            osc.type = "sine";
-            osc.frequency.value = hz;
-            g.gain.setValueAtTime(0.0001, t0 + i * 0.1);
-            g.gain.exponentialRampToValueAtTime(0.14, t0 + i * 0.1 + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.0001, t0 + i * 0.1 + 0.12);
-            osc.connect(g);
-            g.connect(master);
-            osc.start(t0 + i * 0.1);
-            osc.stop(t0 + i * 0.1 + 0.14);
-          });
+          const tones = whatsappStyle ? [440, 480] : [349.23, 440.0, 523.25, 659.25];
+          const pulseMs = whatsappStyle ? 0.42 : 0.12;
+          const gap = whatsappStyle ? 0.22 : 0.1;
+          // Two pulses then pause (WhatsApp cadence)
+          const pulses = whatsappStyle ? 2 : 1;
+          for (let p = 0; p < pulses; p++) {
+            const base = t0 + p * (pulseMs + gap);
+            tones.forEach((hz) => {
+              const osc = ctx.createOscillator();
+              const g = ctx.createGain();
+              osc.type = "sine";
+              osc.frequency.value = hz;
+              g.gain.setValueAtTime(0.0001, base);
+              g.gain.exponentialRampToValueAtTime(whatsappStyle ? 0.18 : 0.14, base + 0.03);
+              g.gain.exponentialRampToValueAtTime(0.0001, base + pulseMs);
+              osc.connect(g);
+              g.connect(master);
+              osc.start(base);
+              osc.stop(base + pulseMs + 0.02);
+            });
+          }
         };
         if (ctx.state === "suspended") void ctx.resume();
-        // Play a longer synth burst (~12s of motif), then pause, like the MP3 cycle
         let burstCount = 0;
         const burst = () => {
           if (stopped || !fallbackCtx) return;
-          beep();
+          ringBurst();
           burstCount += 1;
-          if (burstCount < 10) {
+          if (whatsappStyle) {
+            fallbackTimer = global.setTimeout(burst, pauseMs + 900);
+          } else if (burstCount < 10) {
             fallbackTimer = global.setTimeout(burst, 1200);
           } else {
             burstCount = 0;
@@ -153,7 +167,7 @@
           audio.loop = false; // full cycle must finish; we restart after a pause
           audio.playsInline = true;
           audio.setAttribute("playsinline", "true");
-          audio.src = src.includes("?") ? src : `${src}?v=20260718chat42i`;
+          audio.src = src.includes("?") ? src : `${src}?v=20260719wa`;
           applyOutput();
           audio.addEventListener("ended", () => {
             if (!stopped) scheduleNextCycle();
