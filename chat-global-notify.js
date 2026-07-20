@@ -39,7 +39,15 @@
   function notifyWorkerIncoming(data = {}) {
     const onChat = isWorkerChatSection();
     const focused = Boolean(global.document?.hasFocus?.());
-    global.SUPPIXChatRealtime?.playWorkerMessageSound?.();
+    const dedupeKey = String(data.messageId || data.message_id || data.tag || "")
+      ? `worker-push:${data.messageId || data.message_id || data.tag}:${String(data.body || data.preview || "").slice(0, 40)}`
+      : "";
+    if (dedupeKey && global.SUPPIXChatRealtime?.claimChatNotifyKey && !global.SUPPIXChatRealtime.claimChatNotifyKey(dedupeKey)) {
+      return;
+    }
+    if (!(focused && onChat)) {
+      global.SUPPIXChatRealtime?.playWorkerMessageSound?.();
+    }
     if (focused && onChat) return;
     if (!global.Notification || Notification.permission !== "granted") return;
     try {
@@ -55,6 +63,11 @@
 
   async function handleAdminVoiceCallPush(data = {}) {
     const callId = String(data.callId || data.call_id || "").trim();
+    if (callId && global.SUPPIXChatRealtime?.claimChatNotifyKey) {
+      if (!global.SUPPIXChatRealtime.claimChatNotifyKey(`voice-call:${callId}`)) {
+        return;
+      }
+    }
     const workerId = String(data.workerId || data.worker_id || "").trim();
     const workerName = String(data.workerName || data.title || "Mitarbeiter").trim() || "Mitarbeiter";
     const companyId = String(data.companyId || data.company_id || getAdminCredentials().companyId || "").trim();
@@ -116,6 +129,7 @@
         title: data.title || "Eingehender Anruf",
         body: data.body || data.preview || "Ihr Arbeitgeber ruft an",
         tag: "voice-call",
+        messageId: callId || data.messageId,
       });
       return;
     }
@@ -126,6 +140,7 @@
           title: data.title || "Konferenz-Einladung",
           body: data.body || data.preview || "Tippen zum Beitreten",
           tag: "conference-invite",
+          messageId: data.inviteId || data.messageId,
         });
       }
       return;
@@ -137,15 +152,19 @@
       if (global.SUPPIXChatRealtime?.notifyAdminWorkerMessage) {
         global.SUPPIXChatRealtime.notifyAdminWorkerMessage({
           type: "chat.message_created",
+          id: data.eventId || data.id || "",
           payload: {
             senderType: "worker",
             workerId: data.workerId || data.worker_id || "",
             workerName: data.workerName || data.title || "",
             preview: data.body || data.preview || "",
             threadId: data.threadId || data.thread_id || "",
+            messageId: data.messageId || data.message_id || "",
           },
         }, { workerMessageTitle: data.title || "Neue Mitarbeiter-Nachricht" });
-      } else {
+      } else if (global.SUPPIXChatRealtime?.claimChatNotifyKey?.(
+        `chat-msg:${data.messageId || data.message_id || data.threadId || "push"}`
+      )) {
         global.SUPPIXChatRealtime?.playWorkerMessageSound?.();
       }
       return;

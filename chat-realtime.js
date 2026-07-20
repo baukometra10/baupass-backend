@@ -3,6 +3,39 @@
  */
 (function initSuppixChatRealtime(global) {
   let notifyAudioCtx = null;
+  const seenNotifyKeys = new Map();
+  const NOTIFY_DEDUP_MS = 45000;
+
+  function pruneNotifyKeys(now = Date.now()) {
+    for (const [key, exp] of seenNotifyKeys) {
+      if (exp <= now) seenNotifyKeys.delete(key);
+    }
+  }
+
+  /** Returns true once per key within the dedupe window (shared by push + socket). */
+  function claimChatNotifyKey(key) {
+    const normalized = String(key || "").trim();
+    if (!normalized) return true;
+    const now = Date.now();
+    pruneNotifyKeys(now);
+    if (seenNotifyKeys.has(normalized)) return false;
+    seenNotifyKeys.set(normalized, now + NOTIFY_DEDUP_MS);
+    return true;
+  }
+
+  function chatMessageNotifyKey(evt) {
+    const payload = evt?.payload && typeof evt.payload === "object" ? evt.payload : {};
+    const messageId = String(
+      payload.messageId || payload.message_id || evt?.id || ""
+    ).trim();
+    if (messageId) return `chat-msg:${messageId}`;
+    const threadId = String(payload.threadId || payload.thread_id || "").trim();
+    const workerId = String(payload.workerId || payload.worker_id || "").trim();
+    const preview = String(payload.preview || payload.body || "").trim().slice(0, 48);
+    if (threadId) return `chat-thread:${threadId}:${preview}`;
+    if (workerId) return `chat-worker:${workerId}:${preview}`;
+    return "";
+  }
 
   function normalizeEvent(raw) {
     const evt = raw || {};
@@ -110,6 +143,8 @@
     if (workerId && companyId && global.SUPPIXChatThreadPrefs?.isMuted?.(companyId, workerId)) {
       return;
     }
+    const dedupeKey = chatMessageNotifyKey(evt);
+    if (!claimChatNotifyKey(dedupeKey)) return;
     const onChatPage = isAdminChatPage();
     const focused = Boolean(global.document?.hasFocus?.());
     // Silent while admin is already focused on chat — no false “new message” beep.
@@ -224,5 +259,7 @@
     playWorkerMessageSound,
     startAdminChatRealtime,
     startWorkerChatRealtime,
+    claimChatNotifyKey,
+    chatMessageNotifyKey,
   };
 })(typeof window !== "undefined" ? window : globalThis);
