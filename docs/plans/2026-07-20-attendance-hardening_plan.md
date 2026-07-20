@@ -22,7 +22,7 @@ Die größten Rest-Risiken liegen bei **gemischten Zeitstempeln (UTC vs lokal)**
 ## Status
 
 - [x] Phase A+B umgesetzt (2026-07-20): Timestamp-Normalisierung Berlin, Zutritt-UI Heute/App-Login, Chat-Ton still im fokussierten Chat
-- [ ] Phase C: Auto-Close app-login + Monatsrand Overnight
+- [x] Phase C umgesetzt (2026-07-20): Auto-Close inkl. app-login/app-logout; Monats-Timeline Overnight-Spillover
 - [ ] Phase D Rest: Push/Socket Dedup
 
 ## Empfohlener Ansatz (Top-3 zuerst)

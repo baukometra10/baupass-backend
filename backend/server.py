@@ -8794,7 +8794,8 @@ def build_open_entries_from_rows(rows, now_dt):
         }
     open_entries = []
     for item in last_event_by_worker.values():
-        if item["direction"] != "check-in":
+        direction = str(item.get("direction") or "").strip().lower()
+        if direction not in ("check-in", "app-login"):
             continue
 
         entry_dt = parse_iso_utc(item["timestamp"])
@@ -9119,26 +9120,19 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
     today_prefix = now_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
     repair_misfired_work_end_checkouts(db)
 
-    # Only the latest open session per worker (avoids duplicate auto checkouts).
+    # Latest event per worker is on-site (check-in or app-login).
     rows = db.execute(
         """
         SELECT w.id AS worker_id, w.company_id, w.first_name, w.last_name, w.badge_id, w.worker_type,
-               al.gate AS checkin_gate, al.timestamp AS checkin_timestamp
+               al.gate AS checkin_gate, al.timestamp AS checkin_timestamp, al.direction AS checkin_direction
         FROM workers w
         JOIN access_logs al ON al.worker_id = w.id
         WHERE w.deleted_at IS NULL
-          AND al.direction = 'check-in'
+          AND al.direction IN ('check-in', 'app-login')
           AND al.timestamp = (
               SELECT MAX(al_latest.timestamp)
               FROM access_logs al_latest
               WHERE al_latest.worker_id = w.id
-                AND al_latest.direction IN ('check-in', 'check-out', 'app-login', 'app-logout')
-          )
-          AND NOT EXISTS (
-              SELECT 1 FROM access_logs al_out
-              WHERE al_out.worker_id = al.worker_id
-                AND al_out.timestamp > al.timestamp
-                AND al_out.direction = 'check-out'
           )
         """,
     ).fetchall()
@@ -9163,7 +9157,7 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
             """
             SELECT id FROM access_logs
             WHERE worker_id = ?
-              AND direction = 'check-out'
+              AND direction IN ('check-out', 'app-logout')
               AND timestamp >= ?
               AND note LIKE 'Automatischer Austritt nach Arbeitsende%'
             LIMIT 1
@@ -9172,10 +9166,11 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
         ).fetchone()
         if existing:
             continue
+        close_direction = "app-logout" if str(row["checkin_direction"] or "") == "app-login" else "check-out"
         log_id = create_access_log_entry(
             db,
             row["worker_id"],
-            "check-out",
+            close_direction,
             row["checkin_gate"] or "Mitarbeiter-App (Standort)",
             f"Automatischer Austritt nach Arbeitsende ({str(work_end)[:5]})",
             timestamp_value=checkout_ts,
@@ -9221,7 +9216,7 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
         ) latest ON latest.worker_id = workers.id
         JOIN access_logs ON access_logs.worker_id = latest.worker_id AND access_logs.timestamp = latest.latest_ts
         WHERE workers.deleted_at IS NULL
-          AND access_logs.direction = 'check-in'
+          AND access_logs.direction IN ('check-in', 'app-login')
         """,
     ).fetchall()
 
@@ -9255,13 +9250,14 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 checkout_ts = f"{prev_day.isoformat()}T23:59:00"
             except ValueError:
                 checkout_ts = now_iso()
+        close_direction = "app-logout" if str(row["direction"] or "") == "app-login" else "check-out"
         log_id = f"log-{secrets.token_hex(6)}"
         db.execute(
             "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 log_id,
                 row["worker_id"],
-                "check-out",
+                close_direction,
                 "System Tagesabschluss",
                 "Automatischer Austritt (Tagesabschluss)",
                 checkout_ts,
@@ -11880,20 +11876,18 @@ def is_company_workday_today():
 
 
 def worker_has_open_checkin(db, worker_id):
-    """True when the worker has any unclosed check-in (including overnight shifts)."""
+    """True when the worker's latest access event is on-site (check-in or app-login)."""
     open_row = db.execute(
         """
         SELECT al.id
         FROM access_logs al
         WHERE al.worker_id = ?
-          AND al.direction = 'check-in'
-          AND NOT EXISTS (
-              SELECT 1 FROM access_logs al2
+          AND al.timestamp = (
+              SELECT MAX(al2.timestamp)
+              FROM access_logs al2
               WHERE al2.worker_id = al.worker_id
-                AND al2.timestamp > al.timestamp
-                AND al2.direction = 'check-out'
           )
-        ORDER BY al.timestamp DESC
+          AND al.direction IN ('check-in', 'app-login')
         LIMIT 1
         """,
         (worker_id,),
@@ -11902,7 +11896,7 @@ def worker_has_open_checkin(db, worker_id):
 
 
 def worker_has_open_checkin_today(db, worker_id):
-    """Open check-in for today's session, including overnight shifts from yesterday."""
+    """Open on-site session for today, including overnight from yesterday."""
     if not worker_has_open_checkin(db, worker_id):
         return False
     open_row = db.execute(
@@ -11910,14 +11904,12 @@ def worker_has_open_checkin_today(db, worker_id):
         SELECT al.timestamp
         FROM access_logs al
         WHERE al.worker_id = ?
-          AND al.direction = 'check-in'
-          AND NOT EXISTS (
-              SELECT 1 FROM access_logs al2
+          AND al.timestamp = (
+              SELECT MAX(al2.timestamp)
+              FROM access_logs al2
               WHERE al2.worker_id = al.worker_id
-                AND al2.timestamp > al.timestamp
-                AND al2.direction = 'check-out'
           )
-        ORDER BY al.timestamp DESC
+          AND al.direction IN ('check-in', 'app-login')
         LIMIT 1
         """,
         (worker_id,),

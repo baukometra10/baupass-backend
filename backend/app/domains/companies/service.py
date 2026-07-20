@@ -1604,12 +1604,30 @@ class CompaniesService:
 
         # Pair across days so overnight sessions keep their hours
         month_sessions = pair_presence_sessions(all_events)
+        month_start_iso = f"{month_prefix}-01"
+        month_end_iso = f"{month_prefix}-{last_day:02d}"
         by_day_sessions: OrderedDict[str, list] = OrderedDict()
         for session in month_sessions:
             check_in = str(session.get("checkIn") or "")
             check_out = str(session.get("checkOut") or "")
-            work_day = (check_in or check_out)[:10]
-            if not work_day or not work_day.startswith(month_prefix):
+            in_day = check_in[:10] if len(check_in) >= 10 else ""
+            out_day = check_out[:10] if len(check_out) >= 10 else ""
+            overlaps_month = False
+            if in_day and month_start_iso <= in_day <= month_end_iso:
+                overlaps_month = True
+            if out_day and month_start_iso <= out_day <= month_end_iso:
+                overlaps_month = True
+            # Overnight from previous month into this month
+            if in_day and out_day and in_day < month_start_iso and out_day >= month_start_iso:
+                overlaps_month = True
+            if not overlaps_month:
+                continue
+            # Attribute to check-in day when in month; else to checkout day (spillover in)
+            if in_day and month_start_iso <= in_day <= month_end_iso:
+                work_day = in_day
+            elif out_day and month_start_iso <= out_day <= month_end_iso:
+                work_day = out_day
+            else:
                 continue
             by_day_sessions.setdefault(work_day, []).append(session)
 
