@@ -17,6 +17,36 @@ class ApiException implements Exception {
 
   @override
   String toString() => message ?? 'ApiException($statusCode, $errorCode)';
+
+  /// Short German user-facing message for SnackBars / empty states.
+  String get friendlyMessage {
+    final custom = (message ?? '').trim();
+    if (custom.isNotEmpty && !custom.startsWith('ApiException')) return custom;
+    switch (statusCode) {
+      case 0:
+        return 'Keine Verbindung zum Server. Bitte Netz prüfen.';
+      case 401:
+        return 'Sitzung abgelaufen — bitte erneut anmelden.';
+      case 403:
+        return 'Keine Berechtigung für diese Aktion.';
+      case 404:
+        return 'Eintrag nicht gefunden.';
+      case 408:
+      case 504:
+        return 'Zeitüberschreitung — bitte erneut versuchen.';
+      case 429:
+        return 'Zu viele Anfragen — kurz warten.';
+      case 500:
+      case 502:
+      case 503:
+        return 'Serverfehler — bitte später erneut versuchen.';
+      default:
+        if (errorCode != null && errorCode!.isNotEmpty) {
+          return 'Fehler ($statusCode, $errorCode)';
+        }
+        return 'Fehler ($statusCode)';
+    }
+  }
 }
 
 typedef SessionExpiredCallback = void Function();

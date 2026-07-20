@@ -546,6 +546,20 @@ class CompaniesService:
             report_timezone=report_timezone,
             operating_sector=operating_sector,
         )
+        if "impressumText" in payload or "impressum_text" in payload or "datenschutzText" in payload or "datenschutz_text" in payload:
+            impressum_text = str(
+                payload.get("impressumText", payload.get("impressum_text", company.get("impressum_text") or ""))
+            )[:20000]
+            datenschutz_text = str(
+                payload.get("datenschutzText", payload.get("datenschutz_text", company.get("datenschutz_text") or ""))
+            )[:20000]
+            try:
+                db.execute(
+                    "UPDATE companies SET impressum_text = ?, datenschutz_text = ? WHERE id = ?",
+                    (impressum_text, datenschutz_text, company_id),
+                )
+            except Exception:
+                pass
         rematch_inbox_company_links(db, company_id=company_id)
         db.commit()
         return {"body": {"ok": True}, "audit": {"company_id": company_id}}

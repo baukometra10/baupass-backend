@@ -21,7 +21,9 @@ class ShiftsTab extends StatefulWidget {
 class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   List<Map<String, dynamic>> _assignments = [];
-  List<Map<String, dynamic>> _swaps = [];
+  List<Map<String, dynamic>> _pendingSwaps = [];
+  List<Map<String, dynamic>> _sentSwaps = [];
+  List<Map<String, dynamic>> _historySwaps = [];
   List<Map<String, dynamic>> _coworkers = [];
   bool _loading = true;
   String? _error;
@@ -42,11 +44,16 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
 
   String _friendlyError(Object e) {
     if (e is ApiException) {
-      return e.message?.trim().isNotEmpty == true
-          ? e.message!.trim()
-          : 'Serverfehler (${e.statusCode}${e.errorCode != null ? ', ${e.errorCode}' : ''})';
+      return e.friendlyMessage;
     }
-    return e.toString();
+    final text = e.toString().trim();
+    if (text.contains('SocketException') || text.contains('Failed host lookup')) {
+      return 'Keine Verbindung zum Server. Bitte Netz prüfen.';
+    }
+    if (text.contains('TimeoutException')) {
+      return 'Zeitüberschreitung — bitte erneut versuchen.';
+    }
+    return text.isNotEmpty ? text : 'Unbekannter Fehler';
   }
 
   Future<List<Map<String, dynamic>>> _safeList(
@@ -74,11 +81,17 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       'Schichten',
       warnings,
     );
-    final swaps = await _safeList(
-      () => widget.tasks.listShiftSwaps(widget.session),
-      'Tausch-Anfragen',
-      warnings,
-    );
+    List<Map<String, dynamic>> pending = [];
+    List<Map<String, dynamic>> sent = [];
+    List<Map<String, dynamic>> history = [];
+    try {
+      final buckets = await widget.tasks.listShiftSwapBuckets(widget.session);
+      pending = buckets['pending'] ?? [];
+      sent = buckets['sent'] ?? [];
+      history = buckets['history'] ?? [];
+    } catch (e) {
+      warnings.add('Tausch-Anfragen: ${_friendlyError(e)}');
+    }
     final coworkers = await _safeList(
       () => widget.tasks.listShiftCoworkers(widget.session),
       'Kollegen',
@@ -86,17 +99,34 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
     );
     if (!mounted) return;
     final allFailed = assignments.isEmpty &&
-        swaps.isEmpty &&
+        pending.isEmpty &&
+        sent.isEmpty &&
+        history.isEmpty &&
         coworkers.isEmpty &&
-        warnings.length >= 3;
+        warnings.length >= 2;
     setState(() {
       _assignments = assignments;
-      _swaps = swaps;
+      _pendingSwaps = pending;
+      _sentSwaps = sent;
+      _historySwaps = history;
       _coworkers = coworkers;
       _warning = warnings.isEmpty ? null : warnings.join('\n');
       _error = allFailed ? 'Schichtdaten konnten nicht geladen werden.' : null;
       _loading = false;
     });
+  }
+
+  String _statusLabel(String? status) {
+    switch ((status ?? '').toLowerCase()) {
+      case 'accepted':
+        return 'Angenommen';
+      case 'rejected':
+        return 'Abgelehnt';
+      case 'pending':
+        return 'Offen';
+      default:
+        return status?.isNotEmpty == true ? status! : '—';
+    }
   }
 
   String _fmt(String? iso) {
@@ -355,58 +385,93 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
   }
 
   Widget _buildSwapsList() {
-    if (_swaps.isEmpty) {
-      return RefreshIndicator(
-        onRefresh: _load,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 80),
-            Center(child: Text('Keine offenen Tausch-Anfragen')),
-          ],
-        ),
-      );
-    }
+    final empty = _pendingSwaps.isEmpty && _sentSwaps.isEmpty && _historySwaps.isEmpty;
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        itemCount: _swaps.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (context, i) {
-          final s = _swaps[i];
-          return Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (empty) ...[
+            const SizedBox(height: 80),
+            const Center(child: Text('Noch keine Tausch-Anfragen')),
+          ],
+          if (_pendingSwaps.isNotEmpty) ...[
+            Text('Offen für dich', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ..._pendingSwaps.map(_buildSwapCard),
+            const SizedBox(height: 16),
+          ],
+          if (_sentSwaps.isNotEmpty) ...[
+            Text('Gesendet (wartet)', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ..._sentSwaps.map(_buildSwapCard),
+            const SizedBox(height: 16),
+          ],
+          if (_historySwaps.isNotEmpty) ...[
+            Text('Verlauf', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 8),
+            ..._historySwaps.map(_buildSwapCard),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSwapCard(Map<String, dynamic> s) {
+    final canRespond = s['canRespond'] == true;
+    final direction = (s['direction'] as String?) ?? 'inbound';
+    final counterpart = (s['counterpart'] as String?)?.trim().isNotEmpty == true
+        ? s['counterpart'] as String
+        : ((s['fromWorker'] as String?) ?? 'Kollege');
+    final status = (s['status'] as String?) ?? 'pending';
+    final title = direction == 'outbound' ? 'An $counterpart' : 'Von $counterpart';
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Text((s['fromWorker'] as String?) ?? 'Kollege', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  Text('${_fmt(s['startTime'] as String?)} – ${_fmt(s['endTime'] as String?)}'),
-                  if ((s['site'] as String?)?.isNotEmpty == true)
-                    Text(s['site'] as String, style: Theme.of(context).textTheme.bodySmall),
-                  if ((s['reason'] as String?)?.isNotEmpty == true)
-                    Text(s['reason'] as String, style: Theme.of(context).textTheme.bodySmall),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      FilledButton(
-                        onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'accepted'),
-                        child: const Text('Annehmen'),
-                      ),
-                      const SizedBox(width: 8),
-                      OutlinedButton(
-                        onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'rejected'),
-                        child: const Text('Ablehnen'),
-                      ),
-                    ],
+                  Expanded(
+                    child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  ),
+                  Chip(
+                    label: Text(_statusLabel(status), style: const TextStyle(fontSize: 11)),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
                   ),
                 ],
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 4),
+              Text('${_fmt(s['startTime'] as String?)} – ${_fmt(s['endTime'] as String?)}'),
+              if ((s['site'] as String?)?.isNotEmpty == true)
+                Text(s['site'] as String, style: Theme.of(context).textTheme.bodySmall),
+              if ((s['reason'] as String?)?.isNotEmpty == true)
+                Text(s['reason'] as String, style: Theme.of(context).textTheme.bodySmall),
+              if (canRespond) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    FilledButton(
+                      onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'accepted'),
+                      child: const Text('Annehmen'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: () => _respondSwap((s['id'] ?? '').toString(), 'rejected'),
+                      child: const Text('Ablehnen'),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }

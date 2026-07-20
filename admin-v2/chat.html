@@ -1013,6 +1013,18 @@
     .voice-call-controls.incoming-only .voice-call-round-btn.accept { background: #059669; border-color: #34d399; }
     .voice-call-subtitle { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: rgba(226,232,240,0.72); }
     .voice-call-quality { display:inline-flex; margin-bottom:0.75rem; padding:0.25rem 0.65rem; border-radius:999px; font-size:0.72rem; border:1px solid rgba(94,234,212,0.25); color:rgba(226,232,240,0.85); }
+    .voice-call-cam-hint {
+      margin: 0 auto 0.75rem;
+      max-width: 22rem;
+      padding: 0.45rem 0.75rem;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      line-height: 1.35;
+      background: rgba(15, 118, 110, 0.85);
+      color: #ecfeff;
+      border: 1px solid rgba(94, 234, 212, 0.35);
+    }
+    .voice-call-cam-hint.hidden { display: none; }
     .voice-call-controls {
       display: flex;
       gap: 0.85rem;
@@ -1399,6 +1411,7 @@
       <p id="voiceCallSubtitle" class="voice-call-subtitle hidden"></p>
       <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
       <p id="voiceCallQuality" class="voice-call-quality hidden" aria-live="polite"></p>
+      <p id="voiceCallCamHint" class="voice-call-cam-hint hidden" aria-live="polite">Kamera ist aus — einschalten, damit der Mitarbeiter Sie sieht.</p>
       <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
       <p id="voiceCallDiag" class="voice-call-diag hidden" aria-live="polite"></p>
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
@@ -4156,6 +4169,16 @@
       if (label) label.textContent = text;
       btn.setAttribute("aria-label", text);
       btn.title = text;
+      const hint = document.getElementById("voiceCallCamHint");
+      if (hint) {
+        const conferenceActive = Boolean(window.SUPPIXConference?.isActive?.());
+        const show = conferenceActive && !on;
+        hint.classList.toggle("hidden", !show);
+        if (show) {
+          hint.textContent = window.adminChatT("voiceCallCamHint")
+            || "Kamera ist aus — einschalten, damit der Mitarbeiter Sie sieht.";
+        }
+      }
     }
     function resetVoiceCallControls() {
       if (typeof resetCallControlState === "function") resetCallControlState();

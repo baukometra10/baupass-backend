@@ -3774,6 +3774,10 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN stripe_subscription_status TEXT NOT NULL DEFAULT ''")
     if "billing_cycle" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN billing_cycle TEXT NOT NULL DEFAULT 'monthly'")
+    if "impressum_text" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN impressum_text TEXT NOT NULL DEFAULT ''")
+    if "datenschutz_text" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN datenschutz_text TEXT NOT NULL DEFAULT ''")
 
     invoice_columns_stripe = [row[1] for row in cur.execute("PRAGMA table_info(invoices)").fetchall()]
     if "stripe_payment_link_id" not in invoice_columns_stripe:
@@ -9137,6 +9141,20 @@ def public_tenant_branding():
             payload["logoData"] = logo_data
         if display_name:
             payload["platformName"] = display_name
+        try:
+            company_full = db.execute(
+                "SELECT impressum_text, datenschutz_text FROM companies WHERE id = ?",
+                (str(company_row["id"]),),
+            ).fetchone()
+            if company_full:
+                c_imp = str(company_full["impressum_text"] or "").strip() if "impressum_text" in company_full.keys() else ""
+                c_dat = str(company_full["datenschutz_text"] or "").strip() if "datenschutz_text" in company_full.keys() else ""
+                if c_imp:
+                    payload["impressumText"] = c_imp
+                if c_dat:
+                    payload["datenschutzText"] = c_dat
+        except Exception:
+            pass
         return jsonify(payload)
     except Exception:
         try:
@@ -15674,46 +15692,79 @@ def shift_coworkers():
 
 @require_worker_session
 def shift_get_swaps():
-    """Mitarbeiter: Seine offenen Swap-Anfragen."""
+    """Mitarbeiter: Tausch-Anfragen (offen, gesendet, Verlauf)."""
     db = get_db()
     worker = g.worker
+    worker_id = worker["id"]
+    company_id = worker["company_id"]
 
     swaps = db.execute(
         """
         SELECT
             ss.id,
             ss.from_worker_id,
+            ss.to_worker_id,
             ss.reason,
             ss.status,
             ss.requested_at,
-            w.first_name,
-            w.last_name,
+            ss.responded_at,
+            fw.first_name AS from_first_name,
+            fw.last_name AS from_last_name,
+            tw.first_name AS to_first_name,
+            tw.last_name AS to_last_name,
             sa.start_time,
             sa.end_time,
             sa.site
         FROM shift_swaps ss
-        JOIN workers w ON ss.from_worker_id = w.id
+        JOIN workers fw ON ss.from_worker_id = fw.id
+        JOIN workers tw ON ss.to_worker_id = tw.id
         JOIN shift_assignments sa ON ss.shift_assignment_id = sa.id
-        WHERE ss.to_worker_id = ? AND ss.status = 'pending'
+        WHERE ss.company_id = ?
+          AND (ss.to_worker_id = ? OR ss.from_worker_id = ?)
         ORDER BY ss.requested_at DESC
+        LIMIT 80
         """,
-        (worker["id"],)
+        (company_id, worker_id, worker_id),
     ).fetchall()
 
     result = []
     for s in swaps:
+        direction = "inbound" if str(s["to_worker_id"]) == str(worker_id) else "outbound"
+        status = str(s["status"] or "pending")
+        can_respond = direction == "inbound" and status == "pending"
         result.append({
             "id": s["id"],
-            "fromWorker": f"{s['first_name']} {s['last_name']}",
+            "direction": direction,
+            "canRespond": can_respond,
+            "fromWorkerId": s["from_worker_id"],
+            "toWorkerId": s["to_worker_id"],
+            "fromWorker": f"{s['from_first_name']} {s['from_last_name']}".strip(),
+            "toWorker": f"{s['to_first_name']} {s['to_last_name']}".strip(),
+            "counterpart": (
+                f"{s['from_first_name']} {s['from_last_name']}".strip()
+                if direction == "inbound"
+                else f"{s['to_first_name']} {s['to_last_name']}".strip()
+            ),
             "reason": s["reason"],
-            "status": s["status"],
+            "status": status,
             "requestedAt": s["requested_at"],
+            "respondedAt": s["responded_at"] if "responded_at" in s.keys() else None,
             "startTime": s["start_time"],
             "endTime": s["end_time"],
             "site": s["site"],
         })
 
-    return jsonify({"swaps": result})
+    pending = [x for x in result if x["canRespond"]]
+    sent = [x for x in result if x["direction"] == "outbound" and x["status"] == "pending"]
+    history = [x for x in result if x["status"] != "pending"]
+
+    return jsonify({
+        "swaps": pending,
+        "pending": pending,
+        "sent": sent,
+        "history": history,
+        "all": result,
+    })
 
 
 @require_worker_session
@@ -28026,6 +28077,16 @@ def worker_app_legal():
 
     controller = None
     if company:
+        # Company-specific legal texts win over platform defaults (multi-tenant DSGVO).
+        try:
+            company_impressum = str(company["impressum_text"] or "") if "impressum_text" in company.keys() else ""
+            company_datenschutz = str(company["datenschutz_text"] or "") if "datenschutz_text" in company.keys() else ""
+            if company_impressum.strip():
+                impressum = company_impressum
+            if company_datenschutz.strip():
+                datenschutz = company_datenschutz
+        except Exception:
+            pass
         controller = _legal_contact_payload(
             company,
             name_keys=("name",),
@@ -28067,6 +28128,96 @@ def worker_app_legal():
             "sectionEyebrow": "Rechtliches",
         }
     )
+
+
+@require_worker_session
+def worker_app_privacy_consent():
+    """Persist worker privacy consent (DSGVO audit trail)."""
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    granted = payload.get("granted", True)
+    if isinstance(granted, str):
+        granted = granted.lower() not in {"0", "false", "no"}
+    else:
+        granted = bool(granted)
+    version = str(payload.get("version") or "1.0")[:32]
+    consent_type = str(payload.get("consentType") or payload.get("consent_type") or "privacy_app").strip()[:64] or "privacy_app"
+    now = now_iso()
+    ip_address = (request.headers.get("X-Forwarded-For") or request.remote_addr or "")[:120]
+    if "," in ip_address:
+        ip_address = ip_address.split(",", 1)[0].strip()
+
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS data_consents (
+                id              TEXT PRIMARY KEY,
+                worker_id       TEXT NOT NULL,
+                company_id      TEXT NOT NULL,
+                consent_type    TEXT NOT NULL,
+                granted         INTEGER NOT NULL DEFAULT 0,
+                granted_at      TEXT,
+                revoked_at      TEXT,
+                ip_address      TEXT,
+                version         TEXT NOT NULL DEFAULT '1.0'
+            )
+            """
+        )
+    except Exception:
+        pass
+
+    existing = None
+    try:
+        existing = db.execute(
+            "SELECT id FROM data_consents WHERE worker_id = ? AND consent_type = ?",
+            (worker["id"], consent_type),
+        ).fetchone()
+    except Exception:
+        existing = None
+
+    if existing:
+        if granted:
+            db.execute(
+                """
+                UPDATE data_consents
+                SET granted = 1, granted_at = ?, revoked_at = NULL, ip_address = ?, version = ?, company_id = ?
+                WHERE id = ?
+                """,
+                (now, ip_address, version, str(worker["company_id"]), existing["id"]),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE data_consents
+                SET granted = 0, revoked_at = ?, ip_address = ?, version = ?, company_id = ?
+                WHERE id = ?
+                """,
+                (now, ip_address, version, str(worker["company_id"]), existing["id"]),
+            )
+        consent_id = existing["id"]
+    else:
+        consent_id = f"consent-{secrets.token_hex(8)}"
+        db.execute(
+            """
+            INSERT INTO data_consents (
+                id, worker_id, company_id, consent_type, granted, granted_at, revoked_at, ip_address, version
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                consent_id,
+                worker["id"],
+                str(worker["company_id"]),
+                consent_type,
+                1 if granted else 0,
+                now if granted else None,
+                None if granted else now,
+                ip_address,
+                version,
+            ),
+        )
+    db.commit()
+    return jsonify({"ok": True, "consentId": consent_id, "granted": granted, "version": version})
 
 
 @require_worker_session

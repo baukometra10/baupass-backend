@@ -2,6 +2,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class PrivacyConsentStore {
   static const _key = 'suppix_privacy_consent_v1';
+  static const version = '1.0';
 
   Future<bool> hasAccepted() async {
     final prefs = await SharedPreferences.getInstance();

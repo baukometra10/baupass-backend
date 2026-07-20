@@ -176,6 +176,20 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     if (!mounted) return;
     if (accepted == true) {
       await store.accept();
+      try {
+        await ApiClient().postJson(
+          '/api/worker-app/privacy-consent',
+          bearerToken: widget.session.bearer,
+          deviceId: widget.session.deviceId,
+          body: {
+            'granted': true,
+            'version': PrivacyConsentStore.version,
+            'consentType': 'privacy_app',
+          },
+        );
+      } catch (_) {
+        /* audit best-effort */
+      }
       return;
     }
     widget.onLogout();

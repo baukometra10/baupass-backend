@@ -229,6 +229,31 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
       ),
       body: Column(
         children: [
+          if (!_configured)
+            Material(
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, color: Theme.of(context).colorScheme.onTertiaryContainer),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Assistent ist noch nicht konfiguriert. '
+                        'Ihr Arbeitgeber muss den KI-Zugang freischalten '
+                        '(API-Key / Tarif). Basis-Hinweise funktionieren trotzdem.',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onTertiaryContainer,
+                          height: 1.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(12),

@@ -73,15 +73,30 @@ class TasksRepository {
     return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
   }
 
-  Future<List<Map<String, dynamic>>> listShiftSwaps(WorkerSession session) async {
+  Future<Map<String, List<Map<String, dynamic>>>> listShiftSwapBuckets(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/shift/swaps',
       bearerToken: session.bearer,
       deviceId: session.deviceId,
     );
-    final raw = data['swaps'];
-    if (raw is! List) return [];
-    return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    List<Map<String, dynamic>> asList(dynamic raw) {
+      if (raw is! List) return [];
+      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    }
+
+    final pending = asList(data['pending'] ?? data['swaps']);
+    final sent = asList(data['sent']);
+    final history = asList(data['history']);
+    return {
+      'pending': pending,
+      'sent': sent,
+      'history': history,
+    };
+  }
+
+  Future<List<Map<String, dynamic>>> listShiftSwaps(WorkerSession session) async {
+    final buckets = await listShiftSwapBuckets(session);
+    return buckets['pending'] ?? [];
   }
 
   Future<List<Map<String, dynamic>>> listShiftCoworkers(WorkerSession session) async {

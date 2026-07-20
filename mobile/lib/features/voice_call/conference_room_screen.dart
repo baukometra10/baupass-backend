@@ -368,6 +368,35 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                   ),
                 ),
               ),
+            if (!_connecting && _error == null && !_camOn)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 108,
+                child: Material(
+                  color: const Color(0xEE0F766E),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: _busyMedia ? null : _toggleCam,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.videocam_off, color: Colors.white),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Kamera ist aus — tippen zum Einschalten, damit der Arbeitgeber Sie sieht.',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

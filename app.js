@@ -10452,6 +10452,14 @@ function getRuntimeUiTexts() {
     companyBtnDocEmail: "📧 Doc. email",
     companyBtnInvoiceLang: "🌐 Invoice language",
     companyBtnBillingAddress: "📍 Billing address",
+    companyBtnLegal: "⚖️ Legal notice",
+    companyLegalModalTitle: "Legal notice & privacy (company)",
+    companyLegalSaveFailed: "Could not save legal texts: {error}",
+    companyLegalImpressumLabel: "Impressum",
+    companyLegalPrivacyLabel: "Privacy policy",
+    companyLegalTemplateBtn: "Insert GDPR template",
+    legalFillTemplateBtn: "Insert GDPR template",
+    legalFillTemplateHint: "Prefills contact details from operator fields (email, address, phone).",
     companyBtnAdminTfa: "🔐 Admin 2FA",
     companySectionAccess: "Access",
     companyBtnPasswordMail: "🔑 Password email",
@@ -11317,6 +11325,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 Dokument-Mail",
       companyBtnInvoiceLang: "🌐 Rechnungs-Sprache",
       companyBtnBillingAddress: "📍 Rechnungsadresse",
+      companyBtnLegal: "⚖️ Rechtliches",
+      companyLegalModalTitle: "Impressum & Datenschutz (diese Firma)",
+      companyLegalSaveFailed: "Rechtstexte konnten nicht gespeichert werden: {error}",
+      companyLegalImpressumLabel: "Impressum",
+      companyLegalPrivacyLabel: "Datenschutzerklärung",
+      companyLegalTemplateBtn: "DSGVO-Vorlage einfügen",
+      legalFillTemplateBtn: "DSGVO-Vorlage einfügen",
+      legalFillTemplateHint: "Füllt Kontaktdaten aus den Betreiberfeldern (E-Mail, Adresse, Telefon) vor.",
       companyBtnAdminTfa: "🔐 Admin-2FA",
       companySectionAccess: "Zugang",
       companyBtnPasswordMail: "🔑 Passwort-Mail",
@@ -25029,6 +25045,7 @@ function renderCompanyList() {
                 <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
+                <button type="button" class="ghost-button small-button" data-company-legal="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnLegal") || "Rechtliches")}</button>
                 <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
                 ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
               </div>
@@ -25766,6 +25783,15 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       await openBillingAddressModal(companyId, company);
+      return;
+    }
+
+    const legalButton = event.target.closest("[data-company-legal]");
+    if (legalButton && !legalButton.disabled && elements.companyList.contains(legalButton)) {
+      const companyId = legalButton.dataset.companyLegal;
+      const company = state.companies.find((e) => e.id === companyId);
+      if (!companyId || !company) return;
+      await openCompanyLegalModal(companyId, company);
       return;
     }
 
@@ -26538,6 +26564,135 @@ async function openBillingAddressModal(companyId, company) {
     }
   });
   document.getElementById("billingStreetInput").focus();
+}
+
+function buildGdprPrivacyTemplate({ name = "", email = "", phone = "", street = "", zipCity = "", website = "" } = {}) {
+  const lines = [
+    "Datenschutzerklärung (DSGVO)",
+    "",
+    "1. Verantwortlicher",
+    name || "[Firmenname]",
+    street || "[Straße Hausnummer]",
+    zipCity || "[PLZ Ort]",
+    email ? `E-Mail: ${email}` : "E-Mail: [kontakt@firma.de]",
+    phone ? `Telefon: ${phone}` : "",
+    website ? `Website: ${website}` : "",
+    "",
+    "2. Zwecke der Verarbeitung",
+    "Wir verarbeiten personenbezogene Daten zur Arbeitsorganisation, Zeiterfassung,",
+    "Zugangskontrolle, Kommunikation (Chat/Anrufe) und Erfüllung gesetzlicher Pflichten.",
+    "",
+    "3. Rechtsgrundlagen",
+    "Art. 6 Abs. 1 lit. b DSGVO (Vertrag/Beschäftigungsverhältnis), lit. c (gesetzliche Pflicht),",
+    "lit. f (berechtigtes Interesse an sicherem Betriebsablauf) sowie ggf. Einwilligung (Art. 6 Abs. 1 lit. a).",
+    "",
+    "4. Kategorien von Daten",
+    "Stammdaten, Kontaktdaten, Anwesenheits-/Standortdaten am Einsatzort, Chat-/Anrufmetadaten,",
+    "Gerätekennungen für Push-Benachrichtigungen sowie ggf. Dokumente.",
+    "",
+    "5. Speicherdauer",
+    "Daten werden nur so lange gespeichert, wie es für die genannten Zwecke oder gesetzliche",
+    "Aufbewahrungsfristen erforderlich ist.",
+    "",
+    "6. Empfänger / Auftragsverarbeiter",
+    "Daten können an IT-Dienstleister (Hosting, Push, KI falls freigeschaltet) übermittelt werden,",
+    "soweit dies für den Betrieb der Plattform erforderlich ist.",
+    "",
+    "7. Ihre Rechte",
+    "Sie haben Rechte auf Auskunft, Berichtigung, Löschung, Einschränkung, Datenübertragbarkeit",
+    "und Widerspruch sowie Beschwerde bei einer Aufsichtsbehörde.",
+    "",
+    "8. Kontakt für Datenschutzanfragen",
+    email ? email : "[datenschutz@firma.de]",
+  ].filter((line, idx, arr) => !(line === "" && arr[idx - 1] === ""));
+  return lines.join("\n");
+}
+
+async function openCompanyLegalModal(companyId, company) {
+  const existingModal = document.getElementById("companyLegalModal");
+  if (existingModal) existingModal.remove();
+
+  const impressum = company.impressumText || company.impressum_text || "";
+  const datenschutz = company.datenschutzText || company.datenschutz_text || "";
+  const companyName = company.portalDisplayName || company.portal_display_name || company.name || "";
+  const email = company.documentEmail || company.document_email || company.billingEmail || company.billing_email || "";
+  const street = company.billingStreet || company.billing_street || "";
+  const zipCity = company.billingZipCity || company.billing_zip_city || "";
+
+  const modal = document.createElement("div");
+  modal.id = "companyLegalModal";
+  modal.className = "admin-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="admin-modal-card" style="max-width:640px;width:95%;">
+      <h3 class="admin-modal-title">${escapeHtml(runtimeText("companyLegalModalTitle") || "Impressum & Datenschutz")}</h3>
+      <p class="helper-text" style="margin-top:0;">${escapeHtml(companyName)}</p>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:12px;">
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("companyLegalImpressumLabel") || "Impressum")}</label>
+          <textarea id="companyLegalImpressumInput" rows="6" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);font-size:14px;">${escapeHtml(impressum)}</textarea>
+        </div>
+        <div>
+          <label style="display:block;font-size:13px;font-weight:600;margin-bottom:4px;">${escapeHtml(runtimeText("companyLegalPrivacyLabel") || "Datenschutz")}</label>
+          <textarea id="companyLegalPrivacyInput" rows="10" style="width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);font-size:14px;">${escapeHtml(datenschutz)}</textarea>
+        </div>
+      </div>
+      <div id="companyLegalError" style="color:var(--danger,#c0392b);font-size:13px;margin-bottom:8px;display:none;"></div>
+      <div class="admin-modal-actions" style="flex-wrap:wrap;gap:8px;">
+        <button type="button" class="ghost-button" id="companyLegalTemplateBtn">${escapeHtml(runtimeText("companyLegalTemplateBtn") || "DSGVO-Vorlage")}</button>
+        <button type="button" class="primary-button" id="companyLegalSaveBtn">${escapeHtml(runtimeText("companyBrandingSaveBtn") || "Speichern")}</button>
+        <button type="button" class="ghost-button" id="companyLegalCancelBtn">${escapeHtml(runtimeText("legalCloseTitle") || "Schließen")}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  function closeModal() { modal.remove(); }
+  document.getElementById("companyLegalCancelBtn").addEventListener("click", closeModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+  document.getElementById("companyLegalTemplateBtn").addEventListener("click", () => {
+    const ta = document.getElementById("companyLegalPrivacyInput");
+    if (!ta) return;
+    ta.value = buildGdprPrivacyTemplate({
+      name: companyName,
+      email,
+      street,
+      zipCity,
+    });
+  });
+  document.getElementById("companyLegalSaveBtn").addEventListener("click", async () => {
+    const errEl = document.getElementById("companyLegalError");
+    errEl.style.display = "none";
+    try {
+      document.getElementById("companyLegalSaveBtn").disabled = true;
+      await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+        method: "PUT",
+        body: {
+          name: company.name,
+          contact: company.contact,
+          billingEmail: company.billingEmail || company.billing_email || "",
+          billingStreet: company.billingStreet || company.billing_street || "",
+          billingZipCity: company.billingZipCity || company.billing_zip_city || "",
+          documentEmail: company.documentEmail || company.document_email || "",
+          accessHost: company.accessHost || company.access_host || "",
+          plan: company.plan,
+          status: company.status,
+          invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
+          impressumText: document.getElementById("companyLegalImpressumInput").value || "",
+          datenschutzText: document.getElementById("companyLegalPrivacyInput").value || "",
+        }
+      });
+      closeModal();
+      await loadAllData();
+      refreshAll();
+      showToast(uiT("toastSaved") || "Gespeichert", "success");
+    } catch (error) {
+      errEl.textContent = runtimeTextTemplate("companyLegalSaveFailed", { error: error.message });
+      errEl.style.display = "block";
+      document.getElementById("companyLegalSaveBtn").disabled = false;
+    }
+  });
 }
 
 // ── Firma: Plan / Paket ändern ─────────────────────────────────────────────
@@ -37729,6 +37884,22 @@ if (elements.dayCloseAcknowledgeForm) {
 const settingsForm = document.querySelector("#settingsForm");
 if (settingsForm) {
   settingsForm.addEventListener("submit", handleSettingsSubmit);
+
+  const fillDatenschutzBtn = document.getElementById("fillDatenschutzTemplateBtn");
+  if (fillDatenschutzBtn) {
+    fillDatenschutzBtn.addEventListener("click", () => {
+      const ta = document.getElementById("datenschutzText");
+      if (!ta) return;
+      const name = String(document.querySelector("#operatorName")?.value || document.querySelector("#platformName")?.value || "").trim();
+      const email = String(document.querySelector("#invoiceOperatorEmail")?.value || "").trim();
+      const phone = String(document.querySelector("#invoiceOperatorPhone")?.value || "").trim();
+      const street = String(document.querySelector("#invoiceOperatorStreet")?.value || "").trim();
+      const zipCity = String(document.querySelector("#invoiceOperatorZipCity")?.value || "").trim();
+      const website = String(document.querySelector("#invoiceOperatorWebsite")?.value || "").trim();
+      ta.value = buildGdprPrivacyTemplate({ name, email, phone, street, zipCity, website });
+      showToast(uiT("toastSaved") || "Vorlage eingefügt", "success");
+    });
+  }
 
   // Live rot/grün Feedback für wichtige Felder
   const SETTINGS_REQUIRED_FIELDS = [

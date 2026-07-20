@@ -2071,7 +2071,11 @@
                 <span data-ui-i18n="labelPrivacyText">Datenschutzerklärung</span>
                 <textarea id="datenschutzText" rows="12" placeholder="Datenschutzerklärung gemäß DSGVO&#10;&#10;Verantwortlicher: ...&#10;&#10;1. Allgemeines&#10;..."></textarea>
               </label>
-              <p class="helper-text full-width" data-ui-i18n="legalTextsHint">Diese Texte erscheinen auf der Anmeldeseite und in der Mitarbeiter-App unter Profil → Rechtliches (Impressum &amp; Datenschutz). Bitte Firmen-E-Mail und Kontaktdaten (Rechnungs-/Betreiberfelder) vollständig pflegen — erforderlich nach DSGVO Art. 13.</p>
+              <div class="full-width" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                <button type="button" class="ghost-button" id="fillDatenschutzTemplateBtn" data-ui-i18n="legalFillTemplateBtn">DSGVO-Vorlage einfügen</button>
+                <span class="helper-text" data-ui-i18n="legalFillTemplateHint">Füllt Kontaktdaten aus den Betreiberfeldern (E-Mail, Adresse, Telefon) vor.</span>
+              </div>
+              <p class="helper-text full-width" data-ui-i18n="legalTextsHint">Diese Texte erscheinen auf der Anmeldeseite und in der Mitarbeiter-App unter Profil → Rechtliches (Impressum &amp; Datenschutz). Bitte Firmen-E-Mail und Kontaktdaten (Rechnungs-/Betreiberfelder) vollständig pflegen — erforderlich nach DSGVO Art. 13. Pro Firma zusätzlich unter Firmenkarte → Rechtliches pflegbar.</p>
 
               <button type="submit" class="primary-button full-width" data-ui-i18n="btnSaveAdmin">Admin-Einstellungen speichern</button>
             </form>
