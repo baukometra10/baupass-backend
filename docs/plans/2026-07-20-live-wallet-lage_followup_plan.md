@@ -10,4 +10,4 @@
 
 ## Bleibt manuell / Ops
 - [ ] Gerät: GPS + Chat Unread vor Ort
-- [ ] Railway Env: Apple `.p12` + Google Issuer JSON (`docs/apple-wallet-setup-guide.md`, `docs/google-wallet-setup-guide.md`)
+- [ ] Railway Env: Apple `.p12` + Google Issuer JSON — Runbook: [`docs/railway-wallet-setup.md`](../railway-wallet-setup.md) + `deploy/railway-wallet-setup.ps1`

@@ -2561,6 +2561,44 @@ def _wallet_resolve_path(path_value: str) -> Path:
     return path
 
 
+def _wallet_decode_b64_secret(env_key: str) -> bytes | None:
+    raw = str(os.getenv(env_key) or "").strip()
+    if not raw:
+        return None
+    # Allow whitespace/newlines from Railway multiline paste.
+    cleaned = "".join(raw.split())
+    try:
+        return base64.b64decode(cleaned, validate=False)
+    except Exception as exc:
+        raise RuntimeError(f"{env_key} is not valid base64.") from exc
+
+
+def _wallet_apple_p12_bytes() -> bytes:
+    inline = _wallet_decode_b64_secret("APPLE_CERT_BASE64")
+    if inline:
+        return inline
+    cert_path_value = (os.getenv("APPLE_CERT_PATH") or "").strip()
+    if not cert_path_value:
+        raise RuntimeError("APPLE_CERT_PATH or APPLE_CERT_BASE64 is not configured.")
+    cert_path = _wallet_resolve_path(cert_path_value)
+    if not cert_path.exists():
+        raise RuntimeError("APPLE_CERT_PATH does not exist.")
+    return cert_path.read_bytes()
+
+
+def _wallet_apple_intermediate_bytes() -> bytes | None:
+    inline = _wallet_decode_b64_secret("APPLE_INTERMEDIATE_CERT_BASE64")
+    if inline:
+        return inline
+    intermediate_path_value = (os.getenv("APPLE_INTERMEDIATE_CERT_PATH") or "").strip()
+    if not intermediate_path_value:
+        return None
+    intermediate_path = _wallet_resolve_path(intermediate_path_value)
+    if not intermediate_path.exists():
+        return None
+    return intermediate_path.read_bytes()
+
+
 def _wallet_b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
@@ -2584,15 +2622,15 @@ def _wallet_parse_valid_until_iso(value: str) -> str:
 
 
 def _wallet_collect_runtime_status():
-    required = {
-        "apple": ["APPLE_CERT_PATH", "APPLE_CERT_PASSWORD"],
-        "google": ["GOOGLE_ISSUER_ID"],
-    }
-
-    missing = {
-        scope: [key for key in keys if not str(os.getenv(key) or "").strip()]
-        for scope, keys in required.items()
-    }
+    apple_has_cert = bool(
+        str(os.getenv("APPLE_CERT_BASE64") or "").strip()
+        or str(os.getenv("APPLE_CERT_PATH") or "").strip()
+    )
+    missing = {"apple": [], "google": []}
+    if not apple_has_cert:
+        missing["apple"].append("APPLE_CERT_PATH|APPLE_CERT_BASE64")
+    if not str(os.getenv("GOOGLE_ISSUER_ID") or "").strip():
+        missing["google"].append("GOOGLE_ISSUER_ID")
     if not str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip() and not str(
         os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH") or ""
     ).strip():
@@ -2614,6 +2652,16 @@ def _wallet_collect_runtime_status():
             "exists": bool(resolved.exists() and resolved.is_file()),
             "path": str(resolved),
         }
+    file_checks["APPLE_CERT_BASE64"] = {
+        "configured": bool(str(os.getenv("APPLE_CERT_BASE64") or "").strip()),
+        "exists": bool(str(os.getenv("APPLE_CERT_BASE64") or "").strip()),
+        "path": "(inline-base64)",
+    }
+    file_checks["APPLE_INTERMEDIATE_CERT_BASE64"] = {
+        "configured": bool(str(os.getenv("APPLE_INTERMEDIATE_CERT_BASE64") or "").strip()),
+        "exists": bool(str(os.getenv("APPLE_INTERMEDIATE_CERT_BASE64") or "").strip()),
+        "path": "(inline-base64)",
+    }
     file_checks["GOOGLE_SERVICE_ACCOUNT_JSON"] = {
         "configured": bool(str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()),
         "exists": bool(str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()),
@@ -2723,32 +2771,21 @@ def _wallet_build_google_save_url(pass_object_id: str, worker: dict, company_nam
 
 
 def _wallet_load_apple_signing_material():
-    cert_path_value = (os.getenv("APPLE_CERT_PATH") or "").strip()
     cert_password = os.getenv("APPLE_CERT_PASSWORD")
-    if not cert_path_value:
-        raise RuntimeError("APPLE_CERT_PATH is not configured.")
-
-    cert_path = _wallet_resolve_path(cert_path_value)
-    if not cert_path.exists():
-        raise RuntimeError("APPLE_CERT_PATH does not exist.")
-
-    p12_data = cert_path.read_bytes()
+    p12_data = _wallet_apple_p12_bytes()
     password_bytes = cert_password.encode("utf-8") if cert_password else None
     private_key, certificate, additional_certs = pkcs12.load_key_and_certificates(p12_data, password_bytes)
     if private_key is None or certificate is None:
         raise RuntimeError("Invalid Apple pass certificate (.p12 missing private key/certificate).")
 
     cert_chain = list(additional_certs or [])
-    intermediate_path_value = (os.getenv("APPLE_INTERMEDIATE_CERT_PATH") or "").strip()
-    if intermediate_path_value:
-        intermediate_path = _wallet_resolve_path(intermediate_path_value)
-        if intermediate_path.exists():
-            intermediate_raw = intermediate_path.read_bytes()
-            try:
-                intermediate = x509.load_pem_x509_certificate(intermediate_raw)
-            except ValueError:
-                intermediate = x509.load_der_x509_certificate(intermediate_raw)
-            cert_chain.append(intermediate)
+    intermediate_raw = _wallet_apple_intermediate_bytes()
+    if intermediate_raw:
+        try:
+            intermediate = x509.load_pem_x509_certificate(intermediate_raw)
+        except ValueError:
+            intermediate = x509.load_der_x509_certificate(intermediate_raw)
+        cert_chain.append(intermediate)
 
     return private_key, certificate, cert_chain
 
