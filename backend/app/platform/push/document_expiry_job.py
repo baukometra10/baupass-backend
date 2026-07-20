@@ -1,19 +1,20 @@
 """Daily FCM reminders for expiring worker documents (hybrid app)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
 from typing import Any
 
 
 def run_daily_document_expiry_fcm(db, *, horizon_days: int = 14) -> dict[str, Any]:
     """
     Push workers whose documents expire within horizon_days.
-    One push per document per UTC day (dedup via system_alerts code).
+    One push per document per Berlin calendar day (dedup via system_alerts code).
     """
+    from backend.app.platform.physical_operations._common import calendar_day_offset, today_prefix
+
     from .automation import push_document_expiry
 
-    today = datetime.utcnow().strftime("%Y-%m-%d")
-    horizon = (datetime.utcnow() + timedelta(days=horizon_days)).strftime("%Y-%m-%d")
+    today = today_prefix()
+    horizon = calendar_day_offset(horizon_days)
     rows = db.execute(
         """
         SELECT wd.id AS doc_id, wd.doc_type, wd.expiry_date, wd.worker_id, w.company_id

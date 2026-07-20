@@ -8,9 +8,9 @@ from typing import Any
 
 
 def workforce_optimization(db, company_id: int) -> dict[str, Any]:
-    from backend.app.platform.physical_operations._common import count_on_site
+    from backend.app.platform.physical_operations._common import count_on_site, today_prefix
 
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = today_prefix()
     active_workers = db.execute(
         "SELECT COUNT(*) AS c FROM workers WHERE company_id = ? AND deleted_at IS NULL AND status = 'aktiv'",
         (company_id,),
@@ -64,8 +64,10 @@ def ai_scheduling_hints(db, company_id: int) -> dict[str, Any]:
 
 
 def predictive_workforce_plan(db, company_id: int, *, horizon_days: int = 14) -> dict[str, Any]:
+    from backend.app.platform.physical_operations._common import calendar_day_offset
+
     horizon_days = max(1, min(horizon_days, 60))
-    since = (datetime.now(timezone.utc) - timedelta(days=horizon_days)).strftime("%Y-%m-%d")
+    since = calendar_day_offset(-horizon_days)
     avg_daily = db.execute(
         """
         SELECT AVG(daily_c) AS avg FROM (

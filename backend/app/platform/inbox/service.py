@@ -248,8 +248,10 @@ def build_operations_inbox(
     # Documents expiring in 14 days (company scoped)
     if cid:
         try:
-            horizon = (datetime.utcnow() + timedelta(days=14)).strftime("%Y-%m-%d")
-            today = datetime.utcnow().strftime("%Y-%m-%d")
+            from backend.app.platform.physical_operations._common import calendar_day_offset, today_prefix
+
+            horizon = calendar_day_offset(14)
+            today = today_prefix()
             rows = db.execute(
                 """
                 SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, wd.created_at,

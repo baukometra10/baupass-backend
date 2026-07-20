@@ -140,7 +140,9 @@ def register_workers_blueprint(flask_app: Flask) -> None:
         cid = company_id_from_user()
         if not cid:
             return forbidden_company()
-        today = utc_now().strftime("%Y-%m-%d")
+        from backend.app.platform.physical_operations._common import today_prefix
+
+        today = today_prefix()
         return jsonify(_service.workforce_tracking(get_db(), cid, today))
 
     @workers_v2_bp.patch("/workers/<worker_id>/physical-card")

@@ -22,6 +22,16 @@ def today_prefix(reference: datetime | None = None) -> str:
     return now.strftime("%Y-%m-%d")
 
 
+def calendar_day_offset(days: int = 0, reference: datetime | None = None) -> str:
+    """Berlin calendar day shifted by ``days`` (e.g. +30 for expiry horizon)."""
+    now = reference if reference is not None else datetime.now(ACCESS_WALL_TZ)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=ACCESS_WALL_TZ)
+    else:
+        now = now.astimezone(ACCESS_WALL_TZ)
+    return (now + timedelta(days=int(days))).strftime("%Y-%m-%d")
+
+
 ON_SITE_DIRECTIONS = ("check-in", "app-login")
 OFF_SITE_DIRECTIONS = ("check-out", "app-logout")
 WORK_CHECKIN_DIRECTIONS = ("check-in",)

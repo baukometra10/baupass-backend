@@ -724,6 +724,13 @@ def access_today_prefix(reference=None):
     return today_prefix(reference=reference)
 
 
+def access_calendar_day_offset(days=0, reference=None):
+    """Berlin calendar day ± offset for document expiry / horizons."""
+    from backend.app.platform.physical_operations._common import calendar_day_offset
+
+    return calendar_day_offset(days, reference=reference)
+
+
 def utc_iso(value=None):
     dt = value or utc_now()
     if dt.tzinfo is None:
@@ -8011,8 +8018,8 @@ def start_background_jobs():
         try:
             with app.app_context():
                 db = get_db()
-                today = now_iso()[:10]
-                warn_date = (utc_now() + timedelta(days=30)).strftime("%Y-%m-%d")
+                today = access_today_prefix()
+                warn_date = access_calendar_day_offset(30)
                 rows = db.execute(
                     """SELECT wd.id, wd.doc_type, wd.expiry_date, wd.worker_id,
                               w.first_name, w.last_name, w.badge_id, w.company_id,
@@ -8055,8 +8062,8 @@ def start_background_jobs():
                 if not admin_email:
                     return
 
-                today = now_iso()[:10]
-                yesterday = (utc_now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                today = access_today_prefix()
+                yesterday = access_calendar_day_offset(-1)
 
                 total_entries = db.execute(
                     "SELECT COUNT(*) AS c FROM access_logs WHERE DATE(timestamp) = ?", (yesterday,)
@@ -8174,8 +8181,8 @@ def start_background_jobs():
                 if warn_days <= 0:
                     return
 
-                warn_date = (utc_now() + timedelta(days=warn_days)).strftime("%Y-%m-%d")
-                today = now_iso()[:10]
+                warn_date = access_calendar_day_offset(warn_days)
+                today = access_today_prefix()
 
                 # Workers whose valid_until is within the next N days and not yet reminded today
                 rows = db.execute(
@@ -8303,8 +8310,8 @@ def start_background_jobs():
                     return
                 smtp_sender = (settings["smtp_sender_email"] or "").strip()
                 warn_days = 30
-                warn_date = (utc_now() + timedelta(days=warn_days)).strftime("%Y-%m-%d")
-                today = now_iso()[:10]
+                warn_date = access_calendar_day_offset(warn_days)
+                today = access_today_prefix()
 
                 rows = db.execute(
                     """SELECT wd.id AS doc_id, wd.doc_type, wd.expiry_date,
@@ -11020,7 +11027,7 @@ def export_workers_pdf():
         include_deleted=request.args.get("includeDeleted", "0") == "1",
         include_photos=request.args.get("includePhotos", "0") == "1",
         period=(request.args.get("period") or "all").strip().lower(),
-        date_param=(request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip(),
+        date_param=(request.args.get("date") or access_today_prefix()).strip(),
     )
     return _workers_file_response(result)
 
@@ -11044,7 +11051,7 @@ def export_attendance_pdf():
     """Anwesenheitsliste als PDF – alle Mitarbeiter mit offenem Check-in."""
     from backend.app.domains.workers.service import WorkersService
 
-    date_param = (request.args.get("date") or datetime.now().strftime("%Y-%m-%d")).strip()
+    date_param = (request.args.get("date") or access_today_prefix()).strip()
     result = WorkersService().export_attendance_pdf(
         get_db(), g.current_user, date_param=date_param
     )
@@ -11323,8 +11330,8 @@ def _operations_snapshot_with_db(db):
         tuple([f"{today_prefix}%"] + company_params),
     ).fetchone()
 
-    limit_7 = (utc_now() + timedelta(days=7)).strftime("%Y-%m-%d")
-    limit_30 = (utc_now() + timedelta(days=30)).strftime("%Y-%m-%d")
+    limit_7 = access_calendar_day_offset(7)
+    limit_30 = access_calendar_day_offset(30)
     expiring_7_row = db.execute(
         f"""
         SELECT COUNT(*) AS c FROM worker_documents wd
@@ -15704,8 +15711,8 @@ def analytics_document_health():
                 "totalDocs": row["total_docs"],
             })
 
-        today = datetime.now().strftime("%Y-%m-%d")
-        in_30 = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        today = access_today_prefix()
+        in_30 = access_calendar_day_offset(30)
         valid = db.execute(
             """
             SELECT COUNT(*) AS cnt FROM worker_documents
@@ -16835,7 +16842,7 @@ def compliance_reports_get():
         (company_id,),
     ).fetchone()
 
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = access_today_prefix()
     expired_docs = db.execute(
         """
         SELECT COUNT(*) AS cnt FROM worker_documents wd
@@ -24373,8 +24380,8 @@ def list_expiring_documents():
     except (ValueError, TypeError):
         days = 30
 
-    limit_date = (utc_now() + timedelta(days=days)).strftime("%Y-%m-%d")
-    today = now_iso()[:10]
+    limit_date = access_calendar_day_offset(days)
+    today = access_today_prefix()
 
     if user["role"] == "superadmin":
         company_filter_sql = ""
