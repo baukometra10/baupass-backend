@@ -98,10 +98,10 @@ def _auto_ack_info_alerts(db, company_id: str, after_hours: int) -> int:
 
 def _auto_notify_document_expiry(db, company_id: str, horizon_days: int) -> int:
     from backend.app.platform.ai.actions import execute_action
+    from backend.app.platform.physical_operations._common import calendar_day_offset, today_prefix
 
-    today = datetime.now(timezone.utc).date()
-    horizon = (today + timedelta(days=max(1, horizon_days))).strftime("%Y-%m-%d")
-    today_s = today.strftime("%Y-%m-%d")
+    today_s = today_prefix()
+    horizon = calendar_day_offset(max(1, horizon_days))
     try:
         rows = db.execute(
             """
@@ -151,6 +151,13 @@ def _auto_notify_document_expiry(db, company_id: str, horizon_days: int) -> int:
                 dedup_key,
                 f"Push Dokumentablauf {name} {r['doc_type']}",
             )
+    if sent:
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(str(company_id), source="document_expiry")
+        except Exception:
+            pass
     return sent
 
 

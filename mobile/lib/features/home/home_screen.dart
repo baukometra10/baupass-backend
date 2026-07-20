@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
@@ -154,6 +156,43 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
+  Future<void> _addToWallet(String platform) async {
+    try {
+      final res = await widget.digitalCard.requestWalletPass(
+        bearer: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+        platform: platform,
+      );
+      final url = (res['add_to_wallet_url'] as String?)?.trim().isNotEmpty == true
+          ? res['add_to_wallet_url'] as String
+          : (res['pass_url'] as String? ?? '');
+      if (url.isEmpty) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wallet-Pass konnte nicht erstellt werden.')),
+        );
+        return;
+      }
+      final uri = Uri.parse(url);
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Wallet-Link konnte nicht geöffnet werden.')),
+        );
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(formatWorkerAuthError(e))),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Wallet-Pass fehlgeschlagen.')),
+      );
+    }
+  }
+
   Widget _infoTile(String label, String value, {Widget? valueWidget}) {
     return Expanded(
       child: Container(
@@ -288,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-            if (worker != null)
+            if (worker != null) ...[
               DigitalPassCard(
                 firstName: worker['firstName'] as String? ?? '',
                 lastName: worker['lastName'] as String? ?? '',
@@ -302,6 +341,49 @@ class _HomeScreenState extends State<HomeScreen> {
                 dynamicQr: _dynamicQr,
                 branding: branding,
               ),
+              const SizedBox(height: 10),
+              Text(
+                'Wallet fürs Gate · QR bleibt Fallback',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              if (Platform.isIOS)
+                OutlinedButton.icon(
+                  onPressed: () => _addToWallet('apple'),
+                  icon: const Icon(Icons.wallet),
+                  label: const Text('Zu Apple Wallet'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                )
+              else if (Platform.isAndroid)
+                OutlinedButton.icon(
+                  onPressed: () => _addToWallet('google'),
+                  icon: const Icon(Icons.wallet),
+                  label: const Text('Zu Google Wallet'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _addToWallet('apple'),
+                        icon: const Icon(Icons.wallet),
+                        label: const Text('Apple Wallet'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _addToWallet('google'),
+                        icon: const Icon(Icons.wallet),
+                        label: const Text('Google Wallet'),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
             const SizedBox(height: 16),
             Card(
               child: ListTile(

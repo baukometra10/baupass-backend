@@ -761,6 +761,90 @@ button[disabled] {
   margin-right: 0.25rem;
 }
 
+.lage-panel {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #101820 0%, #152535 55%, #0f1a24 100%);
+}
+
+.lage-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.lage-panel-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.lage-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.lage-kpi {
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(17, 24, 32, 0.85);
+}
+
+.lage-kpi span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.lage-kpi strong {
+  font-size: 1.35rem;
+}
+
+.lage-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.lage-actions a,
+.lage-actions button {
+  font-size: 0.82rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #152535;
+  color: #5eead4;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.compliance-autopilot-card {
+  margin: 0.75rem 0 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #121a22;
+}
+
+.compliance-autopilot-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+}
+
+.compliance-autopilot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.65rem;
+}
+
 .ops-strip-tab {
   font-size: 0.82rem !important;
   padding: 0.4rem 0.75rem !important;

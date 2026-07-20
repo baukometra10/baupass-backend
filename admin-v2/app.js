@@ -3177,6 +3177,7 @@ async function loadInbox() {
     el.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     countsEl.innerHTML = "";
     $("inboxFilters")?.classList.add("hidden");
+    $("complianceAutopilotCard")?.classList.add("hidden");
     return;
   }
   el.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
@@ -3217,6 +3218,41 @@ async function loadInbox() {
     switchToTab("operations");
     refreshActiveTab();
   });
+
+  const complianceCard = $("complianceAutopilotCard");
+  if (complianceCard) {
+    const docItems = (data.items || []).filter((it) => String(it.id || "").startsWith("doc:"));
+    const expiring = docItems.length;
+    complianceCard.classList.remove("hidden");
+    complianceCard.innerHTML = `
+      <h3>${t("compliance.autopilotTitle")}</h3>
+      <p class="muted small" style="margin:0">${t("compliance.autopilotDesc")}</p>
+      <p style="margin:0.55rem 0 0"><strong>${expiring}</strong> <span class="muted">${t("compliance.expiring")}</span></p>
+      <div class="compliance-autopilot-actions">
+        <button type="button" id="compliancePushNowBtn">${t("compliance.pushNow")}</button>
+        <button type="button" class="ghost" id="complianceRunAutopilotBtn">${t("compliance.runAutopilot")}</button>
+        <button type="button" class="ghost" data-goto-tab="platform">${t("quick.platform.title")}</button>
+      </div>
+    `;
+    complianceCard.querySelector("#compliancePushNowBtn")?.addEventListener("click", () => {
+      runInboxBulk("push_document_reminders").catch((e) => showActionToast(e.message, true));
+    });
+    complianceCard.querySelector("#complianceRunAutopilotBtn")?.addEventListener("click", async () => {
+      try {
+        const res = await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
+        const tot = res?.totals || res?.summary || res || {};
+        showActionToast(`${t("autopilot.ran")} ${JSON.stringify(tot).slice(0, 140)}`, false);
+        await loadInbox();
+      } catch (e) {
+        showActionToast(e.message || String(e), true);
+      }
+    });
+    complianceCard.querySelector("[data-goto-tab]")?.addEventListener("click", () => {
+      switchToTab("platform");
+      refreshActiveTab();
+    });
+  }
+
   const items = data.items || [];
   for (const id of [...inboxSelectedIds]) {
     if (!items.some((it) => it.id === id)) inboxSelectedIds.delete(id);
@@ -3882,13 +3918,15 @@ async function loadOverview() {
     return;
   }
   const cid = q.replace("?company_id=", "");
-  const [overview, inbox, roleDash, opsBrief] = await Promise.all([
+  const [overview, inbox, roleDash, opsBrief, opsSnap, cameras] = await Promise.all([
     api(`/api/v2/admin/overview${q}`),
     api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
     api(`/api/dashboard/role${q}`).catch(() => null),
     cid
       ? api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`).catch(() => null)
       : Promise.resolve(null),
+    api(`/api/operations/snapshot${q}`).catch(() => null),
+    api(`/api/integrations/cameras${q}`).catch(() => ({ cameras: [] })),
   ]);
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
@@ -3958,6 +3996,55 @@ async function loadOverview() {
   } else if (strip) {
     strip.classList.add("hidden");
   }
+
+  const lage = $("lagePanel");
+  if (lage && q) {
+    const twin = opsBrief?.layers?.["1_digital_twin"]?.summary || {};
+    const sec = opsBrief?.layers?.["2_ai_security"] || {};
+    const camList = Array.isArray(cameras?.cameras) ? cameras.cameras : [];
+    const camsOnline = camList.filter((c) => c.online).length;
+    const onSite = opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
+    const checkIns = opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
+    const securityOpen = (sec.openAlerts || []).length;
+    const aiPrompt = encodeURIComponent(
+      "Fasse die aktuelle Lage zusammen: Anwesenheit, Sicherheitsalerts, offene Aufgaben und Kameras.",
+    );
+    lage.classList.remove("hidden");
+    lage.innerHTML = `
+      <div class="lage-panel-head">
+        <div>
+          <h3>${t("lage.title")}</h3>
+          <p class="muted small" style="margin:0.2rem 0 0">${t("lage.subtitle")}</p>
+        </div>
+      </div>
+      <div class="lage-grid">
+        <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
+      </div>
+      <div class="lage-actions">
+        <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
+        <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("lage.openCommand")}</a>
+        <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
+        <button type="button" class="ghost" data-goto-tab="access">${t("lage.openAccess")}</button>
+        <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.inbox")}</button>
+      </div>
+    `;
+    lage.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const tab = btn.getAttribute("data-goto-tab");
+        switchToTab(tab);
+        if (tab === "inbox") await loadInbox();
+        else if (tab === "access") await loadAccess();
+      });
+    });
+  } else if (lage) {
+    lage.classList.add("hidden");
+    lage.innerHTML = "";
+  }
+
   renderTable($("recentAccess"), overview.recentAccess || [], [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },

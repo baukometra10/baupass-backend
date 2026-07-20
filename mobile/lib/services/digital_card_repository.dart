@@ -39,4 +39,20 @@ class DigitalCardRepository {
     );
     return DynamicQrPayload.fromJson(body);
   }
+
+  /// Issues or returns an Apple/Google Wallet pass URL.
+  Future<Map<String, dynamic>> requestWalletPass({
+    required String bearer,
+    String? deviceId,
+    required String platform,
+    bool forceRegenerate = false,
+  }) async {
+    final normalized = platform.trim().toLowerCase();
+    final force = forceRegenerate ? '&force_regenerate=1' : '';
+    return _api.getJson(
+      '/api/worker-app/wallet/pass?platform=$normalized$force',
+      bearerToken: bearer,
+      deviceId: deviceId,
+    );
+  }
 }
