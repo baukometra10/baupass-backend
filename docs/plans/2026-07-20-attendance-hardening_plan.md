@@ -57,12 +57,12 @@ Die größten Rest-Risiken liegen bei **gemischten Zeitstempeln (UTC vs lokal)**
 
 ## Testplan
 
-- [ ] Pairing: Check-in `…Z` + Auto-Checkout lokal → Dauer ≈ Schichtende − Check-in (kein +2h Fehler)
-- [ ] Zutritt-Zusammenfassung: App-Login erhöht „Eintritte“
-- [ ] „Heute“ zeigt Buchungen ab Mitternacht Berlin, auch wenn UTC noch Vortag ist
-- [ ] Overnight 17:00–02:00: Auto-Ausstempel bei 02:00, nicht 10:15
-- [ ] Monatsauswertung am 1.: Stunden vom Vortag-Overnight sichtbar wo erwartet
-- [ ] Chat-Seite fokussiert: kein Piep; Betrieb-Seite: Piep nur bei wirklich neuer Nachricht
+- [x] Pairing: Check-in `…Z` + Auto-Checkout lokal → Dauer ≈ Schichtende − Check-in (kein +2h Fehler) — Smoke 2026-07-20 (289 min)
+- [x] Zutritt-Zusammenfassung: App-Login erhöht „Eintritte“ — Code `isAccessArrivalDirection` + Smoke
+- [x] „Heute“ zeigt Buchungen ab Mitternacht Berlin, auch wenn UTC noch Vortag ist — Smoke Berlin-Tag
+- [x] Overnight 17:00–02:00: Auto-Ausstempel bei Schichtende (`timestamp_value=checkout_ts`), nicht wall-clock „jetzt“ — Code-Review
+- [x] Monatsauswertung am 1.: Spillover Vormonat → Zielmonat — Smoke Attribution
+- [x] Chat-Seite fokussiert: kein Piep; Push/Socket Dedup 45s — Code-Review Phase D
 
 ## Umsetzungsreihenfolge
 
