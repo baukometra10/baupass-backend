@@ -1496,17 +1496,67 @@ class CompaniesService:
 
         month_prefix = self._month_prefix(month_param)
         rows = self.companies.access_logs_month_for_worker(db, worker_id, month_prefix)
-        by_day: OrderedDict[str, list] = OrderedDict()
-        for row in rows:
-            day = row["timestamp"][:10]
-            by_day.setdefault(day, []).append(
-                {
-                    "direction": row["direction"],
-                    "gate": row.get("gate") or "",
-                    "note": row.get("note") or "",
-                    "timestamp": row["timestamp"],
-                }
+
+        # Spillover: overnight check-outs just after month / check-ins just before
+        import calendar
+        from datetime import date as date_cls
+        from datetime import timedelta as timedelta_cls
+
+        year = int(month_prefix[:4])
+        month = int(month_prefix[5:7])
+        last_day = calendar.monthrange(year, month)[1]
+        month_start = date_cls(year, month, 1)
+        month_end = date_cls(year, month, last_day)
+        spill_dates = [
+            (month_start - timedelta_cls(days=1)).isoformat(),
+            (month_end + timedelta_cls(days=1)).isoformat(),
+        ]
+        spill_rows = []
+        for day_iso in spill_dates:
+            spill_rows.extend(
+                [
+                    dict(r)
+                    for r in db.execute(
+                        """
+                        SELECT direction, gate, note, timestamp
+                        FROM access_logs
+                        WHERE worker_id = ? AND timestamp LIKE ?
+                        ORDER BY timestamp ASC
+                        """,
+                        (worker_id, f"{day_iso}%"),
+                    ).fetchall()
+                ]
             )
+
+        def _is_synthetic_midnight_checkout(event: dict[str, Any]) -> bool:
+            direction = str(event.get("direction") or "").strip().lower()
+            if direction not in ("check-out", "app-logout"):
+                return False
+            note = str(event.get("note") or "")
+            ts = str(event.get("timestamp") or "")
+            gate = str(event.get("gate") or "")
+            if "Automatischer Austritt nach 00:00" in note:
+                return True
+            if "T00:00:00" in ts[:19] and ("Tagesabschluss" in gate or "Automatischer Austritt" in note):
+                return True
+            return False
+
+        all_events = []
+        seen_ts = set()
+        for row in list(rows) + spill_rows:
+            event = {
+                "direction": row["direction"],
+                "gate": row.get("gate") or "",
+                "note": row.get("note") or "",
+                "timestamp": row["timestamp"],
+            }
+            if _is_synthetic_midnight_checkout(event):
+                continue
+            key = (event["timestamp"], event["direction"], event["gate"], event["note"])
+            if key in seen_ts:
+                continue
+            seen_ts.add(key)
+            all_events.append(event)
 
         from backend.app.platform.physical_operations._common import pair_presence_sessions
         from backend.app.platform.reports.schedule import resolve_company_timezone
@@ -1526,8 +1576,6 @@ class CompaniesService:
                 return raw[:5]
             return ""
 
-        year = int(month_prefix[:4])
-        month = int(month_prefix[5:7])
         shift_by_day: dict[str, dict[str, str]] = {}
         for row in list_deployment_days(
             db, company_id=company_id, worker_id=worker_id, year=year, month=month
@@ -1554,8 +1602,23 @@ class CompaniesService:
                     "location": location,
                 }
 
+        # Pair across days so overnight sessions keep their hours
+        month_sessions = pair_presence_sessions(all_events)
+        by_day_sessions: OrderedDict[str, list] = OrderedDict()
+        for session in month_sessions:
+            check_in = str(session.get("checkIn") or "")
+            check_out = str(session.get("checkOut") or "")
+            work_day = (check_in or check_out)[:10]
+            if not work_day or not work_day.startswith(month_prefix):
+                continue
+            by_day_sessions.setdefault(work_day, []).append(session)
+
         # Fallback: shift_assignments for days without Einsatzplan times
-        missing_days = [day for day in by_day if day not in shift_by_day or not shift_by_day[day].get("shiftStart")]
+        missing_days = [
+            day
+            for day in by_day_sessions
+            if day not in shift_by_day or not shift_by_day[day].get("shiftStart")
+        ]
         if missing_days:
             try:
                 start_bound, end_bound = f"{month_prefix}-01", f"{month_prefix}-31"
@@ -1595,9 +1658,11 @@ class CompaniesService:
             for entry in shift_by_day.values()
         )
 
+        all_days = sorted(by_day_sessions.keys())
+
         days = []
-        for day, events in by_day.items():
-            sessions = pair_presence_sessions(events)
+        for day in all_days:
+            sessions = by_day_sessions.get(day) or []
             day_minutes = sum(
                 int(session["durationMinutes"])
                 for session in sessions

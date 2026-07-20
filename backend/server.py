@@ -23,7 +23,7 @@ import shutil
 import sys
 from contextlib import closing, contextmanager
 from functools import wraps
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import importlib
@@ -1398,6 +1398,11 @@ def run_access_maintenance_if_due(db, reference_dt=None):
         auto_close_expired_visitor_entries(db, reference_dt=now_dt)
     if run_midnight_close:
         auto_close_open_entries_after_midnight(db, reference_dt=now_dt)
+    else:
+        try:
+            cleanup_synthetic_midnight_checkouts(db)
+        except Exception:
+            app.logger.warning("cleanup_synthetic_midnight_checkouts failed", exc_info=True)
     try:
         auto_close_open_checkins_after_work_end(db, reference_dt=now_dt)
     except Exception:
@@ -8928,16 +8933,106 @@ def auto_close_expired_visitor_entries(db, reference_dt=None):
     return auto_closed
 
 
+def _local_now_for_company(db, company_id, reference_dt=None):
+    from backend.app.platform.reports.schedule import resolve_company_timezone
+    from zoneinfo import ZoneInfo
+
+    now_utc = reference_dt or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    try:
+        tz = ZoneInfo(resolve_company_timezone(db, company_id))
+    except Exception:
+        tz = ZoneInfo("Europe/Berlin")
+    return now_utc.astimezone(tz)
+
+
+def _shift_window_for_checkin_day(db, worker_id, company_id, checkin_timestamp):
+    """Return (start_hm, end_hm) for the check-in calendar day (Einsatzplan first)."""
+    from backend.app.platform.workforce.attendance_eligibility import (
+        _shift_hhmm,
+        worker_deployment_day_row,
+    )
+
+    day_raw = str(checkin_timestamp or "")[:10]
+    try:
+        work_date = date.fromisoformat(day_raw)
+    except ValueError:
+        work_date = None
+    if work_date is not None:
+        row = worker_deployment_day_row(
+            db, company_id=str(company_id), worker_id=str(worker_id), target_date=work_date
+        )
+        if row:
+            start_hm = _shift_hhmm(row.get("shift_start"))
+            end_hm = _shift_hhmm(row.get("shift_end"))
+            if start_hm and end_hm:
+                return start_hm, end_hm
+    return get_effective_work_start_time(db, worker_id), get_effective_work_end_time(db, worker_id)
+
+
+def _should_preserve_overnight_open_checkin(db, worker_id, company_id, checkin_timestamp, reference_dt=None):
+    """True while an overnight Schicht is still active (do not force midnight checkout)."""
+    work_start, work_end = _shift_window_for_checkin_day(db, worker_id, company_id, checkin_timestamp)
+    start_minutes = _work_time_to_minutes(work_start)
+    end_minutes = _work_time_to_minutes(work_end)
+    if start_minutes is None or end_minutes is None or end_minutes >= start_minutes:
+        return False
+    try:
+        checkin_day = date.fromisoformat(str(checkin_timestamp or "")[:10])
+    except ValueError:
+        return False
+    now_local = _local_now_for_company(db, company_id, reference_dt)
+    if now_local.date() < checkin_day:
+        return True
+    if now_local.date() == checkin_day:
+        return True
+    if now_local.date() == checkin_day + timedelta(days=1):
+        now_minutes = now_local.hour * 60 + now_local.minute
+        return now_minutes <= end_minutes
+    return False
+
+
+def cleanup_synthetic_midnight_checkouts(db):
+    """Remove fake 00:00 auto-checkouts that truncated overnight shifts."""
+    try:
+        cur = db.execute(
+            """
+            DELETE FROM access_logs
+            WHERE direction = 'check-out'
+              AND note = 'Automatischer Austritt nach 00:00'
+              AND (
+                    timestamp LIKE '%T00:00:00%'
+                 OR gate LIKE '%Tagesabschluss%'
+              )
+            """
+        )
+        removed = int(cur.rowcount or 0)
+        if removed:
+            db.commit()
+            log_audit(
+                "access.cleanup_midnight_close",
+                f"{removed} synthetische Mitternachts-Ausstempelungen entfernt",
+                target_type="access",
+                target_id="midnight-cleanup",
+            )
+        return removed
+    except Exception:
+        app.logger.warning("cleanup_synthetic_midnight_checkouts failed", exc_info=True)
+        return 0
+
+
 def auto_close_open_checkins_after_work_end(db, reference_dt=None):
-    """Close open GPS/check-in sessions after configured work end time."""
-    now_dt = reference_dt or datetime.now()
-    today_prefix = now_dt.strftime("%Y-%m-%d")
-    current_hm = now_dt.strftime("%H:%M")
+    """Close open GPS/check-in sessions after configured/per-shift work end time."""
+    now_dt = reference_dt or datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    today_prefix = now_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
 
     rows = db.execute(
         """
         SELECT w.id AS worker_id, w.company_id, w.first_name, w.last_name, w.badge_id, w.worker_type,
-               al.gate AS checkin_gate
+               al.gate AS checkin_gate, al.timestamp AS checkin_timestamp
         FROM workers w
         JOIN access_logs al ON al.worker_id = w.id
         WHERE w.deleted_at IS NULL
@@ -8953,9 +9048,17 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
 
     auto_closed = []
     for row in rows:
-        work_start = get_effective_work_start_time(db, row["worker_id"])
-        work_end = get_effective_work_end_time(db, row["worker_id"])
+        company_id = row["company_id"]
+        now_local = _local_now_for_company(db, company_id, now_dt)
+        current_hm = now_local.strftime("%H:%M")
+        work_start, work_end = _shift_window_for_checkin_day(
+            db, row["worker_id"], company_id, row["checkin_timestamp"]
+        )
         if not work_end or not _is_past_work_end_time(work_start, work_end, current_hm):
+            continue
+        if _should_preserve_overnight_open_checkin(
+            db, row["worker_id"], company_id, row["checkin_timestamp"], now_dt
+        ):
             continue
         log_id = create_access_log_entry(
             db,
@@ -8986,8 +9089,11 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
 
 
 def auto_close_open_entries_after_midnight(db, reference_dt=None):
-    day_start = (reference_dt or datetime.now(timezone.utc)).replace(hour=0, minute=0, second=0, microsecond=0)
-    day_start_iso = day_start.isoformat().replace("+00:00", "Z")
+    """Safety-net day close for daytime shifts only (never truncate overnight Schichten)."""
+    now_dt = reference_dt or datetime.now(timezone.utc)
+    if now_dt.tzinfo is None:
+        now_dt = now_dt.replace(tzinfo=timezone.utc)
+    cleanup_synthetic_midnight_checkouts(db)
 
     rows = db.execute(
         """
@@ -9002,13 +9108,32 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
         JOIN access_logs ON access_logs.worker_id = latest.worker_id AND access_logs.timestamp = latest.latest_ts
         WHERE workers.deleted_at IS NULL
           AND access_logs.direction = 'check-in'
-          AND access_logs.timestamp < ?
         """,
-        (day_start_iso,),
     ).fetchall()
 
     auto_closed = []
+    close_timestamp = now_iso()
     for row in rows:
+        company_id = row["company_id"]
+        now_local = _local_now_for_company(db, company_id, now_dt)
+        # Only run as a morning safety net after local midnight.
+        if now_local.hour > 4:
+            continue
+        checkin_ts = str(row["timestamp"] or "")
+        if checkin_ts[:10] >= now_local.date().isoformat():
+            continue
+        if _should_preserve_overnight_open_checkin(
+            db, row["worker_id"], company_id, checkin_ts, now_dt
+        ):
+            continue
+        work_start, work_end = _shift_window_for_checkin_day(
+            db, row["worker_id"], company_id, checkin_ts
+        )
+        # Overnight shifts are handled above; daytime leftovers close with real clock time.
+        start_minutes = _work_time_to_minutes(work_start)
+        end_minutes = _work_time_to_minutes(work_end)
+        if start_minutes is not None and end_minutes is not None and end_minutes < start_minutes:
+            continue
         log_id = f"log-{secrets.token_hex(6)}"
         db.execute(
             "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
@@ -9016,9 +9141,9 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 log_id,
                 row["worker_id"],
                 "check-out",
-                row["gate"] or "System Tagesabschluss",
-                "Automatischer Austritt nach 00:00",
-                day_start_iso,
+                "System Tagesabschluss",
+                "Automatischer Austritt (Tagesabschluss)",
+                close_timestamp,
             ),
         )
         auto_closed.append(
@@ -9026,7 +9151,7 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 "workerId": row["worker_id"],
                 "name": f"{row['first_name']} {row['last_name']}",
                 "badgeId": row["badge_id"],
-                "timestamp": day_start_iso,
+                "timestamp": close_timestamp,
             }
         )
 
@@ -9034,9 +9159,9 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
         db.commit()
         log_audit(
             "access.auto_day_close",
-            f"{len(auto_closed)} offene Eintritte nach 00:00 automatisch ausgetragen",
+            f"{len(auto_closed)} offene Eintritte nach Tageswechsel automatisch ausgetragen",
             target_type="access",
-            target_id=day_start.date().isoformat(),
+            target_id=now_dt.date().isoformat(),
         )
 
     return auto_closed

@@ -950,6 +950,29 @@ function formatAccessDirection(direction) {
   return direction || "-";
 }
 
+function formatAccessTimestamp(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  if (!hasOffset) {
+    return raw.slice(0, 19).replace("T", " ");
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) {
+    return raw.slice(0, 19).replace("T", " ");
+  }
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(parsed);
+}
+
 function paintInboxBadge(el, open, critical) {
   if (!el) return;
   const n = Number(open) || 0;
@@ -3937,7 +3960,7 @@ async function loadOverview() {
       render: (r) => formatAccessDirection(r.direction),
     },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
-    { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
+    { label: t("table.time"), render: (r) => formatAccessTimestamp(r.timestamp) },
   ]);
 }
 
@@ -4340,7 +4363,7 @@ async function loadAccess() {
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("table.direction"), render: (r) => formatAccessDirection(r.direction) },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
-    { label: t("table.time"), render: (r) => (r.timestamp || "").slice(0, 19) },
+    { label: t("table.time"), render: (r) => formatAccessTimestamp(r.timestamp) },
     {
       label: t("access.late"),
       render: (r) =>

@@ -24245,6 +24245,12 @@ function minutesToHmLabel(totalMinutes) {
 function getTimestampMinutes(timestampValue, timeZone = "Europe/Berlin") {
   const text = String(timestampValue || "").trim();
   if (!text) return null;
+  // Naive access-log timestamps are wall-clock local times — do not shift via UTC.
+  const hasExplicitOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  if (!hasExplicitOffset) {
+    const match = text.match(/(?:T|\s)(\d{2}):(\d{2})/);
+    if (match) return parseHmToMinutes(`${match[1]}:${match[2]}`);
+  }
   const date = new Date(text);
   if (!Number.isNaN(date.getTime())) {
     try {
@@ -24262,10 +24268,18 @@ function getTimestampMinutes(timestampValue, timeZone = "Europe/Berlin") {
       // fall through
     }
   }
-  // Fallback for plain "YYYY-MM-DD HH:MM:SS" / ISO without reliable Date parsing
   const match = text.match(/(?:T|\s)(\d{2}):(\d{2})/);
   if (match) return parseHmToMinutes(`${match[1]}:${match[2]}`);
   return parseHmToMinutes(text.substring(11, 16));
+}
+
+function formatInsightsClock(timestampValue) {
+  const text = String(timestampValue || "").trim();
+  if (!text) return "—";
+  const match = text.match(/(?:T|\s)(\d{2}):(\d{2})/);
+  if (match) return `${match[1]}:${match[2]}`;
+  const mins = getTimestampMinutes(text);
+  return mins == null ? "—" : minutesToHmLabel(mins);
 }
 
 function formatMinutesToHm(totalMinutes) {
@@ -24350,10 +24364,10 @@ function renderWorkerInsightsPanelHtml(result) {
     ? `
       <table class="worker-insights-table">
         <thead>
-          <tr><th>Datum</th><th>Soll</th><th>Minuten</th></tr>
+          <tr><th>Datum</th><th>Soll</th><th>Ist</th><th>Minuten</th></tr>
         </thead>
         <tbody>
-          ${lateDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+          ${lateDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(entry.actual || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
         </tbody>
       </table>
     `
@@ -24362,10 +24376,10 @@ function renderWorkerInsightsPanelHtml(result) {
     ? `
       <table class="worker-insights-table">
         <thead>
-          <tr><th>Datum</th><th>Soll</th><th>Minuten</th></tr>
+          <tr><th>Datum</th><th>Soll</th><th>Ist</th><th>Minuten</th></tr>
         </thead>
         <tbody>
-          ${earlyLeaveDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
+          ${earlyLeaveDays.map((entry) => `<tr><td>${escapeHtml(entry.date)}</td><td>${escapeHtml(entry.planned || "—")}</td><td>${escapeHtml(entry.actual || "—")}</td><td>${escapeHtml(String(entry.minutes))}</td></tr>`).join("")}
         </tbody>
       </table>
     `
@@ -24467,13 +24481,38 @@ async function runWorkerInsightsByName() {
       const overnight = dayWindow.end < dayWindow.start;
 
       if (dayWindow.start != null && firstInMin != null && firstInMin > dayWindow.start) {
-        // Overnight: morning check-in after midnight is not "late" vs previous evening start
+        // Overnight: morning check-in after midnight belongs to previous evening shift, not "late"
         if (!(overnight && firstInMin < dayWindow.end)) {
-          lateDays.push({ date: day, minutes: firstInMin - dayWindow.start, planned });
+          lateDays.push({
+            date: day,
+            minutes: firstInMin - dayWindow.start,
+            planned,
+            actual: formatInsightsClock(firstIn),
+          });
         }
       }
-      if (!overnight && dayWindow.end != null && lastOutMin != null && lastOutMin < dayWindow.end) {
-        earlyLeaveDays.push({ date: day, minutes: dayWindow.end - lastOutMin, planned });
+      if (dayWindow.end != null && lastOutMin != null) {
+        let earlyMinutes = null;
+        if (overnight) {
+          // Early if checkout is still on shift-start calendar evening, or before end next morning
+          const lastOutDay = String(lastOut || "").slice(0, 10);
+          if (lastOutDay === day && lastOutMin > dayWindow.start) {
+            // left before midnight on overnight shift — early relative to end next day
+            earlyMinutes = (24 * 60 - lastOutMin) + dayWindow.end;
+          } else if (lastOutDay > day && lastOutMin < dayWindow.end) {
+            earlyMinutes = dayWindow.end - lastOutMin;
+          }
+        } else if (lastOutMin < dayWindow.end) {
+          earlyMinutes = dayWindow.end - lastOutMin;
+        }
+        if (earlyMinutes != null && earlyMinutes > 0) {
+          earlyLeaveDays.push({
+            date: day,
+            minutes: earlyMinutes,
+            planned,
+            actual: formatInsightsClock(lastOut),
+          });
+        }
       }
     });
 
