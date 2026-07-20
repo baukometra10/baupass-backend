@@ -31,6 +31,21 @@ def _access_wall_tz():
 
 
 ACCESS_WALL_TZ = _access_wall_tz()
+# True when IANA Europe/Berlin is available (Railway/Linux). False on fixed +02:00 fallback.
+ACCESS_WALL_TZ_IS_IANA = getattr(ACCESS_WALL_TZ, "key", None) == "Europe/Berlin"
+
+
+def access_now_iso() -> str:
+    """Canonical access-log 'now': naive Berlin wall clock, second precision, no Z."""
+    return datetime.now(ACCESS_WALL_TZ).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def normalize_access_timestamp_value(value: str | None) -> str:
+    """Convert any access timestamp to canonical naive Berlin ISO (empty if unparseable)."""
+    dt = _parse_access_timestamp(value)
+    if not dt:
+        return ""
+    return dt.replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def is_work_checkin(direction: str | None) -> bool:

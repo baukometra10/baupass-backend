@@ -981,12 +981,14 @@ function paintInboxBadge(el, open, critical) {
     el.classList.add("hidden");
     el.classList.remove("critical");
     el.textContent = "";
+    el.removeAttribute("title");
     return;
   }
   el.classList.remove("hidden");
   const wasCritical = el.classList.contains("critical");
   el.classList.toggle("critical", crit > 0);
   el.textContent = crit > 0 ? `${n}!` : String(n);
+  el.title = t("inbox.badgeTooltip", { open: n, critical: crit });
   if (crit > 0 && !wasCritical) {
     el.classList.remove("badge-pulse-once");
     void el.offsetWidth;

@@ -24,6 +24,8 @@ Die größten Rest-Risiken liegen bei **gemischten Zeitstempeln (UTC vs lokal)**
 - [x] Phase A+B umgesetzt (2026-07-20): Timestamp-Normalisierung Berlin, Zutritt-UI Heute/App-Login, Chat-Ton still im fokussierten Chat
 - [x] Phase C umgesetzt (2026-07-20): Auto-Close inkl. app-login/app-logout; Monats-Timeline Overnight-Spillover
 - [x] Phase D umgesetzt (2026-07-20): Push/Socket Dedup (45s) für Chat- und Anruf-Benachrichtigungen
+- [x] Phase E umgesetzt (2026-07-20): Access-Log Writer/Filter kanonisch (naive Berlin) + Ops-Migrationsskript
+- [x] Phase F umgesetzt (2026-07-20): Posteingang → Aufgaben (Copy, Tooltip, Empty-State)
 
 ## Empfohlener Ansatz (Top-3 zuerst)
 
@@ -51,8 +53,8 @@ Die größten Rest-Risiken liegen bei **gemischten Zeitstempeln (UTC vs lokal)**
 
 ## Nicht jetzt
 
-- Großes Timestamp-Migrations-Skript für die ganze DB
-- Posteingang-UX Umbau über Label hinaus
+- ~~Großes Timestamp-Migrations-Skript~~ → `backend/ops/migrate_access_log_timestamps.py` (Dry-Run default; `--apply` auf Prod nach Backup)
+- ~~Posteingang-UX Umbau über Label hinaus~~ → Nav „Aufgaben“, klarere Texte, Badge-Tooltip
 - Neue Features außerhalb Attendance/Notify
 
 ## Testplan

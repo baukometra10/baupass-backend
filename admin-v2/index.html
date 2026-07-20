@@ -104,7 +104,7 @@
               <button type="button" data-tab="overview" class="tab nav-item active" data-i18n="tab.overview">Übersicht</button>
               <button type="button" data-tab="analytics" class="tab nav-item" data-i18n="tab.analytics">Nutzung & Bewertung</button>
               <button type="button" data-tab="inbox" class="tab nav-item" id="tabInboxBtn">
-                <span data-i18n="tab.inbox">Posteingang</span>
+                <span data-i18n="tab.inbox">Aufgaben</span>
                 <span id="inboxTabBadge" class="tab-badge hidden"></span>
               </button>
               <button type="button" data-tab="copilot" class="tab nav-item" data-i18n="tab.copilot">Copilot</button>
@@ -185,8 +185,8 @@
           <pre id="copilotAnswer" class="copilot-answer muted" data-i18n="section.copilot.empty">—</pre>
         </div>
         <div id="tab-inbox" class="tab-panel hidden">
-          <h2 class="section-title" data-i18n="section.inbox.title">Inbox</h2>
-          <p class="muted small" data-i18n="section.inbox.desc">Operations inbox</p>
+          <h2 class="section-title" data-i18n="section.inbox.title">Aufgaben & Freigaben</h2>
+          <p class="muted small" data-i18n="section.inbox.desc">Ops-Aufgaben (kein Chat)</p>
           <div id="inboxCounts" class="cards"></div>
           <div id="inboxPushStatus" class="muted small hidden"></div>
           <p id="inboxLiveHint" class="muted small hidden" data-i18n="section.inbox.live">Live updates</p>
@@ -276,7 +276,7 @@
         <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
           <button type="button" class="tab mobile-nav-item active" data-tab="overview" data-i18n="tab.overview">Übersicht</button>
           <button type="button" class="tab mobile-nav-item" data-tab="inbox">
-            <span data-i18n="tab.inbox">Posteingang</span>
+            <span data-i18n="tab.inbox">Aufgaben</span>
             <span id="inboxMobileBadge" class="tab-badge hidden"></span>
           </button>
           <button type="button" class="tab mobile-nav-item" data-tab="workers" data-i18n="tab.workers">Team</button>
@@ -489,7 +489,7 @@
   <script src="/admin-voice-call.js?v=20260720callFix3"></script>
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
-  <script src="app.js?v=20260720d" type="module"></script>
+  <script src="app.js?v=20260720e" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

@@ -740,6 +740,20 @@ def now_iso():
     return utc_iso()
 
 
+def access_now_iso():
+    """Naive Europe/Berlin wall clock for access_logs only (not global audit/UTC stamps)."""
+    from backend.app.platform.physical_operations._common import access_now_iso as _access_now_iso
+
+    return _access_now_iso()
+
+
+def normalize_access_ts(value):
+    """Canonicalize an access_logs timestamp to naive Berlin ISO (or empty)."""
+    from backend.app.platform.physical_operations._common import normalize_access_timestamp_value
+
+    return normalize_access_timestamp_value(value)
+
+
 def parse_iso_date(value):
     raw = str(value or "").strip()
     if not raw:
@@ -8772,16 +8786,18 @@ def build_access_filters(user, direction="", gate="", from_date="", to_date=""):
 
     if from_date:
         conditions.append("access_logs.timestamp >= ?")
-        params.append(f"{from_date}T00:00:00Z")
+        params.append(f"{from_date}T00:00:00")
 
     if to_date:
         conditions.append("access_logs.timestamp <= ?")
-        params.append(f"{to_date}T23:59:59Z")
+        params.append(f"{to_date}T23:59:59")
 
     return conditions, params
 
 
 def build_open_entries_from_rows(rows, now_dt):
+    from backend.app.platform.physical_operations._common import ACCESS_WALL_TZ, _parse_access_timestamp
+
     last_event_by_worker = {}
     for row in rows:
         last_event_by_worker[row["worker_id"]] = {
@@ -8792,16 +8808,23 @@ def build_open_entries_from_rows(rows, now_dt):
             "timestamp": row["timestamp"],
             "direction": row["direction"],
         }
+    if now_dt is None:
+        now_cmp = datetime.now(ACCESS_WALL_TZ)
+    elif getattr(now_dt, "tzinfo", None) is None:
+        now_cmp = now_dt.replace(tzinfo=timezone.utc).astimezone(ACCESS_WALL_TZ)
+    else:
+        now_cmp = now_dt.astimezone(ACCESS_WALL_TZ)
+
     open_entries = []
     for item in last_event_by_worker.values():
         direction = str(item.get("direction") or "").strip().lower()
         if direction not in ("check-in", "app-login"):
             continue
 
-        entry_dt = parse_iso_utc(item["timestamp"])
+        entry_dt = _parse_access_timestamp(item["timestamp"])
         minutes_open = 0
         if entry_dt:
-            minutes_open = max(int((now_dt - entry_dt).total_seconds() // 60), 0)
+            minutes_open = max(int((now_cmp - entry_dt).total_seconds() // 60), 0)
 
         if minutes_open >= 240:
             severity = "red"
@@ -8895,7 +8918,9 @@ def auto_close_expired_visitor_entries(db, reference_dt=None):
         visit_end_dt = parse_iso_utc(row["visit_end_at"])
         if not visit_end_dt or visit_end_dt > now_dt:
             continue
-        close_timestamp = visit_end_dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
+        close_timestamp = normalize_access_ts(
+            visit_end_dt.astimezone(timezone.utc).replace(tzinfo=None, microsecond=0).isoformat() + "Z"
+        ) or access_now_iso()
         log_id = f"log-{secrets.token_hex(6)}"
         db.execute(
             "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
@@ -9249,7 +9274,8 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 prev_day = date.fromisoformat(checkin_ts[:10])
                 checkout_ts = f"{prev_day.isoformat()}T23:59:00"
             except ValueError:
-                checkout_ts = now_iso()
+                checkout_ts = access_now_iso()
+        checkout_ts = normalize_access_ts(checkout_ts) or checkout_ts
         close_direction = "app-logout" if str(row["direction"] or "") == "app-login" else "check-out"
         log_id = f"log-{secrets.token_hex(6)}"
         db.execute(
@@ -10797,7 +10823,7 @@ def demo_seed():
                 "check-in",
                 "Gate North",
                 "Fruehschicht",
-                now_iso(),
+                access_now_iso(),
             ),
         )
         db.execute(
@@ -10808,7 +10834,7 @@ def demo_seed():
                 "check-in",
                 "Gate South",
                 "Spaetschicht",
-                now_iso(),
+                access_now_iso(),
             ),
         )
         access_logs_created = 2
@@ -13519,7 +13545,7 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
             direction,
             gate,
             note,
-            timestamp_value or now_iso(),
+            normalize_access_ts(timestamp_value) or access_now_iso(),
             late,
         ),
     )
