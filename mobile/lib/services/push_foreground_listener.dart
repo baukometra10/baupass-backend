@@ -12,14 +12,19 @@ class PushForegroundListener {
     required GlobalKey<ScaffoldMessengerState> messengerKey,
     void Function(WorkerAppRoute route)? onRoute,
     void Function(String callId)? onVoiceCall,
+    void Function(String roomId)? onConferenceInvite,
   }) {
     if (!FirebaseBootstrap.isReady) return;
 
     void openFromMessage(RemoteMessage message) {
       final tag = (message.data['tag'] ?? '').trim();
       final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
+      final roomId = (message.data['roomId'] ?? message.data['room_id'] ?? '').trim();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+      }
+      if (tag == 'conference-invite' && roomId.isNotEmpty && onConferenceInvite != null) {
+        onConferenceInvite(roomId);
       }
       final route = PushNavigation.routeFromMessage(message);
       if (route != null && onRoute != null) onRoute(route);
@@ -28,8 +33,30 @@ class PushForegroundListener {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       final tag = (message.data['tag'] ?? '').trim();
       final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
+      final roomId = (message.data['roomId'] ?? message.data['room_id'] ?? '').trim();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+        return;
+      }
+      if (tag == 'conference-invite') {
+        if (roomId.isNotEmpty && onConferenceInvite != null) {
+          onConferenceInvite(roomId);
+        }
+        final route = PushNavigation.routeFromMessage(message);
+        if (route != null && onRoute != null) onRoute(route);
+        final title = message.notification?.title ??
+            message.data['title'] ??
+            BrandingStore.instance.value.displayName;
+        final body = message.notification?.body ?? message.data['body'] ?? 'Konferenz-Einladung';
+        messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text('$title: $body'),
+            duration: const Duration(seconds: 6),
+            action: route != null && onRoute != null
+                ? SnackBarAction(label: 'Öffnen', onPressed: () => onRoute(route))
+                : null,
+          ),
+        );
         return;
       }
       final title = message.notification?.title ??

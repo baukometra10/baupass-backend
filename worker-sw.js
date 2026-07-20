@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260719callFix1";
+const WORKER_BUILD = "20260719callFix2";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -162,6 +162,7 @@ const PUSH_TAG_URLS = {
   "leave-denied": "/emp-app.html#leave",
   "worker-chat": "/emp-app.html#chat",
   "voice-call": "/emp-app.html#chat",
+  "conference-invite": "/emp-app.html#chat",
   "contract-sign": "/emp-app.html#documents",
 };
 
@@ -178,6 +179,7 @@ function resolvePushTargetUrl(data, tag) {
     const routeMap = {
       chat: "/emp-app.html#chat",
       "voice-call": "/emp-app.html#chat",
+      conference: "/emp-app.html#chat",
       deployment: "/emp-app.html#einsatzplan",
       documents: "/emp-app.html#documents",
       tasks: "/emp-app.html#leave",
@@ -207,7 +209,7 @@ function buildPushNotificationOptions(data, tag, targetUrl) {
     dir: "auto",
     silent: false,
     renotify: true,
-    requireInteraction: logicalTag === "worker-chat" || logicalTag === "voice-call" || logicalTag.startsWith("leave-"),
+    requireInteraction: logicalTag === "worker-chat" || logicalTag === "voice-call" || logicalTag === "conference-invite" || logicalTag.startsWith("leave-"),
     vibrate: [200, 100, 200],
     timestamp: Number(data.timestamp) || Date.now(),
     data: { url: targetUrl, tag: logicalTag },

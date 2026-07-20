@@ -589,8 +589,12 @@
           }
           const signals = Array.isArray(data.signals) ? data.signals : [];
           for (const signal of signals) {
-            this.lastSignalId = signal.id || this.lastSignalId;
-            await this._applyRemoteSignal(signal);
+            try {
+              await this._applyRemoteSignal(signal);
+              this.lastSignalId = signal.id || this.lastSignalId;
+            } catch (_) {
+              /* keep cursor so a failed signal can be retried next tick */
+            }
           }
           if (this.deferredOffer && !this.offerSent && call.status === "accepted") {
             await this._sendOfferAfterAccept();
@@ -620,6 +624,8 @@
     async startOutgoing({ workerId, companyId }) {
       this.workerId = String(workerId || "");
       this.companyId = String(companyId || "");
+      this.deferredOffer = true;
+      this.offerSent = false;
       this.onState("dialing");
       const res = await this.api("/api/chat/calls", {
         method: "POST",
@@ -634,10 +640,7 @@
       this.ringtone.start();
       this.ringDeadline = Date.now() + RING_TIMEOUT_MS;
       this.onState("ringing");
-      await this._createPeer();
-      const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-      await this.pc.setLocalDescription(offer);
-      await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      // Wait until worker accepts before creating the offer (avoids lost early ICE).
       this._startPolling();
       this._scheduleRingTimeout();
     }

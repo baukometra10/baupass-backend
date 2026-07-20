@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/api_client.dart';
@@ -19,6 +21,7 @@ import 'services/offline_attendance_store.dart';
 import 'services/offline_sync_service.dart';
 import 'services/branding_applier.dart';
 import 'services/push_foreground_listener.dart';
+import 'services/push_background_handler.dart';
 import 'services/push_notification_service.dart';
 import 'services/tasks_repository.dart';
 import 'services/usage_repository.dart';
@@ -56,6 +59,9 @@ class _WorkerAppState extends State<WorkerApp> {
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   final _brandingApplier = BrandingApplier();
   TenantBranding _appBranding = TenantBranding.fallback;
+  final List<WorkerAppRoute> _pendingRoutes = <WorkerAppRoute>[];
+  String? _pendingVoiceCallId;
+  String? _pendingConferenceRoomId;
 
   @override
   void initState() {
@@ -79,23 +85,64 @@ class _WorkerAppState extends State<WorkerApp> {
     _deepLinks = DeepLinkService();
     PushForegroundListener.attach(
       messengerKey: _messengerKey,
-      onRoute: (route) {
-        if (_session != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _shellKey.currentState?.navigateTo(route);
-          });
-        }
-      },
-      onVoiceCall: (callId) {
-        if (_session != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _shellKey.currentState?.wakeForVoiceCall(callId);
-          });
-        }
-      },
+      onRoute: _queueOrApplyRoute,
+      onVoiceCall: _queueOrWakeVoiceCall,
+      onConferenceInvite: _queueOrWakeConference,
     );
     _boot();
     _restoreBranding();
+  }
+
+  void _queueOrApplyRoute(WorkerAppRoute route) {
+    if (_session == null) {
+      _pendingRoutes.add(route);
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _shellKey.currentState?.navigateTo(route);
+    });
+  }
+
+  void _queueOrWakeVoiceCall(String callId) {
+    final id = callId.trim();
+    if (id.isEmpty) return;
+    if (_session == null) {
+      _pendingVoiceCallId = id;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _shellKey.currentState?.wakeForVoiceCall(id);
+    });
+  }
+
+  void _queueOrWakeConference(String roomId) {
+    final id = roomId.trim();
+    if (id.isEmpty) return;
+    if (_session == null) {
+      _pendingConferenceRoomId = id;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _shellKey.currentState?.wakeForConference(id);
+    });
+  }
+
+  void _flushPendingPushActions() {
+    final routes = List<WorkerAppRoute>.from(_pendingRoutes);
+    _pendingRoutes.clear();
+    for (final route in routes) {
+      _shellKey.currentState?.navigateTo(route);
+    }
+    final callId = (_pendingVoiceCallId ?? '').trim();
+    _pendingVoiceCallId = null;
+    if (callId.isNotEmpty) {
+      _shellKey.currentState?.wakeForVoiceCall(callId);
+    }
+    final roomId = (_pendingConferenceRoomId ?? '').trim();
+    _pendingConferenceRoomId = null;
+    if (roomId.isNotEmpty) {
+      _shellKey.currentState?.wakeForConference(roomId);
+    }
   }
 
   Future<void> _restoreBranding() async {
@@ -203,6 +250,23 @@ class _WorkerAppState extends State<WorkerApp> {
       _joinError = error;
       _bootstrapping = false;
     });
+    if (session != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_drainPersistedPushActions());
+        _flushPendingPushActions();
+      });
+    }
+  }
+
+  Future<void> _drainPersistedPushActions() async {
+    final callId = await takePendingVoiceCallId();
+    if (callId != null && callId.isNotEmpty) {
+      _queueOrWakeVoiceCall(callId);
+    }
+    final roomId = await takePendingConferenceRoomId();
+    if (roomId != null && roomId.isNotEmpty) {
+      _queueOrWakeConference(roomId);
+    }
   }
 
   @override
@@ -217,6 +281,10 @@ class _WorkerAppState extends State<WorkerApp> {
   void _onLoggedIn(WorkerSession session) {
     _bindSession(session);
     setState(() => _session = session);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_drainPersistedPushActions());
+      _flushPendingPushActions();
+    });
   }
 
   void _onLogout() {

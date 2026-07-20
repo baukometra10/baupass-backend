@@ -90,6 +90,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   late final ConferenceRepository _conferenceRepo;
   Timer? _conferencePollTimer;
   String? _shownConferenceId;
+  String? _pendingConferenceForceId;
   bool _conferenceSheetOpen = false;
 
   @override
@@ -130,14 +131,18 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  Future<void> _pollConferenceInvite() async {
+  Future<void> _pollConferenceInvite({String? forceRoomId}) async {
     if (!mounted || _conferenceSheetOpen || _voiceCall.isActive) return;
     try {
       final invite = await _conferenceRepo.incoming(widget.session);
       if (!mounted || invite == null) return;
       final id = (invite['id'] ?? '').toString();
-      if (id.isEmpty || id == _shownConferenceId) return;
+      if (id.isEmpty) return;
+      final forced = (forceRoomId ?? _pendingConferenceForceId ?? '').trim();
+      if (forced.isNotEmpty && id != forced) return;
+      if (forced.isEmpty && id == _shownConferenceId) return;
       _shownConferenceId = id;
+      _pendingConferenceForceId = null;
       _conferenceSheetOpen = true;
       await showModalBottomSheet<void>(
         context: context,
@@ -178,6 +183,10 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     if (callId.isNotEmpty) {
       _voiceCall.wakeForCall(callId);
     }
+    final roomId = (route.conferenceRoomId ?? '').trim();
+    if (roomId.isNotEmpty) {
+      wakeForConference(roomId);
+    }
     setState(() {
       _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
       _tasksSubTab = route.tasksSubTab.clamp(0, 4);
@@ -213,6 +222,15 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
 
   void wakeForVoiceCall(String callId) {
     _voiceCall.wakeForCall(callId);
+  }
+
+  void wakeForConference(String roomId) {
+    final id = roomId.trim();
+    if (id.isNotEmpty) {
+      _shownConferenceId = null;
+      _pendingConferenceForceId = id;
+    }
+    unawaited(_pollConferenceInvite(forceRoomId: id.isEmpty ? null : id));
   }
 
   Future<void> _loadProfileAndGeofence() async {

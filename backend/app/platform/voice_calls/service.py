@@ -132,16 +132,28 @@ class VoiceCallService:
                 sender_role TEXT NOT NULL,
                 signal_type TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}',
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                seq INTEGER NOT NULL DEFAULT 0
             )
             """
         )
+        signal_cols = self._table_columns("chat_voice_call_signals")
+        if "seq" not in signal_cols:
+            try:
+                self.db.execute(
+                    "ALTER TABLE chat_voice_call_signals ADD COLUMN seq INTEGER NOT NULL DEFAULT 0"
+                )
+            except Exception:
+                pass
         try:
             self.db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_chat_voice_calls_worker_status ON chat_voice_calls(worker_id, status, created_at DESC)"
             )
             self.db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_chat_voice_call_signals_call ON chat_voice_call_signals(call_id, created_at ASC)"
+            )
+            self.db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_chat_voice_call_signals_seq ON chat_voice_call_signals(call_id, seq ASC)"
             )
         except Exception:
             pass
@@ -283,9 +295,9 @@ class VoiceCallService:
                 thread_id=thread_id,
                 company_id=company_id,
                 worker_id=worker_id,
-            sender_type=sender_type,
-            sender_user_id=(caller_user_id or None) if sender_type == "admin" else None,
-            sender_worker_id=worker_id if sender_type == "worker" else None,
+                sender_type=sender_type,
+                sender_user_id=(caller_user_id or None) if sender_type == "admin" else None,
+                sender_worker_id=worker_id if sender_type == "worker" else None,
                 body=body,
                 allow_plaintext_e2e_fallback=True,
             )
@@ -351,6 +363,36 @@ class VoiceCallService:
                         )
                     except Exception:
                         pass
+            except Exception:
+                pass
+        # Stuck "accepted" calls (client crash) block new dials via worker_busy.
+        accepted_cutoff = (datetime.now(timezone.utc) - timedelta(minutes=90)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
+        )
+        stuck = self.db.execute(
+            """
+            SELECT id, company_id, worker_id FROM chat_voice_calls
+            WHERE status = 'accepted'
+              AND COALESCE(answered_at, created_at) < ?
+            """,
+            (accepted_cutoff,),
+        ).fetchall()
+        for row in stuck:
+            self.db.execute(
+                """
+                UPDATE chat_voice_calls
+                SET status = 'ended', ended_at = ?, end_reason = 'stale_accepted'
+                WHERE id = ? AND status = 'accepted'
+                """,
+                (now, row["id"]),
+            )
+            count += 1
+            try:
+                publish_event(
+                    "voice_call.ended",
+                    row["company_id"],
+                    {"callId": row["id"], "workerId": row["worker_id"], "reason": "stale_accepted"},
+                )
             except Exception:
                 pass
         return count
@@ -659,12 +701,17 @@ class VoiceCallService:
             payload_obj = {}
         signal_id = f"vs-{secrets.token_urlsafe(12)}"
         now = utc_now_iso()
+        next_seq_row = self.db.execute(
+            "SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM chat_voice_call_signals WHERE call_id = ?",
+            (call_id,),
+        ).fetchone()
+        next_seq = int(next_seq_row["n"] if next_seq_row else 1)
         self.db.execute(
             """
-            INSERT INTO chat_voice_call_signals (id, call_id, sender_role, signal_type, payload_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO chat_voice_call_signals (id, call_id, sender_role, signal_type, payload_json, created_at, seq)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (signal_id, call_id, role, stype, json.dumps(payload_obj, ensure_ascii=False), now),
+            (signal_id, call_id, role, stype, json.dumps(payload_obj, ensure_ascii=False), now, next_seq),
         )
         try:
             publish_event(
@@ -693,14 +740,20 @@ class VoiceCallService:
         """
         if since_id:
             row = self.db.execute(
-                "SELECT created_at FROM chat_voice_call_signals WHERE id = ?",
+                "SELECT seq, created_at FROM chat_voice_call_signals WHERE id = ?",
                 (since_id,),
             ).fetchone()
             if row:
-                # Include same-timestamp rows after the cursor id (ICE bursts).
-                sql += " AND (created_at > ? OR (created_at = ? AND id > ?))"
-                params.extend([row["created_at"], row["created_at"], since_id])
-        sql += " ORDER BY created_at ASC, id ASC LIMIT 200"
+                seq_val = int(row["seq"] or 0) if "seq" in row.keys() else 0
+                if seq_val > 0:
+                    # Monotonic per-call cursor — safe for same-timestamp ICE bursts.
+                    sql += " AND seq > ?"
+                    params.append(seq_val)
+                else:
+                    # Legacy rows without seq: keep same-second siblings via id tie-break.
+                    sql += " AND (created_at > ? OR (created_at = ? AND id > ?))"
+                    params.extend([row["created_at"], row["created_at"], since_id])
+        sql += " ORDER BY seq ASC, created_at ASC, id ASC LIMIT 200"
         rows = self.db.execute(sql, tuple(params)).fetchall()
         out: list[dict[str, Any]] = []
         for row in rows:

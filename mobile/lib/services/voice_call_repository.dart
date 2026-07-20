@@ -418,8 +418,12 @@ class WorkerVoiceCallSession {
           }
         }
         for (final signal in result.signals) {
-          _lastSignalId = (signal['id'] ?? _lastSignalId).toString();
-          await _applySignal(signal);
+          try {
+            await _applySignal(signal);
+            _lastSignalId = (signal['id'] ?? _lastSignalId).toString();
+          } catch (_) {
+            /* keep cursor so a failed signal can be retried next tick */
+          }
         }
       } catch (_) {
         /* ignore transient poll errors */

@@ -34,11 +34,21 @@ class PushNavigation {
       case 'ops-notify':
         return const WorkerAppRoute(tabIndex: 4);
       case 'worker-chat':
+        return const WorkerAppRoute(tabIndex: 3, openChat: true);
       case 'voice-call':
         final callId = (data['callId'] ?? data['call_id'] ?? '').trim();
         return WorkerAppRoute(
           tabIndex: 3,
+          openChat: true,
           incomingCallId: callId.isNotEmpty ? callId : null,
+        );
+      case 'conference-invite':
+      case 'conference':
+        final roomId = (data['roomId'] ?? data['room_id'] ?? '').trim();
+        return WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          conferenceRoomId: roomId.isNotEmpty ? roomId : null,
         );
       case 'contract-sign':
         final signUrl = (data['signUrl'] ?? data['sign_url'] ?? '').trim();

@@ -119,7 +119,22 @@ def send_fcm_v1(tokens: list[str], *, title: str, body: str, data: dict[str, Any
             "message": {
                 "token": token,
                 "notification": {"title": title[:200], "body": body[:500]},
-                "android": {"priority": "HIGH"},
+                "android": {
+                    "priority": "HIGH",
+                    "notification": {
+                        "channel_id": (
+                            "suppix_calls"
+                            if str((data or {}).get("tag") or "") in {"voice-call", "conference-invite"}
+                            else "suppix_alerts"
+                        ),
+                        "sound": "default",
+                        "default_vibrate_timings": True,
+                    },
+                },
+                "apns": {
+                    "headers": {"apns-priority": "10"},
+                    "payload": {"aps": {"sound": "default", "content-available": 1}},
+                },
             }
         }
         if data:
