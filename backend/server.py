@@ -98,7 +98,7 @@ WORKER_SITE_GEOFENCE_MIN_METERS = 15
 WORKER_SITE_GEOFENCE_MAX_METERS = 500
 WORKER_GEOLOCATION_MAX_ACCURACY_METERS = 200
 WORKER_GEOLOCATION_MAPS_GRADE_ACCURACY_METERS = 100
-SITE_LEAVE_OFF_SITE_POLLS_REQUIRED = 1
+SITE_LEAVE_OFF_SITE_POLLS_REQUIRED = 3
 _site_geocode_cache: dict[str, tuple[float, float] | None] = {}
 ACCESS_VISITOR_AUTOCLOSE_INTERVAL_SECONDS = 30
 _access_maintenance_lock = threading.Lock()
@@ -14774,7 +14774,16 @@ def record_worker_app_nfc_attendance(
         }
 
     site_cfg = get_company_site_access_config(db, worker["company_id"])
-    if site_cfg["accessMode"] == "site_app" and not offline_sync:
+    requested_direction = str(direction_requested or "auto").strip().lower()
+    if requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
+        return {"ok": False, "error": "invalid_direction", "status": 400}
+
+    if requested_direction in {"auto", "toggle", ""}:
+        direction = "check-out" if worker_has_open_checkin(db, worker["id"]) else "check-in"
+    else:
+        direction = requested_direction
+
+    if site_cfg["accessMode"] == "site_app":
         if not isinstance(location, dict):
             return {
                 "ok": False,
@@ -14789,7 +14798,8 @@ def record_worker_app_nfc_attendance(
         if not measured:
             return {"ok": False, "error": "site_location_unavailable", "status": 403}
         radius = int(site_cfg["siteGeofenceRadiusMeters"])
-        if not measured.get("onSite"):
+        # Check-in must be on-site (incl. offline replay); check-out may be off-site.
+        if direction == "check-in" and not measured.get("onSite"):
             return {
                 "ok": False,
                 "error": "outside_geofence",
@@ -14798,15 +14808,6 @@ def record_worker_app_nfc_attendance(
                 "radiusMeters": radius,
                 "allowedRadiusMeters": measured.get("allowedRadiusMeters", radius),
             }
-
-    requested_direction = str(direction_requested or "auto").strip().lower()
-    if requested_direction not in {"check-in", "check-out", "auto", "toggle"}:
-        return {"ok": False, "error": "invalid_direction", "status": 400}
-
-    if requested_direction in {"auto", "toggle", ""}:
-        direction = "check-out" if worker_has_open_checkin(db, worker["id"]) else "check-in"
-    else:
-        direction = requested_direction
 
     if direction == "check-in":
         from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
@@ -15229,13 +15230,35 @@ def worker_app_sync_offline_events():
 
         if event_type == "site_leave":
             location = event.get("location") if isinstance(event.get("location"), dict) else None
-            if location is not None:
-                try:
-                    _validate_worker_location_accuracy_or_raise(location)
-                except ValueError as exc:
-                    results.append({"ok": False, "type": event_type, "error": str(exc)})
-                    continue
+            if not isinstance(location, dict):
+                results.append({"ok": False, "type": event_type, "error": "worker_geolocation_required"})
+                continue
+            try:
+                _validate_worker_location_accuracy_or_raise(location)
+            except ValueError as exc:
+                results.append({"ok": False, "type": event_type, "error": str(exc)})
+                continue
             site_cfg = get_company_site_access_config(db, worker["company_id"])
+            # Require a real off-site measurement — do not trust client-only leave events.
+            try:
+                active_geofence_id = _get_active_checkin_geofence_id(db, worker["id"])
+                leave_measured = measure_worker_presence_for_leave(
+                    db, worker, location, active_geofence_id
+                )
+            except ValueError as exc:
+                results.append({"ok": False, "type": event_type, "error": str(exc)})
+                continue
+            if not leave_measured:
+                results.append({"ok": False, "type": event_type, "error": "site_location_unavailable"})
+                continue
+            if leave_measured.get("onSite"):
+                results.append({
+                    "ok": False,
+                    "type": event_type,
+                    "error": "still_on_site",
+                    "distanceMeters": leave_measured.get("distanceMeters"),
+                })
+                continue
             leave_result = _apply_worker_site_leave(
                 db,
                 worker,
@@ -23442,8 +23465,17 @@ def send_invoice():
         cleaned_items = []
         computed_net = 0.0
         for item in items_raw:
-            qty = float(item.get("qty") or 1)
-            unit_price = float(item.get("unitPrice") or 0)
+            try:
+                qty = float(item.get("qty") or 1)
+                unit_price = float(item.get("unitPrice") or 0)
+            except (TypeError, ValueError):
+                return jsonify({"error": "invalid_invoice_item_number", "message": "Positionsmenge/Preis ungültig."}), 400
+            if not (qty == qty) or not (unit_price == unit_price):  # NaN
+                return jsonify({"error": "invalid_invoice_item_number", "message": "Positionsmenge/Preis ungültig."}), 400
+            if qty <= 0 or qty > 1_000_000:
+                return jsonify({"error": "invalid_invoice_item_qty", "message": "Positionsmenge muss zwischen 0 und 1.000.000 liegen."}), 400
+            if unit_price < 0 or unit_price > 10_000_000:
+                return jsonify({"error": "invalid_invoice_item_price", "message": "Positionspreis muss zwischen 0 und 10.000.000 liegen."}), 400
             total_item = round(qty * unit_price, 2)
             item_description = str(item.get("description") or "").strip()[:200]
             if not item_description and total_item <= 0:

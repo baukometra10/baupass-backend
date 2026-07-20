@@ -302,7 +302,7 @@ function workerDebug(...args) {
 const WORKER_GEO_ACCURACY_BUFFER_METERS = 80;
 const WORKER_GEO_MAX_ACCURACY_METERS = 200;
 const SITE_GEOFENCE_WATCH_INTERVAL_MS = 5000;
-const SITE_OFF_SITE_STRIKES_REQUIRED = 1;
+const SITE_OFF_SITE_STRIKES_REQUIRED = 3;
 const SITE_GEOFENCE_LEAVE_GUARD_MS = 30000;
 const DEPLOYMENT_API_TIMEOUT_MS = 25000;
 const PROXIMITY_LOGIN_POLL_MS = 15000;
@@ -13392,12 +13392,24 @@ function startWorkerChatRealtimeFeed() {
         return;
       }
       if (type === "chat.message_created" && String(evt?.payload?.senderType || "") === "admin") {
-        window.SUPPIXChatRealtime?.playWorkerMessageSound?.();
-        if (!document?.hasFocus?.() && Notification?.permission === "granted") {
+        const messageId = String(evt?.payload?.messageId || evt?.payload?.message_id || evt?.id || "").trim();
+        const dedupeKey = messageId
+          ? `chat-msg:${messageId}`
+          : `worker-chat:${String(evt?.payload?.preview || "").slice(0, 40)}`;
+        if (window.SUPPIXChatRealtime?.claimChatNotifyKey && !window.SUPPIXChatRealtime.claimChatNotifyKey(dedupeKey)) {
+          void loadWorkerChat({ quiet: true });
+          return;
+        }
+        const onChat = String(location.hash || "").includes("chat") || document.getElementById("workerChatPanel")?.classList?.contains("active");
+        const focused = Boolean(document?.hasFocus?.());
+        if (!(focused && onChat)) {
+          window.SUPPIXChatRealtime?.playWorkerMessageSound?.();
+        }
+        if (!(focused && onChat) && Notification?.permission === "granted") {
           try {
             new Notification(t("workerChatAdminMessageTitle") || "Neue Nachricht vom Arbeitgeber", {
               body: window.SUPPIXChatRealtime?.previewLabel?.(evt.payload) || "",
-              tag: "worker-chat",
+              tag: messageId ? `worker-chat-${messageId}` : "worker-chat",
               icon: "/branding/suppix-icon-192.png",
             });
           } catch { /* ignore */ }

@@ -34,16 +34,43 @@ def deliver_admin_push(
     if not callable(webpush):
         return {"ok": False, "sent": 0, "reason": "pywebpush_missing"}
 
-    rows = db.execute(
-        """
-        SELECT endpoint, p256dh, auth
-        FROM admin_push_subscriptions
-        WHERE company_id = ?
-        """,
-        (str(company_id or ""),),
-    ).fetchall()
+    try:
+        rows = db.execute(
+            """
+            SELECT endpoint, p256dh, auth, user_id
+            FROM admin_push_subscriptions
+            WHERE company_id = ?
+            """,
+            (str(company_id or ""),),
+        ).fetchall()
+    except Exception:
+        rows = db.execute(
+            """
+            SELECT endpoint, p256dh, auth
+            FROM admin_push_subscriptions
+            WHERE company_id = ?
+            """,
+            (str(company_id or ""),),
+        ).fetchall()
     if not rows:
         return {"ok": True, "sent": 0, "reason": "no_subscriptions"}
+
+    worker_id = str((extra or {}).get("workerId") or (extra or {}).get("worker_id") or "").strip()
+    muted_user_ids: set[str] = set()
+    if worker_id:
+        try:
+            muted_rows = db.execute(
+                """
+                SELECT user_id FROM chat_thread_preferences
+                WHERE company_id = ? AND worker_id = ? AND muted = 1
+                """,
+                (str(company_id or ""), worker_id),
+            ).fetchall()
+            muted_user_ids = {
+                str(row["user_id"] or "").strip() for row in muted_rows if row["user_id"]
+            }
+        except Exception:
+            muted_user_ids = set()
 
     payload = {
         "title": title,
@@ -54,9 +81,18 @@ def deliver_admin_push(
     }
     sent = 0
     removed = 0
+    skipped_muted = 0
     for row in rows:
         endpoint = str(row["endpoint"] or "").strip()
         if not endpoint:
+            continue
+        user_id = ""
+        try:
+            user_id = str(row["user_id"] or "").strip()
+        except (KeyError, IndexError, TypeError):
+            user_id = ""
+        if user_id and user_id in muted_user_ids:
+            skipped_muted += 1
             continue
         try:
             webpush(
@@ -88,4 +124,4 @@ def deliver_admin_push(
             db.commit()
         except Exception:
             pass
-    return {"ok": True, "sent": sent, "removed": removed}
+    return {"ok": True, "sent": sent, "removed": removed, "skippedMuted": skipped_muted}

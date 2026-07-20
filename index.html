@@ -1279,7 +1279,7 @@
                 <h3 style="margin: 0;" data-ui-i18n="invoicePdfPreviewTitle">Rechnungsvorschau</h3>
                 <button id="closePdfPreviewBtn" type="button" class="ghost-button" aria-label="Schließen">&times;</button>
               </div>
-              <iframe id="invoicePdfFrame" style="flex: 1; border: none; background: #fff;"></iframe>
+              <iframe id="invoicePdfFrame" sandbox="allow-same-origin" style="flex: 1; border: none; background: #fff;"></iframe>
               <div class="ms-preview-footer">
                 <button id="downloadPdfPreviewBtn" type="button" class="primary-button" data-ui-i18n="btnDownloadPdf">Herunterladen</button>
                 <button id="closePdfPreviewBtn2" type="button" class="ghost-button" data-ui-i18n="btnClosePdfPreview">Schließen</button>
@@ -2345,7 +2345,7 @@
               </div>
               <button id="invoicePreviewButton" type="button" class="ghost-button" data-ui-i18n="btnUpdatePreview">Vorschau aktualisieren</button>
             </div>
-            <iframe id="invoicePreviewFrame" class="invoice-preview-frame" title="Rechnungsvorschau"></iframe>
+            <iframe id="invoicePreviewFrame" class="invoice-preview-frame" title="Rechnungsvorschau" sandbox="allow-same-origin"></iframe>
 
             <div id="invoiceHistoryList" class="list"></div>
 

@@ -1005,7 +1005,13 @@ class ChatService:
         try:
             if not silent_side_effects:
                 if sender_type == "worker":
-                    self._notify_company_side(company_id, worker_id, notify_body)
+                    self._notify_company_side(
+                        company_id,
+                        worker_id,
+                        notify_body,
+                        message_id=message_id,
+                        thread_id=thread_id,
+                    )
                 else:
                     notify_worker_mitteilung(
                         self.db,
@@ -1303,7 +1309,15 @@ class ChatService:
         self.db.commit()
         return deleted
 
-    def _notify_company_side(self, company_id: str, worker_id: str, body: str) -> None:
+    def _notify_company_side(
+        self,
+        company_id: str,
+        worker_id: str,
+        body: str,
+        *,
+        message_id: str = "",
+        thread_id: str = "",
+    ) -> None:
         worker_name = worker_id
         try:
             row = self.db.execute(
@@ -1340,7 +1354,13 @@ class ChatService:
                 title=f"Chat · {worker_name}",
                 body=preview or "Neue Nachricht",
                 tag="admin-chat",
-                extra={"workerId": worker_id, "companyId": company_id},
+                extra={
+                    "workerId": worker_id,
+                    "companyId": company_id,
+                    "messageId": message_id,
+                    "threadId": thread_id,
+                    "role": "admin",
+                },
             )
         except Exception:
             pass
