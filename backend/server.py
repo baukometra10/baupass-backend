@@ -2586,13 +2586,17 @@ def _wallet_parse_valid_until_iso(value: str) -> str:
 def _wallet_collect_runtime_status():
     required = {
         "apple": ["APPLE_CERT_PATH", "APPLE_CERT_PASSWORD"],
-        "google": ["GOOGLE_ISSUER_ID", "GOOGLE_SERVICE_ACCOUNT_JSON_PATH"],
+        "google": ["GOOGLE_ISSUER_ID"],
     }
 
     missing = {
         scope: [key for key in keys if not str(os.getenv(key) or "").strip()]
         for scope, keys in required.items()
     }
+    if not str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip() and not str(
+        os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON_PATH") or ""
+    ).strip():
+        missing["google"].append("GOOGLE_SERVICE_ACCOUNT_JSON_PATH|GOOGLE_SERVICE_ACCOUNT_JSON")
 
     file_checks = {}
     for key in ["APPLE_CERT_PATH", "APPLE_INTERMEDIATE_CERT_PATH", "GOOGLE_SERVICE_ACCOUNT_JSON_PATH"]:
@@ -2610,6 +2614,11 @@ def _wallet_collect_runtime_status():
             "exists": bool(resolved.exists() and resolved.is_file()),
             "path": str(resolved),
         }
+    file_checks["GOOGLE_SERVICE_ACCOUNT_JSON"] = {
+        "configured": bool(str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()),
+        "exists": bool(str(os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON") or "").strip()),
+        "path": "(inline)",
+    }
 
     runtime = {}
     try:
@@ -5312,6 +5321,21 @@ def get_worker_wallet_pass():
     if not badge_id:
         return jsonify({"error": "wallet_badge_id_missing", "message": "Worker badge ID is required for wallet pass generation."}), 422
 
+    runtime = _wallet_collect_runtime_status().get("runtime") or {}
+    platform_runtime = runtime.get(platform) or {}
+    if not platform_runtime.get("ok"):
+        return jsonify(
+            {
+                "error": "wallet_not_configured",
+                "message": (
+                    f"{platform.title()} Wallet ist auf dem Server nicht konfiguriert. "
+                    f"{str(platform_runtime.get('error') or '').strip()}"
+                ).strip(),
+                "platform": platform,
+                "signingReady": False,
+            }
+        ), 503
+
     existing = db.execute(
         "SELECT * FROM worker_passes WHERE worker_id = ? AND platform = ? LIMIT 1",
         (worker_id, platform),
@@ -5325,6 +5349,7 @@ def get_worker_wallet_pass():
             "object_id": existing["pass_object_id"],
             "pass_url": existing["pass_url"],
             "state": existing["status"],
+            "signingReady": True,
         }
         if platform == "google":
             response_payload["add_to_wallet_url"] = existing["pass_url"]
@@ -5390,6 +5415,7 @@ def get_worker_wallet_pass():
         "object_id": pass_object_id,
         "pass_url": pass_url,
         "state": "issued",
+        "signingReady": True,
     }
     if platform == "google":
         response_payload["add_to_wallet_url"] = pass_url
@@ -12330,20 +12356,26 @@ def _apply_worker_site_leave(db, worker, site_cfg, *, session_token="", note="",
 
 
 def _sync_off_site_polls_and_maybe_leave(db, worker, session_token, measured_for_leave, site_cfg):
+    """Return poll progress; include leave fields only when checkout was applied."""
+    empty = {
+        "offSitePolls": 0,
+        "offSitePollsRequired": SITE_LEAVE_OFF_SITE_POLLS_REQUIRED,
+        "siteLeaveApplied": False,
+    }
     if not site_cfg.get("siteAutoLogoutOnLeave", True):
-        return None
+        return empty
     if not measured_for_leave or measured_for_leave.get("onSite"):
         if session_token:
             db.execute(
                 "UPDATE worker_app_sessions SET site_off_site_polls = 0 WHERE token = ?",
                 (session_token,),
             )
-        return None
+        return empty
     if not (
         worker_has_open_checkin_today(db, worker["id"])
         or worker_has_open_site_app_session_today(db, worker["id"])
     ):
-        return None
+        return empty
 
     polls = SITE_LEAVE_OFF_SITE_POLLS_REQUIRED
     if session_token:
@@ -12356,16 +12388,26 @@ def _sync_off_site_polls_and_maybe_leave(db, worker, session_token, measured_for
             "UPDATE worker_app_sessions SET site_off_site_polls = ? WHERE token = ?",
             (polls, session_token),
         )
+    progress = {
+        "offSitePolls": polls,
+        "offSitePollsRequired": SITE_LEAVE_OFF_SITE_POLLS_REQUIRED,
+        "siteLeaveApplied": False,
+    }
     if polls < SITE_LEAVE_OFF_SITE_POLLS_REQUIRED:
-        return None
+        return progress
 
-    return _apply_worker_site_leave(
+    leave = _apply_worker_site_leave(
         db,
         worker,
         site_cfg,
         session_token=session_token,
         note="Automatischer Check-out nach GPS-Standortverlassen",
     )
+    progress.update(leave or {})
+    progress["siteLeaveApplied"] = True
+    progress["offSitePolls"] = polls
+    progress["offSitePollsRequired"] = SITE_LEAVE_OFF_SITE_POLLS_REQUIRED
+    return progress
 
 
 def _notify_worker_site_checkin(db, worker, *, via_proximity: bool = False) -> None:
@@ -14602,6 +14644,8 @@ def worker_app_site_presence():
             db, worker, session_token, leave_measured or measured, site_cfg
         )
 
+    leave_applied = bool(site_leave_result and site_leave_result.get("siteLeaveApplied"))
+
     if on_site and site_cfg["accessMode"] == "site_app":
         geofence_id = measured.get("geofenceId")
         if (
@@ -14638,12 +14682,14 @@ def worker_app_site_presence():
                         "reason": login_eligibility.get("reason"),
                         "message": login_eligibility.get("message"),
                     }
-        if auto_checkin_log_id or site_login_log_id or site_leave_result:
+        if auto_checkin_log_id or site_login_log_id or leave_applied or (
+            site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0
+        ):
             db.commit()
-    elif site_leave_result:
+    elif leave_applied or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
         db.commit()
 
-    if site_leave_result:
+    if leave_applied:
         log_audit(
             "worker_app.site_leave",
             f"Mitarbeiter {worker['first_name']} {worker['last_name']} automatisch ausgestempelt (GPS)",
@@ -14669,10 +14715,14 @@ def worker_app_site_presence():
             "autoCheckInLogId": auto_checkin_log_id,
             "siteLoginLogId": site_login_log_id,
             "attendanceBlocked": attendance_blocked,
-            "siteLeaveApplied": bool(site_leave_result),
-            "checkoutLogId": (site_leave_result or {}).get("checkoutLogId"),
-            "siteLeaveLogId": (site_leave_result or {}).get("siteLeaveLogId"),
-            "loggedOut": bool((site_leave_result or {}).get("loggedOut")),
+            "siteLeaveApplied": leave_applied,
+            "offSitePolls": int((site_leave_result or {}).get("offSitePolls") or 0),
+            "offSitePollsRequired": int(
+                (site_leave_result or {}).get("offSitePollsRequired") or SITE_LEAVE_OFF_SITE_POLLS_REQUIRED
+            ),
+            "checkoutLogId": (site_leave_result or {}).get("checkoutLogId") if leave_applied else None,
+            "siteLeaveLogId": (site_leave_result or {}).get("siteLeaveLogId") if leave_applied else None,
+            "loggedOut": bool((site_leave_result or {}).get("loggedOut")) if leave_applied else False,
         }
     )
 

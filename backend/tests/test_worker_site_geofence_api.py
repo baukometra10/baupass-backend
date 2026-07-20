@@ -113,7 +113,7 @@ def test_site_presence_on_site_reports_distance(client, site_app_session):
     assert body.get("distanceMeters") is not None
 
 
-def test_site_presence_off_site_after_checkin_applies_leave(client, site_app_session):
+def test_site_presence_off_site_requires_three_polls_before_leave(client, site_app_session):
     headers = {"Authorization": f"Bearer {site_app_session['token']}"}
     with server.app.app_context():
         db = server.get_db()
@@ -128,6 +128,18 @@ def test_site_presence_off_site_after_checkin_applies_leave(client, site_app_ses
         )
         db.commit()
 
+    for i in range(1, 3):
+        response = client.post(
+            "/api/worker-app/site-presence",
+            json={"location": site_app_session["off_site"]},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        body = response.get_json()
+        assert body.get("siteLeaveApplied") is False
+        assert int(body.get("offSitePolls") or 0) == i
+        assert int(body.get("offSitePollsRequired") or 0) == 3
+
     response = client.post(
         "/api/worker-app/site-presence",
         json={"location": site_app_session["off_site"]},
@@ -136,6 +148,7 @@ def test_site_presence_off_site_after_checkin_applies_leave(client, site_app_ses
     assert response.status_code == 200
     body = response.get_json()
     assert body.get("siteLeaveApplied") is True
+    assert int(body.get("offSitePolls") or 0) == 3
     assert body.get("checkoutLogId") or body.get("siteLeaveLogId")
 
 

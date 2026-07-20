@@ -182,9 +182,12 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(formatWorkerAuthError(e))),
-      );
+      final msg = e.statusCode == 503 || e.errorCode == 'wallet_not_configured'
+          ? (e.message?.trim().isNotEmpty == true
+              ? e.message!
+              : 'Wallet ist auf dem Server noch nicht konfiguriert (Zertifikate). QR bleibt nutzbar.')
+          : formatWorkerAuthError(e);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

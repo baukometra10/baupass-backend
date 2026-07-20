@@ -936,7 +936,7 @@ function companyIdFromQuery() {
 
 function shouldRefreshOnEvent(evt) {
   const t = String(evt?.type || evt?.event_type || "");
-  return /inbox|security|leave|access|push|emergency|alert|document|site_checkin|site_leave|proximity|worker_app|check_in|check_out|app_login|app_logout/i.test(
+  return /inbox|security|leave|access|push|emergency|alert|document|site_checkin|site_leave|proximity|worker_app|check_in|check_out|app_login|app_logout|camera|iot|biometric|autopilot/i.test(
     t,
   );
 }
@@ -1016,6 +1016,11 @@ async function refreshInboxBadgeOnly() {
   }
 }
 
+function scheduleOverviewReload() {
+  clearTimeout(scheduleOverviewReload._t);
+  scheduleOverviewReload._t = setTimeout(() => loadOverview().catch(() => {}), 800);
+}
+
 function scheduleInboxReload() {
   clearTimeout(scheduleInboxReload._t);
   scheduleInboxReload._t = setTimeout(() => {
@@ -1033,22 +1038,24 @@ async function startAdminRealtime() {
   }
   const cid = companyIdFromQuery();
   if (!cid && getUser().role === "superadmin") return;
+  window.__adminRealtimeLive = false;
   adminRealtimeStop = await window.SUPPIXOpsRealtime.start({
     companyId: cid,
     feedEl: null,
     onEvent: (evt) => {
       if (!shouldRefreshOnEvent(evt)) return;
+      window.__adminRealtimeLive = true;
+      const tab = document.querySelector(".tab.active")?.dataset?.tab || "overview";
       if (evt?.type === "inbox.changed") {
         scheduleInboxReload();
+        // Keep Live-Lage inbox KPI fresh while on overview.
+        if (tab === "overview") scheduleOverviewReload();
         return;
       }
       refreshInboxBadgeOnly();
-      const tab = document.querySelector(".tab.active")?.dataset?.tab || "overview";
       if (tab === "inbox") scheduleInboxReload();
-      else if (tab === "overview") {
-        clearTimeout(scheduleInboxReload._overviewT);
-        scheduleInboxReload._overviewT = setTimeout(() => loadOverview().catch(() => {}), 800);
-      } else if (tab === "access") {
+      else if (tab === "overview") scheduleOverviewReload();
+      else if (tab === "access") {
         clearTimeout(scheduleInboxReload._accessT);
         scheduleInboxReload._accessT = setTimeout(() => loadAccess().catch(() => {}), 800);
       } else if (tab === "operations") {
@@ -1057,6 +1064,7 @@ async function startAdminRealtime() {
       }
     },
   });
+  window.__adminRealtimeLive = Boolean(adminRealtimeStop);
 }
 
 function syncEnterpriseFrame() {
@@ -2271,7 +2279,20 @@ async function loadPlatform() {
       </div>
       <div class="panel-block">
         <h3>${t("platform.wallet")}</h3>
-        <p class="muted small">${wallet?.configured ? statusBadge(true) : statusBadge(false)} ${wallet?.mode || wallet?.status || t("platform.walletLoading")}</p>
+        <p class="muted small">${wallet?.ok || wallet?.wallet?.ok ? statusBadge(true) : statusBadge(false)}
+          Apple: ${wallet?.wallet?.runtime?.apple?.ok ? statusBadge(true) : statusBadge(false)}
+          · Google: ${wallet?.wallet?.runtime?.google?.ok ? statusBadge(true) : statusBadge(false)}
+        </p>
+        ${
+          wallet?.wallet?.runtime?.apple?.error
+            ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.apple.error).slice(0, 160))}</p>`
+            : ""
+        }
+        ${
+          wallet?.wallet?.runtime?.google?.error
+            ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.google.error).slice(0, 160))}</p>`
+            : ""
+        }
       </div>
       </div>
       <div class="link-row">
@@ -4010,12 +4031,16 @@ async function loadOverview() {
       "Fasse die aktuelle Lage zusammen: Anwesenheit, Sicherheitsalerts, offene Aufgaben und Kameras.",
     );
     lage.classList.remove("hidden");
+    const liveBadge = window.__adminRealtimeLive
+      ? `<span class="badge badge-ok">${t("lage.live")}</span>`
+      : `<span class="badge">${t("lage.poll")}</span>`;
     lage.innerHTML = `
       <div class="lage-panel-head">
         <div>
           <h3>${t("lage.title")}</h3>
           <p class="muted small" style="margin:0.2rem 0 0">${t("lage.subtitle")}</p>
         </div>
+        ${liveBadge}
       </div>
       <div class="lage-grid">
         <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
