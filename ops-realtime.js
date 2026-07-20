@@ -137,8 +137,17 @@
         const payload = await response.json();
         const events = Array.isArray(payload?.events) ? payload.events : [];
         if (events.length) {
-          sinceId = events[events.length - 1].id || sinceId;
-          events.forEach(remember);
+          // First poll only seeds the cursor — do not treat backlog as "new" (avoids false beeps).
+          if (!sinceId) {
+            events.forEach((evt) => {
+              if (evt?.id) seen.add(evt.id);
+            });
+            sinceId = events[events.length - 1].id || sinceId;
+            renderFeed(feedEl, events.slice().reverse().slice(0, 25));
+          } else {
+            sinceId = events[events.length - 1].id || sinceId;
+            events.forEach(remember);
+          }
         }
         onMode?.("polling");
       } catch {

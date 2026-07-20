@@ -155,10 +155,9 @@
 
   function handleAdminRealtimeEvent(evt) {
     const type = String(evt?.type || "");
+    // chat.message_created is already handled (sound) inside startAdminChatRealtime —
+    // only voice-call events need extra handling here (avoid double beep / false alerts).
     if (!(type.startsWith("voice_call.") || type.startsWith("chat.voice_call"))) {
-      global.SUPPIXChatRealtime?.notifyAdminWorkerMessage?.(evt, {
-        workerMessageTitle: "Neue Mitarbeiter-Nachricht",
-      });
       return;
     }
     if (type.includes("incoming")) {

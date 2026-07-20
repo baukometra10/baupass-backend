@@ -183,13 +183,22 @@
         }
         const data = await response.json();
         const events = Array.isArray(data?.events) ? data.events : [];
-        events.forEach((raw) => {
-          const evt = normalizeEvent(raw);
-          if (!evt.id || seen.has(evt.id) || !isChatEvent(evt)) return;
-          seen.add(evt.id);
-          sinceId = evt.id;
-          onChatEvent?.(evt);
-        });
+        // First poll seeds cursor only — no backlog notifications.
+        if (!sinceId && events.length) {
+          events.forEach((raw) => {
+            const evt = normalizeEvent(raw);
+            if (evt.id) seen.add(evt.id);
+          });
+          sinceId = String(events[events.length - 1]?.id || events[0]?.id || "");
+        } else {
+          events.forEach((raw) => {
+            const evt = normalizeEvent(raw);
+            if (!evt.id || seen.has(evt.id) || !isChatEvent(evt)) return;
+            seen.add(evt.id);
+            sinceId = evt.id;
+            onChatEvent?.(evt);
+          });
+        }
       } catch {
         /* ignore */
       }

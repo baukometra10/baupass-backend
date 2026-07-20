@@ -66,20 +66,32 @@ def build_operations_inbox(
     items: list[dict[str, Any]] = []
     cid = (company_id or "").strip()
 
-    # Open security alerts
+    # Open security alerts (strict company scope when a firm is selected)
     try:
-        rows = db.execute(
-            """
-            SELECT id, company_id, worker_id, alert_type, severity, title, details_json, status, created_at
-            FROM security_alerts
-            WHERE status = 'open'
-            ORDER BY created_at DESC
-            LIMIT 100
-            """
-        ).fetchall()
+        if cid:
+            rows = db.execute(
+                """
+                SELECT id, company_id, worker_id, alert_type, severity, title, details_json, status, created_at
+                FROM security_alerts
+                WHERE status = 'open' AND company_id = ?
+                ORDER BY created_at DESC
+                LIMIT 100
+                """,
+                (cid,),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """
+                SELECT id, company_id, worker_id, alert_type, severity, title, details_json, status, created_at
+                FROM security_alerts
+                WHERE status = 'open'
+                ORDER BY created_at DESC
+                LIMIT 100
+                """
+            ).fetchall()
         for r in rows:
             row_cid = str(r["company_id"] or "").strip()
-            if cid and row_cid and row_cid != cid:
+            if cid and row_cid != cid:
                 continue
             items.append(
                 {
@@ -118,7 +130,7 @@ def build_operations_inbox(
     except Exception:
         pass
 
-    # System alerts (platform-wide; show to superadmin always, filter message for company hints)
+    # System alerts — only when they belong to the selected company (or global view without company)
     try:
         cond = "" if include_resolved else "AND resolved_at IS NULL"
         rows = db.execute(
@@ -132,8 +144,16 @@ def build_operations_inbox(
         ).fetchall()
         for r in rows:
             details = (r["details"] or "") if r else ""
-            if cid and details and cid not in details and f'"companyId": "{cid}"' not in details:
-                if role != "superadmin":
+            details_l = details.lower()
+            if cid:
+                # When a company is selected, never leak other tenants' / orphan platform noise.
+                mentions_company = (
+                    cid in details
+                    or f'"companyId": "{cid}"' in details
+                    or f'"company_id": "{cid}"' in details
+                    or f"company_id={cid}" in details_l
+                )
+                if not mentions_company:
                     continue
             code = str(r["code"] or "")
             title_map = {

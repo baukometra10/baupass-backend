@@ -3900,6 +3900,7 @@ async function loadOverview() {
     <div class="card"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
     <button type="button" class="card" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
       <span class="muted">${t("overview.inbox")}</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
+      <small class="muted">${t("overview.inboxHint")}</small>
     </button>
     ${extraCards}
   `;
