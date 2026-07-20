@@ -36,18 +36,22 @@ Höchster Nutzen: **GPS Auto-Ausstempel zu aggressiv**, **Chat-Dedup/Mute unvoll
 2. Strikte Server-Validierung qty/unitPrice/vat/discount (finite, positiv, Caps).
 
 ### Später
-- site_app Login-GPS erzwingen (Produkt klären)
-- Chat mark-read von GET trennen
-- Stripe URL-Allowlist + amount match
+- ~~site_app Login-GPS erzwingen~~ → Gate: GPS auch bei QR; site_app: Remote-Session OK, Presence nur mit GPS (`sitePresenceVerified`)
+- ~~Chat mark-read von GET trennen~~ → POST `/mark-read` nur bei sichtbarem Öffnen
+- ~~Stripe URL-Allowlist + amount match~~ → Return-URLs allowlisted; Paid nur bei Firma/Betrag/Währung
 
 ## Status
 
 - [x] Phase G1 umgesetzt (2026-07-20): 3× Off-Site-Polls; Offline Leave/NFC Geofence
 - [x] Phase H1 umgesetzt (2026-07-20): Worker Dedup + Mute vor Admin-Push + messageId
 - [x] Phase I1 umgesetzt (2026-07-20): Sandboxed Invoice-iframes + Line-Item-Validierung
+- [x] Phase G2/H2/I2 umgesetzt (2026-07-20): QR/Gate GPS, Chat mark-read, Stripe allowlist/amount
 
 ## Testplan
 
 - [ ] GPS: 1× Drift außerhalb → kein Checkout; 3× Off-Site → Checkout
 - [ ] Chat: Push+Socket nur 1 Piep; gemuteter Thread kein Admin-Push
 - [ ] Rechnung: Script in Preview führt nicht aus; negative qty → 400
+- [ ] Gate-QR ohne Standort → Login blockiert; site_app Remote-Login ohne Zutritt-Stempel
+- [ ] Quiet Chat-Poll setzt unread nicht zurück; Öffnen ruft mark-read
+- [ ] Fremde Stripe return_url wird verworfen; falscher Betrag markiert nicht paid

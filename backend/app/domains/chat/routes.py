@@ -125,8 +125,18 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             return forbidden_company()
         service = ChatService(get_db())
         messages = service.list_messages(thread_id, cid)
-        service.mark_thread_read(thread_id=thread_id, company_id=cid, reader_type="admin")
         return jsonify({"messages": messages})
+
+    @chat_core_bp.post("/chat/threads/<thread_id>/mark-read")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_thread_mark_read(thread_id: str):
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        ChatService(get_db()).mark_thread_read(thread_id=thread_id, company_id=cid, reader_type="admin")
+        return jsonify({"ok": True, "threadId": thread_id})
 
     @chat_core_bp.get("/chat/threads/<thread_id>/search")
     @require_auth
@@ -750,14 +760,29 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         try:
             messages = service.list_messages(thread_id, company_id)
             messages = [msg for msg in messages if str(msg.get("workerId")) == worker_id]
-            try:
-                service.mark_thread_read(thread_id=thread_id, company_id=company_id, reader_type="worker")
-            except Exception:
-                pass
             return jsonify({"messages": messages})
         except Exception:
             logging.getLogger(__name__).exception("worker_chat_messages failed for thread %s", thread_id)
             return jsonify({"error": "chat_load_failed", "message": "Nachrichten konnten nicht geladen werden.", "messages": []}), 500
+
+    @chat_core_bp.post("/worker-app/chat/threads/<thread_id>/mark-read")
+    @require_worker_session
+    def worker_chat_thread_mark_read(thread_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        service = ChatService(get_db())
+        row = get_db().execute(
+            "SELECT id FROM chat_threads WHERE id = ? AND company_id = ? AND worker_id = ?",
+            (thread_id, company_id, worker_id),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "thread_not_found"}), 404
+        service.mark_thread_read(thread_id=thread_id, company_id=company_id, reader_type="worker")
+        return jsonify({"ok": True, "threadId": thread_id})
 
     @chat_core_bp.get("/worker-app/chat/threads/<thread_id>/search")
     @require_worker_session

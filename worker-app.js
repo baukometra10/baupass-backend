@@ -13509,6 +13509,17 @@ async function loadWorkerChat(options = {}) {
       /* local prefs */
     }
     renderWorkerChatMessages(messages, { quiet });
+    if (!quiet) {
+      try {
+        await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/mark-read`, {
+          method: "POST",
+          headers: buildWorkerAuthHeaders(),
+          body: {},
+        });
+      } catch {
+        /* unread may linger */
+      }
+    }
     bindWorkerChatClearActions();
     bindWorkerChatComposeEvents();
     syncWorkerComposeAction();

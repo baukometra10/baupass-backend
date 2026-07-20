@@ -12889,7 +12889,8 @@ def validate_worker_login_distance_or_raise(db, worker, payload):
     site_cfg = get_company_site_access_config(db, worker["company_id"])
     location = payload.get("location") if isinstance(payload, dict) else None
 
-    # site_app: session from anywhere; GPS only records on-site presence when sent.
+    # site_app: app session allowed from anywhere; on-site stamps only when GPS proves presence.
+    # gate: GPS required at login (see badge branch). One-time visitor links stay remote-friendly.
     if site_cfg["accessMode"] == "site_app":
         if not isinstance(location, dict):
             return None
@@ -14108,7 +14109,10 @@ def worker_app_login():
     if not company_has_feature(plan_value, "worker_app"):
         return feature_not_available_response("worker_app", plan_value)
 
-    if not qr_launch:
+    # QR may skip GPS only for site_app remote sessions. Gate mode always requires location.
+    site_cfg_preview = get_company_site_access_config(db, worker["company_id"])
+    skip_gps_for_qr = bool(qr_launch) and site_cfg_preview.get("accessMode") == "site_app"
+    if not skip_gps_for_qr:
         try:
             validate_worker_login_distance_or_raise(db, worker, payload)
         except (ValueError, PermissionError) as exc:
@@ -14125,8 +14129,10 @@ def worker_app_login():
                 measured = measure_worker_site_distance(db, worker, location)
             except (ValueError, PermissionError):
                 measured = None
-        site_cfg = get_company_site_access_config(db, worker["company_id"])
+        site_cfg = site_cfg_preview
         on_site = bool(measured and measured.get("onSite"))
+        session_data["sitePresenceVerified"] = on_site
+        session_data["accessMode"] = site_cfg.get("accessMode") or ""
         if on_site and site_cfg["accessMode"] == "site_app":
             geofence_id = (measured or {}).get("geofenceId")
             from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today

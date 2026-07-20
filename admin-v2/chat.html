@@ -3565,6 +3565,14 @@
           updateChatHead(name, workerId);
           syncAdminThreadCompose();
           setThreadMeta(name ? window.adminChatT("chatWith", { name }) : window.adminChatT("threadLabel", { id: currentThreadId }), { dynamic: true });
+          try {
+            await api(`/api/chat/threads/${encodeURIComponent(currentThreadId)}/mark-read?company_id=${encodeURIComponent(companyId)}`, {
+              method: "POST",
+              body: {},
+            });
+          } catch {
+            /* unread badge may linger until next open */
+          }
         }
         const list = document.getElementById("messageList");
         list.innerHTML = renderMessageListHtml(messages);

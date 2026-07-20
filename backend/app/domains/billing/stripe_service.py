@@ -37,6 +37,44 @@ def _public_base_url() -> str:
     return (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
 
 
+def _allowed_return_url_hosts() -> set[str]:
+    hosts: set[str] = set()
+    base = _public_base_url()
+    if base:
+        try:
+            hosts.add(parse.urlparse(base).netloc.lower())
+        except Exception:
+            pass
+    extra = (os.getenv("BAUPASS_STRIPE_RETURN_HOSTS") or "").strip()
+    for part in extra.split(","):
+        host = part.strip().lower()
+        if host:
+            hosts.add(host.split("/")[0])
+    return {h for h in hosts if h}
+
+
+def allowlisted_return_url(candidate: str, *, fallback: str) -> str:
+    """Only allow http(s) return URLs on PUBLIC_BASE_URL (or BAUPASS_STRIPE_RETURN_HOSTS)."""
+    raw = str(candidate or "").strip()
+    fb = str(fallback or "").strip() or "/"
+    if not raw:
+        return fb
+    try:
+        parsed = parse.urlparse(raw)
+    except Exception:
+        return fb
+    if parsed.scheme not in ("http", "https"):
+        return fb
+    host = str(parsed.netloc or "").lower()
+    allowed = _allowed_return_url_hosts()
+    if not allowed:
+        # No PUBLIC_BASE_URL configured: prefer fallback over arbitrary client URLs.
+        return fb
+    if host not in allowed:
+        return fb
+    return raw
+
+
 def stripe_configured() -> bool:
     return bool(_stripe_key())
 
@@ -178,9 +216,15 @@ def create_checkout_session(
     if not price_id:
         raise ValueError("stripe_price_not_configured")
     customer_id = get_or_create_customer(db, company_id)
-    base = _public_base_url() or success_url.rsplit("?", 1)[0] or "/"
-    ok_url = success_url or f"{base}/?billing=success&plan={normalized}"
-    no_url = cancel_url or f"{base}/?billing=cancel"
+    base = _public_base_url() or "/"
+    ok_url = allowlisted_return_url(
+        success_url,
+        fallback=f"{base}/?billing=success&plan={normalized}" if base != "/" else f"/?billing=success&plan={normalized}",
+    )
+    no_url = allowlisted_return_url(
+        cancel_url,
+        fallback=f"{base}/?billing=cancel" if base != "/" else "/?billing=cancel",
+    )
     payload = {
         "mode": "subscription",
         "customer": customer_id,
@@ -232,7 +276,11 @@ def create_checkout_session(
 
 def create_customer_portal_session(db, company_id: str, *, return_url: str = "") -> dict[str, Any]:
     customer_id = get_or_create_customer(db, company_id)
-    ret = return_url or f"{_public_base_url()}/?billing=portal"
+    base = _public_base_url() or "/"
+    ret = allowlisted_return_url(
+        return_url,
+        fallback=f"{base}/?billing=portal" if base != "/" else "/?billing=portal",
+    )
     session = _stripe_request(
         "POST",
         "/billing_portal/sessions",
@@ -343,12 +391,33 @@ def _apply_company_plan(db, company_id: str, plan: str, *, subscription_id: str 
     )
 
 
-def _mark_invoice_paid_from_stripe(db, invoice_id: str, *, payment_ref: str = "", note: str = "") -> bool:
+def _mark_invoice_paid_from_stripe(
+    db,
+    invoice_id: str,
+    *,
+    payment_ref: str = "",
+    note: str = "",
+    expected_company_id: str = "",
+    amount_received_cents: int | None = None,
+    currency: str = "",
+) -> bool:
     from backend.server import log_audit, now_iso
 
     invoice = db.execute("SELECT * FROM invoices WHERE id = ?", (invoice_id,)).fetchone()
     if not invoice or str(invoice["paid_at"] or "").strip():
         return False
+    company_id = str(invoice["company_id"] or "")
+    if expected_company_id and company_id and expected_company_id != company_id:
+        return False
+    if currency and str(currency).lower() not in ("", "eur"):
+        return False
+    if amount_received_cents is not None:
+        try:
+            expected_cents = int(round(float(invoice["total_amount"] or 0) * 100))
+        except (TypeError, ValueError):
+            expected_cents = 0
+        if abs(int(amount_received_cents) - expected_cents) > 1:
+            return False
     payment_date = now_iso().split("T")[0]
     payment_note = note or f"Stripe: {payment_ref}".strip()
     db.execute(
@@ -359,7 +428,6 @@ def _mark_invoice_paid_from_stripe(db, invoice_id: str, *, payment_ref: str = ""
         """,
         (payment_date, payment_note, invoice_id),
     )
-    company_id = str(invoice["company_id"] or "")
     company = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
     log_audit(
         "invoice.paid_stripe",
@@ -385,6 +453,18 @@ def _mark_invoice_paid_from_stripe(db, invoice_id: str, *, payment_ref: str = ""
             company_id=company_id,
         )
     return True
+
+
+def _stripe_amount_cents(data_obj: dict[str, Any]) -> int | None:
+    for key in ("amount_total", "amount_received", "amount"):
+        raw = data_obj.get(key)
+        if raw is None:
+            continue
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
@@ -419,6 +499,9 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
                 db,
                 invoice_id,
                 payment_ref=str(data_obj.get("payment_intent") or data_obj.get("id") or ""),
+                expected_company_id=company_id,
+                amount_received_cents=_stripe_amount_cents(data_obj),
+                currency=str(data_obj.get("currency") or ""),
             )
             handled = True
         elif company_id:
@@ -427,7 +510,14 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
             if subscription_id:
                 _apply_company_plan(db, company_id, plan, subscription_id=subscription_id, status="active", billing_cycle=billing_cycle)
             if invoice_id:
-                _mark_invoice_paid_from_stripe(db, invoice_id, payment_ref=str(data_obj.get("payment_intent") or data_obj.get("id") or ""))
+                _mark_invoice_paid_from_stripe(
+                    db,
+                    invoice_id,
+                    payment_ref=str(data_obj.get("payment_intent") or data_obj.get("id") or ""),
+                    expected_company_id=company_id,
+                    amount_received_cents=_stripe_amount_cents(data_obj),
+                    currency=str(data_obj.get("currency") or ""),
+                )
             handled = True
 
     elif event_type in ("customer.subscription.updated", "customer.subscription.created"):
@@ -465,8 +555,16 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
     elif event_type == "invoice.paid":
         meta = data_obj.get("metadata") or {}
         invoice_id = str(meta.get("invoice_id") or meta.get("baupass_invoice_id") or "")
+        company_id = str(meta.get("company_id") or "")
         if invoice_id:
-            _mark_invoice_paid_from_stripe(db, invoice_id, payment_ref=str(data_obj.get("id") or ""))
+            _mark_invoice_paid_from_stripe(
+                db,
+                invoice_id,
+                payment_ref=str(data_obj.get("id") or ""),
+                expected_company_id=company_id,
+                amount_received_cents=_stripe_amount_cents(data_obj),
+                currency=str(data_obj.get("currency") or ""),
+            )
             handled = True
 
     elif event_type == "invoice.payment_failed":
@@ -482,8 +580,16 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
     elif event_type == "payment_intent.succeeded":
         meta = data_obj.get("metadata") or {}
         invoice_id = str(meta.get("invoice_id") or meta.get("baupass_invoice_id") or "")
+        company_id = str(meta.get("company_id") or "")
         if invoice_id:
-            _mark_invoice_paid_from_stripe(db, invoice_id, payment_ref=str(data_obj.get("id") or ""))
+            _mark_invoice_paid_from_stripe(
+                db,
+                invoice_id,
+                payment_ref=str(data_obj.get("id") or ""),
+                expected_company_id=company_id,
+                amount_received_cents=_stripe_amount_cents(data_obj),
+                currency=str(data_obj.get("currency") or ""),
+            )
             handled = True
 
     _mark_event(db, event_id, event_type)
