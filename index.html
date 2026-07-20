@@ -472,6 +472,14 @@
             <button type="button" id="dashExpiringDocsBtn" class="ghost-button small-button" data-ui-i18n="dashExpiringOpenDocs">Alle Dokumente</button>
           </div>
           <div id="dashboardExpiringDocsPanel" class="list"></div>
+          <hr class="dashboard-compliance-divider" />
+          <div class="panel-heading dashboard-compliance-subhead">
+            <div>
+              <h4>DSGVO-Anfragen</h4>
+            </div>
+            <button type="button" id="dashGdprRefreshBtn" class="ghost-button small-button">Aktualisieren</button>
+          </div>
+          <div id="dashboardGdprRequestsPanel" class="list"></div>
         </article>
 
         <article class="panel" id="decisionsTodayPanel">
@@ -2226,6 +2234,19 @@
               </div>
             </div>
             <div id="compliancePanel" class="card-list"></div>
+
+            <div class="divider"></div>
+
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">DSGVO</p>
+                <h3>Auskunft- &amp; Löschanfragen</h3>
+              </div>
+              <button type="button" id="gdprRequestsRefreshBtn" class="ghost-button small-button">Aktualisieren</button>
+            </div>
+            <div id="gdprRequestsPanel" class="card-list">
+              <p class="helper-text muted">Anfragen aus der Mitarbeiter-App erscheinen hier.</p>
+            </div>
 
             <div class="divider"></div>
 

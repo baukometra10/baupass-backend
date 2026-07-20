@@ -45,6 +45,7 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/company-admins", "worker_get_company_admins", ["GET"]),
     ("/legal", "worker_app_legal", ["GET"]),
     ("/privacy-consent", "worker_app_privacy_consent", ["POST"]),
+    ("/gdpr-requests", "worker_app_gdpr_requests", ["GET", "POST"]),
     ("/site-presence", "worker_app_site_presence", ["POST"]),
     ("/site-leave", "worker_app_site_leave", ["POST"]),
     ("/attendance/nfc", "worker_app_attendance_nfc", ["POST"]),

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Datenschutz — SUPPIX</title>
+  <style>
+    :root { color-scheme: light; --fg:#0f172a; --muted:#475569; --bg:#f8fafc; --card:#fff; --accent:#0f766e; }
+    body { margin:0; font-family: Georgia, "Times New Roman", serif; background:linear-gradient(180deg,#ecfeff,#f8fafc 40%); color:var(--fg); }
+    main { max-width: 42rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+    h1 { font-size: 1.85rem; margin: 0 0 .35rem; letter-spacing: -0.02em; }
+    .eyebrow { text-transform: uppercase; letter-spacing: .08em; font-size: .72rem; color: var(--accent); font-family: system-ui,sans-serif; font-weight: 700; }
+    .card { background: var(--card); border-radius: 14px; padding: 1.25rem 1.35rem; box-shadow: 0 10px 30px rgba(15,23,42,.06); margin-top: 1.25rem; white-space: pre-wrap; line-height: 1.55; }
+    .muted { color: var(--muted); font-family: system-ui,sans-serif; font-size: .92rem; }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Rechtliches</p>
+    <h1>Datenschutz</h1>
+    <p class="muted">Store- / Web-URL für die SUPPIX Mitarbeiter-App. Texte werden aus den Admin-Einstellungen geladen.</p>
+    <div id="body" class="card muted">Wird geladen…</div>
+    <p class="muted" style="margin-top:1rem"><a href="/">Zur Anmeldung</a> · <a href="/impressum.html">Impressum</a></p>
+  </main>
+  <script>
+    (async () => {
+      const el = document.getElementById("body");
+      try {
+        const res = await fetch("/api/public/tenant-branding", { credentials: "omit" });
+        const data = await res.json();
+        const text = (data.datenschutzText || "").trim();
+        el.textContent = text || "Noch keine Datenschutzerklärung hinterlegt. Bitte Admin → Rechtliches pflegen.";
+        el.classList.toggle("muted", !text);
+      } catch (e) {
+        el.textContent = "Datenschutztext konnte nicht geladen werden.";
+      }
+    })();
+  </script>
+</body>
+</html>

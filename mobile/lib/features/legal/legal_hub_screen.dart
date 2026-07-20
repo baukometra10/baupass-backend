@@ -27,6 +27,7 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
   final _repo = LegalRepository(ApiClient());
   LegalContent? _content;
   bool _loading = true;
+  bool _submittingGdpr = false;
   String? _error;
   bool _openedInitial = false;
 
@@ -81,6 +82,36 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
         builder: (_) => LegalDocumentScreen(kind: kind, content: content),
       ),
     );
+  }
+
+  Future<void> _submitGdpr(String type) async {
+    setState(() => _submittingGdpr = true);
+    try {
+      await ApiClient().postJson(
+        '/api/worker-app/gdpr-requests',
+        bearerToken: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+        body: {'requestType': type},
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            type == 'erasure'
+                ? 'Löschanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.'
+                : 'Auskunftsanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.',
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.friendlyMessage)));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      if (mounted) setState(() => _submittingGdpr = false);
+    }
   }
 
   Future<void> _mail(String email) async {
@@ -177,6 +208,32 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
                         : 'Erklärung fehlt — Kontakt unten',
                     enabled: content != null,
                     onTap: () => _openDocument(LegalDocumentKind.datenschutz),
+                  ),
+                  const SizedBox(height: 20),
+                  Text('Ihre Rechte (DSGVO)', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Art. 15 Auskunft · Art. 17 Löschung — Anfrage an Ihren Arbeitgeber.',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _submittingGdpr ? null : () => _submitGdpr('access'),
+                        icon: const Icon(Icons.folder_shared_outlined, size: 18),
+                        label: const Text('Auskunft anfordern'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: _submittingGdpr ? null : () => _submitGdpr('erasure'),
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        label: const Text('Löschung anfordern'),
+                      ),
+                    ],
                   ),
                   if (content?.controller?.hasAny == true) ...[
                     const SizedBox(height: 24),

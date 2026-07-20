@@ -63,6 +63,7 @@ class LegalContent {
     required this.datenschutzText,
     required this.hasImpressum,
     required this.hasDatenschutz,
+    this.contentVersion = 'v0',
     this.controller,
     this.operator,
     this.sectionTitle = 'Impressum & Datenschutz',
@@ -73,6 +74,7 @@ class LegalContent {
   final String datenschutzText;
   final bool hasImpressum;
   final bool hasDatenschutz;
+  final String contentVersion;
   final LegalContact? controller;
   final LegalContact? operator;
   final String sectionTitle;
@@ -92,6 +94,9 @@ class LegalContent {
       datenschutzText: datenschutz,
       hasImpressum: json['hasImpressum'] == true || impressum.isNotEmpty,
       hasDatenschutz: json['hasDatenschutz'] == true || datenschutz.isNotEmpty,
+      contentVersion: (json['contentVersion'] as String?)?.trim().isNotEmpty == true
+          ? (json['contentVersion'] as String).trim()
+          : 'v0',
       controller: LegalContact.fromJson(asMap(json['controller'])),
       operator: LegalContact.fromJson(asMap(json['operator'])),
       sectionTitle: (json['sectionTitle'] as String?)?.trim().isNotEmpty == true

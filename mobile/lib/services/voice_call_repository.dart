@@ -184,6 +184,7 @@ class WorkerVoiceCallSession {
     required this.onState,
     this.onRemoteStream,
     this.onAudioLevels,
+    this.onConnectionDiag,
   });
 
   final VoiceCallRepository repo;
@@ -192,6 +193,7 @@ class WorkerVoiceCallSession {
   final void Function(String state) onState;
   final void Function(MediaStream stream)? onRemoteStream;
   final void Function(double local, double remote)? onAudioLevels;
+  final void Function(String summary)? onConnectionDiag;
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
@@ -290,6 +292,8 @@ class WorkerVoiceCallSession {
         final stats = await pc.getStats();
         var local = 0.0;
         var remote = 0.0;
+        String iceState = '${pc.iceConnectionState ?? ''}';
+        String selectedType = '';
         for (final report in stats) {
           final values = report.values;
           final type = report.type;
@@ -301,9 +305,26 @@ class WorkerVoiceCallSession {
             final level = values['audioLevel'];
             if (level is num) remote = math.max(remote, level.toDouble().clamp(0.0, 1.0));
           }
+          if (type == 'candidate-pair' && (values['state'] == 'succeeded' || values['nominated'] == true)) {
+            final localCandId = values['localCandidateId']?.toString() ?? '';
+            if (localCandId.isNotEmpty) {
+              for (final other in stats) {
+                if (other.id == localCandId) {
+                  selectedType = (other.values['candidateType'] ?? other.values['type'] ?? '').toString();
+                }
+              }
+            }
+          }
         }
         if (_muted) local = 0;
         onAudioLevels?.call(local, remote);
+        if (onConnectionDiag != null) {
+          final bits = <String>[
+            if (iceState.isNotEmpty) 'ICE: $iceState',
+            if (selectedType.isNotEmpty) 'Pfad: $selectedType',
+          ];
+          if (bits.isNotEmpty) onConnectionDiag!(bits.join(' · '));
+        }
       } catch (_) {
         /* ignore transient stats errors */
       }

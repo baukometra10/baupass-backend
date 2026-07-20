@@ -42,6 +42,7 @@ class VoiceCallController extends ChangeNotifier {
   bool _speakerOn = true;
   double _localLevel = 0;
   double _remoteLevel = 0;
+  String _connectionDiag = '';
   String? _lastDismissedCallId;
   bool _isOutgoing = false;
   AudioPlayer? _ringPlayer;
@@ -63,6 +64,7 @@ class VoiceCallController extends ChangeNotifier {
   bool get speakerOn => _speakerOn;
   double get localLevel => _localLevel;
   double get remoteLevel => _remoteLevel;
+  String get connectionDiag => _connectionDiag;
   bool get isActive => _phase != VoiceCallUiPhase.idle && _phase != VoiceCallUiPhase.ended;
   WorkerVoiceCallSession? get rtcSession => _sessionRtc;
 
@@ -344,6 +346,11 @@ class VoiceCallController extends ChangeNotifier {
           _remoteLevel = remote;
           notifyListeners();
         },
+        onConnectionDiag: (summary) {
+          if (_connectionDiag == summary) return;
+          _connectionDiag = summary;
+          notifyListeners();
+        },
       );
       await _sessionRtc!.startOutgoing();
       await _sessionRtc!.setSpeakerphone(_speakerOn);
@@ -423,6 +430,11 @@ class VoiceCallController extends ChangeNotifier {
       onAudioLevels: (local, remote) {
         _localLevel = local;
         _remoteLevel = remote;
+        notifyListeners();
+      },
+      onConnectionDiag: (summary) {
+        if (_connectionDiag == summary) return;
+        _connectionDiag = summary;
         notifyListeners();
       },
     );
@@ -534,6 +546,7 @@ class VoiceCallController extends ChangeNotifier {
     _muted = false;
     _localLevel = 0;
     _remoteLevel = 0;
+    _connectionDiag = '';
     _isOutgoing = false;
     _phase = VoiceCallUiPhase.ended;
     _statusNote = note;

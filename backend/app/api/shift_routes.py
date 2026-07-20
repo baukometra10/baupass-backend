@@ -15,6 +15,7 @@ SHIFT_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/shift/swaps", "shift_get_swaps", ["GET"]),
     ("/shift/propose-swap", "shift_propose_swap", ["POST"]),
     ("/shift/respond-swap/<swap_id>", "shift_respond_swap", ["POST"]),
+    ("/shift/cancel-swap/<swap_id>", "shift_cancel_swap", ["POST"]),
     ("/foreman/shift-assignments", "foreman_shift_assignments", ["GET"]),
 )
 

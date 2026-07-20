@@ -28521,6 +28521,7 @@ def worker_app_gdpr_requests():
     """Mitarbeiter: DSGVO-Auskunft/Löschung anfragen oder eigene Anfragen lesen."""
     worker = g.worker
     db = get_db()
+    _ensure_gdpr_requests_table(db)
     try:
         db.execute(
             """
@@ -28609,6 +28610,144 @@ def worker_app_gdpr_requests():
     except Exception:
         pass
     return jsonify({"ok": True, "id": req_id, "requestType": request_type, "status": "pending"}), 201
+
+
+def _ensure_gdpr_requests_table(db):
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gdpr_requests (
+                id              TEXT PRIMARY KEY,
+                request_type    TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                requester_type  TEXT NOT NULL,
+                requester_id    TEXT NOT NULL,
+                company_id      TEXT NOT NULL,
+                worker_id       TEXT,
+                submitted_at    TEXT NOT NULL,
+                completed_at    TEXT,
+                expires_at      TEXT,
+                notes           TEXT,
+                processed_by    TEXT
+            )
+            """
+        )
+        db.commit()
+    except Exception:
+        pass
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def admin_gdpr_requests_list():
+    """Admin: offene und erledigte DSGVO-Anfragen der Firma."""
+    db = get_db()
+    _ensure_gdpr_requests_table(db)
+    user = g.current_user
+    status = str(request.args.get("status") or "").strip().lower()
+    limit = max(1, min(200, int(request.args.get("limit") or 80)))
+    params = []
+    where = ["1=1"]
+    if user.get("role") != "superadmin":
+        where.append("gr.company_id = ?")
+        params.append(str(user.get("company_id") or ""))
+    elif request.args.get("companyId"):
+        where.append("gr.company_id = ?")
+        params.append(str(request.args.get("companyId")).strip())
+    if status in {"pending", "completed", "rejected"}:
+        where.append("gr.status = ?")
+        params.append(status)
+    params.append(limit)
+    rows = db.execute(
+        f"""
+        SELECT
+            gr.id,
+            gr.request_type,
+            gr.status,
+            gr.company_id,
+            gr.worker_id,
+            gr.submitted_at,
+            gr.completed_at,
+            gr.notes,
+            gr.processed_by,
+            w.first_name,
+            w.last_name,
+            c.name AS company_name
+        FROM gdpr_requests gr
+        LEFT JOIN workers w ON w.id = gr.worker_id
+        LEFT JOIN companies c ON c.id = gr.company_id
+        WHERE {' AND '.join(where)}
+        ORDER BY
+            CASE WHEN gr.status = 'pending' THEN 0 ELSE 1 END,
+            gr.submitted_at DESC
+        LIMIT ?
+        """,
+        tuple(params),
+    ).fetchall()
+    return jsonify({
+        "requests": [
+            {
+                "id": r["id"],
+                "requestType": r["request_type"],
+                "status": r["status"],
+                "companyId": r["company_id"],
+                "companyName": r["company_name"] or "",
+                "workerId": r["worker_id"] or "",
+                "workerName": f"{r['first_name'] or ''} {r['last_name'] or ''}".strip(),
+                "submittedAt": r["submitted_at"],
+                "completedAt": r["completed_at"],
+                "notes": r["notes"] or "",
+                "processedBy": r["processed_by"] or "",
+            }
+            for r in rows
+        ]
+    })
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def admin_gdpr_request_resolve(request_id):
+    """Admin: DSGVO-Anfrage abschließen oder ablehnen."""
+    db = get_db()
+    _ensure_gdpr_requests_table(db)
+    user = g.current_user
+    payload = request.get_json(silent=True) or {}
+    new_status = str(payload.get("status") or "").strip().lower()
+    if new_status not in {"completed", "rejected"}:
+        return jsonify({"error": "invalid_status"}), 400
+    notes = str(payload.get("notes") or "")[:2000]
+    row = db.execute("SELECT * FROM gdpr_requests WHERE id = ?", (request_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not_found"}), 404
+    if user.get("role") != "superadmin" and str(row["company_id"]) != str(user.get("company_id") or ""):
+        return jsonify({"error": "forbidden_company"}), 403
+    db.execute(
+        """
+        UPDATE gdpr_requests
+        SET status = ?, completed_at = ?, notes = CASE WHEN ? != '' THEN ? ELSE notes END, processed_by = ?
+        WHERE id = ?
+        """,
+        (
+            new_status,
+            now_iso(),
+            notes,
+            notes,
+            str(user.get("id") or user.get("name") or "admin"),
+            request_id,
+        ),
+    )
+    db.commit()
+    try:
+        log_audit(
+            "gdpr.resolve",
+            f"{new_status}: {request_id}",
+            target_type="gdpr_request",
+            target_id=request_id,
+            company_id=str(row["company_id"]),
+        )
+    except Exception:
+        pass
+    return jsonify({"ok": True, "id": request_id, "status": new_status})
 
 
 @require_worker_session

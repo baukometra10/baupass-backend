@@ -11,8 +11,10 @@ import '../../core/tenant_branding.dart';
 import '../../services/branding_applier.dart';
 import '../../services/location_service.dart';
 import '../../services/push_notification_service.dart';
+import '../../services/public_legal_loader.dart';
 import '../../services/tenant_branding_loader.dart';
 import '../../widgets/tenant_brand_mark.dart';
+import '../legal/public_legal_screen.dart';
 import 'qr_scan_panel.dart';
 
 /// QR-first onboarding: SUPPIX shell icon, company branding after scan/login.
@@ -46,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   TenantBranding _shellBranding = TenantBranding.suppixShell;
   TenantBranding _companyBranding = TenantBranding.fallback;
+  PublicLegalBundle _legal = PublicLegalBundle.empty;
 
   @override
   void initState() {
@@ -54,6 +57,25 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = widget.initialError;
     }
     _loadShellBranding();
+    _loadLegal();
+  }
+
+  Future<void> _loadLegal() async {
+    final legal = await PublicLegalLoader.load();
+    if (!mounted) return;
+    setState(() => _legal = legal);
+  }
+
+  void _openLegal({required bool privacy}) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PublicLegalScreen(
+          title: privacy ? 'Datenschutz' : 'Impressum',
+          body: privacy ? _legal.datenschutzText : _legal.impressumText,
+          controller: privacy ? _legal.controller : _legal.controller,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadShellBranding() async {
@@ -297,6 +319,33 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
             ],
+            const SizedBox(height: 28),
+            Center(
+              child: Text(
+                'Rechtliches',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                TextButton(
+                  onPressed: () => _openLegal(privacy: false),
+                  child: const Text('Impressum'),
+                ),
+                Text(
+                  '·',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                TextButton(
+                  onPressed: () => _openLegal(privacy: true),
+                  child: const Text('Datenschutz'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

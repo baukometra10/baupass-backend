@@ -9,10 +9,12 @@ class ShiftsTab extends StatefulWidget {
     super.key,
     required this.session,
     required this.tasks,
+    this.initialInnerTab = 0,
   });
 
   final WorkerSession session;
   final TasksRepository tasks;
+  final int initialInnerTab;
 
   @override
   State<ShiftsTab> createState() => _ShiftsTabState();
@@ -32,7 +34,11 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialInnerTab.clamp(0, 1),
+    );
     _load();
   }
 
@@ -122,10 +128,26 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         return 'Angenommen';
       case 'rejected':
         return 'Abgelehnt';
+      case 'cancelled':
+        return 'Zurückgezogen';
       case 'pending':
         return 'Offen';
       default:
         return status?.isNotEmpty == true ? status! : '—';
+    }
+  }
+
+  Future<void> _cancelSwap(String swapId) async {
+    try {
+      await widget.tasks.cancelShiftSwap(session: widget.session, swapId: swapId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Anfrage zurückgezogen')),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_friendlyError(e))));
     }
   }
 
@@ -467,6 +489,12 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
                       child: const Text('Ablehnen'),
                     ),
                   ],
+                ),
+              ] else if (direction == 'outbound' && status == 'pending') ...[
+                const SizedBox(height: 8),
+                OutlinedButton(
+                  onPressed: () => _cancelSwap((s['id'] ?? '').toString()),
+                  child: const Text('Zurückziehen'),
                 ),
               ],
             ],

@@ -17,12 +17,16 @@ def _register_core_compliance_routes() -> None:
         compliance_expiring_docs,
         compliance_overview,
         compliance_reports_get,
+        admin_gdpr_requests_list,
+        admin_gdpr_request_resolve,
     )
 
     rules = (
         ("/compliance/overview", compliance_overview, ("GET",)),
         ("/compliance/expiring-docs", compliance_expiring_docs, ("GET",)),
         ("/compliance-reports", compliance_reports_get, ("GET",)),
+        ("/gdpr-requests", admin_gdpr_requests_list, ("GET",)),
+        ("/gdpr-requests/<request_id>/resolve", admin_gdpr_request_resolve, ("POST",)),
     )
     for path, view_func, methods in rules:
         compliance_core_bp.add_url_rule(path, view_func=view_func, methods=list(methods))

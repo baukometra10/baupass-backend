@@ -8,6 +8,7 @@ import 'package:record/record.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/session_store.dart';
 import '../../services/ai_assistant_service.dart';
+import 'worker_ai_offline_fallback.dart';
 
 /// On-site assistant for workers (HR agent, live tenant data).
 class WorkerAiScreen extends StatefulWidget {
@@ -79,6 +80,12 @@ class _WorkerAiScreenState extends State<WorkerAiScreen> {
       _loading = true;
       _messages.add(_ChatMsg(role: 'user', text: q));
     });
+    if (!_configured) {
+      final offline = WorkerAiOfflineFallback.answer(q) ?? 'Keine Antwort.';
+      _messages.add(_ChatMsg(role: 'bot', text: offline));
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     _messages.add(_ChatMsg(role: 'bot', text: ''));
     final botIdx = _messages.length - 1;
     try {

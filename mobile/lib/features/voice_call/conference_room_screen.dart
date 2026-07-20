@@ -397,10 +397,51 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                   ),
                 ),
               ),
+            if (!_connecting && _error == null && _camOn && _anyRemoteCamOff)
+              Positioned(
+                left: 16,
+                right: 16,
+                bottom: 108,
+                child: Material(
+                  color: const Color(0xEE334155),
+                  borderRadius: BorderRadius.circular(12),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    child: Row(
+                      children: [
+                        Icon(Icons.hourglass_top, color: Colors.white70),
+                        SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Gegenüber: Kamera noch aus — warte auf Video…',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
     );
+  }
+
+  bool get _anyRemoteCamOff {
+    final room = _room;
+    if (room == null || room.remoteParticipants.isEmpty) return false;
+    for (final p in room.remoteParticipants.values) {
+      var hasVideo = false;
+      for (final pub in p.videoTrackPublications) {
+        if (pub.track is VideoTrack && !pub.muted) {
+          hasVideo = true;
+          break;
+        }
+      }
+      if (!hasVideo) return true;
+    }
+    return false;
   }
 }
 
@@ -450,21 +491,46 @@ class _ParticipantTile extends StatelessWidget {
               left: 8,
               right: 8,
               bottom: 8,
-              child: Text(
-                display,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  shadows: [Shadow(blurRadius: 6, color: Colors.black54)],
-                ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      display,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        shadows: [Shadow(blurRadius: 6, color: Colors.black54)],
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _micOn ? Icons.mic : Icons.mic_off,
+                    size: 16,
+                    color: _micOn ? const Color(0xFF5EEAD4) : const Color(0xFFFCA5A5),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    video != null ? Icons.videocam : Icons.videocam_off,
+                    size: 16,
+                    color: video != null ? const Color(0xFF5EEAD4) : const Color(0xFFFCA5A5),
+                  ),
+                ],
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  bool get _micOn {
+    for (final pub in participant.audioTrackPublications) {
+      if (pub.track != null && !pub.muted) return true;
+    }
+    // No publication yet → treat as muted/unknown (show mic_off).
+    return false;
   }
 }
 

@@ -31,6 +31,7 @@ import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
 import '../ai/worker_ai_screen.dart';
 import '../chat/chat_screen.dart';
+import '../../services/legal_repository.dart';
 import '../legal/privacy_consent_dialog.dart';
 import '../profile/profile_screen.dart';
 import '../tasks/tasks_screen.dart';
@@ -83,6 +84,7 @@ class WorkerShell extends StatefulWidget {
 class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   int _index = 0;
   int _tasksSubTab = 0;
+  int _shiftsInnerTab = 0;
   int _offlinePending = 0;
   TenantBranding _branding = TenantBranding.fallback;
   final _brandingApplier = BrandingApplier();
@@ -170,12 +172,19 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
 
   Future<void> _maybeShowPrivacyConsent() async {
     final store = PrivacyConsentStore();
-    if (await store.hasAccepted()) return;
+    String contentVersion = PrivacyConsentStore.version;
+    try {
+      final legal = await LegalRepository(ApiClient()).fetch(widget.session);
+      contentVersion = legal.contentVersion.isNotEmpty ? legal.contentVersion : contentVersion;
+    } catch (_) {
+      /* optional */
+    }
+    if (await store.hasAccepted(contentVersion: contentVersion)) return;
     if (!mounted) return;
     final accepted = await showPrivacyConsentDialog(context, session: widget.session);
     if (!mounted) return;
     if (accepted == true) {
-      await store.accept();
+      await store.accept(contentVersion: contentVersion);
       try {
         await ApiClient().postJson(
           '/api/worker-app/privacy-consent',
@@ -183,7 +192,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           deviceId: widget.session.deviceId,
           body: {
             'granted': true,
-            'version': PrivacyConsentStore.version,
+            'version': contentVersion,
             'consentType': 'privacy_app',
           },
         );
@@ -212,6 +221,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     setState(() {
       _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
       _tasksSubTab = route.tasksSubTab.clamp(0, 4);
+      _shiftsInnerTab = route.shiftsInnerTab.clamp(0, 1);
     });
     if (route.openChat && mounted) {
       widget.usage.trackFeature(
@@ -365,12 +375,13 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
         embedded: true,
       ),
       TasksScreen(
-        key: ValueKey('tasks-$_tasksSubTab'),
+        key: ValueKey('tasks-$_tasksSubTab-$_shiftsInnerTab'),
         session: widget.session,
         tasks: widget.tasks,
         auth: widget.auth,
         workerCache: widget.workerCache,
         initialTab: _tasksSubTab,
+        shiftsInnerTab: _shiftsInnerTab,
       ),
       ChatScreen(session: widget.session, chat: widget.chat, voiceCall: _voiceCall),
       ProfileScreen(

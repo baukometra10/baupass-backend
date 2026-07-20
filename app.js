@@ -9318,6 +9318,8 @@ const elements = {
   invoiceCompanySelect: document.querySelector("#invoiceCompanySelect"),
   companyList: document.querySelector("#companyList"),
   compliancePanel: document.querySelector("#compliancePanel"),
+  gdprRequestsPanel: document.querySelector("#gdprRequestsPanel"),
+  dashboardGdprRequestsPanel: document.querySelector("#dashboardGdprRequestsPanel"),
   auditLogPanel: document.querySelector("#auditLogPanel"),
   dayCloseAcknowledgeForm: document.querySelector("#dayCloseAcknowledgeForm"),
   dayCloseComment: document.querySelector("#dayCloseComment"),
@@ -9544,6 +9546,7 @@ const state = {
   identityTokenByWorker: {},
   complianceOverview: [],
   complianceExpiringDocs: [],
+  gdprRequests: [],
   auditLogs: [],
   repairHistoryWindowDays: 30,
   onlyCompaniesWithRepairs: false,
@@ -20696,6 +20699,14 @@ async function loadAllData() {
     state.complianceExpiringDocs = [];
     state.expiringDocsCriticalCount = 0;
   }
+
+  try {
+    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`);
+    state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
+  } catch (_) {
+    state.gdprRequests = [];
+  }
+
   state.auditLogPageSize = 50;
 
   if (auditLogs.status === "fulfilled") {
@@ -20873,6 +20884,7 @@ function refreshAll() {
   renderPhotoOverrideApprovalPanel();
   renderCompanyList();
   renderCompliancePanel();
+  renderGdprRequestsPanel();
   renderAuditLogPanel();
   populateWorkerSelectOptions();
   populateCompanySelectOptions();
@@ -22671,6 +22683,85 @@ function renderCompliancePanel() {
     </div>
   ` : "");
   initCollapsibleSections(['complianceExpiringContent']);
+}
+
+function _gdprTypeLabel(type) {
+  const t = String(type || "").toLowerCase();
+  if (t === "access" || t === "auskunft") return "Auskunft (Art. 15)";
+  if (t === "erasure" || t === "loeschung") return "Löschung (Art. 17)";
+  return type || "-";
+}
+
+function _gdprStatusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "pending") return "Offen";
+  if (s === "completed") return "Erledigt";
+  if (s === "rejected") return "Abgelehnt";
+  return status || "-";
+}
+
+function renderGdprRequestsPanel() {
+  const targets = [elements.gdprRequestsPanel, elements.dashboardGdprRequestsPanel].filter(Boolean);
+  if (!targets.length) return;
+  const rows = Array.isArray(state.gdprRequests) ? state.gdprRequests : [];
+  const markup = rows.length
+    ? rows.map((req) => {
+        const pending = String(req.status || "") === "pending";
+        const id = escapeHtml(req.id || "");
+        return `
+          <article class="card-item" data-gdpr-id="${id}">
+            <div class="panel-heading" style="margin:0;align-items:flex-start;">
+              <div>
+                <strong>${escapeHtml(req.workerName || req.workerId || "Mitarbeiter")}</strong>
+                <p class="helper-text" style="margin:4px 0 0;">
+                  ${escapeHtml(_gdprTypeLabel(req.requestType))}
+                  · ${escapeHtml(req.companyName || "")}
+                  · ${escapeHtml(formatDateTime(req.submittedAt) || req.submittedAt || "")}
+                </p>
+                ${req.notes ? `<p class="helper-text">${escapeHtml(req.notes)}</p>` : ""}
+              </div>
+              <span class="status-pill ${pending ? "status-check-in" : "status-critical"}">${escapeHtml(_gdprStatusLabel(req.status))}</span>
+            </div>
+            ${pending ? `
+              <div class="button-row" style="margin-top:8px;flex-wrap:wrap;gap:6px;">
+                <button type="button" class="primary-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="completed">Erledigt</button>
+                <button type="button" class="ghost-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="rejected">Ablehnen</button>
+              </div>
+            ` : `
+              <p class="helper-text" style="margin-top:6px;">
+                ${escapeHtml(req.processedBy || "")}
+                ${req.completedAt ? ` · ${escapeHtml(formatDateTime(req.completedAt) || req.completedAt)}` : ""}
+              </p>
+            `}
+          </article>
+        `;
+      }).join("")
+    : `<p class="helper-text muted">Keine DSGVO-Anfragen.</p>`;
+  targets.forEach((el) => {
+    el.innerHTML = markup;
+  });
+}
+
+async function resolveGdprRequest(requestId, status) {
+  const note = window.prompt(
+    status === "completed"
+      ? "Notiz zur Erledigung (optional):"
+      : "Grund der Ablehnung (optional):",
+    "",
+  );
+  if (note === null) return;
+  try {
+    await apiRequest(`${API_BASE}/api/gdpr-requests/${encodeURIComponent(requestId)}/resolve`, {
+      method: "POST",
+      body: { status, notes: note },
+    });
+    showToast(status === "completed" ? "Anfrage erledigt" : "Anfrage abgelehnt", "success");
+    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`);
+    state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
+    renderGdprRequestsPanel();
+  } catch (error) {
+    showToast(error?.message || "Speichern fehlgeschlagen", "error");
+  }
 }
 
 function renderAuditLogPanel(filterText) {
@@ -38062,6 +38153,26 @@ if (elements.desktopInstallButton) {
     });
   });
 }
+
+document.addEventListener("click", (event) => {
+  const resolveBtn = event.target.closest?.("[data-gdpr-resolve]");
+  if (resolveBtn) {
+    const id = resolveBtn.getAttribute("data-gdpr-resolve");
+    const status = resolveBtn.getAttribute("data-gdpr-status");
+    if (id && status) {
+      resolveGdprRequest(id, status);
+    }
+    return;
+  }
+  if (event.target.closest?.("#gdprRequestsRefreshBtn") || event.target.closest?.("#dashGdprRefreshBtn")) {
+    apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`)
+      .then((gdpr) => {
+        state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
+        renderGdprRequestsPanel();
+      })
+      .catch((error) => showToast(error?.message || "Laden fehlgeschlagen", "error"));
+  }
+});
 
 // ── Legal-Modal (Impressum / Datenschutz) ─────────────────────────────────
 (function () {

@@ -158,6 +158,18 @@ class TasksRepository {
     );
   }
 
+  Future<Map<String, dynamic>> cancelShiftSwap({
+    required WorkerSession session,
+    required String swapId,
+  }) {
+    return _api.postJson(
+      '/api/shift/cancel-swap/$swapId',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: const <String, dynamic>{},
+    );
+  }
+
   Future<List<Map<String, dynamic>>> listCompanyAdmins(WorkerSession session) {
     return _api.getJsonList(
       '/api/worker-app/company-admins',

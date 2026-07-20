@@ -19,6 +19,7 @@ class TasksScreen extends StatefulWidget {
     required this.auth,
     required this.workerCache,
     this.initialTab = 0,
+    this.shiftsInnerTab = 0,
   });
 
   final WorkerSession session;
@@ -26,6 +27,7 @@ class TasksScreen extends StatefulWidget {
   final AuthRepository auth;
   final WorkerCache workerCache;
   final int initialTab;
+  final int shiftsInnerTab;
 
   @override
   State<TasksScreen> createState() => _TasksScreenState();
@@ -115,7 +117,11 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
             tasks: widget.tasks,
             enabled: contractsOk,
           ),
-          ShiftsTab(session: widget.session, tasks: widget.tasks),
+          ShiftsTab(
+            session: widget.session,
+            tasks: widget.tasks,
+            initialInnerTab: widget.shiftsInnerTab,
+          ),
         ],
       ),
     );

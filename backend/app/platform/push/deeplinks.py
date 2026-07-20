@@ -7,6 +7,7 @@ _TAG_ROUTES: dict[str, str] = {
     "leave-denied": "baupass://app/tasks",
     "document-expiry": "baupass://app/tasks",
     "attendance-reminder": "baupass://app/shifts",
+    "shift-swap": "baupass://app/shifts?tab=swap",
     "site-checkin": "baupass://app/attendance",
     "foreman-alert": "baupass://app/profile",
     "ops-notify": "baupass://app/profile",

@@ -170,6 +170,18 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                       remote: widget.controller.remoteLevel,
                       accent: _accent,
                     ),
+                    if (widget.controller.connectionDiag.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        widget.controller.connectionDiag,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     _WaveBars(controller: _waveController, accent: _accent),
                   ] else if (showRingAnim) ...[

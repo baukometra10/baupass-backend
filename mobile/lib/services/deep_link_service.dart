@@ -31,7 +31,12 @@ class DeepLinkService {
         return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 2);
       case 'shifts':
       case 'shift':
-        return const WorkerAppRoute(tabIndex: 2, tasksSubTab: 4);
+        final tab = (uri.queryParameters['tab'] ?? '').toLowerCase();
+        return WorkerAppRoute(
+          tabIndex: 2,
+          tasksSubTab: 4,
+          shiftsInnerTab: (tab == 'swap' || tab == 'tausch') ? 1 : 0,
+        );
       case 'chat':
       case 'messages':
         return const WorkerAppRoute(tabIndex: 3);
@@ -113,6 +118,7 @@ class WorkerAppRoute {
     this.openAi = false,
     this.openChat = false,
     this.tasksSubTab = 0,
+    this.shiftsInnerTab = 0,
     this.externalUrl,
     this.incomingCallId,
     this.conferenceRoomId,
@@ -122,6 +128,8 @@ class WorkerAppRoute {
   final bool openAi;
   final bool openChat;
   final int tasksSubTab;
+  /// 0 = Meine Schichten, 1 = Tausch
+  final int shiftsInnerTab;
   final String? externalUrl;
   final String? incomingCallId;
   final String? conferenceRoomId;
