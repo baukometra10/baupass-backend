@@ -49,9 +49,10 @@ Höchster Nutzen: **GPS Auto-Ausstempel zu aggressiv**, **Chat-Dedup/Mute unvoll
 
 ## Testplan
 
-- [ ] GPS: 1× Drift außerhalb → kein Checkout; 3× Off-Site → Checkout
-- [ ] Chat: Push+Socket nur 1 Piep; gemuteter Thread kein Admin-Push
-- [ ] Rechnung: Script in Preview führt nicht aus; negative qty → 400
-- [ ] Gate-QR ohne Standort → Login blockiert; site_app Remote-Login ohne Zutritt-Stempel
-- [ ] Quiet Chat-Poll setzt unread nicht zurück; Öffnen ruft mark-read
-- [ ] Fremde Stripe return_url wird verworfen; falscher Betrag markiert nicht paid
+- [x] GPS: Leave-Schwelle Code = 3 Polls (Server + Worker) — Smoke 2026-07-20
+- [x] Chat: GET markiert nicht gelesen; POST mark-read vorhanden — Smoke 2026-07-20
+- [x] Rechnung: sandboxed iframe + qty-Validation — Smoke 2026-07-20
+- [x] Gate-QR GPS / sitePresenceVerified Flags — Code-Review
+- [x] Stripe return_url Allowlist — Smoke 2026-07-20
+- [ ] Prod Timestamp-Migration: Backup → dry-run → apply (Railway; siehe `deploy/migrate-access-timestamps-prod.ps1`)
+- [ ] Live: 3× Off-Site → Checkout; Chat quiet-poll behält Unread; Preview ohne Script
