@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import sqlite3
@@ -20,14 +21,20 @@ from typing import Any
 BASE_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_DB_PATH = BASE_DIR / "backend" / "baupass.db"
 
-# Ensure repo root imports work when run as a module.
-if str(BASE_DIR) not in sys.path:
-    sys.path.insert(0, str(BASE_DIR))
 
-from backend.app.platform.physical_operations._common import (  # noqa: E402
-    ACCESS_WALL_TZ_IS_IANA,
-    normalize_access_timestamp_value,
-)
+def _load_access_common():
+    """Load _common.py without importing backend.app (avoids Flask dependency)."""
+    path = BASE_DIR / "backend" / "app" / "platform" / "physical_operations" / "_common.py"
+    spec = importlib.util.spec_from_file_location("access_common_migrate", path)
+    mod = importlib.util.module_from_spec(spec)
+    assert spec and spec.loader
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_COMMON = _load_access_common()
+ACCESS_WALL_TZ_IS_IANA = bool(_COMMON.ACCESS_WALL_TZ_IS_IANA)
+normalize_access_timestamp_value = _COMMON.normalize_access_timestamp_value
 
 
 def resolve_db_path(explicit: str | None) -> Path:
@@ -49,7 +56,6 @@ def classify_row(raw: str) -> tuple[str, str]:
         return "unparseable", ""
     if canonical == text:
         return "already", canonical
-    # Naive with microseconds / space separator still counts as converted.
     return "converted", canonical
 
 
