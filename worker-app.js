@@ -5183,7 +5183,7 @@ async function syncOfflineEventQueue() {
   }
 
   try {
-    await fetchJson(`${API_BASE}/offline-events`, {
+    const body = await fetchJson(`${API_BASE}/offline-events`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -5191,7 +5191,37 @@ async function syncOfflineEventQueue() {
       },
       body: JSON.stringify({ events: queue })
     });
-    writeStoredJson(OFFLINE_EVENT_QUEUE_KEY, []);
+    const results = Array.isArray(body?.results) ? body.results : [];
+    const doneIds = new Set();
+    const permanentErrors = new Set([
+      "invalid_event",
+      "unknown_type",
+      "invalid_offline_events",
+    ]);
+    results.forEach((result, index) => {
+      const clientId = String(result?.clientEventId || queue[index]?.clientEventId || "").trim();
+      const ok =
+        result?.ok === true
+        || result?.duplicate
+        || result?.replay
+        || result?.checkoutLogId
+        || result?.siteLeaveLogId
+        || result?.logId;
+      const permanentFail = permanentErrors.has(String(result?.error || "").trim());
+      if (ok || permanentFail) {
+        if (clientId) doneIds.add(clientId);
+        else doneIds.add(`idx:${index}`);
+      }
+    });
+    // If server returned no per-event results, keep legacy clear-on-200 behavior only when empty results.
+    const remaining = results.length
+      ? queue.filter((event, index) => {
+          const clientId = String(event?.clientEventId || "").trim();
+          if (clientId) return !doneIds.has(clientId);
+          return !doneIds.has(`idx:${index}`);
+        })
+      : [];
+    writeStoredJson(OFFLINE_EVENT_QUEUE_KEY, remaining);
     updateSmartWorkHub(lastWorkerPayload, lastTimesheetRows);
   } catch {
     // keep queue for next sync attempt
@@ -5264,6 +5294,9 @@ function registerWorkerSw() {
     }
     if (event.data?.type === "SW_FLUSH_OFFLINE_QUEUE" && workerToken) {
       void syncOfflineEventQueue();
+    }
+    if (event.data?.type === "SUPPIX_PUSH_SUBSCRIPTION_CHANGE" && workerToken) {
+      void subscribePushNotifications();
     }
   });
 
@@ -13345,18 +13378,23 @@ function bindWorkerOfflineChatQueue() {
     sendItem: async (item, attachmentFile) => {
       const threadId = String(item.threadId || workerChatThreadId || "").trim();
       if (!threadId) return;
-      const sent = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
-        method: "POST",
-        headers: buildWorkerAuthHeaders({
-          "Content-Type": "application/json",
-          ...(item.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
-        }),
-        body: JSON.stringify({
-          body: item.body,
-          ...(item.replyToMessageId ? { reply_to_message_id: item.replyToMessageId } : {}),
-        }),
-      });
-      const messageId = String(sent?.message?.id || "");
+      let messageId = String(item.serverMessageId || "").trim();
+      if (!messageId) {
+        const sent = await fetchJson(`${API_BASE}/chat/threads/${encodeURIComponent(threadId)}/messages`, {
+          method: "POST",
+          headers: buildWorkerAuthHeaders({
+            "Content-Type": "application/json",
+            ...(item.e2eClientUnavailable ? { "X-E2E-Client-Unavailable": "1" } : {}),
+          }),
+          body: JSON.stringify({
+            body: item.body,
+            ...(item.replyToMessageId ? { reply_to_message_id: item.replyToMessageId } : {}),
+          }),
+        });
+        messageId = String(sent?.message?.id || sent?.id || "").trim();
+        if (!messageId) throw new Error("chat_message_create_failed");
+        item.serverMessageId = messageId;
+      }
       if (attachmentFile && messageId) {
         await uploadWorkerChatAttachment(threadId, messageId, attachmentFile);
       }

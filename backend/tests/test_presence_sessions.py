@@ -21,6 +21,13 @@ def test_today_prefix_uses_berlin_not_utc():
     assert today_prefix(reference=ref) == "2026-01-16"
 
 
+def test_server_access_today_prefix_matches_common():
+    from backend.server import access_today_prefix
+
+    ref = datetime(2026, 1, 15, 23, 30, tzinfo=timezone.utc)
+    assert access_today_prefix(ref) == today_prefix(reference=ref)
+
+
 def test_app_login_logout_pairing_counts_short_session():
     events = [
         {"direction": "app-login", "timestamp": "2026-06-24T08:00:00", "gate": "Site A"},

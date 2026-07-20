@@ -717,6 +717,13 @@ def utc_now():
     return datetime.now(timezone.utc)
 
 
+def access_today_prefix(reference=None):
+    """Calendar day for access_logs filters (Europe/Berlin wall clock)."""
+    from backend.app.platform.physical_operations._common import today_prefix
+
+    return today_prefix(reference=reference)
+
+
 def utc_iso(value=None):
     dt = value or utc_now()
     if dt.tzinfo is None:
@@ -6560,11 +6567,15 @@ def _notify_worker_payroll_document(db, worker_id: str, filename: str, *, doc_ty
         pass
 
 
-def _send_push_to_worker(db, worker_id: str, title: str, body: str, tag: str = "notification") -> int:
+def _send_push_to_worker(
+    db, worker_id: str, title: str, body: str, tag: str = "notification", extra=None
+) -> int:
     """Web Push (PWA) + native FCM. Returns total deliveries."""
     from backend.app.platform.push.delivery import deliver_worker_push
 
-    return int(deliver_worker_push(db, worker_id, title, body, tag=tag).get("pushSent") or 0)
+    return int(
+        deliver_worker_push(db, worker_id, title, body, tag=tag, extra=extra).get("pushSent") or 0
+    )
 
 
 def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html_body: str):
@@ -9142,7 +9153,7 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
     now_dt = reference_dt or datetime.now(timezone.utc)
     if now_dt.tzinfo is None:
         now_dt = now_dt.replace(tzinfo=timezone.utc)
-    today_prefix = now_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix(now_dt)
     repair_misfired_work_end_checkouts(db)
 
     # Latest event per worker is on-site (check-in or app-login).
@@ -11288,7 +11299,7 @@ def operations_snapshot():
 
 def _operations_snapshot_with_db(db):
     user = g.current_user
-    today_prefix = utc_now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     company_sql, company_params = _operations_company_filter_sql(user, "w")
 
     from backend.app.platform.physical_operations._common import count_on_site_filtered
@@ -11943,8 +11954,10 @@ def worker_has_open_checkin_today(db, worker_id):
     if not open_row:
         return False
     checkin_ts = str(open_row["timestamp"] or "")[:10]
-    today = datetime.now().strftime("%Y-%m-%d")
-    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    today = access_today_prefix()
+    from backend.app.platform.physical_operations._common import ACCESS_WALL_TZ
+
+    yesterday = (datetime.now(ACCESS_WALL_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
     return checkin_ts in {today, yesterday}
 
 
@@ -11973,7 +11986,7 @@ def worker_auto_attendance_blocked_today(db, worker_id):
     """Block automatic GPS check-in/login after today's checkout until manual check-in."""
     if worker_has_open_checkin(db, worker_id):
         return False
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     row = db.execute(
         """
         SELECT direction
@@ -12384,7 +12397,7 @@ SITE_APP_LEAVE_GATE = "Mitarbeiter-App (Standort verlassen)"
 
 
 def _last_access_log_today(db, worker_id):
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     return db.execute(
         """
         SELECT id, direction, gate, timestamp
@@ -12417,7 +12430,7 @@ def worker_has_open_site_app_session_today(db, worker_id):
 
 
 def worker_has_site_app_login_today(db, worker_id):
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     row = db.execute(
         """
         SELECT id
@@ -14418,7 +14431,7 @@ def worker_app_me():
     leave_balance = int(worker["leave_balance"]) if (worker["leave_balance"] is not None) else 30
 
     # Zu-spaet-Benachrichtigung: letzter Check-in heute war zu spaet?
-    today_prefix = _dt.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     late_check = db.execute(
         """
         SELECT checked_in_late, timestamp FROM access_logs
@@ -15129,7 +15142,7 @@ def worker_app_attendance_nfc():
 def build_worker_team_snapshot(db, worker_row):
     company_id = str(worker_row["company_id"] or "").strip()
     site_name = str(worker_row["site"] or "").strip()
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
 
     if not company_id:
         return {
@@ -15387,7 +15400,7 @@ def foreman_team_status():
     company_id, err = _resolve_foreman_company_id(db)
     if err:
         return err
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
 
     rows = db.execute(
         """
@@ -15447,7 +15460,7 @@ def foreman_crew_health():
     company_id, err = _resolve_foreman_company_id(db)
     if err:
         return err
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
 
     total_workers = db.execute(
         "SELECT COUNT(*) AS cnt FROM workers WHERE company_id = ? AND worker_type = 'worker' AND deleted_at IS NULL",
@@ -15459,7 +15472,7 @@ def foreman_crew_health():
         SELECT COUNT(DISTINCT al.worker_id) AS cnt
         FROM access_logs al
         WHERE al.timestamp LIKE ?
-          AND al.direction = 'check-in'
+          AND al.direction IN ('check-in', 'app-login')
           AND al.worker_id IN (SELECT id FROM workers WHERE company_id = ? AND deleted_at IS NULL)
         """,
         (f"{today_prefix}%", company_id)
@@ -15756,7 +15769,7 @@ def analytics_punctuality_report():
 
     user = g.admin_user
     company_id = user["company_id"]
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
 
     with get_read_connection() as db:
         start_h, start_m, start_label = _company_work_start_hm(db, company_id)
@@ -16548,7 +16561,7 @@ def analytics_export_summary():
         FROM access_logs
         WHERE timestamp LIKE ? AND worker_id IN (SELECT id FROM workers WHERE company_id = ?)
         """,
-        (datetime.now().strftime("%Y-%m-%d") + "%", company_id)
+        (access_today_prefix() + "%", company_id)
     ).fetchone()["cnt"]
 
     docs_coverage = db.execute(
@@ -28079,7 +28092,7 @@ def worker_app_my_timesheets():
             "gate": str(open_row["gate"] or ""),
             "note": str(open_row["note"] or ""),
         }
-    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    today_prefix = access_today_prefix()
     return jsonify(
         {
             "month": month_prefix,

@@ -1022,6 +1022,10 @@ class ChatService:
                         action_url="chat",
                         push_tag="worker-chat",
                         send_email=False,
+                        push_extra={
+                            "messageId": message_id,
+                            "threadId": thread_id,
+                        },
                     )
         except Exception:
             pass

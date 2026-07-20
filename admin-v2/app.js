@@ -1048,6 +1048,9 @@ async function startAdminRealtime() {
       else if (tab === "overview") {
         clearTimeout(scheduleInboxReload._overviewT);
         scheduleInboxReload._overviewT = setTimeout(() => loadOverview().catch(() => {}), 800);
+      } else if (tab === "access") {
+        clearTimeout(scheduleInboxReload._accessT);
+        scheduleInboxReload._accessT = setTimeout(() => loadAccess().catch(() => {}), 800);
       } else if (tab === "operations") {
         clearTimeout(scheduleInboxReload._opsT);
         scheduleInboxReload._opsT = setTimeout(() => loadOperations().catch(() => {}), 1200);

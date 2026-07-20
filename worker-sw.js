@@ -242,10 +242,48 @@ self.addEventListener("push", (event) => {
             preview: data.preview || data.body || "",
             callId: data.callId || data.call_id || "",
             roomId: data.roomId || data.room_id || "",
+            messageId: data.messageId || data.message_id || "",
+            threadId: data.threadId || data.thread_id || "",
+            fromServiceWorker: true,
           });
         });
       }),
     ]),
+  );
+});
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const registration = self.registration;
+        const existing = await registration.pushManager.getSubscription();
+        const applicationServerKey = existing?.options?.applicationServerKey;
+        if (existing) {
+          try {
+            await existing.unsubscribe();
+          } catch {
+            /* ignore */
+          }
+        }
+        let next = null;
+        if (applicationServerKey) {
+          next = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey,
+          });
+        }
+        const clientsList = await clients.matchAll({ type: "window", includeUncontrolled: true });
+        clientsList.forEach((client) => {
+          client.postMessage({
+            type: "SUPPIX_PUSH_SUBSCRIPTION_CHANGE",
+            subscription: next ? next.toJSON() : null,
+          });
+        });
+      } catch {
+        /* best-effort resubscribe */
+      }
+    })(),
   );
 });
 

@@ -95,6 +95,7 @@ def notify_worker_mitteilung(
     push_tag: str | None = None,
     send_email: bool = True,
     skip_push: bool = False,
+    push_extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Store a Mitteilung in ``notifications``, optional e-mail, and push if subscribed.
@@ -123,6 +124,7 @@ def notify_worker_mitteilung(
                     str(title or "WorkPass")[:120],
                     str(message or "")[:240],
                     tag=tag,
+                    extra=push_extra,
                 )
                 or 0
             )

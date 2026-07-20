@@ -49,6 +49,8 @@
       global.SUPPIXChatRealtime?.playWorkerMessageSound?.();
     }
     if (focused && onChat) return;
+    // Service worker already showed the system notification — only wake/sound here.
+    if (data.fromServiceWorker) return;
     if (!global.Notification || Notification.permission !== "granted") return;
     try {
       new global.Notification(data.title || "Neue Nachricht vom Arbeitgeber", {
@@ -130,6 +132,7 @@
         body: data.body || data.preview || "Ihr Arbeitgeber ruft an",
         tag: "voice-call",
         messageId: callId || data.messageId,
+        fromServiceWorker: Boolean(data.fromServiceWorker),
       });
       return;
     }
@@ -141,6 +144,7 @@
           body: data.body || data.preview || "Tippen zum Beitreten",
           tag: "conference-invite",
           messageId: data.inviteId || data.messageId,
+          fromServiceWorker: Boolean(data.fromServiceWorker),
         });
       }
       return;
@@ -169,7 +173,7 @@
       }
       return;
     }
-    notifyWorkerIncoming(data);
+    notifyWorkerIncoming({ ...data, fromServiceWorker: Boolean(data.fromServiceWorker) });
   }
 
   function handleAdminRealtimeEvent(evt) {

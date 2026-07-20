@@ -55,4 +55,4 @@ Höchster Nutzen: **GPS Auto-Ausstempel zu aggressiv**, **Chat-Dedup/Mute unvoll
 - [x] Gate-QR GPS / sitePresenceVerified Flags — Code-Review
 - [x] Stripe return_url Allowlist — Smoke 2026-07-20
 - [x] Prod Timestamp-Migration: Backup → dry-run → apply (Railway; 2026-07-20, 133 rows, tzIana)
-- [ ] Live: 3× Off-Site → Checkout; Chat quiet-poll behält Unread; Preview ohne Script
+- [ ] Live: 3× Off-Site → Checkout; Chat quiet-poll behält Unread; Preview ohne Script (manuell / Gerät)
