@@ -4330,10 +4330,14 @@ async function loadAccess() {
     const hourly = Array.isArray(summary.hourly) ? summary.hourly : [];
     const checkIns = hourly.reduce((n, h) => n + (h.checkIn || 0), 0);
     const checkOuts = hourly.reduce((n, h) => n + (h.checkOut || 0), 0);
+    const appLogins = hourly.reduce((n, h) => n + (h.appLogin || 0), 0);
+    const appLogouts = hourly.reduce((n, h) => n + (h.appLogout || 0), 0);
     const lateToday = Number(summary.lateCheckInsToday || 0);
     $("accessSummary").innerHTML = `
       <div class="card"><span class="muted">${t("access.checkIns")}</span><strong>${checkIns}</strong></div>
       <div class="card"><span class="muted">${t("access.checkOuts")}</span><strong>${checkOuts}</strong></div>
+      <div class="card"><span class="muted">${t("access.appLoginsToday")}</span><strong>${appLogins}</strong></div>
+      <div class="card"><span class="muted">${t("access.appLogoutsToday")}</span><strong>${appLogouts}</strong></div>
       <div class="card"><span class="muted">${t("access.openSessions")}</span><strong>${open}</strong></div>
       <div class="card"><span class="muted">${t("access.lateCheckIns")}</span><strong>${lateToday}</strong></div>
     `;

@@ -1206,6 +1206,27 @@ class CompaniesService:
             return month_param
         return dt.now().strftime("%Y-%m")
 
+    @staticmethod
+    def _work_session_attribution_day(
+        session: dict[str, Any], *, month_start_iso: str, month_end_iso: str
+    ) -> str | None:
+        """Return work-day (YYYY-MM-DD) for a formal session in this month, else None.
+
+        Closed sessions are attributed to the check-in calendar day only (no double-count
+        across month boundaries). Orphan check-outs without a paired check-in use checkout day.
+        """
+        check_in = str(session.get("checkIn") or "")
+        check_out = str(session.get("checkOut") or "")
+        in_day = check_in[:10] if len(check_in) >= 10 else ""
+        out_day = check_out[:10] if len(check_out) >= 10 else ""
+        if in_day:
+            if month_start_iso <= in_day <= month_end_iso:
+                return in_day
+            return None
+        if out_day and month_start_iso <= out_day <= month_end_iso:
+            return out_day
+        return None
+
     def repair_company(self, db, user: dict[str, Any], company_id: str) -> dict[str, Any]:
         from backend.server import normalize_badge_id, now_iso
 
@@ -1425,7 +1446,26 @@ class CompaniesService:
             return feature_denied
 
         month_prefix = self._month_prefix(month_param)
+        import calendar
+        from datetime import date as date_cls
+        from datetime import timedelta as timedelta_cls
+
+        year = int(month_prefix[:4])
+        month = int(month_prefix[5:7])
+        last_day = calendar.monthrange(year, month)[1]
+        month_start = date_cls(year, month, 1)
+        month_end = date_cls(year, month, last_day)
+        month_start_iso = f"{month_prefix}-01"
+        month_end_iso = f"{month_prefix}-{last_day:02d}"
+
         rows = self.companies.access_logs_month_for_company(db, company_id, month_prefix)
+        spill_dates = [
+            (month_start - timedelta_cls(days=1)).isoformat(),
+            (month_end + timedelta_cls(days=1)).isoformat(),
+        ]
+        for day_iso in spill_dates:
+            rows.extend(self.companies.access_logs_day_for_company(db, company_id, day_iso))
+
         worker_data: dict[str, dict] = defaultdict(
             lambda: {
                 "firstName": "",
@@ -1437,8 +1477,13 @@ class CompaniesService:
             }
         )
         by_worker: dict[str, list] = defaultdict(list)
+        seen_keys: set[tuple] = set()
         for row in rows:
             worker_id = row["worker_id"]
+            key = (worker_id, row.get("timestamp"), row.get("direction"))
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
             by_worker[worker_id].append(row)
             entry = worker_data[worker_id]
             entry["firstName"] = row.get("first_name") or ""
@@ -1446,15 +1491,17 @@ class CompaniesService:
             entry["badgeId"] = row.get("badge_id") or ""
             entry["role"] = row.get("worker_role") or ""
 
-        from backend.app.platform.physical_operations._common import pair_presence_sessions
+        from backend.app.platform.physical_operations._common import pair_work_attendance_sessions
 
         for worker_id, events in by_worker.items():
-            for session in pair_presence_sessions(events):
+            for session in pair_work_attendance_sessions(events):
                 minutes = session.get("durationMinutes")
-                check_in = session.get("checkIn")
-                if isinstance(minutes, int) and minutes > 0 and check_in:
+                work_day = self._work_session_attribution_day(
+                    session, month_start_iso=month_start_iso, month_end_iso=month_end_iso
+                )
+                if isinstance(minutes, int) and minutes > 0 and work_day:
                     worker_data[worker_id]["totalMinutes"] += minutes
-                    worker_data[worker_id]["daysWorked"].add(str(check_in)[:10])
+                    worker_data[worker_id]["daysWorked"].add(work_day)
 
         result = []
         for worker_id, data in worker_data.items():
@@ -1558,7 +1605,7 @@ class CompaniesService:
             seen_ts.add(key)
             all_events.append(event)
 
-        from backend.app.platform.physical_operations._common import pair_presence_sessions
+        from backend.app.platform.physical_operations._common import pair_work_attendance_sessions
         from backend.app.platform.reports.schedule import resolve_company_timezone
         from backend.app.platform.workforce.attendance_eligibility import (
             is_real_deployment_location,
@@ -1602,32 +1649,16 @@ class CompaniesService:
                     "location": location,
                 }
 
-        # Pair across days so overnight sessions keep their hours
-        month_sessions = pair_presence_sessions(all_events)
+        # Pair formal check-in/out across days so overnight sessions keep their hours
+        month_sessions = pair_work_attendance_sessions(all_events)
         month_start_iso = f"{month_prefix}-01"
         month_end_iso = f"{month_prefix}-{last_day:02d}"
         by_day_sessions: OrderedDict[str, list] = OrderedDict()
         for session in month_sessions:
-            check_in = str(session.get("checkIn") or "")
-            check_out = str(session.get("checkOut") or "")
-            in_day = check_in[:10] if len(check_in) >= 10 else ""
-            out_day = check_out[:10] if len(check_out) >= 10 else ""
-            overlaps_month = False
-            if in_day and month_start_iso <= in_day <= month_end_iso:
-                overlaps_month = True
-            if out_day and month_start_iso <= out_day <= month_end_iso:
-                overlaps_month = True
-            # Overnight from previous month into this month
-            if in_day and out_day and in_day < month_start_iso and out_day >= month_start_iso:
-                overlaps_month = True
-            if not overlaps_month:
-                continue
-            # Attribute to check-in day when in month; else to checkout day (spillover in)
-            if in_day and month_start_iso <= in_day <= month_end_iso:
-                work_day = in_day
-            elif out_day and month_start_iso <= out_day <= month_end_iso:
-                work_day = out_day
-            else:
+            work_day = self._work_session_attribution_day(
+                session, month_start_iso=month_start_iso, month_end_iso=month_end_iso
+            )
+            if not work_day:
                 continue
             by_day_sessions.setdefault(work_day, []).append(session)
 

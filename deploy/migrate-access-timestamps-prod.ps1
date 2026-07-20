@@ -1,5 +1,6 @@
 # Prod: backup + dry-run + apply access_logs timestamp migration (Europe/Berlin naive).
-# Requires: railway login + linked project.
+# Runs INSIDE the Railway container via `railway ssh` (not `railway run`, which is local).
+# Requires: railway login + linked project + local SSH key (~/.ssh/id_ed25519).
 # Usage:
 #   .\deploy\migrate-access-timestamps-prod.ps1 -DryRun
 #   .\deploy\migrate-access-timestamps-prod.ps1 -Apply
@@ -17,19 +18,27 @@ if (-not $DryRun -and -not $Apply) {
     exit 1
 }
 
-Write-Host "1) Backup on Railway..." -ForegroundColor Cyan
-railway run -- python -m backend.ops.db_backup backup --db-path $DbPath
-if ($LASTEXITCODE -ne 0) { throw "backup failed" }
+# Ensure web service is linked (SQLite volume lives there).
+railway link -p capable-consideration -e production -s web | Out-Null
+
+function Invoke-RailwayRemote([string]$RemoteCommand) {
+    # railway ssh -- <cmd> runs on the service container (Linux + IANA tzdata).
+    railway ssh -- $RemoteCommand
+    if ($LASTEXITCODE -ne 0) {
+        throw "remote command failed: $RemoteCommand"
+    }
+}
+
+Write-Host "1) Backup on Railway ($DbPath)..." -ForegroundColor Cyan
+Invoke-RailwayRemote "python -m backend.ops.db_backup backup --db-path $DbPath"
 
 if ($DryRun -or -not $Apply) {
     Write-Host "2) Dry-run migration..." -ForegroundColor Cyan
-    railway run -- python -m backend.ops.migrate_access_log_timestamps --dry-run --db-path $DbPath
-    if ($LASTEXITCODE -ne 0) { throw "dry-run failed" }
+    Invoke-RailwayRemote "python -m backend.ops.migrate_access_log_timestamps --dry-run --db-path $DbPath"
 }
 
 if ($Apply) {
-    Write-Host "3) APPLY migration (IANA Europe/Berlin required on host)..." -ForegroundColor Yellow
-    railway run -- python -m backend.ops.migrate_access_log_timestamps --apply --db-path $DbPath
-    if ($LASTEXITCODE -ne 0) { throw "apply failed" }
+    Write-Host "3) APPLY migration (IANA Europe/Berlin on Linux host)..." -ForegroundColor Yellow
+    Invoke-RailwayRemote "python -m backend.ops.migrate_access_log_timestamps --apply --db-path $DbPath"
     Write-Host "Done. Spot-check Anwesenheit / Monatsauswertung." -ForegroundColor Green
 }

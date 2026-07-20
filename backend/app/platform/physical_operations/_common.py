@@ -12,8 +12,14 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
 
 
-def today_prefix() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+def today_prefix(reference: datetime | None = None) -> str:
+    """Calendar day in Europe/Berlin (access wall clock), not UTC."""
+    now = reference if reference is not None else datetime.now(ACCESS_WALL_TZ)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=ACCESS_WALL_TZ)
+    else:
+        now = now.astimezone(ACCESS_WALL_TZ)
+    return now.strftime("%Y-%m-%d")
 
 
 ON_SITE_DIRECTIONS = ("check-in", "app-login")
@@ -235,7 +241,7 @@ def today_work_minutes(
 ) -> int:
     """Work minutes for a calendar day, including an overnight open check-in from yesterday."""
     day = day_prefix or today_prefix()
-    yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
+    yesterday = (datetime.now(ACCESS_WALL_TZ) - timedelta(days=1)).strftime("%Y-%m-%d")
     day_events = [ev for ev in events if str(ev.get("timestamp") or "")[:10] == day]
     open_for_day = None
     if open_checkin_at:
@@ -263,6 +269,7 @@ def on_site_direction_sql(column: str = "latest.direction") -> str:
 
 def _present_on_site_sql_body(*, worker_ref: str = "w.id") -> str:
     """Shared SQL: worker currently present on site (open check-in or active GPS session)."""
+    off_site_sql = ", ".join(f"'{d}'" for d in OFF_SITE_DIRECTIONS)
     return f"""
         (
             EXISTS (
@@ -275,7 +282,7 @@ def _present_on_site_sql_body(*, worker_ref: str = "w.id") -> str:
                       WHERE al_out.worker_id = al_in.worker_id
                         AND al_out.timestamp > al_in.timestamp
                         AND al_out.timestamp LIKE ?
-                        AND al_out.direction = 'check-out'
+                        AND al_out.direction IN ({off_site_sql})
                   )
             )
             OR (

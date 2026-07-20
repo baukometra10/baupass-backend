@@ -28792,29 +28792,43 @@ function formatAccessClockLabel(timestamp) {
     const match = raw.match(/(?:T|\s)(\d{2}):(\d{2})/);
     if (match) return `${match[1]}:${match[2]}`;
   }
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) {
+  const ms = accessTimestampToMs(raw);
+  if (ms == null) {
     return formatTimestamp(raw);
   }
   return new Intl.DateTimeFormat(getStoredUiLang() === "de" ? "de-DE" : "en-GB", {
     hour: "2-digit",
     minute: "2-digit",
-  }).format(parsed);
+    timeZone: getAccessWallTimezone(),
+  }).format(new Date(ms));
 }
 
 function formatAccessDayLabel(timestamp) {
   const raw = String(timestamp || "").trim();
   if (!raw) return "";
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return "";
-  const today = new Date();
-  const sameDay = parsed.toDateString() === today.toDateString();
-  if (sameDay) return runtimeText("accessEventToday");
+  const ms = accessTimestampToMs(raw);
+  if (ms == null) return "";
+  const day = accessEventBerlinDay(raw);
+  if (day && day === berlinCalendarDayPrefix()) return runtimeText("accessEventToday");
   return new Intl.DateTimeFormat(getStoredUiLang() === "de" ? "de-DE" : "en-GB", {
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
-  }).format(parsed);
+    timeZone: getAccessWallTimezone(),
+  }).format(new Date(ms));
+}
+
+function formatAccessTimestamp(value) {
+  const ms = accessTimestampToMs(value);
+  if (ms == null) return "-";
+  return new Intl.DateTimeFormat(getStoredUiLang() === "de" ? "de-DE" : "en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: getAccessWallTimezone(),
+  }).format(new Date(ms));
 }
 
 function renderRecentAccess() {
@@ -28949,7 +28963,7 @@ function renderDashboardPorterLivePanel() {
   panel.innerHTML = `
     <div class="porter-live-topline">
       <strong>${runtimeText("dashboardLastAccessHeading")}</strong>
-      <span>${escapeHtml(formatTimestamp(latest.timestamp))}</span>
+      <span>${escapeHtml(formatAccessTimestamp(latest.timestamp))}</span>
     </div>
     <div class="porter-head">
       <img class="porter-photo" src="${photoSrc}" alt="${escapeHtml(workerName)}" />
@@ -29269,7 +29283,7 @@ function renderDashboardWorkerDetail(worker, options = {}) {
       <p><strong>${escapeHtml(uiT("cardLabel"))}:</strong> ${escapeHtml(worker.physicalCardId || uiT("cardUnassigned"))}</p>
       <p><strong>${escapeHtml(runtimeText("dashboardLastAccessHeading"))}:</strong> ${escapeHtml(latestDirectionLabel || runtimeText("dashboardLastAccessPlaceholder"))}</p>
       ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("accessWarningGate"))}:</strong> ${escapeHtml(latestAccess.gate || runtimeText("unknownTurnstile"))}</p>` : ""}
-      ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("summaryLastBooking"))}:</strong> ${escapeHtml(formatTimestamp(latestAccess.timestamp))}</p>` : ""}
+      ${latestAccess ? `<p><strong>${escapeHtml(runtimeText("summaryLastBooking"))}:</strong> ${escapeHtml(formatAccessTimestamp(latestAccess.timestamp))}</p>` : ""}
       ${todayOnSiteLabel ? `<p><strong>${escapeHtml(runtimeText("statsAccessToday"))}:</strong> ${escapeHtml(todayOnSiteLabel)}</p>` : ""}
       <div class="button-row dashboard-worker-detail-actions">
         <button type="button" class="primary-button" data-worker-id="${escapeHtml(worker.id)}" data-direction="check-in" data-source-view="${escapeHtml(sourceView)}">${escapeHtml(uiT("detailCheckinBtn"))}</button>
@@ -29403,7 +29417,7 @@ function renderAccessSummary() {
           <span>${runtimeText("summaryEntries")}: ${item.checkIn}</span>
           <span>${runtimeText("summaryExits")}: ${item.checkOut}</span>
           <span>${runtimeText("summaryTotal")}: ${item.total}</span>
-          <span>${runtimeText("summaryLastBooking")}: ${formatTimestamp(item.latest)}</span>
+          <span>${runtimeText("summaryLastBooking")}: ${formatAccessTimestamp(item.latest)}</span>
           <div class="summary-visitor-block">
             <span class="summary-visitor-title">${runtimeText("summaryPeople")}:</span>
             <div class="summary-visitor-list">${item.visitors.map((name) => `<span class="summary-visitor-pill">${escapeHtml(name)}</span>`).join("")}</div>
@@ -29454,7 +29468,7 @@ function renderAccessWarnings() {
             <span class="status-pill status-check-in">${escapeHtml(getSeverityLabel(getSeverity(entry)))}</span>
           </header>
           <span>${escapeHtml(runtimeText("accessWarningGate"))}: ${escapeHtml(entry.gate || runtimeText("unknownTurnstile"))}</span>
-          <span>${escapeHtml(runtimeText("accessWarningLastEntry"))}: ${formatTimestamp(entry.timestamp)}</span>
+          <span>${escapeHtml(runtimeText("accessWarningLastEntry"))}: ${formatAccessTimestamp(entry.timestamp)}</span>
           <span>${escapeHtml(runtimeText("accessWarningOpenSince"))}: ${escapeHtml(formatDurationMinutes(getOpenMinutes(entry)))}</span>
         </article>
       `
@@ -30574,7 +30588,7 @@ function getVisitorReportRows(fromDate, toDate) {
         hostName: worker.hostName || "",
         site: worker.site || "",
         lastSeenTs,
-        lastSeen: lastLog ? formatTimestamp(lastLog.timestamp) : (worker.visitEndAt ? formatTimestamp(worker.visitEndAt) : "-")
+        lastSeen: lastLog ? formatAccessTimestamp(lastLog.timestamp) : (worker.visitEndAt ? formatTimestamp(worker.visitEndAt) : "-")
       };
     })
     .filter((entry) => entry.lastSeenTs === 0 || (entry.lastSeenTs >= fromTs && entry.lastSeenTs <= toTs))

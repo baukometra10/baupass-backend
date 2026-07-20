@@ -18825,20 +18825,31 @@ def access_summary():
         params,
     ).fetchall()
 
-    hourly = [{"hour": f"{hour:02d}:00", "checkIn": 0, "checkOut": 0} for hour in range(24)]
+    hourly = [
+        {"hour": f"{hour:02d}:00", "checkIn": 0, "checkOut": 0, "appLogin": 0, "appLogout": 0}
+        for hour in range(24)
+    ]
+    from backend.app.platform.physical_operations._common import ACCESS_WALL_TZ, _parse_access_timestamp
+
     now_dt = datetime.now(timezone.utc)
+    today_berlin = datetime.now(ACCESS_WALL_TZ).date()
     late_check_ins_today = 0
 
     for row in rows:
-        ts = parse_iso_utc(row["timestamp"])
+        ts = _parse_access_timestamp(row["timestamp"])
         if ts:
             hour = ts.hour
-            if row["direction"] == "check-in":
+            direction = str(row["direction"] or "").strip().lower()
+            if direction == "check-in":
                 hourly[hour]["checkIn"] += 1
-                if int(row["checked_in_late"] or 0) == 1 and ts.date() == now_dt.date():
+                if int(row["checked_in_late"] or 0) == 1 and ts.date() == today_berlin:
                     late_check_ins_today += 1
-            elif row["direction"] == "check-out":
+            elif direction == "check-out":
                 hourly[hour]["checkOut"] += 1
+            elif direction == "app-login":
+                hourly[hour]["appLogin"] += 1
+            elif direction == "app-logout":
+                hourly[hour]["appLogout"] += 1
 
     open_entries = build_open_entries_from_rows(rows, now_dt)
 

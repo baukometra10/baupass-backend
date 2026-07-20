@@ -357,6 +357,29 @@ class CompaniesRepository:
         ).fetchall()
         return [dict(row) for row in rows]
 
+    def access_logs_day_for_company(
+        self, db, company_id: str, day_iso: str
+    ) -> list[dict[str, Any]]:
+        """Same columns as month query, filtered to a single calendar day (YYYY-MM-DD)."""
+        day = str(day_iso or "").strip()[:10]
+        if not day:
+            return []
+        rows = db.execute(
+            """
+            SELECT al.worker_id, al.direction, al.timestamp,
+                   w.first_name, w.last_name, w.badge_id, w.role AS worker_role
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE w.company_id = ?
+              AND w.deleted_at IS NULL
+              AND w.worker_type = 'worker'
+              AND al.timestamp LIKE ?
+            ORDER BY al.worker_id, al.timestamp
+            """,
+            (company_id, f"{day}%"),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_worker_brief(
         self, db, worker_id: str, company_id: str
     ) -> dict[str, Any] | None:
