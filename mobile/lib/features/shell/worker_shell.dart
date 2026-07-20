@@ -172,7 +172,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     final store = PrivacyConsentStore();
     if (await store.hasAccepted()) return;
     if (!mounted) return;
-    final accepted = await showPrivacyConsentDialog(context);
+    final accepted = await showPrivacyConsentDialog(context, session: widget.session);
     if (!mounted) return;
     if (accepted == true) {
       await store.accept();

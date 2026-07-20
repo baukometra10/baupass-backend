@@ -8,6 +8,8 @@ import '../../core/session_store.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/worker_cache.dart';
 import '../../widgets/tenant_brand_mark.dart';
+import '../legal/legal_document_screen.dart';
+import '../legal/legal_hub_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
@@ -268,6 +270,71 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       }
                     }
                   },
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Rechtliches',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Impressum & Datenschutz',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Card(
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.balance_outlined),
+                        title: const Text('Rechtliches'),
+                        subtitle: const Text('Impressum & Datenschutz'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => LegalHubScreen(session: widget.session),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.gavel_outlined),
+                        title: const Text('Impressum'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => LegalHubScreen(
+                                session: widget.session,
+                                initialDocument: LegalDocumentKind.impressum,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.privacy_tip_outlined),
+                        title: const Text('Datenschutz'),
+                        subtitle: const Text('Erklärung & Firmenkontakt'),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => LegalHubScreen(
+                                session: widget.session,
+                                initialDocument: LegalDocumentKind.datenschutz,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(

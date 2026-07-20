@@ -15850,7 +15850,11 @@ def shift_respond_swap(swap_id):
         return jsonify({"error": "invalid_response"}), 400
 
     swap = db.execute("SELECT * FROM shift_swaps WHERE id = ?", (swap_id,)).fetchone()
-    if not swap or swap["to_worker_id"] != worker["id"]:
+    if (
+        not swap
+        or swap["to_worker_id"] != worker["id"]
+        or str(swap["company_id"] or "") != str(worker["company_id"] or "")
+    ):
         return jsonify({"error": "not_authorized"}), 403
 
     new_status = "accepted" if response == "accepted" else "rejected"
@@ -27956,6 +27960,113 @@ def worker_get_company_admins():
         (worker["company_id"],)
     ).fetchall()
     return jsonify([{"name": r["name"], "email": r["email"]} for r in rows])
+
+
+def _legal_contact_payload(row, *, name_keys=(), email_keys=(), phone_keys=(), street_keys=(), zip_keys=(), website_keys=()):
+    """Build a DSGVO-friendly contact block from a sqlite/pg row (keys may be missing)."""
+    def _get(keys):
+        for key in keys:
+            try:
+                if key in row.keys():
+                    val = str(row[key] or "").strip()
+                    if val:
+                        return val
+            except Exception:
+                continue
+        return ""
+
+    name = _get(name_keys)
+    email = _get(email_keys)
+    phone = _get(phone_keys)
+    street = _get(street_keys)
+    zip_city = _get(zip_keys)
+    website = _get(website_keys)
+    if not any((name, email, phone, street, zip_city, website)):
+        return None
+    return {
+        "name": name,
+        "email": email,
+        "phone": phone,
+        "street": street,
+        "zipCity": zip_city,
+        "website": website,
+    }
+
+
+@require_worker_session
+def worker_app_legal():
+    """Impressum & Datenschutz for the worker APK (Rechtliches from admin settings).
+
+    Returns saved legal texts plus controller/operator contact data required under
+    GDPR Art. 13 / TMG / DDV (company email & postal contact).
+    """
+    worker = g.worker
+    db = get_db()
+    settings = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
+    company = db.execute(
+        "SELECT * FROM companies WHERE id = ? AND deleted_at IS NULL",
+        (worker["company_id"],),
+    ).fetchone()
+
+    impressum = ""
+    datenschutz = ""
+    operator = None
+    if settings:
+        impressum = str(settings["impressum_text"] or "") if "impressum_text" in settings.keys() else ""
+        datenschutz = str(settings["datenschutz_text"] or "") if "datenschutz_text" in settings.keys() else ""
+        operator = _legal_contact_payload(
+            settings,
+            name_keys=("operator_name", "platform_name"),
+            email_keys=("invoice_operator_email", "smtp_sender_email", "resend_from_email", "brevo_from_email"),
+            phone_keys=("invoice_operator_phone",),
+            street_keys=("invoice_operator_street",),
+            zip_keys=("invoice_operator_zip_city",),
+            website_keys=("invoice_operator_website",),
+        )
+
+    controller = None
+    if company:
+        controller = _legal_contact_payload(
+            company,
+            name_keys=("name",),
+            email_keys=("document_email", "billing_email"),
+            phone_keys=("phone", "billing_phone"),
+            street_keys=("billing_street",),
+            zip_keys=("billing_zip_city",),
+            website_keys=("website", "access_host"),
+        )
+        # Prefer company branding display name when present.
+        try:
+            from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
+
+            tenant = resolve_company_pdf_branding(db, str(company["id"]))
+            display = str(tenant.get("companyName") or "").strip()
+            if display and controller is not None:
+                controller["name"] = display
+            elif display and controller is None:
+                controller = {
+                    "name": display,
+                    "email": "",
+                    "phone": "",
+                    "street": "",
+                    "zipCity": "",
+                    "website": "",
+                }
+        except Exception:
+            pass
+
+    return jsonify(
+        {
+            "impressumText": impressum[:20000],
+            "datenschutzText": datenschutz[:20000],
+            "hasImpressum": bool(impressum.strip()),
+            "hasDatenschutz": bool(datenschutz.strip()),
+            "controller": controller,
+            "operator": operator,
+            "sectionTitle": "Impressum & Datenschutz",
+            "sectionEyebrow": "Rechtliches",
+        }
+    )
 
 
 @require_worker_session
