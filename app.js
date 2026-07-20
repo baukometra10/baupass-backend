@@ -29326,7 +29326,11 @@ function renderAccessSummary() {
     grouped.set(gateKey, current);
   });
 
-  const cards = Array.from(grouped.values()).sort((a, b) => a.gate.localeCompare(b.gate));
+  const cards = Array.from(grouped.values()).sort((a, b) => {
+    const latestCmp = String(b.latest || "").localeCompare(String(a.latest || ""));
+    if (latestCmp !== 0) return latestCmp;
+    return String(a.gate || "").localeCompare(String(b.gate || ""));
+  });
   elements.accessSummaryGrid.innerHTML = cards
     .map(
       (item) => `
