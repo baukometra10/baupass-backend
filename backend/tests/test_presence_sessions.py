@@ -48,6 +48,27 @@ def test_minutes_between_rounds_up():
     assert minutes_between_access_timestamps("2026-06-24T10:00:00", "2026-06-24T10:59:00") == 59
 
 
+def test_minutes_between_utc_z_and_naive_berlin_wall():
+    # 19:11 UTC == 21:11 Berlin (CEST); local auto-checkout at 02:00 next day.
+    assert (
+        minutes_between_access_timestamps("2026-07-18T19:11:00Z", "2026-07-19T02:00:00")
+        == 289
+    )
+
+
+def test_pair_mixed_z_and_naive_sort_order():
+    events = [
+        {"direction": "check-out", "timestamp": "2026-07-19T00:00:00", "gate": "System"},
+        {"direction": "check-in", "timestamp": "2026-07-18T21:11:54Z", "gate": "App"},
+    ]
+    sessions = pair_presence_sessions(events)
+    assert len(sessions) == 1
+    assert sessions[0]["checkIn"] == "2026-07-18T21:11:54Z"
+    assert sessions[0]["checkOut"] == "2026-07-19T00:00:00"
+    # 21:11Z = 23:11 Berlin → 00:00 Berlin next day = 49 minutes
+    assert sessions[0]["durationMinutes"] == 49
+
+
 def test_work_attendance_ignores_app_login_for_hours():
     events = [
         {"direction": "check-in", "timestamp": "2026-06-24T07:00:00", "gate": "Gate"},

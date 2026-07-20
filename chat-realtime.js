@@ -110,9 +110,12 @@
     if (workerId && companyId && global.SUPPIXChatThreadPrefs?.isMuted?.(companyId, workerId)) {
       return;
     }
-    playWorkerMessageSound();
     const onChatPage = isAdminChatPage();
     const focused = Boolean(global.document?.hasFocus?.());
+    // Silent while admin is already focused on chat — no false “new message” beep.
+    if (!(focused && onChatPage)) {
+      playWorkerMessageSound();
+    }
     if (focused && onChatPage) return;
     if (!global.Notification || Notification.permission !== "granted") return;
     const workerName = String(evt?.payload?.workerName || "").trim();

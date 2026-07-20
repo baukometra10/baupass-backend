@@ -28605,21 +28605,96 @@ function isAccessDepartureDirection(direction) {
   return normalized === "check-out" || normalized === "app-logout";
 }
 
+function getAccessWallTimezone() {
+  return "Europe/Berlin";
+}
+
+function berlinCalendarDayPrefix(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: getAccessWallTimezone(),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date instanceof Date ? date : new Date(date));
+}
+
+/** Convert access-log timestamp to epoch ms (naive = Berlin wall clock). */
+function accessTimestampToMs(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  if (hasOffset) {
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
+  const match = text.match(/^(\d{4})-(\d{2})-(\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!match) {
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6] || 0);
+  let guess = Date.UTC(year, month - 1, day, hour, minute, second);
+  for (let i = 0; i < 3; i += 1) {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: getAccessWallTimezone(),
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date(guess));
+    const get = (type) => Number(parts.find((part) => part.type === type)?.value || 0);
+    const shown = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
+    const target = Date.UTC(year, month - 1, day, hour, minute, second);
+    guess += target - shown;
+  }
+  return guess;
+}
+
+function accessEventBerlinDay(timestampValue) {
+  const text = String(timestampValue || "").trim();
+  if (!text) return "";
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text);
+  if (!hasOffset && /^\d{4}-\d{2}-\d{2}/.test(text)) {
+    return text.slice(0, 10);
+  }
+  const ms = accessTimestampToMs(text);
+  if (ms == null) return text.slice(0, 10);
+  return berlinCalendarDayPrefix(new Date(ms));
+}
+
+function compareAccessTimestampsDesc(left, right) {
+  const leftMs = accessTimestampToMs(left);
+  const rightMs = accessTimestampToMs(right);
+  if (leftMs != null && rightMs != null && leftMs !== rightMs) {
+    return rightMs - leftMs;
+  }
+  return String(right || "").localeCompare(String(left || ""));
+}
+
 function minutesBetweenAccessTimestamps(start, end) {
-  const inTime = new Date(String(start || ""));
-  const outTime = new Date(String(end || ""));
-  if (Number.isNaN(inTime.getTime()) || Number.isNaN(outTime.getTime()) || outTime <= inTime) {
+  const inMs = accessTimestampToMs(start);
+  const outMs = accessTimestampToMs(end);
+  if (inMs == null || outMs == null || outMs <= inMs) {
     return null;
   }
-  const seconds = Math.floor((outTime - inTime) / 1000);
+  const seconds = Math.floor((outMs - inMs) / 1000);
   if (seconds <= 0) return null;
   return Math.min(Math.max(1, Math.ceil(seconds / 60)), 1439);
 }
 
 function pairPresenceSessions(events) {
-  const ordered = [...(events || [])].sort((left, right) =>
-    String(left.timestamp || "").localeCompare(String(right.timestamp || ""))
-  );
+  const ordered = [...(events || [])].sort((left, right) => {
+    const cmp = compareAccessTimestampsDesc(right.timestamp, left.timestamp);
+    return cmp;
+  });
   const sessions = [];
   let pendingIn = null;
 
@@ -28670,7 +28745,7 @@ function formatDurationLabelShort(minutes) {
 let todayPresenceMetaCache = { sig: "", sessionByKey: {}, totalByWorker: {} };
 
 function getTodayPresenceMeta(accessLogs) {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = berlinCalendarDayPrefix();
   const latestTs = (accessLogs || []).reduce((max, entry) => {
     const ts = String(entry.timestamp || "");
     return ts > max ? ts : max;
@@ -28682,8 +28757,7 @@ function getTodayPresenceMeta(accessLogs) {
 
   const byWorker = {};
   for (const entry of accessLogs || []) {
-    const ts = String(entry.timestamp || "");
-    if (!ts.startsWith(day)) continue;
+    if (accessEventBerlinDay(entry.timestamp) !== day) continue;
     const workerId = String(entry.workerId || "");
     if (!workerId) continue;
     if (!byWorker[workerId]) byWorker[workerId] = [];
@@ -28744,21 +28818,11 @@ function formatAccessDayLabel(timestamp) {
 }
 
 function renderRecentAccess() {
-  // Local calendar day (not UTC) so overnight Schichtende times stay on the correct day.
-  const todayPrefix = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const todayPrefix = berlinCalendarDayPrefix();
   const seen = new Set();
   const recent = getUiVisibleAccessLogs()
-    .filter((entry) => {
-      const ts = String(entry.timestamp || "");
-      const day = ts.length >= 10 ? ts.slice(0, 10) : "";
-      return day === todayPrefix;
-    })
-    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .filter((entry) => accessEventBerlinDay(entry.timestamp) === todayPrefix)
+    .sort((left, right) => compareAccessTimestampsDesc(left.timestamp, right.timestamp))
     .filter((entry) => {
       const key = `${entry.workerId}|${entry.direction}|${String(entry.timestamp || "").slice(0, 16)}|${entry.note || ""}`;
       if (seen.has(key)) return false;
@@ -29309,13 +29373,13 @@ function renderAccessSummary() {
       : "";
 
     current.total += 1;
-    if (entry.direction === "check-in") {
+    if (isAccessArrivalDirection(entry.direction)) {
       current.checkIn += 1;
     }
-    if (entry.direction === "check-out") {
+    if (isAccessDepartureDirection(entry.direction)) {
       current.checkOut += 1;
     }
-    if (!current.latest || entry.timestamp > current.latest) {
+    if (!current.latest || compareAccessTimestampsDesc(entry.timestamp, current.latest) < 0) {
       current.latest = entry.timestamp;
     }
     const visitorLabel = visitorMeta ? `${visitorName} (${visitorMeta})` : visitorName;
@@ -29327,7 +29391,7 @@ function renderAccessSummary() {
   });
 
   const cards = Array.from(grouped.values()).sort((a, b) => {
-    const latestCmp = String(b.latest || "").localeCompare(String(a.latest || ""));
+    const latestCmp = compareAccessTimestampsDesc(a.latest, b.latest);
     if (latestCmp !== 0) return latestCmp;
     return String(a.gate || "").localeCompare(String(b.gate || ""));
   });

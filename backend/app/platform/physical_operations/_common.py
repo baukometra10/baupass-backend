@@ -5,6 +5,7 @@ import hashlib
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 
 def now_iso() -> str:
@@ -19,6 +20,17 @@ ON_SITE_DIRECTIONS = ("check-in", "app-login")
 OFF_SITE_DIRECTIONS = ("check-out", "app-logout")
 WORK_CHECKIN_DIRECTIONS = ("check-in",)
 WORK_CHECKOUT_DIRECTIONS = ("check-out",)
+
+
+def _access_wall_tz():
+    try:
+        return ZoneInfo("Europe/Berlin")
+    except Exception:
+        # Windows/dev without tzdata: CEST-ish fallback (Railway/Linux has zoneinfo data).
+        return timezone(timedelta(hours=2))
+
+
+ACCESS_WALL_TZ = _access_wall_tz()
 
 
 def is_work_checkin(direction: str | None) -> bool:
@@ -38,13 +50,36 @@ def is_off_site_direction(direction: str | None) -> bool:
 
 
 def _parse_access_timestamp(value: str | None) -> datetime | None:
+    """
+    Parse access-log timestamps into comparable Europe/Berlin datetimes.
+
+    - Explicit Z/offset → convert to Berlin
+    - Naive ISO (mobile / auto Schichtende) → treat as Berlin wall clock
+    """
     raw = str(value or "").strip()
     if not raw:
         return None
     try:
-        return datetime.fromisoformat(raw[:19])
+        if raw.endswith(("Z", "z")):
+            dt = datetime.fromisoformat(raw[:-1] + "+00:00")
+        elif len(raw) > 19 and (raw[19] in "+-" or "+" in raw[10:] or raw.count("-") >= 3):
+            dt = datetime.fromisoformat(raw)
+        else:
+            dt = datetime.fromisoformat(raw[:19])
+            return dt.replace(tzinfo=ACCESS_WALL_TZ)
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=ACCESS_WALL_TZ)
+        return dt.astimezone(ACCESS_WALL_TZ)
     except ValueError:
         return None
+
+
+def _access_event_sort_key(item: dict[str, Any]) -> tuple[datetime, str]:
+    parsed = _parse_access_timestamp(item.get("timestamp"))
+    stamp = str(item.get("timestamp") or "")
+    if parsed is None:
+        return (datetime.min.replace(tzinfo=ACCESS_WALL_TZ), stamp)
+    return (parsed, stamp)
 
 
 def minutes_between_access_timestamps(start: str | None, end: str | None) -> int | None:
@@ -61,7 +96,7 @@ def minutes_between_access_timestamps(start: str | None, end: str | None) -> int
 
 def pair_presence_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Chronologically pair check-in/app-login with check-out/app-logout."""
-    ordered = sorted(events, key=lambda item: str(item.get("timestamp") or ""))
+    ordered = sorted(events, key=_access_event_sort_key)
     sessions: list[dict[str, Any]] = []
     pending_in: dict[str, Any] | None = None
 
@@ -116,7 +151,7 @@ def pair_presence_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 def pair_work_attendance_sessions(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Pair only formal check-in / check-out for billable work hours."""
-    ordered = sorted(events, key=lambda item: str(item.get("timestamp") or ""))
+    ordered = sorted(events, key=_access_event_sort_key)
     sessions: list[dict[str, Any]] = []
     pending_in: dict[str, Any] | None = None
 
