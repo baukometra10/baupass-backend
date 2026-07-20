@@ -89,7 +89,7 @@
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="/ops-center-i18n-extra.js?v=20260705g"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
-  <script src="/ops-realtime.js"></script>
+  <script src="/ops-realtime.js?v=20260720auth1"></script>
   <script>
     const UI_LANG_KEY = "baupass-ui-lang";
     const OPS_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
@@ -627,6 +627,7 @@
       stopRealtime = await window.SUPPIXOpsRealtime.start({
         companyId,
         feedEl: feed,
+        getHeaders: () => window.BaupassAuth?.authHeaders?.({ Accept: "application/json" }) || {},
         onMode: (mode) => {
           const st = document.getElementById("status");
           if (st) {

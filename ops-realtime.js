@@ -87,6 +87,22 @@
       .join("");
   }
 
+  function resolveAuthHeaders(getHeaders) {
+    if (typeof getHeaders === "function") {
+      try {
+        return getHeaders() || {};
+      } catch {
+        return {};
+      }
+    }
+    // Embed/admin often auth via Bearer token, not only session cookie.
+    try {
+      return global.BaupassAuth?.authHeaders?.() || {};
+    } catch {
+      return {};
+    }
+  }
+
   function startPolling({ companyId, feedEl, onMode, onEvent, getHeaders }) {
     let stopped = false;
     let timer = null;
@@ -121,12 +137,15 @@
           credentials: "include",
           headers: {
             Accept: "application/json",
-            ...(typeof getHeaders === "function" ? getHeaders() : {}),
+            ...resolveAuthHeaders(getHeaders),
           },
         });
         if (!response.ok) {
           if (response.status === 401) {
             stopped = true;
+            if (feedEl) {
+              feedEl.innerHTML = `<span class="muted">Sitzung abgelaufen — bitte neu anmelden.</span>`;
+            }
             return;
           }
           timer = global.setTimeout(poll, retryMs);
@@ -264,7 +283,7 @@
         credentials: "include",
         headers: {
           Accept: "application/json",
-          ...(typeof getHeaders === "function" ? getHeaders() : {}),
+          ...resolveAuthHeaders(getHeaders),
         },
       }).then((r) =>
         r.ok ? r.json() : null,
