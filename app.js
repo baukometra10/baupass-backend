@@ -28622,6 +28622,11 @@ function getTodayPresenceMeta(accessLogs) {
 function formatAccessClockLabel(timestamp) {
   const raw = String(timestamp || "").trim();
   if (!raw) return "";
+  const hasOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  if (!hasOffset) {
+    const match = raw.match(/(?:T|\s)(\d{2}):(\d{2})/);
+    if (match) return `${match[1]}:${match[2]}`;
+  }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
     return formatTimestamp(raw);
@@ -28648,10 +28653,27 @@ function formatAccessDayLabel(timestamp) {
 }
 
 function renderRecentAccess() {
-  const todayPrefix = new Date().toISOString().slice(0, 10);
+  // Local calendar day (not UTC) so overnight Schichtende times stay on the correct day.
+  const todayPrefix = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  const seen = new Set();
   const recent = getUiVisibleAccessLogs()
-    .filter((entry) => String(entry.timestamp || "").startsWith(todayPrefix))
+    .filter((entry) => {
+      const ts = String(entry.timestamp || "");
+      const day = ts.length >= 10 ? ts.slice(0, 10) : "";
+      return day === todayPrefix;
+    })
     .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .filter((entry) => {
+      const key = `${entry.workerId}|${entry.direction}|${String(entry.timestamp || "").slice(0, 16)}|${entry.note || ""}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .slice(0, 15);
 
   if (!recent.length) {

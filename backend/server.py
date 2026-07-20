@@ -1398,11 +1398,6 @@ def run_access_maintenance_if_due(db, reference_dt=None):
         auto_close_expired_visitor_entries(db, reference_dt=now_dt)
     if run_midnight_close:
         auto_close_open_entries_after_midnight(db, reference_dt=now_dt)
-    else:
-        try:
-            cleanup_synthetic_midnight_checkouts(db)
-        except Exception:
-            app.logger.warning("cleanup_synthetic_midnight_checkouts failed", exc_info=True)
     try:
         auto_close_open_checkins_after_work_end(db, reference_dt=now_dt)
     except Exception:
@@ -8971,26 +8966,47 @@ def _shift_window_for_checkin_day(db, worker_id, company_id, checkin_timestamp):
     return get_effective_work_start_time(db, worker_id), get_effective_work_end_time(db, worker_id)
 
 
+def _shift_end_local_datetime(checkin_timestamp, work_start, work_end):
+    """Wall-clock datetime when the Schicht ends (overnight rolls to next calendar day)."""
+    try:
+        checkin_day = date.fromisoformat(str(checkin_timestamp or "")[:10])
+    except ValueError:
+        return None
+    end_hm = str(work_end or "").strip()[:5]
+    start_minutes = _work_time_to_minutes(work_start)
+    end_minutes = _work_time_to_minutes(end_hm)
+    if end_minutes is None:
+        return None
+    end_day = checkin_day
+    if start_minutes is not None and end_minutes < start_minutes:
+        end_day = checkin_day + timedelta(days=1)
+    try:
+        hour, minute = (int(x) for x in end_hm.split(":", 1))
+    except ValueError:
+        return None
+    return datetime(end_day.year, end_day.month, end_day.day, hour, minute, 0)
+
+
+def _shift_end_checkout_timestamp(checkin_timestamp, work_start, work_end):
+    """Naive local ISO timestamp at Schichtende (matches mobile wall-clock stamps)."""
+    end_dt = _shift_end_local_datetime(checkin_timestamp, work_start, work_end)
+    if not end_dt:
+        return None
+    return end_dt.strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def _should_preserve_overnight_open_checkin(db, worker_id, company_id, checkin_timestamp, reference_dt=None):
     """True while an overnight Schicht is still active (do not force midnight checkout)."""
     work_start, work_end = _shift_window_for_checkin_day(db, worker_id, company_id, checkin_timestamp)
+    end_dt = _shift_end_local_datetime(checkin_timestamp, work_start, work_end)
+    if not end_dt:
+        return False
     start_minutes = _work_time_to_minutes(work_start)
     end_minutes = _work_time_to_minutes(work_end)
     if start_minutes is None or end_minutes is None or end_minutes >= start_minutes:
         return False
-    try:
-        checkin_day = date.fromisoformat(str(checkin_timestamp or "")[:10])
-    except ValueError:
-        return False
-    now_local = _local_now_for_company(db, company_id, reference_dt)
-    if now_local.date() < checkin_day:
-        return True
-    if now_local.date() == checkin_day:
-        return True
-    if now_local.date() == checkin_day + timedelta(days=1):
-        now_minutes = now_local.hour * 60 + now_local.minute
-        return now_minutes <= end_minutes
-    return False
+    now_local = _local_now_for_company(db, company_id, reference_dt).replace(tzinfo=None)
+    return now_local < end_dt
 
 
 def cleanup_synthetic_midnight_checkouts(db):
@@ -9022,13 +9038,88 @@ def cleanup_synthetic_midnight_checkouts(db):
         return 0
 
 
+def repair_misfired_work_end_checkouts(db):
+    """
+    Fix auto work-end checkouts that were stamped with 'now' instead of Schichtende,
+    and drop duplicate auto checkouts for the same session.
+    """
+    try:
+        rows = db.execute(
+            """
+            SELECT al.id, al.worker_id, al.timestamp, al.note, w.company_id
+            FROM access_logs al
+            JOIN workers w ON w.id = al.worker_id
+            WHERE al.direction = 'check-out'
+              AND al.note LIKE 'Automatischer Austritt nach Arbeitsende%'
+            ORDER BY al.worker_id ASC, al.timestamp ASC, al.id ASC
+            """
+        ).fetchall()
+    except Exception:
+        app.logger.warning("repair_misfired_work_end_checkouts query failed", exc_info=True)
+        return 0
+
+    fixed = 0
+    deleted = 0
+    seen_sessions = set()
+    for row in rows:
+        worker_id = row["worker_id"]
+        company_id = row["company_id"]
+        checkout_ts = str(row["timestamp"] or "")
+        checkin = db.execute(
+            """
+            SELECT timestamp FROM access_logs
+            WHERE worker_id = ? AND direction = 'check-in' AND timestamp < ?
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """,
+            (worker_id, checkout_ts),
+        ).fetchone()
+        if not checkin:
+            continue
+        checkin_ts = str(checkin["timestamp"] or "")
+        session_key = f"{worker_id}|{checkin_ts}"
+        if session_key in seen_sessions:
+            db.execute("DELETE FROM access_logs WHERE id = ?", (row["id"],))
+            deleted += 1
+            continue
+        seen_sessions.add(session_key)
+
+        work_start, work_end = _shift_window_for_checkin_day(db, worker_id, company_id, checkin_ts)
+        correct_ts = _shift_end_checkout_timestamp(checkin_ts, work_start, work_end)
+        if not correct_ts:
+            continue
+        # Compare wall-clock HH:MM; rewrite when auto-close used "now" hours later.
+        if checkout_ts[:16] != correct_ts[:16]:
+            db.execute(
+                "UPDATE access_logs SET timestamp = ?, note = ? WHERE id = ?",
+                (
+                    correct_ts,
+                    f"Automatischer Austritt nach Arbeitsende ({str(work_end or '')[:5]})",
+                    row["id"],
+                ),
+            )
+            fixed += 1
+
+    if fixed or deleted:
+        db.commit()
+        log_audit(
+            "access.repair_work_end_close",
+            f"{fixed} Arbeitsende-Zeiten korrigiert, {deleted} Duplikate entfernt",
+            target_type="access",
+            target_id="work-end-repair",
+        )
+    return fixed + deleted
+
+
 def auto_close_open_checkins_after_work_end(db, reference_dt=None):
-    """Close open GPS/check-in sessions after configured/per-shift work end time."""
+    """Close open GPS/check-in sessions after Schichtende — timestamp = Schichtende, not now."""
     now_dt = reference_dt or datetime.now(timezone.utc)
     if now_dt.tzinfo is None:
         now_dt = now_dt.replace(tzinfo=timezone.utc)
     today_prefix = now_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+    repair_misfired_work_end_checkouts(db)
 
+    # Only the latest open session per worker (avoids duplicate auto checkouts).
     rows = db.execute(
         """
         SELECT w.id AS worker_id, w.company_id, w.first_name, w.last_name, w.badge_id, w.worker_type,
@@ -9037,6 +9128,12 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
         JOIN access_logs al ON al.worker_id = w.id
         WHERE w.deleted_at IS NULL
           AND al.direction = 'check-in'
+          AND al.timestamp = (
+              SELECT MAX(al_latest.timestamp)
+              FROM access_logs al_latest
+              WHERE al_latest.worker_id = w.id
+                AND al_latest.direction IN ('check-in', 'check-out', 'app-login', 'app-logout')
+          )
           AND NOT EXISTS (
               SELECT 1 FROM access_logs al_out
               WHERE al_out.worker_id = al.worker_id
@@ -9049,23 +9146,39 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
     auto_closed = []
     for row in rows:
         company_id = row["company_id"]
-        now_local = _local_now_for_company(db, company_id, now_dt)
-        current_hm = now_local.strftime("%H:%M")
+        now_local = _local_now_for_company(db, company_id, now_dt).replace(tzinfo=None)
         work_start, work_end = _shift_window_for_checkin_day(
             db, row["worker_id"], company_id, row["checkin_timestamp"]
         )
-        if not work_end or not _is_past_work_end_time(work_start, work_end, current_hm):
+        if not work_end:
             continue
-        if _should_preserve_overnight_open_checkin(
-            db, row["worker_id"], company_id, row["checkin_timestamp"], now_dt
-        ):
+        end_dt = _shift_end_local_datetime(row["checkin_timestamp"], work_start, work_end)
+        if not end_dt or now_local < end_dt:
+            continue
+        checkout_ts = _shift_end_checkout_timestamp(row["checkin_timestamp"], work_start, work_end)
+        if not checkout_ts:
+            continue
+        # Already closed for this session?
+        existing = db.execute(
+            """
+            SELECT id FROM access_logs
+            WHERE worker_id = ?
+              AND direction = 'check-out'
+              AND timestamp >= ?
+              AND note LIKE 'Automatischer Austritt nach Arbeitsende%'
+            LIMIT 1
+            """,
+            (row["worker_id"], row["checkin_timestamp"]),
+        ).fetchone()
+        if existing:
             continue
         log_id = create_access_log_entry(
             db,
             row["worker_id"],
             "check-out",
             row["checkin_gate"] or "Mitarbeiter-App (Standort)",
-            f"Automatischer Austritt nach Arbeitsende ({work_end})",
+            f"Automatischer Austritt nach Arbeitsende ({str(work_end)[:5]})",
+            timestamp_value=checkout_ts,
             worker_type=row["worker_type"],
         )
         auto_closed.append(
@@ -9074,6 +9187,7 @@ def auto_close_open_checkins_after_work_end(db, reference_dt=None):
                 "name": f"{row['first_name']} {row['last_name']}",
                 "badgeId": row["badge_id"],
                 "checkoutLogId": log_id,
+                "timestamp": checkout_ts,
             }
         )
 
@@ -9112,7 +9226,6 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
     ).fetchall()
 
     auto_closed = []
-    close_timestamp = now_iso()
     for row in rows:
         company_id = row["company_id"]
         now_local = _local_now_for_company(db, company_id, now_dt)
@@ -9129,11 +9242,19 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
         work_start, work_end = _shift_window_for_checkin_day(
             db, row["worker_id"], company_id, checkin_ts
         )
-        # Overnight shifts are handled above; daytime leftovers close with real clock time.
         start_minutes = _work_time_to_minutes(work_start)
         end_minutes = _work_time_to_minutes(work_end)
+        # Overnight leftovers are closed by work-end handler at Schichtende — not here.
         if start_minutes is not None and end_minutes is not None and end_minutes < start_minutes:
             continue
+        # Daytime: stamp at previous day's work end when known, else keep prior day 23:59 (never fake 00:00).
+        checkout_ts = _shift_end_checkout_timestamp(checkin_ts, work_start, work_end)
+        if not checkout_ts:
+            try:
+                prev_day = date.fromisoformat(checkin_ts[:10])
+                checkout_ts = f"{prev_day.isoformat()}T23:59:00"
+            except ValueError:
+                checkout_ts = now_iso()
         log_id = f"log-{secrets.token_hex(6)}"
         db.execute(
             "INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
@@ -9143,7 +9264,7 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 "check-out",
                 "System Tagesabschluss",
                 "Automatischer Austritt (Tagesabschluss)",
-                close_timestamp,
+                checkout_ts,
             ),
         )
         auto_closed.append(
@@ -9151,7 +9272,7 @@ def auto_close_open_entries_after_midnight(db, reference_dt=None):
                 "workerId": row["worker_id"],
                 "name": f"{row['first_name']} {row['last_name']}",
                 "badgeId": row["badge_id"],
-                "timestamp": close_timestamp,
+                "timestamp": checkout_ts,
             }
         )
 
@@ -9177,14 +9298,18 @@ def _platform_branding_payload(db):
         "logoData": _default_brand_logo_data_url(),
         "impressumText": "",
         "datenschutzText": "",
+        "operatorEmail": "",
+        "invoiceOperatorEmail": "",
+        "operatorPhone": "",
+        "operatorStreet": "",
+        "operatorZipCity": "",
+        "operatorWebsite": "",
         "uiBuild": ui_build,
         "tenantMatched": False,
     }
     if db is None:
         return fallback
-    row = db.execute(
-        "SELECT platform_name, operator_name, invoice_primary_color, invoice_accent_color, invoice_logo_data, impressum_text, datenschutz_text FROM settings WHERE id = 1"
-    ).fetchone()
+    row = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     if not row:
         return fallback
     return {
@@ -9195,6 +9320,12 @@ def _platform_branding_payload(db):
         "logoData": str(row["invoice_logo_data"] or "").strip() or _default_brand_logo_data_url(),
         "impressumText": str(row["impressum_text"] or ""),
         "datenschutzText": str(row["datenschutz_text"] or ""),
+        "operatorEmail": str(row["invoice_operator_email"] or "") if "invoice_operator_email" in row.keys() else "",
+        "invoiceOperatorEmail": str(row["invoice_operator_email"] or "") if "invoice_operator_email" in row.keys() else "",
+        "operatorPhone": str(row["invoice_operator_phone"] or "") if "invoice_operator_phone" in row.keys() else "",
+        "operatorStreet": str(row["invoice_operator_street"] or "") if "invoice_operator_street" in row.keys() else "",
+        "operatorZipCity": str(row["invoice_operator_zip_city"] or "") if "invoice_operator_zip_city" in row.keys() else "",
+        "operatorWebsite": str(row["invoice_operator_website"] or "") if "invoice_operator_website" in row.keys() else "",
         "uiBuild": ui_build,
         "tenantMatched": False,
     }
@@ -16005,7 +16136,7 @@ def shift_propose_swap():
             to_worker_id,
             "Schicht-Tausch",
             f"{worker['first_name']} {worker['last_name']}: {reason[:120] if reason else 'Neue Anfrage'}",
-            tag="attendance-reminder",
+            tag="shift-swap",
             company_id=worker["company_id"],
         )
     except Exception:
@@ -16087,7 +16218,7 @@ def shift_respond_swap(swap_id):
             swap["from_worker_id"],
             "Schicht-Tausch",
             f"Deine Anfrage wurde {label}.",
-            tag="attendance-reminder",
+            tag="shift-swap",
             company_id=worker["company_id"],
         )
     except Exception:
@@ -16133,6 +16264,42 @@ def shift_respond_swap(swap_id):
             admin_notify = None
 
     return jsonify({"ok": True, "status": new_status, "pushDelivery": push_delivery, "adminNotify": admin_notify, "mutual": mutual})
+
+
+@require_worker_session
+def shift_cancel_swap(swap_id):
+    """Mitarbeiter: Eigene ausstehende Tausch-Anfrage zurückziehen."""
+    db = get_db()
+    worker = g.worker
+    swap = db.execute("SELECT * FROM shift_swaps WHERE id = ?", (swap_id,)).fetchone()
+    if (
+        not swap
+        or str(swap["from_worker_id"]) != str(worker["id"])
+        or str(swap["company_id"] or "") != str(worker["company_id"] or "")
+    ):
+        return jsonify({"error": "not_authorized"}), 403
+    if str(swap["status"] or "") != "pending":
+        return jsonify({"error": "not_pending"}), 400
+    db.execute(
+        "UPDATE shift_swaps SET status = ?, responded_at = ? WHERE id = ?",
+        ("cancelled", now_iso(), swap_id),
+    )
+    db.commit()
+    push_delivery = {"pushSent": 0}
+    try:
+        from backend.app.platform.push.automation import push_to_worker
+
+        push_delivery = push_to_worker(
+            db,
+            swap["to_worker_id"],
+            "Schicht-Tausch",
+            f"{worker['first_name']} {worker['last_name']} hat die Anfrage zurückgezogen.",
+            tag="shift-swap",
+            company_id=worker["company_id"],
+        )
+    except Exception:
+        pass
+    return jsonify({"ok": True, "status": "cancelled", "pushDelivery": push_delivery})
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -28241,12 +28408,16 @@ def worker_app_legal():
         except Exception:
             pass
 
+    import hashlib as _hashlib
+
+    content_fp = _hashlib.sha256((impressum + "\n" + datenschutz).encode("utf-8", errors="ignore")).hexdigest()[:16]
     return jsonify(
         {
             "impressumText": impressum[:20000],
             "datenschutzText": datenschutz[:20000],
             "hasImpressum": bool(impressum.strip()),
             "hasDatenschutz": bool(datenschutz.strip()),
+            "contentVersion": f"v{content_fp}",
             "controller": controller,
             "operator": operator,
             "sectionTitle": "Impressum & Datenschutz",
@@ -28343,6 +28514,101 @@ def worker_app_privacy_consent():
         )
     db.commit()
     return jsonify({"ok": True, "consentId": consent_id, "granted": granted, "version": version})
+
+
+@require_worker_session
+def worker_app_gdpr_requests():
+    """Mitarbeiter: DSGVO-Auskunft/Löschung anfragen oder eigene Anfragen lesen."""
+    worker = g.worker
+    db = get_db()
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS gdpr_requests (
+                id              TEXT PRIMARY KEY,
+                request_type    TEXT NOT NULL,
+                status          TEXT NOT NULL DEFAULT 'pending',
+                requester_type  TEXT NOT NULL,
+                requester_id    TEXT NOT NULL,
+                company_id      TEXT NOT NULL,
+                worker_id       TEXT,
+                submitted_at    TEXT NOT NULL,
+                completed_at    TEXT,
+                expires_at      TEXT,
+                notes           TEXT,
+                processed_by    TEXT
+            )
+            """
+        )
+    except Exception:
+        pass
+
+    if request.method == "GET":
+        rows = db.execute(
+            """
+            SELECT id, request_type, status, submitted_at, completed_at, notes
+            FROM gdpr_requests
+            WHERE worker_id = ? AND company_id = ?
+            ORDER BY submitted_at DESC
+            LIMIT 40
+            """,
+            (worker["id"], str(worker["company_id"])),
+        ).fetchall()
+        return jsonify({
+            "requests": [
+                {
+                    "id": r["id"],
+                    "requestType": r["request_type"],
+                    "status": r["status"],
+                    "submittedAt": r["submitted_at"],
+                    "completedAt": r["completed_at"],
+                    "notes": r["notes"] or "",
+                }
+                for r in rows
+            ]
+        })
+
+    payload = request.get_json(silent=True) or {}
+    request_type = str(payload.get("requestType") or payload.get("type") or "").strip().lower()
+    if request_type not in {"access", "erasure", "auskunft", "loeschung"}:
+        return jsonify({"error": "invalid_request_type"}), 400
+    if request_type == "auskunft":
+        request_type = "access"
+    if request_type == "loeschung":
+        request_type = "erasure"
+    notes = str(payload.get("notes") or "")[:2000]
+    now = now_iso()
+    req_id = f"gdpr-{secrets.token_hex(8)}"
+    db.execute(
+        """
+        INSERT INTO gdpr_requests (
+            id, request_type, status, requester_type, requester_id, company_id,
+            worker_id, submitted_at, notes
+        ) VALUES (?, ?, 'pending', 'worker', ?, ?, ?, ?, ?)
+        """,
+        (
+            req_id,
+            request_type,
+            worker["id"],
+            str(worker["company_id"]),
+            worker["id"],
+            now,
+            notes,
+        ),
+    )
+    db.commit()
+    db.commit()
+    try:
+        log_audit(
+            "gdpr.request",
+            f"worker {worker['id']} requested {request_type}",
+            target_type="gdpr_request",
+            target_id=req_id,
+            company_id=str(worker["company_id"]),
+        )
+    except Exception:
+        pass
+    return jsonify({"ok": True, "id": req_id, "requestType": request_type, "status": "pending"}), 201
 
 
 @require_worker_session

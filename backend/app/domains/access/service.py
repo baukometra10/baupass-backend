@@ -11,8 +11,5 @@ class AccessService:
     def live_access_feed(self, db, company_id: str) -> dict:
         return {"access_logs": self.repo.recent_logs(db, company_id, limit=30)}
 
-    def latest_access_per_worker(self, db, company_id: str) -> dict:
-        return {"access_logs": self.repo.latest_logs_per_worker(db, company_id, limit=30)}
-
     def geofence_zones(self, db, company_id: str) -> dict:
         return {"zones": self.repo.list_geofences(db, company_id)}
