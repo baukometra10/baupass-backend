@@ -7,6 +7,7 @@ import 'package:just_audio/just_audio.dart';
 import '../core/session_store.dart';
 import 'voice_call_repository.dart';
 import 'callkit_service.dart';
+import 'push_background_handler.dart';
 
 enum VoiceCallUiPhase { idle, ringing, outgoing, connecting, connected, ended }
 
@@ -44,6 +45,7 @@ class VoiceCallController extends ChangeNotifier {
   String? _lastDismissedCallId;
   bool _isOutgoing = false;
   AudioPlayer? _ringPlayer;
+  String? _pendingCallKitAction; // accept | decline
 
   VoiceCallUiPhase get phase => _phase;
   bool get isOutgoing => _isOutgoing;
@@ -86,34 +88,64 @@ class VoiceCallController extends ChangeNotifier {
     _session = session;
     unawaited(_callKit.initialize(
       onAccept: (callId) {
-        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
-        if (_phase == VoiceCallUiPhase.ringing &&
-            !_isOutgoing &&
-            (current.isEmpty || current == callId || callId.isNotEmpty)) {
-          unawaited(accept());
-        }
+        unawaited(_handleCallKitAction('accept', callId));
       },
       onDecline: (callId) {
-        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
-        if (_phase == VoiceCallUiPhase.ringing &&
-            (current.isEmpty || current == callId || callId.isNotEmpty)) {
-          unawaited(decline());
-        }
+        unawaited(_handleCallKitAction('decline', callId));
       },
       onEnded: (callId) {
-        final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
-        if (current == callId || (_phase == VoiceCallUiPhase.ringing && callId.isNotEmpty)) {
-          if (_phase == VoiceCallUiPhase.ringing || _phase == VoiceCallUiPhase.connecting) {
-            unawaited(decline());
-          }
-        }
+        unawaited(_handleCallKitAction('decline', callId));
       },
     ));
+    unawaited(_drainPendingCallKitAction());
     _startPolling();
     _startEventPolling();
   }
 
+  Future<void> _handleCallKitAction(String action, String callId) async {
+    final id = callId.trim();
+    final act = action.trim().toLowerCase();
+    if (id.isEmpty || act.isEmpty) return;
+    final current = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+    final ready = _phase == VoiceCallUiPhase.ringing &&
+        !_isOutgoing &&
+        (current.isEmpty || current == id);
+    if (!ready) {
+      _pendingCallKitAction = act;
+      _pendingCallId = id;
+      await persistPendingCallKitAction(act, id);
+      unawaited(_pollIncoming(force: true));
+      return;
+    }
+    if (act == 'accept') {
+      await accept();
+    } else {
+      await decline();
+    }
+  }
+
+  Future<void> _drainPendingCallKitAction() async {
+    final pending = await takePendingCallKitAction();
+    if (pending == null) return;
+    _pendingCallKitAction = pending.action;
+    _pendingCallId = pending.callId;
+    unawaited(_pollIncoming(force: true));
+  }
+
+  void _maybeApplyPendingCallKitAction() {
+    final act = (_pendingCallKitAction ?? '').trim().toLowerCase();
+    if (act.isEmpty) return;
+    if (_phase != VoiceCallUiPhase.ringing || _isOutgoing) return;
+    _pendingCallKitAction = null;
+    if (act == 'accept') {
+      unawaited(accept());
+    } else if (act == 'decline') {
+      unawaited(decline());
+    }
+  }
+
   void onAppResumed() {
+    unawaited(_drainPendingCallKitAction());
     unawaited(_pollIncoming(force: true));
     unawaited(_pollEvents());
   }
@@ -254,6 +286,7 @@ class VoiceCallController extends ChangeNotifier {
       companyName: subtitleLabel,
     ));
     notifyListeners();
+    _maybeApplyPendingCallKitAction();
   }
 
   void _startRingTimeout() {

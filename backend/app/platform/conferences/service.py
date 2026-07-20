@@ -542,6 +542,33 @@ class ConferenceService:
             "createdAt": row["created_at"],
         }
 
+    def worker_invite_by_id(
+        self, *, company_id: str, worker_id: str, room_id: str
+    ) -> dict[str, Any] | None:
+        """Fetch a specific active invite for a worker (push / deep-link)."""
+        rid = str(room_id or "").strip()
+        if not rid:
+            return None
+        row = self.db.execute(
+            """
+            SELECT r.id, r.title, r.livekit_room, r.created_at, p.status
+            FROM chat_conference_participants p
+            JOIN chat_conference_rooms r ON r.id = p.room_id
+            WHERE r.id = ? AND p.company_id = ? AND p.participant_type = 'worker'
+              AND p.participant_id = ? AND p.status = 'invited' AND r.status = 'active'
+            LIMIT 1
+            """,
+            (rid, company_id, worker_id),
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "title": row["title"],
+            "status": row["status"],
+            "createdAt": row["created_at"],
+        }
+
     def leave(self, *, room_id: str, participant_type: str, participant_id: str) -> None:
         now = utc_now_iso()
         self.db.execute(

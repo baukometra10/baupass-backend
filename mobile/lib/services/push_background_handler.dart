@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 const String kPendingVoiceCallIdKey = 'suppix_pending_voice_call_id';
 const String kPendingConferenceRoomIdKey = 'suppix_pending_conference_room_id';
+const String kPendingCallKitActionKey = 'suppix_pending_callkit_action';
 
 /// Top-level FCM handler — runs even when the APK is killed/backgrounded.
 @pragma('vm:entry-point')
@@ -108,4 +109,25 @@ Future<String?> takePendingConferenceRoomId() async {
   if (id.isEmpty) return null;
   await prefs.remove(kPendingConferenceRoomIdKey);
   return id;
+}
+
+Future<void> persistPendingCallKitAction(String action, String callId) async {
+  final a = action.trim().toLowerCase();
+  final id = callId.trim();
+  if (a.isEmpty || id.isEmpty) return;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(kPendingCallKitActionKey, '$a|$id');
+}
+
+Future<({String action, String callId})?> takePendingCallKitAction() async {
+  final prefs = await SharedPreferences.getInstance();
+  final raw = (prefs.getString(kPendingCallKitActionKey) ?? '').trim();
+  if (raw.isEmpty) return null;
+  await prefs.remove(kPendingCallKitActionKey);
+  final parts = raw.split('|');
+  if (parts.length < 2) return null;
+  final action = parts.first.trim();
+  final callId = parts.sublist(1).join('|').trim();
+  if (action.isEmpty || callId.isEmpty) return null;
+  return (action: action, callId: callId);
 }

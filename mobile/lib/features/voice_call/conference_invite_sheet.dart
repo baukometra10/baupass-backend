@@ -48,7 +48,7 @@ class _ConferenceInviteSheetState extends State<ConferenceInviteSheet> {
       }
       setState(() => _busy = false);
       final navigator = Navigator.of(context);
-      navigator.pop();
+      navigator.pop('joined');
       await navigator.push(
         MaterialPageRoute<void>(
           fullscreenDialog: true,
@@ -80,7 +80,7 @@ class _ConferenceInviteSheetState extends State<ConferenceInviteSheet> {
         /* ignore */
       }
     }
-    if (mounted) Navigator.pop(context);
+    if (mounted) Navigator.pop(context, 'declined');
   }
 
   @override

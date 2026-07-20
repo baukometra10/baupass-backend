@@ -526,12 +526,13 @@
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await this._sendSignal("answer", { type: answer.type, sdp: answer.sdp });
-        this.onState("connected");
+        this._stopRingtone();
+        this.onState("connecting");
       } else if (signal.signalType === "answer") {
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
         await this._flushPendingIce(pc);
         this._stopRingtone();
-        this.onState("connected");
+        this.onState("connecting");
       } else if (signal.signalType === "ice-candidate" && payload) {
         if (!pc.remoteDescription) {
           this.pendingIce.push(payload);
@@ -566,7 +567,7 @@
       const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
       await this.pc.setLocalDescription(offer);
       await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
-      this.onState("connected");
+      this.onState("connecting");
     }
 
     _pollPath() {

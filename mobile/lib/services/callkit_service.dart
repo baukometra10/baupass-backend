@@ -8,6 +8,8 @@ import 'package:flutter_callkit_incoming/entities/ios_params.dart';
 import 'package:flutter_callkit_incoming/entities/notification_params.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 
+import 'push_background_handler.dart';
+
 typedef CallKitActionHandler = void Function(String callId);
 
 /// Native incoming-call UI (CallKit iOS / full-screen Android).
@@ -66,14 +68,26 @@ class CallKitService {
     if (callId.isEmpty) return;
     switch (event) {
       case Event.actionCallAccept:
-        onAccept?.call(callId);
+        if (onAccept != null) {
+          onAccept!(callId);
+        } else {
+          unawaited(persistPendingCallKitAction('accept', callId));
+        }
         break;
       case Event.actionCallDecline:
-        onDecline?.call(callId);
+        if (onDecline != null) {
+          onDecline!(callId);
+        } else {
+          unawaited(persistPendingCallKitAction('decline', callId));
+        }
         break;
       case Event.actionCallEnded:
       case Event.actionCallTimeout:
-        onEnded?.call(callId);
+        if (onEnded != null) {
+          onEnded!(callId);
+        } else {
+          unawaited(persistPendingCallKitAction('decline', callId));
+        }
         break;
       default:
         break;

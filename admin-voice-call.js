@@ -83,6 +83,8 @@
   }
 
   function bindDesktopActions() {
+    // Chat page owns accept/decline via its own IPC listener — avoid double decline.
+    if (isAdminChatPage()) return;
     if (!global.baupassDesktop?.onIncomingCallAction || global.__adminVoiceCallDesktopBound) return;
     global.__adminVoiceCallDesktopBound = true;
     global.baupassDesktop.onIncomingCallAction((payload) => {
@@ -105,11 +107,7 @@
       }
       if (path) {
         try {
-          if (String(global.location?.pathname || "").includes("/admin-v2/chat.html")) {
-            global.dispatchEvent(new CustomEvent("suppix:admin-incoming-call-action", { detail: payload }));
-          } else {
-            global.location.href = path;
-          }
+          global.location.href = path;
         } catch (_) {
           try { global.location.href = path || "/admin-v2/chat.html"; } catch (__) { /* ignore */ }
         }

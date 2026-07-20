@@ -134,25 +134,33 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   Future<void> _pollConferenceInvite({String? forceRoomId}) async {
     if (!mounted || _conferenceSheetOpen || _voiceCall.isActive) return;
     try {
-      final invite = await _conferenceRepo.incoming(widget.session);
+      final forced = (forceRoomId ?? _pendingConferenceForceId ?? '').trim();
+      Map<String, dynamic>? invite;
+      if (forced.isNotEmpty) {
+        invite = await _conferenceRepo.inviteById(widget.session, forced);
+      }
+      invite ??= await _conferenceRepo.incoming(widget.session);
       if (!mounted || invite == null) return;
       final id = (invite['id'] ?? '').toString();
       if (id.isEmpty) return;
-      final forced = (forceRoomId ?? _pendingConferenceForceId ?? '').trim();
       if (forced.isNotEmpty && id != forced) return;
       if (forced.isEmpty && id == _shownConferenceId) return;
-      _shownConferenceId = id;
-      _pendingConferenceForceId = null;
       _conferenceSheetOpen = true;
-      await showModalBottomSheet<void>(
+      final result = await showModalBottomSheet<String>(
         context: context,
         showDragHandle: true,
+        isDismissible: true,
         builder: (_) => ConferenceInviteSheet(
           session: widget.session,
           repo: _conferenceRepo,
-          invite: invite,
+          invite: invite!,
         ),
       );
+      // Only suppress re-prompt after explicit join/decline — not swipe-dismiss.
+      if (result == 'joined' || result == 'declined') {
+        _shownConferenceId = id;
+        _pendingConferenceForceId = null;
+      }
     } catch (_) {
       /* ignore transient */
     } finally {

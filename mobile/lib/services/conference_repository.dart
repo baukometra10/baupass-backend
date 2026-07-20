@@ -19,6 +19,25 @@ class ConferenceRepository {
     return null;
   }
 
+  Future<Map<String, dynamic>?> inviteById(WorkerSession session, String roomId) async {
+    final id = roomId.trim();
+    if (id.isEmpty) return null;
+    try {
+      final data = await _api.getJson(
+        '/api/worker-app/chat/conferences/$id',
+        bearerToken: session.bearer,
+        deviceId: session.deviceId,
+      );
+      final conf = data['conference'];
+      if (conf is Map<String, dynamic>) return conf;
+      if (conf is Map) return Map<String, dynamic>.from(conf);
+      return null;
+    } on ApiException catch (e) {
+      if (e.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<Map<String, dynamic>> join(WorkerSession session, String roomId) async {
     return _api.postJson(
       '/api/worker-app/chat/conferences/$roomId/join',

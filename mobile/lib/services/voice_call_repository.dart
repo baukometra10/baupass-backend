@@ -374,11 +374,11 @@ class WorkerVoiceCallSession {
         type: 'answer',
         payload: {'type': answer.type, 'sdp': answer.sdp},
       );
-      onState('connected');
+      onState('connecting');
     } else if (type == 'answer') {
       await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'answer'));
       await _flushPendingIce(pc);
-      onState('connected');
+      onState('connecting');
     } else if (type == 'ice-candidate') {
       final hasRemote = (await pc.getRemoteDescription()) != null;
       if (!hasRemote) {

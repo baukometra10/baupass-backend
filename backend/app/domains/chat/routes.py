@@ -1400,6 +1400,25 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         invite = svc.worker_incoming(company_id=company_id, worker_id=worker_id)
         return jsonify({"ok": True, "conference": invite})
 
+    @chat_core_bp.get("/worker-app/chat/conferences/<room_id>")
+    @require_worker_session
+    def worker_conference_get(room_id: str):
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing"}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        from backend.app.platform.conferences import ConferenceService
+
+        svc = ConferenceService(get_db())
+        invite = svc.worker_invite_by_id(
+            company_id=company_id, worker_id=worker_id, room_id=room_id
+        )
+        if not invite:
+            return jsonify({"error": "not_invited", "conference": None}), 404
+        return jsonify({"ok": True, "conference": invite})
+
     @chat_core_bp.post("/worker-app/chat/conferences/<room_id>/join")
     @require_worker_session
     def worker_conference_join(room_id: str):
