@@ -243,6 +243,16 @@ class ChatRepository {
     return out;
   }
 
+  Future<void> markThreadRead(WorkerSession session, String threadId) async {
+    await _loadMe(session);
+    await _api.postJson(
+      '/api/worker-app/chat/threads/$threadId/mark-read',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: const <String, dynamic>{},
+    );
+  }
+
   Future<({String outbound, bool e2eClientUnavailable})> _prepareOutboundBody(
     WorkerSession session,
     String body,

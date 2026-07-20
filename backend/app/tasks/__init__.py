@@ -144,6 +144,16 @@ def enqueue(
             return func(*args, **kwargs)
         except Exception as exc:
             logger.error("Synchronous task failed: %s", exc)
+            try:
+                from .job_health import record_job_run
+
+                record_job_run(
+                    f"enqueue_sync:{getattr(func, '__name__', 'task')}",
+                    ok=False,
+                    error=str(exc),
+                )
+            except Exception:
+                pass
             return None
 
     policy = RETRY_POLICIES.get(queue_name, RETRY_POLICIES["default"])
@@ -172,6 +182,26 @@ def enqueue(
 
     except Exception as exc:
         logger.error("Failed to enqueue task: %s", exc)
+        try:
+            from .dead_letter import push_dead_letter_event
+            from .job_health import record_job_run
+
+            conn = _redis_conn()
+            if conn is not None:
+                push_dead_letter_event(
+                    conn,
+                    job_id=str(job_id or "enqueue-failed"),
+                    func_name=str(getattr(func, "__name__", "task")),
+                    queue_name=queue_name,
+                    error=f"enqueue_failed: {exc}",
+                )
+            record_job_run(
+                f"enqueue:{getattr(func, '__name__', 'task')}",
+                ok=False,
+                error=str(exc),
+            )
+        except Exception:
+            pass
         return None
 
 

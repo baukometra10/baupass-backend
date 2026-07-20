@@ -1056,6 +1056,10 @@ const UI_TRANSLATIONS = {
     camerasLiveGridHint: "Alle registrierten Kameras nebeneinander — Snapshots alle 10 s.",
     camerasLiveGridEmpty: "Noch keine Kameras — Massen-Import oder Einzelkamera in den Tabs oben nutzen.",
     cameraWaitingSnapshot: "Warte auf Snapshot…",
+    cameraNoSnapshot: "Kein Snapshot",
+    cameraSnapshotError: "Snapshot-Fehler",
+    cameraHealthError: "Bridge-Fehler",
+    cameraLastSeen: "Zuletzt",
     cameraExpandHint: "Klicken für Vollbild",
     camerasLiveHint: "Letztes Bild vom RTSP-Agent (aktualisiert alle 10 s).",
     camerasLiveEmpty: "Kamera auswählen oder warten auf ersten Snapshot.",
@@ -4094,6 +4098,10 @@ const UI_TRANSLATIONS = {
     camerasLiveGridHint: "كل الكameras المسجّلة جنباً إلى جنب — تحديث كل 10 ثوانٍ.",
     camerasLiveGridEmpty: "لا كameras بعد — استخدم الاستيراد الجماعي أو كamera واحدة من التبويبات أعلاه.",
     cameraWaitingSnapshot: "بانتظار اللقطة…",
+    cameraNoSnapshot: "لا توجد لقطة",
+    cameraSnapshotError: "خطأ في اللقطة",
+    cameraHealthError: "خطأ الجسر",
+    cameraLastSeen: "آخر ظهور",
     cameraExpandHint: "انقر للعرض الكامل",
     camerasLiveHint: "آخر صورة من وكيل RTSP (تحديث كل 10 ثوانٍ).",
     camerasLiveEmpty: "اختر كamera أو انتظر أول لقطة.",
@@ -21430,17 +21438,26 @@ function renderSiteCameras(summary) {
         : cam.lastSeenAt
           ? uiT("cameraOffline")
           : uiT("cameraUnknown");
+      const healthHint = cam.healthError
+        ? `<span class="camera-tile-health muted">${escapeHtml(uiT("cameraHealthError"))}: ${escapeHtml(String(cam.healthError).slice(0, 80))}</span>`
+        : (cam.lastSeenAt
+          ? `<span class="camera-tile-health muted">${escapeHtml(uiT("cameraLastSeen"))}: ${escapeHtml(formatTimestamp(cam.lastSeenAt))}</span>`
+          : "");
       const location = cam.location ? `<span class="camera-tile-location">${escapeHtml(cam.location)}</span>` : "";
+      const placeholderText = cam.online
+        ? uiT("cameraWaitingSnapshot")
+        : (cam.healthError ? uiT("cameraHealthError") : uiT("cameraNoSnapshot"));
       return `<article class="camera-tile" role="listitem" data-camera-id="${escapeHtml(cam.id)}">
         <button type="button" class="camera-tile-frame" data-camera-expand="${escapeHtml(cam.id)}" title="${escapeHtml(uiT("cameraExpandHint"))}">
           <img class="camera-tile-image hidden" alt="${escapeHtml(cam.name || cam.id)}" data-camera-img="${escapeHtml(cam.id)}" />
-          <div class="camera-tile-placeholder" data-camera-placeholder="${escapeHtml(cam.id)}">${escapeHtml(uiT("cameraWaitingSnapshot"))}</div>
+          <div class="camera-tile-placeholder" data-camera-placeholder="${escapeHtml(cam.id)}">${escapeHtml(placeholderText)}</div>
         </button>
         <div class="camera-tile-footer">
           <span class="${dotClass}" aria-hidden="true"></span>
           <div class="camera-tile-meta">
             <strong class="camera-tile-name">${escapeHtml(cam.name || cam.id)}</strong>
             ${location}
+            ${healthHint}
           </div>
           <span class="device-badge camera-tile-badge">${escapeHtml(statusLabel)}</span>
           <button type="button" class="ghost-button small-button camera-delete-btn camera-tile-delete" data-camera-id="${escapeHtml(cam.id)}" aria-label="Delete">✕</button>
@@ -21538,7 +21555,9 @@ async function refreshCameraTileSnapshot(cameraId) {
       if (resp.status === 404 || resp.status === 429) {
         _cameraSnapshotBackoff.set(cameraId, Date.now() + CAMERA_SNAPSHOT_BACKOFF_MS);
       }
-      throw new Error("no_snapshot");
+      const err = new Error(resp.status === 404 ? "no_snapshot" : "snapshot_http");
+      err.status = resp.status;
+      throw err;
     }
     _cameraSnapshotBackoff.delete(cameraId);
     const blob = await resp.blob();
@@ -21548,10 +21567,13 @@ async function refreshCameraTileSnapshot(cameraId) {
     img.src = objectUrl;
     img.classList.remove("hidden");
     placeholder.classList.add("hidden");
-  } catch {
+  } catch (err) {
     img.classList.add("hidden");
     placeholder.classList.remove("hidden");
-    placeholder.textContent = uiT("cameraWaitingSnapshot");
+    const code = String(err?.message || "");
+    placeholder.textContent = code === "no_snapshot"
+      ? uiT("cameraNoSnapshot")
+      : uiT("cameraSnapshotError");
   }
 }
 
@@ -32267,7 +32289,9 @@ async function openBillingStripePortal() {
     return;
   }
   try {
-    const returnBase = `${window.location.origin}${window.location.pathname}?billing=portal`;
+    const returnUrl = new URL(window.location.href);
+    returnUrl.searchParams.set("billing", "portal");
+    const returnBase = returnUrl.toString();
     const result = await apiRequest(`${API_BASE}/api/v2/billing/stripe/portal-session`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -37773,14 +37797,13 @@ if (downloadPdfPreviewBtn) {
     // Generate a simple PDF (or we could call a backend endpoint)
     const element = document.querySelector("#invoicePdfFrame");
     if (element && element.srcdoc) {
-      const printWindow = window.open("", "_blank");
-      if (!printWindow) {
-        showToast(runtimeText("popupBlockedAllow") || "Pop-up blockiert — bitte erlauben.", "warning", 6000);
-        return;
+      // Keep HTML inside the sandboxed iframe — do not open raw HTML in a new window.
+      try {
+        element.contentWindow?.focus();
+        element.contentWindow?.print();
+      } catch {
+        showToast(runtimeText("invoicePrintBlocked") || "Druck aus der Vorschau blockiert.", "warning", 6000);
       }
-      printWindow.document.write(element.srcdoc);
-      printWindow.document.close();
-      printWindow.print();
     }
   });
 }

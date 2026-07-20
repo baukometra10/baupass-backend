@@ -143,6 +143,11 @@ class _ChatScreenState extends State<ChatScreen> {
       await widget.chat.ensureE2eReady(widget.session);
       final threadId = await widget.chat.resolveThread(widget.session);
       final messages = await widget.chat.listMessages(widget.session, threadId);
+      try {
+        await widget.chat.markThreadRead(widget.session, threadId);
+      } catch (_) {
+        /* unread badge may linger until next open */
+      }
       Map<String, dynamic> prefs = {};
       try {
         prefs = await widget.chat.listMessagePrefs(

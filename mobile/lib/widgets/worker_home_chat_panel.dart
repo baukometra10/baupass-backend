@@ -63,6 +63,11 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
       await widget.chat.ensureE2eReady(widget.session);
       final threadId = await widget.chat.resolveThread(widget.session);
       final messages = await widget.chat.listMessages(widget.session, threadId);
+      try {
+        await widget.chat.markThreadRead(widget.session, threadId);
+      } catch (_) {
+        /* ignore */
+      }
       if (!mounted) return;
       setState(() {
         _threadId = threadId;

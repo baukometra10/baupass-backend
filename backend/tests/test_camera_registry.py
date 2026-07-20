@@ -94,6 +94,16 @@ class CameraRegistryTests(unittest.TestCase):
         self.assertEqual(len(rows), 2)
         db.close()
 
+    def test_bulk_duplicate_names_get_unique_ids(self):
+        db = self._conn()
+        items = parse_camera_bulk_text("Tor Nord; Site A; rtsp://1\nTor Nord; Site B; rtsp://2")
+        result = bulk_create_cameras(db, "cmp-cam-test", items)
+        self.assertEqual(result["created"], 2)
+        self.assertEqual(result.get("updated", 0), 0)
+        ids = [c["id"] for c in result["cameras"]]
+        self.assertEqual(len(set(ids)), 2)
+        db.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -93,12 +93,15 @@ def api_health():
     # ── Response ──────────────────────────────────────────────────────────────
     duration_ms = int((time.monotonic() - start) * 1000)
 
+    # Informational health: 200 while the API can serve; 503 only if DB is down.
+    # Readiness for RQ workers stays on /health/ready.
+    http_ok = checks.get("database", {}).get("status") == "ok"
     return jsonify({
         "status": status,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "duration_ms": duration_ms,
         "checks": checks,
-    }), 200 if status == "ok" else 503
+    }), 200 if http_ok else 503
 
 
 @health_bp.get("/health/ready")

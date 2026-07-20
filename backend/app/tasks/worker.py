@@ -92,7 +92,7 @@ def main() -> int:
 
     try:
         import redis
-        from rq import Worker, Queue, Connection
+        from rq import Worker, Queue
 
         conn = redis.Redis.from_url(redis_url, decode_responses=False)
         conn.ping()

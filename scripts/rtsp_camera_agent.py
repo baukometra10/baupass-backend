@@ -225,7 +225,7 @@ def main() -> int:
                     camera_id=target["camera_id"],
                     event_type=args.event,
                     worker_id=worker_id,
-                    heartbeat=args.heartbeat or bool(rtsp_url),
+                    heartbeat=args.heartbeat,
                     snapshot_b64=snap,
                     camera_name=target["camera_name"],
                     location=target["location"],

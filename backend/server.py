@@ -23607,6 +23607,8 @@ def retry_send_invoice(invoice_id):
         return jsonify({"error": "invoice_not_found"}), 404
     if invoice["paid_at"]:
         return jsonify({"error": "invoice_already_paid"}), 400
+    if str(invoice["status"] or "").lower() != "send_failed":
+        return jsonify({"error": "invoice_not_in_retry_state", "status": invoice["status"]}), 400
 
     sent_ok, error_message, updated = attempt_invoice_delivery(
         db,

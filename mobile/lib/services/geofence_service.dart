@@ -30,7 +30,7 @@ class GeofenceService {
 
   static const pollInterval = Duration(seconds: 5);
   static const positionDebounceMs = 4000;
-  static const offSiteStrikesRequired = 1;
+  static const offSiteStrikesRequired = 3;
 
   Future<void> start({
     required String bearer,

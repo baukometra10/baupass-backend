@@ -158,7 +158,9 @@ def parse_camera_bulk_text(text: str) -> list[dict[str, Any]]:
 
 def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dict[str, Any]:
     created: list[dict[str, Any]] = []
+    updated: list[dict[str, Any]] = []
     failed: list[dict[str, Any]] = []
+    used_ids: set[str] = set()
     for index, item in enumerate(items or []):
         if not isinstance(item, dict):
             failed.append({"index": index, "error": "invalid_item"})
@@ -168,6 +170,13 @@ def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dic
             failed.append({"index": index, "error": "name_required"})
             continue
         cam_id = str(item.get("id") or _slug_camera_id(name)).strip()
+        if cam_id in used_ids:
+            base = cam_id
+            suffix = 2
+            while f"{base}-{suffix}" in used_ids:
+                suffix += 1
+            cam_id = f"{base}-{suffix}"
+        used_ids.add(cam_id)
         payload = {
             "id": cam_id,
             "name": name,
@@ -177,9 +186,9 @@ def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dic
         try:
             existing = get_camera(db, company_id, cam_id)
             if existing:
-                updated = update_camera(db, company_id, cam_id, payload)
-                if updated:
-                    created.append(updated)
+                row = update_camera(db, company_id, cam_id, payload)
+                if row:
+                    updated.append(row)
                 else:
                     failed.append({"index": index, "error": "update_failed", "name": name})
             else:
@@ -188,7 +197,13 @@ def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dic
             failed.append({"index": index, "error": str(exc), "name": name})
         except Exception as exc:
             failed.append({"index": index, "error": str(exc), "name": name})
-    return {"ok": True, "created": len(created), "failed": failed, "cameras": created}
+    return {
+        "ok": True,
+        "created": len(created),
+        "updated": len(updated),
+        "failed": failed,
+        "cameras": created + updated,
+    }
 
 
 def create_camera(db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
