@@ -3952,7 +3952,13 @@ async function loadOverview() {
   } else if (strip) {
     strip.classList.add("hidden");
   }
-  renderTable($("recentAccess"), overview.recentAccess || [], [
+  const recentRows = [...(overview.recentAccess || [])].sort((a, b) => {
+    const ta = String(a?.timestamp || "");
+    const tb = String(b?.timestamp || "");
+    if (ta !== tb) return tb.localeCompare(ta);
+    return String(b?.id || "").localeCompare(String(a?.id || ""));
+  });
+  renderTable($("recentAccess"), recentRows, [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("workers.colBadge"), render: (r) => r.badge_id || "-" },
     {
@@ -4359,7 +4365,13 @@ async function loadAccess() {
     };
   }
   const data = await api(`/api/v2/access/live${q}`);
-  renderTable($("accessTable"), data.access_logs || [], [
+  const accessRows = [...(data.access_logs || [])].sort((a, b) => {
+    const ta = String(a?.timestamp || "");
+    const tb = String(b?.timestamp || "");
+    if (ta !== tb) return tb.localeCompare(ta);
+    return String(b?.id || "").localeCompare(String(a?.id || ""));
+  });
+  renderTable($("accessTable"), accessRows, [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("table.direction"), render: (r) => formatAccessDirection(r.direction) },
     { label: t("table.gate"), render: (r) => r.gate || "-" },

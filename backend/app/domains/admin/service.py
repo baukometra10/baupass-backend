@@ -13,6 +13,7 @@ class AdminService:
     def overview(self, db, company_id: str, today_prefix: str) -> dict:
         workforce = self._workers.workforce_tracking(db, company_id, today_prefix)
         live = self._access.live_access_feed(db, company_id)
+        latest = self._access.latest_access_per_worker(db, company_id)
         zones = self._access.geofence_zones(db, company_id)
         forecast = {}
         try:
@@ -26,7 +27,7 @@ class AdminService:
                 "onSite": workforce.get("on_site", 0),
                 "totalActive": workforce.get("total_active", 0),
             },
-            "recentAccess": live.get("access_logs", []),
+            "recentAccess": latest.get("access_logs", []),
             "zonesCount": len(zones.get("zones") or []),
             "tomorrowForecast": forecast,
         }
