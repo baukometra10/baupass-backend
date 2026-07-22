@@ -279,6 +279,7 @@
           <summary id="toolsPanelSummary">Tools &amp; Briefings</summary>
           <div class="bp-ai-tools-row">
             <button type="button" class="secondary" id="briefingBtn">Tagesbriefing</button>
+            <button type="button" class="secondary" id="decisionBtn">Entscheidung</button>
             <button type="button" class="secondary" id="emailBriefingBtn">Briefing mailen</button>
             <button type="button" class="secondary" id="webhookBriefingBtn">Slack/Teams</button>
           </div>
@@ -296,6 +297,7 @@
       </div>
       <div class="scroll">
         <div id="leaveRequestsPanel"></div>
+        <div id="aiProposalsPanel"></div>
         <div id="insightCards"></div>
       </div>
     </aside>
@@ -721,6 +723,14 @@
     }
 
     function attachMeta(div, meta) {
+      if (meta.decision) {
+        const box = document.createElement("div");
+        box.className = "msg-meta";
+        const conf = Number(meta.decision.confidence || 0);
+        box.innerHTML = `<strong>Decision</strong>: ${escapeHtml(meta.decision.summary || meta.decision.recommendation || "")}<br/>
+          confidence=${Number.isFinite(conf) ? conf.toFixed(2) : "—"} · ${escapeHtml(meta.decision.rationale || "")}`;
+        div.appendChild(box);
+      }
       if (meta.sources?.length || meta.toolsUsed?.length) {
         const m = document.createElement("div");
         m.className = "msg-meta";
@@ -1224,6 +1234,7 @@
       lastInsightsData = data;
       renderInsights(data);
       await loadPendingLeaveRequests();
+      await loadAiProposals();
       const ts = new Date().toLocaleTimeString();
       document.getElementById("statusLine").textContent = formatStatusLine(data, ts);
     }
@@ -1546,6 +1557,93 @@
       }
     }
 
+    async function loadAiProposals() {
+      const host = document.getElementById("aiProposalsPanel");
+      if (!host || !selectedCompanyId) return;
+      try {
+        const data = await api(`/api/ai/actions/proposals?company_id=${encodeURIComponent(selectedCompanyId)}&status=pending`);
+        const proposals = data.proposals || [];
+        if (!proposals.length) {
+          host.innerHTML = "";
+          return;
+        }
+        host.innerHTML = `<h3 style="margin:0.5rem 0">Pending AI actions</h3>` + proposals.map((p) => `
+          <div class="insight-card" style="margin-bottom:0.4rem">
+            <strong>${escapeHtml(p.action)}</strong>
+            <p class="status-line">${escapeHtml(p.rationale || "")}</p>
+            <div class="chip-row">
+              <button type="button" data-approve="${escapeHtml(p.id)}">Approve</button>
+              <button type="button" class="secondary" data-reject="${escapeHtml(p.id)}">Reject</button>
+            </div>
+          </div>`).join("");
+        host.querySelectorAll("[data-approve]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/ai/actions/approve", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ company_id: selectedCompanyId, proposal_id: btn.getAttribute("data-approve") }),
+              });
+              await loadAiProposals();
+            } catch (e) {
+              showToast(e.payload?.hint || e.message);
+            }
+          };
+        });
+        host.querySelectorAll("[data-reject]").forEach((btn) => {
+          btn.onclick = async () => {
+            try {
+              await api("/api/ai/actions/reject", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ company_id: selectedCompanyId, proposal_id: btn.getAttribute("data-reject") }),
+              });
+              await loadAiProposals();
+            } catch (e) {
+              showToast(e.payload?.hint || e.message);
+            }
+          };
+        });
+      } catch (_e) {
+        /* optional panel */
+      }
+    }
+
+    async function runDecision() {
+      const input = document.getElementById("question");
+      const q = (input?.value || "").trim() || "Was sind die wichtigsten Entscheidungen für Betrieb und Anwesenheit jetzt?";
+      appendMsg("user", q);
+      if (input) input.value = "";
+      const thinking = document.createElement("div");
+      thinking.className = "msg-bot";
+      thinking.textContent = t("thinking");
+      document.getElementById("chatLog").appendChild(thinking);
+      try {
+        const data = await api("/api/ai/decision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: q,
+            company_id: selectedCompanyId,
+            lang: LANG,
+            autoStage: true,
+          }),
+        });
+        thinking.remove();
+        lastAnswerText = data.answer || "";
+        appendMsg("bot", data.answer || "—", {
+          sources: data.sources,
+          toolsUsed: data.toolsUsed,
+          decision: data.decision,
+          suggestedActions: data.suggestedActions,
+        });
+        await loadAiProposals();
+      } catch (e) {
+        thinking.remove();
+        appendMsg("bot", e.payload?.hint || e.message);
+      }
+    }
+
     document.getElementById("webhookBriefingBtn").onclick = async () => {
       try {
         const r = await api("/api/ai/briefing/webhook", {
@@ -1594,6 +1692,7 @@
       submitQuestion(q, { spoken });
     };
     document.getElementById("briefingBtn").onclick = runBriefing;
+    document.getElementById("decisionBtn").onclick = runDecision;
     document.getElementById("aiLeaveCloseBtn")?.addEventListener("click", closeAiLeavePreview);
     document.getElementById("aiLeaveApproveBtn")?.addEventListener("click", async () => {
       if (!aiLeavePreviewId) return;

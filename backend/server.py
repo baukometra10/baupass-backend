@@ -282,11 +282,11 @@ DB_IS_PERSISTENT = _database_is_persistent(DB_PATH)
 
 
 def resolve_sqlite_backup_dir() -> Path:
-    """Store backups next to the DB on Railway (/data/backups), else under backend/backups."""
+    """Single backup tree shared by server, CLI, admin list, and recovery."""
     if DB_IS_PERSISTENT:
-        backup_dir = Path("/data/backups")
+        backup_dir = Path("/data/backups/sqlite")
     else:
-        backup_dir = BASE_DIR / "backend" / "backups"
+        backup_dir = BASE_DIR / "backend" / "backups" / "sqlite"
     backup_dir.mkdir(parents=True, exist_ok=True)
     return backup_dir
 
@@ -7222,45 +7222,45 @@ def rotate_import_backups(backup_dir):
 
 
 def create_sqlite_database_backup():
-    """Hot-backup SQLite DB (WAL checkpoint + file copy). Returns (path, meta)."""
+    """Online SQLite backup via ops.db_backup + best-effort offsite upload. Returns (path, meta)."""
     src = Path(DB_PATH).resolve()
     if not src.exists():
         raise FileNotFoundError("database_not_found")
 
     backup_dir = resolve_sqlite_backup_dir()
-    rotation = rotate_import_backups(backup_dir)
-
-    timestamp = utc_now().strftime("%Y%m%d-%H%M%S")
-    dest = backup_dir / f"db-backup-{timestamp}-{secrets.token_hex(2)}.db"
-
     with closing(sqlite3.connect(str(src), timeout=120)) as conn:
         try:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         except Exception:
             pass
 
-    shutil.copy2(src, dest)
-    wal_src = Path(f"{src}-wal")
-    shm_src = Path(f"{src}-shm")
-    if wal_src.exists():
+    from backend.ops.db_backup import perform_backup, upload_backup_offsite
+
+    result = perform_backup(src, backup_dir, max(1, int(BACKUP_RETENTION_DAYS)))
+    dest = str(result.get("backupPath") or "")
+    offsite = upload_backup_offsite(Path(dest)) if dest else {"uploaded": False, "key": None, "error": "no_path"}
+    if dest:
         try:
-            shutil.copy2(wal_src, Path(f"{dest}-wal"))
-        except Exception:
-            pass
-    if shm_src.exists():
-        try:
-            shutil.copy2(shm_src, Path(f"{dest}-shm"))
+            meta_path = Path(dest).with_suffix(".meta.json")
+            if meta_path.exists():
+                payload = json.loads(meta_path.read_text(encoding="utf-8"))
+                payload["offsite"] = offsite
+                meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         except Exception:
             pass
 
     meta = {
-        "path": str(dest),
-        "sizeBytes": dest.stat().st_size,
+        "path": dest,
+        "backupPath": dest,
+        "sizeBytes": int(result.get("sizeBytes") or 0),
         "createdAt": now_iso(),
-        "rotation": rotation,
+        "rotation": result.get("rotation") or {},
         "source": str(src),
+        "sha256": result.get("sha256"),
+        "integrityCheck": result.get("integrityCheck"),
+        "offsite": offsite,
     }
-    return str(dest), meta
+    return dest, meta
 
 
 def create_import_rollback_backup(db, role, target_company_id):
@@ -11633,21 +11633,115 @@ def admin_create_database_backup():
 @require_auth
 @require_roles("superadmin")
 def admin_list_database_backups():
-    backup_dir = BASE_DIR / "backend" / "backups"
-    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_dir = resolve_sqlite_backup_dir()
     items = []
-    for path in sorted(backup_dir.glob("db-backup-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)[:30]:
+    # Prefer modern baupass-*.sqlite3; still list legacy db-backup-*.db for transition.
+    candidates = list(backup_dir.glob("baupass-*.sqlite3")) + list(backup_dir.glob("db-backup-*.db"))
+    # Also scan parent backups/ for legacy files.
+    parent = backup_dir.parent
+    if parent.exists() and parent != backup_dir:
+        candidates.extend(parent.glob("db-backup-*.db"))
+        candidates.extend(parent.glob("baupass-*.sqlite3"))
+    seen = set()
+    ordered = []
+    for path in sorted(candidates, key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+        key = str(path.resolve()) if path.exists() else str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        ordered.append(path)
+    for path in ordered[:40]:
         try:
             stat = path.stat()
-            items.append({
+            item = {
                 "filename": path.name,
                 "path": str(path),
                 "sizeBytes": stat.st_size,
                 "createdAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
-            })
+                "sha256": "",
+                "integrityCheck": "",
+                "offsiteUploaded": False,
+            }
+            meta_path = path.with_suffix(".meta.json")
+            if meta_path.exists():
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                    item["sha256"] = str(meta.get("sha256") or "")
+                    stats = meta.get("stats") or {}
+                    item["integrityCheck"] = str(
+                        meta.get("integrityCheck") or stats.get("integrityCheck") or ""
+                    )
+                    offsite = meta.get("offsite") or {}
+                    item["offsiteUploaded"] = bool(offsite.get("uploaded"))
+                except Exception:
+                    pass
+            items.append(item)
         except Exception:
             continue
-    return jsonify({"items": items, "retentionDays": BACKUP_RETENTION_DAYS})
+    return jsonify({"items": items, "retentionDays": BACKUP_RETENTION_DAYS, "backupDir": str(backup_dir)})
+
+
+@require_auth
+@require_roles("superadmin")
+def admin_verify_restore_backup():
+    payload = request.get_json(silent=True) or {}
+    backup_dir = resolve_sqlite_backup_dir()
+    filename = clean_id_input(payload.get("filename") or request.args.get("filename"), max_len=120)
+    try:
+        from backend.ops.db_backup import latest_backup, perform_verify_restore
+
+        if filename:
+            # Path-traversal guard: only basename inside backup dir (or parent legacy).
+            safe_name = Path(filename).name
+            candidate = backup_dir / safe_name
+            if not candidate.exists():
+                candidate = backup_dir.parent / safe_name
+            if not candidate.exists() or not candidate.is_file():
+                return jsonify({"error": "backup_not_found"}), 404
+            backup_path = candidate
+        else:
+            backup_path = latest_backup(backup_dir)
+            if not backup_path:
+                return jsonify({"error": "no_backup_found"}), 404
+        result = perform_verify_restore(backup_path, backup_dir / "restore-check", keep_restored=False)
+        log_audit(
+            "system.database_backup_verify",
+            f"Verify-restore: {backup_path.name} ok={result.get('ok')}",
+            target_type="database",
+            target_id="sqlite",
+            actor=g.current_user,
+        )
+        return jsonify(result)
+    except Exception as exc:
+        return jsonify({"error": "verify_failed", "detail": str(exc)}), 500
+
+
+@require_auth
+@require_roles("superadmin")
+def admin_download_database_backup():
+    filename = clean_id_input(request.args.get("filename"), max_len=120)
+    if not filename:
+        return jsonify({"error": "filename_required"}), 400
+    safe_name = Path(filename).name
+    backup_dir = resolve_sqlite_backup_dir()
+    candidate = backup_dir / safe_name
+    if not candidate.exists():
+        candidate = backup_dir.parent / safe_name
+    if not candidate.exists() or not candidate.is_file():
+        return jsonify({"error": "backup_not_found"}), 404
+    try:
+        resolved = candidate.resolve()
+        allowed_roots = {backup_dir.resolve(), backup_dir.parent.resolve()}
+        if not any(str(resolved).startswith(str(root)) for root in allowed_roots):
+            return jsonify({"error": "forbidden_path"}), 403
+    except Exception:
+        return jsonify({"error": "forbidden_path"}), 403
+    return send_file(
+        resolved,
+        as_attachment=True,
+        download_name=safe_name,
+        mimetype="application/octet-stream",
+    )
 
 
 @require_auth

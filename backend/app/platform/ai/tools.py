@@ -129,6 +129,116 @@ def tool_operational_insights(db, company_id: str, _args: dict) -> dict[str, Any
     return operational_insights(db, company_id)
 
 
+def tool_tomorrow_forecast(db, company_id: str, _args: dict) -> dict[str, Any]:
+    from backend.app.platform.predictions.engine import build_tomorrow_forecast
+
+    return build_tomorrow_forecast(db, company_id)
+
+
+def tool_repeated_late_workers(db, company_id: str, args: dict) -> dict[str, Any]:
+    from backend.app.platform.workforce.late_streak import list_repeated_late_workers
+
+    min_streak = max(2, min(14, int(args.get("min_streak") or args.get("minStreak") or 3)))
+    limit = max(1, min(50, int(args.get("limit") or 10)))
+    workers = list_repeated_late_workers(db, company_id, min_streak=min_streak, limit=limit)
+    return {"minStreak": min_streak, "count": len(workers), "workers": workers}
+
+
+def tool_outside_hours_attempts(db, company_id: str, args: dict) -> dict[str, Any]:
+    hours = max(1, min(168, int(args.get("hours") or 24)))
+    limit = max(1, min(80, int(args.get("limit") or 40)))
+    items: list[dict[str, Any]] = []
+    try:
+        rows = db.execute(
+            """
+            SELECT id, code, severity, message, details, created_at
+            FROM system_alerts
+            WHERE code = 'outside_hours_checkin_attempt'
+              AND resolved_at IS NULL
+            ORDER BY created_at DESC
+            LIMIT 120
+            """
+        ).fetchall()
+        for row in rows:
+            details = {}
+            try:
+                details = json.loads(row["details"] or "{}")
+            except Exception:
+                details = {}
+            if str(details.get("companyId") or "") != str(company_id):
+                continue
+            items.append(
+                {
+                    "id": row["id"],
+                    "title": row["code"],
+                    "body": (row["message"] or "")[:240],
+                    "severity": row["severity"],
+                    "createdAt": row["created_at"],
+                    "workerId": details.get("workerId"),
+                    "channel": details.get("channel"),
+                    "gate": details.get("gate"),
+                }
+            )
+            if len(items) >= limit:
+                break
+    except Exception:
+        items = []
+    return {"hours": hours, "count": len(items), "attempts": items}
+
+
+def tool_presence_summary(db, company_id: str, _args: dict) -> dict[str, Any]:
+    today = today_prefix()
+    on_site = list_on_site_workers(db, company_id, today)
+    open_sessions = []
+    try:
+        rows = db.execute(
+            """
+            SELECT worker_id, open_direction, last_checkin_at, last_checkout_at, updated_at
+            FROM worker_presence_state
+            WHERE company_id = ? AND open_direction = 'check-in'
+            ORDER BY last_checkin_at DESC
+            LIMIT 100
+            """,
+            (company_id,),
+        ).fetchall()
+        open_sessions = _rows_to_dicts(rows)
+    except Exception:
+        open_sessions = []
+    by_site: dict[str, int] = {}
+    for w in on_site:
+        site = str(w.get("site") or "—")
+        by_site[site] = by_site.get(site, 0) + 1
+    return {
+        "date": today,
+        "onSiteCount": len(on_site),
+        "openPresenceCount": len(open_sessions),
+        "bySite": [{"site": k, "count": v} for k, v in sorted(by_site.items(), key=lambda x: -x[1])],
+        "openSessions": open_sessions[:40],
+    }
+
+
+def tool_browse_inbox(db, company_id: str, args: dict) -> dict[str, Any]:
+    from backend.app.platform.inbox.service import build_operations_inbox
+
+    limit = max(5, min(80, int(args.get("limit") or 40)))
+    source = str(args.get("source") or "").strip() or None
+    inbox = build_operations_inbox(
+        db,
+        company_id,
+        limit=limit,
+        source_filter=source,
+    )
+    items = inbox.get("items") if isinstance(inbox, dict) else []
+    if not isinstance(items, list):
+        items = []
+    return {
+        "count": len(items),
+        "source": source,
+        "items": items[:limit],
+        "summary": (inbox.get("summary") if isinstance(inbox, dict) else None),
+    }
+
+
 def tool_worker_profile(db, company_id: str, args: dict) -> dict[str, Any]:
     wid = str(args.get("worker_id") or "").strip()
     if not wid:
@@ -172,6 +282,11 @@ TOOL_HANDLERS: dict[str, ToolFn] = {
     "get_access_timeline_today": tool_access_timeline_today,
     "get_operational_insights": tool_operational_insights,
     "get_worker_profile": tool_worker_profile,
+    "get_tomorrow_forecast": tool_tomorrow_forecast,
+    "get_repeated_late_workers": tool_repeated_late_workers,
+    "get_outside_hours_attempts": tool_outside_hours_attempts,
+    "get_presence_summary": tool_presence_summary,
+    "browse_inbox": tool_browse_inbox,
 }
 
 
@@ -280,6 +395,67 @@ OPENAI_TOOL_SCHEMAS: list[dict[str, Any]] = [
             "name": "get_operational_insights",
             "description": "Combined attendance, fraud, risk, productivity snapshot.",
             "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_tomorrow_forecast",
+            "description": "Tomorrow staffing/absence forecast and risk drivers.",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_repeated_late_workers",
+            "description": "Workers with consecutive late check-in streaks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "min_streak": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_outside_hours_attempts",
+            "description": "Recent outside-working-hours check-in attempts (employer alerts).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "hours": {"type": "integer"},
+                    "limit": {"type": "integer"},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_presence_summary",
+            "description": "Who is currently on site / has an open check-in session.",
+            "parameters": {"type": "object", "properties": {}, "additionalProperties": False},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "browse_inbox",
+            "description": "Browse open operations inbox items (alerts, leave, forecasts).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "source": {"type": "string"},
+                    "limit": {"type": "integer"},
+                },
+                "additionalProperties": False,
+            },
         },
     },
 ]

@@ -262,3 +262,195 @@ def execute_action(
         return {"ok": True, "alertId": alert_id}
 
     return {"ok": False, "error": "unknown"}
+
+
+def _ensure_proposal_tables(db) -> None:
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS ai_action_proposals (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                params_json TEXT NOT NULL DEFAULT '{}',
+                rationale TEXT,
+                risk TEXT DEFAULT 'low',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_by TEXT,
+                created_at TEXT NOT NULL,
+                decided_by TEXT,
+                decided_at TEXT,
+                result_json TEXT
+            )
+            """
+        )
+    except Exception:
+        pass
+
+
+def propose_action(
+    db,
+    *,
+    company_id: str,
+    user_id: str,
+    action: str,
+    params: dict | None = None,
+    rationale: str = "",
+    risk: str = "low",
+) -> dict[str, Any]:
+    action = (action or "").strip()
+    if action not in ALLOWED_EXECUTE:
+        return {"ok": False, "error": "action_not_allowed", "action": action}
+    _ensure_proposal_tables(db)
+    import secrets
+
+    proposal_id = f"prop-{secrets.token_hex(8)}"
+    now = _now()
+    db.execute(
+        """
+        INSERT INTO ai_action_proposals (
+            id, company_id, action, params_json, rationale, risk, status, created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+        """,
+        (
+            proposal_id,
+            str(company_id),
+            action,
+            json.dumps(params or {}, ensure_ascii=False),
+            str(rationale or "")[:800],
+            str(risk or "low")[:20],
+            str(user_id or ""),
+            now,
+        ),
+    )
+    db.commit()
+    return {
+        "ok": True,
+        "proposal": {
+            "id": proposal_id,
+            "action": action,
+            "params": params or {},
+            "rationale": rationale,
+            "risk": risk,
+            "status": "pending",
+            "createdAt": now,
+            "createdBy": user_id,
+        },
+    }
+
+
+def list_proposals(db, *, company_id: str, status: str = "pending", limit: int = 40) -> list[dict[str, Any]]:
+    _ensure_proposal_tables(db)
+    status = (status or "pending").strip() or "pending"
+    limit = max(1, min(100, int(limit or 40)))
+    rows = db.execute(
+        """
+        SELECT id, company_id, action, params_json, rationale, risk, status, created_by, created_at,
+               decided_by, decided_at, result_json
+        FROM ai_action_proposals
+        WHERE company_id = ? AND status = ?
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (str(company_id), status, limit),
+    ).fetchall()
+    out = []
+    for row in rows:
+        try:
+            params = json.loads(row["params_json"] or "{}")
+        except Exception:
+            params = {}
+        out.append(
+            {
+                "id": row["id"],
+                "action": row["action"],
+                "params": params,
+                "rationale": row["rationale"],
+                "risk": row["risk"],
+                "status": row["status"],
+                "createdAt": row["created_at"],
+                "createdBy": row["created_by"],
+                "decidedBy": row["decided_by"],
+                "decidedAt": row["decided_at"],
+            }
+        )
+    return out
+
+
+def approve_action(
+    db,
+    *,
+    company_id: str,
+    user_id: str,
+    proposal_id: str,
+    briefing_text: str | None = None,
+) -> dict[str, Any]:
+    _ensure_proposal_tables(db)
+    row = db.execute(
+        "SELECT * FROM ai_action_proposals WHERE id = ? AND company_id = ?",
+        (str(proposal_id), str(company_id)),
+    ).fetchone()
+    if not row:
+        return {"ok": False, "error": "proposal_not_found"}
+    if str(row["status"] or "") != "pending":
+        return {"ok": False, "error": "proposal_not_pending", "status": row["status"]}
+    action = str(row["action"] or "")
+    if action not in ALLOWED_EXECUTE:
+        return {"ok": False, "error": "action_not_allowed", "action": action}
+    try:
+        params = json.loads(row["params_json"] or "{}")
+    except Exception:
+        params = {}
+    execution = execute_action(
+        db,
+        company_id=company_id,
+        user_id=user_id,
+        action=action,
+        params=params,
+        briefing_text=briefing_text,
+    )
+    new_status = "executed" if execution.get("ok") else "failed"
+    db.execute(
+        """
+        UPDATE ai_action_proposals
+        SET status = ?, decided_by = ?, decided_at = ?, result_json = ?
+        WHERE id = ?
+        """,
+        (new_status, str(user_id or ""), _now(), json.dumps(execution, ensure_ascii=False), str(proposal_id)),
+    )
+    db.commit()
+    return {"ok": bool(execution.get("ok")), "proposalId": proposal_id, "status": new_status, "execution": execution}
+
+
+def reject_action(
+    db,
+    *,
+    company_id: str,
+    user_id: str,
+    proposal_id: str,
+    note: str = "",
+) -> dict[str, Any]:
+    _ensure_proposal_tables(db)
+    row = db.execute(
+        "SELECT id, status FROM ai_action_proposals WHERE id = ? AND company_id = ?",
+        (str(proposal_id), str(company_id)),
+    ).fetchone()
+    if not row:
+        return {"ok": False, "error": "proposal_not_found"}
+    if str(row["status"] or "") != "pending":
+        return {"ok": False, "error": "proposal_not_pending", "status": row["status"]}
+    db.execute(
+        """
+        UPDATE ai_action_proposals
+        SET status = 'rejected', decided_by = ?, decided_at = ?, result_json = ?
+        WHERE id = ?
+        """,
+        (
+            str(user_id or ""),
+            _now(),
+            json.dumps({"note": str(note or "")[:400]}, ensure_ascii=False),
+            str(proposal_id),
+        ),
+    )
+    db.commit()
+    return {"ok": True, "proposalId": proposal_id, "status": "rejected"}

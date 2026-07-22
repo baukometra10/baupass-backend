@@ -132,10 +132,13 @@ def _backup_search_dirs(db_path: Path | None = None) -> list[Path]:
         dirs.append(directory)
 
     add(Path("/data/backups"))
+    add(Path("/data/backups/sqlite"))
     if db_path is not None:
         add(db_path.parent / "backups")
+        add(db_path.parent / "backups" / "sqlite")
     backend_root = Path(__file__).resolve().parents[2]
     add(backend_root / "backups")
+    add(backend_root / "backups" / "sqlite")
     return dirs
 
 

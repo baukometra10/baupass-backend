@@ -370,3 +370,94 @@ def run_deep_analysis(
         use_tools=False,
         extra_context=extra,
     )
+
+
+def _parse_decision_block(answer: str) -> dict[str, Any] | None:
+    import re
+
+    text = answer or ""
+    match = re.search(r"DECISION_JSON\s*=\s*(\{.*\})", text, flags=re.DOTALL)
+    raw = match.group(1) if match else None
+    if not raw:
+        # Fallback: last JSON object in the answer
+        start = text.rfind("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            raw = text[start : end + 1]
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    return {
+        "summary": str(data.get("summary") or "")[:500],
+        "recommendation": str(data.get("recommendation") or "")[:120],
+        "confidence": float(data.get("confidence") or 0),
+        "rationale": str(data.get("rationale") or "")[:800],
+        "evidence": data.get("evidence") if isinstance(data.get("evidence"), list) else [],
+        "proposedActions": (
+            data.get("proposedActions")
+            if isinstance(data.get("proposedActions"), list)
+            else []
+        ),
+    }
+
+
+def run_decision_query(
+    db,
+    company_id: str,
+    question: str,
+    *,
+    lang: str = "de",
+    role: str = "company-admin",
+    history: list[dict] | None = None,
+    user_id: str = "",
+    auto_stage: bool = True,
+) -> dict[str, Any]:
+    """Run the decision agent and optionally stage proposed actions for approval."""
+    result = run_agent_query(
+        db,
+        company_id,
+        question,
+        agent_id="decision",
+        lang=lang,
+        role=role,
+        history=history,
+        use_tools=True,
+    )
+    answer = str(result.get("answer") or "")
+    decision = _parse_decision_block(answer) or {
+        "summary": answer[:280],
+        "recommendation": "review_ops",
+        "confidence": 0.4,
+        "rationale": "Structured decision block missing; using answer summary.",
+        "evidence": [{"tool": t, "key": "used", "value": True} for t in (result.get("toolsUsed") or [])],
+        "proposedActions": [],
+    }
+    staged = []
+    if auto_stage and user_id:
+        from .actions import ALLOWED_EXECUTE, propose_action
+
+        for item in decision.get("proposedActions") or []:
+            if not isinstance(item, dict):
+                continue
+            action = str(item.get("action") or "").strip()
+            if action not in ALLOWED_EXECUTE:
+                continue
+            proposal = propose_action(
+                db,
+                company_id=company_id,
+                user_id=user_id,
+                action=action,
+                params=item.get("params") if isinstance(item.get("params"), dict) else {},
+                rationale=str(item.get("labelDe") or item.get("rationale") or decision.get("rationale") or ""),
+                risk=str(item.get("risk") or "low"),
+            )
+            if proposal.get("ok"):
+                staged.append(proposal.get("proposal"))
+    result["decision"] = decision
+    result["stagedProposals"] = staged
+    return result

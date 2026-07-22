@@ -17,10 +17,16 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_access_timeline_today",
             "get_operational_insights",
             "search_workers",
+            "get_tomorrow_forecast",
+            "get_repeated_late_workers",
+            "get_outside_hours_attempts",
+            "get_presence_summary",
+            "browse_inbox",
         ],
         "system": (
             "Du bist der WorkPass Betriebsleiter-Assistent für Baustellen und Zutrittskontrolle. "
-            "Du kennst Anwesenheit, Tore, Live-Aktivität und tagesaktuelle Engpässe."
+            "Du kennst Anwesenheit, Tore, Live-Aktivität und tagesaktuelle Engpässe. "
+            "Nutze Forecast, Verspätungs-Streaks, Outside-Hours-Versuche und Inbox für konkrete Entscheidungen."
         ),
     },
     "security": {
@@ -36,6 +42,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_access_timeline_today",
             "search_workers",
             "get_worker_profile",
+            "get_outside_hours_attempts",
+            "browse_inbox",
         ],
         "system": (
             "Du bist der SUPPIX Sicherheits-Analyst. "
@@ -55,6 +63,8 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "search_workers",
             "get_worker_profile",
             "get_attendance_risk",
+            "get_repeated_late_workers",
+            "browse_inbox",
         ],
         "system": (
             "Du bist der SUPPIX Compliance-Assistent. "
@@ -73,6 +83,9 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_worker_profile",
             "get_attendance_risk",
             "get_on_site_workers",
+            "get_repeated_late_workers",
+            "get_tomorrow_forecast",
+            "get_presence_summary",
         ],
         "system": (
             "Du bist der SUPPIX HR-Assistent für Belegschaft und Anwesenheit. "
@@ -92,10 +105,43 @@ AGENT_PROFILES: dict[str, dict[str, Any]] = {
             "get_security_summary",
             "get_workforce_risk",
             "get_site_intelligence",
+            "get_tomorrow_forecast",
+            "get_repeated_late_workers",
+            "browse_inbox",
         ],
         "system": (
             "Du bist der SUPPIX Executive-Assistent für die Geschäftsführung. "
             "Du fasst KPIs, Risiken und Prioritäten knapp zusammen."
+        ),
+    },
+    "decision": {
+        "id": "decision",
+        "labelDe": "Entscheidungsassistent",
+        "labelEn": "Decision assistant",
+        "labelAr": "مساعد القرارات",
+        "icon": "decision",
+        "descriptionDe": "Lage bewerten, Empfehlung + genehmigungspflichtige Aktionen",
+        "tools": [
+            "get_tomorrow_forecast",
+            "get_repeated_late_workers",
+            "get_outside_hours_attempts",
+            "get_presence_summary",
+            "browse_inbox",
+            "get_operational_insights",
+            "get_on_site_workers",
+            "get_security_summary",
+            "get_workforce_risk",
+            "search_workers",
+        ],
+        "system": (
+            "Du bist der WorkPass Entscheidungsassistent. "
+            "Liefere klare Empfehlungen mit Evidenz aus Tools. "
+            "Schlage nur Aktionen vor, die ein Mensch freigeben muss "
+            "(notify_worker, resolve_security_alert, approve_leave_request, reject_leave_request, "
+            "ack_system_alert, send_briefing_email). "
+            "Antworte zusätzlich als JSON-Block DECISION_JSON={...} mit keys: "
+            "summary, recommendation, confidence (0-1), rationale, evidence (list of {tool,key,value}), "
+            "proposedActions (list of {action,params,labelDe,risk})."
         ),
     },
 }

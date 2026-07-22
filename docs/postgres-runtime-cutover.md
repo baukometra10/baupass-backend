@@ -57,3 +57,10 @@ For tens of thousands of concurrent check-in/out operations, run with:
 - Optional: `BAUPASS_GATE_ASYNC_INGEST=1` for accept-then-process (returns `202` + `eventUid`; sync path remains default for gates that need an immediate allow/deny)
 
 Hot-path counters are exposed under `hotPath` on `GET /api/gates/ops-metrics`.
+
+## Backup hardening
+- Unified backup dir: `/data/backups/sqlite` (persistent) or `backend/backups/sqlite`
+- Daily jobs already call `create_sqlite_database_backup()` (checksum + integrity meta)
+- Optional offsite: `UPLOAD_BACKEND=s3` + `S3_BUCKET` (+ endpoint/keys) uploads best-effort
+- Admin: `POST /api/admin/database/backup`, `GET .../backups`, `POST .../backups/verify`, `GET .../backups/download`
+- Destructive live restore remains CLI-only for safety

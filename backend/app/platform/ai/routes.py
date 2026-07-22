@@ -564,6 +564,149 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         status = 200 if result.get("ok") else 400
         return jsonify(result), status
 
+    @ai_bp.post("/ai/decision")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_decision():
+        from .agent_runner import run_decision_query
+        from .sessions import append_message, create_session, get_session, list_messages, touch_session_title
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        question = str(data.get("question") or data.get("q") or "").strip()
+        if not question:
+            return jsonify({"error": "question_required"}), 400
+        lang = str(data.get("lang") or "de")[:2]
+        role = str(g.current_user.get("role") or "company-admin")
+        db = get_db()
+        session_id = str(data.get("session_id") or data.get("sessionId") or "").strip()
+        history = []
+        if session_id:
+            sess = get_session(db, session_id, company_id=company_id, user_id=_user_id())
+            if sess:
+                history = [
+                    {"role": m["role"], "content": m["content"]}
+                    for m in list_messages(db, session_id, limit=12)
+                ]
+        else:
+            created = create_session(
+                db,
+                company_id=company_id,
+                user_id=_user_id(),
+                agent_id="decision",
+                title=question[:80],
+                lang=lang,
+            )
+            session_id = str(created.get("id") or "")
+        result = run_decision_query(
+            db,
+            company_id,
+            question,
+            lang=lang,
+            role=role,
+            history=history,
+            user_id=_user_id(),
+            auto_stage=bool(data.get("autoStage", True)),
+        )
+        if session_id and result.get("answer"):
+            append_message(db, session_id, role="user", content=question)
+            append_message(
+                db,
+                session_id,
+                role="assistant",
+                content=result.get("answer"),
+                meta={"decision": result.get("decision"), "agentId": "decision"},
+            )
+            touch_session_title(db, session_id, question[:80])
+        result["sessionId"] = session_id
+        result["companyId"] = company_id
+        return jsonify(result)
+
+    @ai_bp.post("/ai/actions/propose")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_propose_action():
+        from .actions import propose_action
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        result = propose_action(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            action=str(data.get("action") or ""),
+            params=data.get("params") or {},
+            rationale=str(data.get("rationale") or ""),
+            risk=str(data.get("risk") or "low"),
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @ai_bp.get("/ai/actions/proposals")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_list_proposals():
+        from .actions import list_proposals
+
+        company_id = _resolve_company_id_from_request(request.args)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        status = str(request.args.get("status") or "pending")
+        proposals = list_proposals(get_db(), company_id=company_id, status=status)
+        return jsonify({"proposals": proposals})
+
+    @ai_bp.post("/ai/actions/approve")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_approve_action():
+        from .actions import approve_action
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        proposal_id = str(data.get("proposal_id") or data.get("proposalId") or "").strip()
+        if not proposal_id:
+            return jsonify({"error": "proposal_id_required"}), 400
+        result = approve_action(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            proposal_id=proposal_id,
+            briefing_text=str(data.get("briefingText") or "") or None,
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
+
+    @ai_bp.post("/ai/actions/reject")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_reject_action():
+        from .actions import reject_action
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        proposal_id = str(data.get("proposal_id") or data.get("proposalId") or "").strip()
+        if not proposal_id:
+            return jsonify({"error": "proposal_id_required"}), 400
+        result = reject_action(
+            get_db(),
+            company_id=company_id,
+            user_id=_user_id(),
+            proposal_id=proposal_id,
+            note=str(data.get("note") or ""),
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
+
     @ai_bp.post("/ai/briefing/email")
     @require_auth
     @require_roles("superadmin", "company-admin")

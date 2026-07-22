@@ -33,8 +33,10 @@ def _register_core_admin_routes() -> None:
         return
     from backend.server import (
         admin_create_database_backup,
+        admin_download_database_backup,
         admin_gate_devices,
         admin_list_database_backups,
+        admin_verify_restore_backup,
         create_device,
         dead_letter_stats,
         delete_device,
@@ -62,6 +64,8 @@ def _register_core_admin_routes() -> None:
         ("/admin/wallet/runtime-status", get_wallet_runtime_status, ("GET",)),
         ("/admin/database/backup", admin_create_database_backup, ("POST",)),
         ("/admin/database/backups", admin_list_database_backups, ("GET",)),
+        ("/admin/database/backups/verify", admin_verify_restore_backup, ("POST",)),
+        ("/admin/database/backups/download", admin_download_database_backup, ("GET",)),
         ("/admin/device-events/dead-letters/stats", dead_letter_stats, ("GET",)),
         ("/admin/device-events/dead-letters/export.csv", export_device_event_dead_letters_csv, ("GET",)),
         ("/admin/device-events/dead-letters", list_device_event_dead_letters, ("GET",)),

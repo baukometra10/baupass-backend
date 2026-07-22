@@ -1277,6 +1277,50 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="038",
+        name="ai_company_memory_and_action_proposals",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS ai_company_memory (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'note',
+                key TEXT,
+                value TEXT NOT NULL,
+                source TEXT DEFAULT 'ai',
+                importance INTEGER NOT NULL DEFAULT 3,
+                created_by TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                expires_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_memory_company
+                ON ai_company_memory(company_id, importance, updated_at);
+            CREATE TABLE IF NOT EXISTS ai_action_proposals (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                params_json TEXT NOT NULL DEFAULT '{}',
+                rationale TEXT,
+                risk TEXT DEFAULT 'low',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_by TEXT,
+                created_at TEXT NOT NULL,
+                decided_by TEXT,
+                decided_at TEXT,
+                result_json TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_proposals_company
+                ON ai_action_proposals(company_id, status, created_at);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_ai_proposals_company;
+            DROP TABLE IF EXISTS ai_action_proposals;
+            DROP INDEX IF EXISTS idx_ai_memory_company;
+            DROP TABLE IF EXISTS ai_company_memory;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

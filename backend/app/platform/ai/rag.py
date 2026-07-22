@@ -1,6 +1,7 @@
 """Lightweight RAG — worker documents, compliance notes, recent audit hints."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -58,6 +59,31 @@ def search_knowledge(db, company_id: str, query: str, *, limit: int = 12) -> lis
                 {
                     "source": "audit_logs",
                     "text": f"{a['created_at']}: {a['event_type']} — {(a['message'] or '')[:200]}",
+                }
+            )
+    except Exception:
+        pass
+
+    try:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        mem = db.execute(
+            """
+            SELECT kind, key, value, importance, source, updated_at
+            FROM ai_company_memory
+            WHERE company_id = ?
+              AND (expires_at IS NULL OR expires_at = '' OR expires_at > ?)
+              AND (value LIKE ? OR key LIKE ? OR kind LIKE ?)
+            ORDER BY importance DESC, updated_at DESC
+            LIMIT ?
+            """,
+            (company_id, now, like, like, like, min(8, limit)),
+        ).fetchall()
+        for m in mem:
+            chunks.append(
+                {
+                    "source": "company_memory",
+                    "title": f"memory:{m['kind']}:{m['key'] or ''}",
+                    "text": f"[{m['kind']}] {m['key'] or ''}: {(m['value'] or '')[:300]}",
                 }
             )
     except Exception:

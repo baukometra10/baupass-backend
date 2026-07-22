@@ -190,6 +190,35 @@ def latest_backup(backup_dir: Path) -> Path | None:
     return files[0] if files else None
 
 
+def upload_backup_offsite(backup_path: Path) -> Dict[str, Any]:
+    """Best-effort upload of backup (+ meta) via object store. Never raises."""
+    result: Dict[str, Any] = {"uploaded": False, "key": None, "error": None}
+    try:
+        backend = (os.getenv("UPLOAD_BACKEND") or "local").strip().lower()
+        # Only treat real remote backends as offsite success for operators.
+        if backend != "s3" or not (os.getenv("S3_BUCKET") or "").strip():
+            result["error"] = "offsite_not_configured"
+            return result
+        from backend.app.platform.storage.object_store import get_object_store
+
+        store = get_object_store()
+        key = f"backups/sqlite/{backup_path.name}"
+        store.put(key, backup_path.read_bytes(), content_type="application/x-sqlite3")
+        meta_path = backup_path.with_suffix(".meta.json")
+        if meta_path.exists():
+            store.put(
+                f"backups/sqlite/{meta_path.name}",
+                meta_path.read_bytes(),
+                content_type="application/json",
+            )
+        result["uploaded"] = True
+        result["key"] = key
+        return result
+    except Exception as exc:  # noqa: BLE001
+        result["error"] = str(exc)[:300]
+        return result
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Create and verify SQLite backups for SUPPIX.")
     parser.add_argument("command", choices=["backup", "verify-restore"], help="Operation mode")
@@ -198,6 +227,7 @@ def main() -> int:
     parser.add_argument("--backup-path", dest="backup_path", default="", help="Specific backup file for verify-restore")
     parser.add_argument("--retention-days", dest="retention_days", type=int, default=DEFAULT_RETENTION_DAYS)
     parser.add_argument("--keep-restored", dest="keep_restored", action="store_true")
+    parser.add_argument("--upload", dest="upload", action="store_true", help="Upload backup to object store (S3/R2)")
 
     args = parser.parse_args()
     backup_dir = Path(args.backup_dir).expanduser().resolve()
@@ -207,6 +237,9 @@ def main() -> int:
             db_path = resolve_db_path(args.db_path)
             ensure_parent(db_path)
             result = perform_backup(db_path, backup_dir, max(1, args.retention_days))
+            if args.upload:
+                offsite = upload_backup_offsite(Path(result["backupPath"]))
+                result["offsite"] = offsite
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
 

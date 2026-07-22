@@ -2130,7 +2130,7 @@ async function loadPlatform() {
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const cid = activeCompanyId();
   try {
-    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot] = await Promise.all([
+    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot, backups] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
@@ -2139,10 +2139,11 @@ async function loadPlatform() {
       api("/api/admin/wallet/runtime-status").catch(() => null),
       api("/api/platform/setup-status").catch(() => null),
       api("/api/platform/push/status").catch(() => null),
-      api("/api/v2/mobile/distribution").catch(() => null),
+      api(`/api/v2/mobile/distribution`).catch(() => null),
       cid
         ? api(`/api/platform/autopilot/settings${companyQuery()}`).catch(() => ({ settings: {} }))
         : Promise.resolve({ settings: {} }),
+      api("/api/admin/database/backups").catch(() => ({ items: [] })),
     ]);
     const ap = autopilot?.settings || {};
     const autopilotToggles = AUTOPILOT_KEYS.map(
@@ -2189,6 +2190,27 @@ async function loadPlatform() {
     const bgDegraded = (bgJobs.degraded || []).length
       ? `<p class="muted small warn">${escapeHtml((bgJobs.degraded || []).join(", "))}</p>`
       : "";
+    const backupRows = (backups?.items || [])
+      .slice(0, 8)
+      .map((b) => {
+        const sha = String(b.sha256 || "").slice(0, 10);
+        const integ = b.integrityCheck === "ok" ? "✓" : escapeHtml(String(b.integrityCheck || "—"));
+        const off = b.offsiteUploaded ? "☁" : "—";
+        const sizeKb = Math.round(Number(b.sizeBytes || 0) / 1024);
+        return `<tr>
+          <td class="mono small">${escapeHtml(b.filename || "")}</td>
+          <td>${escapeHtml(String(b.createdAt || "").slice(0, 19))}</td>
+          <td>${sizeKb} KB</td>
+          <td class="mono small">${escapeHtml(sha)}</td>
+          <td>${integ}</td>
+          <td>${off}</td>
+          <td>
+            <button type="button" class="ghost small" data-backup-verify="${escapeHtml(b.filename || "")}">Verify</button>
+            <a class="ghost small" href="/api/admin/database/backups/download?filename=${encodeURIComponent(b.filename || "")}">Download</a>
+          </td>
+        </tr>`;
+      })
+      .join("");
     panel.innerHTML = `
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       ${dbBanner}
@@ -2227,6 +2249,19 @@ async function loadPlatform() {
           <p>DB: ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")} · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}</p>
           <p class="mono">${escapeHtml(caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—")}</p>
         </details>
+      </div>
+      <div class="panel-block" id="backupPanel">
+        <h3>Database backups</h3>
+        <p class="muted small">Retention: ${escapeHtml(String(backups?.retentionDays ?? "—"))} days · Dir: <span class="mono">${escapeHtml(String(backups?.backupDir || ""))}</span></p>
+        <div class="autopilot-actions" style="margin-bottom:0.75rem">
+          <button type="button" id="backupNowBtn">Backup now</button>
+          <button type="button" class="ghost" id="backupVerifyLatestBtn">Verify latest</button>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>File</th><th>Created</th><th>Size</th><th>SHA</th><th>Integrity</th><th>Offsite</th><th></th></tr></thead>
+          <tbody>${backupRows || `<tr><td colspan="7" class="muted">No backups yet</td></tr>`}</tbody>
+        </table></div>
+        <pre id="backupActionLog" class="ai-answer muted small"></pre>
       </div>
       <div class="panel-block">
         <h3>${t("platform.attendanceCaps")}</h3>
@@ -2347,6 +2382,47 @@ async function loadPlatform() {
           ? t("platform.upgradeRequired", { plan: e.data.requiredPlan })
           : e.message;
       }
+    });
+
+    const backupLog = $("backupActionLog");
+    const setBackupLog = (msg) => {
+      if (backupLog) backupLog.textContent = msg;
+    };
+    $("backupNowBtn")?.addEventListener("click", async () => {
+      setBackupLog(t("common.loading"));
+      try {
+        const res = await api("/api/admin/database/backup", { method: "POST", body: "{}" });
+        setBackupLog(
+          `OK ${res.backupPath || res.path || ""} · sha=${String(res.sha256 || "").slice(0, 12)} · offsite=${res.offsite?.uploaded ? "yes" : "no"}`,
+        );
+        await loadPlatform();
+      } catch (e) {
+        setBackupLog(e.message || "backup_failed");
+      }
+    });
+    $("backupVerifyLatestBtn")?.addEventListener("click", async () => {
+      setBackupLog(t("common.loading"));
+      try {
+        const res = await api("/api/admin/database/backups/verify", { method: "POST", body: "{}" });
+        setBackupLog(`verify ok=${res.ok} integrity=${res.integrityCheck || "—"}`);
+      } catch (e) {
+        setBackupLog(e.message || "verify_failed");
+      }
+    });
+    panel.querySelectorAll("[data-backup-verify]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const filename = btn.getAttribute("data-backup-verify");
+        setBackupLog(t("common.loading"));
+        try {
+          const res = await api("/api/admin/database/backups/verify", {
+            method: "POST",
+            body: JSON.stringify({ filename }),
+          });
+          setBackupLog(`${filename}: ok=${res.ok} integrity=${res.integrityCheck || "—"}`);
+        } catch (e) {
+          setBackupLog(e.message || "verify_failed");
+        }
+      });
     });
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message}</p>`;
