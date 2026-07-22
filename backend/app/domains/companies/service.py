@@ -329,6 +329,8 @@ class CompaniesService:
 
             turnstile_username = self.users.allocate_username(db, turnstile_username_base)
             turnstile_api_key = create_turnstile_api_key()
+            from backend.server import turnstile_api_key_lookup
+
             self.users.insert_user(
                 db,
                 user_id=f"usr-{secrets.token_hex(6)}",
@@ -338,6 +340,7 @@ class CompaniesService:
                 role="turnstile",
                 company_id=company_id,
                 api_key_hash=hash_turnstile_api_key(turnstile_api_key),
+                api_key_lookup=turnstile_api_key_lookup(turnstile_api_key),
             )
             turnstile_credentials.append(
                 {
@@ -1010,6 +1013,8 @@ class CompaniesService:
         display_name = f"{company['name']} Drehkreuz {existing_count + 1}"
         user_id = f"usr-{secrets.token_hex(6)}"
         api_key = create_turnstile_api_key()
+        from backend.server import turnstile_api_key_lookup
+
         self.users.insert_user(
             db,
             user_id=user_id,
@@ -1019,6 +1024,7 @@ class CompaniesService:
             role="turnstile",
             company_id=company_id,
             api_key_hash=hash_turnstile_api_key(api_key),
+            api_key_lookup=turnstile_api_key_lookup(api_key),
         )
         db.commit()
         return {
@@ -1068,7 +1074,11 @@ class CompaniesService:
     def rotate_turnstile_api_key(
         self, db, company_id: str, turnstile_user_id: str
     ) -> dict[str, Any]:
-        from backend.server import create_turnstile_api_key, hash_turnstile_api_key
+        from backend.server import (
+            create_turnstile_api_key,
+            hash_turnstile_api_key,
+            turnstile_api_key_lookup,
+        )
 
         turnstile = self.users.get_turnstile(db, company_id, turnstile_user_id)
         if not turnstile:
@@ -1076,7 +1086,10 @@ class CompaniesService:
 
         api_key = create_turnstile_api_key()
         self.users.update_api_key_hash(
-            db, turnstile_user_id, hash_turnstile_api_key(api_key)
+            db,
+            turnstile_user_id,
+            hash_turnstile_api_key(api_key),
+            api_key_lookup=turnstile_api_key_lookup(api_key),
         )
         db.commit()
         return {

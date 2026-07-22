@@ -47,3 +47,13 @@ Move production runtime from SQLite to PostgreSQL with connection pooling and sa
 - Current migration runner is SQLite-oriented; keep schema parity controlled during transition.
 - New code should use postgres_transaction()/postgres_connection() for PostgreSQL-backed paths.
 - Queue runtime now exposes dead-letter stats via /api/health and /api/health/queues.
+
+## High-load gate / attendance readiness
+For tens of thousands of concurrent check-in/out operations, run with:
+
+- `BAUPASS_PG_RUNTIME=1` + `DATABASE_URL` (SQLite single-writer is the bottleneck)
+- Redis + RQ workers (`REDIS_URL`, process the `high` queue)
+- Raise `DB_POOL_MAX_SIZE` (e.g. 20–40) under PostgreSQL
+- Optional: `BAUPASS_GATE_ASYNC_INGEST=1` for accept-then-process (returns `202` + `eventUid`; sync path remains default for gates that need an immediate allow/deny)
+
+Hot-path counters are exposed under `hotPath` on `GET /api/gates/ops-metrics`.

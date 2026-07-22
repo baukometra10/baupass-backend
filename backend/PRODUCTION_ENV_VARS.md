@@ -47,6 +47,7 @@ Nicht erforderlich, aber stark empfohlen für Sicherheit:
 | Variable | Zweck | Standard | Empfehlung |
 |----------|-------|---------|-----------|
 | `BAUPASS_GATE_API_KEY` | Gate Tap API Authentifizierung | nicht gesetzt | Min. 32 Zeichen |
+| `BAUPASS_GATE_ASYNC_INGEST` | Gate Tap: Accept (`202`) + RQ-Verarbeitung | `0` | Nur bei hohem Lastprofil; Sync bleibt Default |
 | `BAUPASS_RECOVERY_SECRET` | Emergency Recovery Endpoint | nicht gesetzt | Min. 32 Zeichen |
 | `BAUPASS_FIELD_ENCRYPTION_KEY` | Field-Level Dokument-Verschlüsselung | nicht gesetzt | Min. 32 Zeichen |
 | `SENTRY_DSN` | Error Tracking & Monitoring | nicht gesetzt | Sentry URL |

@@ -552,15 +552,34 @@ class UsersRepository:
         role: str,
         company_id: str,
         api_key_hash: str | None = None,
+        api_key_lookup: str | None = None,
     ) -> None:
         if api_key_hash is not None:
-            db.execute(
-                """
-                INSERT INTO users (id, username, password_hash, name, role, company_id, api_key_hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (user_id, username, password_hash, name, role, company_id, api_key_hash),
-            )
+            try:
+                db.execute(
+                    """
+                    INSERT INTO users (id, username, password_hash, name, role, company_id, api_key_hash, api_key_lookup)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        username,
+                        password_hash,
+                        name,
+                        role,
+                        company_id,
+                        api_key_hash,
+                        str(api_key_lookup or ""),
+                    ),
+                )
+            except Exception:
+                db.execute(
+                    """
+                    INSERT INTO users (id, username, password_hash, name, role, company_id, api_key_hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (user_id, username, password_hash, name, role, company_id, api_key_hash),
+                )
         else:
             db.execute(
                 """
@@ -623,7 +642,18 @@ class UsersRepository:
             (password_hash, user_id),
         )
 
-    def update_api_key_hash(self, db, user_id: str, api_key_hash: str) -> None:
+    def update_api_key_hash(
+        self, db, user_id: str, api_key_hash: str, api_key_lookup: str | None = None
+    ) -> None:
+        if api_key_lookup is not None:
+            try:
+                db.execute(
+                    "UPDATE users SET api_key_hash = ?, api_key_lookup = ? WHERE id = ?",
+                    (api_key_hash, api_key_lookup, user_id),
+                )
+                return
+            except Exception:
+                pass
         db.execute(
             "UPDATE users SET api_key_hash = ? WHERE id = ?",
             (api_key_hash, user_id),

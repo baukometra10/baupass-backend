@@ -21,6 +21,13 @@ class AdminService:
             forecast = build_tomorrow_forecast(db, company_id)
         except Exception:
             pass
+        repeated_late: list = []
+        try:
+            from backend.app.platform.workforce.late_streak import list_repeated_late_workers
+
+            repeated_late = list_repeated_late_workers(db, company_id, min_streak=3, limit=10)
+        except Exception:
+            repeated_late = []
         return {
             "workforce": {
                 "onSite": workforce.get("on_site", 0),
@@ -29,4 +36,5 @@ class AdminService:
             "recentAccess": live.get("access_logs", []),
             "zonesCount": len(zones.get("zones") or []),
             "tomorrowForecast": forecast,
+            "repeatedLateWorkers": repeated_late,
         }

@@ -3190,6 +3190,61 @@ function renderInboxFilters(bySource = {}) {
   });
 }
 
+function localizeInboxItem(it) {
+  const item = it || {};
+  const code = String(item.code || "").trim();
+  const details = item.details && typeof item.details === "object" ? item.details : {};
+  if (code === "outside_hours_checkin_attempt" || details.i18nKey === "outside_hours_checkin_attempt") {
+    const channelKey = String(details.channel || "gps").trim().toLowerCase() || "gps";
+    const channel = t(`inbox.alert.outsideHours.channel.${channelKey}`) || channelKey;
+    const gateRaw = String(details.gate || "").trim();
+    const gate = gateRaw ? ` (${gateRaw})` : "";
+    const start = String(details.shiftStart || "").trim().slice(0, 5);
+    const end = String(details.shiftEnd || "").trim().slice(0, 5);
+    const windowBit = start && end ? t("inbox.alert.outsideHours.window", { start, end }) : "";
+    const name = String(details.workerName || "").trim() || "—";
+    return {
+      ...item,
+      title: t("inbox.alert.outsideHours.title"),
+      message: t("inbox.alert.outsideHours.body", {
+        name,
+        channel,
+        gate,
+        window: windowBit,
+      }),
+    };
+  }
+  if (code === "repeated_late_checkin" || details.i18nKey === "repeated_late_checkin") {
+    const name = String(details.workerName || "").trim() || "—";
+    const streak = Number(details.streak || 0) || 0;
+    return {
+      ...item,
+      title: t("inbox.alert.repeatedLate.title"),
+      message: t("inbox.alert.repeatedLate.body", { name, streak }),
+    };
+  }
+  if (code === "tomorrow_attendance_forecast" || details.i18nKey === "tomorrow_attendance_forecast") {
+    const names = Array.isArray(details.names) ? details.names.filter(Boolean).slice(0, 5).join(", ") : "";
+    return {
+      ...item,
+      title: t("inbox.alert.tomorrowForecast.title"),
+      message: t("inbox.alert.tomorrowForecast.body", {
+        date: details.date || "",
+        onSite: details.expectedOnSite ?? "—",
+        absent: details.expectedAbsent ?? "—",
+        names: names ? ` ${names}` : "",
+      }),
+    };
+  }
+  if (code === "deployment_worker_declined") {
+    return { ...item, title: t("inbox.alert.deploymentDeclined.title") };
+  }
+  if (code === "shift_swap_accepted") {
+    return { ...item, title: t("inbox.alert.shiftSwap.title") };
+  }
+  return item;
+}
+
 async function loadInbox() {
   const el = $("inboxList");
   const countsEl = $("inboxCounts");
@@ -3310,7 +3365,8 @@ async function loadInbox() {
     return;
   }
   el.innerHTML = `<table><thead><tr><th></th><th>${t("inbox.colTitle")}</th><th>${t("inbox.colSla")}</th><th>${t("inbox.colSource")}</th><th>${t("inbox.colActions")}</th></tr></thead><tbody>${items
-    .map((it) => {
+    .map((raw) => {
+      const it = localizeInboxItem(raw);
       const checked = inboxSelectedIds.has(it.id) ? " checked" : "";
       const slaCls =
         it.slaStatus === "overdue" ? "sla-overdue" : it.slaStatus === "due_soon" ? "sla-due-soon" : "";
@@ -3352,7 +3408,7 @@ async function loadInbox() {
         .join(" · ");
       return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
         <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
-        <td><strong>${it.title || ""}</strong><br><span class="muted small">${it.message || ""}</span></td>
+        <td><strong>${escapeHtml(it.title || "")}</strong><br><span class="muted small">${escapeHtml(it.message || "")}</span></td>
         <td class="${slaCls}">${slaLabel}</td>
         <td>${it.source || ""}</td>
         <td>${acts}</td></tr>`;
@@ -3537,6 +3593,112 @@ function bindAnalyticsPeriodButtons() {
   });
 }
 
+async function renderAttendanceInsightPanel(q) {
+  const el = $("attendanceInsightPanel");
+  if (!el) return;
+  if (!q && getUser().role === "superadmin") {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  const [punctuality, behavior, overview] = await Promise.all([
+    api(`/api/analytics/punctuality-report${q || ""}`).catch(() => null),
+    api(`/api/analytics/behavior-patterns${q ? `${q}&` : "?"}days=14`).catch(() => null),
+    api(`/api/v2/admin/overview${q || ""}`).catch(() => null),
+  ]);
+  const lateToday = punctuality?.lateWorkers || punctuality?.late_workers || [];
+  const lateCount = Number(punctuality?.lateCount ?? punctuality?.late_count ?? lateToday.length ?? 0);
+  const lateRate = behavior?.lateCheckinRate ?? behavior?.late_checkin_rate;
+  const riskScore = behavior?.riskScore ?? behavior?.risk_score;
+  const insights = behavior?.insights || [];
+  const repeated = overview?.repeatedLateWorkers || [];
+  const drivers = overview?.tomorrowForecast?.drivers || [];
+  const driverItems = [];
+  for (const d of drivers) {
+    for (const item of d.items || []) {
+      const nm = String(item.name || "").trim();
+      if (nm && !driverItems.includes(nm)) driverItems.push(nm);
+      if (driverItems.length >= 8) break;
+    }
+    if (driverItems.length >= 8) break;
+  }
+  el.innerHTML = `
+    <div class="analytics-feature-grid">
+      <div class="card">
+        <h3 class="section-title">${t("analytics.punctualityTitle")}</h3>
+        <p><strong>${lateCount}</strong> <span class="muted">${t("analytics.lateToday")}</span></p>
+        ${
+          lateToday.length
+            ? `<ul class="analytics-list">${lateToday
+                .slice(0, 8)
+                .map(
+                  (w) =>
+                    `<li><strong>${escapeHtml(w.name || "")}</strong>
+                    <span class="muted"> — ${escapeHtml(String(w.checkinTime || w.checkin_time || ""))}
+                    ${w.minutesLate != null ? ` (+${w.minutesLate} ${t("analytics.minutes")})` : ""}</span></li>`,
+                )
+                .join("")}</ul>`
+            : `<p class="muted">${t("analytics.noLateToday")}</p>`
+        }
+        <button type="button" class="btn-link" data-goto-tab="inbox">${t("overview.openInbox")}</button>
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("analytics.behaviorTitle")}</h3>
+        <p><strong>${lateRate != null ? `${Math.round(Number(lateRate) * 100)}%` : "—"}</strong>
+          <span class="muted">${t("analytics.lateRate14d")}</span>
+          ${riskScore != null ? ` · ${t("analytics.riskScore")}: <strong>${riskScore}</strong>` : ""}</p>
+        ${
+          insights.length
+            ? `<ul class="analytics-list">${insights
+                .slice(0, 6)
+                .map((line) => `<li>${escapeHtml(String(line))}</li>`)
+                .join("")}</ul>`
+            : `<p class="muted">${t("analytics.noBehaviorRisk")}</p>`
+        }
+      </div>
+      <div class="card">
+        <h3 class="section-title">${t("overview.repeatedLateTitle")}</h3>
+        ${
+          repeated.length
+            ? `<ul class="analytics-list">${repeated
+                .map(
+                  (w) =>
+                    `<li><button type="button" class="btn-link attendance-open-worker" data-worker-id="${escapeAttr(String(w.workerId || ""))}">${escapeHtml(w.name || "")}</button>
+                    <span class="muted"> — ${t("overview.repeatedLateStreak", { n: w.streak ?? 0 })}</span></li>`,
+                )
+                .join("")}</ul>`
+            : `<p class="muted">${t("analytics.noRepeatedLate")}</p>`
+        }
+        ${
+          driverItems.length
+            ? `<p class="muted small" style="margin-top:0.6rem">${t("analytics.forecastAtRisk")}</p>
+               <ul class="analytics-list">${driverItems.map((n) => `<li>${escapeHtml(n)}</li>`).join("")}</ul>`
+            : ""
+        }
+      </div>
+    </div>`;
+  el.querySelectorAll("[data-goto-tab=\"inbox\"]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      switchToTab("inbox");
+      await loadInbox();
+    });
+  });
+  el.querySelectorAll(".attendance-open-worker").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const workerId = String(btn.dataset.workerId || "").trim();
+      switchToTab("workers");
+      await loadWorkers();
+      if (workerId) {
+        try {
+          await openDeploymentModal(workerId, btn.textContent || workerId);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+    });
+  });
+}
+
 async function loadAnalytics() {
   if (!canAccessAnalyticsTab()) {
     switchToTab("overview");
@@ -3607,6 +3769,8 @@ async function loadAnalytics() {
         `<div class="card"><span class="muted">${t(key)}</span><strong>${val ?? 0}</strong></div>`,
     )
     .join("");
+
+  await renderAttendanceInsightPanel(q);
 
   renderUsageTrends(trends);
   renderModuleAlerts(features.unusedModuleAlerts || []);
@@ -3973,11 +4137,49 @@ async function loadOverview() {
     await loadInbox();
   });
   const fc = overview.tomorrowForecast || {};
+  const repeatedLate = Array.isArray(overview.repeatedLateWorkers) ? overview.repeatedLateWorkers : [];
   const fp = $("forecastPanel");
-  if (fp && fc.date) {
+  if (fp && (fc.date || repeatedLate.length)) {
     fp.classList.remove("hidden");
+    const driverNames = [];
+    for (const d of fc.drivers || []) {
+      for (const item of d.items || []) {
+        const nm = String(item.name || "").trim();
+        if (nm && !driverNames.includes(nm)) driverNames.push(nm);
+        if (driverNames.length >= 6) break;
+      }
+      if (driverNames.length >= 6) break;
+    }
+    const driversHtml = driverNames.length
+      ? `<ul class="muted small" style="margin:0.4rem 0 0;padding-left:1.1rem">${driverNames
+          .map((n) => `<li>${escapeHtml(n)}</li>`)
+          .join("")}</ul>`
+      : "";
+    const lateHtml = repeatedLate.length
+      ? `<div class="card forecast-card" style="margin-top:0.75rem;border-color:#b45309">
+          <div class="forecast-head">
+            <span class="muted">${t("overview.repeatedLateTitle")}</span>
+            <span class="badge">${repeatedLate.length}</span>
+          </div>
+          <p class="muted small" style="margin:0.35rem 0 0">${t("overview.repeatedLateHint")}</p>
+          <ul style="margin:0.45rem 0 0;padding-left:1.1rem">
+            ${repeatedLate
+              .map(
+                (w) =>
+                  `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong>
+                    <span class="muted"> — ${t("overview.repeatedLateStreak", { n: w.streak ?? 0 })}</span></li>`,
+              )
+              .join("")}
+          </ul>
+          <p class="muted small" style="margin:0.5rem 0 0">
+            <button type="button" class="btn-link" data-goto-tab="inbox">${t("overview.openInbox")}</button>
+          </p>
+        </div>`
+      : "";
     fp.innerHTML = `
-      <div class="card forecast-card">
+      ${
+        fc.date
+          ? `<div class="card forecast-card">
         <div class="forecast-head">
           <span class="muted">${t("overview.forecastTomorrow", { day: typeof fc.weekday === "number" ? t(`weekday.${fc.weekday}`) : (fc.weekdayLabel || ""), date: fc.date })}</span>
           <span class="badge">${fc.confidence === "high" ? t("overview.confidenceHigh") : t("overview.confidenceMed")}</span>
@@ -3988,8 +4190,16 @@ async function loadOverview() {
           <div><span class="muted">${t("overview.absentRisk")}</span><strong>${fc.expectedAbsent ?? "—"}</strong></div>
           <div><span class="muted">${t("overview.totalActive")}</span><strong>${fc.totalActive ?? "—"}</strong></div>
         </div>
+        ${driversHtml}
         <p class="muted small"><a href="/ai-command-center.html${q}">${t("ops.aiCenter")}</a> · <a href="/ops-command-center.html${q}">${t("ops.commandCenter")}</a></p>
-      </div>`;
+      </div>`
+          : ""
+      }
+      ${lateHtml}`;
+    fp.querySelector("[data-goto-tab=\"inbox\"]")?.addEventListener("click", async () => {
+      switchToTab("inbox");
+      await loadInbox();
+    });
   } else if (fp) {
     fp.classList.add("hidden");
     fp.innerHTML = "";

@@ -82,7 +82,7 @@ class BaseConfig:
         "worker_api":           (120,  60),   # 120 req/min للعمال
         "worker_api_auth_fail": (5,    300),
         "admin_api":            (200,  60),
-        "gate_api":             (600,  60),   # البوابات تُولّد طلبات أكثر
+        "gate_api":             (1200, 60),   # gate burst: tap + heartbeat + batch
         "public_api":           (30,   60),
     }
     # مدة Ban IP بعد تجاوز الحد (in seconds)

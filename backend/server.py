@@ -4851,6 +4851,13 @@ def create_turnstile_api_key():
     return secrets.token_urlsafe(32)
 
 
+def turnstile_api_key_lookup(raw_key: str) -> str:
+    """Deterministic indexed lookup token for gate API keys (not the secret itself)."""
+    import hashlib
+
+    return hashlib.sha256(str(raw_key or "").encode("utf-8")).hexdigest()
+
+
 def hash_turnstile_api_key(raw_key):
     return generate_password_hash(raw_key)
 
@@ -4858,11 +4865,38 @@ def hash_turnstile_api_key(raw_key):
 def find_turnstile_by_api_key(db, raw_key):
     if not raw_key:
         return None
+    lookup = turnstile_api_key_lookup(raw_key)
+    try:
+        row = db.execute(
+            """
+            SELECT * FROM users
+            WHERE role = 'turnstile'
+              AND COALESCE(is_active, 1) = 1
+              AND api_key_lookup = ?
+              AND COALESCE(api_key_hash, '') != ''
+            LIMIT 1
+            """,
+            (lookup,),
+        ).fetchone()
+        if row and check_password_hash(row["api_key_hash"], raw_key):
+            return row
+    except Exception:
+        # Older DBs without api_key_lookup fall through to scan.
+        pass
     candidates = db.execute(
         "SELECT * FROM users WHERE role = 'turnstile' AND COALESCE(api_key_hash, '') != '' AND COALESCE(is_active, 1) = 1"
     ).fetchall()
     for candidate in candidates:
         if check_password_hash(candidate["api_key_hash"], raw_key):
+            # Best-effort backfill of lookup for next request.
+            try:
+                # Leave UPDATE in the caller's transaction (avoid extra commit on hot path).
+                db.execute(
+                    "UPDATE users SET api_key_lookup = ? WHERE id = ? AND COALESCE(api_key_lookup, '') = ''",
+                    (lookup, candidate["id"]),
+                )
+            except Exception:
+                pass
             return candidate
     return None
 
@@ -7962,6 +7996,18 @@ def run_daily_jobs_cycle_once():
         except Exception as digest_exc:
             camera_digest_result = {"ok": False, "error": str(digest_exc)}
 
+        forecast_notify_result = {"ok": False}
+        try:
+            with app.app_context():
+                from backend.app.platform.predictions.forecast_notify_job import (
+                    run_forecast_notify_cycle,
+                )
+
+                # Daily cycle: force so companies are notified even if hour window differs.
+                forecast_notify_result = run_forecast_notify_cycle(get_db(), force=True)
+        except Exception as forecast_exc:
+            forecast_notify_result = {"ok": False, "error": str(forecast_exc)}
+
         autopilot_result = {"ok": False}
         try:
             with app.app_context():
@@ -7991,6 +8037,7 @@ def run_daily_jobs_cycle_once():
             "autopilot": autopilot_result,
             "databaseBackup": backup_result,
             "cameraDigest": camera_digest_result,
+            "forecastNotify": forecast_notify_result,
         }
         try:
             from backend.app.tasks.job_health import record_job_run
@@ -8612,6 +8659,21 @@ def start_background_jobs():
                     run_scheduled_ops_pdf_reports()
             except Exception as exc:
                 print(f"[baupass] WARNING: report scheduler tick failed: {exc}", flush=True)
+            try:
+                with app.app_context():
+                    from backend.app.platform.predictions.forecast_notify_job import (
+                        run_forecast_notify_cycle,
+                    )
+
+                    run_forecast_notify_cycle(get_db(), force=False)
+            except Exception as exc:
+                print(f"[baupass] WARNING: forecast notify tick failed: {exc}", flush=True)
+            try:
+                with app.app_context():
+                    # Keep visitor/midnight autoclose off the gate tap hot path.
+                    run_access_maintenance_if_due(get_db())
+            except Exception as exc:
+                print(f"[baupass] WARNING: access maintenance tick failed: {exc}", flush=True)
             time.sleep(interval)
 
     if daily_jobs_mode == "rq":
@@ -13614,6 +13676,8 @@ def ensure_unique_physical_card_id_or_raise(db, physical_card_id, worker_id_to_e
 def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_value=None, worker_type="worker"):
     log_id = f"log-{secrets.token_hex(6)}"
     late = 0
+    worker_row = None
+    ts_value = normalize_access_ts(timestamp_value) or access_now_iso()
     if direction == "check-in" and worker_type != "visitor":
         try:
             worker_row = db.execute("SELECT * FROM workers WHERE id = ?", (worker_id,)).fetchone()
@@ -13645,10 +13709,52 @@ def create_access_log_entry(db, worker_id, direction, gate, note, timestamp_valu
             direction,
             gate,
             note,
-            normalize_access_ts(timestamp_value) or access_now_iso(),
+            ts_value,
             late,
         ),
     )
+    try:
+        from backend.app.platform.workforce.presence_state import upsert_presence_after_access
+
+        company_id = ""
+        if worker_row is not None:
+            company_id = str(worker_row["company_id"] or "")
+        else:
+            company_row = db.execute(
+                "SELECT company_id FROM workers WHERE id = ?", (worker_id,)
+            ).fetchone()
+            company_id = str(company_row["company_id"] or "") if company_row else ""
+        upsert_presence_after_access(
+            db,
+            worker_id=str(worker_id),
+            company_id=company_id,
+            direction=str(direction or ""),
+            timestamp_iso=str(ts_value),
+        )
+    except Exception:
+        app.logger.debug("presence state update skipped for worker %s", worker_id, exc_info=True)
+    if late and direction == "check-in":
+        try:
+            worker_for_streak = worker_row
+            if worker_for_streak is None:
+                worker_for_streak = db.execute(
+                    "SELECT * FROM workers WHERE id = ?", (worker_id,)
+                ).fetchone()
+            if worker_for_streak is not None:
+                from backend.app.platform.workforce.late_streak import (
+                    evaluate_late_streak_after_checkin,
+                )
+
+                # Evaluate on the same connection so the just-inserted late row is visible.
+                streak_payload = evaluate_late_streak_after_checkin(
+                    db, worker_for_streak, late=True
+                )
+                if streak_payload:
+                    schedule_repeated_late_checkin_notify(streak_payload)
+        except Exception:
+            app.logger.debug(
+                "repeated late schedule skipped for worker %s", worker_id, exc_info=True
+            )
     return log_id
 
 
@@ -14330,6 +14436,7 @@ def worker_app_proximity_login():
 
     attendance = worker_may_auto_attend_today(db, worker)
     if not attendance.get("ok"):
+        schedule_outside_hours_checkin_notify(worker, attendance, channel="proximity")
         return jsonify({
             "error": attendance.get("reason") or "attendance_not_allowed",
             "message": attendance.get("message") or "Keine automatische Anmeldung.",
@@ -14701,6 +14808,7 @@ def worker_app_site_presence():
                     "reason": attendance.get("reason"),
                     "message": attendance.get("message"),
                 }
+                schedule_outside_hours_checkin_notify(worker, attendance, channel="gps")
         if not auto_checkin_log_id and not worker_has_open_checkin_today(db, worker["id"]):
             if not attendance_blocked:
                 from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
@@ -14719,6 +14827,9 @@ def worker_app_site_presence():
                         "reason": login_eligibility.get("reason"),
                         "message": login_eligibility.get("message"),
                     }
+                    schedule_outside_hours_checkin_notify(
+                        worker, login_eligibility, channel="gps"
+                    )
         if auto_checkin_log_id or site_login_log_id or leave_applied or (
             site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0
         ):
@@ -14927,6 +15038,7 @@ def record_worker_app_nfc_attendance(
 
         attendance = worker_may_auto_attend_today(db, worker)
         if not attendance.get("ok"):
+            schedule_outside_hours_checkin_notify(worker, attendance, channel="nfc")
             return {
                 "ok": False,
                 "error": str(attendance.get("reason") or "attendance_blocked"),
@@ -15076,6 +15188,7 @@ def record_worker_app_manual_attendance(
 
         attendance = worker_may_auto_attend_today(db, worker)
         if not attendance.get("ok"):
+            schedule_outside_hours_checkin_notify(worker, attendance, channel="manual")
             return {
                 "ok": False,
                 "error": str(attendance.get("reason") or "attendance_blocked"),
@@ -20083,11 +20196,16 @@ def create_access_log():
     return jsonify(row_to_dict(row)), 201
 
 
-def _process_gate_tap_payload(db, turnstile_user, payload):
+def _process_gate_tap_payload(db, turnstile_user, payload, *, defer_commit=False, pre_accepted_event_uid=None):
     payload = payload if isinstance(payload, dict) else {}
     process_started = time.perf_counter()
     received_at = utc_now().replace(microsecond=0)
     received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+    def _maybe_commit():
+        if not defer_commit:
+            db.commit()
+
     # Accept dynamic QR tokens (DQR:...) in the "token" or "badgeId" field
     raw_token_field = str(payload.get("token") or "").strip()
     raw_card_value = payload.get("physicalCardId") or payload.get("cardId") or payload.get("badgeId")
@@ -20184,7 +20302,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message="Zugriff fuer diese Firma nicht erlaubt.",
             reason_code="forbidden_worker_company",
         )
-        db.commit()
+        _maybe_commit()
         return {"error": "forbidden_worker_company"}, 403
 
     doc_block = worker_document_access_block(db, worker)
@@ -20199,7 +20317,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message=str(doc_block.get("message") or "Pflichtdokumente unvollständig."),
             reason_code=str(doc_block.get("error") or "worker_documents_missing"),
         )
-        db.commit()
+        _maybe_commit()
         return doc_block, 403
 
     identity_block = worker_identity_access_block(db, worker)
@@ -20214,21 +20332,13 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message=str(identity_block.get("message") or "Unterschrift bei Ausgabe fehlt."),
             reason_code="missing_handover_signature",
         )
-        db.commit()
+        _maybe_commit()
         return identity_block, 403
 
     if requested_direction in {"", "auto", "toggle"}:
-        latest_log = db.execute(
-            """
-            SELECT direction
-            FROM access_logs
-            WHERE worker_id = ?
-            ORDER BY timestamp DESC, id DESC
-            LIMIT 1
-            """,
-            (worker["id"],),
-        ).fetchone()
-        direction = "check-out" if latest_log and str(latest_log["direction"] or "").lower() == "check-in" else "check-in"
+        from backend.app.platform.workforce.presence_state import resolve_auto_direction
+
+        direction = resolve_auto_direction(db, worker["id"])
     elif requested_direction in {"check-in", "check-out"}:
         direction = requested_direction
 
@@ -20244,7 +20354,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message=str(company_error.get("message") or "Firmenzugang gesperrt."),
             reason_code=str(company_error.get("error") or "company_access_denied"),
         )
-        db.commit()
+        _maybe_commit()
         return company_error, 403
     company_access_error = get_company_access_error(db, turnstile_user["company_id"])
     if company_access_error:
@@ -20258,7 +20368,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message=str(company_access_error.get("message") or "Drehkreuz-Firma gesperrt."),
             reason_code=str(company_access_error.get("error") or "turnstile_company_access_denied"),
         )
-        db.commit()
+        _maybe_commit()
         return company_access_error, 403
     if worker_visit_has_expired(worker):
         insert_worker_gate_feedback_event(
@@ -20271,7 +20381,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message="Besucherkarte abgelaufen.",
             reason_code="visitor_visit_expired",
         )
-        db.commit()
+        _maybe_commit()
         return {"error": "visitor_visit_expired", "message": "Diese Besucherkarte ist zeitlich abgelaufen."}, 403
     if worker["status"] != "aktiv":
         insert_worker_gate_feedback_event(
@@ -20284,8 +20394,41 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             message="Zugang entzogen oder Ausweis nicht aktiv.",
             reason_code="worker_not_active",
         )
-        db.commit()
+        _maybe_commit()
         return {"error": "worker_not_active"}, 403
+
+    if direction == "check-in":
+        try:
+            from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+
+            attendance = worker_may_auto_attend_today(db, worker)
+        except Exception:
+            app.logger.warning(
+                "gate attendance eligibility check failed for worker %s",
+                worker["id"],
+                exc_info=True,
+            )
+            attendance = {"ok": True}
+        if not attendance.get("ok"):
+            deny_reason = str(attendance.get("reason") or "attendance_not_allowed")
+            deny_message = str(
+                attendance.get("message") or "Anmeldung außerhalb der Arbeitszeit nicht erlaubt."
+            )
+            insert_worker_gate_feedback_event(
+                db,
+                worker_id=worker["id"],
+                company_id=worker["company_id"],
+                status="deny",
+                direction="check-in",
+                gate=gate_name,
+                message=deny_message[:240],
+                reason_code=deny_reason,
+            )
+            schedule_outside_hours_checkin_notify(
+                worker, attendance, channel="gate", gate=gate_name
+            )
+            _maybe_commit()
+            return {"error": deny_reason, "message": deny_message}, 403
 
     normalized_event = build_normalized_device_event(
         payload=payload,
@@ -20295,14 +20438,17 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         scan_mode=scan_mode,
         received_at_iso=timestamp_value,
     )
-    event_uid = build_device_event_uid(payload, normalized_event)
-    was_inserted = insert_device_ingest_event(
-        db=db,
-        event_uid=event_uid,
-        normalized_event=normalized_event,
-        raw_payload=payload,
-        received_at_iso=received_at_iso,
-    )
+    event_uid = str(pre_accepted_event_uid or "").strip() or build_device_event_uid(payload, normalized_event)
+    if pre_accepted_event_uid:
+        was_inserted = True
+    else:
+        was_inserted = insert_device_ingest_event(
+            db=db,
+            event_uid=event_uid,
+            normalized_event=normalized_event,
+            raw_payload=payload,
+            received_at_iso=received_at_iso,
+        )
     if not was_inserted:
         existing_event = get_device_ingest_event_by_uid(db, event_uid)
         parsed_normalized_payload = {}
@@ -20324,7 +20470,7 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
     if should_drop_duplicate_device_event(normalized_event):
         processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
         mark_device_ingest_event_outcome(db, event_uid, "duplicate_ignored", error_code="duplicate_window", processing_ms=processing_ms)
-        db.commit()
+        _maybe_commit()
         return {
             "ok": True,
             "duplicateIgnored": True,
@@ -20338,14 +20484,35 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         log_id = create_access_log_entry(db, worker["id"], direction, gate_name, gate_note, timestamp_value, worker_type=str(worker["worker_type"] or "worker"))
         processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
         mark_device_ingest_event_outcome(db, event_uid, "processed", result_ref=log_id, processing_ms=processing_ms)
-        db.commit()
-        log_audit(
-            "access.gate_tap",
-            f"{scan_mode.upper() if scan_mode else 'CARD'} Tap {direction} fuer Worker {worker['id']} an {gate_name}",
-            target_type="worker",
-            target_id=worker["id"],
+        feedback_message = "Du bist jetzt angemeldet." if direction == "check-in" else "Du bist jetzt abgemeldet."
+        feedback_title = "ANMELDUNG ERFOLGREICH" if direction == "check-in" else "ABMELDUNG ERFOLGREICH"
+        feedback_tone = "success_in" if direction == "check-in" else "success_out"
+        insert_worker_gate_feedback_event(
+            db,
+            worker_id=worker["id"],
             company_id=worker["company_id"],
-            actor=row_to_dict(turnstile_user),
+            status="allow",
+            direction=direction,
+            gate=gate_name,
+            message=feedback_message,
+            reason_code="ok",
+        )
+        _maybe_commit()
+        # Defer audit + event bus off the hot path (separate connections / RQ-safe).
+        actor_snapshot = row_to_dict(turnstile_user) if turnstile_user is not None else None
+        _schedule_gate_tap_side_effects(
+            {
+                "eventType": "access.gate_tap",
+                "message": f"{scan_mode.upper() if scan_mode else 'CARD'} Tap {direction} fuer Worker {worker['id']} an {gate_name}",
+                "workerId": worker["id"],
+                "companyId": worker["company_id"],
+                "actor": actor_snapshot,
+                "direction": direction,
+                "gate": gate_name,
+                "logId": log_id,
+                "badgeId": worker["badge_id"],
+                "turnstileId": str(turnstile_user["id"] if turnstile_user else ""),
+            }
         )
     except Exception as exc:
         processing_ms = max(0, int((time.perf_counter() - process_started) * 1000))
@@ -20368,46 +20535,13 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
             reason="processing_error",
             last_error=str(exc),
         )
-        db.commit()
+        _maybe_commit()
         return {
             "error": "event_processing_failed",
             "eventUid": event_uid,
             "processingMs": processing_ms,
             "message": "Device event could not be processed.",
         }, 500
-
-    feedback_message = "Du bist jetzt angemeldet." if direction == "check-in" else "Du bist jetzt abgemeldet."
-    feedback_title = "ANMELDUNG ERFOLGREICH" if direction == "check-in" else "ABMELDUNG ERFOLGREICH"
-    feedback_tone = "success_in" if direction == "check-in" else "success_out"
-
-    insert_worker_gate_feedback_event(
-        db,
-        worker_id=worker["id"],
-        company_id=worker["company_id"],
-        status="allow",
-        direction=direction,
-        gate=gate_name,
-        message=feedback_message,
-        reason_code="ok",
-    )
-    db.commit()
-
-    try:
-        from backend.app.platform.events.bus import publish_event
-
-        publish_event(
-            f"access.{direction.replace('-', '_')}",
-            str(worker["company_id"]) if worker["company_id"] else None,
-            {
-                "worker_id": worker["id"],
-                "badge_id": worker["badge_id"],
-                "gate": gate_name,
-                "log_id": log_id,
-            },
-            actor_id=str(turnstile_user["id"] if turnstile_user else ""),
-        )
-    except Exception:
-        pass
 
     return {
         "ok": True,
@@ -20431,6 +20565,60 @@ def _process_gate_tap_payload(db, turnstile_user, payload):
         "feedbackMessage": feedback_message,
         "feedbackTone": feedback_tone,
     }, 201
+
+
+def _schedule_gate_tap_side_effects(ctx):
+    """Audit + publish_event without blocking the gate response commit path."""
+    try:
+        from backend.app.tasks import _rq_queues, enqueue
+
+        if _rq_queues.get("high") is not None:
+            from backend.app.tasks.attendance_notify_tasks import gate_tap_side_effects_task
+
+            enqueue("high", gate_tap_side_effects_task, ctx)
+            return
+    except Exception:
+        pass
+    try:
+        threading.Thread(
+            target=_run_gate_tap_side_effects,
+            args=(ctx,),
+            daemon=True,
+        ).start()
+    except Exception:
+        app.logger.debug("gate tap side effects schedule skipped", exc_info=True)
+
+
+def _run_gate_tap_side_effects(ctx):
+    try:
+        with app.app_context():
+            log_audit(
+                str(ctx.get("eventType") or "access.gate_tap"),
+                str(ctx.get("message") or ""),
+                target_type="worker",
+                target_id=str(ctx.get("workerId") or ""),
+                company_id=str(ctx.get("companyId") or "") or None,
+                actor=ctx.get("actor"),
+            )
+            try:
+                from backend.app.platform.events.bus import publish_event
+
+                direction = str(ctx.get("direction") or "check-in")
+                publish_event(
+                    f"access.{direction.replace('-', '_')}",
+                    str(ctx.get("companyId") or "") or None,
+                    {
+                        "worker_id": ctx.get("workerId"),
+                        "badge_id": ctx.get("badgeId"),
+                        "gate": ctx.get("gate"),
+                        "log_id": ctx.get("logId"),
+                    },
+                    actor_id=str(ctx.get("turnstileId") or ""),
+                )
+            except Exception:
+                pass
+    except Exception:
+        app.logger.debug("gate tap side effects failed", exc_info=True)
 
 
 def _percentile_ms(values, percentile):
@@ -20569,6 +20757,16 @@ def gate_ops_metrics():
         for row in recent_deny_rows
     ]
 
+    hot_path = {}
+    try:
+        from backend.app.platform.workforce.gate_hot_path_metrics import (
+            snapshot_gate_hot_path_metrics,
+        )
+
+        hot_path = snapshot_gate_hot_path_metrics()
+    except Exception:
+        hot_path = {}
+
     return jsonify(
         {
             "windowMinutes": window_minutes,
@@ -20583,6 +20781,7 @@ def gate_ops_metrics():
             "topDenyReasons": top_deny_reasons,
             "recentDenies": recent_denies,
             "since": since_iso,
+            "hotPath": hot_path,
         }
     )
 
@@ -20593,7 +20792,6 @@ def gate_tap():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     db = get_db()
-    run_access_maintenance_if_due(db)
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
@@ -20607,14 +20805,121 @@ def gate_tap():
         max_len=80,
     ) or f"gate-{secrets.token_hex(6)}"
     payload.setdefault("traceId", trace_id)
-    response_payload, status = _process_gate_tap_payload(db, turnstile_user, payload)
+
+    async_ingest = str(os.getenv("BAUPASS_GATE_ASYNC_INGEST") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    if async_ingest:
+        response_payload, status = _accept_gate_tap_async(db, turnstile_user, payload)
+    else:
+        response_payload, status = _process_gate_tap_payload(db, turnstile_user, payload)
     processing_ms = max(0, int((time.perf_counter() - request_started) * 1000))
     if isinstance(response_payload, dict):
         response_payload["traceId"] = trace_id
         response_payload["processingMs"] = processing_ms
+    try:
+        from backend.app.platform.workforce.gate_hot_path_metrics import record_gate_tap
+
+        record_gate_tap(
+            status=status,
+            processing_ms=processing_ms,
+            async_accepted=bool(isinstance(response_payload, dict) and response_payload.get("asyncAccepted")),
+        )
+    except Exception:
+        pass
     response = jsonify(response_payload)
     response.headers["X-Gate-Trace-Id"] = trace_id
     return response, status
+
+
+def _accept_gate_tap_async(db, turnstile_user, payload):
+    """Fast-accept path: persist ingest row + enqueue eligibility/access processing."""
+    received_at = utc_now().replace(microsecond=0)
+    received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+    raw_card_value = payload.get("physicalCardId") or payload.get("cardId") or payload.get("badgeId") or payload.get("token")
+    if not str(raw_card_value or "").strip():
+        return {"error": "missing_card_identifier"}, 400
+
+    turnstile_id = ""
+    company_id = ""
+    if isinstance(turnstile_user, sqlite3.Row):
+        turnstile_id = str(turnstile_user["id"] or "")
+        company_id = str(turnstile_user["company_id"] or "")
+    elif isinstance(turnstile_user, dict):
+        turnstile_id = str(turnstile_user.get("id") or "")
+        company_id = str(turnstile_user.get("company_id") or "")
+
+    normalized_event = {
+        "device_id": turnstile_id,
+        "company_id": company_id,
+        "employee_id": "",
+        "source": "gate_async",
+        "protocol": "http",
+        "event": "queued",
+        "timestamp": received_at_iso,
+    }
+    event_uid = build_device_event_uid(payload, normalized_event)
+    was_inserted = insert_device_ingest_event(
+        db=db,
+        event_uid=event_uid,
+        normalized_event=normalized_event,
+        raw_payload=payload,
+        received_at_iso=received_at_iso,
+    )
+    if not was_inserted:
+        existing = get_device_ingest_event_by_uid(db, event_uid)
+        return {
+            "ok": True,
+            "asyncAccepted": True,
+            "duplicateReplay": True,
+            "eventUid": event_uid,
+            "outcome": (existing["outcome"] if existing else "received"),
+            "message": "Event already accepted.",
+        }, 202
+
+    mark_device_ingest_event_outcome(db, event_uid, "queued", processing_ms=0)
+    db.commit()
+
+    enqueued = False
+    try:
+        from backend.app.tasks import _rq_queues, enqueue
+        from backend.app.tasks.attendance_notify_tasks import process_gate_async_ingest_task
+
+        if _rq_queues.get("high") is not None:
+            enqueue("high", process_gate_async_ingest_task, event_uid)
+            enqueued = True
+    except Exception:
+        enqueued = False
+    if not enqueued:
+        try:
+            threading.Thread(
+                target=_process_gate_async_ingest_inline,
+                args=(event_uid,),
+                daemon=True,
+            ).start()
+        except Exception:
+            app.logger.warning("async gate ingest fallback failed for %s", event_uid, exc_info=True)
+
+    return {
+        "ok": True,
+        "asyncAccepted": True,
+        "eventUid": event_uid,
+        "outcome": "queued",
+        "message": "Accepted for async processing.",
+    }, 202
+
+
+def _process_gate_async_ingest_inline(event_uid: str):
+    try:
+        from backend.app.tasks.attendance_notify_tasks import process_gate_async_ingest_task
+
+        with app.app_context():
+            process_gate_async_ingest_task(event_uid)
+    except Exception:
+        app.logger.debug("inline async gate ingest failed", exc_info=True)
 
 
 def gate_tap_batch():
@@ -20623,7 +20928,6 @@ def gate_tap_batch():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     db = get_db()
-    run_access_maintenance_if_due(db)
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
@@ -20651,7 +20955,7 @@ def gate_tap_batch():
     duplicate_count = 0
     failed_count = 0
 
-    # Ordered replay: process in the exact input order to preserve chronology semantics.
+    # Ordered replay: process in the exact input order; one commit for the whole batch.
     for index, raw_event in enumerate(events):
         event_payload = raw_event if isinstance(raw_event, dict) else {}
         event_started = time.perf_counter()
@@ -20659,7 +20963,9 @@ def gate_tap_batch():
         event_payload["traceId"] = event_trace_id
         if replay_id and "replayId" not in event_payload:
             event_payload["replayId"] = replay_id
-        response_payload, status = _process_gate_tap_payload(db, turnstile_user, event_payload)
+        response_payload, status = _process_gate_tap_payload(
+            db, turnstile_user, event_payload, defer_commit=True
+        )
         event_processing_ms = max(0, int((time.perf_counter() - event_started) * 1000))
         if isinstance(response_payload, dict):
             response_payload["traceId"] = event_trace_id
@@ -20684,6 +20990,15 @@ def gate_tap_batch():
         )
         if status >= 400 and not continue_on_error:
             break
+
+    try:
+        db.commit()
+    except Exception:
+        app.logger.warning("gate_tap_batch commit failed", exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     batch_processing_ms = max(0, int((time.perf_counter() - batch_started) * 1000))
     response = jsonify(
@@ -20773,7 +21088,6 @@ def unified_scan():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     db = get_db()
-    run_access_maintenance_if_due(db)
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401
@@ -20828,17 +21142,9 @@ def unified_scan():
 
     direction = requested_direction
     if requested_direction in {"", "auto", "toggle"}:
-        latest_log = db.execute(
-            """
-            SELECT direction
-            FROM access_logs
-            WHERE worker_id = ?
-            ORDER BY timestamp DESC, id DESC
-            LIMIT 1
-            """,
-            (worker["id"],),
-        ).fetchone()
-        direction = "check-out" if latest_log and str(latest_log["direction"] or "").lower() == "check-in" else "check-in"
+        from backend.app.platform.workforce.presence_state import resolve_auto_direction
+
+        direction = resolve_auto_direction(db, worker["id"])
 
     received_at = utc_now().replace(microsecond=0)
     received_at_iso = received_at.astimezone(timezone.utc).replace(tzinfo=None).isoformat() + "Z"
@@ -28411,6 +28717,119 @@ def _notify_company_deployment_decline_async(ctx):
         app.logger.debug("deployment decline notify async skipped", exc_info=True)
 
 
+def schedule_outside_hours_checkin_notify(worker, attendance, *, channel: str, gate: str = ""):
+    """Queue employer alert for outside-hours check-in attempts (RQ high, thread fallback)."""
+    try:
+        from backend.app.platform.notifications.company_mitteilung import (
+            OUTSIDE_HOURS_NOTIFY_REASONS,
+        )
+
+        if not attendance or attendance.get("ok"):
+            return
+        reason = str(attendance.get("reason") or "").strip()
+        if reason not in OUTSIDE_HOURS_NOTIFY_REASONS:
+            return
+        first = str(worker["first_name"] or "").strip()
+        last = str(worker["last_name"] or "").strip()
+        worker_name = f"{first} {last}".strip() or str(worker["id"])
+        notify_ctx = {
+            "companyId": str(worker["company_id"] or ""),
+            "workerId": str(worker["id"] or ""),
+            "workerName": worker_name,
+            "reason": reason,
+            "channel": str(channel or "gps"),
+            "gate": str(gate or ""),
+            "shiftStart": str(attendance.get("shiftStart") or ""),
+            "shiftEnd": str(attendance.get("shiftEnd") or ""),
+            "message": str(attendance.get("message") or ""),
+        }
+        try:
+            from backend.app.tasks import _rq_queues, enqueue
+            from backend.app.tasks.attendance_notify_tasks import (
+                notify_outside_hours_checkin_task,
+            )
+
+            if _rq_queues.get("high") is not None:
+                enqueue("high", notify_outside_hours_checkin_task, notify_ctx)
+                return
+        except Exception:
+            pass
+        threading.Thread(
+            target=_notify_company_outside_hours_checkin_async,
+            args=(notify_ctx,),
+            daemon=True,
+        ).start()
+    except Exception:
+        app.logger.debug("outside hours checkin notify schedule skipped", exc_info=True)
+
+
+def _notify_company_outside_hours_checkin_async(ctx):
+    try:
+        from backend.app.platform.notifications.company_mitteilung import (
+            notify_company_outside_hours_checkin_attempt,
+        )
+
+        with app.app_context():
+            db = get_db()
+            notify_company_outside_hours_checkin_attempt(
+                db,
+                company_id=str(ctx.get("companyId") or ""),
+                worker_id=str(ctx.get("workerId") or ""),
+                worker_name=str(ctx.get("workerName") or ""),
+                reason=str(ctx.get("reason") or ""),
+                channel=str(ctx.get("channel") or "gps"),
+                gate=str(ctx.get("gate") or ""),
+                shift_start=str(ctx.get("shiftStart") or ""),
+                shift_end=str(ctx.get("shiftEnd") or ""),
+                message=str(ctx.get("message") or ""),
+            )
+    except Exception:
+        app.logger.debug("outside hours checkin notify async skipped", exc_info=True)
+
+
+def schedule_repeated_late_checkin_notify(payload):
+    """Queue employer alert when consecutive late streak reaches threshold (RQ high)."""
+    try:
+        if not payload:
+            return
+        notify_ctx = dict(payload)
+        try:
+            from backend.app.tasks import _rq_queues, enqueue
+            from backend.app.tasks.attendance_notify_tasks import notify_repeated_late_task
+
+            if _rq_queues.get("high") is not None:
+                enqueue("high", notify_repeated_late_task, notify_ctx)
+                return
+        except Exception:
+            pass
+        threading.Thread(
+            target=_notify_company_repeated_late_async,
+            args=(notify_ctx,),
+            daemon=True,
+        ).start()
+    except Exception:
+        app.logger.debug("repeated late notify schedule skipped", exc_info=True)
+
+
+def _notify_company_repeated_late_async(ctx):
+    try:
+        from backend.app.platform.notifications.company_mitteilung import (
+            notify_company_repeated_late_checkin,
+        )
+
+        with app.app_context():
+            db = get_db()
+            notify_company_repeated_late_checkin(
+                db,
+                company_id=str(ctx.get("companyId") or ""),
+                worker_id=str(ctx.get("workerId") or ""),
+                worker_name=str(ctx.get("workerName") or ""),
+                streak=int(ctx.get("streak") or 0),
+            )
+    except Exception:
+        app.logger.debug("repeated late notify async skipped", exc_info=True)
+
+
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
 
 @require_worker_session
@@ -29380,7 +29799,6 @@ def gate_ingest():
         return jsonify({"error": "gate_unauthorized"}), 401
 
     db = get_db()
-    run_access_maintenance_if_due(db)
     turnstile_user = find_turnstile_by_api_key(db, provided_key)
     if not turnstile_user:
         return jsonify({"error": "gate_unauthorized"}), 401

@@ -331,7 +331,7 @@ def _detect_scope(path: str, method: str) -> str:
         "/api/worker-app/activate",
     }:
         return "worker_login"
-    if "/api/gate/" in path or "/api/scan" in path:
+    if "/api/gates/" in path or "/api/gate/" in path or "/api/scan" in path:
         return "gate_api"
     if "/api/worker-app/" in path:
         return "worker_api"

@@ -158,14 +158,29 @@ def build_operations_inbox(
             code = str(r["code"] or "")
             title_map = {
                 "deployment_worker_declined": "Einsatz abgelehnt",
+                "outside_hours_checkin_attempt": "Anmeldung außerhalb der Arbeitszeit",
+                "shift_swap_accepted": "Schichttausch",
+                "repeated_late_checkin": "Wiederholte Verspätung",
+                "tomorrow_attendance_forecast": "Prognose für morgen",
             }
+            details_obj = {}
+            raw_details = r["details"] or ""
+            if isinstance(raw_details, str) and raw_details.strip():
+                try:
+                    parsed = json.loads(raw_details)
+                    if isinstance(parsed, dict):
+                        details_obj = parsed
+                except Exception:
+                    details_obj = {}
             items.append(
                 {
                     "id": f"sys:{r['id']}",
                     "source": "system",
                     "severity": r["severity"] or "info",
+                    "code": code,
                     "title": title_map.get(code, code or "system"),
                     "message": r["message"] or "",
+                    "details": details_obj,
                     "companyId": cid or None,
                     "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "resolved" if r["resolved_at"] else "open",

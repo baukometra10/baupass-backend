@@ -80,10 +80,20 @@ def _worker_payload(company_id, physical_card_id, **overrides):
 def _issue_turnstile_api_key(db_path, user_id="usr-turnstile"):
     api_key = server.create_turnstile_api_key()
     with closing(sqlite3.connect(db_path)) as db:
-        db.execute(
-            "UPDATE users SET api_key_hash = ? WHERE id = ?",
-            (server.hash_turnstile_api_key(api_key), user_id),
-        )
+        try:
+            db.execute(
+                "UPDATE users SET api_key_hash = ?, api_key_lookup = ? WHERE id = ?",
+                (
+                    server.hash_turnstile_api_key(api_key),
+                    server.turnstile_api_key_lookup(api_key),
+                    user_id,
+                ),
+            )
+        except sqlite3.OperationalError:
+            db.execute(
+                "UPDATE users SET api_key_hash = ? WHERE id = ?",
+                (server.hash_turnstile_api_key(api_key), user_id),
+            )
         db.commit()
     return api_key
 

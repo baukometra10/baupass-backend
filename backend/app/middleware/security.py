@@ -64,6 +64,7 @@ _CSRF_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 # CSRF-exempt path prefixes (Bearer-token APIs)
 _CSRF_EXEMPT_PREFIXES = (
+    "/api/gates/",
     "/api/gate/",
     "/api/worker-app/",
     "/api/public/",

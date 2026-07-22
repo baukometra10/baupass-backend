@@ -1236,6 +1236,47 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="036",
+        name="access_logs_late_streak_index",
+        up_sql="""
+            CREATE INDEX IF NOT EXISTS idx_access_logs_worker_late_ts
+                ON access_logs(worker_id, checked_in_late, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_access_logs_worker_dir_ts
+                ON access_logs(worker_id, direction, timestamp DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_access_logs_worker_dir_ts;
+            DROP INDEX IF EXISTS idx_access_logs_worker_late_ts;
+        """,
+    ),
+
+    Migration(
+        version="037",
+        name="gate_key_lookup_and_presence_state",
+        up_sql="""
+            ALTER TABLE users ADD COLUMN api_key_lookup TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_users_api_key_lookup
+                ON users(api_key_lookup)
+                WHERE COALESCE(api_key_lookup, '') != '';
+            CREATE TABLE IF NOT EXISTS worker_presence_state (
+                worker_id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                open_direction TEXT NOT NULL DEFAULT '',
+                last_checkin_at TEXT NOT NULL DEFAULT '',
+                last_checkout_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT ''
+            );
+            CREATE INDEX IF NOT EXISTS idx_presence_company_open
+                ON worker_presence_state(company_id, open_direction);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_presence_company_open;
+            DROP TABLE IF EXISTS worker_presence_state;
+            DROP INDEX IF EXISTS idx_users_api_key_lookup;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))
