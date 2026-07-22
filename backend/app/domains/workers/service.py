@@ -900,6 +900,7 @@ class WorkersService:
             ALLOWED_WORKER_DOC_TYPES as ALLOWED_DOC_TYPES,
             normalize_doc_type,
         )
+        from backend.app.platform.documents.verify import verify_worker_document_upload
         from backend.server import (
             ALLOWED_UPLOAD_MIMETYPES,
             DOCS_UPLOAD_DIR,
@@ -937,7 +938,15 @@ class WorkersService:
             return {"error": {"error": "missing_file"}, "status": 400}
 
         mime = normalize_upload_mimetype(mimetype, filename)
-        if mime not in ALLOWED_UPLOAD_MIMETYPES:
+        e2e_cipher_mimes = {
+            "application/vnd.suppix.e2e+binary",
+            "application/octet-stream",
+            "binary/octet-stream",
+        }
+        if encrypted:
+            if mime not in ALLOWED_UPLOAD_MIMETYPES and mime not in e2e_cipher_mimes:
+                return {"error": {"error": "invalid_file_type"}, "status": 400}
+        elif mime not in ALLOWED_UPLOAD_MIMETYPES:
             return {"error": {"error": "invalid_file_type"}, "status": 400}
         if not file_data:
             return {
@@ -976,6 +985,29 @@ class WorkersService:
             except ValueError as exc:
                 return {"error": {"error": str(exc)}, "status": 400}
 
+        verification = verify_worker_document_upload(
+            doc_type=doc_type,
+            filename=str(filename or ""),
+            claimed_mime=mime,
+            file_data=file_data,
+            encrypted=bool(encrypted),
+        )
+        if not verification.get("ok"):
+            return {
+                "error": {
+                    "error": verification.get("error") or "document_verification_failed",
+                    "message": verification.get("message")
+                    or "Dokumentprüfung fehlgeschlagen.",
+                    "verification": {
+                        "status": verification.get("status"),
+                        "score": verification.get("score"),
+                        "reasons": verification.get("reasons") or [],
+                    },
+                },
+                "status": 400,
+            }
+        trusted_mime = verification.get("mime") or mime
+
         base_upload_root = DOCS_UPLOAD_DIR.resolve()
         worker_doc_dir = (DOCS_UPLOAD_DIR / worker_id).resolve()
         if worker_doc_dir != base_upload_root and base_upload_root not in worker_doc_dir.parents:
@@ -996,8 +1028,23 @@ class WorkersService:
         except Exception as exc:
             return {"error": {"error": "write_error", "detail": str(exc)}, "status": 500}
 
+        import json as _json
+
         stored_path = _stored_file_path(file_path)
         doc_id = f"doc-{secrets.token_hex(8)}"
+        checked_at = now_iso()
+        try:
+            verification_payload = _json.dumps(
+                {
+                    "status": verification.get("status"),
+                    "score": verification.get("score"),
+                    "reasons": verification.get("reasons") or [],
+                    "details": verification.get("details") or {},
+                },
+                ensure_ascii=False,
+            )
+        except Exception:
+            verification_payload = "{}"
         self.repo.insert_worker_document(
             db,
             doc_id=doc_id,
@@ -1008,10 +1055,14 @@ class WorkersService:
             file_path=stored_path,
             file_size=len(file_data),
             uploaded_by_user_id=user["id"],
-            created_at=now_iso(),
+            created_at=checked_at,
             notes=notes,
             expiry_date=expiry_date,
             e2e_meta=str(e2e_meta or "").strip() or None,
+            verification_status=str(verification.get("status") or "accepted"),
+            verification_score=float(verification.get("score") or 0),
+            verification_json=verification_payload,
+            verification_checked_at=checked_at,
         )
         unlock_worker_if_documents_valid(db, worker, actor=user)
         try:
@@ -1023,7 +1074,7 @@ class WorkersService:
                 company_id=str(worker["company_id"]),
                 worker_id=worker_id,
                 filename=safe_name,
-                content_type=mime,
+                content_type=trusted_mime,
                 blob=file_data,
                 body=f"{document_type_label(doc_type)}: {safe_name}",
                 sender_type="admin",
@@ -1041,13 +1092,23 @@ class WorkersService:
             pass
         db.commit()
         return {
-            "body": {"ok": True, "documentId": doc_id},
+            "body": {
+                "ok": True,
+                "documentId": doc_id,
+                "verification": {
+                    "status": verification.get("status"),
+                    "score": verification.get("score"),
+                    "message": verification.get("message") or "",
+                },
+            },
             "audit": {
                 "worker_id": worker_id,
                 "company_id": worker["company_id"],
                 "badge_id": worker.get("badge_id"),
                 "doc_type": doc_type,
                 "filename": safe_name,
+                "verification_status": verification.get("status"),
+                "verification_score": verification.get("score"),
             },
         }
 

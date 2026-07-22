@@ -1340,6 +1340,22 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="040",
+        name="worker_documents_verification_fields",
+        up_sql="""
+            ALTER TABLE worker_documents ADD COLUMN verification_status TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_documents ADD COLUMN verification_score REAL NOT NULL DEFAULT 0;
+            ALTER TABLE worker_documents ADD COLUMN verification_json TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_documents ADD COLUMN verification_checked_at TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_worker_docs_verification
+                ON worker_documents(company_id, verification_status, created_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_worker_docs_verification;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

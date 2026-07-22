@@ -330,15 +330,27 @@ class WorkersRepository:
         return dict(row) if row else None
 
     def list_worker_documents(self, db, worker_id: str) -> list[dict[str, Any]]:
-        rows = db.execute(
-            """
-            SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date, e2e_meta
-            FROM worker_documents
-            WHERE worker_id = ?
-            ORDER BY created_at DESC
-            """,
-            (worker_id,),
-        ).fetchall()
+        try:
+            rows = db.execute(
+                """
+                SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date, e2e_meta,
+                       verification_status, verification_score, verification_checked_at
+                FROM worker_documents
+                WHERE worker_id = ?
+                ORDER BY created_at DESC
+                """,
+                (worker_id,),
+            ).fetchall()
+        except Exception:
+            rows = db.execute(
+                """
+                SELECT id, doc_type, filename, file_size, source_email_from, created_at, notes, expiry_date
+                FROM worker_documents
+                WHERE worker_id = ?
+                ORDER BY created_at DESC
+                """,
+                (worker_id,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
     def get_worker_document(
@@ -366,31 +378,91 @@ class WorkersRepository:
         notes: str,
         expiry_date: str | None,
         e2e_meta: str | None = None,
+        verification_status: str = "",
+        verification_score: float = 0.0,
+        verification_json: str = "",
+        verification_checked_at: str = "",
     ) -> None:
-        db.execute(
-            """
-            INSERT INTO worker_documents
-               (id, worker_id, company_id, doc_type, filename, file_path, file_size,
-                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date, e2e_meta)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                doc_id,
-                worker_id,
-                company_id,
-                doc_type,
-                filename,
-                file_path,
-                file_size,
-                "",
-                None,
-                uploaded_by_user_id,
-                created_at,
-                notes,
-                expiry_date,
-                e2e_meta,
-            ),
-        )
+        try:
+            db.execute(
+                """
+                INSERT INTO worker_documents
+                   (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                    source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date, e2e_meta,
+                    verification_status, verification_score, verification_json, verification_checked_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    doc_id,
+                    worker_id,
+                    company_id,
+                    doc_type,
+                    filename,
+                    file_path,
+                    file_size,
+                    "",
+                    None,
+                    uploaded_by_user_id,
+                    created_at,
+                    notes,
+                    expiry_date,
+                    e2e_meta,
+                    verification_status or "",
+                    float(verification_score or 0),
+                    verification_json or "",
+                    verification_checked_at or "",
+                ),
+            )
+        except Exception:
+            try:
+                db.execute(
+                    """
+                    INSERT INTO worker_documents
+                       (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                        source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date, e2e_meta)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        doc_id,
+                        worker_id,
+                        company_id,
+                        doc_type,
+                        filename,
+                        file_path,
+                        file_size,
+                        "",
+                        None,
+                        uploaded_by_user_id,
+                        created_at,
+                        notes,
+                        expiry_date,
+                        e2e_meta,
+                    ),
+                )
+            except Exception:
+                db.execute(
+                    """
+                    INSERT INTO worker_documents
+                       (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                        source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (
+                        doc_id,
+                        worker_id,
+                        company_id,
+                        doc_type,
+                        filename,
+                        file_path,
+                        file_size,
+                        "",
+                        None,
+                        uploaded_by_user_id,
+                        created_at,
+                        notes,
+                        expiry_date,
+                    ),
+                )
 
     def delete_worker_document(self, db, doc_id: str) -> None:
         db.execute("DELETE FROM worker_documents WHERE id = ?", (doc_id,))

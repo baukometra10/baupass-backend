@@ -7,7 +7,10 @@ ALLOWED_WORKER_DOC_TYPES = frozenset(
         "personalausweis",
         "sozialversicherungsnachweis",
         "arbeitserlaubnis",
+        "aufenthaltserlaubnis",
         "gesundheitszeugnis",
+        "geburtsurkunde",
+        "meldebescheinigung",
         "lohnabrechnung",
         "gehaltsabrechnung",
         "sonstiges",
@@ -37,10 +40,25 @@ DOC_TYPE_LABELS: dict[str, dict[str, str]] = {
         "en": "Work permit",
         "ar": "تصريح عمل",
     },
+    "aufenthaltserlaubnis": {
+        "de": "Aufenthaltserlaubnis / Aufenthaltstitel",
+        "en": "Residence permit",
+        "ar": "تصريح إقامة",
+    },
     "gesundheitszeugnis": {
         "de": "Gesundheitszeugnis",
         "en": "Health certificate",
         "ar": "شهادة صحية",
+    },
+    "geburtsurkunde": {
+        "de": "Geburtsurkunde",
+        "en": "Birth certificate",
+        "ar": "شهادة ميلاد",
+    },
+    "meldebescheinigung": {
+        "de": "Meldebescheinigung",
+        "en": "Residence registration",
+        "ar": "شهادة تسجيل السكن",
     },
     "lohnabrechnung": {
         "de": "Lohnabrechnung",
@@ -73,6 +91,14 @@ def normalize_doc_type(raw: str) -> str:
         "lohn": "lohnabrechnung",
         "gehalt": "gehaltsabrechnung",
         "salary": "gehaltsabrechnung",
+        "id": "personalausweis",
+        "passport": "personalausweis",
+        "reisepass": "personalausweis",
+        "ausweis": "personalausweis",
+        "birth_certificate": "geburtsurkunde",
+        "birth": "geburtsurkunde",
+        "residence_permit": "aufenthaltserlaubnis",
+        "aufenthaltstitel": "aufenthaltserlaubnis",
     }
     return aliases.get(value, value)
 

@@ -71,18 +71,23 @@ def test_leave_rejects_plaintext_note_when_e2e_required(client_and_db):
     assert allowed.status_code == 201
 
 
-def test_document_upload_rejects_missing_e2e_meta(client_and_db):
+def test_document_upload_rejects_missing_e2e_meta(client_and_db, monkeypatch):
     client, _db_path = client_and_db
     headers = _superadmin_headers(client)
     worker_id = _create_worker(client, headers, "UPLOAD1")
+    monkeypatch.setattr(
+        "backend.app.platform.security.e2e_policy.is_e2e_attachment_required",
+        lambda *a, **k: True,
+    )
 
+    pdf_bytes = b"%PDF-1.4\n" + (b"x" * 1200)
     blocked = client.post(
         f"/api/workers/{worker_id}/documents/upload",
         data={
             "docType": "mindestlohnnachweis",
             "notes": "",
             "expiryDate": "",
-            "file": (io.BytesIO(b"%PDF-1.4 test"), "mindestlohn.pdf", "application/pdf"),
+            "file": (io.BytesIO(pdf_bytes), "mindestlohn.pdf", "application/pdf"),
         },
         headers=headers,
         content_type="multipart/form-data",
@@ -94,7 +99,7 @@ def test_document_upload_rejects_missing_e2e_meta(client_and_db):
         f"/api/workers/{worker_id}/documents/upload",
         data=e2e_document_upload_form(
             doc_type="mindestlohnnachweis",
-            file_bytes=b"%PDF-1.4 test",
+            file_bytes=pdf_bytes,
             filename="mindestlohn.pdf",
             mimetype="application/pdf",
         ),
@@ -105,17 +110,26 @@ def test_document_upload_rejects_missing_e2e_meta(client_and_db):
     assert allowed.get_json().get("ok") is True
 
 
-def test_document_upload_rejects_plaintext_notes(client_and_db):
+def test_document_upload_rejects_plaintext_notes(client_and_db, monkeypatch):
     client, _db_path = client_and_db
     headers = _superadmin_headers(client)
     worker_id = _create_worker(client, headers, "UPLOAD2")
+    monkeypatch.setattr(
+        "backend.app.platform.security.e2e_policy.is_e2e_attachment_required",
+        lambda *a, **k: True,
+    )
+    monkeypatch.setattr(
+        "backend.app.platform.security.e2e_policy.is_e2e_sensitive_required",
+        lambda *a, **k: True,
+    )
 
+    pdf_bytes = b"%PDF-1.4\n" + (b"x" * 1200)
     blocked = client.post(
         f"/api/workers/{worker_id}/documents/upload",
         data={
             **e2e_document_upload_form(
                 doc_type="mindestlohnnachweis",
-                file_bytes=b"%PDF-1.4 test",
+                file_bytes=pdf_bytes,
                 filename="mindestlohn.pdf",
                 mimetype="application/pdf",
             ),

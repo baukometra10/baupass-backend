@@ -1424,9 +1424,14 @@ class ChatService:
         doc_type_raw: str = "sonstiges",
     ) -> str | None:
         """Store a worker chat attachment also in worker_documents for HR review."""
+        import json
         import secrets
 
-        from backend.app.platform.worker_documents import normalize_doc_type
+        from backend.app.platform.documents.verify import verify_worker_document_upload
+        from backend.app.platform.worker_documents import (
+            ALLOWED_WORKER_DOC_TYPES,
+            normalize_doc_type,
+        )
         from backend.server import (
             ALLOWED_UPLOAD_MIMETYPES,
             DOCS_UPLOAD_DIR,
@@ -1436,13 +1441,34 @@ class ChatService:
             now_iso,
             unlock_worker_if_documents_valid,
             utc_now,
+            validate_document_expiry_date,
         )
 
         doc_type = normalize_doc_type(str(doc_type_raw or "sonstiges").strip() or "sonstiges")
+        if doc_type not in ALLOWED_WORKER_DOC_TYPES:
+            return None
+        # High-assurance types via chat still need an expiry when required by policy;
+        # chat flow does not collect expiry → only allow soft types without required expiry.
+        expiry_date, expiry_error, _msg = validate_document_expiry_date(doc_type, "")
+        if expiry_error:
+            # Downgrade to sonstiges rather than storing unverified ID without expiry.
+            doc_type = "sonstiges"
+            expiry_date = None
+
         mime = str(content_type or "application/octet-stream").lower().split(";")[0].strip()
         if mime not in ALLOWED_UPLOAD_MIMETYPES or not blob:
             return None
         if len(blob) > MAX_IMAP_ATTACHMENT_BYTES:
+            return None
+
+        verification = verify_worker_document_upload(
+            doc_type=doc_type,
+            filename=str(filename or ""),
+            claimed_mime=mime,
+            file_data=blob,
+            encrypted=False,
+        )
+        if not verification.get("ok"):
             return None
 
         worker = self.db.execute(
@@ -1466,29 +1492,72 @@ class ChatService:
         file_path.write_bytes(blob)
         stored_path = _stored_file_path(file_path)
         doc_id = f"doc-{secrets.token_hex(8)}"
-        self.db.execute(
-            """
-            INSERT INTO worker_documents
-               (id, worker_id, company_id, doc_type, filename, file_path, file_size,
-                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (
-                doc_id,
-                worker_id,
-                company_id,
-                doc_type,
-                safe_name,
-                stored_path,
-                len(blob),
-                "",
-                None,
-                "",
-                now_iso(),
-                "Eingereicht über Chat",
-                None,
-            ),
-        )
+        checked_at = now_iso()
+        try:
+            vjson = json.dumps(
+                {
+                    "status": verification.get("status"),
+                    "score": verification.get("score"),
+                    "reasons": verification.get("reasons") or [],
+                    "source": "worker_chat",
+                },
+                ensure_ascii=False,
+            )
+        except Exception:
+            vjson = "{}"
+        try:
+            self.db.execute(
+                """
+                INSERT INTO worker_documents
+                   (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                    source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date,
+                    verification_status, verification_score, verification_json, verification_checked_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    doc_id,
+                    worker_id,
+                    company_id,
+                    doc_type,
+                    safe_name,
+                    stored_path,
+                    len(blob),
+                    "",
+                    None,
+                    "",
+                    checked_at,
+                    "Eingereicht über Chat",
+                    expiry_date,
+                    str(verification.get("status") or "accepted"),
+                    float(verification.get("score") or 0),
+                    vjson,
+                    checked_at,
+                ),
+            )
+        except Exception:
+            self.db.execute(
+                """
+                INSERT INTO worker_documents
+                   (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                    source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes, expiry_date)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """,
+                (
+                    doc_id,
+                    worker_id,
+                    company_id,
+                    doc_type,
+                    safe_name,
+                    stored_path,
+                    len(blob),
+                    "",
+                    None,
+                    "",
+                    checked_at,
+                    "Eingereicht über Chat",
+                    expiry_date,
+                ),
+            )
         try:
             unlock_worker_if_documents_valid(self.db, dict(worker), actor={"id": worker_id, "role": "worker"})
         except Exception:

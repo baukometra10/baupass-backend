@@ -1077,21 +1077,42 @@ def get_worker_required_document_snapshot(db, worker_id, today_value=None):
     required_doc_types = _required_worker_doc_types()
     placeholders = ", ".join("?" for _ in required_doc_types)
 
-    latest_rows = db.execute(
-        f"""
-        SELECT wd.doc_type, wd.expiry_date, wd.created_at
-        FROM worker_documents wd
-        JOIN (
-            SELECT doc_type, MAX(created_at) AS latest_created_at
-            FROM worker_documents
-            WHERE worker_id = ?
-              AND doc_type IN ({placeholders})
-            GROUP BY doc_type
-        ) latest ON latest.doc_type = wd.doc_type AND latest.latest_created_at = wd.created_at
-        WHERE wd.worker_id = ?
-        """,
-        (worker_id, *required_doc_types, worker_id),
-    ).fetchall()
+    try:
+        latest_rows = db.execute(
+            f"""
+            SELECT wd.doc_type, wd.expiry_date, wd.created_at, wd.verification_status
+            FROM worker_documents wd
+            JOIN (
+                SELECT doc_type, MAX(created_at) AS latest_created_at
+                FROM worker_documents
+                WHERE worker_id = ?
+                  AND doc_type IN ({placeholders})
+                  AND (
+                    IFNULL(verification_status, '') = ''
+                    OR lower(verification_status) IN ('accepted', 'accepted_encrypted', 'skipped')
+                  )
+                GROUP BY doc_type
+            ) latest ON latest.doc_type = wd.doc_type AND latest.latest_created_at = wd.created_at
+            WHERE wd.worker_id = ?
+            """,
+            (worker_id, *required_doc_types, worker_id),
+        ).fetchall()
+    except Exception:
+        latest_rows = db.execute(
+            f"""
+            SELECT wd.doc_type, wd.expiry_date, wd.created_at
+            FROM worker_documents wd
+            JOIN (
+                SELECT doc_type, MAX(created_at) AS latest_created_at
+                FROM worker_documents
+                WHERE worker_id = ?
+                  AND doc_type IN ({placeholders})
+                GROUP BY doc_type
+            ) latest ON latest.doc_type = wd.doc_type AND latest.latest_created_at = wd.created_at
+            WHERE wd.worker_id = ?
+            """,
+            (worker_id, *required_doc_types, worker_id),
+        ).fetchall()
 
     latest_by_type = {}
     for row in latest_rows:
@@ -4095,6 +4116,18 @@ def init_db():
         cur.execute("ALTER TABLE worker_documents ADD COLUMN expiry_date TEXT")
     if "e2e_meta" not in doc_columns:
         cur.execute("ALTER TABLE worker_documents ADD COLUMN e2e_meta TEXT")
+    if "verification_status" not in doc_columns:
+        cur.execute("ALTER TABLE worker_documents ADD COLUMN verification_status TEXT NOT NULL DEFAULT ''")
+    if "verification_score" not in doc_columns:
+        cur.execute("ALTER TABLE worker_documents ADD COLUMN verification_score REAL NOT NULL DEFAULT 0")
+    if "verification_json" not in doc_columns:
+        cur.execute("ALTER TABLE worker_documents ADD COLUMN verification_json TEXT NOT NULL DEFAULT ''")
+    if "verification_checked_at" not in doc_columns:
+        cur.execute("ALTER TABLE worker_documents ADD COLUMN verification_checked_at TEXT NOT NULL DEFAULT ''")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_worker_docs_verification "
+        "ON worker_documents(company_id, verification_status, created_at DESC)"
+    )
 
     # ── Neu: is_read fuer E-Mail-Posteingang ──
     inbox_columns = [row[1] for row in cur.execute("PRAGMA table_info(email_inbox)").fetchall()]

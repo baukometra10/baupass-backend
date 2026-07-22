@@ -277,7 +277,15 @@ class WorkersServiceTest(unittest.TestCase):
     @patch("backend.server.unlock_worker_if_documents_valid")
     @patch("backend.server.company_has_feature", return_value=True)
     @patch("backend.server.get_company_plan", return_value="enterprise")
-    def test_upload_worker_document(self, _plan, _feature, _unlock):
+    @patch(
+        "backend.app.platform.security.e2e_policy.is_e2e_attachment_required",
+        return_value=False,
+    )
+    @patch(
+        "backend.app.platform.security.e2e_policy.is_e2e_sensitive_required",
+        return_value=False,
+    )
+    def test_upload_worker_document(self, _sens, _att, _plan, _feature, _unlock):
         user = {"role": "company-admin", "company_id": "cmp-a", "id": "usr-1"}
         with tempfile.TemporaryDirectory() as tmp:
             docs_dir = Path(tmp) / "documents"
@@ -293,7 +301,7 @@ class WorkersServiceTest(unittest.TestCase):
                     expiry_date_raw="",
                     filename="test.pdf",
                     mimetype="application/pdf",
-                    file_data=b"%PDF-1.4",
+                    file_data=b"%PDF-1.4\n" + (b"x" * 1000),
                 )
         self.assertTrue(result["body"]["ok"])
         row = self.conn.execute(

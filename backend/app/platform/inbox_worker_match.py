@@ -140,29 +140,83 @@ def _assign_attachment_core(
     if len(file_data) > MAX_IMAP_ATTACHMENT_BYTES:
         return None
 
+    from backend.app.platform.documents.verify import sniff_mime, verify_worker_document_upload
+    import json as _json
+
+    claimed = sniff_mime(file_data, safe_name) or "application/octet-stream"
+    verification = verify_worker_document_upload(
+        doc_type=doc_type,
+        filename=safe_name,
+        claimed_mime=claimed,
+        file_data=file_data,
+        encrypted=False,
+    )
+    if not verification.get("ok"):
+        return None
+
     file_path.write_bytes(file_data)
     stored_path = _stored_file_path(file_path)
     doc_id = f"doc-{secrets.token_hex(8)}"
-    db.execute(
-        """INSERT INTO worker_documents
-           (id, worker_id, company_id, doc_type, filename, file_path, file_size,
-            source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (
-            doc_id,
-            worker_id,
-            worker_row["company_id"],
-            doc_type,
-            safe_name,
-            stored_path,
-            len(file_data),
-            inbox_row["from_addr"],
-            inbox_row["id"],
-            uploaded_by_user_id,
-            now_iso(),
-            "Auto-Zuweisung aus Posteingang",
-        ),
-    )
+    checked_at = now_iso()
+    try:
+        vjson = _json.dumps(
+            {
+                "status": verification.get("status"),
+                "score": verification.get("score"),
+                "reasons": verification.get("reasons") or [],
+                "source": "inbox_auto_assign",
+            },
+            ensure_ascii=False,
+        )
+    except Exception:
+        vjson = "{}"
+    try:
+        db.execute(
+            """INSERT INTO worker_documents
+               (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes,
+                verification_status, verification_score, verification_json, verification_checked_at)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                doc_id,
+                worker_id,
+                worker_row["company_id"],
+                doc_type,
+                safe_name,
+                stored_path,
+                len(file_data),
+                inbox_row["from_addr"],
+                inbox_row["id"],
+                uploaded_by_user_id,
+                checked_at,
+                "Auto-Zuweisung aus Posteingang",
+                str(verification.get("status") or "accepted"),
+                float(verification.get("score") or 0),
+                vjson,
+                checked_at,
+            ),
+        )
+    except Exception:
+        db.execute(
+            """INSERT INTO worker_documents
+               (id, worker_id, company_id, doc_type, filename, file_path, file_size,
+                source_email_from, source_inbox_id, uploaded_by_user_id, created_at, notes)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                doc_id,
+                worker_id,
+                worker_row["company_id"],
+                doc_type,
+                safe_name,
+                stored_path,
+                len(file_data),
+                inbox_row["from_addr"],
+                inbox_row["id"],
+                uploaded_by_user_id,
+                checked_at,
+                "Auto-Zuweisung aus Posteingang",
+            ),
+        )
     db.execute(
         "UPDATE email_attachments SET assigned_worker_id = ?, assigned_doc_type = ?, saved_path = ? WHERE id = ?",
         (worker_id, doc_type, stored_path, att_row["id"]),
