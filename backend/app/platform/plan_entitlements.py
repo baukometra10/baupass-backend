@@ -158,7 +158,7 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "zero_trust": "enterprise",
     "rbac_adv": "professional",
     "access_governance": "enterprise",
-    "audit": "starter",
+    "audit": "tageskarte",
     "security_monitoring": "enterprise",
     "threat_detection": "enterprise",
     "security_analytics": "enterprise",

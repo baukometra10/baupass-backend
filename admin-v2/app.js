@@ -1104,6 +1104,7 @@ const TAB_TITLE_KEYS = {
   overview: "tab.overview",
   analytics: "tab.analytics",
   inbox: "tab.inbox",
+  audit: "tab.audit",
   copilot: "tab.copilot",
   enterprise: "tab.enterprise",
   workers: "tab.workers",
@@ -1118,6 +1119,7 @@ const COMMAND_NAV = [
   { tab: "overview", titleKey: "tab.overview", groupKey: "nav.group.start" },
   { tab: "analytics", titleKey: "tab.analytics", groupKey: "nav.group.start" },
   { tab: "inbox", titleKey: "tab.inbox", groupKey: "nav.group.start" },
+  { tab: "audit", titleKey: "tab.audit", groupKey: "nav.group.start" },
   { tab: "copilot", titleKey: "tab.copilot", groupKey: "nav.group.start" },
   { tab: "workers", titleKey: "tab.workers", groupKey: "nav.group.people" },
   {
@@ -4782,6 +4784,196 @@ async function loadAccess() {
   ]);
 }
 
+async function loadAudit() {
+  const list = $("auditList");
+  const summaryHost = $("auditSummaryCards");
+  const detail = $("auditDetail");
+  if (!list) return;
+  list.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  if (detail) {
+    detail.classList.add("hidden");
+    detail.textContent = "";
+  }
+  const params = new URLSearchParams();
+  const q = ($("auditQ")?.value || "").trim();
+  const eventType = ($("auditEventType")?.value || "").trim();
+  const actorRole = ($("auditActorRole")?.value || "").trim();
+  const from = ($("auditFrom")?.value || "").trim();
+  const to = ($("auditTo")?.value || "").trim();
+  if (q) params.set("q", q);
+  if (eventType) params.set("eventType", eventType);
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  params.set("limit", "150");
+  const companySel = $("auditCompanyFilter");
+  const actorRoleSel = $("auditActorRole");
+  let companyNameById = {};
+  if (isSuperadminUser()) {
+    if (actorRoleSel) actorRoleSel.classList.remove("hidden");
+    if (actorRole) params.set("actorRole", actorRole);
+    if (companySel) {
+      companySel.classList.remove("hidden");
+      if (!companySel.dataset.ready) {
+        try {
+          const companies = await api("/api/companies").catch(() => []);
+          const items = Array.isArray(companies) ? companies : companies.items || [];
+          companyNameById = Object.fromEntries(items.map((c) => [c.id, c.name || c.id]));
+          companySel.innerHTML =
+            `<option value="">${t("section.audit.allCompanies")}</option>` +
+            items
+              .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name || c.id)}</option>`)
+              .join("");
+          companySel.dataset.ready = "1";
+          companySel._nameById = companyNameById;
+        } catch {
+          companySel.innerHTML = `<option value="">${t("section.audit.allCompanies")}</option>`;
+        }
+      } else {
+        companyNameById = companySel._nameById || {};
+      }
+      const cid = companySel.value || "";
+      if (cid) params.set("companyId", cid);
+    }
+  } else {
+    if (actorRoleSel) actorRoleSel.classList.add("hidden");
+    const cid = activeCompanyId();
+    if (cid) params.set("companyId", cid);
+  }
+  try {
+    const qs = params.toString();
+    const summaryQs = new URLSearchParams();
+    const summaryCid = params.get("companyId");
+    if (summaryCid) summaryQs.set("companyId", summaryCid);
+    summaryQs.set("days", "7");
+    const [data, summary] = await Promise.all([
+      api(`/api/audit-events?${qs}`),
+      api(`/api/audit-events/summary?${summaryQs.toString()}`).catch(() => null),
+    ]);
+    if (summaryHost && summary) {
+      const topTypes = (summary.byEventType || [])
+        .slice(0, 4)
+        .map((x) => `<li>${escapeHtml(x.eventType)} · <strong>${x.count}</strong></li>`)
+        .join("");
+      const topActors = (summary.byActor || [])
+        .slice(0, 4)
+        .map((x) => `<li>${escapeHtml(x.actor)} · <strong>${x.count}</strong></li>`)
+        .join("");
+      const companyBlock =
+        isSuperadminUser() && (summary.byCompany || []).length
+          ? `<div class="card"><h3>${t("section.audit.byCompany")}</h3><ul class="muted small">${(summary.byCompany || [])
+              .slice(0, 5)
+              .map((c) => {
+                const label = c.companyName || companyNameById[c.companyId] || c.companyId || "—";
+                return `<li>${escapeHtml(label)} · <strong>${c.count}</strong></li>`;
+              })
+              .join("")}</ul></div>`
+          : "";
+      summaryHost.innerHTML = `
+        <div class="card"><h3>${t("section.audit.total7d")}</h3><p class="stat">${summary.total ?? 0}</p></div>
+        <div class="card"><h3>${t("section.audit.topEvents")}</h3><ul class="muted small">${topTypes || "<li>—</li>"}</ul></div>
+        <div class="card"><h3>${t("section.audit.topActors")}</h3><ul class="muted small">${topActors || "<li>—</li>"}</ul></div>
+        ${companyBlock}
+      `;
+    }
+    const events = data.events || data.logs || [];
+    const cols = [
+      {
+        label: t("section.audit.when"),
+        render: (r) => escapeHtml(String(r.createdAt || r.created_at || "").slice(0, 19)),
+      },
+      {
+        label: t("section.audit.who"),
+        render: (r) =>
+          escapeHtml(r.actorName || r.actor_name || r.actorUserId || r.actor_user_id || r.actorRole || r.actor_role || "—"),
+      },
+      {
+        label: t("section.audit.what"),
+        render: (r) => escapeHtml(r.eventType || r.event_type || "—"),
+      },
+      {
+        label: t("section.audit.message"),
+        render: (r) => escapeHtml(String(r.message || "").slice(0, 120)),
+      },
+      {
+        label: t("section.audit.why"),
+        render: (r) => escapeHtml(String(r.reason || "—").slice(0, 80)),
+      },
+    ];
+    if (isSuperadminUser()) {
+      cols.splice(1, 0, {
+        label: t("section.audit.company"),
+        render: (r) => {
+          const cid = r.companyId || r.company_id || "";
+          return escapeHtml(companyNameById[cid] || cid || "—");
+        },
+      });
+    }
+    cols.push({
+      label: "",
+      render: (r) =>
+        `<button type="button" class="ghost small" data-audit-id="${escapeHtml(r.id)}">${t("section.audit.details")}</button>`,
+    });
+    renderTable(list, events, cols);
+    list.querySelectorAll("[data-audit-id]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.getAttribute("data-audit-id");
+        const row = events.find((e) => e.id === id);
+        if (!row || !detail) return;
+        detail.classList.remove("hidden");
+        detail.textContent = JSON.stringify(
+          {
+            id: row.id,
+            eventType: row.eventType || row.event_type,
+            when: row.createdAt || row.created_at,
+            who: {
+              id: row.actorUserId || row.actor_user_id,
+              name: row.actorName || row.actor_name,
+              role: row.actorRole || row.actor_role,
+              ip: row.ipAddress || row.ip_address,
+            },
+            companyId: row.companyId || row.company_id,
+            target: { type: row.targetType || row.target_type, id: row.targetId || row.target_id },
+            message: row.message,
+            reason: row.reason,
+            details: row.details || {},
+          },
+          null,
+          2,
+        );
+      });
+    });
+    const exportLink = $("auditExportLink");
+    if (exportLink) {
+      exportLink.href = `/api/audit-logs/export.csv?${qs}`;
+      exportLink.onclick = (e) => {
+        e.preventDefault();
+        const token = (wpGet(TOKEN_KEY) || "").trim();
+        fetch(exportLink.href, { headers: { Authorization: `Bearer ${token}` } })
+          .then((r) => r.blob())
+          .then((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "audit-events.csv";
+            a.click();
+            URL.revokeObjectURL(url);
+          })
+          .catch((err) => alert(err.message || "export_failed"));
+      };
+    }
+  } catch (e) {
+    list.innerHTML = `<p class="error">${escapeHtml(e.message || "error")}</p>`;
+  }
+}
+
+$("auditFilterForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  loadAudit().catch((err) => showActionToast(err.message, true));
+});
+$("auditCompanyFilter")?.addEventListener("change", () => {
+  loadAudit().catch((err) => showActionToast(err.message, true));
+});
+
 async function loadCopilot() {
   const answerEl = $("copilotAnswer");
   if (!answerEl) return;
@@ -4839,6 +5031,7 @@ async function refreshActiveTab() {
     await loadInbox();
     await startAdminRealtime();
   }
+  else if (tab === "audit") await loadAudit();
   else if (tab === "copilot") await loadCopilot();
   else if (tab === "workers") await loadWorkers();
   else if (tab === "access") await loadAccess();

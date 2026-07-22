@@ -17,6 +17,9 @@ class AdminDomainRoutesTest(unittest.TestCase):
 
     def test_audit_logs_registered(self):
         self.assertIn("/api/audit-logs", self.rules)
+        self.assertIn("/api/audit-events", self.rules)
+        self.assertIn("/api/audit-events/summary", self.rules)
+        self.assertIn("/api/audit-logs/export.csv", self.rules)
 
     def test_admin_routes_registered(self):
         for path in (

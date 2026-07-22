@@ -1321,6 +1321,25 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="039",
+        name="audit_logs_rich_event_fields",
+        up_sql="""
+            ALTER TABLE audit_logs ADD COLUMN details_json TEXT NOT NULL DEFAULT '';
+            ALTER TABLE audit_logs ADD COLUMN reason TEXT NOT NULL DEFAULT '';
+            ALTER TABLE audit_logs ADD COLUMN actor_name TEXT NOT NULL DEFAULT '';
+            ALTER TABLE audit_logs ADD COLUMN ip_address TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_company_event_created
+                ON audit_logs(company_id, event_type, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_target
+                ON audit_logs(target_type, target_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_audit_logs_target;
+            DROP INDEX IF EXISTS idx_audit_logs_company_event_created;
+        """,
+    ),
+
 ]
 
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

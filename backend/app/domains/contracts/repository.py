@@ -367,6 +367,25 @@ class ContractsRepository:
             ),
         )
         self.db.commit()
+        # Mirror into the company-wide audit stream (available for every plan).
+        try:
+            from backend.server import log_audit
+
+            et = str(event_type or "").strip() or "contract.event"
+            if not et.startswith("contract."):
+                et = f"contract.{et}"
+            log_audit(
+                et,
+                f"Vertragsereignis {et} · Vertrag {contract_id}",
+                target_type="employment_contract",
+                target_id=str(contract_id),
+                company_id=str(company_id),
+                actor={"id": actor_user_id, "role": "company-admin"} if actor_user_id else None,
+                details=payload or {},
+                reason=str((payload or {}).get("reason") or (payload or {}).get("note") or ""),
+            )
+        except Exception:
+            pass
         return event_id
 
     def list_events(self, contract_id: str, company_id: str, limit: int = 50) -> list[dict[str, Any]]:

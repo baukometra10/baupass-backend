@@ -3098,7 +3098,11 @@ def init_db():
             target_type TEXT,
             target_id TEXT,
             message TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            created_at TEXT NOT NULL,
+            details_json TEXT NOT NULL DEFAULT '',
+            reason TEXT NOT NULL DEFAULT '',
+            actor_name TEXT NOT NULL DEFAULT '',
+            ip_address TEXT NOT NULL DEFAULT ''
         );
 
         CREATE TABLE IF NOT EXISTS system_alerts (
@@ -3775,6 +3779,22 @@ def init_db():
     system_alert_columns = [row[1] for row in cur.execute("PRAGMA table_info(system_alerts)").fetchall()]
     if "resolved_at" not in system_alert_columns:
         cur.execute("ALTER TABLE system_alerts ADD COLUMN resolved_at TEXT")
+
+    audit_columns = {row[1] for row in cur.execute("PRAGMA table_info(audit_logs)").fetchall()}
+    if "details_json" not in audit_columns:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN details_json TEXT NOT NULL DEFAULT ''")
+    if "reason" not in audit_columns:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN reason TEXT NOT NULL DEFAULT ''")
+    if "actor_name" not in audit_columns:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN actor_name TEXT NOT NULL DEFAULT ''")
+    if "ip_address" not in audit_columns:
+        cur.execute("ALTER TABLE audit_logs ADD COLUMN ip_address TEXT NOT NULL DEFAULT ''")
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_company_event_created ON audit_logs(company_id, event_type, created_at)"
+    )
+    cur.execute(
+        "CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs(target_type, target_id, created_at)"
+    )
 
     session_columns = [row[1] for row in cur.execute("PRAGMA table_info(sessions)").fetchall()]
     if "last_seen" not in session_columns:
@@ -4932,29 +4952,102 @@ def serialize_user(user_row):
     }
 
 
-def log_audit(event_type, message, target_type=None, target_id=None, company_id=None, actor=None):
+def log_audit(
+    event_type,
+    message,
+    target_type=None,
+    target_id=None,
+    company_id=None,
+    actor=None,
+    details=None,
+    reason=None,
+):
+    """Persist an audit event. Available to every company (not plan-gated).
+
+    Optional structured `details` (dict) and human `reason` support forensics:
+    what changed, when, who, and why.
+    """
     try:
         db = get_db()
         actor_user_id = actor["id"] if actor else None
         actor_role = actor["role"] if actor else None
+        actor_name = ""
+        if actor:
+            actor_name = str(
+                actor.get("name")
+                or actor.get("username")
+                or actor.get("email")
+                or ""
+            ).strip()
+        if not actor_name and actor_user_id:
+            try:
+                urow = db.execute(
+                    "SELECT username, name FROM users WHERE id = ? LIMIT 1",
+                    (actor_user_id,),
+                ).fetchone()
+                if urow:
+                    actor_name = str(urow["name"] or urow["username"] or "").strip()
+            except Exception:
+                pass
         resolved_company = company_id if company_id is not None else (actor.get("company_id") if actor else None)
-        db.execute(
-            """
-            INSERT INTO audit_logs (id, event_type, actor_user_id, actor_role, company_id, target_type, target_id, message, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                f"aud-{secrets.token_hex(8)}",
-                event_type,
-                actor_user_id,
-                actor_role,
-                resolved_company,
-                target_type,
-                target_id,
-                message,
-                now_iso(),
-            ),
-        )
+        ip_address = ""
+        try:
+            if has_request_context():
+                ip_address = str(get_client_ip() or "")[:80]
+        except Exception:
+            ip_address = ""
+        details_json = ""
+        if details is not None:
+            try:
+                details_json = json.dumps(details, ensure_ascii=False) if not isinstance(details, str) else details
+            except Exception:
+                details_json = json.dumps({"error": "details_not_serializable"}, ensure_ascii=False)
+        reason_text = str(reason or "").strip()[:500]
+        try:
+            db.execute(
+                """
+                INSERT INTO audit_logs (
+                    id, event_type, actor_user_id, actor_role, company_id,
+                    target_type, target_id, message, created_at,
+                    details_json, reason, actor_name, ip_address
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"aud-{secrets.token_hex(8)}",
+                    event_type,
+                    actor_user_id,
+                    actor_role,
+                    resolved_company,
+                    target_type,
+                    target_id,
+                    message,
+                    now_iso(),
+                    details_json,
+                    reason_text,
+                    actor_name,
+                    ip_address,
+                ),
+            )
+        except Exception:
+            # Older DBs without rich columns: fall back to classic insert.
+            db.execute(
+                """
+                INSERT INTO audit_logs (id, event_type, actor_user_id, actor_role, company_id, target_type, target_id, message, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"aud-{secrets.token_hex(8)}",
+                    event_type,
+                    actor_user_id,
+                    actor_role,
+                    resolved_company,
+                    target_type,
+                    target_id,
+                    message,
+                    now_iso(),
+                ),
+            )
         db.commit()
     except Exception as exc:
         try:
@@ -4993,6 +5086,8 @@ def log_audit(event_type, message, target_type=None, target_id=None, company_id=
                         "message": message,
                         "targetType": target_type,
                         "targetId": target_id,
+                        "reason": reason_text,
+                        "details": details if isinstance(details, dict) else {},
                     },
                     company_id=company_id_int,
                     actor_id=actor_user_id,
@@ -24933,126 +25028,143 @@ def list_expiring_documents():
 @require_auth
 @require_roles("superadmin", "company-admin")
 def list_audit_logs():
+    """Legacy audit list — enriched filters; company admins get strict company scope."""
     user = g.current_user
     db = get_db()
-    event_type = (request.args.get("eventType") or "").strip()
-    actor_role = (request.args.get("actorRole") or "").strip()
-    target_type = (request.args.get("targetType") or "").strip()
-    query_text = (request.args.get("q") or "").strip()
-    from_date = (request.args.get("from") or request.args.get("dateFrom") or "").strip()
-    to_date = (request.args.get("to") or request.args.get("dateTo") or "").strip()
-    limit = min(max(int(request.args.get("limit", "300")), 1), 1000)
-    offset = max(int(request.args.get("offset", "0")), 0)
+    from backend.app.platform.audit.service import list_audit_events
 
-    conditions = []
-    params = []
-
+    company_filter = (request.args.get("companyId") or request.args.get("company_id") or "").strip()
     if user["role"] != "superadmin":
-        conditions.append("(company_id = ? OR actor_user_id IN (SELECT id FROM users WHERE company_id = ?) OR company_id IS NULL)")
-        params.extend([user["company_id"], user["company_id"]])
+        company_filter = str(user.get("company_id") or "")
+    result = list_audit_events(
+        db,
+        role=str(user.get("role") or ""),
+        user_company_id=str(user.get("company_id") or ""),
+        company_id=company_filter or None,
+        event_type=(request.args.get("eventType") or "").strip(),
+        actor_role=(request.args.get("actorRole") or "").strip(),
+        actor_user_id=(request.args.get("actorUserId") or request.args.get("actor_user_id") or "").strip(),
+        target_type=(request.args.get("targetType") or "").strip(),
+        target_id=(request.args.get("targetId") or request.args.get("target_id") or "").strip(),
+        query_text=(request.args.get("q") or "").strip(),
+        from_date=(request.args.get("from") or request.args.get("dateFrom") or "").strip(),
+        to_date=(request.args.get("to") or request.args.get("dateTo") or "").strip(),
+        limit=min(max(int(request.args.get("limit", "300")), 1), 1000),
+        offset=max(int(request.args.get("offset", "0")), 0),
+        strict_company=True,
+    )
+    # Keep legacy shape `logs` plus modern `events`.
+    return jsonify(
+        {
+            "logs": result["events"],
+            "events": result["events"],
+            "total": result["total"],
+            "limit": result["limit"],
+            "offset": result["offset"],
+        }
+    )
 
-    if event_type:
-        conditions.append("event_type LIKE ?")
-        params.append(f"{event_type}%")
 
-    if actor_role:
-        conditions.append("actor_role = ?")
-        params.append(actor_role)
+@require_auth
+@require_roles("superadmin", "company-admin")
+def audit_events_summary():
+    """Per-company or platform-wide audit summary. Not plan-gated."""
+    user = g.current_user
+    from backend.app.platform.audit.service import audit_summary
 
-    if target_type:
-        conditions.append("target_type = ?")
-        params.append(target_type)
-
-    if query_text:
-        conditions.append("(message LIKE ? OR event_type LIKE ? OR IFNULL(target_id, '') LIKE ?)")
-        pattern = f"%{query_text}%"
-        params.extend([pattern, pattern, pattern])
-
-    if from_date:
-        conditions.append("created_at >= ?")
-        params.append(f"{from_date}T00:00:00Z")
-
-    if to_date:
-        conditions.append("created_at <= ?")
-        params.append(f"{to_date}T23:59:59Z")
-
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = db.execute(
-        f"SELECT * FROM audit_logs {where_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?",
-        [*params, limit, offset],
-    ).fetchall()
-    total = db.execute(f"SELECT COUNT(*) AS c FROM audit_logs {where_clause}", params).fetchone()["c"]
-
-    return jsonify({
-        "logs": [row_to_dict(row) for row in rows],
-        "total": total,
-        "limit": limit,
-        "offset": offset,
-    })
+    company_filter = (request.args.get("companyId") or request.args.get("company_id") or "").strip()
+    if user["role"] != "superadmin":
+        company_filter = str(user.get("company_id") or "")
+    try:
+        days = int(request.args.get("days") or "7")
+    except Exception:
+        days = 7
+    summary = audit_summary(
+        get_db(),
+        role=str(user.get("role") or ""),
+        user_company_id=str(user.get("company_id") or ""),
+        company_id=company_filter or None,
+        days=days,
+    )
+    return jsonify(summary)
 
 
 @require_auth
 @require_roles("superadmin", "company-admin")
 def export_audit_csv():
+    """CSV export of the company (or filtered platform) event log. Not plan-gated."""
     user = g.current_user
     db = get_db()
-    event_type = (request.args.get("eventType") or "").strip()
-    actor_role = (request.args.get("actorRole") or "").strip()
-    target_type = (request.args.get("targetType") or "").strip()
-    query_text = (request.args.get("q") or "").strip()
-    from_date = (request.args.get("from") or "").strip()
-    to_date = (request.args.get("to") or "").strip()
+    from backend.app.platform.audit.service import list_audit_events
 
-    conditions = []
-    params = []
+    company_filter = (request.args.get("companyId") or request.args.get("company_id") or "").strip()
     if user["role"] != "superadmin":
-        conditions.append("(company_id = ? OR company_id IS NULL)")
-        params.append(user["company_id"])
-    if event_type:
-        conditions.append("event_type = ?")
-        params.append(event_type)
-    if actor_role:
-        conditions.append("actor_role = ?")
-        params.append(actor_role)
-    if target_type:
-        conditions.append("target_type = ?")
-        params.append(target_type)
-    if query_text:
-        conditions.append("(message LIKE ? OR event_type LIKE ? OR IFNULL(target_id, '') LIKE ?)")
-        pattern = f"%{query_text}%"
-        params.extend([pattern, pattern, pattern])
-    if from_date:
-        conditions.append("created_at >= ?")
-        params.append(f"{from_date}T00:00:00Z")
-    if to_date:
-        conditions.append("created_at <= ?")
-        params.append(f"{to_date}T23:59:59Z")
-
-    where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    rows = db.execute(f"SELECT * FROM audit_logs {where_clause} ORDER BY created_at DESC LIMIT 2000", params).fetchall()
+        company_filter = str(user.get("company_id") or "")
+    result = list_audit_events(
+        db,
+        role=str(user.get("role") or ""),
+        user_company_id=str(user.get("company_id") or ""),
+        company_id=company_filter or None,
+        event_type=(request.args.get("eventType") or "").strip(),
+        actor_role=(request.args.get("actorRole") or "").strip(),
+        actor_user_id=(request.args.get("actorUserId") or request.args.get("actor_user_id") or "").strip(),
+        target_type=(request.args.get("targetType") or "").strip(),
+        target_id=(request.args.get("targetId") or request.args.get("target_id") or "").strip(),
+        query_text=(request.args.get("q") or "").strip(),
+        from_date=(request.args.get("from") or request.args.get("dateFrom") or "").strip(),
+        to_date=(request.args.get("to") or request.args.get("dateTo") or "").strip(),
+        limit=min(max(int(request.args.get("limit", "2000")), 1), 5000),
+        offset=0,
+        strict_company=True,
+    )
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["id", "event_type", "actor_user_id", "actor_role", "company_id", "target_type", "target_id", "message", "created_at"])
-    for row in rows:
+    writer.writerow(
+        [
+            "id",
+            "created_at",
+            "event_type",
+            "actor_user_id",
+            "actor_name",
+            "actor_role",
+            "company_id",
+            "target_type",
+            "target_id",
+            "message",
+            "reason",
+            "ip_address",
+            "details_json",
+        ]
+    )
+    for row in result["events"]:
+        details = row.get("details") or {}
+        try:
+            details_cell = json.dumps(details, ensure_ascii=False) if details else ""
+        except Exception:
+            details_cell = str(details)
         writer.writerow(
             [
-                row["id"],
-                row["event_type"],
-                row["actor_user_id"],
-                row["actor_role"],
-                row["company_id"],
-                row["target_type"],
-                row["target_id"],
-                row["message"],
-                row["created_at"],
+                row.get("id"),
+                row.get("createdAt") or row.get("created_at"),
+                row.get("eventType") or row.get("event_type"),
+                row.get("actorUserId") or row.get("actor_user_id"),
+                row.get("actorName") or row.get("actor_name"),
+                row.get("actorRole") or row.get("actor_role"),
+                row.get("companyId") or row.get("company_id"),
+                row.get("targetType") or row.get("target_type"),
+                row.get("targetId") or row.get("target_id"),
+                row.get("message"),
+                row.get("reason"),
+                row.get("ipAddress") or row.get("ip_address"),
+                details_cell,
             ]
         )
 
     return Response(
         output.getvalue(),
         mimetype="text/csv",
-        headers={"Content-Disposition": "attachment; filename=audit-logs.csv"},
+        headers={"Content-Disposition": "attachment; filename=audit-events.csv"},
     )
 
 
@@ -30028,6 +30140,9 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/access-logs/summary", access_summary, ("GET",), "core_access_logs_summary")
     _patch_api_route("/api/access-logs/day-close-check", access_day_close_check, ("GET",), "core_access_day_close")
     _patch_api_route("/api/audit-logs", list_audit_logs, ("GET",), "core_audit_logs")
+    _patch_api_route("/api/audit-logs/summary", audit_events_summary, ("GET",), "core_audit_summary")
+    _patch_api_route("/api/audit-events", list_audit_logs, ("GET",), "core_audit_events")
+    _patch_api_route("/api/audit-events/summary", audit_events_summary, ("GET",), "core_audit_events_summary")
     _patch_api_route("/api/admin/devices", list_devices, ("GET",), "core_admin_devices")
     _patch_api_route("/api/compliance/overview", compliance_overview, ("GET",), "core_compliance_overview")
     _patch_api_route("/api/compliance/expiring-docs", compliance_expiring_docs, ("GET",), "core_compliance_expiring")

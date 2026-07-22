@@ -107,6 +107,7 @@
                 <span data-i18n="tab.inbox">Aufgaben</span>
                 <span id="inboxTabBadge" class="tab-badge hidden"></span>
               </button>
+              <button type="button" data-tab="audit" class="tab nav-item" data-i18n="tab.audit">Ereignisse</button>
               <button type="button" data-tab="copilot" class="tab nav-item" data-i18n="tab.copilot">Copilot</button>
             </div>
             <div class="nav-group">
@@ -195,6 +196,28 @@
           <div id="inboxFilters" class="inbox-filters hidden"></div>
           <div id="inboxBulkBar" class="inbox-bulk-bar hidden"></div>
           <div id="inboxList" class="table-wrap"></div>
+        </div>
+        <div id="tab-audit" class="tab-panel hidden">
+          <h2 class="section-title" data-i18n="section.audit.title">Ereignisprotokoll</h2>
+          <p class="muted small" data-i18n="section.audit.desc">Wer hat was geändert — unabhängig von der Firmen-Paketstufe.</p>
+          <div id="auditSummaryCards" class="cards"></div>
+          <form id="auditFilterForm" class="tool-form audit-filter-form">
+            <input id="auditQ" type="search" data-i18n-placeholder="section.audit.search" placeholder="Suche…" />
+            <input id="auditEventType" type="text" data-i18n-placeholder="section.audit.eventType" placeholder="Event-Typ (z.B. contract.)" />
+            <select id="auditActorRole" class="hidden">
+              <option value="" data-i18n="section.audit.allRoles">Alle Rollen</option>
+              <option value="superadmin">superadmin</option>
+              <option value="company-admin">company-admin</option>
+              <option value="turnstile">turnstile</option>
+            </select>
+            <input id="auditFrom" type="date" />
+            <input id="auditTo" type="date" />
+            <select id="auditCompanyFilter" class="hidden"></select>
+            <button type="submit" data-i18n="common.refresh">Aktualisieren</button>
+            <a id="auditExportLink" class="ghost" href="#" data-i18n="section.audit.export">CSV</a>
+          </form>
+          <div id="auditList" class="table-wrap"></div>
+          <pre id="auditDetail" class="ai-answer muted small hidden"></pre>
         </div>
         <div id="tab-overview" class="tab-panel">
           <h2 class="section-title" data-i18n="section.overview.daily">Tagesbetrieb</h2>
