@@ -34,10 +34,16 @@
   }
 
   async function apiGet(path) {
-    const { token } = getAdminAuth();
+    const { token, companyId } = getAdminAuth();
     if (!token) throw new Error("auth_missing");
-    const res = await fetch(path, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    let url = path;
+    if (companyId && !/[?&]company(_?[iI]d)=/i.test(path)) {
+      url += (path.includes("?") ? "&" : "?") + "company_id=" + encodeURIComponent(companyId);
+    }
+    const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+    if (companyId) headers["X-Company-Id"] = companyId;
+    const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
     const data = await res.json().catch(() => ({}));
@@ -47,6 +53,16 @@
 
   async function tick() {
     if (isAdminChatPage()) return;
+    const { token, companyId } = getAdminAuth();
+    if (!token) return;
+    // Superadmin without selected company: skip poll (backend would have nothing to scope).
+    try {
+      const userRaw = wpGet(global.WorkPassStorage?.KEYS?.ADMIN_USER || "workpass-admin-user");
+      const user = JSON.parse(userRaw || "{}");
+      if (String(user.role || "").toLowerCase() === "superadmin" && !companyId) return;
+    } catch {
+      /* continue */
+    }
     try {
       const data = await apiGet("/api/chat/calls/incoming");
       const call = data?.call || null;
@@ -67,7 +83,7 @@
       lastCallId = callId;
       global.SUPPIXAdminIncomingCall?.announceIncomingCall?.(call, { forceNotification: true });
     } catch (_) {
-      /* ignore transient */
+      /* ignore transient — do not rethrow (avoids unhandled rejection noise) */
     }
   }
 

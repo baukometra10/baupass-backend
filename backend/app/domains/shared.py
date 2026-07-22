@@ -9,7 +9,12 @@ def company_id_from_user(*, allow_query: bool = True) -> str | None:
     if user.get("role") == "superadmin":
         raw = ""
         if allow_query:
-            raw = str(request.args.get("company_id") or "").strip()
+            raw = str(
+                request.args.get("company_id")
+                or request.args.get("companyId")
+                or request.headers.get("X-Company-Id")
+                or ""
+            ).strip()
         if not raw:
             raw = str(
                 getattr(g, "preview_company_id", None) or user.get("preview_company_id") or ""

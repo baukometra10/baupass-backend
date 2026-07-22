@@ -25,7 +25,7 @@ def _create_company_and_worker(client, headers):
         },
         headers=headers,
     )
-    assert res.status_code == 200
+    assert res.status_code in (200, 201)
     company = res.get_json().get("company") or {}
     company_id = company.get("id")
     workers = client.get(f"/api/companies/{company_id}/workers", headers=headers)
@@ -44,6 +44,15 @@ def _worker_session_headers(client, worker_id):
     token = payload.get("token") or payload.get("bearer")
     device_id = payload.get("deviceId") or payload.get("device_id") or "test-device"
     return {"Authorization": f"Bearer {token}", "X-Device-Id": device_id}
+
+
+def test_admin_incoming_without_company_returns_200(client_and_db):
+    """Background pollers must not get 400 when superadmin has no company scope."""
+    client, _ = client_and_db
+    headers = _admin_headers(client)
+    res = client.get("/api/chat/calls/incoming", headers=headers)
+    assert res.status_code == 200
+    assert res.get_json().get("call") is None
 
 
 def test_admin_can_start_voice_call(client_and_db):

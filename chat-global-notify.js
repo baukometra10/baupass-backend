@@ -84,10 +84,17 @@
     };
     // Prefer live incoming payload when possible.
     try {
-      const { token } = getAdminCredentials();
+      const { token, companyId: storedCompanyId } = getAdminCredentials();
       if (token) {
-        const res = await fetch("/api/chat/calls/incoming", {
-          headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        const q = companyId || storedCompanyId
+          ? `?company_id=${encodeURIComponent(companyId || storedCompanyId)}`
+          : "";
+        const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+        if (companyId || storedCompanyId) {
+          headers["X-Company-Id"] = companyId || storedCompanyId;
+        }
+        const res = await fetch(`/api/chat/calls/incoming${q}`, {
+          headers,
           credentials: "include",
         });
         const body = await res.json().catch(() => ({}));

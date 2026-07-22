@@ -1545,9 +1545,14 @@ def register_chat_blueprint(flask_app: Flask) -> None:
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("worker_chat")
     def admin_chat_call_incoming():
+        """Polling endpoint — always 200 when auth OK to avoid console spam.
+
+        Superadmin without an active company gets call:null (no error).
+        """
         cid = company_id_from_user()
         if not cid:
-            return forbidden_company()
+            # Prefer query/header company; still no spam 400 for background pollers.
+            return jsonify({"call": None, "reason": "company_required"})
         from backend.app.platform.voice_calls.service import VoiceCallService
 
         service = VoiceCallService(get_db())
