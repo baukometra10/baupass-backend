@@ -2,10 +2,34 @@ from backend.app.domains.contracts.validation import validate_contract_form
 from backend.app.platform.notifications.sms import send_sms, sms_configured
 
 
-def test_sms_not_configured_without_env():
-    ok, err = send_sms(to="+491234", body="test")
+def test_sms_not_configured_without_env(monkeypatch):
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
+    monkeypatch.delenv("TWILIO_AUTH_TOKEN", raising=False)
+    monkeypatch.delenv("TWILIO_FROM_NUMBER", raising=False)
+    monkeypatch.delenv("BREVO_API_KEY", raising=False)
+    monkeypatch.delenv("SENDINBLUE_API_KEY", raising=False)
+    monkeypatch.setattr(
+        "backend.app.platform.notifications.sms._brevo_api_key",
+        lambda: "",
+    )
+    assert sms_configured() is False
+    ok, err = send_sms(to="+491234567890", body="test")
     assert not ok
-    assert err == "sms_not_configured" or not sms_configured()
+    assert err == "sms_not_configured"
+
+
+def test_brevo_sms_preferred_when_configured(monkeypatch):
+    monkeypatch.delenv("TWILIO_ACCOUNT_SID", raising=False)
+    monkeypatch.setenv("BREVO_API_KEY", "xkeysib-test")
+    monkeypatch.setenv("BREVO_SMS_SENDER", "SUPPIX")
+    monkeypatch.setattr(
+        "backend.app.platform.notifications.sms._send_via_brevo",
+        lambda **kwargs: (True, ""),
+    )
+    assert sms_configured() is True
+    ok, err = send_sms(to="+491701234567", body="Code 123456")
+    assert ok is True
+    assert err == ""
 
 
 def test_validate_contract_form_requires_gender():
