@@ -125,7 +125,7 @@
       font-weight: 600;
     }
     .panel .toolbar { flex-shrink: 0; }
-    .agent-tabs { flex-shrink: 0; }
+    .agent-strip { flex-shrink: 0; }
     .chip-row { flex-shrink: 0; }
     .chat-form { flex-shrink: 0; }
     .scroll {
@@ -138,7 +138,6 @@
       scrollbar-width: thin;
       scrollbar-color: rgba(142, 164, 192, 0.35) transparent;
     }
-    .agent-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.55rem 0.75rem 0.35rem; border-bottom: none; }
     .agent-prompt-chips {
       display: flex;
       flex-wrap: wrap;
@@ -168,16 +167,6 @@
     .agent-prompt-chip:disabled {
       opacity: 0.55;
       cursor: wait;
-    }
-    .agent-tabs button {
-      font-size: 0.72rem; padding: 0.32rem 0.65rem; border-radius: 999px; cursor: pointer;
-      border: 1px solid rgba(120,156,255,0.14); background: rgba(8,12,22,0.7); color: var(--muted);
-      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    }
-    .agent-tabs button:hover { color: var(--text); border-color: rgba(56,189,248,0.35); }
-    .agent-tabs button.active {
-      border-color: rgba(56,189,248,0.55); color: #e8f8ff;
-      background: linear-gradient(180deg, rgba(56,189,248,0.18), rgba(56,189,248,0.08));
     }
     #chatLog { display: flex; flex-direction: column; gap: 1rem; min-height: 0; }
     .msg-user {
@@ -406,23 +395,176 @@
       background: var(--accent); color: #061018; font-weight: 700; font-size: 0.8rem;
     }
     .toolbar button.secondary { background: #1a2e3a; color: var(--text); border: 1px solid var(--border); }
-    .session-item {
-      display: block; width: 100%; text-align: start; padding: 0.45rem 0.5rem; margin-bottom: 0.35rem;
-      border-radius: 8px; border: 1px solid transparent; background: #0c1218; color: var(--text);
-      cursor: pointer; font-size: 0.78rem;
+    .side-toolbar {
+      padding: 0.55rem 0.65rem 0.4rem;
+      display: flex;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(120, 156, 255, 0.08);
     }
-    .session-item.active { border-color: var(--accent); }
-    .session-item small { display: block; color: var(--muted); font-size: 0.68rem; }
+    .side-toolbar button.secondary {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 0.4rem 0.55rem;
+      border-radius: 10px;
+      border: 1px solid rgba(120, 156, 255, 0.16);
+      background: rgba(16, 24, 40, 0.9);
+      color: #d5e4f5;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+    .side-toolbar button.secondary:hover {
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #fff;
+    }
+    .side-toolbar #newChatBtn {
+      border-color: rgba(56, 189, 248, 0.35);
+      background: linear-gradient(180deg, rgba(56, 189, 248, 0.16), rgba(56, 189, 248, 0.06));
+      color: #e8f8ff;
+    }
+    #sessionList {
+      padding: 0.55rem 0.55rem 0.85rem;
+    }
+    .session-empty {
+      margin: 0.85rem 0.35rem;
+      padding: 0.9rem 0.75rem;
+      border-radius: 12px;
+      border: 1px dashed rgba(120, 156, 255, 0.2);
+      background: rgba(10, 16, 28, 0.65);
+      color: #9fb4cf;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      text-align: center;
+    }
+    .session-item {
+      display: block; width: 100%; text-align: start; padding: 0.55rem 0.6rem;
+      border-radius: 12px; border: 1px solid rgba(120, 156, 255, 0.1);
+      background: linear-gradient(165deg, rgba(16, 24, 40, 0.95), rgba(10, 14, 24, 0.98));
+      color: var(--text);
+      cursor: pointer; font-size: 0.78rem;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .session-item:hover {
+      border-color: rgba(56, 189, 248, 0.28);
+    }
+    .session-item-title {
+      display: block;
+      font-weight: 650;
+      color: #eef5ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 0.28rem;
+    }
+    .session-item-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.66rem;
+      line-height: 1.2;
+    }
+    .session-agent-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid rgba(120, 156, 255, 0.18);
+      background: rgba(56, 189, 248, 0.08);
+      color: #b9d7f2;
+      font-size: 0.62rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      max-width: 100%;
+    }
+    .session-agent-pill::before {
+      content: "";
+      width: 0.35rem;
+      height: 0.35rem;
+      border-radius: 999px;
+      background: #38bdf8;
+      flex-shrink: 0;
+    }
+    .session-agent-pill[data-agent="security"]::before { background: #fb7185; }
+    .session-agent-pill[data-agent="compliance"]::before { background: #fbbf24; }
+    .session-agent-pill[data-agent="hr"]::before { background: #34d399; }
+    .session-agent-pill[data-agent="executive"]::before { background: #a78bfa; }
+    .session-agent-pill[data-agent="decision"]::before { background: #67e8f9; }
+    .session-time { color: #8aa0b8; }
     .session-row {
-      display: flex; align-items: stretch; gap: 0.25rem; margin-bottom: 0.35rem;
+      display: flex; align-items: stretch; gap: 0.3rem; margin-bottom: 0.4rem;
     }
     .session-row .session-item { flex: 1; margin-bottom: 0; min-width: 0; }
-    .session-row.active .session-item { border-color: var(--accent); }
+    .session-row.active .session-item {
+      border-color: rgba(56, 189, 248, 0.5);
+      background: linear-gradient(165deg, rgba(30, 48, 78, 0.95), rgba(14, 22, 38, 0.98));
+      box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.08);
+    }
     .session-delete {
-      flex: 0 0 auto; width: 2rem; border-radius: 8px; border: 1px solid var(--border);
-      background: #0c1218; color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1;
+      flex: 0 0 auto; width: 2rem; border-radius: 10px; border: 1px solid rgba(120, 156, 255, 0.12);
+      background: rgba(12, 18, 28, 0.92); color: var(--muted); cursor: pointer; font-size: 1rem; line-height: 1;
+      transition: color 0.15s ease, border-color 0.15s ease;
     }
     .session-delete:hover { color: var(--danger); border-color: var(--danger); }
+    .agent-strip {
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(120, 156, 255, 0.1);
+      background: linear-gradient(180deg, rgba(14, 22, 38, 0.55), transparent);
+    }
+    .agent-strip-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.55rem 0.85rem 0.15rem;
+    }
+    .agent-strip-label {
+      font-size: 0.66rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9fb4cf;
+      font-weight: 650;
+    }
+    .agent-strip-active {
+      font-size: 0.7rem;
+      color: #cfe7ff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .agent-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      padding: 0.4rem 0.75rem 0.55rem;
+      border-bottom: none;
+    }
+    .agent-tabs button {
+      font-size: 0.74rem;
+      padding: 0.42rem 0.78rem;
+      border-radius: 999px;
+      cursor: pointer;
+      border: 1px solid rgba(120,156,255,0.14);
+      background: rgba(8,12,22,0.7);
+      color: var(--muted);
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+    }
+    .agent-tabs button:hover { color: var(--text); border-color: rgba(56,189,248,0.35); }
+    .agent-tabs button.active {
+      border-color: rgba(56,189,248,0.55); color: #e8f8ff;
+      background: linear-gradient(180deg, rgba(56,189,248,0.18), rgba(56,189,248,0.08));
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.08);
+    }
+    .agent-desc {
+      margin: 0;
+      padding: 0 0.85rem 0.55rem;
+      font-size: 0.72rem;
+      color: #9fb4cf;
+      line-height: 1.4;
+    }
     .chat-toolbar {
       display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.55rem 0.85rem 0.65rem;
       border-bottom: 1px solid rgba(120,156,255,0.1);
@@ -635,7 +777,7 @@
   <div class="shell hidden embed-shell" id="shell">
     <aside class="panel side">
       <h2 id="sessionsTitle">Chats</h2>
-      <div class="toolbar" style="padding:0.5rem;display:flex;gap:0.35rem;flex-wrap:wrap">
+      <div class="side-toolbar toolbar">
         <button type="button" class="secondary" id="newChatBtn">+ Neu</button>
         <button type="button" class="secondary" id="deleteAllChatsBtn">Alle löschen</button>
       </div>
@@ -643,7 +785,14 @@
     </aside>
 
     <main class="panel chat">
-      <div class="agent-tabs" id="agentTabs"></div>
+      <div class="agent-strip">
+        <div class="agent-strip-head">
+          <span class="agent-strip-label" id="agentsTitle">Abteilung</span>
+          <span class="agent-strip-active" id="agentActiveLabel"></span>
+        </div>
+        <div class="agent-tabs" id="agentTabs"></div>
+        <p class="agent-desc" id="agentDesc" hidden></p>
+      </div>
       <div class="agent-prompt-chips" id="agentPromptChips" aria-label="Vorschläge"></div>
       <div class="chat-toolbar">
         <button type="button" class="secondary" id="exportChatBtn">Chat exportieren</button>
@@ -734,6 +883,14 @@
       de: {
         title: "Suppix AI — Assistent",
         sessions: "Chats", insights: "Live Insights", newChat: "+ Neu",
+        agentsTitle: "Abteilung",
+        agentFallback: "Betriebsleitung",
+        noChats: "Noch keine Chats. Starte mit „+ Neu“ oder einem Vorschlag unten.",
+        timeJustNow: "gerade eben",
+        timeMinutesAgo: "vor {n} Min.",
+        timeHoursAgo: "vor {n} Std.",
+        timeYesterday: "gestern",
+        timeDaysAgo: "vor {n} Tagen",
         send: "Senden", voiceInput: "Spracheingabe", briefing: "Tagesbriefing",
         placeholder: "Frage an den Agenten…",
         thinking: "Analysiere Live-Daten…", needCompany: "Firma wählen.",
@@ -750,7 +907,6 @@
         confirmDeleteAllChats: "Alle gespeicherten Chats wirklich löschen?",
         confirmClearChat: "Aktuellen Chat wirklich leeren?",
         chatDeleted: "Chat gelöscht.", allChatsDeleted: "Alle Chats gelöscht.", chatCleared: "Chat geleert.",
-        noChats: "Noch keine Chats.",
         exportChat: "Chat exportieren", exportChatEmpty: "Kein Chat zum Exportieren.",
         exportRoleUser: "Du", exportRoleAi: "KI", exportDefaultTitle: "SUPPIX-KI-Chat",
         companyPlaceholder: "— Firma —",
@@ -809,6 +965,14 @@
       en: {
         title: "Suppix AI — Assistant",
         sessions: "Chats", insights: "Live Insights", newChat: "+ New",
+        agentsTitle: "Department",
+        agentFallback: "Operations",
+        noChats: "No chats yet. Start with “+ New” or a suggestion below.",
+        timeJustNow: "just now",
+        timeMinutesAgo: "{n} min ago",
+        timeHoursAgo: "{n} h ago",
+        timeYesterday: "yesterday",
+        timeDaysAgo: "{n} days ago",
         send: "Send", voiceInput: "Voice input", briefing: "Daily briefing",
         placeholder: "Ask the agent…",
         thinking: "Analyzing live data…", needCompany: "Select company.",
@@ -825,7 +989,6 @@
         confirmDeleteAllChats: "Delete all saved chats?",
         confirmClearChat: "Clear the current chat?",
         chatDeleted: "Chat deleted.", allChatsDeleted: "All chats deleted.", chatCleared: "Chat cleared.",
-        noChats: "No chats yet.",
         exportChat: "Export chat", exportChatEmpty: "Nothing to export.",
         exportRoleUser: "You", exportRoleAi: "AI", exportDefaultTitle: "Suppix AI chat",
         companyPlaceholder: "— Company —",
@@ -884,6 +1047,13 @@
       ar: {
         title: "مركز قيادة AI — SUPPIX",
         sessions: "المحادثات", insights: "رؤى مباشرة", newChat: "+ جديد",
+        agentsTitle: "القسم",
+        agentFallback: "قيادة التشغيل",
+        timeJustNow: "الآن",
+        timeMinutesAgo: "قبل {n} د",
+        timeHoursAgo: "قبل {n} س",
+        timeYesterday: "أمس",
+        timeDaysAgo: "قبل {n} أيام",
         send: "إرسال", voiceInput: "إدخال صوتي", briefing: "ملخص اليوم",
         placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
@@ -900,7 +1070,7 @@
         confirmDeleteAllChats: "حذف جميع المحادثات المحفوظة؟",
         confirmClearChat: "مسح المحادثة الحالية؟",
         chatDeleted: "تم حذف المحادثة.", allChatsDeleted: "تم حذف جميع المحادثات.", chatCleared: "تم مسح المحادثة.",
-        noChats: "لا توجد محادثات بعد.",
+        noChats: "لا توجد محادثات بعد. ابدأ بـ «+ جديد» أو باقتراح أدناه.",
         exportChat: "تصدير المحادثة", exportChatEmpty: "لا يوجد محادثة للتصدير.",
         exportRoleUser: "أنت", exportRoleAi: "الذكاء الاصطناعي", exportDefaultTitle: "محادثة Suppix AI",
         companyPlaceholder: "— الشركة —",
@@ -998,6 +1168,8 @@
       document.title = t("title");
       document.getElementById("pageTitle").textContent = t("title");
       document.getElementById("sessionsTitle").textContent = t("sessions");
+      const agentsTitleEl = document.getElementById("agentsTitle");
+      if (agentsTitleEl) agentsTitleEl.textContent = t("agentsTitle");
       document.getElementById("insightsTitle").textContent = t("insights");
       document.getElementById("newChatBtn").textContent = t("newChat");
       const deleteAllBtn = document.getElementById("deleteAllChatsBtn");
@@ -1741,10 +1913,105 @@
       });
     }
 
+    function agentLabel(agentId) {
+      const id = String(agentId || "operations").trim() || "operations";
+      const fromList = (agents || []).find((a) => a.id === id);
+      if (fromList?.label) return fromList.label;
+      const fallback = {
+        operations: { de: "Betriebsleitung", en: "Operations", ar: "قيادة التشغيل" },
+        security: { de: "Sicherheit", en: "Security", ar: "الأمن" },
+        compliance: { de: "Compliance", en: "Compliance", ar: "الامتثال" },
+        hr: { de: "HR / Belegschaft", en: "HR / Workforce", ar: "الموارد البشرية" },
+        executive: { de: "Geschäftsführung", en: "Executive", ar: "الإدارة التنفيذية" },
+        decision: { de: "Entscheidungsassistent", en: "Decision assistant", ar: "مساعد القرار" },
+      };
+      const row = fallback[id];
+      if (row) return row[LANG] || row.de || id;
+      return t("agentFallback") || id;
+    }
+
+    function agentDescription(agentId) {
+      const id = String(agentId || "operations").trim() || "operations";
+      const fromList = (agents || []).find((a) => a.id === id);
+      if (fromList?.description) return fromList.description;
+      const fallback = {
+        operations: {
+          de: "Anwesenheit, Tore, Baustellen-Aktivität und Tageslage.",
+          en: "Attendance, gates, site activity and daily situation.",
+          ar: "الحضور والبوابات ونشاط الموقع والوضع اليومي.",
+        },
+        security: {
+          de: "Alerts, Betrugssignale und auffällige Zutritte.",
+          en: "Alerts, fraud signals and unusual access.",
+          ar: "التنبيهات وإشارات الاحتيال والدخول غير المعتاد.",
+        },
+        compliance: {
+          de: "Dokumente, Sperren und Compliance-Risiken.",
+          en: "Documents, locks and compliance risks.",
+          ar: "الوثائق والحظر ومخاطر الامتثال.",
+        },
+        hr: {
+          de: "Belegschaft, Verspätungen und Ausfallrisiken.",
+          en: "Workforce, lateness and absence risk.",
+          ar: "القوى العاملة والتأخر ومخاطر الغياب.",
+        },
+        executive: {
+          de: "KPIs und Prioritäten für die Geschäftsführung.",
+          en: "KPIs and priorities for leadership.",
+          ar: "مؤشرات وأولويات للإدارة التنفيذية.",
+        },
+        decision: {
+          de: "Empfehlungen und Freigaben für offene Entscheidungen.",
+          en: "Recommendations and approvals for open decisions.",
+          ar: "توصيات وموافقات للقرارات المفتوحة.",
+        },
+      };
+      const row = fallback[id];
+      return row ? (row[LANG] || row.de || "") : "";
+    }
+
+    function formatSessionTime(raw) {
+      const value = String(raw || "").trim();
+      if (!value) return "";
+      const dt = new Date(value.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(value) ? value : value + "Z");
+      if (Number.isNaN(dt.getTime())) {
+        return value.replace("T", " ").slice(0, 16);
+      }
+      const now = Date.now();
+      const diffMs = Math.max(0, now - dt.getTime());
+      const mins = Math.floor(diffMs / 60000);
+      if (mins < 1) return t("timeJustNow");
+      if (mins < 60) return t("timeMinutesAgo").replace("{n}", String(mins));
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return t("timeHoursAgo").replace("{n}", String(hours));
+      const days = Math.floor(hours / 24);
+      if (days === 1) return t("timeYesterday");
+      if (days < 7) return t("timeDaysAgo").replace("{n}", String(days));
+      try {
+        return new Intl.DateTimeFormat(LANG === "ar" ? "ar" : LANG === "en" ? "en-GB" : "de-DE", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(dt);
+      } catch (_) {
+        return value.replace("T", " ").slice(0, 16);
+      }
+    }
+
+    function sessionDisplayTitle(session) {
+      const title = String(session?.title || "").trim();
+      if (title && !/^neuer chat$/i.test(title) && !/^new chat$/i.test(title) && title !== "محادثة جديدة") {
+        return title;
+      }
+      return agentLabel(session?.agentId || "operations");
+    }
+
     function renderAgents() {
       const el = document.getElementById("agentTabs");
+      if (!el) return;
       el.innerHTML = agents.map((a) =>
-        `<button type="button" data-agent="${a.id}" class="${a.id === activeAgent ? "active" : ""}">${escapeHtml(a.label || a.id)}</button>`
+        `<button type="button" data-agent="${a.id}" class="${a.id === activeAgent ? "active" : ""}" title="${escapeHtml(agentDescription(a.id))}">${escapeHtml(a.label || agentLabel(a.id))}</button>`
       ).join("");
       el.querySelectorAll("button").forEach((btn) => {
         btn.onclick = () => {
@@ -1752,23 +2019,39 @@
           renderAgents();
         };
       });
+      const activeLabel = document.getElementById("agentActiveLabel");
+      if (activeLabel) activeLabel.textContent = agentLabel(activeAgent);
+      const descEl = document.getElementById("agentDesc");
+      if (descEl) {
+        const desc = agentDescription(activeAgent);
+        descEl.textContent = desc;
+        descEl.hidden = !desc;
+      }
       renderAgentPromptChips();
     }
 
     function renderSessions() {
       const el = document.getElementById("sessionList");
+      if (!el) return;
       if (!sessions.length) {
-        el.innerHTML = `<p class="status-line">${t("noChats")}</p>`;
+        el.innerHTML = `<p class="session-empty">${escapeHtml(t("noChats"))}</p>`;
         return;
       }
-      el.innerHTML = sessions.map((s) =>
-        `<div class="session-row ${s.id === sessionId ? "active" : ""}">
+      el.innerHTML = sessions.map((s) => {
+        const agentId = s.agentId || "operations";
+        const label = agentLabel(agentId);
+        const when = formatSessionTime(s.updatedAt || s.createdAt);
+        return `<div class="session-row ${s.id === sessionId ? "active" : ""}">
           <button type="button" class="session-item" data-id="${s.id}">
-            <span>${escapeHtml(s.title || s.id)}</span><small>${escapeHtml(s.agentId)} · ${escapeHtml((s.updatedAt || "").slice(0, 16))}</small>
+            <span class="session-item-title">${escapeHtml(sessionDisplayTitle(s))}</span>
+            <span class="session-item-meta">
+              <span class="session-agent-pill" data-agent="${escapeHtml(agentId)}">${escapeHtml(label)}</span>
+              ${when ? `<span class="session-time">${escapeHtml(when)}</span>` : ""}
+            </span>
           </button>
           <button type="button" class="session-delete" data-id="${s.id}" title="${escapeHtml(t("deleteChat"))}" aria-label="${escapeHtml(t("deleteChat"))}">×</button>
-        </div>`
-      ).join("");
+        </div>`;
+      }).join("");
       el.querySelectorAll(".session-item").forEach((btn) => {
         btn.onclick = () => loadSession(btn.dataset.id);
       });
