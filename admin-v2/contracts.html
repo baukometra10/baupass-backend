@@ -239,9 +239,33 @@
     .sign-status-panel li { margin:0.15rem 0; }
     .sign-status-actions { display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.35rem; }
     .sign-status-actions button { font-size:0.68rem; padding:0.25rem 0.45rem; }
+    .upgrade-gate {
       max-width:720px; margin:2rem auto; padding:1.25rem; border-radius:14px;
       border:1px solid rgba(248,113,113,0.35); background:rgba(63,29,29,0.35);
     }
+    .contracts-lock-overlay {
+      position:fixed; inset:0; z-index:80; display:flex; align-items:center; justify-content:center;
+      padding:1rem; background:rgba(5,8,22,0.78); backdrop-filter:blur(6px);
+    }
+    .contracts-lock-card {
+      width:min(440px,100%); border-radius:16px; border:1px solid var(--border);
+      background:linear-gradient(180deg, #172033 0%, var(--panel) 100%);
+      box-shadow:0 18px 50px rgba(0,0,0,0.45); padding:1.25rem 1.35rem;
+    }
+    .contracts-lock-card h2 { margin:0 0 0.35rem; font-size:1.15rem; }
+    .contracts-lock-card p { margin:0 0 0.85rem; color:var(--muted); font-size:0.86rem; line-height:1.45; }
+    .contracts-lock-card label { display:block; margin:0.55rem 0; font-size:0.78rem; color:var(--muted); }
+    .contracts-lock-card label span { display:block; margin-bottom:0.25rem; }
+    .contracts-lock-actions { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.85rem; }
+    .contracts-lock-actions button { flex:1; min-width:120px; padding:0.55rem 0.75rem; }
+    .contracts-unlock-badge {
+      display:inline-flex; align-items:center; gap:0.35rem; font-size:0.72rem;
+      padding:0.25rem 0.5rem; border-radius:999px; border:1px solid rgba(94,234,212,0.35);
+      background:rgba(94,234,212,0.1); color:var(--accent); white-space:nowrap;
+    }
+    .contracts-lock-msg { min-height:1.1rem; font-size:0.78rem; margin-top:0.35rem; }
+    .contracts-lock-msg.is-error { color:var(--danger); }
+    .contracts-lock-msg.is-ok { color:#4ade80; }
 
     @media (max-width:1100px) {
       .app-shell { grid-template-columns:1fr; grid-template-rows:auto 1fr; }
@@ -257,6 +281,25 @@
   </style>
 </head>
 <body>
+  <div id="contractsLockOverlay" class="contracts-lock-overlay hidden" aria-modal="true" role="dialog">
+    <div class="contracts-lock-card">
+      <h2 id="lockTitle">Vertragszugang</h2>
+      <p id="lockDesc">Gehalt und Verträge sind geschützt. Nur der Firmeninhaber öffnet diesen Bereich per SMS-Code.</p>
+      <div id="lockSetupBlock" class="hidden">
+        <label><span>Owner-Handy (mit Ländervorwahl)</span><input id="lockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+        <label><span>Backup-E-Mail (optional)</span><input id="lockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+      </div>
+      <div id="lockCodeBlock" class="hidden">
+        <label><span>Sicherheitscode</span><input id="lockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
+      </div>
+      <p id="lockMsg" class="contracts-lock-msg"></p>
+      <div class="contracts-lock-actions">
+        <button type="button" class="primary" id="lockSendBtn">Code senden</button>
+        <button type="button" class="primary hidden" id="lockVerifyBtn">Freischalten</button>
+        <button type="button" class="hidden" id="lockSkipSetupBtn">Später einrichten</button>
+      </div>
+    </div>
+  </div>
   <header class="app-header">
     <div class="brand brand-row">
       <img data-tenant-logo class="brand-logo" src="/branding/suppix-icon-192.png" alt="" width="28" height="28" />
@@ -280,6 +323,8 @@
       <button type="button" class="danger compact" id="deleteBtn" data-cpi18n="toolbarDelete">Löschen</button>
     </div>
     <div class="header-end">
+      <span id="contractsUnlockBadge" class="contracts-unlock-badge hidden" title="">🔒</span>
+      <button type="button" class="compact hidden" id="contractsLockBtn">Sperren</button>
       <select id="contractLangSelect" class="header-lang" aria-label="Sprache">
         <option value="de">DE</option>
         <option value="en">EN</option>
@@ -433,8 +478,8 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260705e"></script>
-  <script src="/admin-v2/contracts-validate.js?v=20260621contracts1"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260723lock1"></script>
+  <script src="/admin-v2/contracts-validate.js?v=20260723lock1"></script>
   <script src="/e2e-i18n.js?v=20260707e2e1"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
   <script src="/e2e-admin-bridge.js?v=20260707e2e1"></script>
@@ -950,6 +995,11 @@
       if (code === "recipient_phone_required") return window.contractPageT("smsRecipientMissing");
       if (code === "sms_not_configured") return window.contractPageT("smsNotConfigured");
       if (code === "sms_send_failed") return window.contractPageT("smsSendFailed");
+      if (code === "contracts_locked") return window.contractPageT("lockDesc") || "Vertragszugang gesperrt.";
+      if (code === "otp_invalid") return window.contractPageT("lockCodeRequired") || "Code ungültig.";
+      if (code === "otp_delivery_failed") return e?.data?.message || "Code konnte nicht gesendet werden.";
+      if (code === "invalid_phone") return "Ungültige Handynummer (+49…).";
+      if (code === "rate_limited") return `Zu viele Versuche. Bitte ${e?.data?.retryInSeconds || 60}s warten.`;
       return e.message || window.contractPageT("statusError");
     }
     async function persistContract() {
@@ -1208,11 +1258,14 @@
       }
       try {
         const me = await api("/api/me");
-        if (me.role === "superadmin") return true;
-        const ent = await api(`/api/platform/entitlements?company_id=${encodeURIComponent(companyId)}`);
-        if (!ent.legacyFeatures?.employment_contracts) {
-          showUpgrade(ent.planMeta?.minPlan || "professional");
-          return false;
+        if (me.role === "superadmin") {
+          /* still need company lock for previewed company */
+        } else {
+          const ent = await api(`/api/platform/entitlements?company_id=${encodeURIComponent(companyId)}`);
+          if (!ent.legacyFeatures?.employment_contracts) {
+            showUpgrade(ent.planMeta?.minPlan || "professional");
+            return false;
+          }
         }
       } catch (e) {
         if (e.status === 403 && e.data?.error === "feature_not_available") {
@@ -1220,8 +1273,176 @@
           return false;
         }
       }
-      return true;
+      return ensureContractsUnlocked();
     }
+
+    let lockSetupMode = false;
+    let lockAwaitingCode = false;
+
+    function setLockMsg(text, { error = false, ok = false } = {}) {
+      const el = document.getElementById("lockMsg");
+      if (!el) return;
+      el.textContent = text || "";
+      el.classList.toggle("is-error", error);
+      el.classList.toggle("is-ok", ok);
+    }
+
+    function showLockOverlay({ setup = false } = {}) {
+      lockSetupMode = setup;
+      lockAwaitingCode = false;
+      const overlay = document.getElementById("contractsLockOverlay");
+      overlay?.classList.remove("hidden");
+      document.getElementById("mainRoot")?.classList.add("hidden");
+      document.getElementById("lockSetupBlock")?.classList.toggle("hidden", !setup);
+      document.getElementById("lockCodeBlock")?.classList.add("hidden");
+      document.getElementById("lockVerifyBtn")?.classList.add("hidden");
+      document.getElementById("lockSendBtn")?.classList.remove("hidden");
+      document.getElementById("lockSkipSetupBtn")?.classList.toggle("hidden", !setup);
+      document.getElementById("lockTitle").textContent = setup
+        ? (window.contractPageT("lockSetupTitle") || "Owner-Zugang einrichten")
+        : (window.contractPageT("lockTitle") || "Vertragszugang");
+      document.getElementById("lockDesc").textContent = setup
+        ? (window.contractPageT("lockSetupDesc") || "Hinterlegen Sie die Handynummer des Firmeninhabers. Der Code kommt per SMS (E-Mail als Backup).")
+        : (window.contractPageT("lockDesc") || "Gehalt und Verträge sind geschützt. Bitte Code bestätigen.");
+      setLockMsg("");
+    }
+
+    function hideLockOverlay() {
+      document.getElementById("contractsLockOverlay")?.classList.add("hidden");
+      document.getElementById("mainRoot")?.classList.remove("hidden");
+    }
+
+    function paintUnlockBadge(status) {
+      const badge = document.getElementById("contractsUnlockBadge");
+      const lockBtn = document.getElementById("contractsLockBtn");
+      if (!badge || !lockBtn) return;
+      if (!status?.lockRequired) {
+        badge.classList.remove("hidden");
+        badge.textContent = window.contractPageT("lockNudge") || "🔒 PIN empfohlen";
+        badge.title = window.contractPageT("lockNudgeHint") || "Owner-Handy einrichten für Gehaltsschutz";
+        lockBtn.classList.add("hidden");
+        badge.onclick = () => showLockOverlay({ setup: true });
+        return;
+      }
+      if (status.unlocked) {
+        badge.classList.remove("hidden");
+        badge.textContent = window.contractPageT("lockUnlocked", { until: (status.unlockedUntil || "").slice(11, 16) }) || "✓ Freigeschaltet";
+        badge.title = status.unlockedUntil || "";
+        badge.onclick = null;
+        lockBtn.classList.remove("hidden");
+      } else {
+        badge.classList.add("hidden");
+        lockBtn.classList.add("hidden");
+      }
+    }
+
+    async function ensureContractsUnlocked() {
+      const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
+      paintUnlockBadge(status);
+      if (!status.lockRequired) {
+        // Soft nudge once, but allow access for backward compatibility.
+        return true;
+      }
+      if (status.unlocked) {
+        hideLockOverlay();
+        return true;
+      }
+      showLockOverlay({ setup: false });
+      return new Promise((resolve) => {
+        window.__contractsUnlockResolve = resolve;
+      });
+    }
+
+    async function sendLockOtp() {
+      setLockMsg("");
+      const phone = document.getElementById("lockOwnerPhone")?.value.trim() || "";
+      const email = document.getElementById("lockOwnerEmail")?.value.trim() || "";
+      const body = { company_id: companyId, setup: lockSetupMode };
+      if (lockSetupMode) {
+        body.phone = phone;
+        if (email) body.email = email;
+      }
+      try {
+        const res = await api("/api/contracts/lock/request-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        lockAwaitingCode = true;
+        document.getElementById("lockCodeBlock")?.classList.remove("hidden");
+        document.getElementById("lockVerifyBtn")?.classList.remove("hidden");
+        const via = (res.channels || []).join(" + ") || "SMS/E-Mail";
+        const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
+        setLockMsg(
+          (window.contractPageT("lockCodeSent", { via, phone: phoneBit }) || `Code gesendet (${via}).`),
+          { ok: true },
+        );
+        if (res.debugCode) {
+          document.getElementById("lockOtpCode").value = res.debugCode;
+        }
+        document.getElementById("lockOtpCode")?.focus();
+      } catch (e) {
+        setLockMsg(mapApiError(e), { error: true });
+      }
+    }
+
+    async function verifyLockOtp() {
+      const code = document.getElementById("lockOtpCode")?.value.trim() || "";
+      if (!code) {
+        setLockMsg(window.contractPageT("lockCodeRequired") || "Bitte Code eingeben.", { error: true });
+        return;
+      }
+      const phone = document.getElementById("lockOwnerPhone")?.value.trim() || "";
+      const email = document.getElementById("lockOwnerEmail")?.value.trim() || "";
+      const body = { company_id: companyId, code, setup: lockSetupMode };
+      if (lockSetupMode) {
+        body.phone = phone;
+        if (email) body.email = email;
+      }
+      try {
+        const res = await api("/api/contracts/lock/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        paintUnlockBadge(res);
+        hideLockOverlay();
+        setStatus(window.contractPageT("lockUnlockedToast") || "Vertragsbereich freigeschaltet.", { active: true });
+        if (typeof window.__contractsUnlockResolve === "function") {
+          window.__contractsUnlockResolve(true);
+          window.__contractsUnlockResolve = null;
+        }
+      } catch (e) {
+        setLockMsg(mapApiError(e), { error: true });
+      }
+    }
+
+    document.getElementById("lockSendBtn")?.addEventListener("click", () => { sendLockOtp().catch(() => {}); });
+    document.getElementById("lockVerifyBtn")?.addEventListener("click", () => { verifyLockOtp().catch(() => {}); });
+    document.getElementById("lockSkipSetupBtn")?.addEventListener("click", () => {
+      hideLockOverlay();
+      if (typeof window.__contractsUnlockResolve === "function") {
+        window.__contractsUnlockResolve(true);
+        window.__contractsUnlockResolve = null;
+      }
+    });
+    document.getElementById("contractsLockBtn")?.addEventListener("click", async () => {
+      try {
+        await api("/api/contracts/lock", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ company_id: companyId }),
+        });
+        showLockOverlay({ setup: false });
+        paintUnlockBadge({ lockRequired: true, unlocked: false });
+      } catch (e) {
+        setStatus(mapApiError(e), { error: true });
+      }
+    });
+    document.getElementById("lockOtpCode")?.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") verifyLockOtp().catch(() => {});
+    });
+
     document.getElementById("contractForm").addEventListener("submit", (ev) => ev.preventDefault());
     document.getElementById("contractSearch").addEventListener("input", renderContractList);
     document.getElementById("statusFilter").addEventListener("change", renderContractList);

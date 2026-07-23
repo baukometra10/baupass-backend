@@ -3263,20 +3263,27 @@ async function loadTools() {
     $("integrationCards").innerHTML = providers
       .map((p) => {
         const conn = intByProvider[p.id];
-        const st = conn ? conn.status : t("tools.notConnected");
+        const raw = String(conn?.status || "").toLowerCase();
+        const connected = Boolean(conn) && !["disconnected", "error", "failed", ""].includes(raw);
+        const errored = ["error", "failed"].includes(raw);
+        const pillClass = errored ? "is-warn" : connected ? "is-ok" : "is-off";
+        const stLabel = conn
+          ? (errored ? (conn.status || t("common.error")) : (conn.status || t("tools.connected") || "connected"))
+          : t("tools.notConnected");
         const erpBtns = erpProviders.has(p.id)
           ? `<button type="button" class="btn-link" data-export-preview="${p.id}">${t("tools.exportPreview")}</button>
              <button type="button" class="btn-link" data-export-push="${p.id}">${t("tools.exportPush")}</button>
              <button type="button" class="btn-link" data-export-dry="${p.id}">${t("tools.exportDryRun")}</button>`
           : "";
         return `<div class="layer-pill" data-provider="${p.id}">
-          <strong>${p.label}</strong><br><span class="muted small">${st}</span>
+          <strong>${p.label}</strong>
+          <div><span class="integration-status-pill ${pillClass}">${escapeHtml(stLabel)}</span></div>
           <button type="button" class="btn-link" data-connect="${p.id}">${t("tools.connect")}</button>
           <button type="button" class="btn-link" data-sync="${p.id}">${t("tools.sync")}</button>
           ${erpBtns}
         </div>`;
       })
-      .join("");
+      .join("") || `<div class="empty-state"><strong>${t("tools.integrations")}</strong>${t("common.noData")}</div>`;
     const gfForm = $("geofenceForm");
     const latIn = gfForm.querySelector('[name="latitude"]');
     const lngIn = gfForm.querySelector('[name="longitude"]');

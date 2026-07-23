@@ -25,12 +25,172 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     import threading
 
     from backend.app.platform.plan_guard import require_plan_capability
+    from backend.app.platform.security.contracts_lock import (
+        company_owner_email,
+        company_owner_phone,
+        consume_otp,
+        generate_otp_code,
+        lock_contracts_session,
+        lock_status,
+        mask_email,
+        mask_phone,
+        normalize_phone,
+        persist_otp,
+        require_contracts_unlocked,
+        send_otp_channels,
+        set_company_owner_contact,
+        unlock_contracts_session,
+    )
     from backend.server import BASE_DIR, get_db, require_auth, require_roles, require_worker_session
+
+    def _actor_id() -> str:
+        return str(g.current_user.get("id") or g.current_user.get("username") or "")
+
+    @contracts_core_bp.get("/contracts/lock-status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_status():
+        cid = _resolve_company_id()
+        if not cid:
+            return forbidden_company()
+        return jsonify(lock_status(get_db(), company_id=cid, token=getattr(g, "token", "")))
+
+    @contracts_core_bp.post("/contracts/lock/request-otp")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_request_otp():
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        db = get_db()
+        setup_mode = bool(data.get("setup"))
+        phone = normalize_phone(str(data.get("phone") or ""))
+        email = str(data.get("email") or "").strip().lower()
+        if setup_mode:
+            if not phone:
+                return jsonify({"error": "invalid_phone", "message": "Bitte gültige Handynummer mit Ländervorwahl angeben (+49…)."}), 400
+        else:
+            phone = company_owner_phone(db, cid)
+            if not phone:
+                return jsonify({"error": "owner_phone_required", "message": "Bitte zuerst die Owner-Handynummer einrichten."}), 400
+            if not email:
+                email = company_owner_email(db, cid)
+        code = generate_otp_code(digits=6)
+        persist_otp(db, cid, code)
+        delivery = send_otp_channels(db, company_id=cid, phone=phone, email=email, code=code)
+        if not delivery.get("channels"):
+            testing = str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing" or bool(
+                flask_app.config.get("TESTING")
+            )
+            if testing:
+                return jsonify(
+                    {
+                        "ok": True,
+                        "channels": ["test"],
+                        "debugCode": code,
+                        "phoneMasked": mask_phone(phone),
+                        "emailMasked": mask_email(email or company_owner_email(db, cid)),
+                        "smsConfigured": delivery.get("smsConfigured"),
+                    }
+                )
+            return (
+                jsonify(
+                    {
+                        "error": "otp_delivery_failed",
+                        "message": "Code konnte nicht gesendet werden. SMS/E-Mail prüfen.",
+                        "smsConfigured": delivery.get("smsConfigured"),
+                        "smsError": delivery.get("smsError"),
+                    }
+                ),
+                503,
+            )
+        return jsonify(
+            {
+                "ok": True,
+                "channels": delivery.get("channels") or [],
+                "phoneMasked": mask_phone(phone),
+                "emailMasked": mask_email(email or company_owner_email(db, cid)),
+                "smsConfigured": delivery.get("smsConfigured"),
+            }
+        )
+
+    @contracts_core_bp.post("/contracts/lock/verify")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_verify():
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        db = get_db()
+        code = str(data.get("code") or data.get("otp") or "").strip()
+        setup_mode = bool(data.get("setup"))
+        phone = normalize_phone(str(data.get("phone") or ""))
+        email = str(data.get("email") or "").strip().lower()
+        if not code:
+            return jsonify({"error": "otp_required"}), 400
+        try:
+            ok = consume_otp(db, cid, code, user_id=_actor_id())
+        except ValueError as exc:
+            msg = str(exc)
+            if msg.startswith("rate_limited:"):
+                retry = msg.split(":", 1)[1]
+                return jsonify({"error": "rate_limited", "retryInSeconds": int(retry)}), 429
+            return jsonify({"error": "otp_invalid"}), 400
+        if not ok:
+            return jsonify({"error": "otp_invalid"}), 400
+        if setup_mode:
+            try:
+                set_company_owner_contact(
+                    db,
+                    cid,
+                    phone=phone,
+                    email=email,
+                    actor_user_id=_actor_id(),
+                )
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+        token = str(getattr(g, "token", "") or "")
+        if not token:
+            return jsonify({"error": "invalid_session"}), 401
+        until = unlock_contracts_session(db, token, cid)
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "contracts.unlock",
+                "Vertragsbereich freigeschaltet",
+                target_type="company",
+                target_id=cid,
+                actor=g.current_user,
+            )
+        except Exception:
+            pass
+        return jsonify({"ok": True, "unlocked": True, "unlockedUntil": until, **lock_status(db, company_id=cid, token=token)})
+
+    @contracts_core_bp.post("/contracts/lock")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_now():
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        token = str(getattr(g, "token", "") or "")
+        if token:
+            lock_contracts_session(get_db(), token)
+        return jsonify({"ok": True, "unlocked": False})
 
     @contracts_core_bp.get("/contracts/templates")
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def list_contract_templates():
         cid = _resolve_company_id()
         if not cid:
@@ -42,6 +202,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def create_contract_draft():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -68,6 +229,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def regenerate_contract_draft(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -89,6 +251,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def list_contracts():
         cid = _resolve_company_id()
         if not cid:
@@ -99,6 +262,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def get_contract(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -112,6 +276,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def update_contract(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -150,6 +315,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def delete_contract(contract_id: str):
         cid = _resolve_company_id(request.get_json(silent=True) or {})
         if not cid:
@@ -164,6 +330,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def generate_contract_pdf(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -185,6 +352,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def download_contract_pdf(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -201,6 +369,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def create_contract_sign_link(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -252,6 +421,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def list_worker_employment_contracts(worker_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -263,6 +433,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def email_contract_sign_link(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -292,6 +463,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def sms_contract_sign_link(contract_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data)
@@ -321,6 +493,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def list_contract_events(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -332,6 +505,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def list_contract_sign_sessions(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -414,6 +588,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def preview_contract_pdf(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -434,6 +609,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
+    @require_contracts_unlocked
     def contract_integrations_status():
         cid = _resolve_company_id()
         if not cid:

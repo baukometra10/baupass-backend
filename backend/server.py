@@ -3893,6 +3893,20 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN impressum_text TEXT NOT NULL DEFAULT ''")
     if "datenschutz_text" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN datenschutz_text TEXT NOT NULL DEFAULT ''")
+    if "contract_owner_phone" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_phone TEXT NOT NULL DEFAULT ''")
+    if "contract_owner_email" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_email TEXT NOT NULL DEFAULT ''")
+    if "contract_owner_set_by" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_set_by TEXT NOT NULL DEFAULT ''")
+    if "contract_owner_updated_at" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_updated_at TEXT NOT NULL DEFAULT ''")
+
+    session_columns_contracts = [row[1] for row in cur.execute("PRAGMA table_info(sessions)").fetchall()]
+    if "contracts_unlocked_until" not in session_columns_contracts:
+        cur.execute("ALTER TABLE sessions ADD COLUMN contracts_unlocked_until TEXT")
+    if "contracts_unlocked_company_id" not in session_columns_contracts:
+        cur.execute("ALTER TABLE sessions ADD COLUMN contracts_unlocked_company_id TEXT")
 
     invoice_columns_stripe = [row[1] for row in cur.execute("PRAGMA table_info(invoices)").fetchall()]
     if "stripe_payment_link_id" not in invoice_columns_stripe:
