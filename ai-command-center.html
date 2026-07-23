@@ -21,12 +21,16 @@
       overflow: hidden;
     }
     body.ops-app {
-      font-family: system-ui, "Segoe UI", sans-serif;
-      background: var(--bg);
+      font-family: "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+      background:
+        radial-gradient(1200px 500px at 12% -10%, rgba(56, 189, 248, 0.08), transparent 55%),
+        radial-gradient(900px 420px at 88% 0%, rgba(99, 102, 241, 0.06), transparent 50%),
+        var(--bg, #050816);
       color: var(--text);
       display: flex;
       flex-direction: column;
       min-height: 0;
+      letter-spacing: 0.01em;
     }
     a { color: var(--accent); }
     header.ops-header {
@@ -95,16 +99,31 @@
       }
     }
     .panel {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
+      background: rgba(12, 18, 36, 0.88);
+      border: 1px solid rgba(120, 156, 255, 0.12);
+      border-radius: 16px;
       display: flex;
       flex-direction: column;
       min-height: 0;
       max-height: 100%;
       overflow: hidden;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
     }
-    .panel h2 { margin: 0; padding: 0.5rem 0.7rem; font-size: 0.82rem; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .panel.chat {
+      background: linear-gradient(180deg, rgba(14, 20, 36, 0.96), rgba(10, 14, 26, 0.98));
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(120, 156, 255, 0.1);
+      flex-shrink: 0;
+      font-weight: 600;
+    }
     .panel .toolbar { flex-shrink: 0; }
     .agent-tabs { flex-shrink: 0; }
     .chip-row { flex-shrink: 0; }
@@ -114,69 +133,242 @@
       overflow-y: auto;
       flex: 1;
       min-height: 0;
-      padding: 0.5rem;
+      padding: 0.85rem 1rem 1.1rem;
       -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(142, 164, 192, 0.35) transparent;
     }
-    .agent-tabs { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0.4rem; border-bottom: 1px solid var(--border); }
+    .agent-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(120,156,255,0.1); }
     .agent-tabs button {
-      font-size: 0.68rem; padding: 0.28rem 0.5rem; border-radius: 999px; cursor: pointer;
-      border: 1px solid var(--border); background: #0c1218; color: var(--muted);
+      font-size: 0.72rem; padding: 0.32rem 0.65rem; border-radius: 999px; cursor: pointer;
+      border: 1px solid rgba(120,156,255,0.14); background: rgba(8,12,22,0.7); color: var(--muted);
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
     }
-    .agent-tabs button.active { border-color: var(--accent); color: var(--accent); background: #14242a; }
-    #chatLog { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; }
+    .agent-tabs button:hover { color: var(--text); border-color: rgba(56,189,248,0.35); }
+    .agent-tabs button.active {
+      border-color: rgba(56,189,248,0.55); color: #e8f8ff;
+      background: linear-gradient(180deg, rgba(56,189,248,0.18), rgba(56,189,248,0.08));
+    }
+    #chatLog { display: flex; flex-direction: column; gap: 1rem; min-height: 0; }
     .msg-user {
-      background: #1e3a5f; padding: 0.7rem 0.85rem; border-radius: 12px;
-      font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; align-self: flex-end;
-      max-width: min(92%, 42rem);
+      background: linear-gradient(165deg, rgba(37, 99, 235, 0.38), rgba(30, 58, 95, 0.92));
+      padding: 0.8rem 1rem;
+      border-radius: 16px 16px 6px 16px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      align-self: flex-end;
+      max-width: min(88%, 38rem);
+      border: 1px solid rgba(125, 211, 252, 0.14);
+      box-shadow: 0 8px 22px rgba(8, 20, 40, 0.28);
     }
     .msg-bot {
-      background: #121a22; padding: 0.75rem 0.85rem 0.55rem; border-radius: 12px;
-      font-size: 0.9rem; line-height: 1.5; border: 1px solid rgba(120,156,255,0.1);
-      max-width: min(100%, 48rem); align-self: stretch;
+      background: transparent;
+      padding: 0.15rem 0 0.2rem;
+      border-radius: 0;
+      font-size: 0.95rem;
+      line-height: 1.62;
+      border: none;
+      max-width: min(100%, 46rem);
+      align-self: stretch;
+      animation: msgIn 0.22s ease;
     }
-    .msg-bot.msg-thinking { color: var(--muted); font-style: italic; }
-    .msg-body { color: var(--text); }
-    .msg-body p { margin: 0 0 0.65rem; }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: none; }
+    }
+    .msg-bot.msg-thinking {
+      color: var(--muted);
+      font-style: normal;
+      padding: 0.75rem 0.9rem;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed rgba(120,156,255,0.18);
+      width: fit-content;
+    }
+    .msg-bot-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-bottom: 0.45rem;
+      font-size: 0.68rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9fb4cf;
+      font-weight: 650;
+    }
+    .msg-bot-label::before {
+      content: "";
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 999px;
+      background: radial-gradient(circle at 30% 30%, #7dd3fc, #38bdf8 55%, #0284c7);
+      box-shadow: 0 0 0 3px rgba(56,189,248,0.15);
+    }
+    .msg-body {
+      color: #eef5ff;
+      padding: 0.15rem 0.1rem 0.35rem;
+    }
+    .msg-body p { margin: 0 0 0.78rem; }
     .msg-body p:last-child { margin-bottom: 0; }
-    .msg-body ul, .msg-body ol { margin: 0.35rem 0 0.65rem; padding-inline-start: 1.2rem; }
-    .msg-body li { margin: 0.2rem 0; }
-    .msg-body strong { font-weight: 700; color: #f3f8ff; }
+    .msg-body ul, .msg-body ol {
+      margin: 0.2rem 0 0.8rem;
+      padding-inline-start: 1.15rem;
+    }
+    .msg-body li { margin: 0.28rem 0; color: #e4eefc; }
+    .msg-body li::marker { color: #67e8f9; }
+    .msg-body strong { font-weight: 700; color: #ffffff; }
+    .msg-body em { color: #d7e6f8; font-style: italic; }
     .msg-body code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: 0.84em; background: rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 5px;
+      font-size: 0.84em;
+      background: rgba(125, 211, 252, 0.1);
+      border: 1px solid rgba(125, 211, 252, 0.14);
+      padding: 0.12rem 0.4rem;
+      border-radius: 6px;
+      color: #dbeafe;
     }
-    .msg-body a { color: var(--accent); }
-    .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.45rem; }
+    .msg-body a {
+      color: #7dd3fc;
+      text-decoration: none;
+      border-bottom: 1px solid rgba(125, 211, 252, 0.35);
+    }
+    .msg-body a:hover { color: #bae6fd; border-bottom-color: #bae6fd; }
+    .msg-meta {
+      font-size: 0.68rem;
+      color: #8096b0;
+      margin-top: 0.55rem;
+      padding: 0.45rem 0.6rem;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.025);
+      border: 1px solid rgba(120,156,255,0.08);
+    }
     .msg-actions {
-      display: flex; align-items: center; gap: 0.15rem; margin-top: 0.55rem;
-      padding-top: 0.25rem; flex-wrap: wrap; position: relative;
+      display: flex;
+      align-items: center;
+      gap: 0.1rem;
+      margin-top: 0.55rem;
+      padding-top: 0.15rem;
+      flex-wrap: wrap;
+      position: relative;
+      opacity: 0.72;
+      transition: opacity 0.18s ease;
+    }
+    .msg-bot:hover .msg-actions,
+    .msg-actions:focus-within,
+    .msg-actions.has-open-menu {
+      opacity: 1;
     }
     .msg-action-btn {
-      width: 2rem; height: 2rem; border-radius: 8px; border: none; cursor: pointer;
-      background: transparent; color: #8ea4c0; display: inline-flex; align-items: center;
-      justify-content: center; font-size: 0.95rem; line-height: 1;
+      width: 2.05rem;
+      height: 2.05rem;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      background: transparent;
+      color: #93a9c2;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
     }
-    .msg-action-btn:hover, .msg-action-btn.active {
-      background: rgba(255,255,255,0.06); color: var(--text);
+    .msg-action-btn svg {
+      width: 1.05rem;
+      height: 1.05rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
-    .msg-action-btn.speaking { color: var(--accent); background: rgba(56,189,248,0.12); }
+    .msg-action-btn:hover {
+      background: rgba(255,255,255,0.06);
+      color: #f2f7ff;
+      border-color: rgba(120,156,255,0.16);
+    }
+    .msg-action-btn:active { transform: scale(0.96); }
+    .msg-action-btn.active {
+      color: #7dd3fc;
+      background: rgba(56,189,248,0.12);
+      border-color: rgba(56,189,248,0.22);
+    }
+    .msg-action-btn.speaking,
+    .msg-action-btn.read-active {
+      color: #7dd3fc;
+      background: rgba(56,189,248,0.14);
+      border-color: rgba(56,189,248,0.28);
+    }
     .msg-more-menu {
-      position: absolute; inset-inline-start: 0; bottom: calc(100% + 0.35rem);
-      min-width: 14rem; background: #1a2430; border: 1px solid var(--border);
-      border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); padding: 0.35rem;
+      position: absolute;
+      inset-inline-start: 0;
+      bottom: calc(100% + 0.4rem);
+      min-width: 15rem;
+      background: rgba(18, 26, 40, 0.96);
+      border: 1px solid rgba(120,156,255,0.18);
+      border-radius: 14px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+      padding: 0.4rem;
       z-index: 20;
+      backdrop-filter: blur(12px);
     }
     .msg-more-menu .msg-more-time {
-      display: block; text-align: end; color: var(--muted); font-size: 0.68rem;
-      padding: 0.25rem 0.55rem 0.4rem;
+      display: block;
+      text-align: end;
+      color: #8096b0;
+      font-size: 0.68rem;
+      padding: 0.3rem 0.6rem 0.45rem;
     }
     .msg-more-menu button {
-      display: flex; width: 100%; align-items: center; gap: 0.55rem; text-align: start;
-      border: none; background: transparent; color: var(--text); cursor: pointer;
-      padding: 0.55rem 0.65rem; border-radius: 8px; font-size: 0.82rem;
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 0.6rem;
+      text-align: start;
+      border: none;
+      background: transparent;
+      color: #e8f0fa;
+      cursor: pointer;
+      padding: 0.6rem 0.7rem;
+      border-radius: 10px;
+      font-size: 0.84rem;
     }
     .msg-more-menu button:hover { background: rgba(255,255,255,0.06); }
-    .msg-more-menu .msg-more-ico { width: 1.1rem; text-align: center; opacity: 0.85; }
+    .msg-more-menu .msg-more-ico {
+      width: 1.15rem;
+      height: 1.15rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.9;
+    }
+    .msg-more-menu .msg-more-ico svg {
+      width: 1.05rem;
+      height: 1.05rem;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.7;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .ai-action-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-top: 0.7rem;
+    }
+    .ai-action-btn {
+      border-radius: 999px !important;
+      border: 1px solid rgba(120,156,255,0.18) !important;
+      background: rgba(14, 22, 36, 0.9) !important;
+      color: #cfe7ff !important;
+      padding: 0.35rem 0.75rem !important;
+      font-size: 0.74rem !important;
+    }
+    .ai-action-btn:hover {
+      border-color: rgba(56,189,248,0.45) !important;
+      color: #fff !important;
+    }
     .chat-form { padding: 0; border-top: none; display: flex; flex-direction: column; gap: 0; flex-shrink: 0; }
     .chat-form .input-row { display: flex; gap: 0.4rem; align-items: stretch; }
     .toolbar button {
@@ -202,14 +394,15 @@
     }
     .session-delete:hover { color: var(--danger); border-color: var(--danger); }
     .chat-toolbar {
-      display: flex; flex-wrap: wrap; gap: 0.35rem; padding: 0.45rem 0.65rem 0;
-      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.55rem 0.85rem 0.65rem;
+      border-bottom: 1px solid rgba(120,156,255,0.1);
     }
     .chat-toolbar button.secondary {
-      padding: 0.35rem 0.65rem; border-radius: 8px; border: 1px solid var(--border);
-      background: #1a2e3a; color: var(--text); cursor: pointer; font-size: 0.75rem;
+      padding: 0.38rem 0.75rem; border-radius: 999px; border: 1px solid rgba(120,156,255,0.16);
+      background: rgba(16, 24, 40, 0.85); color: #d5e4f5; cursor: pointer; font-size: 0.74rem;
+      transition: border-color 0.15s ease, color 0.15s ease;
     }
-    .chat-toolbar button.secondary:hover { border-color: var(--danger); color: var(--danger); }
+    .chat-toolbar button.secondary:hover { border-color: rgba(56,189,248,0.4); color: #fff; }
     .insight-card {
       border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.65rem; margin-bottom: 0.45rem;
       font-size: 0.78rem;
@@ -233,8 +426,10 @@
       margin-inline-end: 0.35rem; animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
     .toast {
-      position: fixed; bottom: 1rem; right: 1rem; padding: 0.55rem 0.85rem; border-radius: 10px;
-      background: #14242a; border: 1px solid var(--accent); font-size: 0.8rem; z-index: 100;
+      position: fixed; bottom: 1.1rem; right: 1.1rem; padding: 0.65rem 0.95rem; border-radius: 12px;
+      background: rgba(16, 24, 40, 0.96); border: 1px solid rgba(56,189,248,0.35);
+      font-size: 0.82rem; z-index: 100; color: #eaf4ff;
+      box-shadow: 0 14px 34px rgba(0,0,0,0.4);
       animation: fadein 0.25s ease;
     }
     @keyframes fadein { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
@@ -878,31 +1073,52 @@
       document.querySelectorAll(".msg-more-menu").forEach((menu) => {
         if (except && menu === except) return;
         menu.classList.add("hidden");
+        menu.parentElement?.classList.remove("has-open-menu");
       });
       openMsgMoreMenu = except || null;
+    }
+
+    function iconSvg(name) {
+      const icons = {
+        copy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+        like: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11v10"/><path d="M15.5 21H9a2 2 0 0 1-2-2v-8l4-7a2 2 0 0 1 3.7 1.2L14 10h5.2a2 2 0 0 1 1.95 2.4l-1.4 7A2 2 0 0 1 17.8 21H15.5z"/></svg>',
+        dislike: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 13V3"/><path d="M8.5 3H15a2 2 0 0 1 2 2v8l-4 7a2 2 0 0 1-3.7-1.2L10 14H4.8a2 2 0 0 1-1.95-2.4l1.4-7A2 2 0 0 1 6.2 3H8.5z"/></svg>',
+        share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/></svg>',
+        regen: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.6-6.3"/><path d="M21 3v6h-6"/></svg>',
+        more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>',
+        speak: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10v4a2 2 0 0 0 2 2h2l5 4V4L7 8H5a2 2 0 0 0-2 2z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/><path d="M19 6a8.5 8.5 0 0 1 0 12"/></svg>',
+      };
+      return icons[name] || "";
     }
 
     function attachMessageToolbar(wrap, rawText) {
       if (!wrap || wrap.querySelector(".msg-actions")) return;
       const text = polishAnswerText(rawText || messageRawText(wrap));
       wrap.dataset.raw = text;
+      if (!wrap.querySelector(".msg-bot-label")) {
+        const label = document.createElement("div");
+        label.className = "msg-bot-label";
+        label.textContent = "SUPPIX KI";
+        wrap.insertBefore(label, wrap.firstChild);
+      }
       const row = document.createElement("div");
       row.className = "msg-actions";
-      const mkBtn = (label, icon, cls = "") => {
+      const mkBtn = (label, iconName, cls = "") => {
         const b = document.createElement("button");
         b.type = "button";
         b.className = `msg-action-btn ${cls}`.trim();
         b.title = label;
         b.setAttribute("aria-label", label);
-        b.textContent = icon;
+        b.innerHTML = iconSvg(iconName);
         return b;
       };
-      const copyBtn = mkBtn(t("msgCopy"), "⧉");
-      const likeBtn = mkBtn(t("msgLike"), "👍");
-      const dislikeBtn = mkBtn(t("msgDislike"), "👎");
-      const shareBtn = mkBtn(t("msgShare"), "↗");
-      const regenBtn = mkBtn(t("msgRegenerate"), "↻");
-      const moreBtn = mkBtn(t("msgMore"), "⋯");
+      const copyBtn = mkBtn(t("msgCopy"), "copy");
+      const likeBtn = mkBtn(t("msgLike"), "like");
+      const dislikeBtn = mkBtn(t("msgDislike"), "dislike");
+      const shareBtn = mkBtn(t("msgShare"), "share");
+      const regenBtn = mkBtn(t("msgRegenerate"), "regen");
+      const speakBtn = mkBtn(t("msgReadAloud"), "speak");
+      const moreBtn = mkBtn(t("msgMore"), "more");
       const menu = document.createElement("div");
       menu.className = "msg-more-menu hidden";
       menu.addEventListener("click", (ev) => ev.stopPropagation());
@@ -914,9 +1130,44 @@
       menu.innerHTML = `<span class="msg-more-time">${escapeHtml(timeLabel)}</span>`;
       const readBtn = document.createElement("button");
       readBtn.type = "button";
-      readBtn.innerHTML = `<span class="msg-more-ico">🔊</span><span data-read-label>${escapeHtml(t("msgReadAloud"))}</span>`;
+      readBtn.innerHTML = `<span class="msg-more-ico">${iconSvg("speak")}</span><span data-read-label>${escapeHtml(t("msgReadAloud"))}</span>`;
       menu.appendChild(readBtn);
-      row.append(copyBtn, likeBtn, dislikeBtn, shareBtn, regenBtn, moreBtn, menu);
+      row.append(copyBtn, likeBtn, dislikeBtn, shareBtn, regenBtn, speakBtn, moreBtn, menu);
+
+      const setSpeakingUi = (on) => {
+        speakBtn.classList.toggle("read-active", on);
+        moreBtn.classList.toggle("speaking", on);
+        speakBtn.title = on ? t("msgStopReading") : t("msgReadAloud");
+        speakBtn.setAttribute("aria-label", speakBtn.title);
+        const labelEl = readBtn.querySelector("[data-read-label]");
+        if (labelEl) labelEl.textContent = on ? t("msgStopReading") : t("msgReadAloud");
+      };
+
+      const runReadAloud = async () => {
+        closeMsgMoreMenus();
+        row.classList.remove("has-open-menu");
+        const speaking = window.BaupassAiUi?.isSpeaking?.();
+        if (speaking) {
+          window.BaupassAiUi?.stopSpeaking?.();
+          setSpeakingUi(false);
+          return;
+        }
+        setSpeakingUi(true);
+        try {
+          const speakText = window.BaupassAiUi?.cleanTextForSpeech?.(text, { lang: LANG, spoken: true })
+            || window.BaupassAiUi?.cleanTextForDisplay?.(text)
+            || text;
+          await window.BaupassAiUi?.speakReply?.(speakText, LANG, {
+            spoken: true,
+            force: true,
+            authHeaders: () => authHeaders(),
+          });
+        } catch (e) {
+          showToast(e?.message || t("errGeneric"));
+        } finally {
+          setSpeakingUi(false);
+        }
+      };
 
       copyBtn.onclick = async () => {
         try {
@@ -960,50 +1211,33 @@
         }
         submitQuestion(q);
       };
+      speakBtn.onclick = () => { void runReadAloud(); };
       moreBtn.onclick = (ev) => {
         ev.stopPropagation();
         const opening = menu.classList.contains("hidden");
         closeMsgMoreMenus(opening ? menu : null);
         menu.classList.toggle("hidden", !opening);
+        row.classList.toggle("has-open-menu", opening);
       };
-      readBtn.onclick = async () => {
-        closeMsgMoreMenus();
-        const speaking = window.BaupassAiUi?.isSpeaking?.();
-        if (speaking) {
-          window.BaupassAiUi?.stopSpeaking?.();
-          readBtn.querySelector("[data-read-label]").textContent = t("msgReadAloud");
-          moreBtn.classList.remove("speaking");
-          return;
-        }
-        moreBtn.classList.add("speaking");
-        readBtn.querySelector("[data-read-label]").textContent = t("msgStopReading");
-        try {
-          const speakText = window.BaupassAiUi?.cleanTextForSpeech?.(text, { lang: LANG, spoken: true })
-            || window.BaupassAiUi?.cleanTextForDisplay?.(text)
-            || text;
-          await window.BaupassAiUi?.speakReply?.(speakText, LANG, {
-            spoken: true,
-            force: true,
-            authHeaders: () => authHeaders(),
-          });
-        } catch (e) {
-          showToast(e?.message || t("errGeneric"));
-        } finally {
-          moreBtn.classList.remove("speaking");
-          readBtn.querySelector("[data-read-label]").textContent = t("msgReadAloud");
-        }
-      };
+      readBtn.onclick = () => { void runReadAloud(); };
       wrap.appendChild(row);
     }
 
     function setBotMessageContent(wrap, text, meta = {}) {
       const cleaned = polishAnswerText(text);
       wrap.dataset.raw = cleaned;
+      let label = wrap.querySelector(".msg-bot-label");
+      if (!label) {
+        label = document.createElement("div");
+        label.className = "msg-bot-label";
+        label.textContent = "SUPPIX KI";
+        wrap.insertBefore(label, wrap.firstChild);
+      }
       let body = wrap.querySelector(".msg-body");
       if (!body) {
         body = document.createElement("div");
         body.className = "msg-body";
-        wrap.insertBefore(body, wrap.firstChild);
+        wrap.insertBefore(body, label.nextSibling);
       }
       body.innerHTML = formatAiAnswerHtml(cleaned);
       wrap.querySelector(".msg-actions")?.remove();
