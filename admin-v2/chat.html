@@ -299,6 +299,22 @@
       background: rgba(94, 234, 212, 0.18);
     }
     .muted { color:var(--muted); }
+    .chat-empty-state {
+      text-align:center;
+      padding:1.5rem 1rem;
+      margin:0.75rem;
+      border:1px dashed var(--border);
+      border-radius:12px;
+      background:var(--item-bg);
+      color:var(--muted);
+      font-size:0.9rem;
+    }
+    .chat-empty-state strong {
+      display:block;
+      color:var(--text);
+      margin-bottom:0.35rem;
+      font-weight:600;
+    }
     .chat-attachment-btn {
       display: inline-flex;
       align-items: center;
@@ -3047,7 +3063,7 @@
     }
     function renderMessageListHtml(messages) {
       if (!Array.isArray(messages) || !messages.length) {
-        return `<p class="muted">${window.adminChatT("noMessages")}</p>`;
+        return `<div class="chat-empty-state"><strong>${window.adminChatT("noMessages")}</strong></div>`;
       }
       const pinnedBar = window.SUPPIXChatMessageMenu?.renderPinnedBarHtml?.({
         threadId: currentThreadId,
@@ -3425,7 +3441,7 @@
               </span>
             </div>`;
           }).join("")
-        : `<p class="muted">${window.adminChatT(emptyKey)}</p>`;
+        : `<div class="chat-empty-state"><strong>${window.adminChatT(emptyKey)}</strong></div>`;
       host.querySelectorAll(".thread-item[data-worker]").forEach((row) => {
         row.addEventListener("click", (event) => {
           if (event.target instanceof Element && event.target.closest("[data-thread-pin],[data-thread-mute]")) return;

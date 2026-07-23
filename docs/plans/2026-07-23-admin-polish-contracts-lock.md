@@ -72,4 +72,7 @@ Approved: SMS OTP to owner phone + email backup (Phase 1 implemented).
 
 ## Status
 - Phase 1 (contracts OTP lock + contracts UI gate): DONE
-- Phase 2–4: partial (empty-state CSS, integration status pills); continue iteratively
+- Phase 2 (shell cohesion / empty states): DONE (shared `.empty-state`, overview/inbox/workers/access)
+- Phase 3 (billing summary + inbox/chat polish): DONE (read-only billing panel + revenue for superadmin; chat empty states)
+- Phase 4 (light caches): DONE (inbox counts 30s, billing overview 60s; ops overview cache unchanged)
+- Deferred: full invoices CRUD in admin-v2; contracts script split; DB index pass

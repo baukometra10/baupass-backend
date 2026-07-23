@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260723lock1" />
+  <link rel="stylesheet" href="styles.css?v=20260723polish2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -226,6 +226,7 @@
         <div id="tab-overview" class="tab-panel">
           <h2 class="section-title" data-i18n="section.overview.daily">Tagesbetrieb</h2>
           <div class="cards" id="statCards"></div>
+          <div id="billingSummaryPanel" class="billing-summary-panel hidden" aria-label="Billing"></div>
           <div id="forecastPanel" class="forecast-panel hidden"></div>
           <div id="opsCommandStrip" class="ops-command-strip hidden"></div>
           <section id="lagePanel" class="lage-panel hidden" aria-label="Live-Lage"></section>
@@ -519,7 +520,7 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
-  <script src="app.js?v=20260723lock1" type="module"></script>
+  <script src="app.js?v=20260723polish2" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

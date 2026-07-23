@@ -2219,7 +2219,7 @@ async function loadPlatform() {
         <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
       </div>`;
 
-    const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups] = await Promise.all([
+    const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups, billingOv, revenue] = await Promise.all([
       api("/api/platform/entitlements").catch(() => null),
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
@@ -2229,6 +2229,8 @@ async function loadPlatform() {
         ? api(`/api/platform/autopilot/settings${companyQuery()}`).catch(() => ({ settings: {} }))
         : Promise.resolve({ settings: {} }),
       api("/api/admin/database/backups").catch(() => ({ items: [] })),
+      cid ? fetchBillingOverviewCached(cid) : Promise.resolve(null),
+      api("/api/v2/billing/revenue-metrics").catch(() => null),
     ]);
     const ap = autopilot?.settings || {};
     const autopilotToggles = AUTOPILOT_KEYS.map(
@@ -2300,6 +2302,21 @@ async function loadPlatform() {
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       ${dbBanner}
       <div class="platform-panel-grid">
+      ${
+        revenue
+          ? `<div class="panel-block">
+        <h3>${t("billing.revenueTitle")}</h3>
+        <p class="muted small">${t("billing.revenueHint")}</p>
+        <div class="billing-summary-grid">
+          <div class="metric"><span>${t("billing.paidInvoices")}</span><strong>${revenue.paidInvoices?.count ?? 0} · ${formatEur(revenue.paidInvoices?.totalEur)}</strong></div>
+          <div class="metric"><span>${t("billing.openInvoices")}</span><strong>${revenue.openInvoices?.count ?? 0} · ${formatEur(revenue.openInvoices?.totalEur)}</strong></div>
+          <div class="metric"><span>${t("billing.mrrEstimate")}</span><strong>${formatEur(revenue.estimatedMrrNetEur)}</strong></div>
+        </div>
+        <button type="button" class="ghost" data-legacy-dashboard="invoices">${t("billing.openInvoicesUi")}</button>
+      </div>`
+          : ""
+      }
+      ${cid && billingOv ? renderBillingSummaryHtml(billingOv) : ""}
       <div class="panel-block" id="workTimesPanel"></div>
       ${
         cid
@@ -2509,6 +2526,7 @@ async function loadPlatform() {
         }
       });
     });
+    bindLegacyDashboardLinks(panel);
   } catch (e) {
     panel.innerHTML = `<p class="error">${e.message}</p>`;
   }
@@ -3029,6 +3047,95 @@ async function renderBetriebActionHub(companyId) {
 }
 
 let _opsOverviewCache = { cid: "", at: 0, data: null };
+let _inboxCountsCache = { key: "", at: 0, data: null };
+let _billingOverviewCache = { key: "", at: 0, data: null };
+
+function formatEur(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return new Intl.NumberFormat(getLang() || "de", {
+      style: "currency",
+      currency: "EUR",
+      maximumFractionDigits: 2,
+    }).format(n);
+  } catch {
+    return `${n.toFixed(2)} €`;
+  }
+}
+
+async function fetchInboxCountsCached(q) {
+  const key = q || "_";
+  if (_inboxCountsCache.key === key && Date.now() - _inboxCountsCache.at < 30_000) {
+    return _inboxCountsCache.data;
+  }
+  const data = await api(`/api/inbox${q}`).catch(() => ({ counts: {} }));
+  _inboxCountsCache = { key, at: Date.now(), data };
+  return data;
+}
+
+async function fetchBillingOverviewCached(cid) {
+  const resolved = String(cid || activeCompanyId() || "").trim();
+  if (!resolved && getUser().role === "superadmin") return null;
+  const key = resolved || "_self";
+  if (_billingOverviewCache.key === key && Date.now() - _billingOverviewCache.at < 60_000) {
+    return _billingOverviewCache.data;
+  }
+  const qs = resolved && getUser().role === "superadmin"
+    ? `?company_id=${encodeURIComponent(resolved)}`
+    : "";
+  const data = await api(`/api/v2/billing/overview${qs}`).catch(() => null);
+  if (data) _billingOverviewCache = { key, at: Date.now(), data };
+  return data;
+}
+
+function renderBillingSummaryHtml(overview) {
+  if (!overview) return "";
+  const workers = overview.workers || {};
+  const openInv = overview.openInvoices || {};
+  const stripe = overview.stripe || {};
+  const trial = overview.trial || {};
+  const planLabel = resolvePlanLabel(null, overview.plan) || String(overview.plan || "—");
+  const subStatus = String(stripe.subscriptionStatus || overview.status || "").trim() || "—";
+  const stripeOk = !!stripe.configured;
+  const openCount = Number(openInv.count || 0);
+  return `
+    <div class="panel-block">
+      <h3>${t("billing.title")}</h3>
+      <p class="muted small">${t("billing.hint")}</p>
+      <div class="billing-summary-grid">
+        <div class="metric"><span>${t("billing.plan")}</span><strong>${escapeHtml(planLabel)}</strong></div>
+        <div class="metric"><span>${t("billing.monthlyNet")}</span><strong>${formatEur(workers.totalNetEur)}</strong></div>
+        <div class="metric"><span>${t("billing.workers")}</span><strong>${workers.active ?? workers.workerCount ?? 0}</strong></div>
+        <div class="metric"><span>${t("billing.openInvoices")}</span><strong style="color:${openCount > 0 ? "#fbbf24" : "inherit"}">${openCount} · ${formatEur(openInv.totalEur)}</strong></div>
+      </div>
+      <p class="muted small" style="margin:0.35rem 0 0.75rem">
+        ${t("billing.status")}: <strong>${escapeHtml(subStatus)}</strong>
+        · Stripe: ${stripeOk ? `<span class="integration-status-pill is-ok">${t("billing.stripeOn")}</span>` : `<span class="integration-status-pill is-off">${t("billing.stripeOff")}</span>`}
+        ${trial.isTrialing ? ` · <span class="integration-status-pill is-warn">${t("billing.trialing")}</span>` : ""}
+      </p>
+      <button type="button" class="ghost" data-legacy-dashboard="invoices">${t("billing.openInvoicesUi")}</button>
+    </div>`;
+}
+
+async function loadBillingSummaryPanel(cid) {
+  const panel = $("billingSummaryPanel");
+  if (!panel) return;
+  if (!cid) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+  panel.classList.remove("hidden");
+  panel.innerHTML = `<div class="panel-block"><p class="muted small">${t("common.loading")}</p></div>`;
+  const overview = await fetchBillingOverviewCached(cid);
+  if (!overview) {
+    panel.innerHTML = `<div class="panel-block">${emptyStateHtml(t("billing.title"), t("billing.loadError"))}</div>`;
+    return;
+  }
+  panel.innerHTML = renderBillingSummaryHtml(overview);
+  bindLegacyDashboardLinks(panel);
+}
 
 function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {
   const cards = getOpsLayerOrder()
@@ -3422,9 +3529,15 @@ async function loadTools() {
   }
 }
 
+function emptyStateHtml(title, detail = "") {
+  return `<div class="empty-state"><strong>${escapeHtml(title || t("common.noData"))}</strong>${
+    detail ? `<p class="muted small" style="margin:0">${escapeHtml(detail)}</p>` : ""
+  }</div>`;
+}
+
 function renderTable(container, rows, columns) {
   if (!rows.length) {
-    container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noData")}</p>`;
+    container.innerHTML = emptyStateHtml(t("common.noData"), t("common.noDataHint") || "");
     return;
   }
   const head = columns.map((c) => `<th>${c.label}</th>`).join("");
@@ -3535,7 +3648,7 @@ async function loadInbox() {
   const countsEl = $("inboxCounts");
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    el.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    el.innerHTML = emptyStateHtml(t("common.selectCompany"));
     countsEl.innerHTML = "";
     $("inboxFilters")?.classList.add("hidden");
     $("complianceAutopilotCard")?.classList.add("hidden");
@@ -3545,6 +3658,7 @@ async function loadInbox() {
   const iq = inboxApiQuery(q);
   // Render inbox first; push status is non-blocking for perceived speed.
   const data = await api(`/api/inbox${iq || q}`);
+  _inboxCountsCache = { key: q || "_", at: Date.now(), data };
   api("/api/platform/push/status")
     .then((pushSt) => {
       const pushEl = $("inboxPushStatus");
@@ -3648,7 +3762,7 @@ async function loadInbox() {
     }
   }
   if (!items.length) {
-    el.innerHTML = `<p class="muted">${t("inbox.empty")}</p>`;
+    el.innerHTML = `<div class="empty-state inbox-empty-state"><strong>${t("inbox.empty")}</strong><p class="muted small" style="margin:0.4rem 0 0">${t("inbox.emptyHint") || ""}</p></div>`;
     return;
   }
   el.innerHTML = `<table><thead><tr><th></th><th>${t("inbox.colTitle")}</th><th>${t("inbox.colSla")}</th><th>${t("inbox.colSource")}</th><th>${t("inbox.colActions")}</th></tr></thead><tbody>${items
@@ -4681,17 +4795,23 @@ async function loadOverview() {
   renderQuickLinks();
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("statCards").innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    $("statCards").innerHTML = emptyStateHtml(t("common.selectCompany"));
+    const bp = $("billingSummaryPanel");
+    if (bp) {
+      bp.classList.add("hidden");
+      bp.innerHTML = "";
+    }
     return;
   }
-  const cid = q.replace("?company_id=", "");
+  const cid = activeCompanyId() || q.replace("?company_id=", "");
   $("statCards").innerHTML = `
     <div class="card card-skeleton"><span class="muted">${t("overview.onSite")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
   const overviewP = api(`/api/v2/admin/overview${q}`);
+  const billingP = loadBillingSummaryPanel(cid);
   const secondaryP = Promise.all([
-    api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
+    fetchInboxCountsCached(q),
     api(`/api/dashboard/role${q}`).catch(() => null),
     cid
       ? api(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`).catch(() => null)
@@ -4733,6 +4853,7 @@ async function loadOverview() {
     switchToTab("inbox");
     await loadInbox();
   });
+  await billingP;
   const fc = overview.tomorrowForecast || {};
   const repeatedLate = Array.isArray(overview.repeatedLateWorkers) ? overview.repeatedLateWorkers : [];
   const fp = $("forecastPanel");
@@ -5160,7 +5281,7 @@ function bindDeploymentMonthBarOnce() {
 async function loadWorkers() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("workersTable").innerHTML = `<p class="muted" style="padding:1rem">${t("common.selectCompany")}</p>`;
+    $("workersTable").innerHTML = emptyStateHtml(t("common.selectCompany"));
     $("deploymentMonthBar")?.classList.add("hidden");
     return;
   }
@@ -5171,7 +5292,7 @@ async function loadWorkers() {
     window.__adminV2WorkersCache = rows;
     const container = $("workersTable");
     if (!rows.length) {
-      container.innerHTML = `<p class="muted" style="padding:1rem">${t("common.noWorkers")}</p>`;
+      container.innerHTML = emptyStateHtml(t("common.noWorkers"), t("common.noDataHint") || "");
       return;
     }
   const head = `
@@ -5242,7 +5363,7 @@ async function loadWorkers() {
 async function loadAccess() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
-    $("accessTable").innerHTML = `<p class="muted" style="padding:1rem">${t("common.selectCompany")}</p>`;
+    $("accessTable").innerHTML = emptyStateHtml(t("common.selectCompany"));
     $("accessSummary").innerHTML = "";
     return;
   }
