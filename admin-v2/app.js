@@ -3705,8 +3705,70 @@ async function loadInbox() {
       else showActionToast(msg, true);
       return;
     }
+
+    const isTechnicalDecisionText = (value) => {
+      const s = String(value || "").trim();
+      if (!s) return true;
+      if (/^(review_ops|retry|escalate|monitor)$/i.test(s)) return true;
+      if (/structured decision block missing/i.test(s)) return true;
+      return false;
+    };
+
+    const formatInboxAiHtml = (raw) => {
+      let s = String(raw || "").trim();
+      if (s.includes("DECISION_JSON")) s = s.split("DECISION_JSON")[0].trim();
+      s = s.replace(/\n{3,}/g, "\n\n");
+      const escape = (v) =>
+        String(v)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      const inline = (line) =>
+        escape(line)
+          .replace(/`([^`]+)`/g, "<code>$1</code>")
+          .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      return s
+        .split(/\n{2,}/)
+        .map((block) => `<p>${block.split(/\n/).map(inline).join("<br>")}</p>`)
+        .join("");
+    };
+
+    const renderInboxAiResult = (text, { promptText = prompt, agentId = agent } = {}) => {
+      if (!aiPanel) {
+        showActionToast(String(text).slice(0, 160), false);
+        return;
+      }
+      aiPanel.innerHTML = `
+        <div class="inbox-ai-head">
+          <h3>${t("inbox.aiAnalyze")}</h3>
+        </div>
+        <div class="inbox-ai-body">${formatInboxAiHtml(text)}</div>
+        <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
+      `;
+      aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
+        openAiCommandCenterWithPrompt(promptText, agentId);
+      });
+    };
+
+    const pickAnswer = (res) => {
+      const decision = res?.decision && typeof res.decision === "object" ? res.decision : {};
+      const candidates = [
+        res?.answer,
+        decision.summary,
+        decision.rationale,
+        res?.hint,
+        res?.message,
+      ];
+      for (const c of candidates) {
+        const s = String(c || "").trim();
+        if (s && !isTechnicalDecisionText(s)) return s;
+      }
+      return "";
+    };
+
     try {
-      const res = await api("/api/ai/decision", {
+      let res = await api("/api/ai/decision", {
         method: "POST",
         body: JSON.stringify({
           question: prompt,
@@ -3716,48 +3778,38 @@ async function loadInbox() {
           lang: getLang?.() || "de",
         }),
       });
-      const decision = res.decision || {};
-      const text =
-        res.answer ||
-        decision.summary ||
-        decision.recommendation ||
-        decision.answer ||
-        JSON.stringify(decision).slice(0, 800);
-      if (aiPanel) {
-        aiPanel.innerHTML = `
-          <h3>${t("inbox.aiAnalyze")}</h3>
-          <p>${escapeHtml(String(text || ""))}</p>
-          ${
-            decision.rationale
-              ? `<p class="muted small">${escapeHtml(String(decision.rationale))}</p>`
-              : ""
-          }
-          <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
-        `;
-        aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
-          openAiCommandCenterWithPrompt(prompt, agent);
+      let text = pickAnswer(res);
+      if (!text) {
+        res = await api("/api/ai/query", {
+          method: "POST",
+          body: JSON.stringify({
+            question: prompt,
+            company_id: cid,
+            use_agent: true,
+            agent_id: agent || "operations",
+            lang: getLang?.() || "de",
+          }),
         });
-      } else {
-        showActionToast(String(text).slice(0, 160), false);
+        text = pickAnswer(res);
       }
+      if (!text) {
+        text = t("inbox.aiEmpty") || "Keine aussagekräftige Analyse erhalten. Bitte erneut versuchen.";
+      }
+      renderInboxAiResult(text);
     } catch (e) {
-      // Fallback to classic AI query if decision endpoint unavailable
       try {
         const res = await api("/api/ai/query", {
           method: "POST",
-          body: JSON.stringify({ question: prompt, company_id: cid, lang: getLang?.() || "de" }),
+          body: JSON.stringify({
+            question: prompt,
+            company_id: cid,
+            use_agent: true,
+            agent_id: "operations",
+            lang: getLang?.() || "de",
+          }),
         });
-        const text = res.answer || res.message || "";
-        if (aiPanel) {
-          aiPanel.innerHTML = `
-            <h3>${t("inbox.aiAnalyze")}</h3>
-            <p>${escapeHtml(String(text))}</p>
-            <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
-          `;
-          aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
-            openAiCommandCenterWithPrompt(prompt, agent);
-          });
-        }
+        const text = pickAnswer(res) || e.message || "error";
+        renderInboxAiResult(text, { agentId: "operations" });
       } catch (e2) {
         if (aiPanel) {
           aiPanel.innerHTML = `<p class="error">${escapeHtml(e2.message || e.message || "error")}</p>`;

@@ -149,13 +149,49 @@ def run_agent_query(
             out["suggestedActions"] = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
             return out
 
-        return {
-            "answer": None,
-            "error": "tool_loop_exhausted",
-            "hint": "KI hat zu viele Tool-Schritte benötigt. Frage vereinfachen.",
-            "toolsUsed": tools_used,
+        # Tools consumed all rounds without a final prose answer — force one closing reply.
+        from .brand_guard import sanitize_ai_answer
+        from .assistant import _chat_completion
+
+        messages.append(
+            {
+                "role": "user",
+                "content": (
+                    "Fasse jetzt eine klare, kurze Antwort für den Arbeitgeber. "
+                    "Nutze die Tool-Ergebnisse. Keine weiteren Tool-Aufrufe."
+                ),
+            }
+        )
+        try:
+            body = _chat_completion(messages, tools=None)
+            answer = sanitize_ai_answer((body.get("choices") or [{}])[0].get("message", {}).get("content") or "") or ""
+        except Exception:
+            logger.exception("agent_query finalization failed company=%s agent=%s", company_id, agent_id)
+            answer = ""
+        if not answer:
+            return {
+                "answer": None,
+                "error": "tool_loop_exhausted",
+                "hint": "KI hat zu viele Tool-Schritte benötigt. Frage vereinfachen.",
+                "toolsUsed": tools_used,
+                "agentId": agent_id,
+            }
+        out = {
+            "answer": answer,
+            "configured": True,
             "agentId": agent_id,
+            "model": model,
+            "mode": "agent",
+            "toolsUsed": list(dict.fromkeys(tools_used)),
+            "toolRounds": tool_rounds,
+            "sources": infer_context_sources(ctx) + [f"tool:{t}" for t in tools_used],
+            "finalizedAfterTools": True,
         }
+        if config_warning:
+            out["configWarning"] = config_warning
+        out["ragChunks"] = len(rag_chunks)
+        out["suggestedActions"] = suggest_actions(ctx, company_id=company_id, tools_used=tools_used)
+        return out
     except OpenAiApiError as exc:
         return {
             "answer": None,
@@ -428,15 +464,32 @@ def run_decision_query(
         history=history,
         use_tools=True,
     )
-    answer = str(result.get("answer") or "")
-    decision = _parse_decision_block(answer) or {
-        "summary": answer[:280],
-        "recommendation": "review_ops",
-        "confidence": 0.4,
-        "rationale": "Structured decision block missing; using answer summary.",
-        "evidence": [{"tool": t, "key": "used", "value": True} for t in (result.get("toolsUsed") or [])],
-        "proposedActions": [],
-    }
+    answer = str(result.get("answer") or "").strip()
+    # Prefer readable prose without the machine JSON trailer for UI consumers.
+    display_answer = answer
+    if "DECISION_JSON" in display_answer:
+        display_answer = display_answer.split("DECISION_JSON", 1)[0].strip()
+    decision = _parse_decision_block(answer)
+    if not decision:
+        summary = (display_answer or result.get("hint") or "")[:400].strip()
+        decision = {
+            "summary": summary,
+            "recommendation": "review_ops" if summary else "retry",
+            "confidence": 0.35 if summary else 0.1,
+            "rationale": "",
+            "evidence": [{"tool": t, "key": "used", "value": True} for t in (result.get("toolsUsed") or [])],
+            "proposedActions": [],
+        }
+    if not display_answer:
+        display_answer = str(decision.get("summary") or "").strip()
+    if not display_answer and result.get("hint"):
+        display_answer = str(result.get("hint"))
+    if not display_answer:
+        display_answer = (
+            "Die Analyse konnte gerade keine klare Empfehlung erzeugen. "
+            "Bitte im AI Command Center erneut versuchen."
+        )
+    result["answer"] = display_answer
     staged = []
     if auto_stage and user_id:
         from .actions import ALLOWED_EXECUTE, propose_action

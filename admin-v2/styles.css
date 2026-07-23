@@ -953,10 +953,38 @@ button[disabled] {
 .inbox-detail-panel,
 .inbox-ai-panel {
   margin-top: 0.85rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #0e141c;
+  padding: 0.95rem 1.05rem;
+  border: 1px solid rgba(120, 156, 255, 0.14);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(16, 24, 40, 0.96), rgba(10, 14, 24, 0.98));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+.inbox-ai-head h3 {
+  margin: 0 0 0.55rem;
+  font-size: 0.95rem;
+}
+.inbox-ai-body {
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 0.9rem;
+}
+.inbox-ai-body p {
+  margin: 0 0 0.7rem;
+}
+.inbox-ai-body p:last-child {
+  margin-bottom: 0.35rem;
+}
+.inbox-ai-body strong {
+  color: #f3f8ff;
+}
+.inbox-ai-body code {
+  font-size: 0.84em;
+  background: rgba(125, 211, 252, 0.1);
+  padding: 0.1rem 0.35rem;
+  border-radius: 5px;
+}
+.inbox-ai-panel #inboxAiOpenFull {
+  margin-top: 0.65rem;
 }
 .inbox-detail-head {
   display: flex;
