@@ -19,15 +19,8 @@ def _twilio_configured() -> bool:
 
 
 def _brevo_api_key() -> str:
-    key = (os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "").strip()
-    if key:
-        return key
-    try:
-        from backend.server import _get_brevo_api_key
-
-        return str(_get_brevo_api_key() or "").strip()
-    except Exception:
-        return ""
+    # Env only — avoid importing backend.server (circular import / slow boot).
+    return (os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "").strip()
 
 
 def _brevo_sms_sender() -> str:
