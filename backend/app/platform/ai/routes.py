@@ -1,4 +1,4 @@
-﻿"""
+"""
 AI routes — assistant + workforce intelligence.
 """
 from __future__ import annotations
