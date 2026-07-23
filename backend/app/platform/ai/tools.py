@@ -136,12 +136,26 @@ def tool_tomorrow_forecast(db, company_id: str, _args: dict) -> dict[str, Any]:
 
 
 def tool_repeated_late_workers(db, company_id: str, args: dict) -> dict[str, Any]:
-    from backend.app.platform.workforce.late_streak import list_repeated_late_workers
+    from backend.app.platform.workforce.late_streak import (
+        list_late_checkin_evidence,
+        list_repeated_late_workers,
+        summarize_late_evidence,
+    )
 
     min_streak = max(2, min(14, int(args.get("min_streak") or args.get("minStreak") or 3)))
     limit = max(1, min(50, int(args.get("limit") or 10)))
     workers = list_repeated_late_workers(db, company_id, min_streak=min_streak, limit=limit)
-    return {"minStreak": min_streak, "count": len(workers), "workers": workers}
+    enriched = []
+    for w in workers:
+        events = list_late_checkin_evidence(db, w["workerId"], limit=max(int(w.get("streak") or 3), 5))
+        enriched.append(
+            {
+                **w,
+                "lateEvents": events,
+                "reasonSummary": summarize_late_evidence(events),
+            }
+        )
+    return {"minStreak": min_streak, "count": len(enriched), "workers": enriched}
 
 
 def tool_outside_hours_attempts(db, company_id: str, args: dict) -> dict[str, Any]:

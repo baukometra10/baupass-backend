@@ -944,6 +944,36 @@ button[disabled] {
   vertical-align: middle;
 }
 
+.inbox-row {
+  cursor: pointer;
+}
+.inbox-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+.inbox-detail-panel,
+.inbox-ai-panel {
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0e141c;
+}
+.inbox-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.inbox-detail-head h3 {
+  margin: 0;
+}
+.inbox-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
 .sla-overdue {
   color: #f87171;
   font-weight: 600;

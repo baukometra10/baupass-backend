@@ -136,6 +136,18 @@ def test_evaluate_none_below_threshold(db_conn):
     assert evaluate_late_streak_after_checkin(db_conn, worker, late=False) is None
 
 
+def test_list_late_checkin_evidence(db_conn):
+    from backend.app.platform.workforce.late_streak import list_late_checkin_evidence, summarize_late_evidence
+
+    real_today = date.today()
+    for i in range(3):
+        _insert_checkin(db_conn, day=real_today - timedelta(days=i), late=True)
+    rows = list_late_checkin_evidence(db_conn, "wrk-1", limit=5)
+    assert len(rows) >= 3
+    summary = summarize_late_evidence(rows, lang="de")
+    assert "Verspätung" in summary or "um" in summary
+
+
 def test_list_repeated_late_workers(db_conn):
     real_today = date.today()
     for i in range(3):

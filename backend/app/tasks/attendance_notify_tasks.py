@@ -40,6 +40,8 @@ def notify_repeated_late_task(ctx: dict[str, Any]) -> dict[str, Any]:
             worker_id=str(ctx.get("workerId") or ""),
             worker_name=str(ctx.get("workerName") or ""),
             streak=int(ctx.get("streak") or 0),
+            late_events=list(ctx.get("lateEvents") or []),
+            reason_summary=str(ctx.get("reasonSummary") or "") or None,
         )
 
 

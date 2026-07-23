@@ -15,6 +15,73 @@ def _day_key(value: str | None) -> str:
     return raw[:10]
 
 
+def list_late_checkin_evidence(
+    db,
+    worker_id: str,
+    *,
+    limit: int = 8,
+    lookback_days: int = LATE_STREAK_LOOKBACK_DAYS,
+) -> list[dict[str, Any]]:
+    """Recent late check-ins with gate/time — used as employer-facing 'why' evidence."""
+    wid = str(worker_id or "").strip()
+    if not wid:
+        return []
+    since = (date.today() - timedelta(days=max(7, int(lookback_days or 30)))).isoformat()
+    rows = db.execute(
+        """
+        SELECT timestamp, gate, note, checked_in_late
+        FROM access_logs
+        WHERE worker_id = ?
+          AND direction = 'check-in'
+          AND COALESCE(checked_in_late, 0) = 1
+          AND timestamp >= ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+        """,
+        (wid, since, max(1, min(30, int(limit or 8)))),
+    ).fetchall()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        ts = str(row["timestamp"] or "")
+        out.append(
+            {
+                "at": ts,
+                "day": ts[:10],
+                "time": (ts[11:16] if len(ts) >= 16 else ""),
+                "gate": str(row["gate"] or "").strip() or "—",
+                "note": str(row["note"] or "").strip()[:160],
+                "reason": "late_checkin",
+            }
+        )
+    return out
+
+
+def summarize_late_evidence(events: list[dict[str, Any]], *, lang: str = "de") -> str:
+    """Short human reason string from evidence rows."""
+    if not events:
+        if lang == "ar":
+            return "لا تفاصيل إضافية عن أوقات التأخر."
+        if lang == "en":
+            return "No detailed late timestamps on file."
+        return "Keine weiteren Verspätungszeiten hinterlegt."
+    bits = []
+    for ev in events[:5]:
+        day = ev.get("day") or ""
+        time = ev.get("time") or ""
+        gate = ev.get("gate") or "—"
+        if lang == "ar":
+            bits.append(f"{day} الساعة {time or '—'} (البوابة {gate})")
+        elif lang == "en":
+            bits.append(f"{day} at {time or '—'} (gate {gate})")
+        else:
+            bits.append(f"{day} um {time or '—'} Uhr (Tor {gate})")
+    if lang == "ar":
+        return "أوقات التأخر المسجّلة: " + "؛ ".join(bits)
+    if lang == "en":
+        return "Recorded late check-ins: " + "; ".join(bits)
+    return "Erfasste Verspätungen: " + "; ".join(bits)
+
+
 def count_consecutive_late_checkins(
     db,
     worker_id: str,
@@ -76,12 +143,15 @@ def evaluate_late_streak_after_checkin(
     streak = count_consecutive_late_checkins(db, worker_id)
     if streak < int(threshold or LATE_STREAK_THRESHOLD):
         return None
+    evidence = list_late_checkin_evidence(db, worker_id, limit=max(streak, 5))
     return {
         "companyId": company_id,
         "workerId": worker_id,
         "workerName": worker_name,
         "streak": streak,
         "threshold": int(threshold or LATE_STREAK_THRESHOLD),
+        "lateEvents": evidence,
+        "reasonSummary": summarize_late_evidence(evidence),
     }
 
 

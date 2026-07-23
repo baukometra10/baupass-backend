@@ -2,9 +2,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+_log = logging.getLogger(__name__)
+
+
+def _inbox_soft_fail(where: str, exc: Exception) -> None:
+    _log.warning("inbox builder soft-fail at %s: %s", where, exc)
 
 def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -127,8 +133,8 @@ def build_operations_inbox(
                     ],
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        _inbox_soft_fail("security_alerts", exc)
 
     # System alerts — only when they belong to the selected company (or global view without company)
     try:
@@ -172,6 +178,59 @@ def build_operations_inbox(
                         details_obj = parsed
                 except Exception:
                     details_obj = {}
+            # Live-enrich late evidence if missing (older alerts).
+            if code == "repeated_late_checkin" and details_obj.get("workerId"):
+                if not details_obj.get("lateEvents"):
+                    try:
+                        from backend.app.platform.workforce.late_streak import (
+                            list_late_checkin_evidence,
+                            summarize_late_evidence,
+                        )
+
+                        ev = list_late_checkin_evidence(db, str(details_obj["workerId"]), limit=8)
+                        details_obj["lateEvents"] = ev
+                        details_obj["reasonSummary"] = summarize_late_evidence(ev)
+                    except Exception as exc:
+                        _inbox_soft_fail("late_evidence_enrich", exc)
+            worker_id = str(details_obj.get("workerId") or "").strip()
+            ai_prompt = ""
+            if code == "repeated_late_checkin" and worker_id:
+                ai_prompt = (
+                    f"Analysiere die wiederholte Verspätung von {details_obj.get('workerName') or worker_id} "
+                    f"(Streak {details_obj.get('streak') or '?'}). Gründe/Zeiten: "
+                    f"{details_obj.get('reasonSummary') or details_obj.get('lateEvents')}. "
+                    "Gib eine kurze Empfehlung für den Arbeitgeber (Gespräch, Schichtanpassung, Eskalation)."
+                )
+            elif code == "outside_hours_checkin_attempt" and worker_id:
+                ai_prompt = (
+                    f"Analysiere Anmeldung außerhalb der Arbeitszeit von {details_obj.get('workerName') or worker_id}. "
+                    f"Kanal={details_obj.get('channel')}, Tor={details_obj.get('gate')}, "
+                    f"Fenster={details_obj.get('shiftStart')}-{details_obj.get('shiftEnd')}. Empfehlung?"
+                )
+            actions = [
+                {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
+                *(
+                    [
+                        {
+                            "type": "navigate",
+                            "url": "/index.html?view=deployment-plan",
+                            "label": "Einsatzplan",
+                        }
+                    ]
+                    if code == "deployment_worker_declined"
+                    else []
+                ),
+            ]
+            if ai_prompt:
+                actions.append(
+                    {
+                        "type": "prompt",
+                        "prompt": ai_prompt,
+                        "label": "KI analysieren",
+                        "agent": "decision",
+                    }
+                )
+            actions.append({"type": "open", "label": "Öffnen"})
             items.append(
                 {
                     "id": f"sys:{r['id']}",
@@ -181,28 +240,19 @@ def build_operations_inbox(
                     "title": title_map.get(code, code or "system"),
                     "message": r["message"] or "",
                     "details": details_obj,
-                    "companyId": cid or None,
+                    "companyId": cid or details_obj.get("companyId") or None,
+                    "workerId": worker_id or None,
                     "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "resolved" if r["resolved_at"] else "open",
-                    "actions": [
-                        {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
-                        *(
-                            [
-                                {
-                                    "type": "navigate",
-                                    "url": "/index.html?view=deployment-plan",
-                                    "label": "Einsatzplan",
-                                }
-                            ]
-                            if code == "deployment_worker_declined"
-                            else []
-                        ),
-                        {"type": "navigate", "url": "/admin-v2/index.html", "label": "Admin v2"},
-                    ],
+                    "autoAckOnOpen": bool(
+                        details_obj.get("autoAckOnOpen")
+                        or code in {"repeated_late_checkin", "outside_hours_checkin_attempt", "tomorrow_attendance_forecast"}
+                    ),
+                    "actions": actions,
                 }
             )
-    except Exception:
-        pass
+    except Exception as exc:
+        _inbox_soft_fail("system_alerts", exc)
 
     # Worker declined deployment days (Einsatzplan)
     if cid:
@@ -257,8 +307,8 @@ def build_operations_inbox(
                             ],
                         }
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            _inbox_soft_fail("deployment_declines", exc)
 
     # Documents expiring in 14 days (company scoped)
     if cid:
@@ -314,8 +364,8 @@ def build_operations_inbox(
                         ],
                     }
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            _inbox_soft_fail("document_expiry", exc)
 
         # Pending leave requests
         try:
@@ -366,8 +416,8 @@ def build_operations_inbox(
                         ],
                     }
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            _inbox_soft_fail("leave_requests", exc)
 
     items = [_item_with_sla(it) for it in items]
     items.sort(

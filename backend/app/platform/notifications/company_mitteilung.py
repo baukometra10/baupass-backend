@@ -731,6 +731,8 @@ def notify_company_repeated_late_checkin(
     worker_name: str,
     streak: int,
     lang: str | None = None,
+    late_events: list | None = None,
+    reason_summary: str | None = None,
 ) -> dict[str, Any]:
     """Alert Betrieb when a worker reaches a consecutive late streak threshold."""
     streak_n = max(1, int(streak or 0))
@@ -740,6 +742,21 @@ def notify_company_repeated_late_checkin(
     localized = build_repeated_late_alert_copy(
         worker_name=worker_name, streak=streak_n, lang=lang_key
     )
+
+    events = list(late_events or [])
+    if not events:
+        try:
+            from backend.app.platform.workforce.late_streak import (
+                list_late_checkin_evidence,
+                summarize_late_evidence,
+            )
+
+            events = list_late_checkin_evidence(db, worker_id, limit=max(streak_n, 5))
+            if not reason_summary:
+                reason_summary = summarize_late_evidence(events, lang=lang_key)
+        except Exception:
+            events = []
+    reason_text = str(reason_summary or "").strip()
 
     alert_id = None
     try:
@@ -759,6 +776,9 @@ def notify_company_repeated_late_checkin(
                     "streak": streak_n,
                     "lang": lang_key,
                     "i18nKey": "repeated_late_checkin",
+                    "lateEvents": events[:10],
+                    "reasonSummary": reason_text,
+                    "autoAckOnOpen": True,
                 },
                 ensure_ascii=False,
             ),
@@ -783,7 +803,7 @@ def notify_company_repeated_late_checkin(
             str(company_id),
             source="repeated_late",
             alert_title=localized["title"],
-            alert_message=localized["body"][:240],
+            alert_message=(reason_text or localized["body"])[:240],
             severity="warning",
         )
     except Exception:
@@ -796,12 +816,12 @@ def notify_company_repeated_late_checkin(
             db,
             str(company_id),
             localized["title"],
-            localized["body"][:180],
+            (reason_text or localized["body"])[:180],
             tag=f"repeated-late-{worker_id}",
             extra={
                 "workerId": str(worker_id),
                 "streak": streak_n,
-                "url": "/admin-v2/index.html",
+                "url": "/admin-v2/index.html#inbox",
                 "i18nKey": "repeated_late_checkin",
             },
         )

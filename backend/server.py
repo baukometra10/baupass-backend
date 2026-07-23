@@ -29064,6 +29064,8 @@ def _notify_company_repeated_late_async(ctx):
                 worker_id=str(ctx.get("workerId") or ""),
                 worker_name=str(ctx.get("workerName") or ""),
                 streak=int(ctx.get("streak") or 0),
+                late_events=list(ctx.get("lateEvents") or []),
+                reason_summary=str(ctx.get("reasonSummary") or "") or None,
             )
     except Exception:
         app.logger.debug("repeated late notify async skipped", exc_info=True)

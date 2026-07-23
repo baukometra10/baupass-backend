@@ -2827,11 +2827,31 @@ function initOpsCarousel(root) {
   );
 }
 
+let _legacyFeaturesCache = { companyId: "", at: 0, value: null };
+
 async function loadLegacyFeatures(companyId) {
   if (getUser().role === "superadmin") return null;
-  const q = companyId ? `?company_id=${encodeURIComponent(companyId)}` : "";
+  const cid = String(companyId || "").trim();
+  const now = Date.now();
+  if (_legacyFeaturesCache.companyId === cid && now - _legacyFeaturesCache.at < 45_000) {
+    return _legacyFeaturesCache.value;
+  }
+  const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
   const ent = await api(`/api/platform/entitlements${q}`).catch(() => null);
-  return ent?.legacyFeatures || {};
+  const value = ent?.legacyFeatures || {};
+  _legacyFeaturesCache = { companyId: cid, at: now, value };
+  return value;
+}
+
+function aiCommandCenterHref(extraParams = {}) {
+  const params = new URLSearchParams();
+  const cid = (companyQuery() || "").replace("?company_id=", "");
+  if (cid) params.set("company_id", cid);
+  Object.entries(extraParams || {}).forEach(([k, v]) => {
+    if (v != null && String(v) !== "") params.set(k, String(v));
+  });
+  const qs = params.toString();
+  return `/ai-command-center.html${qs ? `?${qs}` : ""}`;
 }
 
 function legacyFeatureEnabled(features, key) {
@@ -2900,24 +2920,22 @@ async function loadOperations() {
   }
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
-    const cid = q.replace("?company_id=", "");
-    const data = await api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
+    const [data, rt, chatResp, features] = await Promise.all([
+      api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`),
+      api("/api/v1/realtime/status").catch(() => null),
+      api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] })),
+      loadLegacyFeatures(cid),
+    ]);
     const layers = data.layers || {};
     const cards = getOpsLayerOrder()
       .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
       .join("");
-    let rtLabel = "";
-    try {
-      const rt = await api("/api/v1/realtime/status");
-      rtLabel = rt?.websocket?.enabled
-        ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
-        : `<span class="badge badge-warn">${t("ops.sseFallback")}</span>`;
-    } catch {
-      rtLabel = "";
-    }
-    const chatResp = await api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] }));
+    const rtLabel = rt?.websocket?.enabled
+      ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
+      : rt
+        ? `<span class="badge badge-warn">${t("ops.sseFallback")}</span>`
+        : "";
     const chatThreads = chatResp.threads || [];
-    const features = await loadLegacyFeatures(cid);
     const contractsCard = renderBetriebActionCard({
       href: `/admin-v2/contracts.html${q}`,
       icon: "📄",
@@ -3295,10 +3313,13 @@ function localizeInboxItem(it) {
   if (code === "repeated_late_checkin" || details.i18nKey === "repeated_late_checkin") {
     const name = String(details.workerName || "").trim() || "—";
     const streak = Number(details.streak || 0) || 0;
+    const reason = String(details.reasonSummary || "").trim();
     return {
       ...item,
       title: t("inbox.alert.repeatedLate.title"),
-      message: t("inbox.alert.repeatedLate.body", { name, streak }),
+      message: reason
+        ? `${t("inbox.alert.repeatedLate.body", { name, streak })} — ${reason}`
+        : t("inbox.alert.repeatedLate.body", { name, streak }),
     };
   }
   if (code === "tomorrow_attendance_forecast" || details.i18nKey === "tomorrow_attendance_forecast") {
@@ -3336,29 +3357,31 @@ async function loadInbox() {
   }
   el.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   const iq = inboxApiQuery(q);
-  const [data, pushSt] = await Promise.all([
-    api(`/api/inbox${iq || q}`),
-    api("/api/platform/push/status").catch(() => null),
-  ]);
+  // Render inbox first; push status is non-blocking for perceived speed.
+  const data = await api(`/api/inbox${iq || q}`);
+  api("/api/platform/push/status")
+    .then((pushSt) => {
+      const pushEl = $("inboxPushStatus");
+      if (!pushEl || !pushSt) return;
+      const ready = pushSt.anyChannelReady;
+      pushEl.classList.remove("hidden");
+      const mode = pushSt.fcmMode === "http_v1" ? "FCM v1" : pushSt.fcmMode === "legacy" ? "FCM legacy" : "";
+      const v1only = pushSt.fcmV1Only ? " · v1-only" : "";
+      const extra = `${mode ? ` · ${mode}${v1only}` : ""}${pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""}`;
+      pushEl.innerHTML = ready
+        ? t("inbox.pushHybrid", {
+            workers: pushSt.workersWithPush ?? 0,
+            devices: pushSt.registeredDevices ?? 0,
+            extra,
+          })
+        : t("inbox.pushNotConfigured");
+    })
+    .catch(() => {
+      const pushEl = $("inboxPushStatus");
+      if (pushEl) pushEl.classList.add("hidden");
+    });
   const liveHint = $("inboxLiveHint");
   if (liveHint) liveHint.classList.remove("hidden");
-  const pushEl = $("inboxPushStatus");
-  if (pushEl && pushSt) {
-    const ready = pushSt.anyChannelReady;
-    pushEl.classList.remove("hidden");
-    const mode = pushSt.fcmMode === "http_v1" ? "FCM v1" : pushSt.fcmMode === "legacy" ? "FCM legacy" : "";
-    const v1only = pushSt.fcmV1Only ? " · v1-only" : "";
-    const extra = `${mode ? ` · ${mode}${v1only}` : ""}${pushSt.webPushSubscriptions ? ` · ${pushSt.webPushSubscriptions} PWA` : ""}`;
-    pushEl.innerHTML = ready
-      ? t("inbox.pushHybrid", {
-          workers: pushSt.workersWithPush ?? 0,
-          devices: pushSt.registeredDevices ?? 0,
-          extra,
-        })
-      : t("inbox.pushNotConfigured");
-  } else if (pushEl) {
-    pushEl.classList.add("hidden");
-  }
   const c = data.counts || {};
   renderInboxFilters(c.bySource || {});
   updateInboxTabBadge(c.open, c.critical);
@@ -3480,18 +3503,163 @@ async function loadInbox() {
             return `<a class="btn-link" href="${a.url}${q}">${label}</a>`;
           }
           if (a.type === "prompt")
-            return `<a class="btn-link" href="/ai-command-center.html${q}&autoprompt=${encodeURIComponent(a.prompt || "")}">KI</a>`;
+            return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`;
+          if (a.type === "open")
+            return `<button type="button" class="btn-link inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(a.label || t("inbox.openAction"))}</button>`;
           return "";
         })
         .join(" · ");
-      return `<tr class="${it.severity === "critical" ? "row-critical" : ""}">
+      return `<tr class="${it.severity === "critical" ? "row-critical" : ""} inbox-row" data-inbox-id="${escapeAttr(it.id)}" tabindex="0">
         <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
-        <td><strong>${escapeHtml(it.title || "")}</strong><br><span class="muted small">${escapeHtml(it.message || "")}</span></td>
+        <td class="inbox-row-main"><strong>${escapeHtml(it.title || "")}</strong><br><span class="muted small">${escapeHtml(it.message || "")}</span></td>
         <td class="${slaCls}">${slaLabel}</td>
         <td>${it.source || ""}</td>
         <td>${acts}</td></tr>`;
     })
     .join("")}</tbody></table>`;
+  const itemById = Object.fromEntries(items.map((it) => [it.id, it]));
+  async function openInboxItem(itemId) {
+    const raw = itemById[itemId];
+    if (!raw) return;
+    const it = localizeInboxItem(raw);
+    const panel = $("inboxDetailPanel");
+    if (!panel) return;
+    const details = it.details || {};
+    const events = Array.isArray(details.lateEvents) ? details.lateEvents : [];
+    const eventHtml = events.length
+      ? `<ul class="muted small">${events
+          .map(
+            (ev) =>
+              `<li>${escapeHtml(ev.day || "")} ${escapeHtml(ev.time || "")} · ${escapeHtml(ev.gate || "—")}${
+                ev.note ? ` · ${escapeHtml(ev.note)}` : ""
+              }</li>`,
+          )
+          .join("")}</ul>`
+      : "";
+    const reason = String(details.reasonSummary || "").trim();
+    panel.classList.remove("hidden");
+    panel.innerHTML = `
+      <div class="inbox-detail-head">
+        <h3>${escapeHtml(it.title || "")}</h3>
+        <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
+      </div>
+      <p>${escapeHtml(it.message || "")}</p>
+      ${reason ? `<p><strong>${t("inbox.reasonLabel")}</strong> ${escapeHtml(reason)}</p>` : ""}
+      ${eventHtml}
+      <div class="inbox-detail-actions">
+        ${(it.actions || [])
+          .filter((a) => a.type === "prompt")
+          .map(
+            (a) =>
+              `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`,
+          )
+          .join("")}
+      </div>
+    `;
+    panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
+      panel.classList.add("hidden");
+      panel.innerHTML = "";
+    });
+    panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
+      btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
+    });
+    // Opening employer alerts dismisses them from the open list.
+    if (it.autoAckOnOpen && String(it.id || "").startsWith("sys:") && it.status !== "resolved") {
+      try {
+        await api(`/api/inbox/${encodeURIComponent(it.id)}/resolve${q}`, {
+          method: "POST",
+          body: "{}",
+        });
+        showActionToast(t("inbox.ackedOnOpen"), false);
+        await refreshInboxBadgeOnly();
+        // Soft-remove from local list without full reload flicker when possible
+        const row = el.querySelector(`tr[data-inbox-id="${CSS.escape(it.id)}"]`);
+        row?.remove();
+        delete itemById[it.id];
+        if (!el.querySelector("tbody tr")) {
+          el.innerHTML = `<p class="muted">${t("inbox.empty")}</p>`;
+        }
+      } catch (e) {
+        showActionToast(e.message, true);
+      }
+    }
+  }
+  async function runInboxAiAnalyze(btn) {
+    const prompt = decodeURIComponent(btn.dataset.prompt || "");
+    const agent = btn.dataset.agent || "decision";
+    const aiPanel = $("inboxAiPanel");
+    if (!prompt) return;
+    if (aiPanel) {
+      aiPanel.classList.remove("hidden");
+      aiPanel.innerHTML = `<p class="muted">${t("inbox.aiAnalyzing")}</p>`;
+    }
+    const cid = (companyQuery() || "").replace("?company_id=", "");
+    try {
+      const res = await api("/api/ai/decision", {
+        method: "POST",
+        body: JSON.stringify({
+          question: prompt,
+          agent,
+          company_id: cid || undefined,
+        }),
+      });
+      const decision = res.decision || res;
+      const text =
+        decision.summary ||
+        decision.recommendation ||
+        decision.answer ||
+        res.answer ||
+        JSON.stringify(decision).slice(0, 800);
+      if (aiPanel) {
+        aiPanel.innerHTML = `
+          <h3>${t("inbox.aiAnalyze")}</h3>
+          <p>${escapeHtml(String(text || ""))}</p>
+          ${
+            decision.rationale
+              ? `<p class="muted small">${escapeHtml(String(decision.rationale))}</p>`
+              : ""
+          }
+          <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
+        `;
+        aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
+          window.location.href = aiCommandCenterHref({ autoprompt: prompt });
+        });
+      } else {
+        showActionToast(String(text).slice(0, 160), false);
+      }
+    } catch (e) {
+      // Fallback to classic AI query if decision endpoint unavailable
+      try {
+        const res = await api("/api/ai/query", {
+          method: "POST",
+          body: JSON.stringify({ question: prompt, company_id: cid || undefined }),
+        });
+        const text = res.answer || res.message || "";
+        if (aiPanel) {
+          aiPanel.innerHTML = `<h3>${t("inbox.aiAnalyze")}</h3><p>${escapeHtml(String(text))}</p>`;
+        }
+      } catch (e2) {
+        if (aiPanel) {
+          aiPanel.innerHTML = `<p class="error">${escapeHtml(e2.message || e.message || "error")}</p>`;
+        }
+        throw e2;
+      }
+    }
+  }
+  el.querySelectorAll(".inbox-row-main, .inbox-open").forEach((node) => {
+    node.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      const tr = node.closest("tr[data-inbox-id]");
+      const id = tr?.getAttribute("data-inbox-id") || node.dataset.id;
+      if (id) openInboxItem(id).catch((e) => showActionToast(e.message, true));
+    });
+  });
+  el.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true));
+    });
+  });
   el.querySelectorAll(".inbox-nav-deployment").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const workerId = String(btn.dataset.workerId || "").trim();
