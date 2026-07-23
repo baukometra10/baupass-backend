@@ -1165,6 +1165,7 @@ const TAB_TITLE_KEYS = {
   access: "tab.access",
   mobile: "tab.mobile",
   operations: "tab.operations",
+  billing: "tab.billing",
   tools: "tab.tools",
   platform: "tab.platform",
 };
@@ -1186,6 +1187,7 @@ const COMMAND_NAV = [
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
   { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
+  { tab: "billing", titleKey: "tab.billing", groupKey: "nav.group.ops", searchTerms: "rechnung invoice billing stripe zahlung abo" },
   {
     href: "/admin-v2/chat.html",
     titleKey: "chat.title",
@@ -1421,11 +1423,11 @@ function renderQuickLinks() {
     { tab: "access", title: t("quick.access.title"), desc: t("quick.access.desc") },
     { tab: "mobile", title: t("quick.mobile.title"), desc: t("quick.mobile.desc") },
     { tab: "inbox", title: t("tab.inbox"), desc: t("section.inbox.desc") },
+    { tab: "billing", title: t("tab.billing"), desc: t("section.billing.desc") },
     { tab: "platform", title: t("quick.platform.title"), desc: t("quick.platform.desc") },
   ];
   const legacy = isSuperadminUser()
     ? [
-        { legacy: "invoices", title: t("feature.invoices"), desc: t("quick.legacy.invoiceDesc") },
         { legacy: "devices", title: t("feature.devices"), desc: t("quick.legacy.devicesDesc") },
         { legacy: "admin", title: t("feature.settings"), desc: t("quick.legacy.settingsDesc") },
       ]
@@ -2331,7 +2333,7 @@ async function loadPlatform() {
           <div class="metric"><span>${t("billing.openInvoices")}</span><strong>${revenue.openInvoices?.count ?? 0} · ${formatEur(revenue.openInvoices?.totalEur)}</strong></div>
           <div class="metric"><span>${t("billing.mrrEstimate")}</span><strong>${formatEur(revenue.estimatedMrrNetEur)}</strong></div>
         </div>
-        <button type="button" class="ghost" data-legacy-dashboard="invoices">${t("billing.openInvoicesUi")}</button>
+        <button type="button" class="ghost" data-goto-tab="billing">${t("billing.openInvoicesUi")}</button>
       </div>`
           : ""
       }
@@ -3134,7 +3136,7 @@ function renderBillingSummaryHtml(overview) {
         ${trial.isTrialing ? ` · <span class="integration-status-pill is-warn">${t("billing.trialing")}</span>` : ""}
       </p>
       <div id="billingInvoicesTable" class="table-wrap billing-invoices-table"></div>
-      <button type="button" class="ghost" data-legacy-dashboard="invoices">${t("billing.openInvoicesUi")}</button>
+      <button type="button" class="ghost" data-goto-tab="billing">${t("billing.openInvoicesUi")}</button>
     </div>`;
 }
 
@@ -3203,6 +3205,12 @@ async function loadBillingSummaryPanel(cid) {
   }
   panel.innerHTML = renderBillingSummaryHtml(overview);
   bindLegacyDashboardLinks(panel);
+  panel.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      switchToTab(btn.getAttribute("data-goto-tab"));
+      await refreshActiveTab().catch(notifyTabError);
+    });
+  });
   const qs = cid && getUser().role === "superadmin" ? `?company_id=${encodeURIComponent(cid)}` : "";
   const invoices = await api(`/api/invoices${qs}`).catch(() => []);
   const tableHost = panel.querySelector("#billingInvoicesTable");
@@ -3217,6 +3225,276 @@ async function loadBillingSummaryPanel(cid) {
     });
   }
 }
+
+let _billingTabInvoices = [];
+let _billingTabSelectedId = "";
+
+function invoiceStatusNorm(inv) {
+  return String(inv?.status || "").toLowerCase();
+}
+
+function invoiceIsPaid(inv) {
+  return !!(inv?.paid_at || inv?.paidAt) || invoiceStatusNorm(inv) === "bezahlt";
+}
+
+function invoiceMatchesFilter(inv, q, statusFilter) {
+  const hay = `${inv.invoice_number || ""} ${inv.company_name || ""} ${inv.recipient_email || ""} ${inv.status || ""}`.toLowerCase();
+  if (q && !hay.includes(q)) return false;
+  if (!statusFilter) return true;
+  const st = invoiceStatusNorm(inv);
+  const paid = invoiceIsPaid(inv);
+  if (statusFilter === "bezahlt") return paid || st === "bezahlt";
+  if (statusFilter === "offen") return !paid && !["storniert", "cancelled", "bezahlt"].includes(st);
+  if (statusFilter === "überfällig") return !paid && (st.includes("überfäll") || st.includes("overdue") || st === "ueberfaellig");
+  if (statusFilter === "storniert") return st.includes("storn") || st === "cancelled";
+  return st.includes(statusFilter);
+}
+
+function renderBillingInvoicesTable(rows) {
+  if (!rows.length) {
+    return emptyStateHtml(t("section.billing.title"), t("section.billing.empty"));
+  }
+  const showCompany = getUser().role === "superadmin";
+  const head = `<tr>
+    <th>${t("billing.colNumber")}</th>
+    ${showCompany ? `<th>${t("section.billing.colCompany")}</th>` : ""}
+    <th>${t("billing.colDate")}</th>
+    <th>${t("billing.colStatus")}</th>
+    <th>${t("billing.colTotal")}</th>
+    <th>${t("section.billing.actions")}</th>
+  </tr>`;
+  const body = rows
+    .map((inv) => {
+      const id = escapeHtml(inv.id || "");
+      const num = escapeHtml(inv.invoice_number || inv.invoiceNumber || inv.id || "—");
+      const created = escapeHtml(String(inv.created_at || inv.createdAt || "").slice(0, 10));
+      const status = escapeHtml(inv.status || "—");
+      const total = formatEur(inv.total_amount ?? inv.totalAmount);
+      const company = escapeHtml(inv.company_name || inv.companyName || "—");
+      const active = inv.id === _billingTabSelectedId ? " active" : "";
+      return `<tr class="billing-inv-row${active}" data-invoice-id="${id}" tabindex="0">
+        <td>${num}</td>
+        ${showCompany ? `<td>${company}</td>` : ""}
+        <td>${created}</td>
+        <td>${status}</td>
+        <td>${total}</td>
+        <td><button type="button" class="btn-link" data-invoice-pdf="${id}">${t("billing.pdf")}</button></td>
+      </tr>`;
+    })
+    .join("");
+  return `<table class="data-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+}
+
+function renderBillingInvoiceDetail(inv) {
+  if (!inv) {
+    return `<p class="muted small">${t("section.billing.selectHint")}</p>`;
+  }
+  const paid = invoiceIsPaid(inv);
+  const payUrl = inv.stripe_payment_link_url || inv.stripePaymentLinkUrl || "";
+  const isSa = getUser().role === "superadmin";
+  const st = invoiceStatusNorm(inv);
+  const actions = [
+    `<button type="button" class="ghost" data-inv-action="pdf">${t("billing.pdf")}</button>`,
+    payUrl
+      ? `<a class="ghost" href="${escapeHtml(payUrl)}" target="_blank" rel="noopener">${t("section.billing.payLinkOpen")}</a>`
+      : `<button type="button" class="ghost" data-inv-action="paylink">${t("section.billing.payLinkCreate")}</button>`,
+  ];
+  if (isSa && !paid) {
+    actions.push(`<button type="button" class="primary" data-inv-action="markpaid">${t("section.billing.markPaid")}</button>`);
+  }
+  if (isSa && st === "send_failed") {
+    actions.push(`<button type="button" class="ghost" data-inv-action="retry">${t("section.billing.retrySend")}</button>`);
+  }
+  return `
+    <h3>${t("section.billing.detailTitle")}</h3>
+    <dl class="billing-detail-dl">
+      <dt>${t("billing.colNumber")}</dt><dd>${escapeHtml(inv.invoice_number || inv.id || "—")}</dd>
+      <dt>${t("section.billing.colCompany")}</dt><dd>${escapeHtml(inv.company_name || "—")}</dd>
+      <dt>${t("section.billing.colEmail")}</dt><dd>${escapeHtml(inv.recipient_email || "—")}</dd>
+      <dt>${t("billing.colStatus")}</dt><dd>${escapeHtml(inv.status || "—")}</dd>
+      <dt>${t("billing.colTotal")}</dt><dd>${formatEur(inv.total_amount ?? inv.totalAmount)}</dd>
+      <dt>${t("billing.colDate")}</dt><dd>${escapeHtml(String(inv.invoice_date || inv.created_at || "").slice(0, 10))}</dd>
+      <dt>Due</dt><dd>${escapeHtml(String(inv.due_date || "").slice(0, 10) || "—")}</dd>
+    </dl>
+    <p class="muted small">${escapeHtml(inv.description || "")}</p>
+    <div class="billing-detail-actions">${actions.join("")}</div>
+  `;
+}
+
+async function loadBillingTab() {
+  const cid = (wpGet(COMPANY_KEY) || "").trim();
+  const summaryHost = $("billingTabSummary");
+  const listHost = $("billingInvoicesList");
+  const detailHost = $("billingInvoiceDetail");
+  const createPanel = $("billingCreatePanel");
+  if (!listHost) return;
+
+  if (createPanel) {
+    createPanel.classList.toggle("hidden", getUser().role !== "superadmin" || !cid);
+  }
+
+  if (summaryHost) {
+    summaryHost.innerHTML = `<p class="muted small">${t("common.loading")}</p>`;
+    const overview = await fetchBillingOverviewCached(cid).catch(() => null);
+    summaryHost.innerHTML = overview
+      ? renderBillingSummaryHtml(overview).replace(/data-goto-tab="billing"/g, 'disabled="disabled"').replace(/data-legacy-dashboard="invoices"/g, "")
+      : emptyStateHtml(t("billing.title"), t("billing.loadError"));
+    // Remove nested "open invoices" CTA inside the tab itself
+    summaryHost.querySelectorAll("[data-goto-tab], [data-legacy-dashboard]").forEach((el) => el.remove());
+  }
+
+  listHost.innerHTML = `<p class="muted small">${t("common.loading")}</p>`;
+  const qs = new URLSearchParams();
+  if (cid && getUser().role === "superadmin") qs.set("company_id", cid);
+  const q = ($("billingInvoiceQ")?.value || "").trim();
+  if (q) qs.set("q", q);
+  const path = `/api/invoices${qs.toString() ? `?${qs}` : ""}`;
+  const invoices = await api(path).catch((e) => {
+    showActionToast(e.message || t("billing.loadError"), true);
+    return [];
+  });
+  _billingTabInvoices = Array.isArray(invoices) ? invoices : [];
+  const statusFilter = ($("billingInvoiceStatus")?.value || "").trim();
+  const filtered = _billingTabInvoices.filter((inv) => invoiceMatchesFilter(inv, q.toLowerCase(), statusFilter));
+  if (_billingTabSelectedId && !filtered.some((r) => r.id === _billingTabSelectedId)) {
+    _billingTabSelectedId = filtered[0]?.id || "";
+  }
+  listHost.innerHTML = renderBillingInvoicesTable(filtered);
+  listHost.querySelectorAll("[data-invoice-pdf]").forEach((btn) => {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      downloadInvoicePdf(btn.getAttribute("data-invoice-pdf")).catch((e) =>
+        showActionToast(e.message || String(e), true),
+      );
+    });
+  });
+  listHost.querySelectorAll("[data-invoice-id]").forEach((row) => {
+    const open = () => {
+      _billingTabSelectedId = row.getAttribute("data-invoice-id") || "";
+      const inv = _billingTabInvoices.find((r) => r.id === _billingTabSelectedId);
+      if (detailHost) {
+        detailHost.classList.remove("hidden");
+        detailHost.innerHTML = renderBillingInvoiceDetail(inv);
+        bindBillingDetailActions(detailHost, inv);
+      }
+      listHost.querySelectorAll(".billing-inv-row").forEach((r) => {
+        r.classList.toggle("active", r.getAttribute("data-invoice-id") === _billingTabSelectedId);
+      });
+    };
+    row.addEventListener("click", open);
+    row.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        open();
+      }
+    });
+  });
+  if (detailHost) {
+    const inv = _billingTabInvoices.find((r) => r.id === _billingTabSelectedId) || null;
+    detailHost.classList.toggle("hidden", !inv);
+    detailHost.innerHTML = renderBillingInvoiceDetail(inv);
+    if (inv) bindBillingDetailActions(detailHost, inv);
+  }
+  bindBillingTabFormsOnce();
+}
+
+function bindBillingDetailActions(host, inv) {
+  if (!host || !inv) return;
+  host.querySelectorAll("[data-inv-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.getAttribute("data-inv-action");
+      try {
+        if (action === "pdf") {
+          await downloadInvoicePdf(inv.id);
+        } else if (action === "paylink") {
+          const res = await api(`/api/v2/billing/invoices/${encodeURIComponent(inv.id)}/payment-link`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
+          const url = res.url || res.paymentUrl || res.stripe_payment_link_url || "";
+          if (url) window.open(url, "_blank", "noopener");
+          showActionToast(t("section.billing.linkCreated"));
+          await loadBillingTab();
+        } else if (action === "markpaid") {
+          await api(`/api/invoices/${encodeURIComponent(inv.id)}/pay`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          showActionToast(t("section.billing.markedPaid"));
+          await loadBillingTab();
+        } else if (action === "retry") {
+          await api(`/api/invoices/${encodeURIComponent(inv.id)}/retry-send`, { method: "POST" });
+          showActionToast(t("section.billing.createOk"));
+          await loadBillingTab();
+        }
+      } catch (e) {
+        showActionToast(e.message || e.data?.message || e.data?.error || String(e), true);
+      }
+    });
+  });
+}
+
+function bindBillingTabFormsOnce() {
+  const filter = $("billingInvoiceFilterForm");
+  if (filter && filter.dataset.bound !== "1") {
+    filter.dataset.bound = "1";
+    filter.addEventListener("submit", (ev) => {
+      ev.preventDefault();
+      loadBillingTab().catch(notifyTabError);
+    });
+  }
+  const createForm = $("billingCreateForm");
+  if (createForm && createForm.dataset.bound !== "1") {
+    createForm.dataset.bound = "1";
+    createForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const cid = (wpGet(COMPANY_KEY) || "").trim();
+      const msg = $("billingCreateMsg");
+      if (!cid) {
+        showActionToast(t("common.selectCompany"), true);
+        return;
+      }
+      const email = ($("billingCreateEmail")?.value || "").trim();
+      const number = ($("billingCreateNumber")?.value || "").trim();
+      const net = Number($("billingCreateNet")?.value || 0);
+      const desc = ($("billingCreateDesc")?.value || "").trim() || "SUPPIX Abo";
+      const due = ($("billingCreateDue")?.value || "").trim();
+      const period = new Date().toISOString().slice(0, 7);
+      const renderedHtml = `<html><body><h1>Rechnung</h1><p>${escapeHtml(desc)}</p><p>Netto: ${net.toFixed(2)} EUR</p></body></html>`;
+      try {
+        if (msg) msg.textContent = t("common.loading");
+        await api("/api/invoices/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            companyId: cid,
+            recipientEmail: email,
+            invoiceNumber: number || undefined,
+            netAmount: net,
+            vatRate: 19,
+            description: desc,
+            invoicePeriod: period,
+            dueDate: due || undefined,
+            renderedHtml,
+          }),
+        });
+        if (msg) msg.textContent = t("section.billing.createOk");
+        showActionToast(t("section.billing.createOk"));
+        createForm.reset();
+        _billingOverviewCache = { key: "", at: 0, data: null };
+        await loadBillingTab();
+      } catch (e) {
+        const err = e.message || e.data?.message || e.data?.error || t("section.billing.createFail");
+        if (msg) msg.textContent = err;
+        showActionToast(err, true);
+      }
+    });
+  }
+}
+
+
 
 function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {
   const cards = getOpsLayerOrder()
@@ -5802,6 +6080,7 @@ async function refreshActiveTab() {
   else if (tab === "access") await loadAccess();
   else if (tab === "mobile") await loadMobile();
   else if (tab === "operations") await loadOperations();
+  else if (tab === "billing") await loadBillingTab();
   else if (tab === "platform") await loadPlatform();
   else if (tab === "tools") await loadTools();
   else if (tab === "analytics") await loadAnalytics();

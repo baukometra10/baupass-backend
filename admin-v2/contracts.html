@@ -237,6 +237,25 @@
     }
     .sign-status-panel ul { margin:0.25rem 0 0; padding:0 0 0 1rem; }
     .sign-status-panel li { margin:0.15rem 0; }
+    .salary-redact-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.55rem 0.85rem;
+      background: rgba(251, 191, 36, 0.12);
+      border-bottom: 1px solid rgba(251, 191, 36, 0.35);
+      color: #fbbf24;
+      font-size: 0.78rem;
+      flex: 0 0 auto;
+    }
+    .salary-redact-banner.hidden { display: none; }
+    .field-redacted input,
+    .field-redacted select,
+    .field-redacted textarea {
+      color: #94a3b8 !important;
+      letter-spacing: 0.08em;
+    }
     .sign-status-actions { display:flex; gap:0.35rem; flex-wrap:wrap; margin-top:0.35rem; }
     .sign-status-actions button { font-size:0.68rem; padding:0.25rem 0.45rem; }
     .upgrade-gate {
@@ -337,6 +356,10 @@
       </select>
     </div>
   </header>
+  <div id="salaryRedactBanner" class="salary-redact-banner hidden" role="status">
+    <span data-cpi18n="salaryRedactedBanner">Gehalt und Vertragstext sind gesperrt. Zum Bearbeiten freischalten.</span>
+    <button type="button" class="compact" id="salaryUnlockBtn" data-cpi18n="salaryUnlockBtn">Freischalten</button>
+  </div>
   <div class="app-shell" id="mainRoot">
     <aside class="sidebar">
       <h3 data-cpi18n="searchTitle">Verträge</h3>
@@ -478,7 +501,7 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260723harden2"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260723layer3"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260723harden2"></script>
   <script src="/e2e-i18n.js?v=20260707e2e1"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
@@ -488,6 +511,6 @@
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="/ai-voice-ui.js?v=20260601voice22"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260723harden2"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260723layer3"></script>
 </body>
 </html>

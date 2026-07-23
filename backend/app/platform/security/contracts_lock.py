@@ -778,3 +778,116 @@ def require_contracts_unlocked(handler):
 
 # Shared owner step-up for contracts + sensitive exports / payroll.
 require_owner_step_up = require_contracts_unlocked
+
+_SALARY_FORM_KEYS = frozenset(
+    {
+        "salary_gross_monthly",
+        "hourly_rate",
+        "gross_monthly",
+        "monthly_salary",
+        "salary",
+        "gross_salary",
+        "bruttogehalt",
+        "hourly_wage",
+        "salary_hourly",
+        "salary_type",
+    }
+)
+_REDACTED_MARK = "••••"
+
+
+def sensitive_fields_locked(db, company_id: str, token: str | None) -> bool:
+    """True when salary/body should be redacted (lock active, session not unlocked)."""
+    if owner_setup_required(db, company_id):
+        return True
+    if not contracts_lock_required(db, company_id):
+        return False
+    return not is_contracts_unlocked(db, token, company_id)
+
+
+def _redact_form_dict(form: dict[str, Any]) -> dict[str, Any]:
+    out = dict(form or {})
+    for key in list(out.keys()):
+        if key in _SALARY_FORM_KEYS or "salary" in key.lower() or "lohn" in key.lower() or "hourly" in key.lower():
+            if out.get(key) not in (None, ""):
+                out[key] = _REDACTED_MARK
+    return out
+
+
+def redact_contract_record(contract: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Strip salary fields and contract body when step-up is locked."""
+    if not contract:
+        return contract
+    item = dict(contract)
+    item["salaryRedacted"] = True
+    item["bodyRedacted"] = True
+    # Hide full contract body (salary is embedded in prose).
+    if item.get("draft_text"):
+        item["draft_text"] = ""
+    if item.get("final_text"):
+        item["final_text"] = ""
+    if item.get("ai_prompt"):
+        item["ai_prompt"] = ""
+    # Redact structured form inside input_json
+    raw = item.get("input_json")
+    parsed: Any = raw
+    if isinstance(raw, str) and raw.strip():
+        try:
+            import json as _json
+
+            parsed = _json.loads(raw)
+        except Exception:
+            parsed = {}
+    if isinstance(parsed, dict):
+        form = parsed.get("form") if isinstance(parsed.get("form"), dict) else parsed
+        if isinstance(form, dict):
+            redacted_form = _redact_form_dict(form)
+            if "form" in parsed:
+                parsed = {**parsed, "form": redacted_form}
+            else:
+                parsed = redacted_form
+        try:
+            import json as _json
+
+            item["input_json"] = _json.dumps(parsed, ensure_ascii=False)
+        except Exception:
+            item["input_json"] = "{}"
+        item["form"] = parsed.get("form") if isinstance(parsed, dict) and isinstance(parsed.get("form"), dict) else parsed
+    # Common enriched keys
+    for key in list(item.keys()):
+        if key in _SALARY_FORM_KEYS:
+            item[key] = _REDACTED_MARK
+    return item
+
+
+def require_owner_setup_complete(handler):
+    """Block only when owner phone setup is still mandatory."""
+
+    @wraps(handler)
+    def wrapper(*args, **kwargs):
+        from backend.app.domains.shared import forbidden_company
+        from backend.server import get_db
+
+        data = request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH", "DELETE"} else None
+        cid = _resolve_company_id_for_request(data if isinstance(data, dict) else {})
+        if not cid:
+            return forbidden_company()
+        db = get_db()
+        if owner_setup_required(db, cid):
+            return (
+                jsonify(
+                    {
+                        "error": "owner_setup_required",
+                        "stepUpRequired": True,
+                        "ownerSetupRequired": True,
+                        "message": (
+                            "Owner-Handynummer muss eingerichtet werden, "
+                            "bevor Verträge nutzbar sind."
+                        ),
+                    }
+                ),
+                403,
+            )
+        return handler(*args, **kwargs)
+
+    return wrapper

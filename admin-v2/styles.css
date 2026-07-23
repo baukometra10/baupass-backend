@@ -1301,6 +1301,70 @@ button[disabled] {
   font-size: 1.1rem;
 }
 
+.billing-tab-layout {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.9fr);
+  align-items: start;
+  margin-top: 0.75rem;
+}
+
+.billing-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+.billing-invoices-list .billing-inv-row {
+  cursor: pointer;
+}
+
+.billing-invoices-list .billing-inv-row.active {
+  background: rgba(94, 234, 212, 0.08);
+}
+
+.billing-invoice-detail {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: var(--panel, rgba(0, 0, 0, 0.15));
+}
+
+.billing-detail-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.billing-detail-dl dt {
+  color: var(--muted);
+}
+
+.billing-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.billing-create-panel {
+  margin-top: 1.25rem;
+}
+
+.billing-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .billing-tab-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .layer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));

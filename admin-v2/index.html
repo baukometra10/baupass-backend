@@ -120,6 +120,7 @@
             <div class="nav-group">
               <span class="nav-group-label" data-i18n="nav.group.ops">Betrieb</span>
               <button type="button" data-tab="operations" class="tab nav-item" data-i18n="tab.operations">Betrieb</button>
+              <button type="button" data-tab="billing" class="tab nav-item" data-i18n="tab.billing">Rechnungen</button>
               <button type="button" data-tab="tools" class="tab nav-item" data-i18n="tab.tools">Tools</button>
               <button type="button" data-tab="platform" class="tab nav-item" data-i18n="tab.platform">Plattform</button>
             </div>
@@ -292,6 +293,38 @@
           <p class="muted small" data-i18n="section.operations.hint">Operations hint</p>
           <div id="operationsActionHub" class="betrieb-action-hub" role="navigation" aria-label="Betrieb Schnellzugriff"></div>
           <div id="operationsPanel" class="stack-panel"></div>
+        </div>
+        <div id="tab-billing" class="tab-panel hidden">
+          <h2 class="section-title" data-i18n="section.billing.title">Rechnungen & Abonnement</h2>
+          <p class="muted small" data-i18n="section.billing.desc">Übersicht, PDF, Zahlungslink und Status — ohne Legacy-Dashboard.</p>
+          <div id="billingTabSummary" class="billing-summary-panel"></div>
+          <form id="billingInvoiceFilterForm" class="tool-form billing-filter-form">
+            <input id="billingInvoiceQ" type="search" data-i18n-placeholder="section.billing.search" placeholder="Suche Nr. / E-Mail…" />
+            <select id="billingInvoiceStatus">
+              <option value="" data-i18n="section.billing.filterAll">Alle Status</option>
+              <option value="offen" data-i18n="section.billing.statusOpen">Offen</option>
+              <option value="bezahlt" data-i18n="section.billing.statusPaid">Bezahlt</option>
+              <option value="überfällig" data-i18n="section.billing.statusOverdue">Überfällig</option>
+              <option value="storniert" data-i18n="section.billing.statusCancelled">Storniert</option>
+            </select>
+            <button type="submit" data-i18n="common.refresh">Aktualisieren</button>
+          </form>
+          <div class="billing-tab-layout">
+            <div id="billingInvoicesList" class="table-wrap billing-invoices-list"></div>
+            <aside id="billingInvoiceDetail" class="billing-invoice-detail hidden" aria-live="polite"></aside>
+          </div>
+          <div id="billingCreatePanel" class="panel-block billing-create-panel hidden">
+            <h3 data-i18n="section.billing.createTitle">Rechnung erstellen (Superadmin)</h3>
+            <form id="billingCreateForm" class="tool-form billing-create-form">
+              <input id="billingCreateEmail" type="email" required data-i18n-placeholder="section.billing.createEmail" placeholder="Empfänger-E-Mail" />
+              <input id="billingCreateNumber" type="text" data-i18n-placeholder="section.billing.createNumber" placeholder="Rechnungsnr. (optional)" />
+              <input id="billingCreateNet" type="number" step="0.01" min="0" required data-i18n-placeholder="section.billing.createNet" placeholder="Netto EUR" />
+              <input id="billingCreateDesc" type="text" data-i18n-placeholder="section.billing.createDesc" placeholder="Beschreibung" />
+              <input id="billingCreateDue" type="date" />
+              <button type="submit" class="primary" data-i18n="section.billing.createSubmit">Erstellen &amp; senden</button>
+            </form>
+            <p id="billingCreateMsg" class="muted small"></p>
+          </div>
         </div>
         <div id="tab-tools" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.tools.hint">Tools hint</p>
@@ -520,7 +553,7 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
-  <script src="app.js?v=20260723harden2" type="module"></script>
+  <script src="app.js?v=20260723layer3" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

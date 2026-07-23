@@ -38,8 +38,11 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         normalize_phone,
         persist_otp,
         record_otp_delivery_result,
+        redact_contract_record,
         require_contracts_unlocked,
+        require_owner_setup_complete,
         send_otp_channels,
+        sensitive_fields_locked,
         set_company_owner_contact,
         unlock_contracts_session,
     )
@@ -257,7 +260,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def list_contract_templates():
         cid = _resolve_company_id()
         if not cid:
@@ -318,26 +321,35 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def list_contracts():
         cid = _resolve_company_id()
         if not cid:
             return forbidden_company()
-        return jsonify({"contracts": ContractsService(get_db()).list_contracts(cid)})
+        db = get_db()
+        rows = ContractsService(db).list_contracts(cid)
+        redacted = sensitive_fields_locked(db, cid, getattr(g, "token", ""))
+        if redacted:
+            rows = [redact_contract_record(r) for r in rows]
+        return jsonify({"contracts": rows, "salaryRedacted": redacted})
 
     @contracts_core_bp.get("/contracts/<contract_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def get_contract(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
             return forbidden_company()
-        contract = ContractsService(get_db()).get_contract(contract_id, cid)
+        db = get_db()
+        contract = ContractsService(db).get_contract(contract_id, cid)
         if not contract:
             return jsonify({"error": "contract_not_found"}), 404
-        return jsonify(contract)
+        redacted = sensitive_fields_locked(db, cid, getattr(g, "token", ""))
+        if redacted:
+            contract = redact_contract_record(contract)
+        return jsonify({**contract, "salaryRedacted": redacted})
 
     @contracts_core_bp.put("/contracts/<contract_id>")
     @require_auth
@@ -560,7 +572,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def list_contract_events(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -572,7 +584,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def list_contract_sign_sessions(contract_id: str):
         cid = _resolve_company_id()
         if not cid:
@@ -676,7 +688,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def contract_integrations_status():
         cid = _resolve_company_id()
         if not cid:

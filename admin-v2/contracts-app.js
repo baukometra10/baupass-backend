@@ -12,6 +12,9 @@
     let templateMeta = {};
     let lastSignSessions = [];
     let lastContractEvents = [];
+    let salaryFieldsRedacted = false;
+    let contractsSessionUnlocked = false;
+    const SENSITIVE_FIELD_IDS = ["salaryType", "salaryMonthly", "salaryHourly", "currency", "contractEditor"];
     const TOOLBAR_BTN_IDS = ["generateBtn", "saveBtn", "pdfBtn", "printBtn", "signLinkEmployeeBtn", "signLinkEmployerBtn", "signEmailEmployeeBtn", "signEmailEmployerBtn", "signSmsEmployeeBtn", "deleteBtn"];
 
     function setStatus(text, { active = false, error = false } = {}) {
@@ -61,12 +64,20 @@
 
     async function withToolbarAction(btnId, statusMsg, fn) {
       if (toolbarBusy) return;
+      const unlocked = await ensureUnlockedForMutation();
+      if (!unlocked) return;
       setToolbarBusy(btnId, statusMsg);
       try {
         await fn();
         clearToolbarBusy(btnId);
       } catch (e) {
         clearToolbarBusy();
+        if (e?.data?.error === "contracts_locked" || e?.data?.stepUpRequired) {
+          salaryFieldsRedacted = true;
+          contractsSessionUnlocked = false;
+          applyRedactionUi(true);
+          showLockOverlay({ setup: false });
+        }
         setStatus(mapApiError(e), { error: true });
         throw e;
       }
@@ -555,6 +566,11 @@
     async function fillFormFromContract(data) {
       const input = data.input_json ? (typeof data.input_json === "string" ? JSON.parse(data.input_json) : data.input_json) : {};
       const form = input.form || {};
+      const redacted = !!(data.salaryRedacted || data.bodyRedacted);
+      if (redacted) {
+        salaryFieldsRedacted = true;
+        applyRedactionUi(true);
+      }
       document.getElementById("contractTitle").value = data.title || "";
       if (data.template_id) document.getElementById("templateId").value = data.template_id;
       syncParentContractField();
@@ -582,17 +598,23 @@
       document.getElementById("weeklyHours").value = form.weekly_hours || "";
       document.getElementById("vacationDays").value = form.vacation_days || "";
       document.getElementById("probationMonths").value = form.probation_months || "";
-      document.getElementById("salaryType").value = form.salary_type || "monthly_fixed";
+      document.getElementById("salaryType").value = form.salary_type === "••••" ? "monthly_fixed" : (form.salary_type || "monthly_fixed");
       document.getElementById("currency").value = form.currency || "EUR";
-      document.getElementById("salaryMonthly").value = form.salary_gross_monthly || form.gross_monthly || form.monthly_salary || form.salary || "";
-      document.getElementById("salaryHourly").value = form.hourly_rate || form.hourly_wage || "";
+      const monthly = form.salary_gross_monthly || form.gross_monthly || form.monthly_salary || form.salary || "";
+      const hourly = form.hourly_rate || form.hourly_wage || "";
+      document.getElementById("salaryMonthly").value = redacted && monthly ? (window.contractPageT("salaryRedactedPlaceholder") || "••••") : monthly;
+      document.getElementById("salaryHourly").value = redacted && hourly ? (window.contractPageT("salaryRedactedPlaceholder") || "••••") : hourly;
       syncSalaryFields();
       document.getElementById("notes").value = input.notes || "";
       let contractText = data.final_text || data.draft_text || "";
-      if (window.E2EAdminBridge) {
+      if (window.E2EAdminBridge && contractText) {
         contractText = await window.E2EAdminBridge.decryptField(contractText);
       }
-      document.getElementById("contractEditor").value = contractText;
+      if (redacted && !contractText) {
+        document.getElementById("contractEditor").value = window.contractPageT("bodyRedactedPlaceholder") || "";
+      } else {
+        document.getElementById("contractEditor").value = contractText;
+      }
       baselineDraftText = data.draft_text || "";
       document.getElementById("diffPanel").classList.add("hidden");
       if (form.currency) document.getElementById("currency").dataset.userSet = "1";
@@ -690,6 +712,10 @@
     async function loadContracts() {
       const data = await api(`/api/contracts?company_id=${encodeURIComponent(companyId)}`);
       contracts = data.contracts || [];
+      if (data.salaryRedacted) {
+        salaryFieldsRedacted = true;
+        applyRedactionUi(true);
+      }
       renderContractList();
     }
     function renderContractList() {
@@ -851,12 +877,29 @@
         badge.onclick = null;
         lockBtn.classList.remove("hidden");
       } else {
-        badge.classList.add("hidden");
+        badge.classList.remove("hidden");
+        badge.textContent = window.contractPageT("lockSoftBrowse") || "🔒 Gehalt gesperrt";
+        badge.title = window.contractPageT("lockSoftBrowseHint") || "";
+        badge.onclick = () => showLockOverlay({ setup: false, enforced: !!status.setupEnforced });
         lockBtn.classList.add("hidden");
       }
     }
 
-    async function ensureContractsUnlocked() {
+    function applyRedactionUi(redacted) {
+      const banner = document.getElementById("salaryRedactBanner");
+      banner?.classList.toggle("hidden", !redacted);
+      const form = document.getElementById("contractForm");
+      form?.classList.toggle("field-redacted", !!redacted);
+      SENSITIVE_FIELD_IDS.forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.readOnly = !!redacted;
+        if (el.tagName === "SELECT") el.disabled = !!redacted;
+      });
+    }
+
+    async function ensureUnlockedForMutation() {
+      if (contractsSessionUnlocked && !salaryFieldsRedacted) return true;
       const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
       paintUnlockBadge(status);
       if (status.ownerSetupRequired) {
@@ -865,10 +908,10 @@
           window.__contractsUnlockResolve = resolve;
         });
       }
-      if (!status.lockRequired) {
-        return true;
-      }
-      if (status.unlocked) {
+      if (!status.lockRequired || status.unlocked) {
+        contractsSessionUnlocked = true;
+        salaryFieldsRedacted = false;
+        applyRedactionUi(false);
         hideLockOverlay();
         return true;
       }
@@ -876,6 +919,40 @@
       return new Promise((resolve) => {
         window.__contractsUnlockResolve = resolve;
       });
+    }
+
+    async function ensureContractsUnlocked() {
+      const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
+      paintUnlockBadge(status);
+      if (status.ownerSetupRequired) {
+        salaryFieldsRedacted = true;
+        contractsSessionUnlocked = false;
+        applyRedactionUi(true);
+        showLockOverlay({ setup: true, enforced: true });
+        return new Promise((resolve) => {
+          window.__contractsUnlockResolve = resolve;
+        });
+      }
+      if (!status.lockRequired) {
+        salaryFieldsRedacted = false;
+        contractsSessionUnlocked = true;
+        applyRedactionUi(false);
+        hideLockOverlay();
+        return true;
+      }
+      if (status.unlocked) {
+        salaryFieldsRedacted = false;
+        contractsSessionUnlocked = true;
+        applyRedactionUi(false);
+        hideLockOverlay();
+        return true;
+      }
+      // Soft browse: list/read with salary redaction; mutations require OTP.
+      salaryFieldsRedacted = true;
+      contractsSessionUnlocked = false;
+      applyRedactionUi(true);
+      hideLockOverlay();
+      return true;
     }
 
     async function sendLockOtp() {
@@ -930,9 +1007,17 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        paintUnlockBadge(res);
+        salaryFieldsRedacted = false;
+        contractsSessionUnlocked = true;
+        applyRedactionUi(false);
+        paintUnlockBadge({ ...res, lockRequired: true, unlocked: true });
         hideLockOverlay();
         setStatus(window.contractPageT("lockUnlockedToast") || "Vertragsbereich freigeschaltet.", { active: true });
+        await loadContracts();
+        if (currentContractId) {
+          const detail = await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`);
+          await fillFormFromContract(detail);
+        }
         if (typeof window.__contractsUnlockResolve === "function") {
           window.__contractsUnlockResolve(true);
           window.__contractsUnlockResolve = null;
@@ -951,6 +1036,9 @@
         window.__contractsUnlockResolve = null;
       }
     });
+    document.getElementById("salaryUnlockBtn")?.addEventListener("click", () => {
+      showLockOverlay({ setup: false });
+    });
     document.getElementById("contractsLockBtn")?.addEventListener("click", async () => {
       try {
         await api("/api/contracts/lock", {
@@ -958,8 +1046,17 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ company_id: companyId }),
         });
-        showLockOverlay({ setup: false });
+        salaryFieldsRedacted = true;
+        contractsSessionUnlocked = false;
+        applyRedactionUi(true);
+        hideLockOverlay();
         paintUnlockBadge({ lockRequired: true, unlocked: false });
+        await loadContracts();
+        if (currentContractId) {
+          const detail = await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`);
+          await fillFormFromContract(detail);
+        }
+        setStatus(window.contractPageT("lockSoftBrowse") || "Gehalt gesperrt", { active: true });
       } catch (e) {
         setStatus(mapApiError(e), { error: true });
       }

@@ -92,9 +92,12 @@ def test_contracts_lock_otp_flow(client_and_db, monkeypatch):
     )
     assert locked.status_code == 200
 
-    blocked = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
-    assert blocked.status_code == 403
-    assert blocked.get_json().get("error") == "contracts_locked"
+    soft = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
+    assert soft.status_code == 200
+
+    listed = client.get(f"/api/contracts?company_id={company_id}", headers=headers)
+    assert listed.status_code == 200
+    assert listed.get_json().get("salaryRedacted") is True
 
     # Request + verify again
     req2 = client.post(
@@ -218,3 +221,87 @@ def test_otp_request_rate_limit(client_and_db, monkeypatch):
     )
     assert second.status_code == 429
     assert second.get_json().get("error") == "rate_limited"
+
+
+def test_contracts_salary_redacted_when_locked(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "SalaryRedactCo")
+    monkeypatch.setenv("BAUPASS_ENV", "testing")
+    monkeypatch.setattr(
+        "backend.app.platform.security.contracts_lock._OTP_REQUEST_MIN_SECONDS",
+        0,
+    )
+
+    setup = client.post(
+        "/api/contracts/lock/request-otp",
+        json={"company_id": company_id, "setup": True, "phone": "+491704444444", "email": "s@example.com"},
+        headers=headers,
+    )
+    code = (setup.get_json() or {}).get("debugCode")
+    client.post(
+        "/api/contracts/lock/verify",
+        json={
+            "company_id": company_id,
+            "setup": True,
+            "phone": "+491704444444",
+            "email": "s@example.com",
+            "code": code,
+        },
+        headers=headers,
+    )
+
+    tpl = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
+    assert tpl.status_code == 200
+    templates = (tpl.get_json() or {}).get("templates") or []
+    assert templates
+    template_id = templates[0]["id"]
+
+    draft = client.post(
+        "/api/contracts/draft",
+        json={
+            "company_id": company_id,
+            "template_id": template_id,
+            "form": {
+                "employee_name": "Max Mustermann",
+                "employee_gender": "male",
+                "job_title": "Maurer",
+                "start_date": "2026-08-01",
+                "weekly_hours": "40",
+                "salary_type": "monthly_fixed",
+                "salary_gross_monthly": "3200",
+                "currency": "EUR",
+            },
+        },
+        headers=headers,
+    )
+    assert draft.status_code == 200, draft.get_json()
+    contract_id = ((draft.get_json() or {}).get("contract") or {}).get("id")
+    assert contract_id
+
+    client.post("/api/contracts/lock", json={"company_id": company_id}, headers=headers)
+
+    listed = client.get(f"/api/contracts?company_id={company_id}", headers=headers)
+    assert listed.status_code == 200
+    body = listed.get_json() or {}
+    assert body.get("salaryRedacted") is True
+    rows = body.get("contracts") or []
+    assert rows
+    assert "3200" not in str(rows[0].get("input_json") or "")
+    assert rows[0].get("final_text") in ("", None)
+    assert rows[0].get("draft_text") in ("", None)
+
+    detail = client.get(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
+    assert detail.status_code == 200
+    d = detail.get_json() or {}
+    assert d.get("salaryRedacted") is True
+    assert d.get("bodyRedacted") is True
+    assert not (d.get("final_text") or d.get("draft_text"))
+
+    blocked_pdf = client.post(
+        f"/api/contracts/{contract_id}/generate-pdf",
+        json={"company_id": company_id},
+        headers=headers,
+    )
+    assert blocked_pdf.status_code == 403
+    assert blocked_pdf.get_json().get("error") == "contracts_locked"
