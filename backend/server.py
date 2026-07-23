@@ -7301,6 +7301,7 @@ def create_system_alert(db, code, severity, message, details="", dedup_minutes=A
             SELECT id
             FROM system_alerts
             WHERE code = ? AND severity = ? AND message = ? AND created_at >= ?
+              AND resolved_at IS NULL
             ORDER BY created_at DESC
             LIMIT 1
             """,

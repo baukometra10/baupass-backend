@@ -502,9 +502,38 @@ def resolve_inbox_item(
 
     if item_id.startswith("sys:"):
         alert_id = item_id[4:]
+        row = db.execute(
+            "SELECT id, details, resolved_at FROM system_alerts WHERE id = ?",
+            (alert_id,),
+        ).fetchone()
+        if not row:
+            return {"ok": False, "error": "not_found"}
+        details_obj: dict[str, Any] = {}
+        raw_details = row["details"] or ""
+        if isinstance(raw_details, str) and raw_details.strip():
+            try:
+                parsed = json.loads(raw_details)
+                if isinstance(parsed, dict):
+                    details_obj = parsed
+            except Exception:
+                details_obj = {}
+        if company_id:
+            cid = str(company_id)
+            owned = (
+                cid in raw_details
+                or str(details_obj.get("companyId") or "") == cid
+                or str(details_obj.get("company_id") or "") == cid
+            )
+            if not owned:
+                return {"ok": False, "error": "forbidden"}
+        if row["resolved_at"]:
+            return {"ok": True, "id": item_id, "status": "acknowledged", "alreadyResolved": True}
+        details_obj["acknowledgedAt"] = _now_iso()
+        details_obj["acknowledgedBy"] = str(user_id or "")
+        details_obj["autoAckOnOpen"] = True
         db.execute(
-            "UPDATE system_alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL",
-            (_now_iso(), alert_id),
+            "UPDATE system_alerts SET resolved_at = ?, details = ? WHERE id = ? AND resolved_at IS NULL",
+            (_now_iso(), json.dumps(details_obj, ensure_ascii=False), alert_id),
         )
         db.commit()
         from .events import notify_inbox_changed

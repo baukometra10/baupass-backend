@@ -1069,11 +1069,19 @@ function scheduleOverviewReload() {
 
 function scheduleInboxReload() {
   clearTimeout(scheduleInboxReload._t);
+  // Skip briefly after a local ack so a realtime echo cannot resurrect the row.
+  if (Date.now() < (scheduleInboxReload._suppressUntil || 0)) return;
   scheduleInboxReload._t = setTimeout(() => {
+    if (Date.now() < (scheduleInboxReload._suppressUntil || 0)) return;
     const tab = document.querySelector(".tab.active")?.dataset?.tab;
     if (tab === "inbox") loadInbox().catch(() => {});
     else refreshInboxBadgeOnly();
   }, 500);
+}
+
+function suppressInboxReload(ms = 2500) {
+  scheduleInboxReload._suppressUntil = Date.now() + Math.max(500, ms);
+  clearTimeout(scheduleInboxReload._t);
 }
 
 async function startAdminRealtime() {
@@ -3702,7 +3710,6 @@ async function loadInbox() {
     if (!raw) return;
     const it = localizeInboxItem(raw);
     const panel = $("inboxDetailPanel");
-    if (!panel) return;
     const details = it.details || {};
     const events = Array.isArray(details.lateEvents) ? details.lateEvents : [];
     const eventHtml = events.length
@@ -3716,8 +3723,29 @@ async function loadInbox() {
           .join("")}</ul>`
       : "";
     const reason = String(details.reasonSummary || "").trim();
-    panel.classList.remove("hidden");
-    panel.innerHTML = `
+    const shouldAutoAck =
+      Boolean(it.autoAckOnOpen) && String(it.id || "").startsWith("sys:") && it.status !== "resolved";
+
+    // Ack as soon as the employer opens/reads the alert — before UI paint so it cannot stick.
+    if (shouldAutoAck) {
+      try {
+        suppressInboxReload(3000);
+        await api(`/api/inbox/${encodeURIComponent(it.id)}/resolve${q}`, {
+          method: "POST",
+          body: "{}",
+        });
+        it.status = "resolved";
+        raw.status = "resolved";
+        showActionToast(t("inbox.ackedOnOpen"), false);
+        await refreshInboxBadgeOnly();
+      } catch (e) {
+        showActionToast(e.message, true);
+      }
+    }
+
+    if (panel) {
+      panel.classList.remove("hidden");
+      panel.innerHTML = `
       <div class="inbox-detail-head">
         <h3>${escapeHtml(it.title || "")}</h3>
         <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
@@ -3735,39 +3763,56 @@ async function loadInbox() {
           .join("")}
       </div>
     `;
-    panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
-      panel.classList.add("hidden");
-      panel.innerHTML = "";
-    });
-    panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
-      btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
-    });
-    // Opening employer alerts dismisses them from the open list.
-    if (it.autoAckOnOpen && String(it.id || "").startsWith("sys:") && it.status !== "resolved") {
-      try {
-        await api(`/api/inbox/${encodeURIComponent(it.id)}/resolve${q}`, {
-          method: "POST",
-          body: "{}",
+      panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
+        panel.classList.add("hidden");
+        panel.innerHTML = "";
+      });
+      panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
+        btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
+      });
+    }
+
+    if (shouldAutoAck) {
+      // Full reload keeps badge/list consistent even if soft-remove selectors fail.
+      const detailHtml = panel?.innerHTML || "";
+      const detailOpen = panel && !panel.classList.contains("hidden");
+      await loadInbox();
+      if (detailOpen && panel && detailHtml) {
+        panel.classList.remove("hidden");
+        panel.innerHTML = detailHtml;
+        panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
+          panel.classList.add("hidden");
+          panel.innerHTML = "";
         });
-        showActionToast(t("inbox.ackedOnOpen"), false);
-        await refreshInboxBadgeOnly();
-        // Soft-remove from local list without full reload flicker when possible
-        const row = el.querySelector(`tr[data-inbox-id="${CSS.escape(it.id)}"]`);
-        row?.remove();
-        delete itemById[it.id];
-        if (!el.querySelector("tbody tr")) {
-          el.innerHTML = `<p class="muted">${t("inbox.empty")}</p>`;
-        }
-      } catch (e) {
-        showActionToast(e.message, true);
+        panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
+          btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
+        });
       }
     }
   }
   async function runInboxAiAnalyze(btn) {
     const prompt = decodeURIComponent(btn.dataset.prompt || "");
     const agent = btn.dataset.agent || "decision";
+    const alertId = String(btn.dataset.id || "").trim();
     const aiPanel = $("inboxAiPanel");
     if (!prompt) return;
+    // Reading via AI analysis also dismisses employer auto-ack alerts.
+    if (alertId.startsWith("sys:")) {
+      const raw = itemById[alertId];
+      if (raw && raw.autoAckOnOpen && raw.status !== "resolved") {
+        try {
+          suppressInboxReload(3000);
+          await api(`/api/inbox/${encodeURIComponent(alertId)}/resolve${q}`, {
+            method: "POST",
+            body: "{}",
+          });
+          raw.status = "resolved";
+          showActionToast(t("inbox.ackedOnOpen"), false);
+        } catch (_) {
+          /* keep analyzing even if ack fails */
+        }
+      }
+    }
     if (aiPanel) {
       aiPanel.classList.remove("hidden");
       aiPanel.innerHTML = `<p class="muted">${t("inbox.aiAnalyzing")}</p>`;
@@ -3913,11 +3958,28 @@ async function loadInbox() {
       }
     }
   }
-  el.querySelectorAll(".inbox-row-main, .inbox-open").forEach((node) => {
+  el.querySelectorAll(".inbox-row").forEach((tr) => {
+    tr.addEventListener("click", (ev) => {
+      if (ev.target.closest("a, button, input, label, .inbox-pick, .inbox-resolve, .inbox-exec, .inbox-ai-analyze, .inbox-nav-deployment, .inbox-nav-parent")) {
+        return;
+      }
+      ev.preventDefault();
+      const id = tr.getAttribute("data-inbox-id");
+      if (id) openInboxItem(id).catch((e) => showActionToast(e.message, true));
+    });
+    tr.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      if (ev.target !== tr) return;
+      ev.preventDefault();
+      const id = tr.getAttribute("data-inbox-id");
+      if (id) openInboxItem(id).catch((e) => showActionToast(e.message, true));
+    });
+  });
+  el.querySelectorAll(".inbox-open").forEach((node) => {
     node.addEventListener("click", (ev) => {
       ev.preventDefault();
-      const tr = node.closest("tr[data-inbox-id]");
-      const id = tr?.getAttribute("data-inbox-id") || node.dataset.id;
+      ev.stopPropagation();
+      const id = node.dataset.id || node.closest("tr[data-inbox-id]")?.getAttribute("data-inbox-id");
       if (id) openInboxItem(id).catch((e) => showActionToast(e.message, true));
     });
   });

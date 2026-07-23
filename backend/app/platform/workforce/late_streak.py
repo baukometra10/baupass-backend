@@ -1,6 +1,7 @@
 """Consecutive late check-in streaks for employer alerts."""
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -155,6 +156,60 @@ def evaluate_late_streak_after_checkin(
     }
 
 
+def list_acked_late_streaks(
+    db,
+    company_id: str,
+    *,
+    lookback_days: int = 14,
+) -> dict[str, int]:
+    """Map workerId -> highest acknowledged late streak (recent window)."""
+    cid = str(company_id or "").strip()
+    if not cid:
+        return {}
+    since = (datetime.utcnow() - timedelta(days=max(1, lookback_days))).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        rows = db.execute(
+            """
+            SELECT details, resolved_at
+            FROM system_alerts
+            WHERE code = 'repeated_late_checkin'
+              AND resolved_at IS NOT NULL
+              AND resolved_at >= ?
+            ORDER BY resolved_at DESC
+            LIMIT 200
+            """,
+            (since,),
+        ).fetchall()
+    except Exception:
+        return {}
+    out: dict[str, int] = {}
+    for row in rows:
+        raw = row["details"] or ""
+        try:
+            details = json.loads(raw) if isinstance(raw, str) and raw.strip() else {}
+        except Exception:
+            details = {}
+        if not isinstance(details, dict):
+            continue
+        owned = (
+            cid in str(raw)
+            or str(details.get("companyId") or "") == cid
+            or str(details.get("company_id") or "") == cid
+        )
+        if not owned:
+            continue
+        wid = str(details.get("workerId") or "").strip()
+        if not wid:
+            continue
+        streak = int(details.get("streak") or 0)
+        if streak <= 0:
+            continue
+        prev = out.get(wid, 0)
+        if streak > prev:
+            out[wid] = streak
+    return out
+
+
 def list_repeated_late_workers(
     db,
     company_id: str,
@@ -162,6 +217,7 @@ def list_repeated_late_workers(
     min_streak: int = LATE_STREAK_THRESHOLD,
     limit: int = 10,
     lookback_days: int = 21,
+    exclude_acked: bool = True,
 ) -> list[dict[str, Any]]:
     """Workers in company with consecutive late streak >= min_streak (capped list)."""
     cid = str(company_id or "").strip()
@@ -187,11 +243,15 @@ def list_repeated_late_workers(
         """,
         (cid, since),
     ).fetchall()
+    acked = list_acked_late_streaks(db, cid, lookback_days=max(7, lookback_days)) if exclude_acked else {}
     out: list[dict[str, Any]] = []
     for row in candidates:
         wid = str(row["id"])
         streak = count_consecutive_late_checkins(db, wid, limit_days=lookback_days)
         if streak < int(min_streak or LATE_STREAK_THRESHOLD):
+            continue
+        # Hide workers already reviewed for this streak (or lower) after inbox read/ack.
+        if exclude_acked and streak <= int(acked.get(wid) or 0):
             continue
         first = str(row["first_name"] or "").strip()
         last = str(row["last_name"] or "").strip()

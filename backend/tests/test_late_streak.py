@@ -157,6 +157,62 @@ def test_list_repeated_late_workers(db_conn):
     assert rows[0]["streak"] >= 3
 
 
+def test_acked_late_alert_hides_overview_and_inbox(db_conn):
+    import json
+
+    from backend.app.platform.inbox.service import build_operations_inbox, resolve_inbox_item
+    from backend.app.platform.workforce.late_streak import list_acked_late_streaks
+
+    real_today = date.today()
+    for i in range(3):
+        _insert_checkin(db_conn, day=real_today - timedelta(days=i), late=True)
+
+    details = json.dumps(
+        {
+            "companyId": "co-1",
+            "workerId": "wrk-1",
+            "workerName": "Late Worker",
+            "streak": 3,
+            "autoAckOnOpen": True,
+            "i18nKey": "repeated_late_checkin",
+        },
+        ensure_ascii=False,
+    )
+    db_conn.execute(
+        """
+        INSERT INTO system_alerts (id, code, severity, message, details, created_at, resolved_at)
+        VALUES ('alert-late-1', 'repeated_late_checkin', 'warning', 'Late Worker war wiederholt hintereinander zu spät.', ?, ?, NULL)
+        """,
+        (details, datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")),
+    )
+    db_conn.commit()
+
+    inbox = build_operations_inbox(db_conn, "co-1", role="company-admin", limit=40)
+    sys_items = [it for it in inbox.get("items") or [] if it.get("id") == "sys:alert-late-1"]
+    assert len(sys_items) == 1
+    assert sys_items[0].get("autoAckOnOpen") is True
+
+    result = resolve_inbox_item(
+        db_conn,
+        item_id="sys:alert-late-1",
+        company_id="co-1",
+        user_id="admin-1",
+    )
+    assert result.get("ok") is True
+
+    inbox2 = build_operations_inbox(db_conn, "co-1", role="company-admin", limit=40)
+    assert not any(it.get("id") == "sys:alert-late-1" for it in inbox2.get("items") or [])
+
+    acked = list_acked_late_streaks(db_conn, "co-1")
+    assert acked.get("wrk-1") == 3
+    hidden = list_repeated_late_workers(db_conn, "co-1", min_streak=3, limit=5)
+    assert hidden == []
+    still_visible = list_repeated_late_workers(
+        db_conn, "co-1", min_streak=3, limit=5, exclude_acked=False
+    )
+    assert len(still_visible) == 1
+
+
 def test_notify_repeated_late_dedups(client_and_db, monkeypatch):
     from backend import server
     from backend.app.platform.notifications.company_mitteilung import (
