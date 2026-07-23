@@ -22,11 +22,14 @@ _OTP_TTL_MINUTES = 10
 _UNLOCK_TTL_MINUTES_DEFAULT = 15
 _OTP_MAX_ATTEMPTS = 5
 _OTP_LOCKOUT_SECONDS = 300
+_OTP_REQUEST_MIN_SECONDS = 45
+_OTP_REQUEST_MAX_PER_HOUR = 8
 _STEP_UP_PURPOSE = "owner"
 
 # Process-local fallback only if DB table is missing (legacy/dev).
 _fail_counts: dict[str, tuple[int, float]] = {}
 _otp_store: dict[str, tuple[str, float]] = {}
+_delivery_fail_counts: dict[str, int] = {}
 
 
 def _now() -> datetime:
@@ -129,9 +132,168 @@ def ensure_step_up_tables(db) -> None:
             )
             """
         )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS step_up_otp_requests (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                last_request_at TEXT NOT NULL DEFAULT '',
+                window_started_at TEXT NOT NULL DEFAULT '',
+                window_count INTEGER NOT NULL DEFAULT 0,
+                delivery_fail_streak INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (purpose, company_id)
+            )
+            """
+        )
         db.commit()
     except Exception as exc:
         _log.warning("ensure_step_up_tables failed: %s", exc)
+
+
+def owner_step_up_enforced() -> bool:
+    """When true, owner phone setup is mandatory before contracts/exports."""
+    raw = str(os.getenv("BAUPASS_OWNER_STEP_UP_ENFORCE", "")).strip().lower()
+    if raw in {"0", "false", "off", "no"}:
+        return False
+    if raw in {"1", "true", "on", "yes"}:
+        return True
+    env = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
+    if env in {"testing", "test", "dev", "development"}:
+        return False
+    try:
+        from flask import current_app
+
+        if current_app and current_app.config.get("TESTING"):
+            return False
+    except Exception:
+        pass
+    # Production / staging default: enforce.
+    return True
+
+
+def assert_otp_request_allowed(db, company_id: str) -> None:
+    """Throttle OTP issuance (not only verify attempts)."""
+    ensure_step_up_tables(db)
+    cid = str(company_id)
+    now = _now()
+    now_iso = _now_iso()
+    streak = 0
+    try:
+        row = db.execute(
+            """
+            SELECT last_request_at, window_started_at, window_count, delivery_fail_streak
+            FROM step_up_otp_requests
+            WHERE purpose = ? AND company_id = ?
+            """,
+            (_STEP_UP_PURPOSE, cid),
+        ).fetchone()
+    except Exception:
+        row = None
+
+    window_started = now_iso
+    window_count = 1
+    if row:
+        streak = int(row["delivery_fail_streak"] or 0)
+        last = str(row["last_request_at"] or "").strip()
+        window_started = str(row["window_started_at"] or "").strip() or now_iso
+        window_count = int(row["window_count"] or 0)
+        if last:
+            try:
+                last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                delta = int((now - last_dt).total_seconds())
+                if delta < _OTP_REQUEST_MIN_SECONDS:
+                    raise ValueError(f"rate_limited:{max(1, _OTP_REQUEST_MIN_SECONDS - delta)}")
+            except ValueError as exc:
+                if str(exc).startswith("rate_limited:"):
+                    raise
+        try:
+            win_dt = datetime.strptime(window_started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            if (now - win_dt).total_seconds() >= 3600:
+                window_started = now_iso
+                window_count = 0
+            elif window_count >= _OTP_REQUEST_MAX_PER_HOUR:
+                retry = max(1, int(3600 - (now - win_dt).total_seconds()))
+                raise ValueError(f"rate_limited:{retry}")
+        except ValueError as exc:
+            if str(exc).startswith("rate_limited:"):
+                raise
+            window_started = now_iso
+            window_count = 0
+        window_count += 1
+
+    db.execute(
+        "DELETE FROM step_up_otp_requests WHERE purpose = ? AND company_id = ?",
+        (_STEP_UP_PURPOSE, cid),
+    )
+    db.execute(
+        """
+        INSERT INTO step_up_otp_requests
+            (purpose, company_id, last_request_at, window_started_at, window_count, delivery_fail_streak)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (_STEP_UP_PURPOSE, cid, now_iso, window_started, window_count, streak),
+    )
+    db.commit()
+
+
+def record_otp_delivery_result(db, company_id: str, *, delivered: bool) -> int:
+    """Track consecutive OTP delivery failures; returns current streak."""
+    ensure_step_up_tables(db)
+    cid = str(company_id)
+    streak = 0
+    try:
+        row = db.execute(
+            """
+            SELECT delivery_fail_streak, last_request_at, window_started_at, window_count
+            FROM step_up_otp_requests
+            WHERE purpose = ? AND company_id = ?
+            """,
+            (_STEP_UP_PURPOSE, cid),
+        ).fetchone()
+    except Exception:
+        row = None
+    if row:
+        streak = int(row["delivery_fail_streak"] or 0)
+        streak = 0 if delivered else streak + 1
+        db.execute(
+            "DELETE FROM step_up_otp_requests WHERE purpose = ? AND company_id = ?",
+            (_STEP_UP_PURPOSE, cid),
+        )
+        db.execute(
+            """
+            INSERT INTO step_up_otp_requests
+                (purpose, company_id, last_request_at, window_started_at, window_count, delivery_fail_streak)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _STEP_UP_PURPOSE,
+                cid,
+                str(row["last_request_at"] or _now_iso()),
+                str(row["window_started_at"] or _now_iso()),
+                int(row["window_count"] or 0),
+                streak,
+            ),
+        )
+        db.commit()
+    else:
+        streak = 0 if delivered else 1
+        _delivery_fail_counts[cid] = streak
+        return streak
+    if not delivered and streak >= 3:
+        try:
+            from backend.server import create_system_alert, get_db
+
+            create_system_alert(
+                db if db is not None else get_db(),
+                code=f"step_up_otp_delivery_{cid}",
+                severity="warning",
+                message=f"Owner-OTP Zustellung fehlgeschlagen ({streak}×) für Firma {cid}.",
+                details={"companyId": cid, "streak": streak},
+                dedup_minutes=180,
+            )
+        except Exception as exc:
+            _log.warning("otp delivery alert failed: %s", exc)
+    return streak
 
 
 def _check_rate_limit(db, company_id: str, user_id: str) -> tuple[bool, int]:
@@ -276,11 +438,19 @@ def company_owner_email(db, company_id: str) -> str:
 
 
 def contracts_lock_required(db, company_id: str) -> bool:
-    """Lock is active only after an owner phone was configured."""
-    return bool(company_owner_phone(db, company_id))
+    """Active when owner phone is set, or when enforcement requires setup."""
+    if company_owner_phone(db, company_id):
+        return True
+    return owner_step_up_enforced()
+
+
+def owner_setup_required(db, company_id: str) -> bool:
+    return owner_step_up_enforced() and not bool(company_owner_phone(db, company_id))
 
 
 def is_contracts_unlocked(db, token: str | None, company_id: str) -> bool:
+    if owner_setup_required(db, company_id):
+        return False
     if not contracts_lock_required(db, company_id):
         return True
     tok = str(token or "").strip()
@@ -508,10 +678,12 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
 
     phone = company_owner_phone(db, company_id)
     email = company_owner_email(db, company_id)
-    required = bool(phone)
+    enforced = owner_step_up_enforced()
+    setup_needed = enforced and not bool(phone)
+    required = bool(phone) or enforced
     unlocked = is_contracts_unlocked(db, token, company_id)
     until = ""
-    if unlocked and token:
+    if unlocked and token and required and not setup_needed:
         try:
             row = db.execute(
                 "SELECT contracts_unlocked_until FROM sessions WHERE token = ?",
@@ -522,13 +694,17 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
             until = ""
     return {
         "lockRequired": required,
+        "setupEnforced": enforced,
+        "ownerSetupRequired": setup_needed,
         "hasOwnerPhone": bool(phone),
-        "unlocked": unlocked if required else True,
-        "unlockedUntil": until if required and unlocked else "",
+        "unlocked": False if setup_needed else (unlocked if required else True),
+        "unlockedUntil": until if required and unlocked and not setup_needed else "",
         "phoneMasked": mask_phone(phone) if phone else "",
         "emailMasked": mask_email(email) if email else "",
         "smsConfigured": sms_configured(),
         "unlockTtlMinutes": unlock_ttl_minutes(),
+        "otpRequestMinSeconds": _OTP_REQUEST_MIN_SECONDS,
+        "otpRequestMaxPerHour": _OTP_REQUEST_MAX_PER_HOUR,
     }
 
 
@@ -566,6 +742,21 @@ def require_contracts_unlocked(handler):
         if not cid:
             return forbidden_company()
         db = get_db()
+        if owner_setup_required(db, cid):
+            return (
+                jsonify(
+                    {
+                        "error": "owner_setup_required",
+                        "stepUpRequired": True,
+                        "ownerSetupRequired": True,
+                        "message": (
+                            "Owner-Handynummer muss eingerichtet werden, "
+                            "bevor Verträge oder sensible Exporte nutzbar sind."
+                        ),
+                    }
+                ),
+                403,
+            )
         if contracts_lock_required(db, cid) and not is_contracts_unlocked(db, getattr(g, "token", ""), cid):
             return (
                 jsonify(

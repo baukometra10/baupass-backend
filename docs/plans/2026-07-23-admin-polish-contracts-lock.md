@@ -82,4 +82,11 @@ Approved: SMS OTP to owner phone + email backup (Phase 1 implemented).
   - Platform/tools channel readiness (SMS/Stripe/Redis/email/OpenAI)
   - Copilot empty/quota messaging
   - Extra contract list/sign indexes (migration 041)
-- Deferred: full invoices CRUD in admin-v2; contracts script split; field-level salary redaction
+- Hardening follow-up 2 (2026-07-23):
+  - Enforce owner phone setup in production (`BAUPASS_OWNER_STEP_UP_ENFORCE`, default on outside testing)
+  - OTP request rate-limit (45s / 8 per hour) + delivery-fail alerts
+  - Richer step-up audit events (`step_up.*`)
+  - Invoice PDF download from admin-v2 billing panel
+  - Contracts page script split to `contracts-app.js`
+  - Daily job alerts for down critical channels
+- Deferred: full invoices CRUD in admin-v2; field-level salary redaction

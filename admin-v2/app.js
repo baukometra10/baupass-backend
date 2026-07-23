@@ -3151,18 +3151,39 @@ function renderRecentInvoicesHtml(rows) {
       const paid = inv.paid_at || inv.paidAt;
       const created = escapeHtml(String(inv.created_at || inv.createdAt || "").slice(0, 10));
       const payUrl = inv.stripe_payment_link_url || inv.stripePaymentLinkUrl || "";
+      const invId = encodeURIComponent(inv.id || "");
       const payCell = payUrl && !paid
         ? `<a href="${escapeHtml(payUrl)}" target="_blank" rel="noopener">${t("billing.payLink")}</a>`
         : paid
           ? `<span class="integration-status-pill is-ok">${t("billing.paid")}</span>`
           : "—";
-      return `<tr><td>${num}</td><td>${created}</td><td>${status}</td><td>${total}</td><td>${payCell}</td></tr>`;
+      const pdfCell = invId
+        ? `<button type="button" class="btn-link" data-invoice-pdf="${invId}">${t("billing.pdf")}</button>`
+        : "—";
+      return `<tr><td>${num}</td><td>${created}</td><td>${status}</td><td>${total}</td><td>${payCell}</td><td>${pdfCell}</td></tr>`;
     })
     .join("");
   return `<table><thead><tr>
     <th>${t("billing.colNumber")}</th><th>${t("billing.colDate")}</th>
-    <th>${t("billing.colStatus")}</th><th>${t("billing.colTotal")}</th><th></th>
+    <th>${t("billing.colStatus")}</th><th>${t("billing.colTotal")}</th><th></th><th></th>
   </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function downloadInvoicePdf(invoiceId) {
+  const token = wpGet(TOKEN_KEY) || "";
+  const res = await fetch(`${apiBase()}/api/invoices/${encodeURIComponent(invoiceId)}/document.pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || err.error || `PDF ${res.status}`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }
 
 async function loadBillingSummaryPanel(cid) {
@@ -3185,7 +3206,16 @@ async function loadBillingSummaryPanel(cid) {
   const qs = cid && getUser().role === "superadmin" ? `?company_id=${encodeURIComponent(cid)}` : "";
   const invoices = await api(`/api/invoices${qs}`).catch(() => []);
   const tableHost = panel.querySelector("#billingInvoicesTable");
-  if (tableHost) tableHost.innerHTML = renderRecentInvoicesHtml(invoices);
+  if (tableHost) {
+    tableHost.innerHTML = renderRecentInvoicesHtml(invoices);
+    tableHost.querySelectorAll("[data-invoice-pdf]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        downloadInvoicePdf(btn.getAttribute("data-invoice-pdf")).catch((e) =>
+          showActionToast(e.message || String(e), true),
+        );
+      });
+    });
+  }
 }
 
 function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {

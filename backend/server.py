@@ -3932,6 +3932,19 @@ def init_db():
         )
         """
     )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS step_up_otp_requests (
+            purpose TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            last_request_at TEXT NOT NULL DEFAULT '',
+            window_started_at TEXT NOT NULL DEFAULT '',
+            window_count INTEGER NOT NULL DEFAULT 0,
+            delivery_fail_streak INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (purpose, company_id)
+        )
+        """
+    )
     try:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_employment_contracts_company_created ON employment_contracts(company_id, created_at DESC)"
@@ -8136,10 +8149,17 @@ def run_daily_jobs_cycle_once():
         if callable(check_doc_expiry_warnings):
             check_doc_expiry_warnings()
         monthly_result = {}
+        channel_alerts = {}
         with app.app_context():
             db = get_db()
             lock_workers_with_expired_documents(db)
             monthly_result = run_monthly_invoice_cycle(db)
+            try:
+                from backend.app.platform.setup_status import alert_critical_channels_if_needed
+
+                channel_alerts = alert_critical_channels_if_needed(db)
+            except Exception as channel_exc:
+                channel_alerts = {"ok": False, "error": str(channel_exc)}
             if monthly_result.get("failed", 0) > 0:
                 create_system_alert(
                     db,
@@ -8211,6 +8231,7 @@ def run_daily_jobs_cycle_once():
         summary = {
             "ok": True,
             "monthly": monthly_result,
+            "channelAlerts": channel_alerts,
             "autopilot": autopilot_result,
             "databaseBackup": backup_result,
             "cameraDigest": camera_digest_result,

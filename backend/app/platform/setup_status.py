@@ -314,3 +314,32 @@ def _score(redis_url: str) -> dict[str, Any]:
     except Exception:
         pass
     return {"percent": int(100 * score / max(1, len(checks))), "missing": missing}
+
+
+def alert_critical_channels_if_needed(db) -> dict[str, Any]:
+    """Create deduped system alerts for missing production channels."""
+    from backend.server import create_system_alert
+
+    alerts = _channels_alerts()
+    created: list[str] = []
+    for ch in alerts:
+        if ch.get("ok"):
+            continue
+        # Soft-skip OpenAI in non-enterprise setups unless explicitly required.
+        if ch.get("id") == "openai" and str(os.getenv("BAUPASS_REQUIRE_OPENAI", "0")).strip() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            continue
+        aid = create_system_alert(
+            db,
+            code=f"channel_down_{ch.get('id')}",
+            severity="warning",
+            message=f"Kanal nicht bereit: {ch.get('label')}",
+            details={"channel": ch.get("id"), "hint": ch.get("hint") or ""},
+            dedup_minutes=60 * 12,
+        )
+        if aid:
+            created.append(str(ch.get("id")))
+    return {"checked": len(alerts), "alerted": created, "channels": alerts}

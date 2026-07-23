@@ -1380,8 +1380,18 @@ ALL_MIGRATIONS: list[Migration] = [
                 ON employment_contracts(company_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_contract_sign_company_status
                 ON employment_contract_sign_sessions(company_id, status, expires_at);
+            CREATE TABLE IF NOT EXISTS step_up_otp_requests (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                last_request_at TEXT NOT NULL DEFAULT '',
+                window_started_at TEXT NOT NULL DEFAULT '',
+                window_count INTEGER NOT NULL DEFAULT 0,
+                delivery_fail_streak INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (purpose, company_id)
+            );
         """,
         down_sql="""
+            DROP TABLE IF EXISTS step_up_otp_requests;
             DROP INDEX IF EXISTS idx_contract_sign_company_status;
             DROP INDEX IF EXISTS idx_employment_contracts_company_created;
             DROP TABLE IF EXISTS step_up_fail_counts;

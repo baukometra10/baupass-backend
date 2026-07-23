@@ -26,6 +26,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     from backend.app.platform.plan_guard import require_plan_capability
     from backend.app.platform.security.contracts_lock import (
+        assert_otp_request_allowed,
         company_owner_email,
         company_owner_phone,
         consume_otp,
@@ -36,6 +37,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         mask_phone,
         normalize_phone,
         persist_otp,
+        record_otp_delivery_result,
         require_contracts_unlocked,
         send_otp_channels,
         set_company_owner_contact,
@@ -78,10 +80,42 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": "owner_phone_required", "message": "Bitte zuerst die Owner-Handynummer einrichten."}), 400
             if not email:
                 email = company_owner_email(db, cid)
+        try:
+            assert_otp_request_allowed(db, cid)
+        except ValueError as exc:
+            msg = str(exc)
+            if msg.startswith("rate_limited:"):
+                retry = msg.split(":", 1)[1]
+                return jsonify({"error": "rate_limited", "retryInSeconds": int(retry)}), 429
+            return jsonify({"error": "otp_request_blocked"}), 429
         code = generate_otp_code(digits=6)
         persist_otp(db, cid, code)
         delivery = send_otp_channels(db, company_id=cid, phone=phone, email=email, code=code)
-        if not delivery.get("channels"):
+        delivered = bool(delivery.get("channels"))
+        streak = record_otp_delivery_result(db, cid, delivered=delivered)
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "step_up.otp_requested",
+                "Owner-OTP angefordert",
+                target_type="company",
+                target_id=cid,
+                company_id=cid,
+                actor=g.current_user,
+                details={
+                    "setup": setup_mode,
+                    "channels": delivery.get("channels") or [],
+                    "smsOk": delivery.get("smsOk"),
+                    "emailOk": delivery.get("emailOk"),
+                    "smsError": delivery.get("smsError"),
+                    "deliveryFailStreak": streak,
+                    "purpose": "owner",
+                },
+            )
+        except Exception:
+            pass
+        if not delivered:
             testing = (
                 str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
                 or bool(flask_app.config.get("TESTING"))
@@ -105,6 +139,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                         "message": "Code konnte nicht gesendet werden. SMS/E-Mail prüfen.",
                         "smsConfigured": delivery.get("smsConfigured"),
                         "smsError": delivery.get("smsError"),
+                        "deliveryFailStreak": streak,
                     }
                 ),
                 503,
@@ -144,6 +179,20 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": "rate_limited", "retryInSeconds": int(retry)}), 429
             return jsonify({"error": "otp_invalid"}), 400
         if not ok:
+            try:
+                from backend.server import log_audit
+
+                log_audit(
+                    "step_up.otp_failed",
+                    "Owner-OTP ungültig",
+                    target_type="company",
+                    target_id=cid,
+                    company_id=cid,
+                    actor=g.current_user,
+                    details={"setup": setup_mode},
+                )
+            except Exception:
+                pass
             return jsonify({"error": "otp_invalid"}), 400
         if setup_mode:
             try:
@@ -164,11 +213,13 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             from backend.server import log_audit
 
             log_audit(
-                "contracts.unlock",
-                "Vertragsbereich freigeschaltet",
+                "step_up.unlock",
+                "Owner-Bereich freigeschaltet (Verträge/Exporte)",
                 target_type="company",
                 target_id=cid,
+                company_id=cid,
                 actor=g.current_user,
+                details={"setup": setup_mode, "unlockedUntil": until, "scopes": ["contracts", "exports", "payroll"]},
             )
         except Exception:
             pass
@@ -186,6 +237,20 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         token = str(getattr(g, "token", "") or "")
         if token:
             lock_contracts_session(get_db(), token)
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "step_up.lock",
+                "Owner-Bereich wieder gesperrt",
+                target_type="company",
+                target_id=cid,
+                company_id=cid,
+                actor=g.current_user,
+                details={"scopes": ["contracts", "exports", "payroll"]},
+            )
+        except Exception:
+            pass
         return jsonify({"ok": True, "unlocked": False})
 
     @contracts_core_bp.get("/contracts/templates")
