@@ -239,3 +239,8 @@ def test_access_summary_includes_late_checkins_today(client, site_app_session):
     assert summary.status_code == 200
     body = summary.get_json()
     assert int(body.get("lateCheckInsToday") or 0) >= 1
+    assert int(body.get("checkInsToday") or 0) >= 1
+    assert body.get("hasActivityToday") is True
+    assert body.get("today")
+    hourly_sum = sum(int(h.get("checkIn") or 0) for h in (body.get("hourly") or []))
+    assert hourly_sum == int(body.get("checkInsToday") or 0)

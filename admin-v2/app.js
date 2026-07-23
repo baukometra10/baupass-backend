@@ -5772,18 +5772,36 @@ async function loadAccess() {
     const summary = await api(`/api/access-logs/summary${q}`);
     const open = Array.isArray(summary.openEntries) ? summary.openEntries.length : 0;
     const hourly = Array.isArray(summary.hourly) ? summary.hourly : [];
-    const checkIns = hourly.reduce((n, h) => n + (h.checkIn || 0), 0);
-    const checkOuts = hourly.reduce((n, h) => n + (h.checkOut || 0), 0);
-    const appLogins = hourly.reduce((n, h) => n + (h.appLogin || 0), 0);
-    const appLogouts = hourly.reduce((n, h) => n + (h.appLogout || 0), 0);
+    // Prefer explicit today KPIs from API (hourly is today-scoped since fix).
+    const sumHourly = (key) => hourly.reduce((n, h) => n + (Number(h[key]) || 0), 0);
+    const checkIns = Number(summary.checkInsToday ?? sumHourly("checkIn"));
+    const checkOuts = Number(summary.checkOutsToday ?? sumHourly("checkOut"));
+    const appLogins = Number(summary.appLoginsToday ?? sumHourly("appLogin"));
+    const appLogouts = Number(summary.appLogoutsToday ?? sumHourly("appLogout"));
     const lateToday = Number(summary.lateCheckInsToday || 0);
+    const hasToday = summary.hasActivityToday === true || checkIns + checkOuts + appLogins + appLogouts > 0;
+    const lastCheckIn = summary.lastCheckInAt || summary.lastActivityAt || "";
+    const lastLabel = lastCheckIn ? formatAccessTimestamp(lastCheckIn) : "";
+    const todayLabel = summary.today || "";
+    const quietHint = !hasToday
+      ? `<p class="access-today-hint muted small">${
+          lastLabel
+            ? t("access.noActivityTodayLast", { last: lastLabel, today: todayLabel })
+            : t("access.noActivityToday")
+        }</p>`
+      : todayLabel
+        ? `<p class="access-today-hint muted small">${t("access.todayScope", { today: todayLabel })}</p>`
+        : "";
+    const card = (label, value, isQuiet) =>
+      `<div class="card${isQuiet && Number(value) === 0 ? " card-quiet" : ""}"><span class="muted">${label}</span><strong>${value}</strong></div>`;
     $("accessSummary").innerHTML = `
-      <div class="card"><span class="muted">${t("access.checkIns")}</span><strong>${checkIns}</strong></div>
-      <div class="card"><span class="muted">${t("access.checkOuts")}</span><strong>${checkOuts}</strong></div>
-      <div class="card"><span class="muted">${t("access.appLoginsToday")}</span><strong>${appLogins}</strong></div>
-      <div class="card"><span class="muted">${t("access.appLogoutsToday")}</span><strong>${appLogouts}</strong></div>
-      <div class="card"><span class="muted">${t("access.openSessions")}</span><strong>${open}</strong></div>
-      <div class="card"><span class="muted">${t("access.lateCheckIns")}</span><strong>${lateToday}</strong></div>
+      ${quietHint}
+      ${card(t("access.checkIns"), checkIns, !hasToday)}
+      ${card(t("access.checkOuts"), checkOuts, !hasToday)}
+      ${card(t("access.appLoginsToday"), appLogins, !hasToday)}
+      ${card(t("access.appLogoutsToday"), appLogouts, !hasToday)}
+      ${card(t("access.openSessions"), open, false)}
+      ${card(t("access.lateCheckIns"), lateToday, !hasToday)}
     `;
   } catch {
     $("accessSummary").innerHTML = "";
@@ -5810,7 +5828,9 @@ async function loadAccess() {
     };
   }
   const data = await api(`/api/v2/access/live${q}`);
-  renderTable($("accessTable"), data.access_logs || [], [
+  const logs = data.access_logs || [];
+  const tableHost = $("accessTable");
+  renderTable(tableHost, logs, [
     { label: t("table.worker"), render: (r) => `${r.first_name || ""} ${r.last_name || ""}`.trim() },
     { label: t("table.direction"), render: (r) => formatAccessDirection(r.direction) },
     { label: t("table.gate"), render: (r) => r.gate || "-" },
@@ -5823,6 +5843,12 @@ async function loadAccess() {
           : "—",
     },
   ]);
+  if (tableHost && logs.length) {
+    const caption = document.createElement("p");
+    caption.className = "muted small access-table-caption";
+    caption.textContent = t("access.recentBookings");
+    tableHost.prepend(caption);
+  }
 }
 
 async function loadAudit() {

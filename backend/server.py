@@ -6921,28 +6921,34 @@ def _send_email_to_worker(db, worker_id: str, subject: str, text_body: str, html
 
 
 def _send_via_any_api(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
-    """Try API providers (Resend, then Brevo). Returns (ok, error_string, provider_used)."""
-    resend_key, _ = _get_resend_api_key_and_source()
-    if resend_key:
-        ok, err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
-        if ok:
-            return True, "", "resend"
-        # Fall through to Brevo on any Resend failure
-        app.logger.warning(f"[API-MAIL] Resend fehlgeschlagen ({err}), versuche Brevo")
-
+    """Try API providers (Brevo preferred, then Resend). Returns (ok, error_or_message_id, provider_used)."""
     brevo_key = _get_brevo_api_key()
     if brevo_key:
-        ok, err = _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
+        ok, detail = _send_via_brevo(
+            subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments
+        )
         if ok:
-            return True, "", "brevo"
-        return False, f"brevo: {err}", "brevo"
+            return True, detail or "", "brevo"
+        app.logger.warning(f"[API-MAIL] Brevo fehlgeschlagen ({detail}), versuche Resend")
+    else:
+        detail = "brevo_not_configured"
 
+    resend_key, _ = _get_resend_api_key_and_source()
     if resend_key:
-        # Resend was tried but failed, Brevo not configured
-        _, resend_err = _send_via_resend(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments)
-        return False, f"resend: {resend_err}", "resend"
+        ok, err = _send_via_resend(
+            subject, sender_email, sender_name, recipient, text_body, html_body, attachments=attachments
+        )
+        if ok:
+            return True, "", "resend"
+        if brevo_key:
+            return False, f"brevo: {detail}; resend: {err}", "brevo+resend"
+        return False, f"resend: {err}", "resend"
 
-    return False, "no_api_provider_configured (set Resend or Brevo key in Einstellungen)", "none"
+    if brevo_key:
+        return False, f"brevo: {detail}", "brevo"
+
+    return False, "no_api_provider_configured (set Brevo or Resend key in Einstellungen)", "none"
+
 
 
 def _send_email_api_then_smtp(
@@ -19379,31 +19385,66 @@ def access_summary():
 
     now_dt = datetime.now(timezone.utc)
     today_berlin = datetime.now(ACCESS_WALL_TZ).date()
+    check_ins_today = 0
+    check_outs_today = 0
+    app_logins_today = 0
+    app_logouts_today = 0
     late_check_ins_today = 0
+    last_activity_ts = None
+    last_activity_raw = None
+    last_check_in_ts = None
+    last_check_in_raw = None
 
     for row in rows:
         ts = _parse_access_timestamp(row["timestamp"])
-        if ts:
-            hour = ts.hour
-            direction = str(row["direction"] or "").strip().lower()
-            if direction == "check-in":
-                hourly[hour]["checkIn"] += 1
-                if int(row["checked_in_late"] or 0) == 1 and ts.date() == today_berlin:
-                    late_check_ins_today += 1
-            elif direction == "check-out":
-                hourly[hour]["checkOut"] += 1
-            elif direction == "app-login":
-                hourly[hour]["appLogin"] += 1
-            elif direction == "app-logout":
-                hourly[hour]["appLogout"] += 1
+        raw_ts = str(row["timestamp"] or "").strip()
+        direction = str(row["direction"] or "").strip().lower()
+        if ts is not None:
+            if last_activity_ts is None or ts > last_activity_ts:
+                last_activity_ts = ts
+                last_activity_raw = raw_ts
+            if direction == "check-in" and (last_check_in_ts is None or ts > last_check_in_ts):
+                last_check_in_ts = ts
+                last_check_in_raw = raw_ts
+        if not ts or ts.date() != today_berlin:
+            continue
+        hour = ts.hour
+        if direction == "check-in":
+            hourly[hour]["checkIn"] += 1
+            check_ins_today += 1
+            if int(row["checked_in_late"] or 0) == 1:
+                late_check_ins_today += 1
+        elif direction == "check-out":
+            hourly[hour]["checkOut"] += 1
+            check_outs_today += 1
+        elif direction == "app-login":
+            hourly[hour]["appLogin"] += 1
+            app_logins_today += 1
+        elif direction == "app-logout":
+            hourly[hour]["appLogout"] += 1
+            app_logouts_today += 1
 
     open_entries = build_open_entries_from_rows(rows, now_dt)
 
     return jsonify(
         {
+            "today": today_berlin.isoformat(),
+            "timezone": getattr(ACCESS_WALL_TZ, "key", None) or "Europe/Berlin",
             "hourly": hourly,
             "openEntries": open_entries[:150],
+            "checkInsToday": check_ins_today,
+            "checkOutsToday": check_outs_today,
+            "appLoginsToday": app_logins_today,
+            "appLogoutsToday": app_logouts_today,
             "lateCheckInsToday": late_check_ins_today,
+            "lastActivityAt": last_activity_raw,
+            "lastCheckInAt": last_check_in_raw,
+            "hasActivityToday": bool(
+                check_ins_today
+                or check_outs_today
+                or app_logins_today
+                or app_logouts_today
+            ),
         }
     )
 

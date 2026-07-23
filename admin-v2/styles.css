@@ -531,6 +531,27 @@ main {
   }
 }
 
+.access-today-hint {
+  grid-column: 1 / -1;
+  margin: 0 0 0.15rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.card.card-quiet {
+  opacity: 0.72;
+}
+
+.card.card-quiet strong {
+  color: var(--muted, #94a3b8);
+}
+
+.access-table-caption {
+  margin: 0 0 0.5rem;
+}
+
 .card strong {
   display: block;
   font-size: 1.75rem;
