@@ -123,10 +123,60 @@
       border: 1px solid var(--border); background: #0c1218; color: var(--muted);
     }
     .agent-tabs button.active { border-color: var(--accent); color: var(--accent); background: #14242a; }
-    #chatLog { display: flex; flex-direction: column; gap: 0.5rem; min-height: 0; }
-    .msg-user { background: #1e3a5f; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
-    .msg-bot { background: #152228; padding: 0.55rem; border-radius: 8px; font-size: 0.85rem; white-space: pre-wrap; }
-    .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.25rem; }
+    #chatLog { display: flex; flex-direction: column; gap: 0.65rem; min-height: 0; }
+    .msg-user {
+      background: #1e3a5f; padding: 0.7rem 0.85rem; border-radius: 12px;
+      font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; align-self: flex-end;
+      max-width: min(92%, 42rem);
+    }
+    .msg-bot {
+      background: #121a22; padding: 0.75rem 0.85rem 0.55rem; border-radius: 12px;
+      font-size: 0.9rem; line-height: 1.5; border: 1px solid rgba(120,156,255,0.1);
+      max-width: min(100%, 48rem); align-self: stretch;
+    }
+    .msg-bot.msg-thinking { color: var(--muted); font-style: italic; }
+    .msg-body { color: var(--text); }
+    .msg-body p { margin: 0 0 0.65rem; }
+    .msg-body p:last-child { margin-bottom: 0; }
+    .msg-body ul, .msg-body ol { margin: 0.35rem 0 0.65rem; padding-inline-start: 1.2rem; }
+    .msg-body li { margin: 0.2rem 0; }
+    .msg-body strong { font-weight: 700; color: #f3f8ff; }
+    .msg-body code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.84em; background: rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 5px;
+    }
+    .msg-body a { color: var(--accent); }
+    .msg-meta { font-size: 0.68rem; color: var(--muted); margin-top: 0.45rem; }
+    .msg-actions {
+      display: flex; align-items: center; gap: 0.15rem; margin-top: 0.55rem;
+      padding-top: 0.25rem; flex-wrap: wrap; position: relative;
+    }
+    .msg-action-btn {
+      width: 2rem; height: 2rem; border-radius: 8px; border: none; cursor: pointer;
+      background: transparent; color: #8ea4c0; display: inline-flex; align-items: center;
+      justify-content: center; font-size: 0.95rem; line-height: 1;
+    }
+    .msg-action-btn:hover, .msg-action-btn.active {
+      background: rgba(255,255,255,0.06); color: var(--text);
+    }
+    .msg-action-btn.speaking { color: var(--accent); background: rgba(56,189,248,0.12); }
+    .msg-more-menu {
+      position: absolute; inset-inline-start: 0; bottom: calc(100% + 0.35rem);
+      min-width: 14rem; background: #1a2430; border: 1px solid var(--border);
+      border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.45); padding: 0.35rem;
+      z-index: 20;
+    }
+    .msg-more-menu .msg-more-time {
+      display: block; text-align: end; color: var(--muted); font-size: 0.68rem;
+      padding: 0.25rem 0.55rem 0.4rem;
+    }
+    .msg-more-menu button {
+      display: flex; width: 100%; align-items: center; gap: 0.55rem; text-align: start;
+      border: none; background: transparent; color: var(--text); cursor: pointer;
+      padding: 0.55rem 0.65rem; border-radius: 8px; font-size: 0.82rem;
+    }
+    .msg-more-menu button:hover { background: rgba(255,255,255,0.06); }
+    .msg-more-menu .msg-more-ico { width: 1.1rem; text-align: center; opacity: 0.85; }
     .chat-form { padding: 0; border-top: none; display: flex; flex-direction: column; gap: 0; flex-shrink: 0; }
     .chat-form .input-row { display: flex; gap: 0.4rem; align-items: stretch; }
     .toolbar button {
@@ -409,6 +459,17 @@
         leaveRejectedToast: "Antrag abgelehnt",
         errGeneric: "Fehler",
         leaveRejectedDefaultNote: "Abgelehnt",
+        msgCopy: "Kopieren",
+        msgCopied: "Kopiert",
+        msgLike: "Gefällt mir",
+        msgDislike: "Gefällt mir nicht",
+        msgShare: "Teilen",
+        msgRegenerate: "Erneut generieren",
+        msgMore: "Mehr",
+        msgReadAloud: "Vorlesen",
+        msgStopReading: "Vorlesen stoppen",
+        msgShareCopied: "Antwort kopiert — bereit zum Teilen",
+        msgNoRegen: "Keine vorherige Frage zum erneuten Generieren.",
       },
       en: {
         title: "Suppix AI — Assistant",
@@ -469,6 +530,17 @@
         leaveRejectedToast: "Request rejected",
         errGeneric: "Error",
         leaveRejectedDefaultNote: "Rejected",
+        msgCopy: "Copy",
+        msgCopied: "Copied",
+        msgLike: "Like",
+        msgDislike: "Dislike",
+        msgShare: "Share",
+        msgRegenerate: "Regenerate",
+        msgMore: "More",
+        msgReadAloud: "Read aloud",
+        msgStopReading: "Stop reading",
+        msgShareCopied: "Answer copied — ready to share",
+        msgNoRegen: "No previous question to regenerate.",
       },
       ar: {
         title: "مركز قيادة AI — SUPPIX",
@@ -529,6 +601,17 @@
         leaveRejectedToast: "تم رفض الطلب",
         errGeneric: "خطأ",
         leaveRejectedDefaultNote: "مرفوض",
+        msgCopy: "نسخ",
+        msgCopied: "تم النسخ",
+        msgLike: "إعجاب",
+        msgDislike: "عدم إعجاب",
+        msgShare: "مشاركة",
+        msgRegenerate: "إعادة التوليد",
+        msgMore: "المزيد",
+        msgReadAloud: "قراءة بصوت عالٍ",
+        msgStopReading: "إيقاف القراءة",
+        msgShareCopied: "تم نسخ الرد — جاهز للمشاركة",
+        msgNoRegen: "لا يوجد سؤال سابق لإعادة التوليد.",
       },
     };
     Object.assign(I18N, window.AiCenterI18nExtra || {});
@@ -674,6 +757,8 @@
     let aiQuestionInFlight = false;
     let sessions = [];
     let lastAnswerText = "";
+    let lastUserQuestion = "";
+    let openMsgMoreMenu = null;
 
     function readStoredCompanyId() {
       return window.BaupassAuth?.readStoredCompanyId?.() || "";
@@ -722,7 +807,215 @@
       return a[key] || a.labelDe || a.labelEn || a.action || a.id;
     }
 
+    function polishAnswerText(text) {
+      let s = String(text || "");
+      s = s.replace(/DECISION_JSON\s*=\s*\{[\s\S]*?\n\}\s*/gi, "");
+      s = s.replace(/```(?:json)?\s*\{[\s\S]*?"recommendation"[\s\S]*?\}\s*```/gi, "");
+      s = s.replace(/\n{3,}/g, "\n\n").trim();
+      return s;
+    }
+
+    function formatAiAnswerHtml(text) {
+      const raw = polishAnswerText(text);
+      if (!raw) return "";
+      const escape = (v) => String(v)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+      const inline = (line) => escape(line)
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>")
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+      const lines = raw.split(/\r?\n/);
+      const parts = [];
+      let listType = null;
+      let listItems = [];
+      const flushList = () => {
+        if (!listType || !listItems.length) return;
+        parts.push(`<${listType}>${listItems.map((li) => `<li>${li}</li>`).join("")}</${listType}>`);
+        listType = null;
+        listItems = [];
+      };
+      let para = [];
+      const flushPara = () => {
+        if (!para.length) return;
+        parts.push(`<p>${para.join("<br>")}</p>`);
+        para = [];
+      };
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          flushList();
+          flushPara();
+          continue;
+        }
+        const ul = trimmed.match(/^[-*•]\s+(.+)$/);
+        const ol = trimmed.match(/^\d+[.)]\s+(.+)$/);
+        if (ul || ol) {
+          flushPara();
+          const nextType = ul ? "ul" : "ol";
+          if (listType && listType !== nextType) flushList();
+          listType = nextType;
+          listItems.push(inline(ul ? ul[1] : ol[1]));
+          continue;
+        }
+        flushList();
+        para.push(inline(trimmed));
+      }
+      flushList();
+      flushPara();
+      return parts.join("") || `<p>${inline(raw)}</p>`;
+    }
+
+    function messageRawText(wrap) {
+      return String(wrap?.dataset?.raw || wrap?.querySelector?.(".msg-body")?.innerText || wrap?.textContent || "").trim();
+    }
+
+    function closeMsgMoreMenus(except) {
+      document.querySelectorAll(".msg-more-menu").forEach((menu) => {
+        if (except && menu === except) return;
+        menu.classList.add("hidden");
+      });
+      openMsgMoreMenu = except || null;
+    }
+
+    function attachMessageToolbar(wrap, rawText) {
+      if (!wrap || wrap.querySelector(".msg-actions")) return;
+      const text = polishAnswerText(rawText || messageRawText(wrap));
+      wrap.dataset.raw = text;
+      const row = document.createElement("div");
+      row.className = "msg-actions";
+      const mkBtn = (label, icon, cls = "") => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `msg-action-btn ${cls}`.trim();
+        b.title = label;
+        b.setAttribute("aria-label", label);
+        b.textContent = icon;
+        return b;
+      };
+      const copyBtn = mkBtn(t("msgCopy"), "⧉");
+      const likeBtn = mkBtn(t("msgLike"), "👍");
+      const dislikeBtn = mkBtn(t("msgDislike"), "👎");
+      const shareBtn = mkBtn(t("msgShare"), "↗");
+      const regenBtn = mkBtn(t("msgRegenerate"), "↻");
+      const moreBtn = mkBtn(t("msgMore"), "⋯");
+      const menu = document.createElement("div");
+      menu.className = "msg-more-menu hidden";
+      menu.addEventListener("click", (ev) => ev.stopPropagation());
+      const when = new Date();
+      const timeLabel = when.toLocaleString(LANG === "ar" ? "ar" : LANG === "en" ? "en-GB" : "de-DE", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+      menu.innerHTML = `<span class="msg-more-time">${escapeHtml(timeLabel)}</span>`;
+      const readBtn = document.createElement("button");
+      readBtn.type = "button";
+      readBtn.innerHTML = `<span class="msg-more-ico">🔊</span><span data-read-label>${escapeHtml(t("msgReadAloud"))}</span>`;
+      menu.appendChild(readBtn);
+      row.append(copyBtn, likeBtn, dislikeBtn, shareBtn, regenBtn, moreBtn, menu);
+
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(t("msgCopied"));
+        } catch {
+          showToast(t("msgCopied"));
+        }
+      };
+      likeBtn.onclick = () => {
+        likeBtn.classList.add("active");
+        dislikeBtn.classList.remove("active");
+        showToast(t("msgLike"));
+      };
+      dislikeBtn.onclick = () => {
+        dislikeBtn.classList.add("active");
+        likeBtn.classList.remove("active");
+        showToast(t("msgDislike"));
+      };
+      shareBtn.onclick = async () => {
+        try {
+          if (navigator.share) {
+            await navigator.share({ text });
+            return;
+          }
+        } catch {
+          /* fall through */
+        }
+        try {
+          await navigator.clipboard.writeText(text);
+          showToast(t("msgShareCopied"));
+        } catch {
+          showToast(t("msgShareCopied"));
+        }
+      };
+      regenBtn.onclick = () => {
+        const q = String(lastUserQuestion || "").trim();
+        if (!q) {
+          showToast(t("msgNoRegen"));
+          return;
+        }
+        submitQuestion(q);
+      };
+      moreBtn.onclick = (ev) => {
+        ev.stopPropagation();
+        const opening = menu.classList.contains("hidden");
+        closeMsgMoreMenus(opening ? menu : null);
+        menu.classList.toggle("hidden", !opening);
+      };
+      readBtn.onclick = async () => {
+        closeMsgMoreMenus();
+        const speaking = window.BaupassAiUi?.isSpeaking?.();
+        if (speaking) {
+          window.BaupassAiUi?.stopSpeaking?.();
+          readBtn.querySelector("[data-read-label]").textContent = t("msgReadAloud");
+          moreBtn.classList.remove("speaking");
+          return;
+        }
+        moreBtn.classList.add("speaking");
+        readBtn.querySelector("[data-read-label]").textContent = t("msgStopReading");
+        try {
+          const speakText = window.BaupassAiUi?.cleanTextForSpeech?.(text, { lang: LANG, spoken: true })
+            || window.BaupassAiUi?.cleanTextForDisplay?.(text)
+            || text;
+          await window.BaupassAiUi?.speakReply?.(speakText, LANG, {
+            spoken: true,
+            force: true,
+            authHeaders: () => authHeaders(),
+          });
+        } catch (e) {
+          showToast(e?.message || t("errGeneric"));
+        } finally {
+          moreBtn.classList.remove("speaking");
+          readBtn.querySelector("[data-read-label]").textContent = t("msgReadAloud");
+        }
+      };
+      wrap.appendChild(row);
+    }
+
+    function setBotMessageContent(wrap, text, meta = {}) {
+      const cleaned = polishAnswerText(text);
+      wrap.dataset.raw = cleaned;
+      let body = wrap.querySelector(".msg-body");
+      if (!body) {
+        body = document.createElement("div");
+        body.className = "msg-body";
+        wrap.insertBefore(body, wrap.firstChild);
+      }
+      body.innerHTML = formatAiAnswerHtml(cleaned);
+      wrap.querySelector(".msg-actions")?.remove();
+      wrap.querySelectorAll(".msg-meta, .chip-row, .ai-action-row, .bp-ai-actions").forEach((n) => n.remove());
+      attachMessageToolbar(wrap, cleaned);
+      attachMeta(wrap, meta);
+      lastAnswerText = cleaned;
+      return wrap;
+    }
+
     function attachMeta(div, meta) {
+      if (!meta || typeof meta !== "object") return;
       if (meta.decision) {
         const box = document.createElement("div");
         box.className = "msg-meta";
@@ -916,11 +1209,13 @@
     function appendMsg(role, text, meta = {}) {
       const log = document.getElementById("chatLog");
       const div = document.createElement("div");
-      div.className = role === "user" ? "msg-user" : "msg-bot";
-      div.textContent = text;
-      if (role === "bot") {
-        lastAnswerText = text;
-        attachMeta(div, meta);
+      if (role === "user") {
+        div.className = "msg-user";
+        div.textContent = text;
+        lastUserQuestion = String(text || "").trim() || lastUserQuestion;
+      } else {
+        div.className = "msg-bot";
+        setBotMessageContent(div, text, meta && typeof meta === "object" ? meta : {});
       }
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
@@ -1062,7 +1357,8 @@
       } else {
         document.querySelectorAll("#chatLog > div").forEach((node) => {
           const role = node.classList.contains("msg-user") ? t("exportRoleUser") : t("exportRoleAi");
-          lines.push(`**${role}:** ${node.textContent || ""}`);
+          const content = node.dataset?.raw || node.querySelector?.(".msg-body")?.innerText || node.textContent || "";
+          lines.push(`**${role}:** ${content}`);
         });
       }
       if (!lines.length) {
@@ -1086,6 +1382,8 @@
       document.body.appendChild(el);
       setTimeout(() => el.remove(), 2800);
     }
+
+    document.addEventListener("click", () => closeMsgMoreMenus());
 
     function runInsightAction(a) {
       if (!a) return;
@@ -1347,11 +1645,15 @@
       window.BaupassAiUi?.stopVoiceCapture?.("question");
       if (!sessionId) await newSession();
       appendMsg("user", q);
+      lastUserQuestion = String(q || "").trim();
       const log = document.getElementById("chatLog");
       const isVoiceTurn = Boolean(options.spoken);
       const botDiv = document.createElement("div");
       botDiv.className = "msg-bot";
-      botDiv.textContent = "";
+      const botBody = document.createElement("div");
+      botBody.className = "msg-body";
+      botBody.style.whiteSpace = "pre-wrap";
+      botDiv.appendChild(botBody);
       log.appendChild(botDiv);
       const thinking = document.createElement("div");
       thinking.className = "msg-bot msg-thinking";
@@ -1360,9 +1662,18 @@
       log.scrollTop = log.scrollHeight;
         let meta = {};
         let pendingSpeech = null;
+        let streamedText = "";
         const statusEl = document.createElement("div");
       statusEl.className = "msg-meta";
       if (!isVoiceTurn) log.appendChild(statusEl);
+      const setStreamText = (value) => {
+        streamedText = String(value || "");
+        botBody.textContent = streamedText;
+      };
+      const appendStreamText = (chunk) => {
+        streamedText += String(chunk || "");
+        botBody.textContent = streamedText;
+      };
       const friendlyAiError = (err, opts = {}) => {
         const code = String(err?.error || err?.payload?.error || "").trim();
         const hint = String(err?.hint || err?.payload?.hint || err?.message || "").trim();
@@ -1431,7 +1742,7 @@
         if (!res.ok) {
           dropThinking();
           const err = await res.json().catch(() => ({}));
-          botDiv.textContent = friendlyAiError(err, { spoken: Boolean(options.spoken) });
+          setBotMessageContent(botDiv, friendlyAiError(err, { spoken: Boolean(options.spoken) }), {});
           return;
         }
         const reader = res.body.getReader();
@@ -1467,7 +1778,7 @@
                 }
               }
               if (payload.type === "answer_reset") {
-                botDiv.textContent = "";
+                setStreamText("");
                 if (statusEl) statusEl.textContent = "";
               }
               if (payload.type === "status") {
@@ -1476,10 +1787,10 @@
               }
               if (payload.type === "chunk") {
                 dropThinking();
-                botDiv.textContent += payload.text || "";
+                appendStreamText(payload.text || "");
                 log.scrollTop = log.scrollHeight;
                 if (isVoiceTurn) {
-                  window.BaupassAiUi?.tryLockTtsPrefetch?.(botDiv.textContent, LANG, {
+                  window.BaupassAiUi?.tryLockTtsPrefetch?.(streamedText, LANG, {
                     spoken: true,
                     authHeaders: () => authHeaders(),
                   });
@@ -1487,8 +1798,10 @@
               }
               if (payload.type === "done") {
                 meta = payload;
-                if (isVoiceTurn && botDiv.textContent && payload.ok !== false && !pendingSpeech) {
-                  const speakText = window.BaupassAiUi?.cleanTextForDisplay?.(botDiv.textContent) || botDiv.textContent;
+                if (isVoiceTurn && streamedText && payload.ok !== false && !pendingSpeech) {
+                  const speakText = window.BaupassAiUi?.cleanTextForSpeech?.(streamedText, { lang: LANG, spoken: true })
+                    || window.BaupassAiUi?.cleanTextForDisplay?.(streamedText)
+                    || streamedText;
                   pendingSpeech = window.BaupassAiUi?.speakReply?.(speakText, LANG, {
                     spoken: true,
                     authHeaders: () => authHeaders(),
@@ -1496,28 +1809,29 @@
                 }
               }
               if (payload.type === "error") {
-                botDiv.textContent = friendlyAiError(payload, { spoken: Boolean(options.spoken) });
+                setStreamText(friendlyAiError(payload, { spoken: Boolean(options.spoken) }));
               }
             } catch { /* skip */ }
           }
         }
         statusEl?.remove?.();
         if (thinking.parentNode) thinking.remove();
-        if (isVoiceTurn && botDiv.textContent && meta.ok !== false) {
-          botDiv.textContent = window.BaupassAiUi?.cleanTextForDisplay?.(botDiv.textContent) || botDiv.textContent;
-        }
-        lastAnswerText = botDiv.textContent;
-        attachMeta(botDiv, {
+        botBody.style.whiteSpace = "";
+        const finalText = streamedText || botBody.textContent || "";
+        setBotMessageContent(botDiv, finalText, {
           sources: isVoiceTurn ? null : meta.sources,
           toolsUsed: isVoiceTurn ? null : meta.toolsUsed,
           suggestedActions: meta.suggestedActions,
           actions: meta.actions || meta.suggestedActions,
+          decision: meta.decision,
         });
-        if (botDiv.textContent && meta.ok !== false) {
-          const speakTask = pendingSpeech || window.BaupassAiUi?.speakReply?.(botDiv.textContent, LANG, {
-            spoken: Boolean(options.spoken),
-            authHeaders: () => authHeaders(),
-          });
+        if (finalText && meta.ok !== false) {
+          const speakTask = pendingSpeech || (isVoiceTurn
+            ? window.BaupassAiUi?.speakReply?.(finalText, LANG, {
+                spoken: true,
+                authHeaders: () => authHeaders(),
+              })
+            : null);
           await Promise.all([
             speakTask || Promise.resolve(),
             loadSessions(),
@@ -1528,7 +1842,7 @@
         }
       } catch (e) {
         if (thinking.parentNode) thinking.remove();
-        botDiv.textContent = e.message || String(e);
+        setBotMessageContent(botDiv, e.message || String(e), {});
       } finally {
         aiQuestionInFlight = false;
       }
