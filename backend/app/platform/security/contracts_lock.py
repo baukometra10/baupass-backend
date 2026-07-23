@@ -621,6 +621,55 @@ def consume_otp(db, company_id: str, code: str, *, user_id: str) -> bool:
     return True
 
 
+def otp_debug_delivery_allowed() -> bool:
+    """Allow returning OTP in API response when channels are unavailable (local/dev only)."""
+    raw = str(os.getenv("BAUPASS_OWNER_OTP_ALLOW_DEBUG", "")).strip().lower()
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    env = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
+    if env in {"testing", "test", "dev", "development", "local"}:
+        return True
+    try:
+        from flask import current_app
+
+        if current_app and (current_app.config.get("TESTING") or current_app.debug):
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def resolve_otp_email(db, company_id: str, preferred: str = "") -> str:
+    """Pick best available email for OTP delivery."""
+    candidates = [
+        str(preferred or "").strip().lower(),
+        company_owner_email(db, company_id),
+    ]
+    try:
+        user = getattr(g, "current_user", None) or {}
+        candidates.append(str(user.get("email") or "").strip().lower())
+    except Exception:
+        pass
+    try:
+        row = db.execute(
+            "SELECT contact, billing_email, contract_owner_email FROM companies WHERE id = ?",
+            (str(company_id),),
+        ).fetchone()
+        if row:
+            keys = set(row.keys()) if hasattr(row, "keys") else set()
+            for key in ("contract_owner_email", "billing_email", "contact"):
+                if key in keys:
+                    candidates.append(str(row[key] or "").strip().lower())
+    except Exception:
+        pass
+    for value in candidates:
+        if value and "@" in value and " " not in value:
+            return value
+    return ""
+
+
 def send_otp_channels(
     db,
     *,
@@ -634,6 +683,7 @@ def send_otp_channels(
     sms_ok = False
     sms_err = ""
     email_ok = False
+    email_err = ""
     channels: list[str] = []
     body = f"SUPPIX Vertragszugang: Ihr Code lautet {code}. Gueltig {_OTP_TTL_MINUTES} Minuten."
 
@@ -641,19 +691,34 @@ def send_otp_channels(
         sms_ok, sms_err = send_sms(to=phone, body=body)
         if sms_ok:
             channels.append("sms")
+        elif not sms_err:
+            sms_err = "sms_send_failed"
     elif phone and not sms_configured():
         sms_err = "sms_not_configured"
+    elif not phone:
+        sms_err = "phone_missing"
 
-    target_email = str(email or "").strip() or company_owner_email(db, company_id)
+    target_email = resolve_otp_email(db, company_id, preferred=email)
     if target_email:
         try:
             from backend.server import _send_otp_email_to_user
 
-            email_ok = bool(_send_otp_email_to_user(db, {"email": target_email, "username": "contracts-owner"}, code))
+            email_ok = bool(
+                _send_otp_email_to_user(
+                    db,
+                    {"email": target_email, "username": "contracts-owner"},
+                    code,
+                )
+            )
             if email_ok:
                 channels.append("email")
+            else:
+                email_err = "email_send_failed"
         except Exception as exc:
+            email_err = str(exc)[:160] or "email_exception"
             _log.warning("contracts otp email failed: %s", exc)
+    else:
+        email_err = "email_missing"
 
     if not channels:
         # Dev fallback: keep code in logs when neither channel works.
@@ -661,7 +726,7 @@ def send_otp_channels(
             "contracts OTP for company %s could not be delivered (sms=%s email=%s). code=%s",
             company_id,
             sms_err or sms_ok,
-            email_ok,
+            email_err or email_ok,
             code,
         )
     return {
@@ -669,6 +734,8 @@ def send_otp_channels(
         "smsOk": sms_ok,
         "smsError": sms_err,
         "emailOk": email_ok,
+        "emailError": email_err,
+        "email": target_email,
         "smsConfigured": sms_configured(),
     }
 

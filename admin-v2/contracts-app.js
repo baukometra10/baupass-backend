@@ -835,7 +835,7 @@
       el.classList.toggle("is-ok", ok);
     }
 
-    function showLockOverlay({ setup = false, enforced = false } = {}) {
+    function showLockOverlay({ setup = false, enforced = false, smsConfigured = true } = {}) {
       lockSetupMode = setup;
       lockAwaitingCode = false;
       const overlay = document.getElementById("contractsLockOverlay");
@@ -855,6 +855,15 @@
             ? (window.contractPageT("lockSetupRequiredDesc") || "Pflicht: Owner-Handynummer einrichten, sonst bleiben Verträge und sensible Exporte gesperrt.")
             : (window.contractPageT("lockSetupDesc") || "Hinterlegen Sie die Handynummer des Firmeninhabers. Der Code kommt per SMS (E-Mail als Backup)."))
         : (window.contractPageT("lockDesc") || "Gehalt und Verträge sind geschützt. Bitte Code bestätigen.");
+      const emailLabel = document.getElementById("lockEmailLabel");
+      const hint = document.getElementById("lockDeliveryHint");
+      if (!smsConfigured) {
+        if (emailLabel) emailLabel.textContent = window.contractPageT("lockEmailRequired") || "E-Mail (erforderlich — SMS nicht konfiguriert)";
+        if (hint) hint.textContent = window.contractPageT("lockNoSmsHint") || "Twilio-SMS fehlt. Code geht per E-Mail (SMTP/Resend/Brevo) oder als Debug-Code in der Entwicklung.";
+      } else {
+        if (emailLabel) emailLabel.textContent = window.contractPageT("lockEmailLabel") || "Backup-E-Mail (optional)";
+        if (hint) hint.textContent = window.contractPageT("lockSmsOkHint") || "SMS aktiv. E-Mail als Backup empfohlen.";
+      }
       setLockMsg("");
     }
 
@@ -872,7 +881,7 @@
         badge.textContent = window.contractPageT("lockSetupRequired") || "🔒 Setup Pflicht";
         badge.title = window.contractPageT("lockSetupRequiredHint") || "Owner-Handy erforderlich";
         lockBtn.classList.add("hidden");
-        badge.onclick = () => showLockOverlay({ setup: true, enforced: true });
+        badge.onclick = () => showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
         return;
       }
       if (!status?.lockRequired) {
@@ -880,7 +889,7 @@
         badge.textContent = window.contractPageT("lockNudge") || "🔒 PIN empfohlen";
         badge.title = window.contractPageT("lockNudgeHint") || "Owner-Handy einrichten für Gehaltsschutz";
         lockBtn.classList.add("hidden");
-        badge.onclick = () => showLockOverlay({ setup: true, enforced: false });
+        badge.onclick = () => showLockOverlay({ setup: true, enforced: false, smsConfigured: !!status.smsConfigured });
         return;
       }
       if (status.unlocked) {
@@ -893,7 +902,7 @@
         badge.classList.remove("hidden");
         badge.textContent = window.contractPageT("lockSoftBrowse") || "🔒 Gehalt gesperrt";
         badge.title = window.contractPageT("lockSoftBrowseHint") || "";
-        badge.onclick = () => showLockOverlay({ setup: false, enforced: !!status.setupEnforced });
+        badge.onclick = () => showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
         lockBtn.classList.add("hidden");
       }
     }
@@ -930,7 +939,7 @@
       const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
       paintUnlockBadge(status);
       if (status.ownerSetupRequired) {
-        showLockOverlay({ setup: true, enforced: true });
+        showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
         return new Promise((resolve) => {
           window.__contractsUnlockResolve = resolve;
         });
@@ -939,7 +948,7 @@
         await clearRedactionAndReload();
         return true;
       }
-      showLockOverlay({ setup: false, enforced: !!status.setupEnforced });
+      showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
       return new Promise((resolve) => {
         window.__contractsUnlockResolve = resolve;
       });
@@ -952,7 +961,7 @@
         salaryFieldsRedacted = true;
         contractsSessionUnlocked = false;
         applyRedactionUi(true);
-        showLockOverlay({ setup: true, enforced: true });
+        showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
         return new Promise((resolve) => {
           window.__contractsUnlockResolve = resolve;
         });
@@ -986,8 +995,8 @@
       const body = { company_id: companyId, setup: lockSetupMode };
       if (lockSetupMode) {
         body.phone = phone;
-        if (email) body.email = email;
       }
+      if (email) body.email = email;
       try {
         const res = await api("/api/contracts/lock/request-otp", {
           method: "POST",
@@ -999,10 +1008,17 @@
         document.getElementById("lockVerifyBtn")?.classList.remove("hidden");
         const via = (res.channels || []).join(" + ") || "SMS/E-Mail";
         const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
-        setLockMsg(
-          (window.contractPageT("lockCodeSent", { via, phone: phoneBit }) || `Code gesendet (${via}).`),
-          { ok: true },
-        );
+        if (res.debugFallback || res.debugCode) {
+          setLockMsg(
+            res.message || (window.contractPageT("lockDebugFallback") || "Debug-Code (kein SMS/E-Mail-Versand)."),
+            { ok: true },
+          );
+        } else {
+          setLockMsg(
+            (window.contractPageT("lockCodeSent", { via, phone: phoneBit }) || `Code gesendet (${via}).`),
+            { ok: true },
+          );
+        }
         if (res.debugCode) {
           document.getElementById("lockOtpCode").value = res.debugCode;
         }

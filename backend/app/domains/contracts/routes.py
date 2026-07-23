@@ -36,11 +36,13 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         mask_email,
         mask_phone,
         normalize_phone,
+        otp_debug_delivery_allowed,
         persist_otp,
         record_otp_delivery_result,
         redact_contract_record,
         require_contracts_unlocked,
         require_owner_setup_complete,
+        resolve_otp_email,
         send_otp_channels,
         sensitive_fields_locked,
         set_company_owner_contact,
@@ -81,8 +83,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             phone = company_owner_phone(db, cid)
             if not phone:
                 return jsonify({"error": "owner_phone_required", "message": "Bitte zuerst die Owner-Handynummer einrichten."}), 400
-            if not email:
-                email = company_owner_email(db, cid)
+        email = resolve_otp_email(db, cid, preferred=email)
         try:
             assert_otp_request_allowed(db, cid)
         except ValueError as exc:
@@ -112,6 +113,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                     "smsOk": delivery.get("smsOk"),
                     "emailOk": delivery.get("emailOk"),
                     "smsError": delivery.get("smsError"),
+                    "emailError": delivery.get("emailError"),
                     "deliveryFailStreak": streak,
                     "purpose": "owner",
                 },
@@ -119,29 +121,43 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         except Exception:
             pass
         if not delivered:
-            testing = (
-                str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
-                or bool(flask_app.config.get("TESTING"))
-            )
-            # Never leak OTP outside explicit test harness.
-            if testing:
+            # Local/dev: surface code so owners can unlock without Twilio/SMTP.
+            if otp_debug_delivery_allowed():
                 return jsonify(
                     {
                         "ok": True,
-                        "channels": ["test"],
+                        "channels": ["debug"],
                         "debugCode": code,
                         "phoneMasked": mask_phone(phone),
                         "emailMasked": mask_email(email or company_owner_email(db, cid)),
                         "smsConfigured": delivery.get("smsConfigured"),
+                        "smsError": delivery.get("smsError"),
+                        "emailError": delivery.get("emailError"),
+                        "debugFallback": True,
+                        "message": (
+                            "Kein SMS/E-Mail-Versand konfiguriert — Debug-Code angezeigt. "
+                            "Für Produktion: TWILIO_* oder SMTP/Resend/Brevo setzen."
+                        ),
                     }
                 )
+            reasons = []
+            if delivery.get("smsError") == "sms_not_configured":
+                reasons.append("SMS (Twilio) nicht konfiguriert")
+            elif delivery.get("smsError"):
+                reasons.append(f"SMS fehlgeschlagen ({delivery.get('smsError')})")
+            if delivery.get("emailError") == "email_missing":
+                reasons.append("keine Backup-E-Mail hinterlegt")
+            elif delivery.get("emailError"):
+                reasons.append("E-Mail-Versand fehlgeschlagen (SMTP/Resend/Brevo prüfen)")
+            hint = "; ".join(reasons) if reasons else "SMS/E-Mail prüfen"
             return (
                 jsonify(
                     {
                         "error": "otp_delivery_failed",
-                        "message": "Code konnte nicht gesendet werden. SMS/E-Mail prüfen.",
+                        "message": f"Code konnte nicht gesendet werden: {hint}.",
                         "smsConfigured": delivery.get("smsConfigured"),
                         "smsError": delivery.get("smsError"),
+                        "emailError": delivery.get("emailError"),
                         "deliveryFailStreak": streak,
                     }
                 ),
@@ -152,7 +168,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 "ok": True,
                 "channels": delivery.get("channels") or [],
                 "phoneMasked": mask_phone(phone),
-                "emailMasked": mask_email(email or company_owner_email(db, cid)),
+                "emailMasked": mask_email(email or company_owner_email(db, cid) or delivery.get("email") or ""),
                 "smsConfigured": delivery.get("smsConfigured"),
             }
         )

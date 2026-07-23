@@ -305,8 +305,11 @@
       <h2 id="lockTitle">Vertragszugang</h2>
       <p id="lockDesc">Gehalt und Verträge sind geschützt. Nur der Firmeninhaber öffnet diesen Bereich per SMS-Code.</p>
       <div id="lockSetupBlock" class="hidden">
-        <label><span>Owner-Handy (mit Ländervorwahl)</span><input id="lockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
-        <label><span>Backup-E-Mail (optional)</span><input id="lockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+        <label><span data-cpi18n="lockPhoneLabel">Owner-Handy (mit Ländervorwahl)</span><input id="lockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+      </div>
+      <div id="lockEmailBlock">
+        <label><span id="lockEmailLabel" data-cpi18n="lockEmailLabel">Backup-E-Mail</span><input id="lockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+        <p id="lockDeliveryHint" class="muted" style="font-size:0.72rem;margin:0.25rem 0 0;"></p>
       </div>
       <div id="lockCodeBlock" class="hidden">
         <label><span>Sicherheitscode</span><input id="lockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
@@ -501,7 +504,7 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260723layer3fix"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260723otp1"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260723harden2"></script>
   <script src="/e2e-i18n.js?v=20260707e2e1"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
@@ -511,6 +514,6 @@
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
   <script src="/ai-voice-ui.js?v=20260601voice22"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260723layer3fix"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260723otp1"></script>
 </body>
 </html>

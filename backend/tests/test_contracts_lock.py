@@ -202,6 +202,37 @@ def test_owner_step_up_enforced_without_phone(client_and_db, monkeypatch):
     assert blocked.get_json().get("error") == "owner_setup_required"
 
 
+def test_otp_debug_fallback_when_delivery_unavailable(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "OtpDebugCo")
+    monkeypatch.setenv("BAUPASS_ENV", "development")
+    monkeypatch.setenv("BAUPASS_OWNER_OTP_ALLOW_DEBUG", "1")
+    monkeypatch.setattr(
+        "backend.app.platform.security.contracts_lock._OTP_REQUEST_MIN_SECONDS",
+        0,
+    )
+    monkeypatch.setattr(
+        "backend.app.platform.notifications.sms.sms_configured",
+        lambda: False,
+    )
+    monkeypatch.setattr(
+        "backend.server._send_otp_email_to_user",
+        lambda *a, **k: False,
+    )
+
+    req = client.post(
+        "/api/contracts/lock/request-otp",
+        json={"company_id": company_id, "setup": True, "phone": "+491705555555", "email": "debug@example.com"},
+        headers=headers,
+    )
+    assert req.status_code == 200, req.get_json()
+    body = req.get_json() or {}
+    assert body.get("debugCode")
+    assert body.get("debugFallback") is True
+    assert "debug" in (body.get("channels") or [])
+
+
 def test_otp_request_rate_limit(client_and_db, monkeypatch):
     client, _ = client_and_db
     headers = _superadmin_headers(client)

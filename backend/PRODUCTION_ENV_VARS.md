@@ -95,6 +95,10 @@ Für Login auf Railway ohne PostgreSQL:
 | Variable | Beschreibung | Default | Werte |
 |----------|-------------|---------|-------|
 | `BAUPASS_ENV` | Umgebung | `production` | `production`, `prod`, `testing`, `development` |
+| `BAUPASS_OWNER_STEP_UP_ENFORCE` | Owner-OTP für Verträge/Exporte erzwingen | an (außer testing/dev) | `0`/`1` |
+| `BAUPASS_OWNER_OTP_ALLOW_DEBUG` | OTP im API zurückgeben wenn SMS/Mail fehlt | an in testing/dev | `0`/`1` |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | SMS für Owner-OTP | - | Twilio |
+| `SMTP_HOST` / `RESEND_API_KEY` / `BREVO_API_KEY` | E-Mail-Fallback für Owner-OTP | - | SMTP oder API |
 | `BAUPASS_RUN_DUNNING_ON_BOOT` | Mahnung auf Startup | `0` | `1` oder `0` |
 | `BAUPASS_SEED_DEMO_ENTERPRISE` | Demo-Daten auf Startup | `0` | `1` oder `0` |
 | `BAUPASS_BACKUP_ON_BOOT` | DB-Backup vor Start | `1` | `1` oder `0` |
