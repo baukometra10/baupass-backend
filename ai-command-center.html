@@ -607,10 +607,31 @@
       font-weight: 700;
       letter-spacing: -0.02em;
     }
+    .insight-card-hit {
+      display: block;
+      width: 100%;
+      text-align: start;
+      border: none;
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      margin: 0;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .insight-card-hit:hover .insight-card-value {
+      color: #fff;
+    }
+    .insight-card-hit:hover .status-line {
+      color: #c5d7ec;
+    }
     .insight-card .status-line {
       margin-top: 0.2rem;
       color: #8ea4c0;
       min-height: 1em;
+      font-size: 0.74rem;
+      font-weight: 400;
+      letter-spacing: normal;
     }
     .insight-card .card-actions {
       margin-top: 0.55rem;
@@ -851,7 +872,7 @@
   <script src="/ops-realtime.js?v=20260720auth1"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
-  <script src="/embed-helpers.js?v=20260705c"></script>
+  <script src="/embed-helpers.js?v=20260723insightNav1"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
   <script src="/ai-voice-ui.js?v=20260723prompt1"></script>
   <script src="/e2e-crypto.js?v=20260705e2e4"></script>
@@ -920,6 +941,7 @@
         insightActionBusy: "Bitte warten — eine KI-Anfrage läuft bereits.",
         insightActionMissing: "Diese Aktion ist gerade nicht verfügbar.",
         insightOpened: "Analyse gestartet…",
+        insightNavigating: "Öffne Ansicht…",
         statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
         issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
         voiceHint: "Mikrofon: tippen → sprechen (Text live) → erneut tippen → Senden.",
@@ -1002,6 +1024,7 @@
         insightActionBusy: "Please wait — an AI request is already running.",
         insightActionMissing: "This action is currently unavailable.",
         insightOpened: "Analysis started…",
+        insightNavigating: "Opening view…",
         statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
         issueAskPrompt: "What does this notice mean and what should I do? {msg}",
         voiceHint: "Mic: tap → speak (live text) → tap again → Send.",
@@ -1084,6 +1107,7 @@
         insightActionBusy: "يرجى الانتظار — هناك طلب ذكاء اصطناعي قيد التشغيل.",
         insightActionMissing: "هذا الإجراء غير متاح حالياً.",
         insightOpened: "بدأ التحليل…",
+        insightNavigating: "جاري فتح العرض…",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
         voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
@@ -1606,7 +1630,7 @@
               return;
             }
             if (type === "navigate" && a.url) {
-              location.href = withCompanyUrl(a.url);
+              openExternalUrl(a.url);
               return;
             }
             if (type === "analyze" && a.topic) {
@@ -2172,6 +2196,54 @@
       }
     }
 
+    function openExternalUrl(rawUrl) {
+      const href = withCompanyUrl(rawUrl);
+      if (!href) return;
+      const extra = selectedCompanyId ? { company_id: selectedCompanyId } : {};
+      if (window.BaupassEmbed?.navigateFromEmbed) {
+        try {
+          window.BaupassEmbed.navigateFromEmbed(href, extra);
+          showToast(t("insightNavigating"));
+          return;
+        } catch (_) {
+          /* fall through */
+        }
+      }
+      if (window.parent && window.parent !== window) {
+        try {
+          const u = new URL(href, location.origin);
+          const hash = (u.hash || "").replace(/^#/, "").trim();
+          const tab = String(u.searchParams.get("tab") || hash || "").trim();
+          let view = String(u.searchParams.get("view") || "").trim();
+          const path = u.pathname.toLowerCase();
+          if (!view) {
+            if (path.includes("ai-command-center")) view = "ai-assistant";
+            else if (path.includes("ops-command-center") || path.includes("ops-live-map")) view = "ops-center";
+            else if (path.includes("enterprise-hub")) view = "enterprise-hub";
+            else if (path.includes("admin-v2") && tab) view = tab;
+            else if (path.includes("admin-v2")) view = "admin-v2";
+            else if (path.endsWith("/index.html") || path === "/") view = tab || "dashboard";
+            else if (tab) view = tab;
+          }
+          window.parent.postMessage(
+            {
+              type: "baupass-navigate",
+              view,
+              url: `${u.pathname}${u.search}${u.hash}`,
+              companyId: selectedCompanyId || undefined,
+              focusEinsatzplan: u.searchParams.get("einsatzplan") === "1",
+            },
+            location.origin,
+          );
+          showToast(t("insightNavigating"));
+          return;
+        } catch (_) {
+          /* fall through */
+        }
+      }
+      location.href = href;
+    }
+
     async function runInsightAction(a) {
       if (!a) return;
       try {
@@ -2179,11 +2251,12 @@
           showToast(t("needCompany"));
           return;
         }
-        if (a.type === "navigate" && a.url) {
-          location.href = withCompanyUrl(a.url);
+        const type = String(a.type || "").trim();
+        if ((type === "navigate" || a.url) && a.url) {
+          openExternalUrl(a.url);
           return;
         }
-        if (a.type === "analyze") {
+        if (type === "analyze" || a.topic) {
           const topic = String(a.topic || "operations").trim() || "operations";
           if (aiQuestionInFlight) {
             showToast(t("insightActionBusy"));
@@ -2193,7 +2266,7 @@
           await runAnalysis(topic);
           return;
         }
-        if (a.type === "prompt") {
+        if (type === "prompt" || a.prompt || a.promptDe) {
           const prompt = String(a.prompt || a.promptDe || a.promptEn || a.promptAr || "").trim();
           if (!prompt) {
             showToast(t("insightActionMissing"));
@@ -2204,7 +2277,8 @@
             return;
           }
           showToast(t("insightOpened"));
-          await submitQuestion(prompt, { agentId: "operations" });
+          const agentId = ANALYSIS_AGENT_IDS[a.topic] || activeAgent || "operations";
+          await submitQuestion(prompt, { agentId });
           return;
         }
         showToast(t("insightActionMissing"));
@@ -2234,8 +2308,10 @@
         }).join("");
         return `<div class="insight-card ${escapeHtml(c.severity || "")}" data-card="${escapeHtml(c.id)}">
           <div class="insight-card-title">${pulse}${escapeHtml(labels[c.titleKey] || c.titleKey)}</div>
-          <strong class="insight-card-value">${escapeHtml(String(c.value ?? "—"))}</strong>
-          <div class="status-line">${escapeHtml(c.detail || "")}</div>
+          <button type="button" class="insight-card-hit" data-card-primary="${escapeHtml(c.id)}" title="${escapeHtml((c.actions && c.actions[0] && (c.actions[0].label || t("askIssue"))) || t("askIssue"))}">
+            <strong class="insight-card-value">${escapeHtml(String(c.value ?? "—"))}</strong>
+            <div class="status-line">${escapeHtml(c.detail || "")}</div>
+          </button>
           ${acts ? `<div class="card-actions">${acts}</div>` : ""}
         </div>`;
       }).join("");
@@ -2248,35 +2324,56 @@
           }).join("") + `</div>`;
       }
       if (data?.opsUrl) {
-        html += `<div class="playbook-block"><a class="insight-ops-link" href="${escapeHtml(withCompanyUrl(data.opsUrl))}">${escapeHtml(t("openOps"))} →</a></div>`;
+        html += `<div class="playbook-block"><a class="insight-ops-link" href="${escapeHtml(withCompanyUrl(data.opsUrl))}" data-ops-link="1">${escapeHtml(t("openOps"))} →</a></div>`;
       }
       const el = document.getElementById("insightCards");
       el.innerHTML = html || `<p class="status-line">—</p>`;
-      next.forEach((a, i) => {
-        el.querySelector(`[data-na="${i}"]`)?.addEventListener("click", (ev) => {
+      if (!el.dataset.insightBound) {
+        el.dataset.insightBound = "1";
+        el.addEventListener("click", (ev) => {
+          const target = ev.target instanceof Element ? ev.target.closest("[data-na],[data-ca],[data-card-primary],[data-issue],[data-ops-link]") : null;
+          if (!target || !el.contains(target)) return;
           ev.preventDefault();
-          void runInsightAction(a);
-        });
-      });
-      cards.forEach((c) => {
-        (c.actions || []).forEach((a, i) => {
-          el.querySelector(`[data-ca="${c.id}-${i}"]`)?.addEventListener("click", (ev) => {
-            ev.preventDefault();
-            void runInsightAction(a);
-          });
-        });
-      });
-      issues.forEach((iss, i) => {
-        el.querySelector(`[data-issue="${i}"]`)?.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          const msg = typeof iss === "string" ? iss : (iss.message || iss.site || "");
-          if (aiQuestionInFlight) {
-            showToast(t("insightActionBusy"));
+          const snapshot = lastInsightsData || {};
+          if (target.hasAttribute("data-ops-link")) {
+            openExternalUrl(snapshot.opsUrl || "/ops-command-center.html");
             return;
           }
-          void submitQuestion(t("issueAskPrompt").replace("{msg}", msg));
+          if (target.hasAttribute("data-na")) {
+            const i = Number(target.getAttribute("data-na"));
+            const a = (snapshot.nextActions || [])[i];
+            void runInsightAction(a);
+            return;
+          }
+          if (target.hasAttribute("data-ca")) {
+            const key = String(target.getAttribute("data-ca") || "");
+            const dash = key.lastIndexOf("-");
+            const cardId = dash >= 0 ? key.slice(0, dash) : key;
+            const idx = dash >= 0 ? Number(key.slice(dash + 1)) : -1;
+            const card = (snapshot.cards || []).find((c) => String(c.id) === cardId);
+            const a = card?.actions?.[idx];
+            void runInsightAction(a);
+            return;
+          }
+          if (target.hasAttribute("data-card-primary")) {
+            const cardId = String(target.getAttribute("data-card-primary") || "");
+            const card = (snapshot.cards || []).find((c) => String(c.id) === cardId);
+            const a = card?.actions?.[0];
+            void runInsightAction(a || { type: "analyze", topic: cardId === "risk" ? "compliance" : "operations" });
+            return;
+          }
+          if (target.hasAttribute("data-issue")) {
+            const i = Number(target.getAttribute("data-issue"));
+            const iss = (snapshot.operationalIssues || [])[i];
+            const msg = typeof iss === "string" ? iss : (iss?.message || iss?.site || "");
+            if (aiQuestionInFlight) {
+              showToast(t("insightActionBusy"));
+              return;
+            }
+            void submitQuestion(t("issueAskPrompt").replace("{msg}", msg));
+          }
         });
-      });
+      }
     }
 
     let insightsTimer = null;

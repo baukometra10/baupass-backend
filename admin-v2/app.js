@@ -387,15 +387,14 @@ window.addEventListener("message", (event) => {
     return;
   }
   if (event.data.type === "baupass-navigate") {
-    if (window.self !== window.top) {
+    const handled = handleHubNavigateFromEmbed(event.data);
+    if (!handled && window.self !== window.top) {
       try {
         window.parent.postMessage(event.data, window.location.origin);
       } catch {
         // ignore
       }
-      return;
     }
-    handleHubNavigateFromEmbed(event.data);
     return;
   }
   if (event.data.type !== "baupass-sync-token") return;
@@ -435,52 +434,84 @@ function handleHubNavigateFromEmbed(data) {
   if (data?.companyId) {
     applyParentCompanyId(data.companyId);
   }
+  if (data?.url && typeof data.url === "string") {
+    try {
+      const u = new URL(data.url, window.location.origin);
+      const tabFromUrl = String(u.searchParams.get("tab") || (u.hash || "").replace(/^#/, "") || "").trim();
+      if (tabFromUrl && document.querySelector(`.tab[data-tab="${tabFromUrl}"]`)) {
+        if (u.searchParams.get("einsatzplan") === "1" || data?.focusEinsatzplan) {
+          pendingEinsatzplanFocus = true;
+        }
+        switchToTab(tabFromUrl);
+        if (pendingEinsatzplanFocus) tryFocusEinsatzplanFromParent();
+        return true;
+      }
+      const path = u.pathname.toLowerCase();
+      if (path.includes("ai-command-center")) {
+        navigateToOpsEmbed("/ai-command-center.html");
+        return true;
+      }
+      if (path.includes("ops-command-center") || path.includes("ops-live-map")) {
+        navigateToOpsEmbed(u.pathname + u.search);
+        return true;
+      }
+    } catch {
+      // ignore bad urls
+    }
+  }
   if (view === "deployment-plan" || data?.focusEinsatzplan || (view === "admin-v2" && data?.focusEinsatzplan)) {
     pendingEinsatzplanFocus = true;
     switchToTab("workers");
     tryFocusEinsatzplanFromParent();
-    return;
+    return true;
   }
   if (view === "ops-center") {
     if (postShellNavigate({ view: "ops-center", companyId: data?.companyId || activeCompanyId() })) {
-      return;
+      return true;
     }
     navigateToOpsEmbed("/ops-command-center.html");
-    return;
+    return true;
   }
   if (view === "ai-assistant") {
     if (postShellNavigate({ view: "ai-assistant", companyId: data?.companyId || activeCompanyId() })) {
-      return;
+      return true;
     }
     navigateToOpsEmbed("/ai-command-center.html");
-    return;
+    return true;
   }
   if (view === "enterprise-hub") {
     if (requestEnterpriseHubInShell()) {
-      return;
+      return true;
     }
   }
   const tabByView = {
     dashboard: "overview",
+    overview: "overview",
     workers: "workers",
     access: "access",
     documents: "inbox",
+    inbox: "inbox",
+    operations: "operations",
+    copilot: "copilot",
     "ai-assistant": "copilot",
     "enterprise-hub": "enterprise",
+    enterprise: "enterprise",
     "admin-v2": "workers",
   };
   const tab = tabByView[view];
-  if (tab) {
+  if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
     switchToTab(tab);
-    return;
+    return true;
   }
-  if (data?.url && typeof data.url === "string") {
+  if (data?.url && typeof data.url === "string" && window.self === window.top) {
     try {
       window.location.href = data.url;
+      return true;
     } catch {
       // ignore
     }
   }
+  return false;
 }
 
 function navigateToOpsEmbed(page) {

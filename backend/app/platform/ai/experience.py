@@ -5,23 +5,23 @@ from typing import Any
 
 _CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
     "emergency": [
-        {"type": "navigate", "url": "/index.html", "labelDe": "Notfall-Center", "labelEn": "Emergency center", "labelAr": "مركز الطوارئ"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=overview", "labelDe": "Notfall-Center", "labelEn": "Emergency center", "labelAr": "مركز الطوارئ"},
         {"type": "prompt", "promptDe": "Beschreibe den aktiven Notfall und empfohlene Sofortmaßnahmen.", "promptEn": "Describe the active emergency and immediate actions.", "promptAr": "صف حالة الطوارئ النشطة والإجراءات الفورية."},
         {"type": "analyze", "topic": "operations", "labelDe": "KI-Analyse", "labelEn": "AI analysis", "labelAr": "تحليل AI"},
     ],
     "security": [
-        {"type": "navigate", "url": "/admin-v2/index.html#operations", "labelDe": "Sicherheit öffnen", "labelEn": "Open security", "labelAr": "فتح الأمن"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=operations", "labelDe": "Sicherheit öffnen", "labelEn": "Open security", "labelAr": "فتح الأمن"},
         {"type": "analyze", "topic": "security", "labelDe": "Security Deep-Dive", "labelEn": "Security deep dive", "labelAr": "تحليل أمني"},
         {"type": "prompt", "labelDe": "KI: Security-Alerts", "labelEn": "AI: Security alerts", "labelAr": "AI: تنبيهات الأمن", "promptDe": "Welche Sicherheitsalerts sind offen und wie priorisieren?", "promptEn": "Which security alerts are open and how to prioritize?", "promptAr": "ما التنبيهات الأمنية المفتوحة؟"},
     ],
     "onsite": [
-        {"type": "navigate", "url": "/foreman.html", "labelDe": "Vorarbeiter-Dashboard", "labelEn": "Foreman dashboard", "labelAr": "لوحة المشرف"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=access", "labelDe": "Anwesenheit", "labelEn": "Attendance", "labelAr": "الحضور"},
         {"type": "navigate", "url": "/ops-command-center.html", "labelDe": "Ops Live", "labelEn": "Ops live", "labelAr": "عمليات مباشرة"},
         {"type": "prompt", "labelDe": "KI: Wer ist vor Ort?", "labelEn": "AI: Who is on site?", "labelAr": "AI: من في الموقع؟", "promptDe": "Wer ist gerade auf der Baustelle und gibt es Engpässe?", "promptEn": "Who is on site now and are there bottlenecks?", "promptAr": "من على الموقع الآن؟"},
     ],
     "risk": [
         {"type": "analyze", "topic": "compliance", "labelDe": "Compliance prüfen", "labelEn": "Check compliance", "labelAr": "فحص الامتثال"},
-        {"type": "navigate", "url": "/index.html#workers", "labelDe": "Mitarbeiter", "labelEn": "Workers", "labelAr": "الموظفون"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=workers", "labelDe": "Mitarbeiter", "labelEn": "Workers", "labelAr": "الموظفون"},
     ],
     "attendance": [
         {"type": "analyze", "topic": "attendance", "labelDe": "Anwesenheit analysieren", "labelEn": "Analyze attendance", "labelAr": "تحليل الحضور"},
@@ -29,14 +29,14 @@ _CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
     ],
     "fraud": [
         {"type": "analyze", "topic": "security", "labelDe": "Betrug prüfen", "labelEn": "Investigate fraud", "labelAr": "تحقيق احتيال"},
-        {"type": "navigate", "url": "/admin-v2/index.html#access", "labelDe": "Zutrittslogs", "labelEn": "Access logs", "labelAr": "سجلات الدخول"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=access", "labelDe": "Zutrittslogs", "labelEn": "Access logs", "labelAr": "سجلات الدخول"},
     ],
     "productivity": [
         {"type": "analyze", "topic": "operations", "labelDe": "Betrieb analysieren", "labelEn": "Operations analysis", "labelAr": "تحليل تشغيلي"},
         {"type": "prompt", "promptDe": "Wie war die Produktivität heute vs. gestern?", "promptEn": "How was productivity today vs yesterday?", "promptAr": "كيف كانت الإنتاجية اليوم؟"},
     ],
     "tomorrow": [
-        {"type": "navigate", "url": "/foreman.html", "labelDe": "Vorarbeiter: Planung", "labelEn": "Foreman planning", "labelAr": "تخطيط المشرف"},
+        {"type": "navigate", "url": "/admin-v2/index.html?tab=workers&einsatzplan=1", "labelDe": "Vorarbeiter: Planung", "labelEn": "Foreman planning", "labelAr": "تخطيط المشرف"},
         {"type": "navigate", "url": "/ops-command-center.html", "labelDe": "Ops Center", "labelEn": "Ops center", "labelAr": "مركز العمليات"},
         {"type": "prompt", "promptDe": "Erstelle einen Personalplan für morgen inkl. Ausfallrisiken und Kontaktliste.", "promptEn": "Create a staffing plan for tomorrow including absence risks.", "promptAr": "أنشئ خطة توظيف للغد مع مخاطر الغياب."},
     ],
@@ -71,7 +71,7 @@ _RECOMMENDATIONS: dict[str, dict[str, str]] = {
         "labelEn": "Manage emergency",
         "labelAr": "إدارة الطوارئ",
         "type": "navigate",
-        "url": "/index.html",
+        "url": "/admin-v2/index.html?tab=overview",
     },
     "renew_expired_documents": {
         "labelDe": "Abgelaufene Dokumente",
@@ -94,14 +94,14 @@ _RECOMMENDATIONS: dict[str, dict[str, str]] = {
         "labelEn": "Notify foreman",
         "labelAr": "إبلاغ المشرف",
         "type": "navigate",
-        "url": "/foreman.html",
+        "url": "/admin-v2/index.html?tab=workers&einsatzplan=1",
     },
     "shift_coverage_review": {
         "labelDe": "Schichtabdeckung prüfen",
         "labelEn": "Review shift coverage",
         "labelAr": "مراجعة تغطية الورديات",
         "type": "navigate",
-        "url": "/foreman.html",
+        "url": "/admin-v2/index.html?tab=access",
     },
 }
 

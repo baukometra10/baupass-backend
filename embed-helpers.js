@@ -52,7 +52,11 @@
       if (p.includes("ai-command-center")) return "ai-assistant";
       if (p.includes("ops-command-center") || p.includes("ops-live-map")) return "ops-center";
       if (p.includes("enterprise-hub") || p === "/enterprise") return "enterprise-hub";
-      if (p.includes("admin-v2")) return "admin-v2";
+      if (p.includes("admin-v2")) {
+        const tab = String(u.searchParams.get("tab") || (u.hash || "").replace(/^#/, "") || "").trim();
+        if (tab) return tab;
+        return "admin-v2";
+      }
       const view = u.searchParams.get("view");
       if (view) return view;
       if (p === "/" || p.endsWith("/index.html")) {
