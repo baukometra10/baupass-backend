@@ -989,6 +989,8 @@
     }
 
     async function sendLockOtp() {
+      const sendBtn = document.getElementById("lockSendBtn");
+      if (sendBtn?.disabled) return;
       setLockMsg("");
       const phone = document.getElementById("lockOwnerPhone")?.value.trim() || "";
       const email = document.getElementById("lockOwnerEmail")?.value.trim() || "";
@@ -997,6 +999,7 @@
         body.phone = phone;
       }
       if (email) body.email = email;
+      if (sendBtn) sendBtn.disabled = true;
       try {
         const res = await api("/api/contracts/lock/request-otp", {
           method: "POST",
@@ -1023,8 +1026,13 @@
           document.getElementById("lockOtpCode").value = res.debugCode;
         }
         document.getElementById("lockOtpCode")?.focus();
+        // Cool-down between sends (default 45s).
+        const wait = Math.max(15, Number(res.otpRequestMinSeconds || 45));
+        setTimeout(() => { if (sendBtn) sendBtn.disabled = false; }, wait * 1000);
       } catch (e) {
+        const retry = Number(e?.data?.retryInSeconds || 45);
         setLockMsg(mapApiError(e), { error: true });
+        setTimeout(() => { if (sendBtn) sendBtn.disabled = false; }, Math.max(5, retry) * 1000);
       }
     }
 

@@ -171,12 +171,30 @@ def owner_step_up_enforced() -> bool:
     return True
 
 
+def otp_request_min_seconds() -> int:
+    raw = str(os.getenv("BAUPASS_OWNER_OTP_MIN_SECONDS", str(_OTP_REQUEST_MIN_SECONDS))).strip()
+    try:
+        return max(5, min(600, int(raw)))
+    except ValueError:
+        return _OTP_REQUEST_MIN_SECONDS
+
+
+def otp_request_max_per_hour() -> int:
+    raw = str(os.getenv("BAUPASS_OWNER_OTP_MAX_PER_HOUR", str(_OTP_REQUEST_MAX_PER_HOUR))).strip()
+    try:
+        return max(1, min(60, int(raw)))
+    except ValueError:
+        return _OTP_REQUEST_MAX_PER_HOUR
+
+
 def assert_otp_request_allowed(db, company_id: str) -> None:
-    """Throttle OTP issuance (not only verify attempts)."""
+    """Throttle OTP issuance (min interval + hourly cap for successful sends)."""
     ensure_step_up_tables(db)
     cid = str(company_id)
     now = _now()
     now_iso = _now_iso()
+    min_seconds = otp_request_min_seconds()
+    max_per_hour = otp_request_max_per_hour()
     streak = 0
     try:
         row = db.execute(
@@ -191,7 +209,7 @@ def assert_otp_request_allowed(db, company_id: str) -> None:
         row = None
 
     window_started = now_iso
-    window_count = 1
+    window_count = 0
     if row:
         streak = int(row["delivery_fail_streak"] or 0)
         last = str(row["last_request_at"] or "").strip()
@@ -201,8 +219,8 @@ def assert_otp_request_allowed(db, company_id: str) -> None:
             try:
                 last_dt = datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
                 delta = int((now - last_dt).total_seconds())
-                if delta < _OTP_REQUEST_MIN_SECONDS:
-                    raise ValueError(f"rate_limited:{max(1, _OTP_REQUEST_MIN_SECONDS - delta)}")
+                if delta < min_seconds:
+                    raise ValueError(f"rate_limited:{max(1, min_seconds - delta)}")
             except ValueError as exc:
                 if str(exc).startswith("rate_limited:"):
                     raise
@@ -211,16 +229,21 @@ def assert_otp_request_allowed(db, company_id: str) -> None:
             if (now - win_dt).total_seconds() >= 3600:
                 window_started = now_iso
                 window_count = 0
-            elif window_count >= _OTP_REQUEST_MAX_PER_HOUR:
-                retry = max(1, int(3600 - (now - win_dt).total_seconds()))
-                raise ValueError(f"rate_limited:{retry}")
+            elif window_count >= max_per_hour:
+                # Failed Twilio/SMTP attempts should not lock the company for a full hour.
+                if streak >= 1:
+                    window_started = now_iso
+                    window_count = 0
+                else:
+                    retry = max(1, int(3600 - (now - win_dt).total_seconds()))
+                    raise ValueError(f"rate_limited:{retry}")
         except ValueError as exc:
             if str(exc).startswith("rate_limited:"):
                 raise
             window_started = now_iso
             window_count = 0
-        window_count += 1
 
+    # Update last_request_at for min-interval; window_count rises only on successful delivery.
     db.execute(
         "DELETE FROM step_up_otp_requests WHERE purpose = ? AND company_id = ?",
         (_STEP_UP_PURPOSE, cid),
@@ -237,7 +260,7 @@ def assert_otp_request_allowed(db, company_id: str) -> None:
 
 
 def record_otp_delivery_result(db, company_id: str, *, delivered: bool) -> int:
-    """Track consecutive OTP delivery failures; returns current streak."""
+    """Track consecutive OTP delivery failures; count successful sends toward hourly cap."""
     ensure_step_up_tables(db)
     cid = str(company_id)
     streak = 0
@@ -255,6 +278,18 @@ def record_otp_delivery_result(db, company_id: str, *, delivered: bool) -> int:
     if row:
         streak = int(row["delivery_fail_streak"] or 0)
         streak = 0 if delivered else streak + 1
+        window_started = str(row["window_started_at"] or _now_iso())
+        window_count = int(row["window_count"] or 0)
+        if delivered:
+            try:
+                win_dt = datetime.strptime(window_started, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                if (_now() - win_dt).total_seconds() >= 3600:
+                    window_started = _now_iso()
+                    window_count = 0
+            except Exception:
+                window_started = _now_iso()
+                window_count = 0
+            window_count += 1
         db.execute(
             "DELETE FROM step_up_otp_requests WHERE purpose = ? AND company_id = ?",
             (_STEP_UP_PURPOSE, cid),
@@ -269,8 +304,8 @@ def record_otp_delivery_result(db, company_id: str, *, delivered: bool) -> int:
                 _STEP_UP_PURPOSE,
                 cid,
                 str(row["last_request_at"] or _now_iso()),
-                str(row["window_started_at"] or _now_iso()),
-                int(row["window_count"] or 0),
+                window_started,
+                window_count,
                 streak,
             ),
         )
@@ -770,8 +805,8 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
         "emailMasked": mask_email(email) if email else "",
         "smsConfigured": sms_configured(),
         "unlockTtlMinutes": unlock_ttl_minutes(),
-        "otpRequestMinSeconds": _OTP_REQUEST_MIN_SECONDS,
-        "otpRequestMaxPerHour": _OTP_REQUEST_MAX_PER_HOUR,
+        "otpRequestMinSeconds": otp_request_min_seconds(),
+        "otpRequestMaxPerHour": otp_request_max_per_hour(),
     }
 
 
