@@ -182,6 +182,8 @@ export const EXT_STRINGS = {
     "inbox.aiAnalyze": "KI analysieren",
     "inbox.aiAnalyzing": "KI analysiert…",
     "inbox.aiEmpty": "Keine aussagekräftige Analyse erhalten. Bitte erneut versuchen.",
+    "inbox.aiQuota": "OpenAI-API-Guthaben leer. Bitte unter platform.openai.com/settings/billing aufladen (ChatGPT Plus ≠ API).",
+    "inbox.aiNotConfigured": "KI ist noch nicht konfiguriert (OPENAI_API_KEY).",
     "inbox.aiOpenFull": "Im AI Command Center öffnen",
     "inbox.ackedOnOpen": "Hinweis gelesen und aus der Liste entfernt.",
     "common.close": "Schließen",

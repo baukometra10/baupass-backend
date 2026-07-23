@@ -1873,6 +1873,11 @@
         return;
       }
       if (companyRequiredForUi()) { appendMsg("bot", t("needCompany")); return; }
+      const input = document.getElementById("question");
+      if (input) {
+        input.value = "";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      }
       aiQuestionInFlight = true;
       window.BaupassAiUi?.resetTtsTurn?.();
       window.BaupassAiUi?.stopSpeaking?.();
@@ -2329,6 +2334,21 @@
           /* keep raw */
         }
       }
+      // Drop autoprompt from the URL so refresh doesn't resend / leave text behind.
+      if (params.has("autoprompt") || params.has("agent")) {
+        params.delete("autoprompt");
+        // keep agent in UI state only; remove from URL after consume
+        const keepAgent = params.get("agent");
+        params.delete("agent");
+        if (keepAgent && !agent) agent = keepAgent;
+        const qs = params.toString();
+        const next = `${location.pathname}${qs ? `?${qs}` : ""}${location.hash || ""}`;
+        try {
+          history.replaceState({}, "", next);
+        } catch {
+          /* ignore */
+        }
+      }
       return { autoQ, agent };
     }
 
@@ -2386,7 +2406,10 @@
         }
         if (autoQ) {
           const input = document.getElementById("question");
-          if (input) input.value = autoQ;
+          if (input) {
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+          }
           try {
             await loadAgents();
             renderAgents();
@@ -2397,6 +2420,10 @@
             await submitQuestion(autoQ, { agentId: autoAgent || activeAgent || "decision" });
           } catch (e) {
             appendMsg("bot", e?.payload?.hint || e?.message || String(e));
+          }
+          if (input) {
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
           }
           // Side panels after the answer — keeps first response snappy.
           Promise.all([loadInsights(), loadSessions()])

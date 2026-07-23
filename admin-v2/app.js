@@ -3753,16 +3753,36 @@ async function loadInbox() {
 
     const pickAnswer = (res) => {
       const decision = res?.decision && typeof res.decision === "object" ? res.decision : {};
+      const errCode = String(res?.error || "").trim();
+      if (
+        errCode === "openai_quota_exceeded" ||
+        /insufficient_quota|exceeded your current quota|chatgpt plus/i.test(String(res?.hint || ""))
+      ) {
+        return (
+          t("inbox.aiQuota") ||
+          "OpenAI-API-Guthaben leer. Bitte unter platform.openai.com/settings/billing aufladen (ChatGPT Plus ≠ API)."
+        );
+      }
+      if (errCode === "ai_not_configured" || errCode === "openai_not_configured") {
+        return t("inbox.aiNotConfigured") || "KI ist noch nicht konfiguriert (OPENAI_API_KEY).";
+      }
       const candidates = [
         res?.answer,
         decision.summary,
         decision.rationale,
-        res?.hint,
         res?.message,
       ];
       for (const c of candidates) {
         const s = String(c || "").trim();
         if (s && !isTechnicalDecisionText(s)) return s;
+      }
+      const hint = String(res?.hint || "").trim();
+      if (hint && !isTechnicalDecisionText(hint) && !/openai|quota|api key/i.test(hint)) return hint;
+      if (hint) {
+        return (
+          t("inbox.aiQuota") ||
+          "OpenAI-API-Guthaben leer. Bitte unter platform.openai.com/settings/billing aufladen (ChatGPT Plus ≠ API)."
+        );
       }
       return "";
     };
