@@ -2581,12 +2581,14 @@ function summarizeOpsLayer(key, val) {
       );
       break;
     case "2_ai_security":
-      stat = t("ops.stat.openAlerts", { n: (v.openAlerts || []).length });
+      stat = t("ops.stat.openAlerts", {
+        n: v.openAlertCount ?? (v.openAlerts || []).length,
+      });
       lines.push(
         t("ops.stat.newFindings", { n: v.newFindings ?? 0 }),
         (v.capabilities || []).slice(0, 2).join(", ") || t("ops.stat.analysisActive"),
       );
-      tone = (v.openAlerts || []).length > 0 ? "warn" : "ok";
+      tone = (v.openAlertCount ?? (v.openAlerts || []).length) > 0 ? "warn" : "ok";
       break;
     case "3_site_intelligence":
       stat = t("ops.stat.topGates", { n: (v.busiestGates || []).length });
@@ -2764,18 +2766,36 @@ function syncTokenToOpsEmbedFrame(frame, companyId) {
 function initOpsEmbedTabs(panel, companyId) {
   const frame = panel?.querySelector("#opsEmbedFrame");
   if (!frame) return;
+  const ensureFrameSrc = (page) => {
+    const target = page || frame.getAttribute("data-ops-page") || "/ops-live-map.html";
+    frame.setAttribute("data-ops-page", target);
+    frame.src = buildOpsEmbedUrl(target, companyId);
+    syncTokenToOpsEmbedFrame(frame, companyId);
+  };
   panel.querySelectorAll(".ops-embed-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       const page = btn.getAttribute("data-ops-page");
       if (!page) return;
       panel.querySelectorAll(".ops-embed-tab").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-      frame.src = buildOpsEmbedUrl(page, companyId);
       frame.title = btn.textContent || "";
-      syncTokenToOpsEmbedFrame(frame, companyId);
+      ensureFrameSrc(page);
     });
   });
-  syncTokenToOpsEmbedFrame(frame, companyId);
+  // Lazy: load first embed after idle / click — saves bandwidth on slow links.
+  const lazyLoad = () => {
+    if (frame.getAttribute("data-loaded") === "1") return;
+    frame.setAttribute("data-loaded", "1");
+    const active = panel.querySelector(".ops-embed-tab.active");
+    ensureFrameSrc(active?.getAttribute("data-ops-page") || "/ops-live-map.html");
+  };
+  if (pendingOpsEmbedPage) {
+    lazyLoad();
+  } else if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => lazyLoad(), { timeout: 2500 });
+  } else {
+    setTimeout(lazyLoad, 1200);
+  }
 }
 
 function initOpsCarousel(root) {
@@ -2925,61 +2945,43 @@ async function renderBetriebActionHub(companyId) {
   ].join("");
 }
 
-async function loadOperations() {
-  const panel = $("operationsPanel");
-  const q = companyQuery();
-  const cid = q.replace("?company_id=", "");
-  await renderBetriebActionHub(cid);
-  if (getUser().role === "superadmin" && !q) {
-    panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
-    return;
-  }
-  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
-  try {
-    const [data, rt, chatResp, features] = await Promise.all([
-      api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`),
-      api("/api/v1/realtime/status").catch(() => null),
-      api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] })),
-      loadLegacyFeatures(cid),
-    ]);
-    const layers = data.layers || {};
-    const cards = getOpsLayerOrder()
-      .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
-      .join("");
-    const rtLabel = rt?.websocket?.enabled
-      ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
-      : rt
-        ? `<span class="badge badge-warn">${t("ops.sseFallback")}</span>`
-        : "";
-    const chatThreads = chatResp.threads || [];
-    const contractsCard = renderBetriebActionCard({
-      href: `/admin-v2/contracts.html${q}`,
-      icon: "📄",
-      title: t("contracts.open"),
-      desc: t("contracts.desc"),
-      cta: t("contracts.open"),
-      locked: !legacyFeatureEnabled(features, "employment_contracts"),
-      upgradeLabel: t("contracts.upgrade"),
-    });
-    const chatCard = renderBetriebActionCard({
-      href: `/admin-v2/chat.html${q}`,
-      icon: "💬",
-      title: t("chat.open"),
-      desc: chatThreads.length ? t("chat.threadCount", { count: chatThreads.length }) : t("chat.empty"),
-      cta: t("chat.open"),
-      locked: !legacyFeatureEnabled(features, "worker_chat"),
-      upgradeLabel: t("chat.upgrade"),
-    });
-    panel.innerHTML = `
+let _opsOverviewCache = { cid: "", at: 0, data: null };
+
+function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {
+  const cards = getOpsLayerOrder()
+    .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
+    .join("");
+  const contractsCard = renderBetriebActionCard({
+    href: `/admin-v2/contracts.html${q}`,
+    icon: "📄",
+    title: t("contracts.open"),
+    desc: t("contracts.desc"),
+    cta: t("contracts.open"),
+    locked: !legacyFeatureEnabled(features, "employment_contracts"),
+    upgradeLabel: t("contracts.upgrade"),
+  });
+  const chatCard = renderBetriebActionCard({
+    href: `/admin-v2/chat.html${q}`,
+    icon: "💬",
+    title: t("chat.open"),
+    desc: chatThreads.length ? t("chat.threadCount", { count: chatThreads.length }) : t("chat.empty"),
+    cta: t("chat.open"),
+    locked: !legacyFeatureEnabled(features, "worker_chat"),
+    upgradeLabel: t("chat.upgrade"),
+  });
+  const mapSrc = mapEager
+    ? `/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
+    : "about:blank";
+  panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
-          <h3>${t("ops.physicalOs")} <span class="badge badge-ok">${t("ops.layersBadge")}</span> ${rtLabel}</h3>
-          <p class="muted small">${t("ops.company", { id: data.companyId || cid })}</p>
+          <h3>${t("ops.physicalOs")} <span class="badge badge-ok">${t("ops.layersBadge")}</span> ${rtLabel || ""}</h3>
+          <p class="muted small">${t("ops.company", { id: cid })}</p>
         </div>
         <div class="ops-carousel-shell" id="opsCarousel">
           <div class="ops-carousel-wrap">
             <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="${t("ops.prevLayer")}">‹</button>
-            <div class="ops-carousel-track">${cards}</div>
+            <div class="ops-carousel-track">${cards || `<p class="muted small">${t("common.loading")}</p>`}</div>
             <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="${t("ops.nextLayer")}">›</button>
           </div>
         </div>
@@ -2992,7 +2994,7 @@ async function loadOperations() {
         <button type="button" class="btn-link ops-embed-tab" data-ops-page="/enterprise-hub.html">${t("common.enterpriseHub")}</button>
         <a href="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
       </div>
-      <iframe id="opsEmbedFrame" src="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" title="${t("ops.liveMap")}" class="ops-map-frame"></iframe>
+      <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame" loading="lazy"></iframe>
       <div class="panel-block">
         <h3>${t("contracts.title")}</h3>
         <p class="muted small">${t("contracts.desc")}</p>
@@ -3004,18 +3006,96 @@ async function loadOperations() {
         <div style="max-width:420px;">${chatCard}</div>
       </div>
     `;
-    window.__opsLayersCache = layers;
-    initOpsCarousel($("opsCarousel"));
-    initOpsLayerCards($("opsCarousel"));
-    initOpsEmbedTabs(panel, cid);
-    if (pendingOpsEmbedPage) {
-      const page = pendingOpsEmbedPage;
-      pendingOpsEmbedPage = null;
-      const embedBtn = panel.querySelector(`.ops-embed-tab[data-ops-page="${page}"]`);
-      embedBtn?.click();
+  window.__opsLayersCache = layers;
+  initOpsCarousel($("opsCarousel"));
+  initOpsLayerCards($("opsCarousel"));
+  initOpsEmbedTabs(panel, cid);
+  if (pendingOpsEmbedPage) {
+    const page = pendingOpsEmbedPage;
+    pendingOpsEmbedPage = null;
+    const embedBtn = panel.querySelector(`.ops-embed-tab[data-ops-page="${page}"]`);
+    embedBtn?.click();
+  }
+}
+
+async function loadOperations() {
+  const panel = $("operationsPanel");
+  const q = companyQuery();
+  const cid = q.replace("?company_id=", "");
+  // Hub must not block first paint of the main panel.
+  void renderBetriebActionHub(cid);
+  if (getUser().role === "superadmin" && !q) {
+    panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
+    return;
+  }
+
+  const cacheHit =
+    _opsOverviewCache.cid === cid && Date.now() - _opsOverviewCache.at < 45_000
+      ? _opsOverviewCache.data
+      : null;
+  const featuresP = loadLegacyFeatures(cid);
+  const featuresWarm = await Promise.race([
+    featuresP,
+    new Promise((resolve) => setTimeout(() => resolve({}), 80)),
+  ]);
+
+  if (cacheHit?.layers) {
+    renderOperationsShell(panel, {
+      cid,
+      q,
+      layers: cacheHit.layers,
+      rtLabel: "",
+      chatThreads: [],
+      features: featuresWarm,
+      mapEager: false,
+    });
+  } else {
+    panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  }
+
+  try {
+    const summaryP = api(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`).catch(() => null);
+    const overviewP = api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
+    const rtP = api("/api/v1/realtime/status").catch(() => null);
+    const chatP = api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] }));
+
+    // First paint from summary (or cache), then upgrade with full overview.
+    if (!cacheHit?.layers) {
+      const summary = await summaryP;
+      const features = await featuresP;
+      if (summary?.layers) {
+        renderOperationsShell(panel, {
+          cid,
+          q,
+          layers: summary.layers,
+          rtLabel: "",
+          chatThreads: [],
+          features,
+          mapEager: false,
+        });
+      }
     }
+
+    const [data, rt, chatResp, features] = await Promise.all([overviewP, rtP, chatP, featuresP]);
+    _opsOverviewCache = { cid, at: Date.now(), data };
+    const rtLabel = rt?.websocket?.enabled
+      ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
+      : rt
+        ? `<span class="badge badge-warn">${t("ops.sseFallback")}</span>`
+        : "";
+    renderOperationsShell(panel, {
+      cid,
+      q,
+      layers: data.layers || {},
+      rtLabel,
+      chatThreads: chatResp.threads || [],
+      features,
+      mapEager: false,
+    });
   } catch (e) {
-    panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
+    if (!panel.querySelector(".ops-panel")) {
+      panel.innerHTML = `<p class="error">${e.message || t("ops.loadError")}</p>`;
+    }
   }
 }
 
@@ -4394,7 +4474,7 @@ async function loadOverview() {
     api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
     api(`/api/dashboard/role${q}`).catch(() => null),
     cid
-      ? api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`).catch(() => null)
+      ? api(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`).catch(() => null)
       : Promise.resolve(null),
     api(`/api/operations/snapshot${q}`).catch(() => null),
     api(`/api/integrations/cameras${q}`).catch(() => ({ cameras: [] })),

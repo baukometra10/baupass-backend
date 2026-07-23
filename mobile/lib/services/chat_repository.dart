@@ -14,6 +14,8 @@ class ChatRepository {
   String? _workerId;
   Map<String, dynamic>? _security;
   String? _cachedThreadId;
+  DateTime? _meLoadedAt;
+  static const Duration _meTtl = Duration(seconds: 45);
 
   /// Exposed for conference / call helpers that share the same auth client.
   ApiClient get apiClient => _api;
@@ -50,7 +52,16 @@ class ChatRepository {
     );
   }
 
-  Future<Map<String, dynamic>> _loadMe(WorkerSession session) async {
+  Future<Map<String, dynamic>> _loadMe(WorkerSession session, {bool force = false}) async {
+    final workerReady = (_workerId ?? '').isNotEmpty;
+    final fresh = _meLoadedAt != null && DateTime.now().difference(_meLoadedAt!) < _meTtl;
+    if (!force && workerReady && fresh) {
+      return <String, dynamic>{
+        'worker': <String, dynamic>{'id': _workerId},
+        'security': _security,
+        'chat': <String, dynamic>{'threadId': _cachedThreadId},
+      };
+    }
     final me = await _api.getJson(
       '/api/worker-app/me',
       bearerToken: session.bearer,
@@ -69,6 +80,7 @@ class ChatRepository {
     if (threadId != null && threadId.isNotEmpty) {
       _cachedThreadId = threadId;
     }
+    _meLoadedAt = DateTime.now();
     return me;
   }
 
@@ -213,7 +225,9 @@ class ChatRepository {
   }
 
   Future<List<Map<String, dynamic>>> listMessages(WorkerSession session, String threadId) async {
-    await _loadMe(session);
+    if ((_workerId ?? '').isEmpty || _security == null) {
+      await _loadMe(session);
+    }
     final data = await _api.getJson(
       '/api/worker-app/chat/threads/$threadId/messages',
       bearerToken: session.bearer,
@@ -244,7 +258,6 @@ class ChatRepository {
   }
 
   Future<void> markThreadRead(WorkerSession session, String threadId) async {
-    await _loadMe(session);
     await _api.postJson(
       '/api/worker-app/chat/threads/$threadId/mark-read',
       bearerToken: session.bearer,

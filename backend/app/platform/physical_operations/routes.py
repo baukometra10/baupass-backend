@@ -3,17 +3,21 @@ Physical Operations OS — all 12 capabilities under /api/ops-os/*
 """
 from __future__ import annotations
 
+import time
 import uuid
 
 from flask import Blueprint, Response, g, jsonify, request
 
 ops_os_bp = Blueprint("physical_operations", __name__)
 
+_OVERVIEW_CACHE: dict[str, tuple[float, dict]] = {}
+_OVERVIEW_TTL_SEC = 25.0
+
 
 def register_physical_operations(flask_app) -> None:
     from backend.server import require_auth, require_roles, get_db, log_audit
 
-    from ._common import company_id_from_user, now_iso
+    from ._common import company_id_from_user, count_on_site, now_iso, today_prefix
     from .digital_twin import build_digital_twin
     from .site_intelligence import build_site_intelligence
     from .security_engine import analyze_security
@@ -35,6 +39,82 @@ def register_physical_operations(flask_app) -> None:
             return str(request.args.get("company_id", "") or "").strip()
         return str(g.current_user.get("company_id") or "").strip()
 
+    # ── Fast summary (first paint) ────────────────────────────────────────────
+    @ops_os_bp.get("/ops-os/summary")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_summary():
+        cid = _cid()
+        if not cid and g.current_user.get("role") != "superadmin":
+            return jsonify({"error": "company_required"}), 400
+        cid = cid or str(request.args.get("company_id", "") or "").strip()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        db = get_db()
+        today = today_prefix()
+        on_site = int(count_on_site(db, cid, today) or 0)
+        open_sec = 0
+        try:
+            row = db.execute(
+                """
+                SELECT COUNT(*) AS c FROM security_alerts
+                WHERE company_id = ? AND status = 'open'
+                """,
+                (cid,),
+            ).fetchone()
+            open_sec = int((row["c"] if row else 0) or 0)
+        except Exception:
+            open_sec = 0
+        emergency = _active_emergency_summary(db, cid)
+        cameras = _camera_summary(db, cid)
+        autonomous = _autonomous_summary(db, cid)
+        copilot = _copilot_layer_summary()
+        iot_count = 0
+        try:
+            row = db.execute(
+                "SELECT COUNT(*) AS c FROM iot_devices WHERE company_id = ?",
+                (cid,),
+            ).fetchone()
+            iot_count = int((row["c"] if row else 0) or 0)
+        except Exception:
+            iot_count = 0
+        return jsonify(
+            {
+                "physicalOperationsOS": True,
+                "companyId": cid,
+                "fast": True,
+                "layers": {
+                    "1_digital_twin": {
+                        "summary": {"workersOnSite": on_site, "gatesActive": 0, "hazardZones": 0},
+                        "totalOnSite": on_site,
+                    },
+                    "2_ai_security": {
+                        "openAlertCount": open_sec,
+                        "openAlerts": [],
+                        "newFindings": 0,
+                    },
+                    "3_site_intelligence": {
+                        "date": today,
+                        "busiestGates": [],
+                        "totalEvents24h": 0,
+                    },
+                    "4_reputation": {"averageScore": 0, "leaderboard": []},
+                    "5_emergency": emergency,
+                    "6_camera_ai": cameras,
+                    "7_iot": {"devices": [{"id": i} for i in range(min(iot_count, 8))], "status": "Registry"},
+                    "8_command_center": {
+                        "totalOnSite": on_site,
+                        "openEmergencies": 1 if emergency.get("active") else 0,
+                        "openSecurity": open_sec,
+                    },
+                    "9_autonomous": autonomous,
+                    "10_workforce_graph": {"nodes": [], "edges": []},
+                    "11_identity": {"apis": {"gates": "/api/gates"}},
+                    "12_copilot": copilot,
+                },
+            }
+        )
+
     # ── Overview (all 12 layers) ──────────────────────────────────────────────
     @ops_os_bp.get("/ops-os/overview")
     @require_auth
@@ -48,26 +128,38 @@ def register_physical_operations(flask_app) -> None:
         cid = cid or str(request.args.get("company_id", "") or "").strip()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
-        return jsonify(
-            {
-                "physicalOperationsOS": True,
-                "companyId": cid,
-                "layers": {
-                    "1_digital_twin": build_digital_twin(db, cid),
-                    "2_ai_security": analyze_security(db, cid, persist=False),
-                    "3_site_intelligence": build_site_intelligence(db, cid),
-                    "4_reputation": build_reputation_leaderboard(db, cid, limit=50),
-                    "5_emergency": _active_emergency_summary(db, cid),
-                    "6_camera_ai": _camera_summary(db, cid),
-                    "7_iot": build_iot_overview(db, cid),
-                    "8_command_center": build_command_center(db, company_id=cid, role=role),
-                    "9_autonomous": _autonomous_summary(db, cid),
-                    "10_workforce_graph": build_workforce_graph(db, cid),
-                    "11_identity": build_identity_hub(db, cid),
-                    "12_copilot": _copilot_layer_summary(),
-                },
-            }
-        )
+        force = str(request.args.get("refresh") or "").strip() in {"1", "true", "yes"}
+        cache_key = f"{cid}:{role}"
+        now = time.monotonic()
+        if not force:
+            hit = _OVERVIEW_CACHE.get(cache_key)
+            if hit and now - hit[0] < _OVERVIEW_TTL_SEC:
+                return jsonify(hit[1])
+        payload = {
+            "physicalOperationsOS": True,
+            "companyId": cid,
+            "layers": {
+                "1_digital_twin": build_digital_twin(db, cid),
+                "2_ai_security": analyze_security(db, cid, persist=False),
+                "3_site_intelligence": build_site_intelligence(db, cid),
+                # Keep leaderboard small — full ranking is available via /reputation
+                "4_reputation": build_reputation_leaderboard(db, cid, limit=12),
+                "5_emergency": _active_emergency_summary(db, cid),
+                "6_camera_ai": _camera_summary(db, cid),
+                "7_iot": build_iot_overview(db, cid),
+                "8_command_center": build_command_center(db, company_id=cid, role=role),
+                "9_autonomous": _autonomous_summary(db, cid),
+                "10_workforce_graph": build_workforce_graph(db, cid),
+                "11_identity": build_identity_hub(db, cid),
+                "12_copilot": _copilot_layer_summary(),
+            },
+        }
+        _OVERVIEW_CACHE[cache_key] = (now, payload)
+        if len(_OVERVIEW_CACHE) > 48:
+            oldest = sorted(_OVERVIEW_CACHE.items(), key=lambda kv: kv[1][0])[:12]
+            for key, _ in oldest:
+                _OVERVIEW_CACHE.pop(key, None)
+        return jsonify(payload)
 
     def _active_emergency_summary(db, cid):
         row = db.execute(

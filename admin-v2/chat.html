@@ -5329,9 +5329,27 @@
     })();
     void window.SUPPIXChatLocation?.prefetchChatLocation?.();
     void (async () => {
+      const deferWork = (fn, delayMs = 0) => {
+        const run = () => {
+          try {
+            const result = fn();
+            if (result && typeof result.then === "function") result.catch(() => {});
+          } catch {
+            /* ignore */
+          }
+        };
+        if (delayMs > 0) {
+          setTimeout(run, delayMs);
+          return;
+        }
+        if (typeof requestIdleCallback === "function") {
+          requestIdleCallback(() => run(), { timeout: 2000 });
+        } else {
+          setTimeout(run, 40);
+        }
+      };
+
       await ensureAdminSession();
-      await window.E2ECrypto?.ensureCryptoSessionReady?.();
-      await ensureAdminE2EIdentity();
       bindAdminWhatsAppVoiceCompose();
       updateChatHead("");
       syncAdminThreadCompose();
@@ -5343,51 +5361,66 @@
       } catch {
         /* ignore */
       }
-      window.SUPPIXAdminChatPush?.initAdminChatPush?.({
-        api,
-        companyId,
-        getCompanyId: () => companyId,
-        prompt: true,
-        banner: {
-          bannerEl: document.getElementById("adminPushBanner"),
-          textEl: document.getElementById("adminPushBannerText"),
-          enableBtn: document.getElementById("adminPushEnableBtn"),
-          dismissBtn: document.getElementById("adminPushDismissBtn"),
-          labels: {
-            prompt: window.adminChatT("adminPushPrompt"),
-            denied: window.adminChatT("adminPushDenied"),
-            enable: window.adminChatT("adminPushEnable"),
-            vapidMissing: window.adminChatT("adminPushVapidMissing"),
-            companyRequired: window.adminChatT("adminPushCompanyRequired"),
-            swFailed: window.adminChatT("adminPushSwFailed"),
-            subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
-            sessionRequired: window.adminChatT("adminPushSessionRequired"),
-          },
-        },
-        status: {
-          statusEl: document.getElementById("adminPushStatus"),
-          textEl: document.getElementById("adminPushStatusText"),
-          actionBtn: document.getElementById("adminPushStatusAction"),
-          labels: {
-            enabled: window.adminChatT("adminPushEnabled"),
-            disabled: window.adminChatT("adminPushDisabled"),
-            unsupported: window.adminChatT("adminPushUnsupported"),
-            denied: window.adminChatT("adminPushDenied"),
-            enable: window.adminChatT("adminPushEnable"),
-            unsubscribe: window.adminChatT("adminPushUnsubscribe"),
-            vapidMissing: window.adminChatT("adminPushVapidMissing"),
-            companyRequired: window.adminChatT("adminPushCompanyRequired"),
-            swFailed: window.adminChatT("adminPushSwFailed"),
-            subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
-            sessionRequired: window.adminChatT("adminPushSessionRequired"),
-          },
-        },
-      });
-      void window.SUPPIXChatThreadPrefs?.hydrateFromServer?.({ api, companyId }).then(() => renderThreads());
-      startThreadListPolling();
-      startAdminChatRealtimeFeed();
-      startAdminIncomingCallPoll();
+
+      // First paint: thread list immediately. Heavy crypto/push/realtime deferred.
       await loadThreads();
+      startThreadListPolling();
+
+      deferWork(async () => {
+        await window.E2ECrypto?.ensureCryptoSessionReady?.();
+        await ensureAdminE2EIdentity();
+      });
+      deferWork(() => {
+        window.SUPPIXChatThreadPrefs?.hydrateFromServer?.({ api, companyId }).then(() => renderThreads());
+      }, 120);
+      deferWork(() => {
+        startAdminChatRealtimeFeed();
+      }, 250);
+      deferWork(() => {
+        startAdminIncomingCallPoll();
+      }, 400);
+      deferWork(() => {
+        window.SUPPIXAdminChatPush?.initAdminChatPush?.({
+          api,
+          companyId,
+          getCompanyId: () => companyId,
+          prompt: true,
+          banner: {
+            bannerEl: document.getElementById("adminPushBanner"),
+            textEl: document.getElementById("adminPushBannerText"),
+            enableBtn: document.getElementById("adminPushEnableBtn"),
+            dismissBtn: document.getElementById("adminPushDismissBtn"),
+            labels: {
+              prompt: window.adminChatT("adminPushPrompt"),
+              denied: window.adminChatT("adminPushDenied"),
+              enable: window.adminChatT("adminPushEnable"),
+              vapidMissing: window.adminChatT("adminPushVapidMissing"),
+              companyRequired: window.adminChatT("adminPushCompanyRequired"),
+              swFailed: window.adminChatT("adminPushSwFailed"),
+              subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
+              sessionRequired: window.adminChatT("adminPushSessionRequired"),
+            },
+          },
+          status: {
+            statusEl: document.getElementById("adminPushStatus"),
+            textEl: document.getElementById("adminPushStatusText"),
+            actionBtn: document.getElementById("adminPushStatusAction"),
+            labels: {
+              enabled: window.adminChatT("adminPushEnabled"),
+              disabled: window.adminChatT("adminPushDisabled"),
+              unsupported: window.adminChatT("adminPushUnsupported"),
+              denied: window.adminChatT("adminPushDenied"),
+              enable: window.adminChatT("adminPushEnable"),
+              unsubscribe: window.adminChatT("adminPushUnsubscribe"),
+              vapidMissing: window.adminChatT("adminPushVapidMissing"),
+              companyRequired: window.adminChatT("adminPushCompanyRequired"),
+              swFailed: window.adminChatT("adminPushSwFailed"),
+              subscribeFailed: window.adminChatT("adminPushSubscribeFailed"),
+              sessionRequired: window.adminChatT("adminPushSessionRequired"),
+            },
+          },
+        });
+      }, 800);
     })().catch((e) => { setThreadMeta(e.message, { dynamic: true }); });
   </script>
 </body>
