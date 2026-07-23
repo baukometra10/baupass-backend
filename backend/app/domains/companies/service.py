@@ -830,7 +830,7 @@ class CompaniesService:
                     "status": 200,
                 }
 
-            ok, err = _send_via_brevo(
+            ok, detail = _send_via_brevo(
                 subject="SUPPIX Company Mail Test",
                 sender_email=smtp_sender_email,
                 sender_name=smtp_sender_name,
@@ -845,13 +845,22 @@ class CompaniesService:
             db.commit()
             if ok:
                 return {
-                    "body": {"ok": True, "delivery": "brevo", "recipient": recipient},
+                    "body": {
+                        "ok": True,
+                        "delivery": "brevo",
+                        "recipient": recipient,
+                        "messageId": detail or "",
+                        "note": (
+                            "Brevo accepted the message. If it does not appear in the inbox, "
+                            "check spam and Brevo Transactional → Email logs (sender domain must be verified)."
+                        ),
+                    },
                     "status": 200,
                 }
             return {
                 "body": {
                     "ok": False,
-                    "error": str(err or "brevo_send_failed"),
+                    "error": str(detail or "brevo_send_failed"),
                     "delivery": "brevo",
                 },
                 "status": 200,

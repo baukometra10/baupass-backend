@@ -6728,15 +6728,33 @@ def _get_brevo_api_key():
     return _normalize_api_token(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
 
 
-def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, html_body, attachments=None):
-    """Send e-mail via Brevo (formerly Sendinblue) API — no Cloudflare, allows any from address."""
-    api_key = _get_brevo_api_key()
-    if not api_key:
-        return False, "brevo_not_configured"
-    if not _is_valid_brevo_api_key(api_key):
-        return False, _describe_brevo_api_key_problem(api_key)
+def _send_via_brevo(
+    subject,
+    sender_email,
+    sender_name,
+    recipient,
+    text_body,
+    html_body,
+    attachments=None,
+    api_key=None,
+):
+    """Send e-mail via Brevo (formerly Sendinblue) API — no Cloudflare, allows any from address.
 
-    from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
+    Optional ``api_key`` lets company-scoped mail settings override the platform key.
+    A 2xx from Brevo means the message was *accepted* for delivery, not that it
+    already landed in the recipient inbox (check Brevo Transactional logs / spam).
+    """
+    resolved_key = _normalize_api_token(api_key) if api_key else _get_brevo_api_key()
+    if not resolved_key:
+        return False, "brevo_not_configured"
+    if not _is_valid_brevo_api_key(resolved_key):
+        return False, _describe_brevo_api_key_problem(resolved_key)
+
+    # Company-scoped sends pass api_key → prefer that sender; platform sends prefer settings.brevo_from_email.
+    if api_key:
+        from_email = sender_email or _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or ""
+    else:
+        from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
     from_name = sender_name or ""
     if not from_email:
         return False, "brevo_missing_from_email"
@@ -6764,7 +6782,7 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         "https://api.brevo.com/v3/smtp/email",
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "api-key": api_key,
+            "api-key": resolved_key,
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
@@ -6774,7 +6792,15 @@ def _send_via_brevo(subject, sender_email, sender_name, recipient, text_body, ht
         with urlopen(req, timeout=15) as resp:
             status = int(getattr(resp, "status", 200) or 200)
             if 200 <= status < 300:
-                return True, ""
+                message_id = ""
+                try:
+                    raw = resp.read().decode("utf-8", errors="replace")
+                    if raw:
+                        parsed = json.loads(raw)
+                        message_id = str(parsed.get("messageId") or "").strip()
+                except Exception:
+                    message_id = ""
+                return True, message_id
             return False, f"brevo_http_{status}"
     except HTTPError as exc:
         try:

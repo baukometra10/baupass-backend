@@ -1011,6 +1011,7 @@
         document.getElementById("lockVerifyBtn")?.classList.remove("hidden");
         const via = (res.channels || []).join(" + ") || "SMS/E-Mail";
         const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
+        const emailBit = res.emailMasked ? ` · ${res.emailMasked}` : "";
         if (res.debugFallback || res.debugCode) {
           setLockMsg(
             res.message || (window.contractPageT("lockDebugFallback") || "Debug-Code (kein SMS/E-Mail-Versand)."),
@@ -1018,7 +1019,8 @@
           );
         } else {
           setLockMsg(
-            (window.contractPageT("lockCodeSent", { via, phone: phoneBit }) || `Code gesendet (${via}).`),
+            (window.contractPageT("lockCodeSent", { via, phone: phoneBit + emailBit })
+              || `Code an Provider gesendet (${via})${phoneBit}${emailBit}. Bitte Spam prüfen.`),
             { ok: true },
           );
         }
