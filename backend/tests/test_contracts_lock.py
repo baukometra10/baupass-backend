@@ -105,3 +105,63 @@ def test_contracts_lock_otp_flow(client_and_db, monkeypatch):
     assert verify2.status_code == 200
     ok_again = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
     assert ok_again.status_code == 200
+
+
+def test_contracts_otp_persists_hashed_in_db(client_and_db, monkeypatch):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "PersistOtpCo")
+    monkeypatch.setenv("BAUPASS_ENV", "testing")
+
+    req = client.post(
+        "/api/contracts/lock/request-otp",
+        json={"company_id": company_id, "setup": True, "phone": "+491701111111", "email": "a@example.com"},
+        headers=headers,
+    )
+    assert req.status_code == 200
+    code = (req.get_json() or {}).get("debugCode")
+    assert code
+
+    import sqlite3
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT code_hash, expires_at FROM step_up_otps WHERE purpose = 'owner' AND company_id = ?",
+        (company_id,),
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    assert row["code_hash"]
+    assert str(code) != str(row["code_hash"])
+
+
+def test_owner_step_up_blocks_worker_export(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    company_id = _create_company(client, headers, "ExportLockCo")
+    monkeypatch.setenv("BAUPASS_ENV", "testing")
+
+    setup = client.post(
+        "/api/contracts/lock/request-otp",
+        json={"company_id": company_id, "setup": True, "phone": "+491702222222", "email": "b@example.com"},
+        headers=headers,
+    )
+    code = (setup.get_json() or {}).get("debugCode")
+    client.post(
+        "/api/contracts/lock/verify",
+        json={
+            "company_id": company_id,
+            "setup": True,
+            "phone": "+491702222222",
+            "email": "b@example.com",
+            "code": code,
+        },
+        headers=headers,
+    )
+    client.post("/api/contracts/lock", json={"company_id": company_id}, headers=headers)
+
+    blocked = client.get(f"/api/workers/export.csv?company_id={company_id}", headers=headers)
+    assert blocked.status_code == 403
+    assert blocked.get_json().get("error") == "contracts_locked"
+    assert blocked.get_json().get("stepUpRequired") is True

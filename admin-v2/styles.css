@@ -1264,9 +1264,10 @@ button[disabled] {
   color: var(--muted);
 }
 
-.billing-summary-panel {
-  margin: 0.85rem 0 1rem;
+.billing-invoices-table {
+  margin: 0.65rem 0 0.85rem;
 }
+
 
 .billing-summary-panel .panel-block {
   margin: 0;

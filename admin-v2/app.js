@@ -2298,9 +2298,28 @@ async function loadPlatform() {
         </tr>`;
       })
       .join("");
+    const channels = Array.isArray(setup?.channels) ? setup.channels : [];
+    const channelsHtml = channels.length
+      ? `<div class="panel-block">
+        <h3>${t("platform.channelsTitle")}</h3>
+        <p class="muted small">${t("platform.channelsHint")}</p>
+        <div class="billing-summary-grid">
+          ${channels
+            .map((ch) => {
+              const ok = !!ch.ok;
+              const pill = ok ? "is-ok" : ch.severity === "warn" ? "is-warn" : "is-off";
+              return `<div class="metric"><span>${escapeHtml(ch.label || ch.id || "")}</span>
+                <strong><span class="integration-status-pill ${pill}">${ok ? t("badge.ready") : t("badge.needsSetup")}</span></strong>
+                ${ch.hint && !ok ? `<small class="muted">${escapeHtml(ch.hint)}</small>` : ""}</div>`;
+            })
+            .join("")}
+        </div>
+      </div>`
+      : "";
     panel.innerHTML = `
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       ${dbBanner}
+      ${channelsHtml}
       <div class="platform-panel-grid">
       ${
         revenue
@@ -3114,14 +3133,42 @@ function renderBillingSummaryHtml(overview) {
         · Stripe: ${stripeOk ? `<span class="integration-status-pill is-ok">${t("billing.stripeOn")}</span>` : `<span class="integration-status-pill is-off">${t("billing.stripeOff")}</span>`}
         ${trial.isTrialing ? ` · <span class="integration-status-pill is-warn">${t("billing.trialing")}</span>` : ""}
       </p>
+      <div id="billingInvoicesTable" class="table-wrap billing-invoices-table"></div>
       <button type="button" class="ghost" data-legacy-dashboard="invoices">${t("billing.openInvoicesUi")}</button>
     </div>`;
+}
+
+function renderRecentInvoicesHtml(rows) {
+  const list = Array.isArray(rows) ? rows.slice(0, 8) : [];
+  if (!list.length) {
+    return emptyStateHtml(t("billing.recentInvoices"), t("billing.noInvoices"));
+  }
+  const body = list
+    .map((inv) => {
+      const num = escapeHtml(inv.invoice_number || inv.invoiceNumber || inv.id || "—");
+      const status = escapeHtml(inv.status || "—");
+      const total = formatEur(inv.total_amount ?? inv.totalAmount);
+      const paid = inv.paid_at || inv.paidAt;
+      const created = escapeHtml(String(inv.created_at || inv.createdAt || "").slice(0, 10));
+      const payUrl = inv.stripe_payment_link_url || inv.stripePaymentLinkUrl || "";
+      const payCell = payUrl && !paid
+        ? `<a href="${escapeHtml(payUrl)}" target="_blank" rel="noopener">${t("billing.payLink")}</a>`
+        : paid
+          ? `<span class="integration-status-pill is-ok">${t("billing.paid")}</span>`
+          : "—";
+      return `<tr><td>${num}</td><td>${created}</td><td>${status}</td><td>${total}</td><td>${payCell}</td></tr>`;
+    })
+    .join("");
+  return `<table><thead><tr>
+    <th>${t("billing.colNumber")}</th><th>${t("billing.colDate")}</th>
+    <th>${t("billing.colStatus")}</th><th>${t("billing.colTotal")}</th><th></th>
+  </tr></thead><tbody>${body}</tbody></table>`;
 }
 
 async function loadBillingSummaryPanel(cid) {
   const panel = $("billingSummaryPanel");
   if (!panel) return;
-  if (!cid) {
+  if (!cid && getUser().role === "superadmin") {
     panel.classList.add("hidden");
     panel.innerHTML = "";
     return;
@@ -3135,6 +3182,10 @@ async function loadBillingSummaryPanel(cid) {
   }
   panel.innerHTML = renderBillingSummaryHtml(overview);
   bindLegacyDashboardLinks(panel);
+  const qs = cid && getUser().role === "superadmin" ? `?company_id=${encodeURIComponent(cid)}` : "";
+  const invoices = await api(`/api/invoices${qs}`).catch(() => []);
+  const tableHost = panel.querySelector("#billingInvoicesTable");
+  if (tableHost) tableHost.innerHTML = renderRecentInvoicesHtml(invoices);
 }
 
 function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {
@@ -3304,14 +3355,42 @@ async function loadTools() {
   if (q === null) return;
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
-    const [geofences, rules, integrations] = await Promise.all([
+    const [geofences, rules, integrations, setupLite, lockSt] = await Promise.all([
       api(`/api/geofences/admin${q}`),
       api(`/api/automation/rules${q}`),
       api(`/api/integrations${q}`),
+      isSuperadminUser() ? api("/api/platform/setup-status").catch(() => null) : Promise.resolve(null),
+      api(`/api/contracts/lock-status${q}`).catch(() => null),
     ]);
     const gfRows = geofences.geofences || [];
     const ruleRows = rules.rules || [];
     const intRows = integrations.integrations || [];
+    const channelPills = [];
+    if (setupLite?.channels) {
+      for (const ch of setupLite.channels) {
+        channelPills.push({
+          label: ch.label || ch.id,
+          ok: !!ch.ok,
+          warn: !ch.ok,
+        });
+      }
+    } else {
+      channelPills.push(
+        { label: "SMS", ok: !!lockSt?.smsConfigured, warn: !lockSt?.smsConfigured },
+        { label: "Stripe", ok: true, warn: false },
+      );
+    }
+    const channelsBar = channelPills.length
+      ? `<div class="panel-block"><h3>${t("tools.channelsTitle")}</h3>
+          <div class="billing-summary-grid">${channelPills
+            .map(
+              (c) =>
+                `<div class="metric"><span>${escapeHtml(c.label)}</span><strong><span class="integration-status-pill ${
+                  c.ok ? "is-ok" : "is-warn"
+                }">${c.ok ? t("badge.ready") : t("badge.needsSetup")}</span></strong></div>`,
+            )
+            .join("")}</div></div>`
+      : "";
     const providers = [
       { id: "sap", label: "SAP" },
       { id: "oracle", label: "Oracle" },
@@ -3320,6 +3399,7 @@ async function loadTools() {
       { id: "payroll", label: "Payroll" },
     ];
     panel.innerHTML = `
+      ${channelsBar}
       <div class="panel-block">
         <h3>${t("tools.geofence")}</h3>
         <p class="muted small">${t("tools.mapHint")}</p>
@@ -5647,9 +5727,24 @@ $("copilotForm")?.addEventListener("submit", async (e) => {
         })}`,
       );
     }
-    if (answerEl) answerEl.textContent = lines.filter(Boolean).join("\n\n") || JSON.stringify(res, null, 2);
+    if (answerEl) {
+      const text = lines.filter(Boolean).join("\n\n").trim();
+      if (!text || text === "—" || text === "{}") {
+        answerEl.textContent = t("section.copilot.emptyAnswer");
+      } else {
+        answerEl.textContent = text;
+      }
+    }
   } catch (err) {
-    if (answerEl) answerEl.textContent = err.message || String(err);
+    const msg = String(err?.message || err || "");
+    const low = msg.toLowerCase();
+    if (answerEl) {
+      if (low.includes("quota") || low.includes("openai_quota") || low.includes("guthaben")) {
+        answerEl.textContent = t("section.copilot.quotaHint");
+      } else {
+        answerEl.textContent = msg || t("section.copilot.emptyAnswer");
+      }
+    }
   } finally {
     if (btn) btn.disabled = false;
   }

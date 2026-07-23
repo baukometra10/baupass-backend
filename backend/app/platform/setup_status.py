@@ -169,8 +169,10 @@ def collect_setup_status() -> dict[str, Any]:
             "otel": str(os.getenv("BAUPASS_OTEL", "0")).strip() in {"1", "true", "yes"},
         },
         "billing": _billing_block(),
+        "sms": _sms_block(),
         "email": _email_status_block(),
         "smtp": _email_status_block()["outboundConfigured"],
+        "channels": _channels_alerts(),
         "cameras": {
             "rtspBridgeToken": bool((os.getenv("BAUPASS_RTSP_BRIDGE_TOKEN") or "").strip()),
             "healthCheck": str(os.getenv("BAUPASS_CAMERA_HEALTH_CHECK", "1")).strip() not in {"0", "false", "off"},
@@ -187,6 +189,67 @@ def collect_setup_status() -> dict[str, Any]:
             "verifyScript": "deploy/railway-launch-verify.ps1",
         },
     }
+
+
+def _sms_block() -> dict[str, Any]:
+    try:
+        from backend.app.platform.notifications.sms import sms_configured
+
+        configured = bool(sms_configured())
+    except Exception:
+        configured = False
+    return {
+        "configured": configured,
+        "provider": "twilio" if configured else "",
+        "hint": "TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + TWILIO_FROM_NUMBER",
+    }
+
+
+def _channels_alerts() -> list[dict[str, Any]]:
+    """Critical channel readiness for Platform / ops dashboards."""
+    billing = _billing_block()
+    email = _email_status_block()
+    sms = _sms_block()
+    redis_url = (os.getenv("REDIS_URL") or "").strip()
+    openai = bool((os.getenv("OPENAI_API_KEY") or "").strip())
+    alerts = [
+        {
+            "id": "sms",
+            "label": "SMS (Twilio)",
+            "ok": sms.get("configured"),
+            "severity": "warn" if not sms.get("configured") else "ok",
+            "hint": sms.get("hint") or "",
+        },
+        {
+            "id": "email",
+            "label": "E-Mail outbound",
+            "ok": email.get("outboundConfigured"),
+            "severity": "warn" if not email.get("outboundConfigured") else "ok",
+            "hint": "SMTP_HOST/SMTP_PASSWORD oder RESEND_API_KEY / BREVO_API_KEY",
+        },
+        {
+            "id": "stripe",
+            "label": "Stripe billing",
+            "ok": billing.get("readyForCheckout"),
+            "severity": "warn" if not billing.get("readyForCheckout") else "ok",
+            "hint": "STRIPE_SECRET_KEY + Price IDs",
+        },
+        {
+            "id": "redis",
+            "label": "Redis / queues",
+            "ok": bool(redis_url),
+            "severity": "warn" if not redis_url else "ok",
+            "hint": "REDIS_URL",
+        },
+        {
+            "id": "openai",
+            "label": "OpenAI API",
+            "ok": openai,
+            "severity": "warn" if not openai else "ok",
+            "hint": "OPENAI_API_KEY (ChatGPT Plus ≠ API)",
+        },
+    ]
+    return alerts
 
 
 def _billing_block() -> dict[str, Any]:

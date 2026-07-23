@@ -83,6 +83,7 @@ def _post_form_with_retry(url: str, payload: dict[str, str], bearer: str, timeou
 
 
 def register_enterprise_routes(flask_app):
+    from backend.app.platform.security.contracts_lock import require_owner_step_up
     from backend.server import require_auth, require_roles
 
     # ── Geofence admin CRUD ───────────────────────────────────────────────────
@@ -670,6 +671,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.get("/integrations/payroll/datev-csv")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_owner_step_up
     def payroll_datev_csv():
         from flask import make_response
 

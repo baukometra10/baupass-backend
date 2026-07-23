@@ -1,6 +1,11 @@
-"""Step-up unlock for employment contracts (owner phone OTP + email backup)."""
+"""Owner step-up unlock (contracts + sensitive exports) via SMS/email OTP.
+
+OTP codes and fail counters persist in SQLite so multi-worker / restarts stay safe.
+Session unlock is shared across contracts and sensitive data exports for the same company.
+"""
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -17,8 +22,9 @@ _OTP_TTL_MINUTES = 10
 _UNLOCK_TTL_MINUTES_DEFAULT = 15
 _OTP_MAX_ATTEMPTS = 5
 _OTP_LOCKOUT_SECONDS = 300
-_OTP_USER_PREFIX = "contracts-lock:"
+_STEP_UP_PURPOSE = "owner"
 
+# Process-local fallback only if DB table is missing (legacy/dev).
 _fail_counts: dict[str, tuple[int, float]] = {}
 _otp_store: dict[str, tuple[str, float]] = {}
 
@@ -80,44 +86,154 @@ def generate_otp_code(*, digits: int = 6) -> str:
     return str(secrets.randbelow(hi - lo + 1) + lo)
 
 
-def _otp_key(company_id: str) -> str:
-    return f"{_OTP_USER_PREFIX}{company_id}"
-
-
 def _fail_key(company_id: str, user_id: str) -> str:
     return f"{company_id}:{user_id}"
 
 
-def _check_rate_limit(company_id: str, user_id: str) -> tuple[bool, int]:
+def _otp_pepper() -> str:
+    return (
+        os.getenv("BAUPASS_SECRET_KEY")
+        or os.getenv("BAUPASS_DQR_SECRET")
+        or "baupass-step-up"
+    ).strip()
+
+
+def _hash_otp(code: str) -> str:
+    raw = f"{_otp_pepper()}:{str(code or '').strip()}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def ensure_step_up_tables(db) -> None:
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS step_up_otps (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                code_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (purpose, company_id)
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS step_up_fail_counts (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                fail_count INTEGER NOT NULL DEFAULT 0,
+                locked_until TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (purpose, company_id, user_id)
+            )
+            """
+        )
+        db.commit()
+    except Exception as exc:
+        _log.warning("ensure_step_up_tables failed: %s", exc)
+
+
+def _check_rate_limit(db, company_id: str, user_id: str) -> tuple[bool, int]:
+    ensure_step_up_tables(db)
+    try:
+        row = db.execute(
+            """
+            SELECT fail_count, locked_until FROM step_up_fail_counts
+            WHERE purpose = ? AND company_id = ? AND user_id = ?
+            """,
+            (_STEP_UP_PURPOSE, str(company_id), str(user_id)),
+        ).fetchone()
+    except Exception:
+        row = None
+    if row:
+        locked_until = str(row["locked_until"] or "").strip()
+        if locked_until and locked_until > _now_iso():
+            try:
+                until_dt = datetime.strptime(locked_until, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                return False, max(1, int((until_dt - _now()).total_seconds()))
+            except ValueError:
+                return False, _OTP_LOCKOUT_SECONDS
+        if locked_until and locked_until <= _now_iso():
+            db.execute(
+                "DELETE FROM step_up_fail_counts WHERE purpose = ? AND company_id = ? AND user_id = ?",
+                (_STEP_UP_PURPOSE, str(company_id), str(user_id)),
+            )
+            db.commit()
+        return True, 0
+    # memory fallback
     key = _fail_key(company_id, user_id)
     entry = _fail_counts.get(key)
     if not entry:
         return True, 0
-    count, locked_until = entry
+    count, locked_until_ts = entry
+    del count
     now = _now().timestamp()
-    if locked_until and now < locked_until:
-        return False, int(locked_until - now)
-    if locked_until and now >= locked_until:
+    if locked_until_ts and now < locked_until_ts:
+        return False, int(locked_until_ts - now)
+    if locked_until_ts and now >= locked_until_ts:
         _fail_counts.pop(key, None)
         return True, 0
     return True, 0
 
 
-def _register_fail(company_id: str, user_id: str) -> int:
-    key = _fail_key(company_id, user_id)
-    count, locked_until = _fail_counts.get(key, (0, 0.0))
-    now = _now().timestamp()
-    if locked_until and now < locked_until:
-        return int(locked_until - now)
-    count += 1
-    if count >= _OTP_MAX_ATTEMPTS:
-        _fail_counts[key] = (count, now + _OTP_LOCKOUT_SECONDS)
-        return _OTP_LOCKOUT_SECONDS
-    _fail_counts[key] = (count, 0.0)
-    return 0
+def _register_fail(db, company_id: str, user_id: str) -> int:
+    ensure_step_up_tables(db)
+    ok_rate, retry_in = _check_rate_limit(db, company_id, user_id)
+    if not ok_rate:
+        return retry_in
+    try:
+        row = db.execute(
+            """
+            SELECT fail_count, locked_until FROM step_up_fail_counts
+            WHERE purpose = ? AND company_id = ? AND user_id = ?
+            """,
+            (_STEP_UP_PURPOSE, str(company_id), str(user_id)),
+        ).fetchone()
+        count = int((row["fail_count"] if row else 0) or 0) + 1
+        locked_until = ""
+        if count >= _OTP_MAX_ATTEMPTS:
+            locked_until = (_now() + timedelta(seconds=_OTP_LOCKOUT_SECONDS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            retry = _OTP_LOCKOUT_SECONDS
+        else:
+            retry = 0
+        db.execute(
+            "DELETE FROM step_up_fail_counts WHERE purpose = ? AND company_id = ? AND user_id = ?",
+            (_STEP_UP_PURPOSE, str(company_id), str(user_id)),
+        )
+        db.execute(
+            """
+            INSERT INTO step_up_fail_counts (purpose, company_id, user_id, fail_count, locked_until)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (_STEP_UP_PURPOSE, str(company_id), str(user_id), count, locked_until),
+        )
+        db.commit()
+        return retry
+    except Exception:
+        key = _fail_key(company_id, user_id)
+        count, locked_until_ts = _fail_counts.get(key, (0, 0.0))
+        now = _now().timestamp()
+        if locked_until_ts and now < locked_until_ts:
+            return int(locked_until_ts - now)
+        count += 1
+        if count >= _OTP_MAX_ATTEMPTS:
+            _fail_counts[key] = (count, now + _OTP_LOCKOUT_SECONDS)
+            return _OTP_LOCKOUT_SECONDS
+        _fail_counts[key] = (count, 0.0)
+        return 0
 
 
-def _clear_fails(company_id: str, user_id: str) -> None:
+def _clear_fails(db, company_id: str, user_id: str) -> None:
+    ensure_step_up_tables(db)
+    try:
+        db.execute(
+            "DELETE FROM step_up_fail_counts WHERE purpose = ? AND company_id = ? AND user_id = ?",
+            (_STEP_UP_PURPOSE, str(company_id), str(user_id)),
+        )
+        db.commit()
+    except Exception:
+        pass
     _fail_counts.pop(_fail_key(company_id, user_id), None)
 
 
@@ -245,36 +361,93 @@ def set_company_owner_contact(
 
 
 def persist_otp(db, company_id: str, code: str) -> None:
-    del db  # reserved for future durable multi-worker store
-    expires = _now().timestamp() + (_OTP_TTL_MINUTES * 60)
-    _otp_store[str(company_id)] = (str(code), expires)
+    ensure_step_up_tables(db)
+    expires = (_now() + timedelta(minutes=_OTP_TTL_MINUTES)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    code_hash = _hash_otp(code)
+    cid = str(company_id)
+    try:
+        db.execute(
+            "DELETE FROM step_up_otps WHERE purpose = ? AND company_id = ?",
+            (_STEP_UP_PURPOSE, cid),
+        )
+        db.execute(
+            """
+            INSERT INTO step_up_otps (purpose, company_id, code_hash, expires_at, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (_STEP_UP_PURPOSE, cid, code_hash, expires, _now_iso()),
+        )
+        db.commit()
+    except Exception as exc:
+        _log.warning("persist_otp DB failed, using memory fallback: %s", exc)
+        _otp_store[cid] = (str(code), _now().timestamp() + (_OTP_TTL_MINUTES * 60))
 
 
 def consume_otp(db, company_id: str, code: str, *, user_id: str) -> bool:
-    del db
-    ok_rate, retry_in = _check_rate_limit(company_id, user_id)
+    ensure_step_up_tables(db)
+    ok_rate, retry_in = _check_rate_limit(db, company_id, user_id)
     if not ok_rate:
         raise ValueError(f"rate_limited:{retry_in}")
-    entry = _otp_store.get(str(company_id))
+    cid = str(company_id)
+    code_hash = _hash_otp(code)
+    try:
+        row = db.execute(
+            """
+            SELECT code_hash, expires_at FROM step_up_otps
+            WHERE purpose = ? AND company_id = ?
+            """,
+            (_STEP_UP_PURPOSE, cid),
+        ).fetchone()
+    except Exception:
+        row = None
+    if row:
+        expires = str(row["expires_at"] or "")
+        stored_hash = str(row["code_hash"] or "")
+        if not expires or expires < _now_iso():
+            db.execute(
+                "DELETE FROM step_up_otps WHERE purpose = ? AND company_id = ?",
+                (_STEP_UP_PURPOSE, cid),
+            )
+            db.commit()
+            retry = _register_fail(db, company_id, user_id)
+            if retry:
+                raise ValueError(f"rate_limited:{retry}")
+            return False
+        if not secrets.compare_digest(stored_hash, code_hash):
+            retry = _register_fail(db, company_id, user_id)
+            if retry:
+                raise ValueError(f"rate_limited:{retry}")
+            return False
+        db.execute(
+            "DELETE FROM step_up_otps WHERE purpose = ? AND company_id = ?",
+            (_STEP_UP_PURPOSE, cid),
+        )
+        db.commit()
+        _clear_fails(db, company_id, user_id)
+        _otp_store.pop(cid, None)
+        return True
+
+    # Memory fallback (legacy)
+    entry = _otp_store.get(cid)
     if not entry:
-        retry = _register_fail(company_id, user_id)
+        retry = _register_fail(db, company_id, user_id)
         if retry:
             raise ValueError(f"rate_limited:{retry}")
         return False
-    stored, expires = entry
-    if _now().timestamp() > expires:
-        _otp_store.pop(str(company_id), None)
-        retry = _register_fail(company_id, user_id)
+    stored, expires_ts = entry
+    if _now().timestamp() > expires_ts:
+        _otp_store.pop(cid, None)
+        retry = _register_fail(db, company_id, user_id)
         if retry:
             raise ValueError(f"rate_limited:{retry}")
         return False
-    if str(code or "").strip() != stored:
-        retry = _register_fail(company_id, user_id)
+    if not secrets.compare_digest(str(code or "").strip(), str(stored)):
+        retry = _register_fail(db, company_id, user_id)
         if retry:
             raise ValueError(f"rate_limited:{retry}")
         return False
-    _otp_store.pop(str(company_id), None)
-    _clear_fails(company_id, user_id)
+    _otp_store.pop(cid, None)
+    _clear_fails(db, company_id, user_id)
     return True
 
 
@@ -361,9 +534,22 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
 
 def _resolve_company_id_for_request(data: dict | None = None) -> str:
     data = data or {}
+    try:
+        from backend.app.domains.shared import company_id_from_user
+
+        cid = company_id_from_user(allow_query=True)
+        if cid:
+            return str(cid)
+    except Exception:
+        pass
     role = str((getattr(g, "current_user", None) or {}).get("role") or "")
     if role == "superadmin":
-        return str(data.get("company_id") or request.args.get("company_id") or "").strip()
+        return str(
+            data.get("company_id")
+            or request.args.get("company_id")
+            or request.args.get("companyId")
+            or ""
+        ).strip()
     return str((getattr(g, "current_user", None) or {}).get("company_id") or "").strip()
 
 
@@ -385,7 +571,11 @@ def require_contracts_unlocked(handler):
                 jsonify(
                     {
                         "error": "contracts_locked",
-                        "message": "Vertragszugang gesperrt. Bitte Owner-Code per SMS/E-Mail bestätigen.",
+                        "stepUpRequired": True,
+                        "message": (
+                            "Owner-Freischaltung nötig (Verträge / sensible Exporte). "
+                            "Bitte Code per SMS/E-Mail bestätigen."
+                        ),
                     }
                 ),
                 403,
@@ -393,3 +583,7 @@ def require_contracts_unlocked(handler):
         return handler(*args, **kwargs)
 
     return wrapper
+
+
+# Shared owner step-up for contracts + sensitive exports / payroll.
+require_owner_step_up = require_contracts_unlocked

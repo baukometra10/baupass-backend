@@ -72,7 +72,14 @@ Approved: SMS OTP to owner phone + email backup (Phase 1 implemented).
 
 ## Status
 - Phase 1 (contracts OTP lock + contracts UI gate): DONE
-- Phase 2 (shell cohesion / empty states): DONE (shared `.empty-state`, overview/inbox/workers/access)
-- Phase 3 (billing summary + inbox/chat polish): DONE (read-only billing panel + revenue for superadmin; chat empty states)
-- Phase 4 (light caches): DONE (inbox counts 30s, billing overview 60s; ops overview cache unchanged)
-- Deferred: full invoices CRUD in admin-v2; contracts script split; DB index pass
+- Phase 2 (shell cohesion / empty states): DONE
+- Phase 3 (billing summary + inbox/chat polish): DONE
+- Phase 4 (light caches): DONE
+- Hardening follow-up (2026-07-23):
+  - Durable hashed OTP + fail counters in `step_up_otps` / `step_up_fail_counts`
+  - Shared owner step-up on worker/access/payroll exports
+  - Recent invoices list in admin-v2 billing panel
+  - Platform/tools channel readiness (SMS/Stripe/Redis/email/OpenAI)
+  - Copilot empty/quota messaging
+  - Extra contract list/sign indexes (migration 041)
+- Deferred: full invoices CRUD in admin-v2; contracts script split; field-level salary redaction

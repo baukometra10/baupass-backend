@@ -1356,6 +1356,38 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
-]
+    Migration(
+        version="041",
+        name="owner_step_up_otp_store",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS step_up_otps (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                code_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (purpose, company_id)
+            );
+            CREATE TABLE IF NOT EXISTS step_up_fail_counts (
+                purpose TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                fail_count INTEGER NOT NULL DEFAULT 0,
+                locked_until TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (purpose, company_id, user_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_employment_contracts_company_created
+                ON employment_contracts(company_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_contract_sign_company_status
+                ON employment_contract_sign_sessions(company_id, status, expires_at);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_contract_sign_company_status;
+            DROP INDEX IF EXISTS idx_employment_contracts_company_created;
+            DROP TABLE IF EXISTS step_up_fail_counts;
+            DROP TABLE IF EXISTS step_up_otps;
+        """,
+    ),
 
+]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

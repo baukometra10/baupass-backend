@@ -82,9 +82,11 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         persist_otp(db, cid, code)
         delivery = send_otp_channels(db, company_id=cid, phone=phone, email=email, code=code)
         if not delivery.get("channels"):
-            testing = str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing" or bool(
-                flask_app.config.get("TESTING")
+            testing = (
+                str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
+                or bool(flask_app.config.get("TESTING"))
             )
+            # Never leak OTP outside explicit test harness.
             if testing:
                 return jsonify(
                     {

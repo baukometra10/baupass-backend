@@ -3908,6 +3908,40 @@ def init_db():
     if "contracts_unlocked_company_id" not in session_columns_contracts:
         cur.execute("ALTER TABLE sessions ADD COLUMN contracts_unlocked_company_id TEXT")
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS step_up_otps (
+            purpose TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            code_hash TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (purpose, company_id)
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS step_up_fail_counts (
+            purpose TEXT NOT NULL,
+            company_id TEXT NOT NULL,
+            user_id TEXT NOT NULL,
+            fail_count INTEGER NOT NULL DEFAULT 0,
+            locked_until TEXT NOT NULL DEFAULT '',
+            PRIMARY KEY (purpose, company_id, user_id)
+        )
+        """
+    )
+    try:
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_employment_contracts_company_created ON employment_contracts(company_id, created_at DESC)"
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_contract_sign_company_status ON employment_contract_sign_sessions(company_id, status, expires_at)"
+        )
+    except Exception:
+        pass
+
     invoice_columns_stripe = [row[1] for row in cur.execute("PRAGMA table_info(invoices)").fetchall()]
     if "stripe_payment_link_id" not in invoice_columns_stripe:
         cur.execute("ALTER TABLE invoices ADD COLUMN stripe_payment_link_id TEXT NOT NULL DEFAULT ''")
@@ -11272,8 +11306,12 @@ def import_workers_csv():
     return jsonify(result["body"])
 
 
+from backend.app.platform.security.contracts_lock import require_owner_step_up
+
+
 @require_auth
 @require_roles("superadmin", "company-admin")
+@require_owner_step_up
 def export_workers_csv():
     from backend.app.domains.workers.service import WorkersService
 
@@ -11286,6 +11324,7 @@ def export_workers_csv():
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
+@require_owner_step_up
 def export_workers_pdf():
     from backend.app.domains.workers.service import WorkersService
 
@@ -11302,6 +11341,7 @@ def export_workers_pdf():
 
 @require_auth
 @require_roles("superadmin", "company-admin")
+@require_owner_step_up
 def export_workers_signatures_zip():
     from backend.app.domains.workers.service import WorkersService
 
@@ -11315,6 +11355,7 @@ def export_workers_signatures_zip():
 
 @require_auth
 @require_roles("superadmin", "company-admin", "turnstile")
+@require_owner_step_up
 def export_attendance_pdf():
     """Anwesenheitsliste als PDF – alle Mitarbeiter mit offenem Check-in."""
     from backend.app.domains.workers.service import WorkersService
@@ -19149,6 +19190,7 @@ def invoice_access_line_items():
 
 
 @require_auth
+@require_owner_step_up
 def export_access_csv():
     auto_close_open_entries_after_midnight(get_db())
     direction = (request.args.get("direction") or "").strip()
@@ -26764,11 +26806,12 @@ def list_document_inbox():
 
 @require_auth
 @require_roles("superadmin", "company-admin")
+@require_owner_step_up
 def export_payroll_datev_csv():
     period = (request.args.get("period") or "").strip()[:7]
     db = get_db()
     if g.current_user["role"] == "superadmin":
-        company_id = clean_text_input(request.args.get("companyId", ""), max_len=64)
+        company_id = clean_text_input(request.args.get("companyId", "") or request.args.get("company_id", ""), max_len=64)
         if not company_id:
             return jsonify({"error": "missing_company_id"}), 400
     else:
