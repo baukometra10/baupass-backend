@@ -454,6 +454,14 @@
         return;
       }
       try {
+        if (salaryFieldsRedacted) {
+          const unlocked = await ensureUnlockedForMutation();
+          if (!unlocked || salaryFieldsRedacted) {
+            frame.removeAttribute("src");
+            setStatus(window.contractPageT("salaryRedactedBanner") || "Gehalt gesperrt", { error: true });
+            return;
+          }
+        }
         setStatus(window.contractPageT("statusWorking"));
         const blob = await fetchContractPreviewBlob();
         if (adminPdfPreviewObjectUrl) URL.revokeObjectURL(adminPdfPreviewObjectUrl);
@@ -524,6 +532,11 @@
     }
     async function persistContract() {
       if (!currentContractId) return;
+      if (salaryFieldsRedacted) {
+        throw Object.assign(new Error(window.contractPageT("salaryRedactedBanner") || "Gehalt gesperrt"), {
+          data: { error: "contracts_locked", stepUpRequired: true },
+        });
+      }
       const body = await saveContractPayloadAsync();
       await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
         method: "PUT",
@@ -898,6 +911,20 @@
       });
     }
 
+    async function clearRedactionAndReload() {
+      const wasRedacted = salaryFieldsRedacted;
+      salaryFieldsRedacted = false;
+      contractsSessionUnlocked = true;
+      applyRedactionUi(false);
+      hideLockOverlay();
+      if (!wasRedacted) return;
+      await loadContracts();
+      if (currentContractId) {
+        const detail = await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`);
+        await fillFormFromContract(detail);
+      }
+    }
+
     async function ensureUnlockedForMutation() {
       if (contractsSessionUnlocked && !salaryFieldsRedacted) return true;
       const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
@@ -909,10 +936,7 @@
         });
       }
       if (!status.lockRequired || status.unlocked) {
-        contractsSessionUnlocked = true;
-        salaryFieldsRedacted = false;
-        applyRedactionUi(false);
-        hideLockOverlay();
+        await clearRedactionAndReload();
         return true;
       }
       showLockOverlay({ setup: false, enforced: !!status.setupEnforced });
@@ -1007,17 +1031,10 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        salaryFieldsRedacted = false;
-        contractsSessionUnlocked = true;
-        applyRedactionUi(false);
+        salaryFieldsRedacted = true; // force reload of unredacted payload
         paintUnlockBadge({ ...res, lockRequired: true, unlocked: true });
-        hideLockOverlay();
         setStatus(window.contractPageT("lockUnlockedToast") || "Vertragsbereich freigeschaltet.", { active: true });
-        await loadContracts();
-        if (currentContractId) {
-          const detail = await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`);
-          await fillFormFromContract(detail);
-        }
+        await clearRedactionAndReload();
         if (typeof window.__contractsUnlockResolve === "function") {
           window.__contractsUnlockResolve(true);
           window.__contractsUnlockResolve = null;

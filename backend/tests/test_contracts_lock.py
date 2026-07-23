@@ -305,3 +305,10 @@ def test_contracts_salary_redacted_when_locked(client_and_db, monkeypatch):
     )
     assert blocked_pdf.status_code == 403
     assert blocked_pdf.get_json().get("error") == "contracts_locked"
+
+    soft_worker = client.get(
+        f"/api/workers/w-any/employment-contracts?company_id={company_id}",
+        headers=headers,
+    )
+    assert soft_worker.status_code == 200
+    assert soft_worker.get_json().get("salaryRedacted") is True

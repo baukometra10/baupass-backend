@@ -1258,6 +1258,14 @@ function switchToTab(tabId) {
   if (content) content.scrollTop = 0;
   window.scrollTo(0, 0);
   trackFeatureUsage(tabId);
+  try {
+    const nextHash = `#${tabId}`;
+    if (location.hash !== nextHash) {
+      history.replaceState(null, "", `${location.pathname}${location.search}${nextHash}`);
+    }
+  } catch {
+    /* ignore history failures */
+  }
   if (tabId === "enterprise") syncEnterpriseFrame();
   if (tabId === "tools") {
     requestAnimationFrame(() => {
@@ -3314,7 +3322,7 @@ function renderBillingInvoiceDetail(inv) {
       <dt>${t("billing.colStatus")}</dt><dd>${escapeHtml(inv.status || "—")}</dd>
       <dt>${t("billing.colTotal")}</dt><dd>${formatEur(inv.total_amount ?? inv.totalAmount)}</dd>
       <dt>${t("billing.colDate")}</dt><dd>${escapeHtml(String(inv.invoice_date || inv.created_at || "").slice(0, 10))}</dd>
-      <dt>Due</dt><dd>${escapeHtml(String(inv.due_date || "").slice(0, 10) || "—")}</dd>
+      <dt>${t("section.billing.dueDate")}</dt><dd>${escapeHtml(String(inv.due_date || "").slice(0, 10) || "—")}</dd>
     </dl>
     <p class="muted small">${escapeHtml(inv.description || "")}</p>
     <div class="billing-detail-actions">${actions.join("")}</div>
@@ -3333,14 +3341,16 @@ async function loadBillingTab() {
     createPanel.classList.toggle("hidden", getUser().role !== "superadmin" || !cid);
   }
 
-  if (summaryHost) {
+    if (summaryHost) {
     summaryHost.innerHTML = `<p class="muted small">${t("common.loading")}</p>`;
     const overview = await fetchBillingOverviewCached(cid).catch(() => null);
-    summaryHost.innerHTML = overview
-      ? renderBillingSummaryHtml(overview).replace(/data-goto-tab="billing"/g, 'disabled="disabled"').replace(/data-legacy-dashboard="invoices"/g, "")
-      : emptyStateHtml(t("billing.title"), t("billing.loadError"));
-    // Remove nested "open invoices" CTA inside the tab itself
-    summaryHost.querySelectorAll("[data-goto-tab], [data-legacy-dashboard]").forEach((el) => el.remove());
+    if (!overview) {
+      summaryHost.innerHTML = emptyStateHtml(t("billing.title"), t("billing.loadError"));
+    } else {
+      summaryHost.innerHTML = renderBillingSummaryHtml(overview);
+      // Inside the billing tab, drop the nested "open invoices" CTA / legacy links.
+      summaryHost.querySelectorAll("[data-goto-tab], [data-legacy-dashboard], #billingInvoicesTable").forEach((el) => el.remove());
+    }
   }
 
   listHost.innerHTML = `<p class="muted small">${t("common.loading")}</p>`;
@@ -5739,8 +5749,11 @@ async function loadWorkers() {
   container.querySelectorAll("[data-worker-contracts]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const wid = btn.getAttribute("data-worker-contracts");
-      const q = companyQuery();
-      location.href = `/admin-v2/contracts.html${q}&worker_id=${encodeURIComponent(wid)}`;
+      const url = new URL("/admin-v2/contracts.html", location.origin);
+      const cid = (wpGet(COMPANY_KEY) || "").trim();
+      if (cid) url.searchParams.set("company_id", cid);
+      if (wid) url.searchParams.set("worker_id", wid);
+      location.href = `${url.pathname}${url.search}`;
     });
   });
   } catch (error) {

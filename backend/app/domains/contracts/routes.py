@@ -500,13 +500,17 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_contracts_unlocked
+    @require_owner_setup_complete
     def list_worker_employment_contracts(worker_id: str):
         cid = _resolve_company_id()
         if not cid:
             return forbidden_company()
-        contracts = ContractsService(get_db()).list_contracts_for_worker(worker_id, cid)
-        return jsonify({"contracts": contracts})
+        db = get_db()
+        contracts = ContractsService(db).list_contracts_for_worker(worker_id, cid)
+        redacted = sensitive_fields_locked(db, cid, getattr(g, "token", ""))
+        if redacted:
+            contracts = [redact_contract_record(r) for r in contracts]
+        return jsonify({"contracts": contracts, "salaryRedacted": redacted})
 
     @contracts_core_bp.post("/contracts/<contract_id>/sign-link/email")
     @require_auth
