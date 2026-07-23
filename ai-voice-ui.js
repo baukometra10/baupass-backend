@@ -1361,6 +1361,24 @@
 
   function executeBaupassAction(action, lang) {
     if (!action) return;
+    if (action.type === "prompt" || action.prompt || action.promptDe) {
+      const prompt = String(action.prompt || action.promptDe || action.promptEn || action.promptAr || "").trim();
+      if (!prompt) return;
+      if (typeof global.submitAiQuestion === "function") {
+        global.submitAiQuestion(prompt, { agentId: action.agentId });
+        return;
+      }
+      global.dispatchEvent(new CustomEvent("baupass-ai-prompt", { detail: { prompt, agentId: action.agentId } }));
+      return;
+    }
+    if (action.type === "analyze" && action.topic) {
+      if (typeof global.runAiAnalysis === "function") {
+        global.runAiAnalysis(action.topic);
+        return;
+      }
+      global.dispatchEvent(new CustomEvent("baupass-ai-analyze", { detail: { topic: action.topic } }));
+      return;
+    }
     if (action.type === "navigate" && action.url) {
       const url = action.url;
       if (url.startsWith("mailto:") || url.startsWith("tel:")) {
