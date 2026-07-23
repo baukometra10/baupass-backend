@@ -404,24 +404,129 @@
     }
     .chat-toolbar button.secondary:hover { border-color: rgba(56,189,248,0.4); color: #fff; }
     .insight-card {
-      border: 1px solid var(--border); border-radius: 10px; padding: 0.5rem 0.65rem; margin-bottom: 0.45rem;
+      border: 1px solid rgba(120, 156, 255, 0.12);
+      border-radius: 14px;
+      padding: 0.7rem 0.8rem 0.75rem;
+      margin-bottom: 0.55rem;
       font-size: 0.78rem;
+      background: linear-gradient(165deg, rgba(18, 26, 42, 0.95), rgba(12, 18, 32, 0.98));
+      transition: border-color 0.15s ease, transform 0.15s ease;
     }
-    .insight-card.critical { border-color: var(--danger); }
-    .insight-card.high { border-color: var(--warn); }
-    .insight-card strong { color: var(--accent); font-size: 1rem; }
-    .insight-card .card-actions { margin-top: 0.45rem; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .insight-card:hover {
+      border-color: rgba(56, 189, 248, 0.28);
+    }
+    .insight-card.critical { border-color: rgba(251, 113, 133, 0.45); }
+    .insight-card.high { border-color: rgba(251, 191, 36, 0.4); }
+    .insight-card-title {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      color: #9fb4cf;
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+    .insight-card-value {
+      display: block;
+      margin-top: 0.25rem;
+      color: #f2f8ff;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .insight-card .status-line {
+      margin-top: 0.2rem;
+      color: #8ea4c0;
+      min-height: 1em;
+    }
+    .insight-card .card-actions {
+      margin-top: 0.55rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .insight-action-btn,
     .insight-card .card-actions button {
-      font-size: 0.68rem; padding: 0.25rem 0.5rem; border-radius: 6px; cursor: pointer;
-      border: 1px solid var(--border); background: #14242a; color: var(--accent);
+      font-size: 0.7rem !important;
+      padding: 0.32rem 0.6rem !important;
+      border-radius: 999px !important;
+      cursor: pointer;
+      border: 1px solid rgba(125, 211, 252, 0.22) !important;
+      background: rgba(14, 24, 40, 0.95) !important;
+      color: #d7ebff !important;
+      text-align: start;
+      line-height: 1.25;
+      max-width: 100%;
+      transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
     }
-    .playbook-block { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border); }
-    .playbook-block h3 { margin: 0 0 0.4rem; font-size: 0.78rem; color: var(--accent); font-weight: 600; }
+    .insight-action-btn:hover,
+    .insight-card .card-actions button:hover {
+      border-color: rgba(56, 189, 248, 0.55) !important;
+      background: rgba(56, 189, 248, 0.12) !important;
+      color: #fff !important;
+    }
+    .insight-action-prompt {
+      border-color: rgba(56, 189, 248, 0.28) !important;
+      color: #bfe9ff !important;
+    }
+    .insight-action-analyze {
+      border-color: rgba(167, 139, 250, 0.35) !important;
+      color: #e9ddff !important;
+    }
+    .playbook-block { margin-bottom: 0.85rem; padding-bottom: 0.55rem; border-bottom: 1px solid rgba(120,156,255,0.1); }
+    .playbook-block h3 {
+      margin: 0 0 0.45rem;
+      font-size: 0.7rem;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #7dd3fc;
+      font-weight: 650;
+    }
     .issue-row {
-      padding: 0.4rem 0.5rem; margin-bottom: 0.35rem; border-radius: 8px; background: #0c1218;
-      font-size: 0.75rem; cursor: pointer; border: 1px solid transparent;
+      display: block;
+      width: 100%;
+      text-align: start;
+      padding: 0.5rem 0.6rem;
+      margin-bottom: 0.35rem;
+      border-radius: 10px;
+      background: rgba(8, 12, 22, 0.85);
+      font-size: 0.75rem;
+      cursor: pointer;
+      border: 1px solid rgba(120,156,255,0.12);
+      color: #e8f1fc;
+      font: inherit;
     }
-    .issue-row:hover { border-color: var(--accent); }
+    .issue-row:hover { border-color: rgba(56,189,248,0.45); background: rgba(56,189,248,0.08); }
+    .insight-ops-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.78rem;
+      text-decoration: none;
+      color: #7dd3fc;
+      font-weight: 600;
+    }
+    .panel.insights .scroll {
+      padding: 0.7rem 0.75rem 1rem;
+    }
+    header.ops-header h1 {
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .nav a {
+      text-decoration: none;
+      font-size: 0.78rem;
+      padding: 0.35rem 0.65rem;
+      border: 1px solid rgba(120,156,255,0.14);
+      border-radius: 999px;
+      color: #cfe0f5;
+      background: rgba(10, 14, 26, 0.55);
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .nav a:hover { border-color: rgba(56,189,248,0.45); color: #fff; }
     .pulse-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
       margin-inline-end: 0.35rem; animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -624,6 +729,10 @@
         analysisPrompt_compliance: "Compliance-Check (kurz): Dokumente, Sperren, Risiko-Score und Top-3 Maßnahmen.",
         analysisPrompt_attendance: "Anwesenheitsanalyse (kurz): Ausfallrisiken der letzten 14 Tage und Top-3 Maßnahmen.",
         analysisPrompt_executive: "Executive Summary (kurz): KPIs und Top-5 Maßnahmen für die Geschäftsführung.",
+        analysisPrompt_operations: "Betriebsanalyse (kurz): Anwesenheit, Engpässe, Sicherheit und Top-3 Maßnahmen jetzt.",
+        insightActionBusy: "Bitte warten — eine KI-Anfrage läuft bereits.",
+        insightActionMissing: "Diese Aktion ist gerade nicht verfügbar.",
+        insightOpened: "Analyse gestartet…",
         statusLine: "{onsite} auf Baustelle · {security} Sicherheit · {queries} Anfragen (7T) · {refreshed} {time}",
         issueAskPrompt: "Was bedeutet dieser Hinweis und was soll ich tun? {msg}",
         voiceHint: "Mikrofon: tippen → sprechen (Text live) → erneut tippen → Senden.",
@@ -695,6 +804,10 @@
         analysisPrompt_compliance: "Compliance check (concise): documents, locks, risk score, top 3 actions.",
         analysisPrompt_attendance: "Attendance analysis (concise): 14-day no-show risks, top 3 actions.",
         analysisPrompt_executive: "Executive summary (concise): KPIs and top 5 actions.",
+        analysisPrompt_operations: "Operations analysis (brief): attendance, bottlenecks, security, and top 3 actions now.",
+        insightActionBusy: "Please wait — an AI request is already running.",
+        insightActionMissing: "This action is currently unavailable.",
+        insightOpened: "Analysis started…",
         statusLine: "{onsite} on site · {security} security · {queries} queries (7d) · {refreshed} {time}",
         issueAskPrompt: "What does this notice mean and what should I do? {msg}",
         voiceHint: "Mic: tap → speak (live text) → tap again → Send.",
@@ -766,6 +879,10 @@
         analysisPrompt_compliance: "فحص امتثال (مختصر): الوثائق والإيقافات ومخاطر و3 إجراءات.",
         analysisPrompt_attendance: "تحليل حضور (مختصر): مخاطر الغياب 14 يوماً و3 إجراءات.",
         analysisPrompt_executive: "ملخص تنفيذي (مختصر): مؤشرات و5 إجراءات.",
+        analysisPrompt_operations: "تحليل تشغيلي (مختصر): الحضور والاختناقات والأمن و3 إجراءات الآن.",
+        insightActionBusy: "يرجى الانتظار — هناك طلب ذكاء اصطناعي قيد التشغيل.",
+        insightActionMissing: "هذا الإجراء غير متاح حالياً.",
+        insightOpened: "بدأ التحليل…",
         statusLine: "{onsite} على الموقع · {security} أمن · {queries} استعلامات (7أ) · {refreshed} {time}",
         issueAskPrompt: "ماذا يعني هذا التنبيه وماذا يجب أن أفعل؟ {msg}",
         voiceHint: "الميكروفون: اضغط → تحدّث (النص يظهر مباشرة) → اضغط للإيقاف → أرسل.",
@@ -815,12 +932,14 @@
       compliance: "topicCompliance",
       attendance: "topicAttendance",
       executive: "topicExecutive",
+      operations: "topicExecutive",
     };
     const ANALYSIS_AGENT_IDS = {
       security: "security",
       compliance: "compliance",
       attendance: "hr",
       executive: "executive",
+      operations: "operations",
     };
     const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
     function tf(k, vars = {}) {
@@ -1619,18 +1738,64 @@
 
     document.addEventListener("click", () => closeMsgMoreMenus());
 
-    function runInsightAction(a) {
+    function withCompanyUrl(rawUrl) {
+      const base = String(rawUrl || "").trim();
+      if (!base) return base;
+      try {
+        const u = new URL(base, location.origin);
+        if (selectedCompanyId) u.searchParams.set("company_id", selectedCompanyId);
+        if (LANG) u.searchParams.set("lang", LANG);
+        return `${u.pathname}${u.search}${u.hash}`;
+      } catch {
+        if (!selectedCompanyId) return base;
+        const join = base.includes("?") ? "&" : base.includes("#") ? "?" : "?";
+        if (base.includes("#") && !base.includes("?")) {
+          const [path, hash] = base.split("#");
+          return `${path}?company_id=${encodeURIComponent(selectedCompanyId)}&lang=${encodeURIComponent(LANG)}#${hash}`;
+        }
+        return `${base}${join}company_id=${encodeURIComponent(selectedCompanyId)}&lang=${encodeURIComponent(LANG)}`;
+      }
+    }
+
+    async function runInsightAction(a) {
       if (!a) return;
-      if (a.type === "navigate" && a.url) {
-        const u = a.url.includes("?") ? a.url : `${a.url}?${companyQs()}`;
-        location.href = u;
-        return;
+      try {
+        if (companyRequiredForUi()) {
+          showToast(t("needCompany"));
+          return;
+        }
+        if (a.type === "navigate" && a.url) {
+          location.href = withCompanyUrl(a.url);
+          return;
+        }
+        if (a.type === "analyze") {
+          const topic = String(a.topic || "operations").trim() || "operations";
+          if (aiQuestionInFlight) {
+            showToast(t("insightActionBusy"));
+            return;
+          }
+          showToast(t("insightOpened"));
+          await runAnalysis(topic);
+          return;
+        }
+        if (a.type === "prompt") {
+          const prompt = String(a.prompt || a.promptDe || a.promptEn || a.promptAr || "").trim();
+          if (!prompt) {
+            showToast(t("insightActionMissing"));
+            return;
+          }
+          if (aiQuestionInFlight) {
+            showToast(t("insightActionBusy"));
+            return;
+          }
+          showToast(t("insightOpened"));
+          await submitQuestion(prompt, { agentId: "operations" });
+          return;
+        }
+        showToast(t("insightActionMissing"));
+      } catch (e) {
+        showToast(e?.payload?.hint || e?.message || t("errGeneric"));
       }
-      if (a.type === "analyze" && a.topic) {
-        document.querySelector(`[data-topic="${a.topic}"]`)?.click();
-        return;
-      }
-      if (a.type === "prompt" && a.prompt) submitQuestion(a.prompt);
     }
 
     function renderInsights(data) {
@@ -1640,18 +1805,22 @@
       const next = data?.nextActions || [];
       if (next.length) {
         html += `<div class="playbook-block"><h3>${t("nextActions")}</h3><div class="card-actions">` +
-          next.map((a, i) => `<button type="button" data-na="${i}">${a.label || a.id}</button>`).join("") +
+          next.map((a, i) =>
+            `<button type="button" class="insight-action-btn" data-na="${i}">${escapeHtml(a.label || a.id || t("askIssue"))}</button>`,
+          ).join("") +
           `</div></div>`;
       }
       html += cards.map((c) => {
         const pulse = c.severity === "critical" ? '<span class="pulse-dot"></span>' : "";
-        const acts = (c.actions || []).map((a, i) =>
-          `<button type="button" data-ca="${c.id}-${i}">${a.label || a.type}</button>`
-        ).join("");
-        return `<div class="insight-card ${c.severity || ""}" data-card="${c.id}">
-          <div>${pulse}${labels[c.titleKey] || c.titleKey}</div>
-          <strong>${c.value}</strong>
-          <div class="status-line">${c.detail || ""}</div>
+        const acts = (c.actions || []).map((a, i) => {
+          const kind = a.type === "prompt" ? "prompt" : a.type === "analyze" ? "analyze" : "nav";
+          const label = a.label || a.type || t("askIssue");
+          return `<button type="button" class="insight-action-btn insight-action-${kind}" data-ca="${escapeHtml(c.id)}-${i}">${escapeHtml(label)}</button>`;
+        }).join("");
+        return `<div class="insight-card ${escapeHtml(c.severity || "")}" data-card="${escapeHtml(c.id)}">
+          <div class="insight-card-title">${pulse}${escapeHtml(labels[c.titleKey] || c.titleKey)}</div>
+          <strong class="insight-card-value">${escapeHtml(String(c.value ?? "—"))}</strong>
+          <div class="status-line">${escapeHtml(c.detail || "")}</div>
           ${acts ? `<div class="card-actions">${acts}</div>` : ""}
         </div>`;
       }).join("");
@@ -1660,26 +1829,37 @@
         html += `<div class="playbook-block"><h3>${t("issues")}</h3>` +
           issues.map((iss, i) => {
             const msg = typeof iss === "string" ? iss : (iss.message || iss.site || JSON.stringify(iss));
-            return `<div class="issue-row" data-issue="${i}" title="${escapeHtml(t("askIssue"))}">${msg}</div>`;
+            return `<button type="button" class="issue-row" data-issue="${i}" title="${escapeHtml(t("askIssue"))}">${escapeHtml(msg)}</button>`;
           }).join("") + `</div>`;
       }
       if (data?.opsUrl) {
-        html += `<div class="playbook-block"><a href="${data.opsUrl}">${t("openOps")} →</a></div>`;
+        html += `<div class="playbook-block"><a class="insight-ops-link" href="${escapeHtml(withCompanyUrl(data.opsUrl))}">${escapeHtml(t("openOps"))} →</a></div>`;
       }
       const el = document.getElementById("insightCards");
       el.innerHTML = html || `<p class="status-line">—</p>`;
       next.forEach((a, i) => {
-        el.querySelector(`[data-na="${i}"]`)?.addEventListener("click", () => runInsightAction(a));
+        el.querySelector(`[data-na="${i}"]`)?.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          void runInsightAction(a);
+        });
       });
       cards.forEach((c) => {
         (c.actions || []).forEach((a, i) => {
-          el.querySelector(`[data-ca="${c.id}-${i}"]`)?.addEventListener("click", () => runInsightAction(a));
+          el.querySelector(`[data-ca="${c.id}-${i}"]`)?.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            void runInsightAction(a);
+          });
         });
       });
       issues.forEach((iss, i) => {
-        el.querySelector(`[data-issue="${i}"]`)?.addEventListener("click", () => {
+        el.querySelector(`[data-issue="${i}"]`)?.addEventListener("click", (ev) => {
+          ev.preventDefault();
           const msg = typeof iss === "string" ? iss : (iss.message || iss.site || "");
-          submitQuestion(t("issueAskPrompt").replace("{msg}", msg));
+          if (aiQuestionInFlight) {
+            showToast(t("insightActionBusy"));
+            return;
+          }
+          void submitQuestion(t("issueAskPrompt").replace("{msg}", msg));
         });
       });
     }
@@ -2226,11 +2406,15 @@
     };
 
     async function runAnalysis(topic) {
-      const promptKey = `analysisPrompt_${topic}`;
-      const q = t(promptKey);
-      if (!q || q === promptKey) return;
-      const agentId = ANALYSIS_AGENT_IDS[topic] || "operations";
-      await submitQuestion(q, { spoken: false, agentId, analysisTopic: topic });
+      const rawTopic = String(topic || "operations").trim() || "operations";
+      const promptKey = `analysisPrompt_${rawTopic}`;
+      let q = t(promptKey);
+      if (!q || q === promptKey) {
+        q = t("analysisPrompt_operations");
+      }
+      if (!q || q === "analysisPrompt_operations") return;
+      const agentId = ANALYSIS_AGENT_IDS[rawTopic] || "operations";
+      await submitQuestion(q, { spoken: false, agentId, analysisTopic: rawTopic === "operations" ? undefined : rawTopic });
     }
 
     document.getElementById("chatForm").onsubmit = (ev) => {

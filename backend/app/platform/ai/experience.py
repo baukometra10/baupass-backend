@@ -12,12 +12,12 @@ _CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
     "security": [
         {"type": "navigate", "url": "/admin-v2/index.html#operations", "labelDe": "Sicherheit öffnen", "labelEn": "Open security", "labelAr": "فتح الأمن"},
         {"type": "analyze", "topic": "security", "labelDe": "Security Deep-Dive", "labelEn": "Security deep dive", "labelAr": "تحليل أمني"},
-        {"type": "prompt", "promptDe": "Welche Sicherheitsalerts sind offen und wie priorisieren?", "promptEn": "Which security alerts are open and how to prioritize?", "promptAr": "ما التنبيهات الأمنية المفتوحة؟"},
+        {"type": "prompt", "labelDe": "KI: Security-Alerts", "labelEn": "AI: Security alerts", "labelAr": "AI: تنبيهات الأمن", "promptDe": "Welche Sicherheitsalerts sind offen und wie priorisieren?", "promptEn": "Which security alerts are open and how to prioritize?", "promptAr": "ما التنبيهات الأمنية المفتوحة؟"},
     ],
     "onsite": [
         {"type": "navigate", "url": "/foreman.html", "labelDe": "Vorarbeiter-Dashboard", "labelEn": "Foreman dashboard", "labelAr": "لوحة المشرف"},
         {"type": "navigate", "url": "/ops-command-center.html", "labelDe": "Ops Live", "labelEn": "Ops live", "labelAr": "عمليات مباشرة"},
-        {"type": "prompt", "promptDe": "Wer ist gerade auf der Baustelle und gibt es Engpässe?", "promptEn": "Who is on site now and are there bottlenecks?", "promptAr": "من على الموقع الآن؟"},
+        {"type": "prompt", "labelDe": "KI: Wer ist vor Ort?", "labelEn": "AI: Who is on site?", "labelAr": "AI: من في الموقع؟", "promptDe": "Wer ist gerade auf der Baustelle und gibt es Engpässe?", "promptEn": "Who is on site now and are there bottlenecks?", "promptAr": "من على الموقع الآن؟"},
     ],
     "risk": [
         {"type": "analyze", "topic": "compliance", "labelDe": "Compliance prüfen", "labelEn": "Check compliance", "labelAr": "فحص الامتثال"},
@@ -25,7 +25,7 @@ _CARD_ACTIONS: dict[str, list[dict[str, str]]] = {
     ],
     "attendance": [
         {"type": "analyze", "topic": "attendance", "labelDe": "Anwesenheit analysieren", "labelEn": "Analyze attendance", "labelAr": "تحليل الحضور"},
-        {"type": "prompt", "promptDe": "Welche Mitarbeiter haben Ausfallrisiko in den nächsten 7 Tagen?", "promptEn": "Which workers are at no-show risk in the next 7 days?", "promptAr": "من معرض لخطر الغياب؟"},
+        {"type": "prompt", "labelDe": "KI: Ausfallrisiko", "labelEn": "AI: Absence risk", "labelAr": "AI: خطر الغياب", "promptDe": "Welche Mitarbeiter haben Ausfallrisiko in den nächsten 7 Tagen?", "promptEn": "Which workers are at no-show risk in the next 7 days?", "promptAr": "من معرض لخطر الغياب؟"},
     ],
     "fraud": [
         {"type": "analyze", "topic": "security", "labelDe": "Betrug prüfen", "labelEn": "Investigate fraud", "labelAr": "تحقيق احتيال"},
@@ -136,7 +136,9 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                 act["label"] = _localized(a, lang, "label")
             elif a["type"] == "prompt":
                 act["prompt"] = _localized(a, lang, "prompt")
-                act["label"] = act["prompt"][:48] + ("…" if len(act["prompt"]) > 48 else "")
+                # Prefer a short button label; keep full text in prompt.
+                short = _localized(a, lang, "label")
+                act["label"] = short or (act["prompt"][:42] + ("…" if len(act["prompt"]) > 42 else ""))
             actions.append(act)
         card["actions"] = actions
 
@@ -166,6 +168,31 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                 "topic": "security",
                 "label": _localized(_RECOMMENDATIONS["review_security_findings"], lang, "label"),
             }
+        )
+
+    # Always offer a few working AI prompts — even when metrics are zero.
+    if not next_actions:
+        next_actions.extend(
+            [
+                {
+                    "id": "default_onsite",
+                    "type": "prompt",
+                    "label": _localized(_CARD_ACTIONS["onsite"][2], lang, "label") or "KI: Wer ist vor Ort?",
+                    "prompt": _localized(_CARD_ACTIONS["onsite"][2], lang, "prompt"),
+                },
+                {
+                    "id": "default_security_prompt",
+                    "type": "prompt",
+                    "label": _localized(_CARD_ACTIONS["security"][2], lang, "label") or "KI: Security",
+                    "prompt": _localized(_CARD_ACTIONS["security"][2], lang, "prompt"),
+                },
+                {
+                    "id": "default_attendance",
+                    "type": "analyze",
+                    "topic": "attendance",
+                    "label": _localized(_CARD_ACTIONS["attendance"][0], lang, "label"),
+                },
+            ]
         )
 
     dash["nextActions"] = next_actions[:6]
