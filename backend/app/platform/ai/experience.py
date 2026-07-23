@@ -117,6 +117,49 @@ def _localized(item: dict[str, str], lang: str, prefix: str) -> str:
     )
 
 
+_ZERO_CARD_DETAILS: dict[str, dict[str, str]] = {
+    "onsite": {
+        "detailDe": "Niemand eingecheckt — Lage prüfen",
+        "detailEn": "Nobody checked in — review site status",
+        "detailAr": "لا أحد مسجّل حضوراً — راجع الوضع",
+    },
+    "security": {
+        "detailDe": "Keine offenen Befunde — Kurzcheck möglich",
+        "detailEn": "No open findings — quick check available",
+        "detailAr": "لا توجد نتائج مفتوحة — يمكن فحص سريع",
+    },
+    "risk": {
+        "detailDe": "Keine abgelaufenen Dokumente · keine Sperren",
+        "detailEn": "No expired docs · no locks",
+        "detailAr": "لا وثائق منتهية · لا إيقافات",
+    },
+    "attendance": {
+        "detailDe": "Kein Ausfallrisiko erkannt — Analyse starten",
+        "detailEn": "No absence risk detected — start analysis",
+        "detailAr": "لا خطر غياب ظاهر — ابدأ التحليل",
+    },
+    "fraud": {
+        "detailDe": "Keine Betrugssignale — optional prüfen",
+        "detailEn": "No fraud signals — optional check",
+        "detailAr": "لا إشارات احتيال — فحص اختياري",
+    },
+    "productivity": {
+        "detailDe": "Noch keine Stempel heute",
+        "detailEn": "No punches yet today",
+        "detailAr": "لا طوابع حضور اليوم بعد",
+    },
+}
+
+
+def _card_value_empty(value: Any) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (int, float)):
+        return float(value) == 0
+    text = str(value).strip()
+    return text in {"", "0", "0/0", "—", "-"}
+
+
 def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: str = "de") -> dict[str, Any]:
     """Attach per-card and playbook next actions for Command Center UI."""
     lang = (lang or "de")[:2]
@@ -124,7 +167,35 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
 
     for card in dash.get("cards") or []:
         cid = card.get("id") or ""
-        raw_actions = _CARD_ACTIONS.get(cid, [])
+        if _card_value_empty(card.get("value")):
+            zero = _ZERO_CARD_DETAILS.get(cid)
+            if zero:
+                card["detail"] = _localized(zero, lang, "detail") or card.get("detail") or ""
+        raw_actions = list(_CARD_ACTIONS.get(cid, []))
+        # Ensure quiet cards still expose an AI prompt when they only have navigate/analyze.
+        if cid in _CARD_ACTIONS and not any(a.get("type") == "prompt" for a in raw_actions):
+            prompt_bank = {
+                "risk": {
+                    "type": "prompt",
+                    "labelDe": "KI: Compliance-Lage",
+                    "labelEn": "AI: Compliance status",
+                    "labelAr": "AI: وضع الامتثال",
+                    "promptDe": "Prüfe Compliance: abgelaufene Dokumente, Sperren und Risiko-Score. Top-3 Maßnahmen.",
+                    "promptEn": "Check compliance: expired docs, locks and risk score. Top 3 actions.",
+                    "promptAr": "افحص الامتثال: الوثائق المنتهية والإيقافات ودرجة المخاطر. أهم 3 إجراءات.",
+                },
+                "leave": {
+                    "type": "prompt",
+                    "labelDe": "KI: Urlaubsanträge",
+                    "labelEn": "AI: Leave requests",
+                    "labelAr": "AI: طلبات الإجازة",
+                    "promptDe": "Welche Urlaubs- oder Krankmeldungen sind offen und was empfiehlst du?",
+                    "promptEn": "Which leave requests are open and what do you recommend?",
+                    "promptAr": "ما طلبات الإجازة المفتوحة وما توصيتك؟",
+                },
+            }
+            if cid in prompt_bank:
+                raw_actions.append(prompt_bank[cid])
         actions: list[dict[str, Any]] = []
         for a in raw_actions:
             act: dict[str, Any] = {"type": a["type"]}
@@ -136,11 +207,11 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                 act["label"] = _localized(a, lang, "label")
             elif a["type"] == "prompt":
                 act["prompt"] = _localized(a, lang, "prompt")
-                # Prefer a short button label; keep full text in prompt.
                 short = _localized(a, lang, "label")
                 act["label"] = short or (act["prompt"][:42] + ("…" if len(act["prompt"]) > 42 else ""))
             actions.append(act)
-        card["actions"] = actions
+        if actions:
+            card["actions"] = actions
 
     next_actions: list[dict[str, Any]] = []
     for rec in dash.get("recommendations") or []:
@@ -191,6 +262,18 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                     "type": "analyze",
                     "topic": "attendance",
                     "label": _localized(_CARD_ACTIONS["attendance"][0], lang, "label"),
+                },
+                {
+                    "id": "default_compliance",
+                    "type": "analyze",
+                    "topic": "compliance",
+                    "label": _localized(_CARD_ACTIONS["risk"][0], lang, "label"),
+                },
+                {
+                    "id": "default_workers",
+                    "type": "navigate",
+                    "url": "/admin-v2/index.html?tab=workers",
+                    "label": _localized(_CARD_ACTIONS["risk"][1], lang, "label"),
                 },
             ]
         )

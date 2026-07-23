@@ -565,6 +565,18 @@
       color: #9fb4cf;
       line-height: 1.4;
     }
+    .chat-empty {
+      margin: 1.4rem auto;
+      max-width: 28rem;
+      padding: 1.1rem 1rem;
+      border-radius: 14px;
+      border: 1px dashed rgba(120, 156, 255, 0.22);
+      background: rgba(14, 22, 36, 0.55);
+      color: #9fb4cf;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      text-align: center;
+    }
     .chat-toolbar {
       display: flex; flex-wrap: wrap; gap: 0.4rem; padding: 0.55rem 0.85rem 0.65rem;
       border-bottom: 1px solid rgba(120,156,255,0.1);
@@ -907,6 +919,7 @@
         agentsTitle: "Abteilung",
         agentFallback: "Betriebsleitung",
         noChats: "Noch keine Chats. Starte mit „+ Neu“ oder einem Vorschlag unten.",
+        emptyChatWelcome: "Wähle eine Abteilung oder tippe eine Frage. Live Insights rechts starten Analysen mit einem Klick.",
         timeJustNow: "gerade eben",
         timeMinutesAgo: "vor {n} Min.",
         timeHoursAgo: "vor {n} Std.",
@@ -990,6 +1003,7 @@
         agentsTitle: "Department",
         agentFallback: "Operations",
         noChats: "No chats yet. Start with “+ New” or a suggestion below.",
+        emptyChatWelcome: "Pick a department or type a question. Live Insights on the right start analyses in one click.",
         timeJustNow: "just now",
         timeMinutesAgo: "{n} min ago",
         timeHoursAgo: "{n} h ago",
@@ -1077,6 +1091,7 @@
         timeHoursAgo: "قبل {n} س",
         timeYesterday: "أمس",
         timeDaysAgo: "قبل {n} أيام",
+        emptyChatWelcome: "اختر قسماً أو اكتب سؤالاً. الرؤى المباشرة على اليمين تبدأ التحليل بنقرة.",
         send: "إرسال", voiceInput: "إدخال صوتي", briefing: "ملخص اليوم",
         placeholder: "اسأل الوكيل…",
         thinking: "جاري تحليل البيانات…", needCompany: "اختر الشركة.",
@@ -2023,9 +2038,71 @@
       }
     }
 
+    function makeChatTitle(question) {
+      let text = String(question || "").replace(/\s+/g, " ").trim();
+      if (!text) return t("agentFallback");
+      const prefixes = [
+        "Sicherheitsanalyse (kurz):",
+        "Security analysis (concise):",
+        "Compliance-Check (kurz):",
+        "Compliance check (concise):",
+        "Anwesenheitsanalyse (kurz):",
+        "Attendance analysis (concise):",
+        "Executive Summary (kurz):",
+        "Executive summary (concise):",
+        "Betriebsanalyse (kurz):",
+        "Operations analysis (concise):",
+        "تحليل أمني (مختصر):",
+        "فحص امتثال (مختصر):",
+        "تحليل حضور (مختصر):",
+        "ملخص تنفيذي (مختصر):",
+        "تحليل تشغيلي (مختصر):",
+      ];
+      const lower = text.toLowerCase();
+      for (const prefix of prefixes) {
+        if (lower.startsWith(prefix.toLowerCase())) {
+          text = text.slice(prefix.length).replace(/^[\s:–-]+/, "");
+          break;
+        }
+      }
+      if (text.length > 56) {
+        let cut = text.slice(0, 55);
+        const sp = cut.lastIndexOf(" ");
+        if (sp > 24) cut = cut.slice(0, sp);
+        text = `${cut.replace(/[.,;:]+$/, "")}…`;
+      }
+      return text || t("agentFallback");
+    }
+
+    function applyLocalSessionTitle(title) {
+      const next = String(title || "").trim();
+      if (!next || !sessionId) return;
+      const row = sessions.find((s) => s.id === sessionId);
+      if (row) row.title = next;
+      else sessions.unshift({ id: sessionId, title: next, agentId: activeAgent, updatedAt: new Date().toISOString() });
+      renderSessions();
+    }
+
+    function ensureChatWelcome() {
+      const log = document.getElementById("chatLog");
+      if (!log) return;
+      if (log.children.length) return;
+      log.innerHTML = `<div class="chat-empty">${escapeHtml(t("emptyChatWelcome"))}</div>`;
+    }
+
+    function clearChatWelcome() {
+      document.querySelector("#chatLog .chat-empty")?.remove();
+    }
+
     function sessionDisplayTitle(session) {
       const title = String(session?.title || "").trim();
-      if (title && !/^neuer chat$/i.test(title) && !/^new chat$/i.test(title) && title !== "محادثة جديدة") {
+      if (
+        title
+        && !/^neuer chat$/i.test(title)
+        && !/^new chat$/i.test(title)
+        && title !== "محادثة جديدة"
+        && !/^nouveau chat$/i.test(title)
+      ) {
         return title;
       }
       return agentLabel(session?.agentId || "operations");
@@ -2102,6 +2179,7 @@
       if (sessionId === id) {
         sessionId = "";
         document.getElementById("chatLog").innerHTML = "";
+        ensureChatWelcome();
       }
       await loadSessions();
       showToast(t("chatDeleted"));
@@ -2113,6 +2191,7 @@
       await api(`/api/ai/sessions?${companyQs()}`, { method: "DELETE" });
       sessionId = "";
       document.getElementById("chatLog").innerHTML = "";
+      ensureChatWelcome();
       await loadSessions();
       showToast(t("allChatsDeleted"));
     }
@@ -2129,6 +2208,7 @@
         await deleteSession(sessionId, { confirm: false });
       } else {
         document.getElementById("chatLog").innerHTML = "";
+        ensureChatWelcome();
         showToast(t("chatCleared"));
       }
     }
@@ -2511,7 +2591,9 @@
       document.getElementById("chatLog").innerHTML = "";
       activeAgent = data.session?.agentId || activeAgent;
       renderAgents();
-      (data.messages || []).forEach((m) => appendMsg(m.role, m.content, m.meta || {}));
+      const messages = data.messages || [];
+      if (!messages.length) ensureChatWelcome();
+      messages.forEach((m) => appendMsg(m.role, m.content, m.meta || {}));
     }
 
     async function newSession() {
@@ -2527,6 +2609,7 @@
       });
       sessionId = s.id;
       document.getElementById("chatLog").innerHTML = "";
+      ensureChatWelcome();
       await loadSessions();
     }
 
@@ -2575,6 +2658,8 @@
       window.BaupassAiUi?.stopSpeaking?.();
       window.BaupassAiUi?.stopVoiceCapture?.("question");
       if (!sessionId) await newSession();
+      clearChatWelcome();
+      applyLocalSessionTitle(makeChatTitle(q));
       appendMsg("user", q);
       lastUserQuestion = String(q || "").trim();
       const log = document.getElementById("chatLog");
@@ -3011,6 +3096,7 @@
       await loadAgents();
       renderAgents();
       await Promise.all([loadInsights(), loadSessions()]);
+      ensureChatWelcome();
       startInsightsPolling();
       startInsightsRealtime();
     }

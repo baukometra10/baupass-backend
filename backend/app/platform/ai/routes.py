@@ -99,6 +99,8 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": "session_not_found"}), 404
             agent_id = sess["agent_id"] or agent_id
             history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
+            if len(history) <= 1:
+                touch_session_title(db, session_id, question, lang=lang)
 
         try:
             from .intents import try_intent_response
@@ -159,7 +161,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     meta={"toolsUsed": result.get("toolsUsed"), "sources": result.get("sources")},
                 )
                 if len(history) <= 1:
-                    touch_session_title(db, session_id, question[:80])
+                    touch_session_title(db, session_id, question, lang=lang)
 
             return jsonify(result)
         except Exception as exc:
@@ -468,6 +470,8 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": "session_not_found"}), 404
             agent_id = sess["agent_id"] or agent_id
             history = [{"role": m["role"], "content": m["content"]} for m in list_messages(db, session_id)]
+            if len(history) <= 1:
+                touch_session_title(db, session_id, question, lang=lang)
 
         def generate():
             from .intents import try_intent_response
@@ -531,7 +535,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     meta={"toolsUsed": final.get("toolsUsed"), "stream": True},
                 )
                 if len(history) <= 1:
-                    touch_session_title(db, session_id, question[:80])
+                    touch_session_title(db, session_id, question, lang=lang)
 
         return Response(
             stream_with_context(generate()),
@@ -591,13 +595,15 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     {"role": m["role"], "content": m["content"]}
                     for m in list_messages(db, session_id, limit=12)
                 ]
+                if len(history) <= 1:
+                    touch_session_title(db, session_id, question, lang=lang)
         else:
             created = create_session(
                 db,
                 company_id=company_id,
                 user_id=_user_id(),
                 agent_id="decision",
-                title=question[:80],
+                title=question,
                 lang=lang,
             )
             session_id = str(created.get("id") or "")
@@ -620,7 +626,7 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                 content=result.get("answer"),
                 meta={"decision": result.get("decision"), "agentId": "decision"},
             )
-            touch_session_title(db, session_id, question[:80])
+            touch_session_title(db, session_id, question, lang=lang)
         result["sessionId"] = session_id
         result["companyId"] = company_id
         return jsonify(result)

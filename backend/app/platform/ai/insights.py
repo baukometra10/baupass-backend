@@ -30,42 +30,51 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
             "severity": "info",
             "titleKey": "onsite",
             "value": ctx.get("workersOnSite", 0),
-            "detail": ", ".join((ctx.get("onSiteNames") or [])[:5]),
+            "detail": ", ".join((ctx.get("onSiteNames") or [])[:5])
+            or ("Niemand eingecheckt — Lage prüfen" if not ctx.get("workersOnSite") else ""),
         },
         {
             "id": "security",
             "severity": "high" if int(sec.get("openFindings") or 0) > 3 else "medium" if sec.get("openFindings") else "low",
             "titleKey": "security",
             "value": int(sec.get("openFindings") or 0),
-            "detail": (sec.get("topFindings") or [{}])[0].get("title", "") if sec.get("topFindings") else "",
+            "detail": (
+                (sec.get("topFindings") or [{}])[0].get("title", "")
+                if sec.get("topFindings")
+                else ("Keine offenen Befunde — Kurzcheck möglich" if not sec.get("openFindings") else "")
+            ),
         },
         {
             "id": "risk",
             "severity": risk.get("level", "low"),
             "titleKey": "workforceRisk",
             "value": risk.get("risk_score", 0),
-            "detail": f"{risk.get('expired_documents', 0)} docs · {risk.get('locked_workers', 0)} locked",
+            "detail": (
+                f"{risk.get('expired_documents', 0)} docs · {risk.get('locked_workers', 0)} locked"
+                if int(risk.get("expired_documents") or 0) or int(risk.get("locked_workers") or 0) or int(risk.get("risk_score") or 0)
+                else "Keine abgelaufenen Dokumente · keine Sperren"
+            ),
         },
         {
             "id": "attendance",
             "severity": "medium" if at_risk else "low",
             "titleKey": "attendanceRisk",
             "value": len(at_risk),
-            "detail": at_risk[0].get("name", "") if at_risk else "",
+            "detail": at_risk[0].get("name", "") if at_risk else "Kein Ausfallrisiko erkannt — Analyse starten",
         },
         {
             "id": "fraud",
             "severity": "high" if fraud else "low",
             "titleKey": "fraud",
             "value": len(fraud),
-            "detail": fraud[0].get("type", "") if fraud else "",
+            "detail": fraud[0].get("type", "") if fraud else "Keine Betrugssignale — optional prüfen",
         },
         {
             "id": "productivity",
             "severity": "info",
             "titleKey": "productivity",
             "value": f"{prod.get('checkins', 0)}/{prod.get('checkouts', 0)}",
-            "detail": ctx.get("peakHour") or "",
+            "detail": ctx.get("peakHour") or ("Noch keine Stempel heute" if not prod.get("checkins") else ""),
         },
     ]
 
@@ -107,7 +116,7 @@ def build_insights_dashboard(db, company_id: str, role: str = "company-admin") -
                     {
                         "type": "navigate",
                         "label": "Anträge öffnen",
-                        "url": "/index.html?view=leave",
+                        "url": "/admin-v2/index.html?tab=inbox",
                     }
                 ],
             },

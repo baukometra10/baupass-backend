@@ -11,6 +11,71 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
 
 
+_PLACEHOLDER_TITLES = {
+    "",
+    "neuer chat",
+    "new chat",
+    "محادثة جديدة",
+    "nouveau chat",
+    "nueva conversación",
+    "nuova chat",
+    "nowy chat",
+}
+
+
+def default_session_title(lang: str = "de") -> str:
+    return {
+        "de": "Neuer Chat",
+        "en": "New chat",
+        "ar": "محادثة جديدة",
+        "tr": "Yeni sohbet",
+        "fr": "Nouveau chat",
+        "es": "Nueva conversación",
+        "it": "Nuova chat",
+        "pl": "Nowy chat",
+    }.get((lang or "de")[:2], "Neuer Chat")
+
+
+def make_session_title(question: str, *, lang: str = "de", max_len: int = 56) -> str:
+    """Short, readable sidebar title from the first user question."""
+    text = " ".join(str(question or "").split()).strip()
+    if not text:
+        return default_session_title(lang)
+    # Drop long boilerplate prefixes from analysis shortcuts.
+    prefixes = (
+        "Sicherheitsanalyse (kurz):",
+        "Security analysis (concise):",
+        "Compliance-Check (kurz):",
+        "Compliance check (concise):",
+        "Anwesenheitsanalyse (kurz):",
+        "Attendance analysis (concise):",
+        "Executive Summary (kurz):",
+        "Executive summary (concise):",
+        "Betriebsanalyse (kurz):",
+        "Operations analysis (concise):",
+        "تحليل أمني (مختصر):",
+        "فحص امتثال (مختصر):",
+        "تحليل حضور (مختصر):",
+        "ملخص تنفيذي (مختصر):",
+        "تحليل تشغيلي (مختصر):",
+    )
+    lower = text.lower()
+    for prefix in prefixes:
+        if lower.startswith(prefix.lower()):
+            text = text[len(prefix) :].strip(" :–-")
+            break
+    if len(text) > max_len:
+        cut = text[: max_len - 1]
+        if " " in cut:
+            cut = cut.rsplit(" ", 1)[0]
+        text = cut.rstrip(".,;:") + "…"
+    return text or default_session_title(lang)
+
+
+def is_placeholder_title(title: str | None) -> bool:
+    return str(title or "").strip().lower() in _PLACEHOLDER_TITLES
+
+
 def ensure_ai_tables(db) -> None:
     db.executescript(
         """
@@ -67,7 +132,7 @@ def create_session(
     ensure_ai_tables(db)
     sid = f"ais-{uuid.uuid4().hex[:12]}"
     now = _now()
-    title = (title or "").strip() or "Neuer Chat"
+    title = make_session_title(title, lang=lang) if (title or "").strip() else default_session_title(lang)
     db.execute(
         """
         INSERT INTO ai_chat_sessions (id, company_id, user_id, agent_id, title, lang, created_at, updated_at)
@@ -220,9 +285,18 @@ def delete_all_sessions(db, *, company_id: str, user_id: str) -> int:
     return len(session_ids)
 
 
-def touch_session_title(db, session_id: str, title: str) -> None:
-    title = (title or "").strip()[:120]
+def touch_session_title(db, session_id: str, title: str, *, force: bool = False, lang: str = "de") -> None:
+    title = make_session_title(title, lang=lang)
     if not title:
+        return
+    row = db.execute("SELECT title FROM ai_chat_sessions WHERE id = ?", (session_id,)).fetchone()
+    current = str(row["title"] if row else "") if row is not None else ""
+    if not force and current and not is_placeholder_title(current):
+        db.execute(
+            "UPDATE ai_chat_sessions SET updated_at = ? WHERE id = ?",
+            (_now(), session_id),
+        )
+        db.commit()
         return
     db.execute(
         "UPDATE ai_chat_sessions SET title = ?, updated_at = ? WHERE id = ?",
