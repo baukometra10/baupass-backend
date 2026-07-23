@@ -3700,6 +3700,55 @@ body[data-branding-preset="premium"] {
   line-height: 1.5;
 }
 
+.sector-field-emphasis {
+  grid-column: 1 / -1;
+  padding: 0.85rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  background: linear-gradient(165deg, rgba(20, 36, 58, 0.55), rgba(10, 16, 28, 0.75));
+  box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.06);
+}
+
+.sector-field-emphasis > span:first-child {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.sector-hint {
+  margin-top: 0.45rem;
+  font-size: 0.78rem;
+}
+
+.sector-preview {
+  margin-top: 0.65rem;
+}
+
+.sector-preview strong {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9fb4cf;
+  margin-bottom: 0.4rem;
+}
+
+.sector-preview-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.sector-preview-chip {
+  display: inline-flex;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  background: rgba(14, 24, 40, 0.9);
+  color: #d7ebff;
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
 .field-hint {
   display: block;
   font-size: .76rem;

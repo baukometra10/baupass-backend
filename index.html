@@ -2134,7 +2134,7 @@
                   <option value="enterprise" data-ui-i18n="optPlanEnterprise">Enterprise (2.490 EUR/Monat, 3 EUR/MA)</option>
                 </select>
               </label>
-              <label>
+              <label class="sector-field sector-field-emphasis">
                 <span data-ui-i18n="labelOperatingSector">Betriebssektor</span>
                 <select id="companyOperatingSector">
                   <option value="construction" data-ui-i18n="optSectorConstruction">Bau</option>
@@ -2145,6 +2145,8 @@
                   <option value="public_sector" data-ui-i18n="optSectorPublic">Öffentlicher Sektor</option>
                   <option value="government" data-ui-i18n="optSectorGovernment">Behörden</option>
                 </select>
+                <p class="helper-text sector-hint" data-ui-i18n="operatingSectorHint">Steuert Fachbegriffe in Admin, App und Berichten (z. B. Baustelle → Werk → Terminal).</p>
+                <div id="companySectorPreview" class="sector-preview" aria-live="polite"></div>
               </label>
               <label>
                 <span data-ui-i18n="labelBrandingPreset">Branding-Preset</span>

@@ -44,6 +44,17 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("overviewOnSite", terms)
         self.assertNotIn("Baustelle", terms.get("overviewOnSite", ""))
         self.assertIn("Standort", terms["overviewOnSite"])
+        self.assertIn("tabWorkers", terms)
+        self.assertEqual(terms["tabWorkers"], "Mitarbeitende")
+        self.assertIn("sectorBanner", terms)
+
+    def test_sector_terms_differ_by_vertical(self):
+        bau = sector_config("construction", lang="de")["terms"]
+        air = sector_config("aviation", lang="de")["terms"]
+        self.assertNotEqual(bau.get("termSite"), air.get("termSite"))
+        self.assertIn("Baustelle", bau.get("termSite", ""))
+        self.assertIn("Terminal", air.get("termSite", ""))
+        self.assertEqual(air.get("tabWorkers"), "Berechtigte")
 
     def test_worker_sector_terms(self):
         cfg = sector_config("manufacturing", lang="de")

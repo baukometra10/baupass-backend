@@ -19,10 +19,20 @@ const STRINGS = Object.fromEntries(LANGS_8.map((lang) => [lang, buildLangPack(la
 const SECTOR_I18N_MAP = {
   "overview.onSite": "overviewOnSite",
   "overview.onSiteKpi": "overviewOnSiteKpi",
+  "overview.activeWorkers": "overviewActiveWorkers",
   "tools.geofence": "toolsGeofence",
   "deployment.locationPh": "deploymentLocationPh",
   "tools.sitePlaceholder": "toolsSitePlaceholder",
   "deployment.colLocation": "deploymentColLocation",
+  "tab.workers": "tabWorkers",
+  "tab.access": "tabAccess",
+  "tab.mobile": "tabMobile",
+  "nav.group.people": "navGroupPeople",
+  "sector.banner": "sectorBanner",
+  "sector.termWorker": "termWorker",
+  "sector.termWorkers": "termWorkers",
+  "sector.termSite": "termSite",
+  "sector.termGate": "termGate",
 };
 
 export { STRINGS };

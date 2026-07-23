@@ -808,6 +808,8 @@ const UI_TRANSLATIONS = {
     authCopyTenant: "Melden Sie sich mit Ihrem Firmenkonto bei {company} an.",
     authCopy: "Digitale Ausweise, Zutrittskontrolle und Compliance für Unternehmen, Teams und Standorte.",
     labelOperatingSector: "Betriebssektor",
+    operatingSectorHint: "Steuert Fachbegriffe in Admin, App und Berichten (z. B. Baustelle → Werk → Terminal).",
+    sectorPreviewTitle: "Vorschau der Fachbegriffe",
     optSectorConstruction: "Bau",
     optSectorManufacturing: "Industrie",
     optSectorLogistics: "Logistik",
@@ -2058,6 +2060,8 @@ const UI_TRANSLATIONS = {
     authCopyTenant: "Sign in with your {company} account.",
     authCopy: "Digital badges, access control and compliance for companies, teams and sites.",
     labelOperatingSector: "Operating sector",
+    operatingSectorHint: "Controls terminology in admin, apps and reports (e.g. site → plant → terminal).",
+    sectorPreviewTitle: "Terminology preview",
     optSectorConstruction: "Construction",
     optSectorManufacturing: "Manufacturing",
     optSectorLogistics: "Logistics",
@@ -3927,6 +3931,8 @@ const UI_TRANSLATIONS = {
     authTitle: "تسجيل دخول آمن إلى SUPPIX",
     authCopy: "منصة الهوية المؤسسية والتحكم التشغيلي والامتثال — للمشرف العام ومدير المستأجر ونقاط الدخول.",
     labelOperatingSector: "القطاع التشغيلي",
+    operatingSectorHint: "يتحكم بالمصطلحات في الإدارة والتطبيقات والتقارير (مثل موقع بناء → مصنع → مبنى مطار).",
+    sectorPreviewTitle: "معاينة المصطلحات",
     optSectorConstruction: "البناء",
     optSectorManufacturing: "الصناعة",
     optSectorLogistics: "اللوجستيات",
@@ -38227,6 +38233,31 @@ if (useCurrentAdminIpBtn) {
 const companyForm = document.querySelector("#companyForm");
 if (companyForm) {
   companyForm.addEventListener("submit", handleCompanySubmit);
+
+  const SECTOR_TERM_PREVIEW = {
+    construction: { de: ["Mitarbeiter", "Baustelle", "Drehkreuz / Tor"], en: ["Workers", "Site", "Turnstile / gate"], ar: ["عمال", "موقع بناء", "بوابة"] },
+    manufacturing: { de: ["Mitarbeiter", "Werk", "Werktor"], en: ["Employees", "Plant", "Plant gate"], ar: ["موظفون", "منشأة", "بوابة المصنع"] },
+    logistics: { de: ["Personal", "Hub / Depot", "Tor / Rampe"], en: ["Staff", "Hub / depot", "Gate / dock"], ar: ["طاقم", "مركز / مستودع", "بوابة / رصيف"] },
+    aviation: { de: ["Berechtigte", "Terminal", "Kontrollpunkt"], en: ["Authorized staff", "Terminal", "Checkpoint"], ar: ["مصرّح لهم", "مبنى المطار", "نقطة تفتيش"] },
+    security: { de: ["Einsatzkräfte", "Objekt", "Kontrollpunkt"], en: ["Officers", "Site", "Checkpoint"], ar: ["عناصر", "منشأة محروسة", "نقطة تفتيش"] },
+    public_sector: { de: ["Mitarbeitende", "Standort", "Eingang"], en: ["Staff", "Facility", "Entrance"], ar: ["موظفون", "منشأة", "مدخل"] },
+    government: { de: ["Berechtigte", "Dienststelle", "Zugangskontrolle"], en: ["Authorizees", "Office", "Access point"], ar: ["مصرّح لهم", "دائرة", "نقطة دخول"] },
+  };
+  function renderCompanySectorPreview() {
+    const sel = document.querySelector("#companyOperatingSector");
+    const host = document.querySelector("#companySectorPreview");
+    if (!sel || !host) return;
+    const sector = String(sel.value || "construction");
+    const lang = (typeof getUiLang === "function" ? getUiLang() : (localStorage.getItem("baupass-ui-lang") || "de")).slice(0, 2);
+    const pack = SECTOR_TERM_PREVIEW[sector] || SECTOR_TERM_PREVIEW.construction;
+    const terms = pack[lang] || pack.de || [];
+    const title = (typeof uiT === "function" ? uiT("sectorPreviewTitle") : null) || "Vorschau der Fachbegriffe";
+    host.innerHTML = `<strong>${title}</strong><div class="sector-preview-chips">${terms
+      .map((term) => `<span class="sector-preview-chip">${String(term)}</span>`)
+      .join("")}</div>`;
+  }
+  document.querySelector("#companyOperatingSector")?.addEventListener("change", renderCompanySectorPreview);
+  renderCompanySectorPreview();
 
   const companyStatusSelect = document.querySelector("#companyStatus");
   if (companyStatusSelect) {

@@ -338,9 +338,24 @@ async function loadSectorTerminologyForAdmin() {
     const data = await api(url);
     setSectorTermOverrides(data?.terms || {});
     window.__adminV2Sector = data?.sector || "construction";
+    window.__adminV2SectorLabel = data?.label || "";
+    document.body.dataset.operatingSector = data?.sector || "construction";
+    const chip = $("sectorChip");
+    if (chip) {
+      const label = String(data?.label || "").trim();
+      const banner = String(data?.terms?.sectorBanner || "").trim();
+      if (label) {
+        chip.textContent = label;
+        chip.title = banner || label;
+        chip.classList.remove("hidden");
+      } else {
+        chip.classList.add("hidden");
+      }
+    }
     applyI18n();
   } catch {
     setSectorTermOverrides({});
+    $("sectorChip")?.classList.add("hidden");
   }
 }
 
@@ -4572,8 +4587,12 @@ async function loadOverview() {
     return;
   }
   const cid = q.replace("?company_id=", "");
-  const [overview, inbox, roleDash, opsBrief, opsSnap, cameras] = await Promise.all([
-    api(`/api/v2/admin/overview${q}`),
+  $("statCards").innerHTML = `
+    <div class="card card-skeleton"><span class="muted">${t("overview.onSite")}</span><strong>…</strong></div>
+    <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
+    <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
+  const overviewP = api(`/api/v2/admin/overview${q}`);
+  const secondaryP = Promise.all([
     api(`/api/inbox${q}`).catch(() => ({ counts: {} })),
     api(`/api/dashboard/role${q}`).catch(() => null),
     cid
@@ -4582,20 +4601,31 @@ async function loadOverview() {
     api(`/api/operations/snapshot${q}`).catch(() => null),
     api(`/api/integrations/cameras${q}`).catch(() => ({ cameras: [] })),
   ]);
+  const overview = await overviewP;
+  const wfEarly = overview.workforce || {};
+  $("statCards").innerHTML = `
+    <div class="card card-metric"><span class="muted">${t("overview.onSite")}</span><strong>${wfEarly.onSite ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wfEarly.totalActive ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
+    <button type="button" class="card card-metric" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
+      <span class="muted">${t("overview.inbox")}</span><strong>…</strong>
+      <small class="muted">${t("overview.inboxHint")}</small>
+    </button>`;
+  const [inbox, roleDash, opsBrief, opsSnap, cameras] = await secondaryP;
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
   const dashWidgets = (roleDash?.widgets || []).filter((w) => w.id !== "on_site");
   const extraCards = dashWidgets
     .map(
       (w) =>
-        `<div class="card"><span class="muted">${escapeHtml(widgetLabel(w))}</span><strong>${widgetValue(w)}</strong>${widgetDetail(w) ? `<small class="muted">${escapeHtml(widgetDetail(w))}</small>` : ""}</div>`,
+        `<div class="card card-metric"><span class="muted">${escapeHtml(widgetLabel(w))}</span><strong>${widgetValue(w)}</strong>${widgetDetail(w) ? `<small class="muted">${escapeHtml(widgetDetail(w))}</small>` : ""}</div>`,
     )
     .join("");
   $("statCards").innerHTML = `
-    <div class="card"><span class="muted">${t("overview.onSite")}</span><strong>${wf.onSite ?? 0}</strong></div>
-    <div class="card"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wf.totalActive ?? 0}</strong></div>
-    <div class="card"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
-    <button type="button" class="card" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
+    <div class="card card-metric"><span class="muted">${t("overview.onSite")}</span><strong>${wf.onSite ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wf.totalActive ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
+    <button type="button" class="card card-metric" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
       <span class="muted">${t("overview.inbox")}</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
       <small class="muted">${t("overview.inboxHint")}</small>
     </button>
@@ -5476,15 +5506,17 @@ async function bootSession() {
       applyParentCompanyId(qsCid);
     }
     showDashboard();
-    await applyTenantBrandingFromApi();
+    await Promise.all([
+      applyTenantBrandingFromApi().catch(() => {}),
+      loadPlatformBanner().catch(() => {}),
+    ]);
     await applyStartupTabAfterLoad();
     if (pendingEinsatzplanFocus) {
       tryFocusEinsatzplanFromParent();
     }
-    await loadPlatformBanner();
     const params = new URLSearchParams(location.search);
     if (params.get("einsatzplan") !== "1" && params.get("focus") !== "deployment") {
-      await refreshActiveTab();
+      refreshActiveTab().catch(notifyTabError);
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});

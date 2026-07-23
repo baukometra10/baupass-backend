@@ -2,6 +2,8 @@
   --bg: #050816;
   --panel: rgba(10, 16, 30, 0.92);
   --panel-2: rgba(16, 24, 44, 0.92);
+  --surface: rgba(14, 22, 40, 0.94);
+  --surface-card: linear-gradient(165deg, rgba(18, 28, 48, 0.96), rgba(10, 16, 30, 0.98));
   --text: #eef6ff;
   --muted: #8ea4c0;
   --accent: #38bdf8;
@@ -11,8 +13,9 @@
   --danger: #fb7185;
   --border: rgba(120, 156, 255, 0.16);
   --sidebar-w: 248px;
-  --radius: 10px;
+  --radius: 12px;
   --shadow: 0 22px 55px rgba(0, 0, 0, 0.46);
+  --shadow-card: 0 14px 32px rgba(0, 0, 0, 0.28);
   --touch-min: 44px;
   --input-bg: #0f1419;
   --window-color: #050816;
@@ -477,10 +480,55 @@ main {
 }
 
 .card {
-  background: var(--panel);
+  background: var(--surface-card, var(--panel));
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 1rem 1.25rem;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.card-metric:hover,
+.card:hover {
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+.card-skeleton {
+  opacity: 0.72;
+}
+
+.sector-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.35rem;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.12);
+  color: #d7ebff;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  max-width: 100%;
+}
+
+.sector-chip::before {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: #38bdf8;
+  margin-inline-end: 0.4rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card-metric,
+  .nav-item,
+  .badge-pulse {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .card strong {
@@ -2117,6 +2165,10 @@ h2 {
 
 .topbar-title-wrap {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
 }
 
 .cmd-kbd-btn {
