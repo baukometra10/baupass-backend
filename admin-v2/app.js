@@ -2854,6 +2854,22 @@ function aiCommandCenterHref(extraParams = {}) {
   return `/ai-command-center.html${qs ? `?${qs}` : ""}`;
 }
 
+function openAiCommandCenterWithPrompt(prompt, agent = "decision") {
+  const text = String(prompt || "").trim();
+  try {
+    if (text) {
+      sessionStorage.setItem("baupass_ai_autoprompt", text);
+      sessionStorage.setItem("baupass_ai_agent", String(agent || "decision"));
+    }
+  } catch {
+    /* ignore */
+  }
+  const href = text
+    ? aiCommandCenterHref({ agent: agent || "decision" })
+    : aiCommandCenterHref();
+  window.location.href = href;
+}
+
 function legacyFeatureEnabled(features, key) {
   if (features === null) return true;
   return Boolean(features[key]);
@@ -3487,20 +3503,28 @@ async function loadInbox() {
             return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
           if (a.type === "navigate") {
             const label = a.label || t("inbox.openAction");
+            const url = String(a.url || "");
+            const isAiCenter = /ai-command-center\.html/i.test(url);
+            if (isAiCenter) {
+              const prompt =
+                a.prompt ||
+                `Analysiere Inbox-Eintrag „${it.title || ""}“: ${it.message || ""}. Kurze Empfehlung für den Arbeitgeber.`;
+              return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`;
+            }
             const isDeployment =
               String(it.id || "").startsWith("depdecl:") ||
-              String(a.url || "").includes("deployment-plan") ||
-              String(a.url || "").includes("einsatzplan");
+              url.includes("deployment-plan") ||
+              url.includes("einsatzplan");
             if (isDeployment && it.workerId) {
               const workerName = String(it.message || "")
                 .split("·")[0]
                 .trim();
               return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeAttr(label)}</button>`;
             }
-            if (window.parent !== window && String(a.url || "").startsWith("/")) {
-              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(String(a.url))}">${escapeAttr(label)}</button>`;
+            if (window.parent !== window && url.startsWith("/")) {
+              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeAttr(label)}</button>`;
             }
-            return `<a class="btn-link" href="${a.url}${q}">${label}</a>`;
+            return `<a class="btn-link" href="${url}${q}">${label}</a>`;
           }
           if (a.type === "prompt")
             return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`;
@@ -3592,23 +3616,32 @@ async function loadInbox() {
     if (aiPanel) {
       aiPanel.classList.remove("hidden");
       aiPanel.innerHTML = `<p class="muted">${t("inbox.aiAnalyzing")}</p>`;
+      aiPanel.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
     const cid = (companyQuery() || "").replace("?company_id=", "");
+    if (!cid) {
+      const msg = t("common.selectCompany");
+      if (aiPanel) aiPanel.innerHTML = `<p class="error">${escapeHtml(msg)}</p>`;
+      else showActionToast(msg, true);
+      return;
+    }
     try {
       const res = await api("/api/ai/decision", {
         method: "POST",
         body: JSON.stringify({
           question: prompt,
           agent,
-          company_id: cid || undefined,
+          company_id: cid,
+          autoStage: false,
+          lang: getLang?.() || "de",
         }),
       });
-      const decision = res.decision || res;
+      const decision = res.decision || {};
       const text =
+        res.answer ||
         decision.summary ||
         decision.recommendation ||
         decision.answer ||
-        res.answer ||
         JSON.stringify(decision).slice(0, 800);
       if (aiPanel) {
         aiPanel.innerHTML = `
@@ -3622,7 +3655,7 @@ async function loadInbox() {
           <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
         `;
         aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
-          window.location.href = aiCommandCenterHref({ autoprompt: prompt });
+          openAiCommandCenterWithPrompt(prompt, agent);
         });
       } else {
         showActionToast(String(text).slice(0, 160), false);
@@ -3632,11 +3665,18 @@ async function loadInbox() {
       try {
         const res = await api("/api/ai/query", {
           method: "POST",
-          body: JSON.stringify({ question: prompt, company_id: cid || undefined }),
+          body: JSON.stringify({ question: prompt, company_id: cid, lang: getLang?.() || "de" }),
         });
         const text = res.answer || res.message || "";
         if (aiPanel) {
-          aiPanel.innerHTML = `<h3>${t("inbox.aiAnalyze")}</h3><p>${escapeHtml(String(text))}</p>`;
+          aiPanel.innerHTML = `
+            <h3>${t("inbox.aiAnalyze")}</h3>
+            <p>${escapeHtml(String(text))}</p>
+            <button type="button" class="ghost small" id="inboxAiOpenFull">${t("inbox.aiOpenFull")}</button>
+          `;
+          aiPanel.querySelector("#inboxAiOpenFull")?.addEventListener("click", () => {
+            openAiCommandCenterWithPrompt(prompt, agent);
+          });
         }
       } catch (e2) {
         if (aiPanel) {

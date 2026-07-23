@@ -1,12 +1,33 @@
 """Compact operations context and prompt helpers for the AI assistant."""
 from __future__ import annotations
 
+import time
 from typing import Any
+
+_COMPACT_CTX_CACHE: dict[str, tuple[float, dict[str, Any]]] = {}
+_COMPACT_CTX_TTL_SEC = 30.0
+
+
+def invalidate_compact_context_cache(company_id: str | None = None) -> None:
+    if not company_id:
+        _COMPACT_CTX_CACHE.clear()
+        return
+    prefix = f"{company_id}:"
+    for key in list(_COMPACT_CTX_CACHE):
+        if key.startswith(prefix):
+            _COMPACT_CTX_CACHE.pop(key, None)
 
 
 def build_compact_context(db, company_id: str, role: str = "company-admin") -> dict[str, Any]:
     from backend.app.platform.ai.intelligence import operational_insights
     from backend.app.platform.physical_operations.copilot import build_copilot_context
+
+    cid = str(company_id or "").strip()
+    cache_key = f"{cid}:{role}"
+    now = time.monotonic()
+    cached = _COMPACT_CTX_CACHE.get(cache_key)
+    if cached and now - cached[0] < _COMPACT_CTX_TTL_SEC:
+        return cached[1]
 
     full = build_copilot_context(db, company_id, role)
     workers = full.get("onSiteWorkers") or []
@@ -35,7 +56,7 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
     ).fetchone()
     company_name = (company_row["name"] if company_row else "") or company_id
 
-    return {
+    result = {
         "companyId": company_id,
         "companyName": company_name,
         "date": full.get("date"),
@@ -77,6 +98,12 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
         "intelligence": operational_insights(db, company_id),
         "pendingLeave": pending_leave,
     }
+    _COMPACT_CTX_CACHE[cache_key] = (now, result)
+    if len(_COMPACT_CTX_CACHE) > 64:
+        oldest = sorted(_COMPACT_CTX_CACHE.items(), key=lambda kv: kv[1][0])[:16]
+        for key, _ in oldest:
+            _COMPACT_CTX_CACHE.pop(key, None)
+    return result
 
 
 def infer_context_sources(ctx: dict[str, Any]) -> list[str]:

@@ -128,7 +128,16 @@ def build_operations_inbox(
                             if r["worker_id"]
                             else []
                         ),
-                        {"type": "navigate", "url": "/ai-command-center.html", "label": "KI analysieren"},
+                        {
+                            "type": "prompt",
+                            "prompt": (
+                                f"Analysiere Security-Alert „{r['title'] or r['alert_type'] or 'Security'}“ "
+                                f"für Mitarbeiter {r['worker_id'] or '—'}. Priorität {r['severity'] or 'medium'}. "
+                                "Kurz: Risiko, nächste Schritte, Eskalation ja/nein."
+                            ),
+                            "label": "KI analysieren",
+                            "agent": "decision",
+                        },
                         {"type": "navigate", "url": "/index.html", "label": "Admin Legacy"},
                     ],
                 }
@@ -412,7 +421,15 @@ def build_operations_inbox(
                                 "params": {"leave_id": r["id"]},
                                 "label": "Ablehnen",
                             },
-                            {"type": "navigate", "url": "/ai-command-center.html", "label": "KI prüfen"},
+                            {
+                                "type": "prompt",
+                                "prompt": (
+                                    f"Prüfe Urlaubsantrag von {name}: {r['type']} "
+                                    f"{r['start_date']}–{r['end_date']}. Empfehlung genehmigen/ablehnen?"
+                                ),
+                                "label": "KI prüfen",
+                                "agent": "decision",
+                            },
                         ],
                     }
                 )
