@@ -10761,6 +10761,11 @@ def resend_test():
             "recipient": recipient,
             "delivery": used_provider,
             "provider": used_provider,
+            "messageId": str(fallback_error or "").strip() if used_provider == "brevo" else "",
+            "note": (
+                "Provider accepted the message. If it does not arrive, check spam and "
+                "Brevo → Transactional → Logs. Authenticate your sender domain (DKIM/DMARC)."
+            ),
             "resendConfigured": bool(resend_api_key),
             "resendKeySource": resend_key_source,
             "brevoConfigured": bool(brevo_api_key),

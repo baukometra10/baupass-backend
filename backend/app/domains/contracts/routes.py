@@ -170,6 +170,14 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 "phoneMasked": mask_phone(phone),
                 "emailMasked": mask_email(email or company_owner_email(db, cid) or delivery.get("email") or ""),
                 "smsConfigured": delivery.get("smsConfigured"),
+                "providerAccepted": True,
+                "note": delivery.get("note") or "",
+                "message": (
+                    "Code an Provider übergeben "
+                    f"({', '.join(delivery.get('channels') or [])}). "
+                    "Wenn nichts ankommt: Spam prüfen und in Brevo unter Transactional → Logs den Status ansehen "
+                    "(Sender-Domain muss verifiziert sein)."
+                ),
             }
         )
 

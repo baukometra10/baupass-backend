@@ -790,6 +790,7 @@ class CompaniesService:
             _normalize_api_token,
             _run_smtp_diagnostics,
             _send_via_brevo,
+            _smtp_connect,
             get_company_mail_settings,
             now_iso,
         )
@@ -885,27 +886,65 @@ class CompaniesService:
                 "status": 400,
             }
 
-        diag_result = _run_smtp_diagnostics(smtp_settings)
-        self.mail_settings.record_outbound_test(
-            db,
-            company_id,
-            status="ok" if diag_result.get("ok") else "failed",
-            tested_at=tested_at,
+        recipient = (
+            str(payload.get("recipient") or "").strip()
+            or str(user.get("email") or "").strip()
+            or smtp_sender_email
         )
-        db.commit()
-        if diag_result.get("ok"):
+        if not recipient:
             return {
-                "body": {"ok": True, "delivery": "smtp", "diagnostics": diag_result},
+                "body": {"ok": False, "error": "missing_recipient"},
+                "status": 400,
+            }
+
+        # Real send — diagnostics alone previously reported success without delivering mail.
+        from email.message import EmailMessage
+
+        msg = EmailMessage()
+        msg["Subject"] = "SUPPIX Company Mail Test"
+        msg["From"] = f'"{smtp_sender_name}" <{smtp_sender_email}>'
+        msg["To"] = recipient
+        msg.set_content("Company outbound mail test via SMTP successful.")
+        msg.add_alternative(
+            "<p>Company outbound mail test via <strong>SMTP</strong> successful.</p>",
+            subtype="html",
+        )
+        try:
+            with _smtp_connect(smtp_host, smtp_port, smtp_use_tls) as smtp:
+                if smtp_username:
+                    smtp.login(smtp_username, smtp_password)
+                smtp.send_message(msg)
+            self.mail_settings.record_outbound_test(
+                db, company_id, status="ok", tested_at=tested_at
+            )
+            db.commit()
+            return {
+                "body": {
+                    "ok": True,
+                    "delivery": "smtp",
+                    "recipient": recipient,
+                    "note": (
+                        "SMTP accepted the message. If it does not appear in the inbox, "
+                        "check spam and sender domain authentication."
+                    ),
+                },
                 "status": 200,
             }
-        return {
-            "body": {
-                "ok": False,
-                "error": "smtp_diagnostic_failed",
-                "diagnostics": diag_result,
-            },
-            "status": 200,
-        }
+        except Exception as exc:
+            diag_result = _run_smtp_diagnostics(smtp_settings)
+            self.mail_settings.record_outbound_test(
+                db, company_id, status="failed", tested_at=tested_at
+            )
+            db.commit()
+            return {
+                "body": {
+                    "ok": False,
+                    "error": f"smtp_send_failed: {exc}",
+                    "delivery": "smtp",
+                    "diagnostics": diag_result,
+                },
+                "status": 200,
+            }
 
     def get_work_times(self, db, user: dict[str, Any], company_id: str) -> dict[str, Any]:
         from backend.server import get_company_site_access_config

@@ -772,6 +772,13 @@ def send_otp_channels(
         "emailError": email_err,
         "email": target_email,
         "smsConfigured": sms_configured(),
+        "providerAccepted": bool(channels),
+        "note": (
+            "Provider accepted the message. Inbox/SMS arrival still depends on Brevo "
+            "sender verification, spam filters, and SMS credits — check Brevo Transactional logs."
+            if channels
+            else ""
+        ),
     }
 
 

@@ -1019,8 +1019,9 @@
           );
         } else {
           setLockMsg(
-            (window.contractPageT("lockCodeSent", { via, phone: phoneBit + emailBit })
-              || `Code an Provider gesendet (${via})${phoneBit}${emailBit}. Bitte Spam prüfen.`),
+            res.message
+              || (window.contractPageT("lockCodeSent", { via, phone: phoneBit + emailBit })
+                || `Code an Provider übergeben (${via})${phoneBit}${emailBit}. Spam + Brevo-Logs prüfen.`),
             { ok: true },
           );
         }
