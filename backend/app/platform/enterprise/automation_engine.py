@@ -219,13 +219,17 @@ def _execute_action(db, company_id: int, rule_id: str, action: dict, context: di
                 db,
                 {"role": "company-admin", "company_id": str(company_id), "email": recipient},
             )
-            guidance = build_operational_guidance(snapshot)
+            from backend.app.platform.sector.catalog import sector_terms_for_company
+
+            terms = sector_terms_for_company(db, str(company_id), lang="de")
+            guidance = build_operational_guidance(snapshot, terms=terms)
             company = db.execute("SELECT name FROM companies WHERE id = ?", (str(company_id),)).fetchone()
             pdf_bytes = build_operations_report_pdf(
                 title="SUPPIX Operations Report",
                 company_name=company["name"] if company else "SUPPIX",
                 snapshot=snapshot,
                 guidance=guidance,
+                terms=terms,
             )
             ok, err = send_pdf_report_email(
                 to=recipient,

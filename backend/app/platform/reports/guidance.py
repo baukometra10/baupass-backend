@@ -4,10 +4,16 @@ from __future__ import annotations
 from typing import Any
 
 
-def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]:
+def build_operational_guidance(
+    snapshot: dict[str, Any],
+    *,
+    terms: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
     """Return prioritized recommendations for admins."""
     items: list[dict[str, Any]] = []
     kpis = snapshot.get("kpis") or {}
+    workers = str((terms or {}).get("termWorkers") or "Mitarbeiter").strip()
+    site = str((terms or {}).get("termSite") or "Baustelle").strip()
 
     overdue_count = int(kpis.get("overdueInvoiceCount") or 0)
     overdue_total = float(kpis.get("overdueTotal") or 0)
@@ -47,8 +53,8 @@ def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]
                 "code": "missing_required_docs",
                 "titleDe": "Pflichtdokumente fehlen oder abgelaufen",
                 "titleAr": "مستندات إلزامية ناقصة أو منتهية",
-                "detailDe": f"{missing_req} Mitarbeiter mit fehlenden/abgelaufenen Pflichtdokumenten.",
-                "detailAr": f"{missing_req} عامل لديه مستندات إلزامية ناقصة أو منتهية.",
+                "detailDe": f"{missing_req} {workers} mit fehlenden/abgelaufenen Pflichtdokumenten.",
+                "detailAr": f"{missing_req} {workers} لديهم مستندات إلزامية ناقصة أو منتهية.",
                 "action": "open_workers",
             }
         )
@@ -61,8 +67,8 @@ def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]
                 "code": "expired_compliance_docs",
                 "titleDe": "Abgelaufene Dokumente (Compliance)",
                 "titleAr": "مستندات منتهية (امتثال)",
-                "detailDe": f"{expired_hr} Mitarbeiter mit abgelaufenen Dokumenten.",
-                "detailAr": f"{expired_hr} عامل لديه مستندات منتهية الصلاحية.",
+                "detailDe": f"{expired_hr} {workers} mit abgelaufenen Dokumenten.",
+                "detailAr": f"{expired_hr} {workers} لديهم مستندات منتهية الصلاحية.",
                 "action": "open_documents",
             }
         )
@@ -75,8 +81,8 @@ def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]
                 "code": "expiring_compliance_docs",
                 "titleDe": "Dokumente laufen in 14 Tagen ab",
                 "titleAr": "مستندات تنتهي خلال 14 يوماً",
-                "detailDe": f"{expiring_hr} Mitarbeiter — Erinnerung senden.",
-                "detailAr": f"{expiring_hr} عامل — أرسل تذكيراً.",
+                "detailDe": f"{expiring_hr} {workers} — Erinnerung senden.",
+                "detailAr": f"{expiring_hr} {workers} — أرسل تذكيراً.",
                 "action": "open_documents",
             }
         )
@@ -175,8 +181,8 @@ def build_operational_guidance(snapshot: dict[str, Any]) -> list[dict[str, Any]]
             {
                 "priority": "info",
                 "code": "site_empty",
-                "titleDe": "Keine Mitarbeiter auf der Baustelle",
-                "titleAr": "لا يوجد عمال في الموقع حالياً",
+                "titleDe": f"Keine {workers} am Standort ({site})",
+                "titleAr": f"لا يوجد {workers} في {site} حالياً",
                 "detailDe": "Live-Status: 0 Personen vor Ort.",
                 "detailAr": "الحالة الحية: لا أحد في الموقع.",
                 "action": "open_ops_map",

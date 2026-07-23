@@ -69,11 +69,15 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                     ).fetchone()
                     user_dict = row_to_dict(admin) if admin else {"role": "company-admin", "company_id": company_id}
                     snapshot = _operations_snapshot_for_user(db, user_dict)
-                    snapshot["guidance"] = build_operational_guidance(snapshot)
+                    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+                    terms = sector_terms_for_company(db, company_id, lang="de")
+                    snapshot["guidance"] = build_operational_guidance(snapshot, terms=terms)
                     pdf = build_executive_summary_pdf(
                         company_name=company_name,
                         snapshot=snapshot,
                         branding=branding,
+                        terms=terms,
                     )
                     filename = build_report_filename(
                         company_name=company_name, report_kind="executive", period=day_key
@@ -88,13 +92,17 @@ def run_scheduled_reports(db, *, force: bool = False) -> dict[str, Any]:
                     ).fetchone()
                     user_dict = row_to_dict(admin) if admin else {"role": "company-admin", "company_id": company_id}
                     snapshot = _operations_snapshot_for_user(db, user_dict)
-                    guidance = build_operational_guidance(snapshot)
+                    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+                    terms = sector_terms_for_company(db, company_id, lang="de")
+                    guidance = build_operational_guidance(snapshot, terms=terms)
                     pdf = build_operations_report_pdf(
                         title="Betriebsbericht",
                         company_name=company_name,
                         snapshot=snapshot,
                         guidance=guidance,
                         branding=branding,
+                        terms=terms,
                     )
                     filename = build_report_filename(
                         company_name=company_name, report_kind="betriebsbericht", period=day_key

@@ -2175,17 +2175,46 @@ async function loadPlatform() {
     return;
   }
   const panel = $("platformPanel");
-  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  panel.innerHTML = `
+    <p class="muted">${t("common.loading")}</p>
+    <div class="platform-panel-grid platform-loading-skel" aria-hidden="true">
+      <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
+      <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
+      <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
+    </div>`;
   const cid = activeCompanyId();
   try {
-    const [caps, ready, health, ent, aiSt, wallet, setup, pushSt, mobileDist, autopilot, backups] = await Promise.all([
+    const [caps, ready, health, setup] = await Promise.all([
       api("/api/platform/capabilities"),
       fetch("/api/health/ready").then((r) => r.json()),
       fetch("/api/health").then((r) => r.json()).catch(() => ({})),
+      api("/api/platform/setup-status").catch(() => null),
+    ]);
+    const dbEarly = setup?.database || {};
+    const bgEarly = setup?.backgroundJobs || health.checks?.backgroundJobs || {};
+    panel.innerHTML = `
+      <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
+      <div class="platform-setup-banner ${dbEarly.loginReady === false ? "warn" : "ok"}">
+        <strong>${t("platform.dbHealth")}</strong>
+        <p class="muted small">${dbEarly.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
+        · ${t("platform.globalMaturity")}: <strong>${caps.maturityScore ?? "—"}/100</strong>
+        · ${t("platform.readiness")}: ${statusBadge(ready.ready)}</p>
+      </div>
+      <div class="platform-panel-grid">
+        <div class="panel-block">
+          <h3>${t("platform.infrastructure")}</h3>
+          <p>${t("platform.runtime")}: <strong>${caps.dataLayer?.runtime || "—"}</strong>
+            · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)}
+            · ${t("platform.rqWorkers")}: <strong>${bgEarly.workers?.active ?? health.checks?.workers?.active ?? "—"}</strong></p>
+        </div>
+        <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
+        <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
+      </div>`;
+
+    const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups] = await Promise.all([
       api("/api/platform/entitlements").catch(() => null),
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
-      api("/api/platform/setup-status").catch(() => null),
       api("/api/platform/push/status").catch(() => null),
       api(`/api/v2/mobile/distribution`).catch(() => null),
       cid

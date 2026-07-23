@@ -18,12 +18,13 @@ def invalidate_compact_context_cache(company_id: str | None = None) -> None:
             _COMPACT_CTX_CACHE.pop(key, None)
 
 
-def build_compact_context(db, company_id: str, role: str = "company-admin") -> dict[str, Any]:
+def build_compact_context(db, company_id: str, role: str = "company-admin", *, lang: str = "de") -> dict[str, Any]:
     from backend.app.platform.ai.intelligence import operational_insights
     from backend.app.platform.physical_operations.copilot import build_copilot_context
 
     cid = str(company_id or "").strip()
-    cache_key = f"{cid}:{role}"
+    lang_code = (lang or "de")[:2]
+    cache_key = f"{cid}:{role}:{lang_code}"
     now = time.monotonic()
     cached = _COMPACT_CTX_CACHE.get(cache_key)
     if cached and now - cached[0] < _COMPACT_CTX_TTL_SEC:
@@ -56,9 +57,20 @@ def build_compact_context(db, company_id: str, role: str = "company-admin") -> d
     ).fetchone()
     company_name = (company_row["name"] if company_row else "") or company_id
 
+    sector_terms: dict[str, str] = {}
+    try:
+        from backend.app.platform.sector.catalog import sector_terms_for_company
+
+        sector_terms = sector_terms_for_company(db, company_id, lang=lang_code)
+    except Exception:
+        sector_terms = {}
+
     result = {
         "companyId": company_id,
         "companyName": company_name,
+        "operatingSector": sector_terms.get("_sector") or "construction",
+        "sectorLabel": sector_terms.get("_sectorLabel") or "",
+        "sectorTerms": sector_terms,
         "date": full.get("date"),
         "workersOnSite": full.get("workersOnSite", 0),
         "onSiteNames": [
@@ -135,15 +147,21 @@ def format_live_context_block(ctx: dict[str, Any], *, lang: str = "de") -> str:
     em = ctx.get("emergency") or {}
     pending_leave = int(ctx.get("pendingLeave") or 0)
     issues = ctx.get("operationalIssues") or []
+    terms = ctx.get("sectorTerms") or {}
+    site = str(terms.get("termSite") or ("site" if lang == "en" else "موقع" if lang == "ar" else "Standort")).strip()
+    workers = str(terms.get("termWorkers") or ("workers" if lang == "en" else "عمال" if lang == "ar" else "Mitarbeiter")).strip()
+    gate = str(terms.get("termGate") or ("gate" if lang == "en" else "بوابة" if lang == "ar" else "Tor")).strip()
+    sector_label = str(ctx.get("sectorLabel") or terms.get("_sectorLabel") or "").strip()
 
     if lang == "en":
         lines = [
             f"Company: {name}",
+            f"Operating sector: {sector_label or ctx.get('operatingSector') or 'construction'}",
             f"Date: {ctx.get('date') or '—'}",
-            f"On site now: {on_site}",
+            f"At {site} now: {on_site} {workers}",
         ]
         if names:
-            lines.append("Names on site: " + ", ".join(names))
+            lines.append(f"Names at {site}: " + ", ".join(names))
         if sec_n or alerts_n:
             lines.append(f"Open security findings: {sec_n}, alerts: {alerts_n}")
         if em.get("active"):
@@ -151,26 +169,30 @@ def format_live_context_block(ctx: dict[str, Any], *, lang: str = "de") -> str:
         if pending_leave:
             lines.append(f"Pending leave requests: {pending_leave}")
         if issues:
-            lines.append("Operational notes: " + "; ".join(str(i) for i in issues[:5]))
+            lines.append(f"{site} notes: " + "; ".join(str(i) for i in issues[:5]))
+        lines.append(f"Use sector vocabulary: {workers}, {site}, {gate}.")
         return "\n".join(lines)
 
     if lang == "ar":
         lines = [
             f"الشركة: {name}",
+            f"القطاع: {sector_label or ctx.get('operatingSector') or 'construction'}",
             f"التاريخ: {ctx.get('date') or '—'}",
-            f"على الموقع الآن: {on_site}",
+            f"في {site} الآن: {on_site} {workers}",
         ]
         if names:
-            lines.append("أسماء على الموقع: " + "، ".join(names))
+            lines.append(f"أسماء في {site}: " + "، ".join(names))
+        lines.append(f"استخدم مصطلحات القطاع: {workers}، {site}، {gate}.")
         return "\n".join(lines)
 
     lines = [
         f"Firma: {name}",
+        f"Betriebssektor: {sector_label or ctx.get('operatingSector') or 'construction'}",
         f"Datum: {ctx.get('date') or '—'}",
-        f"Gerade auf der Baustelle: {on_site} Person(en)",
+        f"Gerade am Standort ({site}): {on_site} {workers}",
     ]
     if names:
-        lines.append("Namen vor Ort: " + ", ".join(names))
+        lines.append(f"Namen vor Ort: " + ", ".join(names))
     if sec_n or alerts_n:
         lines.append(f"Offene Sicherheitsbefunde: {sec_n}, Alerts: {alerts_n}")
     if em.get("active"):
@@ -178,11 +200,12 @@ def format_live_context_block(ctx: dict[str, Any], *, lang: str = "de") -> str:
     if pending_leave:
         lines.append(f"Offene Urlaubsanträge: {pending_leave}")
     if issues:
-        lines.append("Baustellen-Hinweise: " + "; ".join(str(i) for i in issues[:5]))
+        lines.append(f"Hinweise ({site}): " + "; ".join(str(i) for i in issues[:5]))
     intel = ctx.get("intelligence") or {}
     risk = (intel.get("risk") or {}).get("level")
     if risk:
         lines.append(f"Workforce-Risiko: {risk}")
+    lines.append(f"Verwende die Fachsprache des Sektors: {workers}, {site}, {gate}.")
     return "\n".join(lines)
 
 
@@ -192,34 +215,38 @@ def suggested_prompts(ctx: dict[str, Any], lang: str = "de") -> list[dict[str, s
     issues = ctx.get("operationalIssues") or []
     em = (ctx.get("emergency") or {}).get("active")
     at_risk = len((ctx.get("intelligence") or {}).get("attendance", {}).get("at_risk") or [])
+    terms = ctx.get("sectorTerms") or {}
+    site = str(terms.get("termSite") or ("site" if lang.startswith("en") else "موقع" if lang.startswith("ar") else "Standort")).strip()
+    workers = str(terms.get("termWorkers") or ("workers" if lang.startswith("en") else "عمال" if lang.startswith("ar") else "Mitarbeiter")).strip()
+    gate = str(terms.get("termGate") or ("gates" if lang.startswith("en") else "بوابات" if lang.startswith("ar") else "Tore")).strip()
 
     bank = {
         "de": [
-            ("briefing", "Erstelle ein Tagesbriefing für die Baustelle."),
-            ("onsite", f"Wer ist gerade auf der Baustelle? ({on_site} laut System)"),
+            ("briefing", f"Erstelle ein Tagesbriefing für {site}."),
+            ("onsite", f"Wer ist gerade am Standort ({site})? ({on_site} laut System)"),
             ("security", f"Welche Sicherheitsrisiken sind offen? ({sec_n} Befunde)"),
-            ("gates", "Welche Tore sind heute am stärksten genutzt?"),
-            ("attendance", f"Wer hat ein erhöhtes Ausfallrisiko? ({at_risk} Hinweise)"),
+            ("gates", f"Welche {gate} sind heute am stärksten genutzt?"),
+            ("attendance", f"Welche {workers} haben erhöhtes Ausfallrisiko? ({at_risk} Hinweise)"),
             ("compliance", "Gibt es Compliance- oder Dokumentenrisiken?"),
             ("emergency", "Gibt es einen aktiven Notfall — was ist der Status?"),
             ("actions", "Welche 3 Maßnahmen sollte ich heute priorisieren?"),
         ],
         "en": [
-            ("briefing", "Create today's site operations briefing."),
-            ("onsite", f"Who is on site right now? ({on_site} in system)"),
+            ("briefing", f"Create today's operations briefing for {site}."),
+            ("onsite", f"Who is at {site} right now? ({on_site} in system)"),
             ("security", f"What security risks are open? ({sec_n} findings)"),
-            ("gates", "Which gates had the most traffic today?"),
-            ("attendance", f"Who has elevated no-show risk? ({at_risk} signals)"),
+            ("gates", f"Which {gate} had the most traffic today?"),
+            ("attendance", f"Which {workers} have elevated no-show risk? ({at_risk} signals)"),
             ("compliance", "Any compliance or document expiry risks?"),
             ("emergency", "Is there an active emergency — what is the status?"),
             ("actions", "What are the top 3 actions I should prioritize today?"),
         ],
         "ar": [
-            ("briefing", "أنشئ ملخص عمليات اليوم للموقع."),
-            ("onsite", f"من موجود على الموقع الآن؟ ({on_site} في النظام)"),
+            ("briefing", f"أنشئ ملخص عمليات اليوم لـ {site}."),
+            ("onsite", f"من موجود في {site} الآن؟ ({on_site} في النظام)"),
             ("security", f"ما مخاطر الأمن المفتوحة؟ ({sec_n} نتائج)"),
-            ("gates", "أي البوابات الأكثر استخداماً اليوم؟"),
-            ("attendance", f"من معرض لغياب مرتفع؟ ({at_risk} إشارات)"),
+            ("gates", f"أي {gate} الأكثر استخداماً اليوم؟"),
+            ("attendance", f"أي {workers} معرضون لغياب مرتفع؟ ({at_risk} إشارات)"),
             ("compliance", "هل توجد مخاطر امتثال أو وثائق منتهية؟"),
             ("emergency", "هل هناك طوارئ نشطة — ما الحالة؟"),
             ("actions", "ما أهم 3 إجراءات يجب أن أبدأ بها اليوم؟"),
@@ -247,11 +274,14 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
     risk = intel.get("risk") or {}
     prod = intel.get("productivity") or {}
     at_risk = intel.get("attendance", {}).get("at_risk") or []
+    terms = ctx.get("sectorTerms") or {}
+    site = str(terms.get("termSite") or ("site" if lang.startswith("en") else "موقع" if lang.startswith("ar") else "Standort")).strip()
+    workers = str(terms.get("termWorkers") or ("workers" if lang.startswith("en") else "عمال" if lang.startswith("ar") else "Mitarbeiter")).strip()
 
     if lang.startswith("en"):
         lines = [
             f"**Operations briefing ({ctx.get('date', '')})**",
-            f"- On site now: **{on_site}** workers",
+            f"- At {site} now: **{on_site}** {workers}",
             f"- Check-ins / check-outs today: {prod.get('checkins', 0)} / {prod.get('checkouts', 0)}",
             f"- Security findings: **{sec_n}**",
             f"- Workforce risk level: **{risk.get('level', 'low')}** (score {risk.get('risk_score', 0)})",
@@ -259,16 +289,16 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
         if em.get("active"):
             lines.append(f"- **Active emergency:** {em.get('summary', 'yes')}")
         if issues:
-            lines.append(f"- Site issues: {len(issues)} (e.g. {issues[0].get('message', '')[:80]})")
+            lines.append(f"- {site} issues: {len(issues)} (e.g. {issues[0].get('message', '')[:80]})")
         if at_risk:
-            lines.append(f"- Attendance risk: {len(at_risk)} workers flagged")
+            lines.append(f"- Attendance risk: {len(at_risk)} {workers} flagged")
         lines.append("- Use AI chat for detailed follow-up questions.")
         return "\n".join(lines)
 
     if lang.startswith("ar"):
         lines = [
             f"**ملخص العمليات ({ctx.get('date', '')})**",
-            f"- على الموقع الآن: **{on_site}**",
+            f"- في {site} الآن: **{on_site}** {workers}",
             f"- دخول / خروج اليوم: {prod.get('checkins', 0)} / {prod.get('checkouts', 0)}",
             f"- نتائج الأمن: **{sec_n}**",
             f"- مستوى المخاطر: **{risk.get('level', 'low')}**",
@@ -279,7 +309,7 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
 
     lines = [
         f"**Tagesbriefing ({ctx.get('date', '')})**",
-        f"- Aktuell auf der Baustelle: **{on_site}** Mitarbeiter",
+        f"- Aktuell am Standort ({site}): **{on_site}** {workers}",
         f"- Check-ins / Check-outs heute: {prod.get('checkins', 0)} / {prod.get('checkouts', 0)}",
         f"- Sicherheitsbefunde: **{sec_n}**",
         f"- Workforce-Risiko: **{risk.get('level', 'low')}** (Score {risk.get('risk_score', 0)})",
@@ -287,9 +317,9 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
     if em.get("active"):
         lines.append(f"- **Aktiver Notfall:** {em.get('summary', 'ja')}")
     if issues:
-        lines.append(f"- Standort-Hinweise: {len(issues)} (z. B. {issues[0].get('message', '')[:80]})")
+        lines.append(f"- Hinweise ({site}): {len(issues)} (z. B. {issues[0].get('message', '')[:80]})")
     if at_risk:
-        lines.append(f"- Anwesenheitsrisiko: {len(at_risk)} Mitarbeiter markiert")
+        lines.append(f"- Anwesenheitsrisiko: {len(at_risk)} {workers} markiert")
     lines.append("- Für Details: gezielte Fragen im KI-Chat stellen.")
     return "\n".join(lines)
 

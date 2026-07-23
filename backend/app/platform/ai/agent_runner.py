@@ -68,7 +68,7 @@ def run_agent_query(
     from .context_builder import format_live_context_block
     from .rag import search_knowledge
 
-    ctx = build_compact_context(db, company_id, role)
+    ctx = build_compact_context(db, company_id, role, lang=lang)
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
@@ -243,7 +243,7 @@ def run_agent_query_stream(
     from .context_builder import format_live_context_block
     from .rag import search_knowledge
 
-    ctx = build_compact_context(db, company_id, role)
+    ctx = build_compact_context(db, company_id, role, lang=lang)
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
@@ -394,7 +394,14 @@ def run_deep_analysis(
     question = spec.get(lang[:2], spec["de"])
     from .context_builder import build_compact_context, format_analysis_data_block
 
-    ctx = build_compact_context(db, company_id, role)
+    ctx = build_compact_context(db, company_id, role, lang=lang)
+    terms = ctx.get("sectorTerms") or {}
+    workers = str(terms.get("termWorkers") or "Mitarbeiter").strip()
+    site = str(terms.get("termSite") or "Standort").strip()
+    if lang[:2] == "de":
+        question = question.replace("Baustelle", site).replace("Mitarbeiter", workers)
+    elif lang[:2] == "en":
+        question = question.replace("locked workers", f"locked {workers}").replace("site,", f"{site},")
     extra = format_analysis_data_block(ctx, topic, lang=lang)
     return run_agent_query(
         db,

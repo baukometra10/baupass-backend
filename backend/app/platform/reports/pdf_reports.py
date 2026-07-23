@@ -11,12 +11,15 @@ def build_operations_report_pdf(
     snapshot: dict[str, Any],
     guidance: list[dict[str, Any]] | None = None,
     branding: dict[str, Any] | None = None,
+    terms: dict[str, str] | None = None,
 ) -> bytes:
     from backend.app.platform.reports.report_pdf_layout import build_branded_narrative_report_pdf
 
     brand = dict(branding or {})
     if company_name and not brand.get("companyName"):
         brand["companyName"] = company_name
+    workers = str((terms or {}).get("termWorkers") or "Mitarbeiter").strip()
+    site = str((terms or {}).get("termSite") or "Baustelle").strip()
 
     sections: list[dict[str, Any]] = []
 
@@ -31,7 +34,7 @@ def build_operations_report_pdf(
                     ("overdueInvoiceCount", "Überfällige Rechnungen"),
                     ("overdueTotal", "Überfällig (Summe)"),
                     ("lockedCompanies", "Gesperrte Firmen"),
-                    ("workersOnSite", "Mitarbeiter auf Baustelle"),
+                    ("workersOnSite", f"{workers} am Standort ({site})"),
                 ),
                 "kpis": kpis,
             }
@@ -43,9 +46,9 @@ def build_operations_report_pdf(
             {
                 "title": "Lohn & Compliance",
                 "lines": [
-                    f"Mitarbeiter gesamt: {hr.get('workersTotal', 0)}",
+                    f"{workers} gesamt: {hr.get('workersTotal', 0)}",
                     f"Pflichtdokumente fehlend/abgelaufen: {hr.get('workersMissingRequiredDocs', 0)}",
-                    f"Abgelaufene Dokumente (Mitarbeiter): {hr.get('workersWithExpiredDocs', 0)}",
+                    f"Abgelaufene Dokumente ({workers}): {hr.get('workersWithExpiredDocs', 0)}",
                     f"Läuft in 14 Tagen ab: {hr.get('workersExpiringDocs14d', 0)}",
                     f"Lohnabrechnungen ({hr.get('period', '-')}): {hr.get('payrollDocsThisMonth', 0)}",
                     f"Posteingang ungelesen: {hr.get('inboxUnread', 0)}",

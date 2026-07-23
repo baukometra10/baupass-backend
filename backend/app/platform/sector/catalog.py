@@ -645,6 +645,28 @@ def resolve_company_operating_sector(db, company_id: str) -> str:
     return DEFAULT_SECTOR
 
 
+def sector_terms_for_company(db, company_id: str, *, lang: str = "de") -> dict[str, str]:
+    """Resolved terminology pack for one tenant (safe for AI/PDF/UI injection)."""
+    try:
+        sector = resolve_company_operating_sector(db, company_id)
+        cfg = sector_config(sector, lang=lang)
+        terms = dict(cfg.get("terms") or {})
+        terms["_sector"] = str(cfg.get("sector") or sector)
+        terms["_sectorLabel"] = str(cfg.get("label") or "")
+        return terms
+    except Exception:
+        cfg = sector_config(DEFAULT_SECTOR, lang=lang)
+        terms = dict(cfg.get("terms") or {})
+        terms["_sector"] = DEFAULT_SECTOR
+        terms["_sectorLabel"] = str(cfg.get("label") or "")
+        return terms
+
+
+def sector_noun(terms: dict[str, str] | None, key: str, fallback: str) -> str:
+    value = str((terms or {}).get(key) or "").strip()
+    return value or fallback
+
+
 def sector_attendance_message(
     db,
     company_id: str,

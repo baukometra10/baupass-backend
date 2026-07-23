@@ -69,7 +69,10 @@ def build_enterprise_ops_pdf(
     snapshot["hrCompliance"] = build_hr_compliance_snapshot(db, company_id)
     snapshot["companyName"] = company_name
     snapshot["enterpriseLayers"] = build_enterprise_layers_snapshot(db, company_id)
-    guidance = build_operational_guidance(snapshot)
+    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+    terms = sector_terms_for_company(db, company_id, lang="de")
+    guidance = build_operational_guidance(snapshot, terms=terms)
     brand = branding or resolve_report_branding(db, company_id)
     return build_operations_report_pdf(
         title="Enterprise & Operations Report",
@@ -77,4 +80,5 @@ def build_enterprise_ops_pdf(
         snapshot=snapshot,
         guidance=guidance,
         branding=brand,
+        terms=terms,
     )

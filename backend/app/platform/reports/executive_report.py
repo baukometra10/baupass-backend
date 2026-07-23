@@ -10,12 +10,15 @@ def build_executive_summary_pdf(
     snapshot: dict[str, Any],
     reporting_summary: dict[str, Any] | None = None,
     branding: dict[str, Any] | None = None,
+    terms: dict[str, str] | None = None,
 ) -> bytes:
     from backend.app.platform.reports.report_pdf_layout import build_branded_narrative_report_pdf
 
     brand = dict(branding or {})
     if company_name:
         brand["companyName"] = company_name
+    workers = str((terms or {}).get("termWorkers") or "Mitarbeiter").strip()
+    site = str((terms or {}).get("termSite") or "Baustelle").strip()
 
     sections: list[dict[str, Any]] = []
     kpis = (reporting_summary or {}).get("kpis") or snapshot.get("kpis") or {}
@@ -37,7 +40,7 @@ def build_executive_summary_pdf(
 
     on_site = snapshot.get("workersOnSite") or snapshot.get("onSiteCount")
     if on_site is not None:
-        sections.append({"title": "Operations", "lines": [f"Mitarbeiter auf Baustelle: {on_site}"]})
+        sections.append({"title": "Operations", "lines": [f"{workers} am Standort ({site}): {on_site}"]})
 
     hr = snapshot.get("hrCompliance") or {}
     if hr:

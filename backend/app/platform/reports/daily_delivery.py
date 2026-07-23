@@ -89,7 +89,10 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
         try:
             snapshot = _operations_snapshot_for_user(db, fake_user)
             snapshot["companyName"] = company_name
-            guidance = build_operational_guidance(snapshot)
+            from backend.app.platform.sector.catalog import sector_terms_for_company
+
+            terms = sector_terms_for_company(db, company_id, lang="de")
+            guidance = build_operational_guidance(snapshot, terms=terms)
             from backend.app.platform.reports.report_pdf_layout import build_report_filename, resolve_report_branding
 
             company_branding = resolve_report_branding(db, company_id)
@@ -99,6 +102,7 @@ def deliver_daily_ops_pdfs(db, *, force: bool = False) -> dict[str, Any]:
                 snapshot=snapshot,
                 guidance=guidance,
                 branding=company_branding,
+                terms=terms,
             )
             period = local_day
             filename = build_report_filename(

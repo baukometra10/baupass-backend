@@ -23,6 +23,7 @@ _catalog = _load_sector_catalog()
 normalize_operating_sector = _catalog.normalize_operating_sector
 sector_config = _catalog.sector_config
 all_sectors_public = _catalog.all_sectors_public
+sector_noun = _catalog.sector_noun
 
 
 class SectorCatalogTests(unittest.TestCase):
@@ -55,6 +56,65 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("Baustelle", bau.get("termSite", ""))
         self.assertIn("Terminal", air.get("termSite", ""))
         self.assertEqual(air.get("tabWorkers"), "Berechtigte")
+
+    def test_sector_noun_helper(self):
+        air = sector_config("aviation", lang="de")["terms"]
+        self.assertEqual(sector_noun(air, "termSite", "Standort"), "Terminal")
+        self.assertEqual(sector_noun({}, "termSite", "Standort"), "Standort")
+
+    def test_guidance_uses_sector_terms(self):
+        from backend.app.platform.reports.guidance import build_operational_guidance
+
+        items = build_operational_guidance(
+            {"workersOnSite": 0, "kpis": {}},
+            terms={"termWorkers": "Berechtigte", "termSite": "Terminal"},
+        )
+        titles = " ".join(str(i.get("titleDe") or "") for i in items)
+        self.assertIn("Berechtigte", titles)
+        self.assertIn("Terminal", titles)
+        self.assertNotIn("Baustelle", titles)
+
+    def test_live_context_uses_sector_vocabulary(self):
+        from backend.app.platform.ai.context_builder import format_live_context_block
+
+        block = format_live_context_block(
+            {
+                "companyName": "Demo Air",
+                "workersOnSite": 2,
+                "operatingSector": "aviation",
+                "sectorLabel": "Luftfahrt",
+                "sectorTerms": {
+                    "termWorkers": "Berechtigte",
+                    "termSite": "Terminal",
+                    "termGate": "Kontrollpunkt",
+                },
+            },
+            lang="de",
+        )
+        self.assertIn("Terminal", block)
+        self.assertIn("Berechtigte", block)
+        self.assertIn("Kontrollpunkt", block)
+        self.assertNotIn("Baustelle", block)
+
+    def test_experience_sectorizes_prompts(self):
+        from backend.app.platform.ai.experience import enrich_insights_dashboard
+
+        dash = {
+            "cards": [{"id": "onsite", "value": 0}],
+            "recommendations": ["investigate_low_activity_sites"],
+            "snapshot": {},
+        }
+        enrich_insights_dashboard(
+            dash,
+            company_id="c1",
+            lang="de",
+            terms={"termWorkers": "Berechtigte", "termSite": "Terminal"},
+        )
+        prompt = (dash["cards"][0].get("actions") or [{}])[-1].get("prompt") or ""
+        self.assertIn("Terminal", prompt)
+        self.assertNotIn("Baustelle", prompt)
+        labels = " ".join(a.get("label") or "" for a in dash.get("nextActions") or [])
+        self.assertIn("Terminal", labels)
 
     def test_worker_sector_terms(self):
         cfg = sector_config("manufacturing", lang="de")

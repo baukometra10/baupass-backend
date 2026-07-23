@@ -160,10 +160,53 @@ def _card_value_empty(value: Any) -> bool:
     return text in {"", "0", "0/0", "—", "-"}
 
 
-def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: str = "de") -> dict[str, Any]:
+def _sector_vocab(terms: dict[str, str] | None, lang: str) -> tuple[str, str]:
+    lang = (lang or "de")[:2]
+    defaults = {
+        "de": ("Mitarbeiter", "Standort"),
+        "en": ("workers", "site"),
+        "ar": ("عمال", "موقع"),
+    }
+    w_fb, s_fb = defaults.get(lang, defaults["de"])
+    workers = str((terms or {}).get("termWorkers") or w_fb).strip() or w_fb
+    site = str((terms or {}).get("termSite") or s_fb).strip() or s_fb
+    return workers, site
+
+
+def _apply_sector_text(text: str, *, workers: str, site: str, lang: str = "de") -> str:
+    if not text:
+        return text
+    out = str(text)
+    # Always rewrite German construction defaults used in shared templates.
+    out = out.replace("Baustellen", site).replace("Baustelle", site).replace("Mitarbeiter", workers)
+    if (lang or "de")[:2] == "en":
+        if out.strip() in {"Workers", "workers"}:
+            return workers
+        out = out.replace("low-activity sites", f"low-activity {site} locations")
+        out = out.replace("on site now", f"at {site} now").replace("Who is on site", f"Who is at {site}")
+        out = out.replace("at-risk workers", f"at-risk {workers}")
+    return out
+
+
+def enrich_insights_dashboard(
+    dash: dict[str, Any],
+    *,
+    company_id: str,
+    lang: str = "de",
+    terms: dict[str, str] | None = None,
+) -> dict[str, Any]:
     """Attach per-card and playbook next actions for Command Center UI."""
     lang = (lang or "de")[:2]
     qs = f"company_id={company_id}&lang={lang}" if company_id else f"lang={lang}"
+    if terms is None and company_id:
+        try:
+            from backend.app.platform.sector.catalog import sector_terms_for_company
+            from backend.server import get_db
+
+            terms = sector_terms_for_company(get_db(), company_id, lang=lang)
+        except Exception:
+            terms = {}
+    workers, site = _sector_vocab(terms, lang)
 
     for card in dash.get("cards") or []:
         cid = card.get("id") or ""
@@ -201,13 +244,13 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
             act: dict[str, Any] = {"type": a["type"]}
             if a["type"] == "navigate":
                 act["url"] = a["url"]
-                act["label"] = _localized(a, lang, "label")
+                act["label"] = _apply_sector_text(_localized(a, lang, "label"), workers=workers, site=site, lang=lang)
             elif a["type"] == "analyze":
                 act["topic"] = a.get("topic", "operations")
-                act["label"] = _localized(a, lang, "label")
+                act["label"] = _apply_sector_text(_localized(a, lang, "label"), workers=workers, site=site, lang=lang)
             elif a["type"] == "prompt":
-                act["prompt"] = _localized(a, lang, "prompt")
-                short = _localized(a, lang, "label")
+                act["prompt"] = _apply_sector_text(_localized(a, lang, "prompt"), workers=workers, site=site, lang=lang)
+                short = _apply_sector_text(_localized(a, lang, "label"), workers=workers, site=site, lang=lang)
                 act["label"] = short or (act["prompt"][:42] + ("…" if len(act["prompt"]) > 42 else ""))
             actions.append(act)
         if actions:
@@ -221,14 +264,14 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
         item: dict[str, Any] = {
             "id": rec,
             "type": spec["type"],
-            "label": _localized(spec, lang, "label"),
+            "label": _apply_sector_text(_localized(spec, lang, "label"), workers=workers, site=site, lang=lang),
         }
         if spec["type"] == "navigate":
             item["url"] = spec.get("url", "/ai-command-center.html")
         elif spec["type"] == "analyze":
             item["topic"] = spec.get("topic", "operations")
         elif spec["type"] == "prompt":
-            item["prompt"] = _localized(spec, lang, "prompt")
+            item["prompt"] = _apply_sector_text(_localized(spec, lang, "prompt"), workers=workers, site=site, lang=lang)
         next_actions.append(item)
 
     if not next_actions and int((dash.get("snapshot") or {}).get("openSecurityFindings") or 0) > 0:
@@ -237,7 +280,12 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                 "id": "default_security",
                 "type": "analyze",
                 "topic": "security",
-                "label": _localized(_RECOMMENDATIONS["review_security_findings"], lang, "label"),
+                "label": _apply_sector_text(
+                    _localized(_RECOMMENDATIONS["review_security_findings"], lang, "label"),
+                    workers=workers,
+                    site=site,
+                    lang=lang,
+                ),
             }
         )
 
@@ -248,8 +296,18 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                 {
                     "id": "default_onsite",
                     "type": "prompt",
-                    "label": _localized(_CARD_ACTIONS["onsite"][2], lang, "label") or "KI: Wer ist vor Ort?",
-                    "prompt": _localized(_CARD_ACTIONS["onsite"][2], lang, "prompt"),
+                    "label": _apply_sector_text(
+                        _localized(_CARD_ACTIONS["onsite"][2], lang, "label") or "KI: Wer ist vor Ort?",
+                        workers=workers,
+                        site=site,
+                        lang=lang,
+                    ),
+                    "prompt": _apply_sector_text(
+                        _localized(_CARD_ACTIONS["onsite"][2], lang, "prompt"),
+                        workers=workers,
+                        site=site,
+                        lang=lang,
+                    ),
                 },
                 {
                     "id": "default_security_prompt",
@@ -273,7 +331,12 @@ def enrich_insights_dashboard(dash: dict[str, Any], *, company_id: str, lang: st
                     "id": "default_workers",
                     "type": "navigate",
                     "url": "/admin-v2/index.html?tab=workers",
-                    "label": _localized(_CARD_ACTIONS["risk"][1], lang, "label"),
+                    "label": _apply_sector_text(
+                        _localized(_CARD_ACTIONS["risk"][1], lang, "label"),
+                        workers=workers,
+                        site=site,
+                        lang=lang,
+                    ),
                 },
             ]
         )

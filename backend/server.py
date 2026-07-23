@@ -19537,7 +19537,11 @@ def operations_guidance():
 
     db = get_db()
     snapshot = _operations_snapshot_for_user(db, g.current_user)
-    guidance = build_operational_guidance(snapshot)
+    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+    cid = str(g.current_user.get("company_id") or snapshot.get("companyId") or "").strip()
+    terms = sector_terms_for_company(db, cid, lang="de") if cid else {}
+    guidance = build_operational_guidance(snapshot, terms=terms)
     return jsonify(
         {
             "ok": True,
@@ -19605,7 +19609,10 @@ def reporting_email_pdf():
 
     company_id = str(user.get("company_id") or payload.get("companyId") or "").strip()
     snapshot = _operations_snapshot_for_user(db, user)
-    guidance = build_operational_guidance(snapshot)
+    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+    terms = sector_terms_for_company(db, company_id, lang="de") if company_id else {}
+    guidance = build_operational_guidance(snapshot, terms=terms)
     company_name = str(snapshot.get("companyName") or "")
     if not company_name and company_id:
         row = db.execute("SELECT name FROM companies WHERE id = ?", (company_id,)).fetchone()
@@ -19620,6 +19627,7 @@ def reporting_email_pdf():
         snapshot=snapshot,
         guidance=guidance,
         branding=branding,
+        terms=terms,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
@@ -20050,13 +20058,17 @@ def reporting_email_executive_pdf():
     if not company_name:
         company_name = str(branding.get("companyName") or "WorkPass")
     snapshot = _operations_snapshot_for_user(db, user)
-    snapshot["guidance"] = build_operational_guidance(snapshot)
+    from backend.app.platform.sector.catalog import sector_terms_for_company
+
+    terms = sector_terms_for_company(db, company_id, lang="de")
+    snapshot["guidance"] = build_operational_guidance(snapshot, terms=terms)
     from backend.app.platform.reports.report_pdf_layout import build_report_filename
 
     pdf_bytes = build_executive_summary_pdf(
         company_name=company_name,
         snapshot=snapshot,
         branding=branding,
+        terms=terms,
     )
     period = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     period_label = datetime.now(timezone.utc).strftime("%d.%m.%Y")
