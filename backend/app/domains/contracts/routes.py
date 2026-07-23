@@ -708,7 +708,6 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
-    @require_owner_setup_complete
     def contract_integrations_status():
         cid = _resolve_company_id()
         if not cid:
