@@ -980,12 +980,14 @@
         hideLockOverlay();
         return true;
       }
-      // Soft browse: list/read with salary redaction; mutations require OTP.
+      // Hard gate: contracts UI stays locked until OTP is verified (no soft-open).
       salaryFieldsRedacted = true;
       contractsSessionUnlocked = false;
       applyRedactionUi(true);
-      hideLockOverlay();
-      return true;
+      showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
+      return new Promise((resolve) => {
+        window.__contractsUnlockResolve = resolve;
+      });
     }
 
     async function sendLockOtp() {
@@ -1013,8 +1015,12 @@
         const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
         const emailBit = res.emailMasked ? ` · ${res.emailMasked}` : "";
         if (res.debugFallback || res.debugCode) {
+          const debugHint = res.debugCode
+            ? ` Debug-Code: ${res.debugCode}`
+            : "";
           setLockMsg(
-            res.message || (window.contractPageT("lockDebugFallback") || "Debug-Code (kein SMS/E-Mail-Versand)."),
+            (res.message || (window.contractPageT("lockDebugFallback") || "Debug-Code (kein SMS/E-Mail-Versand)."))
+              + debugHint,
             { ok: true },
           );
         } else {
@@ -1025,9 +1031,8 @@
             { ok: true },
           );
         }
-        if (res.debugCode) {
-          document.getElementById("lockOtpCode").value = res.debugCode;
-        }
+        // Never auto-fill OTP into the input — avoids accidental unlock via Enter.
+        document.getElementById("lockOtpCode").value = "";
         document.getElementById("lockOtpCode")?.focus();
         // Cool-down between sends (default 45s).
         const wait = Math.max(15, Number(res.otpRequestMinSeconds || 45));
@@ -1093,14 +1098,9 @@
         salaryFieldsRedacted = true;
         contractsSessionUnlocked = false;
         applyRedactionUi(true);
-        hideLockOverlay();
-        paintUnlockBadge({ lockRequired: true, unlocked: false });
-        await loadContracts();
-        if (currentContractId) {
-          const detail = await api(`/api/contracts/${encodeURIComponent(currentContractId)}?company_id=${encodeURIComponent(companyId)}`);
-          await fillFormFromContract(detail);
-        }
-        setStatus(window.contractPageT("lockSoftBrowse") || "Gehalt gesperrt", { active: true });
+        paintUnlockBadge({ lockRequired: true, unlocked: false, setupEnforced: true, smsConfigured: true });
+        showLockOverlay({ setup: false, enforced: true });
+        setStatus(window.contractPageT("lockTitle") || "Vertragszugang gesperrt", { active: true });
       } catch (e) {
         setStatus(mapApiError(e), { error: true });
       }

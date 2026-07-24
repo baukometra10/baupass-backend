@@ -658,12 +658,15 @@ def consume_otp(db, company_id: str, code: str, *, user_id: str) -> bool:
 
 def otp_debug_delivery_allowed() -> bool:
     """Allow returning OTP in API response when channels are unavailable (local/dev only)."""
+    env = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
+    # Never expose OTP codes in production/staging responses.
+    if env in {"production", "prod", "staging", "stage"}:
+        return False
     raw = str(os.getenv("BAUPASS_OWNER_OTP_ALLOW_DEBUG", "")).strip().lower()
     if raw in {"1", "true", "yes", "on"}:
         return True
     if raw in {"0", "false", "no", "off"}:
         return False
-    env = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
     if env in {"testing", "test", "dev", "development", "local"}:
         return True
     try:
