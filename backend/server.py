@@ -6728,6 +6728,27 @@ def _get_brevo_api_key():
     return _normalize_api_token(os.getenv("BREVO_API_KEY") or os.getenv("SENDINBLUE_API_KEY") or "")
 
 
+def _is_free_mailbox_domain(email: str) -> bool:
+    """True for consumer mailboxes that cannot be DKIM-authenticated in Brevo."""
+    domain = str(email or "").strip().lower().rsplit("@", 1)[-1]
+    return domain in {
+        "gmail.com",
+        "googlemail.com",
+        "yahoo.com",
+        "yahoo.de",
+        "outlook.com",
+        "hotmail.com",
+        "live.com",
+        "icloud.com",
+        "me.com",
+        "gmx.de",
+        "gmx.net",
+        "web.de",
+        "mail.com",
+        "aol.com",
+    }
+
+
 def _send_via_brevo(
     subject,
     sender_email,
@@ -6737,12 +6758,14 @@ def _send_via_brevo(
     html_body,
     attachments=None,
     api_key=None,
+    reply_to=None,
 ):
-    """Send e-mail via Brevo (formerly Sendinblue) API — no Cloudflare, allows any from address.
+    """Send e-mail via Brevo transactional API.
 
     Optional ``api_key`` lets company-scoped mail settings override the platform key.
-    A 2xx from Brevo means the message was *accepted* for delivery, not that it
-    already landed in the recipient inbox (check Brevo Transactional logs / spam).
+    Platform sends always prefer ``settings.brevo_from_email`` (the Brevo-verified sender).
+    A 2xx means Brevo *accepted* the request — free From domains (Gmail/…) often still
+    show Versendet + Fehler in Brevo logs and never reach the inbox.
     """
     resolved_key = _normalize_api_token(api_key) if api_key else _get_brevo_api_key()
     if not resolved_key:
@@ -6750,14 +6773,24 @@ def _send_via_brevo(
     if not _is_valid_brevo_api_key(resolved_key):
         return False, _describe_brevo_api_key_problem(resolved_key)
 
-    # Company-scoped sends pass api_key → prefer that sender; platform sends prefer settings.brevo_from_email.
+    brevo_from = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
+    env_from = _normalize_env_value(os.getenv("BREVO_FROM_EMAIL") or "")
+    # Platform path: Brevo From only (not company SMTP / company inbox).
+    # Company path (api_key set): use that company's sender, else fall back to platform Brevo From.
     if api_key:
-        from_email = sender_email or _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or ""
+        from_email = sender_email or brevo_from or env_from or ""
     else:
-        from_email = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or sender_email or ""
+        from_email = brevo_from or env_from or sender_email or ""
     from_name = sender_name or ""
     if not from_email:
         return False, "brevo_missing_from_email"
+
+    if _is_free_mailbox_domain(from_email):
+        app.logger.warning(
+            "[BREVO] Free From address %s — Brevo may accept then fail (Versendet+Fehler). "
+            "Use a domain you own and authenticate it in Brevo (DKIM/DMARC).",
+            from_email,
+        )
 
     payload = {
         "sender": {"name": from_name, "email": from_email},
@@ -6766,6 +6799,12 @@ def _send_via_brevo(
         "textContent": text_body,
         "htmlContent": html_body,
     }
+    reply = _normalize_env_value(reply_to or "")
+    if not reply and sender_email and sender_email.lower() != from_email.lower():
+        reply = sender_email
+    if reply and "@" in reply:
+        payload["replyTo"] = {"email": reply, "name": from_name or ""}
+
     if attachments:
         _brevo_atts = [
             {
@@ -6800,6 +6839,10 @@ def _send_via_brevo(
                         message_id = str(parsed.get("messageId") or "").strip()
                 except Exception:
                     message_id = ""
+                # Encode free-sender warning in success detail for API tests (prefix keeps messageId usable).
+                if _is_free_mailbox_domain(from_email):
+                    warn = "brevo_free_from_warning"
+                    return True, f"{message_id}|{warn}" if message_id else warn
                 return True, message_id
             return False, f"brevo_http_{status}"
     except HTTPError as exc:
@@ -7136,11 +7179,17 @@ def _send_otp_email_to_user(db, user_row, code, smtp_settings_override=None):
         return False
     if not smtp_configured:
         app.logger.info("[OTP-MAIL] SMTP nicht konfiguriert, sende OTP direkt über API-Fallback")
-    # Use smtp_sender as from address, fall back to stored API sender addresses
+    # Prefer Brevo-verified From over generic SMTP sender (avoids company/Gmail mix-ups).
+    brevo_from = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "") or _normalize_env_value(
+        os.getenv("BREVO_FROM_EMAIL") or ""
+    )
+    if brevo_api_key and brevo_from:
+        smtp_sender = brevo_from
+
     if not smtp_sender:
         smtp_sender = _normalize_env_value(_resend_key_cache.get("from_email") or "")
     if not smtp_sender:
-        smtp_sender = _normalize_env_value(_resend_key_cache.get("brevo_from_email") or "")
+        smtp_sender = brevo_from
     if not smtp_sender:
         app.logger.warning("[OTP-MAIL] Keine Absender-E-Mail konfiguriert – E-Mail-Versand nicht möglich")
         return False

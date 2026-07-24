@@ -30922,8 +30922,17 @@ async function saveAndTestBrevo() {
   }
   if (!resultEl) return;
   if (data?.ok) {
-    resultEl.textContent = `✓ ${runtimeText("brevoMailSent")}`;
-    resultEl.style.color = "#16a34a";
+    const freeWarn =
+      String(data?.messageId || data?.note || "").includes("brevo_free_from_warning")
+      || /gmail\.com|yahoo\.|outlook\.com|hotmail\.com/i.test(String(fromEl?.value || ""));
+    if (freeWarn) {
+      resultEl.textContent =
+        "⚠ Brevo hat angenommen — aber Gmail/Free-Mail als Absender verursacht oft „Fehler“ in den Logs und keine Zustellung. Bitte noreply@deine-firma.de + Domain in Brevo authentifizieren.";
+      resultEl.style.color = "#b45309";
+    } else {
+      resultEl.textContent = `✓ ${runtimeText("brevoMailSent")}`;
+      resultEl.style.color = "#16a34a";
+    }
   } else {
     const detail = data?.detail ? ` → ${data.detail}` : "";
     const detailStr = String(data?.detail || detail || "");

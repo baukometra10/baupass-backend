@@ -1918,9 +1918,13 @@
                   <p class="eyebrow">E-Mail Fallback</p>
                   <h4>Brevo API <small style="font-weight:400;color:#6b7280">(empfohlen)</small></h4>
                   <p style="font-size:0.82rem;color:#6b7280;margin-top:4px;line-height:1.5;">
-                    Wenn Railway SMTP blockiert, sendet das System über eine HTTPS-API.
-                    <strong>Brevo</strong> (<a href="https://brevo.com" target="_blank" rel="noopener">brevo.com</a>) — kostenlos, kein Cloudflare-Block, Gmail-Absender erlaubt.
-                    Keys werden in der Datenbank gespeichert — keine Railway-Umgebungsvariable nötig.
+                    Wenn Railway SMTP blockiert, sendet das System über die Brevo HTTPS-API
+                    (<a href="https://brevo.com" target="_blank" rel="noopener">brevo.com</a>).
+                    <strong>Wichtig:</strong> Absender darf <em>nicht</em> @gmail.com / @yahoo / @outlook sein —
+                    sonst erscheint in Brevo oft „Versendet“ und direkt danach „Fehler“, und die Mail kommt nicht an.
+                    Bitte eine Adresse deiner eigenen Domain verwenden (z.&nbsp;B. <code>noreply@deine-firma.de</code>)
+                    und die Domain in Brevo authentifizieren (DKIM/DMARC). Deine private Gmail kann als
+                    <em>Empfänger</em> oder Reply-To bleiben.
                   </p>
                 </div>
               </div>
@@ -1931,8 +1935,12 @@
                 <small style="display:block;margin-top:4px;font-size:0.8rem;color:#9ca3af">Wenn Key gespeichert ist, kannst du direkt testen ohne erneute Eingabe.</small>
               </label>
               <label>
-                <span>Brevo Absender-E-Mail</span>
-                <input id="brevoFromEmail" type="email" placeholder="deine@gmail.com" />
+                <span>Brevo Absender-E-Mail (From)</span>
+                <input id="brevoFromEmail" type="email" placeholder="noreply@deine-firma.de" />
+                <small style="display:block;margin-top:4px;font-size:0.8rem;color:#b45309;line-height:1.4;">
+                  Nur die in Brevo verifizierte Absenderadresse deiner Domain — nicht die Firmen-SMTP-Adresse und nicht Gmail.
+                  Gmail als From verursacht die Fehler-Zeilen in den Transactional-Logs.
+                </small>
               </label>
               <label class="full-width">
                 <span></span>
@@ -1941,9 +1949,10 @@
                   <span id="brevoTestResult" style="font-size:0.85rem"></span>
                 </div>
                 <small style="display:block;margin-top:6px;color:#6b7280;font-size:0.8rem;">
-                  Brevo-Key findest du unter <strong>brevo.com → SMTP &amp; API → API Keys</strong>. Beginnt mit <code>xkeysib-</code>.
-                  Bei Railway-Hosting die IP <code>152.55.176.191</code> unter
-                  <a href="https://app.brevo.com/security/authorised_ips" target="_blank" rel="noopener">Brevo → Authorized IPs</a> eintragen.
+                  Brevo-Key: <strong>brevo.com → SMTP &amp; API → API Keys</strong> (<code>xkeysib-</code>).
+                  Absender/Domain: <strong>Brevo → Senders, Domains &amp; Dedicated IPs</strong>.
+                  Bei Railway die IP <code>152.55.176.191</code> unter
+                  <a href="https://app.brevo.com/security/authorised_ips" target="_blank" rel="noopener">Authorized IPs</a> eintragen.
                 </small>
               </label>
 
