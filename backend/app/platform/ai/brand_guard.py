@@ -50,8 +50,11 @@ def sanitize_legacy_brand(text: str) -> str:
 
 
 def ai_branding_system_block(lang: str = "de") -> str:
-    lang = (lang or "de")[:2]
-    return _BRANDING_RULES.get(lang) or _BRANDING_RULES["de"]
+    from .langs import normalize_ui_lang
+
+    lang = normalize_ui_lang(lang)
+    # Non-translated UI langs fall back to English branding rules.
+    return _BRANDING_RULES.get(lang) or _BRANDING_RULES["en"]
 
 
 def sanitize_ai_answer(text: str | None) -> str | None:
@@ -64,8 +67,9 @@ def sanitize_ai_answer(text: str | None) -> str | None:
 def enrich_founder_context(profile: dict[str, Any], lang: str = "de") -> str:
     """Founder block with explicit anti-legacy guard for LLM system prompts."""
     from .founder_profile import _resolve_bio, _resolve_title
+    from .langs import normalize_ui_lang
 
-    lang = (lang or "de")[:2]
+    lang = normalize_ui_lang(lang)
     name = profile.get("name") or "—"
     company = profile.get("company") or "Suppix AI"
     platform = profile.get("platform") or "WorkPass"
@@ -78,14 +82,14 @@ def enrich_founder_context(profile: dict[str, Any], lang: str = "de") -> str:
             f"ملف المؤسّس (مصدر رسمي وحيد لهذه الأسئلة): "
             f"{name}، {title}، {company}. المنصة: {platform}. {bio}"
         )
-    if lang == "en":
+    if lang == "de":
         return (
             f"{guard}\n\n"
-            f"Founder profile (single authoritative source for founder/owner questions): "
-            f"{name}, {title}, {company}. Platform: {platform}. {bio}"
+            f"Gründer-Profil (einzige offizielle Quelle für Gründer-/Inhaber-Fragen): "
+            f"{name}, {title}, {company}. Plattform: {platform}. {bio}"
         )
     return (
         f"{guard}\n\n"
-        f"Gründer-Profil (einzige offizielle Quelle für Gründer-/Inhaber-Fragen): "
-        f"{name}, {title}, {company}. Plattform: {platform}. {bio}"
+        f"Founder profile (single authoritative source for founder/owner questions): "
+        f"{name}, {title}, {company}. Platform: {platform}. {bio}"
     )

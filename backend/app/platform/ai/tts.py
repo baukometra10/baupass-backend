@@ -15,7 +15,7 @@ from .openai_errors import parse_openai_http_error, urlopen_with_rate_limit_retr
 
 logger = logging.getLogger("baupass.ai.tts")
 
-# Persona labels (from ElevenLabs previews) — OpenAI voices tuned to match each character.
+# Persona labels — OpenAI voices tuned per WorkPass UI language (de/en/ar/tr/fr/es/it/pl).
 _VOICE_PERSONAS = {
     "ar": {
         "name": "Ghizlane",
@@ -43,12 +43,61 @@ _VOICE_PERSONAS = {
             "Warm and approachable like a helpful guide. Clear, lively, never robotic."
         ),
     },
+    "tr": {
+        "name": "Elif",
+        "openai_voice": "nova",
+        "instructions": (
+            "Warm, clear female voice speaking natural Turkish (Türkiye Türkçesi). "
+            "Calm professional assistant tone for site operations. "
+            "Natural intonation, never robotic; pronounce Turkish names carefully."
+        ),
+    },
+    "fr": {
+        "name": "Camille",
+        "openai_voice": "alloy",
+        "instructions": (
+            "Clear, professional female voice speaking natural French (français standard). "
+            "Warm operations-assistant tone. Steady pace, never robotic."
+        ),
+    },
+    "es": {
+        "name": "Lucia",
+        "openai_voice": "ballad",
+        "instructions": (
+            "Clear, professional female voice speaking natural Spanish (castellano neutro). "
+            "Warm operations-assistant tone. Steady pace, never robotic."
+        ),
+    },
+    "it": {
+        "name": "Giulia",
+        "openai_voice": "fable",
+        "instructions": (
+            "Clear, professional female voice speaking natural Italian. "
+            "Warm operations-assistant tone. Steady pace, never robotic."
+        ),
+    },
+    "pl": {
+        "name": "Anna",
+        "openai_voice": "ash",
+        "instructions": (
+            "Clear, professional female voice speaking natural Polish. "
+            "Warm operations-assistant tone. Careful pronunciation, never robotic."
+        ),
+    },
 }
 
+# Voice IDs from https://elevenlabs.io (Voice Library / custom clones).
+# Override per language with BAUPASS_ELEVENLABS_VOICE_AR / _DE / _EN / …
 _ELEVENLABS_VOICES = {
     "ar": "u0TsaWvt0v8migutHM3M",
     "de": "6CS8keYmkwxkspesdyA7",
     "en": "8DzKSPdgEQPaK5vKG0Rs",
+    # Multilingual model can speak other UI langs with the EN persona until more IDs are set.
+    "tr": "8DzKSPdgEQPaK5vKG0Rs",
+    "fr": "8DzKSPdgEQPaK5vKG0Rs",
+    "es": "8DzKSPdgEQPaK5vKG0Rs",
+    "it": "8DzKSPdgEQPaK5vKG0Rs",
+    "pl": "8DzKSPdgEQPaK5vKG0Rs",
 }
 
 _MIME_BY_FORMAT = {
@@ -82,7 +131,9 @@ def prepare_tts_text(text: str, *, lang: str, fast: bool = False) -> str:
 
 
 def _persona(lang: str) -> dict[str, str]:
-    lang = (lang or "de")[:2]
+    from .langs import normalize_ui_lang
+
+    lang = normalize_ui_lang(lang)
     return _VOICE_PERSONAS.get(lang) or _VOICE_PERSONAS["en"]
 
 
@@ -90,30 +141,51 @@ def _openai_api_key() -> str:
     return (os.getenv("OPENAI_API_KEY") or "").strip()
 
 
+def _env_first(*names: str) -> str:
+    for name in names:
+        val = (os.getenv(name) or "").strip()
+        if val:
+            return val
+    return ""
+
+
 def _elevenlabs_api_key() -> str:
-    return (os.getenv("ELEVENLABS_API_KEY") or os.getenv("BAUPASS_ELEVENLABS_API_KEY") or "").strip()
+    return _env_first("ELEVENLABS_API_KEY", "BAUPASS_ELEVENLABS_API_KEY", "SUPPIX_ELEVENLABS_API_KEY")
 
 
 def _resolve_tts_provider() -> str:
-    explicit = (os.getenv("BAUPASS_TTS_PROVIDER") or "openai").strip().lower()
-    if explicit == "elevenlabs" and _elevenlabs_api_key():
+    """
+    Prefer ElevenLabs when ELEVENLABS_API_KEY is set (personas from elevenlabs.io).
+    Env: BAUPASS_TTS_PROVIDER or SUPPIX_TTS_PROVIDER = openai | elevenlabs | auto
+    """
+    explicit = _env_first("BAUPASS_TTS_PROVIDER", "SUPPIX_TTS_PROVIDER").lower() or "auto"
+    eleven_ok = bool(_elevenlabs_api_key())
+    if explicit in {"elevenlabs", "11labs", "eleven"}:
+        return "elevenlabs" if eleven_ok else "openai"
+    if explicit in {"openai", "oai"}:
+        return "openai"
+    # auto (default): use ElevenLabs personas whenever the API key is present
+    if eleven_ok:
         return "elevenlabs"
     return "openai"
 
 
 def _resolve_openai_config(lang: str) -> dict[str, Any]:
-    lang = (lang or "de")[:2]
+    from .langs import normalize_ui_lang
+
+    lang = normalize_ui_lang(lang)
     persona = _persona(lang)
-    voice_env = {
-        "ar": "BAUPASS_TTS_VOICE_AR",
-        "de": "BAUPASS_TTS_VOICE_DE",
-        "en": "BAUPASS_TTS_VOICE_EN",
-    }.get(lang, "BAUPASS_TTS_VOICE_EN")
-    instructions_env = {
-        "ar": "BAUPASS_TTS_INSTRUCTIONS_AR",
-        "de": "BAUPASS_TTS_INSTRUCTIONS_DE",
-        "en": "BAUPASS_TTS_INSTRUCTIONS_EN",
-    }.get(lang, "BAUPASS_TTS_INSTRUCTIONS_EN")
+    voice_env = f"BAUPASS_TTS_VOICE_{lang.upper()}"
+    instructions_env = f"BAUPASS_TTS_INSTRUCTIONS_{lang.upper()}"
+    # Legacy aliases for the original three personas.
+    if lang in {"ar", "de", "en"} and not (os.getenv(voice_env) or "").strip():
+        legacy_voice = {
+            "ar": "BAUPASS_TTS_VOICE_AR",
+            "de": "BAUPASS_TTS_VOICE_DE",
+            "en": "BAUPASS_TTS_VOICE_EN",
+        }[lang]
+        if (os.getenv(legacy_voice) or "").strip():
+            voice_env = legacy_voice
     model = (
         os.getenv(f"BAUPASS_TTS_MODEL_{lang.upper()}")
         or os.getenv("BAUPASS_TTS_MODEL")
@@ -131,11 +203,17 @@ def _resolve_openai_config(lang: str) -> dict[str, Any]:
 def _resolve_elevenlabs_config(lang: str) -> dict[str, Any]:
     lang = (lang or "de")[:2]
     persona = _persona(lang)
+    voice_id = _env_first(
+        f"BAUPASS_ELEVENLABS_VOICE_{lang.upper()}",
+        f"SUPPIX_ELEVENLABS_VOICE_{lang.upper()}",
+    ) or _ELEVENLABS_VOICES.get(lang) or _ELEVENLABS_VOICES["en"]
     return {
-        "voice_id": _ELEVENLABS_VOICES.get(lang) or _ELEVENLABS_VOICES["en"],
+        "voice_id": voice_id,
         "voice_name": persona["name"],
-        "model_id": (os.getenv("BAUPASS_ELEVENLABS_MODEL") or "eleven_multilingual_v2").strip(),
-        "output_format": (os.getenv("BAUPASS_ELEVENLABS_FORMAT") or "mp3_44100_128").strip(),
+        "model_id": _env_first("BAUPASS_ELEVENLABS_MODEL", "SUPPIX_ELEVENLABS_MODEL")
+        or "eleven_multilingual_v2",
+        "output_format": _env_first("BAUPASS_ELEVENLABS_FORMAT", "SUPPIX_ELEVENLABS_FORMAT")
+        or "mp3_44100_128",
     }
 
 
@@ -311,8 +389,11 @@ def tts_config_status() -> dict[str, Any]:
     hint = None
     if not configured:
         hint = (
-            "Set OPENAI_API_KEY (default) or ELEVENLABS_API_KEY with BAUPASS_TTS_PROVIDER=elevenlabs."
+            "Set ELEVENLABS_API_KEY (https://elevenlabs.io → Profile → API Key) "
+            "or OPENAI_API_KEY for OpenAI TTS personas."
         )
+    elif provider == "openai" and eleven_ok:
+        hint = "ElevenLabs key present but BAUPASS_TTS_PROVIDER=openai forces OpenAI."
     return {
         "provider": provider,
         "configured": configured,

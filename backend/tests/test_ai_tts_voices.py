@@ -11,6 +11,8 @@ from backend.app.platform.ai.tts import (
 
 def test_openai_persona_voices_per_language(monkeypatch):
     monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPIX_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     monkeypatch.delenv("BAUPASS_TTS_VOICE_AR", raising=False)
     monkeypatch.delenv("BAUPASS_TTS_VOICE_DE", raising=False)
     monkeypatch.delenv("BAUPASS_TTS_VOICE_EN", raising=False)
@@ -30,7 +32,44 @@ def test_tts_status_defaults_to_openai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
     monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPIX_TTS_PROVIDER", raising=False)
     status = tts_config_status()
     assert status["provider"] == "openai"
     assert status["configured"] is True
     assert status["voices"]["ar"]["name"] == "Ghizlane"
+
+
+def test_tts_auto_prefers_elevenlabs_when_key_set(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "el-test")
+    monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
+    monkeypatch.delenv("SUPPIX_TTS_PROVIDER", raising=False)
+    assert _resolve_tts_provider() == "elevenlabs"
+
+
+def test_tts_suppix_provider_alias(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "el-test")
+    monkeypatch.setenv("SUPPIX_TTS_PROVIDER", "openai")
+    monkeypatch.delenv("BAUPASS_TTS_PROVIDER", raising=False)
+    assert _resolve_tts_provider() == "openai"
+
+
+def test_elevenlabs_voice_env_all_eight_langs(monkeypatch):
+    from backend.app.platform.ai.tts import _resolve_elevenlabs_config
+    from backend.app.platform.ai.langs import SUPPORTED_UI_LANGS
+
+    for code in SUPPORTED_UI_LANGS:
+        monkeypatch.setenv(f"BAUPASS_ELEVENLABS_VOICE_{code.upper()}", f"voice-{code}")
+    for code in SUPPORTED_UI_LANGS:
+        cfg = _resolve_elevenlabs_config(code)
+        assert cfg["voice_id"] == f"voice-{code}"
+        assert cfg["voice_name"]
+
+
+def test_openai_personas_cover_all_ui_langs():
+    from backend.app.platform.ai.langs import SUPPORTED_UI_LANGS
+
+    for code in SUPPORTED_UI_LANGS:
+        assert code in _VOICE_PERSONAS
+        cfg = _resolve_openai_config(code)
+        assert cfg["voice_name"]
+        assert cfg["voice"]

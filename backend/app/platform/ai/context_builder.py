@@ -110,6 +110,19 @@ def build_compact_context(db, company_id: str, role: str = "company-admin", *, l
         "intelligence": operational_insights(db, company_id),
         "pendingLeave": pending_leave,
     }
+    try:
+        from .operator_memory import get_memory, memory_context_lines
+
+        mem = get_memory(db, company_id)
+        result["operatorMemory"] = {
+            "preferredLang": mem.get("preferredLang") or "",
+            "preferredSite": mem.get("preferredSite") or "",
+            "lastReminderPrompt": mem.get("lastReminderPrompt") or "",
+            "recentPrompts": list(mem.get("recentPrompts") or [])[:4],
+            "lines": memory_context_lines(db, company_id, lang=lang_code),
+        }
+    except Exception:
+        result["operatorMemory"] = {}
     _COMPACT_CTX_CACHE[cache_key] = (now, result)
     if len(_COMPACT_CTX_CACHE) > 64:
         oldest = sorted(_COMPACT_CTX_CACHE.items(), key=lambda kv: kv[1][0])[:16]

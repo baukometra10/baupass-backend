@@ -574,7 +574,8 @@
 
   <script src="/enterprise-hub-i18n.js?v=20260705b"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ai-voice-ui.js?v=20260619voice8lang"></script>
+  <script src="/ai-voice-ui.js?v=20260725voice12"></script>
+  <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script>
     const SURFACE_COLORS = {
       legacy: "#3b82f6", "admin-v2": "#14b8a6", worker: "#a855f7",
@@ -1789,8 +1790,24 @@
         get lang() { return HUB_LANG; },
         get unsupportedHint() { return t("aiVoiceUnsupported"); },
         get hintText() { return t("voiceHint"); },
+        chatgptDictation: true,
+        dictationMode: "chatgpt",
         multilingual: true,
+        useWhisper: true,
+        preferLiveDraft: false,
+        autoStopOnSilence: true,
+        silenceMs: 5000,
+        autoSubmit: false,
         authHeaders: () => (window.BaupassAuth?.authHeaders?.() || {}),
+        onTranscript: (text, meta) => {
+          const q = String(text || "").trim();
+          if (!q) return;
+          let detected = String(meta?.language || "").slice(0, 2).toLowerCase();
+          if (/[\u0600-\u06FF]/.test(q)) detected = "ar";
+          detected = normalizeHubLang(detected);
+          if (detected && detected !== HUB_LANG) setHubLang(detected);
+          void submitAiQuestion(q, { spoken: true });
+        },
         onMicError: (err) => {
           const msg = window.BaupassAiUi?.voiceErrorMessage?.(err, HUB_LANG) || t("aiVoiceMicDenied");
           appendAi("bot", msg, true);

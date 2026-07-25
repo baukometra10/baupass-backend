@@ -23,8 +23,33 @@ def test_new_decision_tools_registered():
         "get_outside_hours_attempts",
         "get_presence_summary",
         "browse_inbox",
+        "get_deployment_month_status",
     ):
         assert name in TOOL_HANDLERS
+
+
+def test_deployment_actions_allowed():
+    from backend.app.platform.ai.actions import ALLOWED_EXECUTE
+
+    assert "prepare_deployment_month" in ALLOWED_EXECUTE
+    assert "confirm_send_deployment_month" in ALLOWED_EXECUTE
+
+
+def test_confirm_send_requires_user_flag(client_and_db):
+    _client, db_path = client_and_db
+    with closing(sqlite3.connect(db_path)) as db:
+        db.row_factory = sqlite3.Row
+        from backend.app.platform.ai.actions import execute_action
+
+        denied = execute_action(
+            db,
+            company_id="cmp-default",
+            user_id="u1",
+            action="confirm_send_deployment_month",
+            params={"year": 2026, "month": 8},
+        )
+        assert denied["ok"] is False
+        assert denied.get("error") == "user_confirmation_required"
 
 
 def test_tools_run_against_seeded_db(client_and_db):

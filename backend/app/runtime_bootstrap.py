@@ -136,6 +136,15 @@ def integrate_server_runtime(
         print(f"[baupass] WARNING: global edge middleware skipped: {exc}", flush=True)
         summary["edge_middleware"] = False
 
+    try:
+        from backend.app.middleware.ai_operator_inject import register_ai_operator_inject
+
+        register_ai_operator_inject(flask_app)
+        summary["ai_operator_fab"] = True
+    except Exception as exc:
+        print(f"[baupass] WARNING: AI operator FAB inject skipped: {exc}", flush=True)
+        summary["ai_operator_fab"] = False
+
     from backend.app.tasks import init_task_queues, task_queues_ready
 
     redis_url = str(flask_app.config.get("REDIS_URL") or os.getenv("REDIS_URL") or "").strip()

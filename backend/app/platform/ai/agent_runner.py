@@ -15,20 +15,43 @@ from .tools import run_tool
 logger = logging.getLogger("baupass.ai.agent")
 
 MAX_TOOL_ROUNDS = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS", "3"))
+MAX_TOOL_ROUNDS_ADMIN = int(os.getenv("BAUPASS_AI_MAX_TOOL_ROUNDS_ADMIN", "5"))
 SPOKEN_NO_TOOLS = os.getenv("BAUPASS_AI_SPOKEN_NO_TOOLS", "1").strip().lower() not in {"0", "false", "no"}
+# Admins keep tools in spoken/ambient mode by default (stronger operator).
+SPOKEN_TOOLS_ADMIN = os.getenv("BAUPASS_AI_SPOKEN_TOOLS_ADMIN", "1").strip().lower() not in {
+    "0",
+    "false",
+    "no",
+}
+_ADMIN_ROLES = frozenset({"company-admin", "superadmin", "admin"})
 
 
-def _max_tool_rounds(*, spoken: bool = False, use_tools: bool = False) -> int:
-    if not use_tools or (spoken and SPOKEN_NO_TOOLS):
+def _max_tool_rounds(*, spoken: bool = False, use_tools: bool = False, role: str = "") -> int:
+    if not use_tools:
         return 1
+    is_admin = (role or "").strip().lower() in _ADMIN_ROLES
+    if spoken and SPOKEN_NO_TOOLS and not (is_admin and SPOKEN_TOOLS_ADMIN):
+        return 1
+    if is_admin:
+        return max(1, MAX_TOOL_ROUNDS_ADMIN)
     return max(1, MAX_TOOL_ROUNDS)
 
 
-def _resolve_tools(agent_id: str, *, spoken: bool = False, use_tools: bool = False) -> list[dict]:
+def _resolve_tools(
+    agent_id: str,
+    *,
+    spoken: bool = False,
+    use_tools: bool = False,
+    role: str = "",
+) -> list[dict]:
     if not use_tools:
         return []
-    if spoken and SPOKEN_NO_TOOLS:
+    is_admin = (role or "").strip().lower() in _ADMIN_ROLES
+    if spoken and SPOKEN_NO_TOOLS and not (is_admin and SPOKEN_TOOLS_ADMIN):
         return []
+    # Prefer full admin agent tool surface when available.
+    if is_admin and agent_id in {"operations", "decision"}:
+        return agent_tool_schemas("admin")
     return agent_tool_schemas(agent_id)
 
 
@@ -72,8 +95,11 @@ def run_agent_query(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
-    model, config_warning = resolve_ai_model()
+    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools, role=role)
+    from .assistant import reset_ai_role_context, set_ai_role_context
+
+    role_token = set_ai_role_context(role)
+    model, config_warning = resolve_ai_model(role=role)
 
     from .founder_profile import format_founder_context_for_llm
 
@@ -91,7 +117,8 @@ def run_agent_query(
         if snippets:
             live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
 
-    system = agent_system_prompt(agent_id, lang, live_context=live_context, spoken=spoken)
+    prompt_agent = "admin" if (role or "").strip().lower() in _ADMIN_ROLES else agent_id
+    system = agent_system_prompt(prompt_agent, lang, live_context=live_context, spoken=spoken)
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:
         role_name = h.get("role")
@@ -105,7 +132,7 @@ def run_agent_query(
     tool_rounds = 0
 
     try:
-        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools)):
+        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools, role=role)):
             body = _chat_with_tools(messages, tools)
             choice = body["choices"][0]
             msg = choice["message"]
@@ -209,6 +236,8 @@ def run_agent_query(
             "hint": str(exc)[:500],
             "agentId": agent_id,
         }
+    finally:
+        reset_ai_role_context(role_token)
 
 
 def run_agent_query_stream(
@@ -247,8 +276,11 @@ def run_agent_query_stream(
     rag_chunks = search_knowledge(db, company_id, question)
     if rag_chunks:
         ctx["ragChunks"] = rag_chunks
-    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools)
-    model, config_warning = resolve_ai_model()
+    tools = _resolve_tools(agent_id, spoken=spoken, use_tools=use_tools, role=role)
+    from .assistant import reset_ai_role_context, set_ai_role_context
+
+    role_token = set_ai_role_context(role)
+    model, config_warning = resolve_ai_model(role=role)
     from .founder_profile import format_founder_context_for_llm
 
     live_context = format_live_context_block(ctx, lang=lang)
@@ -264,7 +296,8 @@ def run_agent_query_stream(
                 snippets.append(f"- {title}: {text.strip()}")
         if snippets:
             live_context += "\n\nRelevante Dokument-Auszüge:\n" + "\n".join(snippets)
-    system = agent_system_prompt(agent_id, lang, live_context=live_context, spoken=spoken)
+    prompt_agent = "admin" if (role or "").strip().lower() in _ADMIN_ROLES else agent_id
+    system = agent_system_prompt(prompt_agent, lang, live_context=live_context, spoken=spoken)
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
     for h in (history or [])[-12:]:
@@ -276,7 +309,7 @@ def run_agent_query_stream(
     try:
         from .assistant import _stream_chat_completion_events
 
-        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools)):
+        for _ in range(_max_tool_rounds(spoken=spoken, use_tools=use_tools, role=role)):
             content_deltas: list[str] = []
             tool_msg: dict[str, Any] | None = None
             live_answer = False
@@ -348,6 +381,8 @@ def run_agent_query_stream(
         logger.exception("agent stream failed")
         yield {"type": "error", "hint": str(exc)[:500]}
         yield {"type": "done", "ok": False}
+    finally:
+        reset_ai_role_context(role_token)
 
 
 def run_deep_analysis(

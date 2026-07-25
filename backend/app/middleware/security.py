@@ -24,11 +24,11 @@ logger = logging.getLogger("baupass.security")
 _CSP_DIRECTIVES = {
     "default-src":  ["'self'"],
     "script-src":   ["'self'", "'strict-dynamic'", "https://cdn.jsdelivr.net"],
-    "style-src":    ["'self'", "'unsafe-inline'"],
+    "style-src":    ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
     "img-src":      ["'self'", "data:", "blob:"],
     "media-src":    ["'self'", "blob:"],
     "manifest-src": ["'self'", "blob:"],
-    "font-src":     ["'self'", "data:"],
+    "font-src":     ["'self'", "data:", "https://cdn.jsdelivr.net"],
     "connect-src":  ["'self'", "wss:", "ws:"],
     "frame-src":    ["'none'"],
     "object-src":   ["'none'"],
@@ -69,6 +69,11 @@ _CSRF_EXEMPT_PREFIXES = (
     "/api/worker-app/",
     "/api/public/",
     "/api/health",
+)
+
+_CSRF_EXEMPT_SUBSTRINGS = (
+    "/onlyoffice/callback",
+    "/onlyoffice/file",
 )
 
 
@@ -136,6 +141,8 @@ def register_security_middleware(app: Flask) -> None:
         # Bearer-token APIs are exempt (separate auth)
         if any(path.startswith(prefix) for prefix in _CSRF_EXEMPT_PREFIXES):
             return None
+        if any(s in path for s in _CSRF_EXEMPT_SUBSTRINGS):
+            return None
 
         if app.config.get("TESTING") or not app.config.get("WTF_CSRF_ENABLED", True):
             return None
@@ -181,21 +188,39 @@ def register_security_middleware(app: Flask) -> None:
                     ), 403
             return None  # curl / server-to-server in non-Railway dev
 
-        host = request.host.split(":")[0]
-        allowed_origins = app.config.get("CORS_ORIGINS", [])
+        # Keep port (e.g. 127.0.0.1:8080). Stripping it breaks local login CSRF checks.
+        request_host = (request.host or "").strip().rstrip("/")
+        host_no_port = request_host.split("%")[0].split(":")[0]
+        port_suffix = ""
+        if ":" in request_host and not request_host.startswith("["):
+            port_suffix = ":" + request_host.rsplit(":", 1)[1]
+        elif request_host.startswith("[") and "]:" in request_host:
+            port_suffix = ":" + request_host.rsplit("]:", 1)[1]
 
-        # Origin matches current host
-        if f"https://{host}" == origin or f"http://{host}" == origin:
+        candidates = {
+            f"http://{request_host}",
+            f"https://{request_host}",
+            f"http://{host_no_port}",
+            f"https://{host_no_port}",
+        }
+        # Local aliases: localhost ↔ 127.0.0.1 (with same port)
+        if host_no_port in {"localhost", "127.0.0.1", "::1"}:
+            for local_name in ("localhost", "127.0.0.1"):
+                candidates.add(f"http://{local_name}{port_suffix}")
+                candidates.add(f"https://{local_name}{port_suffix}")
+                candidates.add(f"http://{local_name}")
+                candidates.add(f"https://{local_name}")
+
+        if origin in candidates:
             return None
 
-        # Origin in allowlist
-        if origin in allowed_origins:
+        allowed_origins = app.config.get("CORS_ORIGINS", []) or []
+        allowed_norm = {str(item).strip().rstrip("/") for item in allowed_origins if str(item).strip()}
+        if origin in allowed_norm:
             return None
 
         logger.warning(
             "Origin mismatch (potential CSRF): origin=%s host=%s path=%s",
-            origin, host, request.path,
+            origin, request_host, request.path,
         )
-        if (os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_GIT_COMMIT_SHA") or "").strip():
-            return jsonify({"error": "csrf_origin_mismatch", "message": "Invalid Origin header"}), 403
         return jsonify({"error": "csrf_origin_mismatch", "message": "Invalid Origin header"}), 403

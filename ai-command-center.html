@@ -886,7 +886,7 @@
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260723insightNav1"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
-  <script src="/ai-voice-ui.js?v=20260723prompt1"></script>
+  <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/e2e-crypto.js?v=20260705e2e4"></script>
   <script src="/e2e-admin-bridge.js?v=20260705e2e4"></script>
   <script>
@@ -2621,9 +2621,33 @@
         formId: "chatForm",
         hintId: "bpAiComposerHint",
         get lang() { return LANG; },
+        get arabicSpeech() { return LANG === "ar"; },
+        get speechLang() { return LANG === "ar" ? "ar" : LANG; },
         get hintText() { return t("voiceHint"); },
+        // ChatGPT-style dictation for all UI languages.
+        chatgptDictation: true,
+        dictationMode: "chatgpt",
         multilingual: true,
+        useWhisper: true,
+        preferLiveDraft: false,
+        autoStopOnSilence: true,
+        silenceMs: 5000,
+        autoSubmit: false,
         authHeaders: () => authHeaders(),
+        onTranscript: (text, meta) => {
+          const q = String(text || "").trim();
+          if (!q) return;
+          let detected = String(meta?.language || "").slice(0, 2).toLowerCase();
+          if (/[\u0600-\u06FF]/.test(q)) detected = "ar";
+          if (detected && AI_LANGS.includes(detected) && detected !== LANG) {
+            try {
+              localStorage.setItem(UI_LANG_KEY, detected);
+              localStorage.setItem("baupass-admin-v2-lang", detected);
+            } catch { /* ignore */ }
+            applyUiLanguage({ reloadAgents: false, reloadInsights: false });
+          }
+          void submitQuestion(q, { spoken: true });
+        },
         onMicError: (err) => {
           appendMsg("bot", window.BaupassAiUi?.voiceErrorMessage?.(err, LANG) || t("aiVoiceMicDenied"), true);
         },

@@ -77,6 +77,18 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     register_logging_middleware(app)
     register_security_middleware(app)
     register_rate_limit_middleware(app)
+    try:
+        from .middleware.edge_global import register_global_edge_middleware
+
+        register_global_edge_middleware(app)
+    except Exception as exc:
+        logger.warning("edge middleware skipped: %s", exc)
+    try:
+        from .middleware.ai_operator_inject import register_ai_operator_inject
+
+        register_ai_operator_inject(app)
+    except Exception as exc:
+        logger.warning("AI operator FAB inject skipped: %s", exc)
 
     # ── Blueprints (routes) ───────────────────────────────────────────────────
     _register_blueprints(app)

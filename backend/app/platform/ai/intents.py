@@ -208,6 +208,17 @@ def try_intent_response(
         return None
     lang = (lang or "de")[:2]
 
+    # Admin operator tasks (real write proposals) before soft help intents.
+    if not worker:
+        try:
+            from .operator_tasks import try_operator_task
+
+            task_hit = try_operator_task(db, company_id, q, role=role, lang=lang)
+            if task_hit:
+                return task_hit
+        except Exception:
+            pass
+
     if _COMPOSE_PATTERNS.search(q):
         return None
 

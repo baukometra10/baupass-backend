@@ -19636,6 +19636,12 @@ async function restoreSessionFromBootstrap() {
           companyBrandingPreviewOverride = previewCompany ? getCompanyBrandingPreset(previewCompany) : "";
         }
       }
+      try {
+        window.dispatchEvent(new CustomEvent("baupass-ai-operator-ready"));
+        window.BaupassAiOperator?.show?.();
+      } catch {
+        /* optional FAB */
+      }
     }
     return bootstrap;
   })();
@@ -34067,6 +34073,12 @@ async function handleLoginSubmit(event) {
     startLiveAccessPoll();
     setView(getDefaultViewForRole(payload.user?.role));
     refreshAll();
+    try {
+      window.dispatchEvent(new CustomEvent("baupass-ai-operator-ready"));
+      window.BaupassAiOperator?.show?.();
+    } catch {
+      /* optional FAB */
+    }
 
     try {
       await loadAllData();

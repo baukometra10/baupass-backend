@@ -54,6 +54,351 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         lang = str(request.args.get("lang") or "de")[:2]
         return jsonify(ai_config_status(lang))
 
+    def _operator_plan_allowed(db, company_id: str) -> bool:
+        """FAB / voice assistant is an enterprise plan capability (ai_assistant)."""
+        try:
+            from backend.server import company_has_feature, get_company_plan
+
+            plan = get_company_plan(db, company_id)
+            return bool(company_has_feature(plan, "ai_assistant"))
+        except Exception:
+            # Fail open for superadmin tooling if plan lookup breaks; FAB still respects toggle.
+            role = str((g.current_user or {}).get("role") or "")
+            return role == "superadmin"
+
+    @ai_bp.get("/ai/operator/pulse")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_operator_pulse():
+        """Prioritized daily recommendations for the ubiquitous AI Operator FAB."""
+        from .operator_pulse import build_operator_pulse
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            return jsonify({"error": "company_required", "urgency": 0, "recommendations": []}), 400
+        lang = str(request.args.get("lang") or "de")[:2]
+        surface = str(request.args.get("surface") or "").strip()
+        tab = str(request.args.get("tab") or "").strip()
+        path = str(request.args.get("path") or "").strip()
+        role = str(g.current_user.get("role") or "company-admin")
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify(
+                {
+                    "error": "plan_required",
+                    "capability": "ai_assistant",
+                    "urgency": 0,
+                    "urgent": False,
+                    "recommendations": [],
+                    "companyId": company_id,
+                }
+            ), 403
+        pulse = build_operator_pulse(
+            db,
+            company_id,
+            role=role,
+            lang=lang,
+            surface=surface or None,
+            tab=tab or None,
+            path=path or None,
+        )
+        return jsonify(pulse)
+
+    @ai_bp.post("/ai/operator/pulse/dispatch")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("ai_assistant")
+    def ai_operator_pulse_dispatch():
+        """Manually send morning-style pulse briefing (Slack/Teams/email) for one company."""
+        from .notifications import dispatch_briefing_notifications
+        from .scheduler import build_company_morning_dispatch
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        include_llm = _parse_bool_flag(data.get("include_llm"), default=True)
+        dry_run = _parse_bool_flag(data.get("dry_run"), default=False)
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify({"error": "plan_required", "capability": "ai_assistant"}), 403
+
+        from .langs import try_normalize_ui_lang
+        from .operator_settings import (
+            get_settings,
+            resolve_briefing_email,
+            resolve_briefing_lang,
+            resolve_briefing_tz,
+            resolve_effective_briefing_hours,
+        )
+
+        settings = get_settings(db, company_id)
+        lang_raw = str(data.get("lang") or request.args.get("lang") or "").strip()
+        if lang_raw and lang_raw.lower() not in {"auto", "automatic", "automatisch", "*"}:
+            lang = try_normalize_ui_lang(lang_raw) or resolve_briefing_lang(
+                settings, db=db, company_id=company_id
+            )
+        else:
+            lang = resolve_briefing_lang(settings, db=db, company_id=company_id)
+
+        company_name = company_id
+        try:
+            row = db.execute(
+                "SELECT name FROM companies WHERE id = ? AND deleted_at IS NULL",
+                (company_id,),
+            ).fetchone()
+            if row:
+                company_name = str(row["name"] or company_id)
+        except Exception:
+            pass
+
+        payload = build_company_morning_dispatch(
+            db,
+            company_id,
+            company_name=company_name,
+            lang=lang,
+            include_llm=include_llm,
+        )
+        body = str(payload.get("body") or "").strip()
+        title = f"Suppix AI — {company_name}"
+        preview_meta = {
+            "email": resolve_briefing_email(settings, db=db, company_id=company_id),
+            "lang": resolve_briefing_lang(settings, db=db, company_id=company_id),
+            "tz": resolve_briefing_tz(settings, db=db, company_id=company_id),
+            "hours": resolve_effective_briefing_hours(settings, db=db, company_id=company_id),
+            "sectorTerms": payload.get("sectorTerms") or (payload.get("pulse") or {}).get("sectorTerms") or {},
+        }
+        if dry_run or not body:
+            return jsonify(
+                {
+                    "ok": True,
+                    "dryRun": True,
+                    "title": title,
+                    "preview": preview_meta,
+                    **payload,
+                }
+            )
+
+        dispatch = dispatch_briefing_notifications(body, company_id=company_id, title=title)
+        email_result = None
+        briefing_email = resolve_briefing_email(settings, db=db, company_id=company_id)
+        if briefing_email:
+            from .mailer import send_ai_briefing_email
+
+            ok, err = send_ai_briefing_email(to=briefing_email, subject=title, body_text=body)
+            email_result = {"ok": ok, "to": briefing_email, "error": err or None}
+
+        return jsonify(
+            {
+                "ok": True,
+                "dryRun": False,
+                "title": title,
+                "dispatch": dispatch,
+                "email": email_result,
+                "urgency": payload.get("urgency"),
+                "body": body,
+                "companyId": company_id,
+            }
+        )
+
+    @ai_bp.get("/ai/operator/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_status():
+        """Live readiness: TTS provider + briefing cron + SMTP + resolved briefing meta."""
+        import os
+
+        from .operator_settings import (
+            enrich_settings_for_api,
+            get_settings,
+        )
+        from .tts import tts_config_status
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify({"error": "plan_required", "capability": "ai_assistant"}), 403
+        settings = enrich_settings_for_api(db, company_id, get_settings(db, company_id))
+        cron_on = str(os.getenv("BAUPASS_AI_BRIEFING_CRON", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        smtp_ok = bool((os.getenv("SMTP_HOST") or "").strip())
+        tts = tts_config_status()
+        return jsonify(
+            {
+                "company_id": company_id,
+                "tts": {
+                    "provider": tts.get("provider"),
+                    "configured": bool(tts.get("configured")),
+                    "elevenLabsConfigured": bool(tts.get("elevenLabsConfigured")),
+                    "openaiConfigured": bool(tts.get("openaiConfigured")),
+                    "hint": tts.get("hint"),
+                },
+                "briefing": {
+                    "cronEnabled": cron_on,
+                    "smtpConfigured": smtp_ok,
+                    "emailResolved": settings.get("briefingEmailResolved") or "",
+                    "langResolved": settings.get("briefingLangResolved") or "",
+                    "hoursResolved": settings.get("briefingHoursResolved") or [],
+                    "tzResolved": settings.get("briefingTzResolved") or "",
+                    "enabled": settings.get("briefingEnabled") is not False,
+                },
+                "ok": bool(tts.get("configured")) and (cron_on and (smtp_ok or bool(settings.get("briefingEmailResolved")))),
+            }
+        )
+
+    @ai_bp.get("/ai/operator/audit")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_audit():
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify({"error": "plan_required", "capability": "ai_assistant"}), 403
+        limit = 30
+        try:
+            limit = max(5, min(80, int(request.args.get("limit") or 30)))
+        except Exception:
+            limit = 30
+        rows = []
+        try:
+            rows = db.execute(
+                """
+                SELECT id, event_type, message, actor_name, actor_user_id, actor_role,
+                       target_id, created_at, details_json, reason
+                FROM audit_logs
+                WHERE company_id = ?
+                  AND event_type LIKE 'ai.action.%'
+                ORDER BY created_at DESC
+                LIMIT ?
+                """,
+                (company_id, limit),
+            ).fetchall()
+        except Exception:
+            rows = []
+        events = []
+        for row in rows or []:
+            details = {}
+            try:
+                import json
+
+                details = json.loads(row["details_json"] or "{}")
+            except Exception:
+                details = {}
+            events.append(
+                {
+                    "id": row["id"],
+                    "eventType": row["event_type"],
+                    "message": row["message"],
+                    "actor": row["actor_name"] or row["actor_user_id"] or "",
+                    "role": row["actor_role"] or "",
+                    "targetId": row["target_id"] or "",
+                    "createdAt": row["created_at"],
+                    "details": details,
+                    "reason": row["reason"] or "",
+                }
+            )
+        return jsonify({"company_id": company_id, "events": events})
+
+    @ai_bp.get("/ai/operator/memory")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_memory_get():
+        from .operator_memory import get_memory
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify({"error": "plan_required", "capability": "ai_assistant"}), 403
+        return jsonify({"company_id": company_id, "memory": get_memory(db, company_id)})
+
+    @ai_bp.post("/ai/operator/memory")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_memory_save():
+        from .operator_memory import save_memory
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        db = get_db()
+        if not _operator_plan_allowed(db, company_id):
+            return jsonify({"error": "plan_required", "capability": "ai_assistant"}), 403
+        mem = save_memory(
+            db,
+            company_id,
+            data,
+            actor=str(g.current_user.get("id") or g.current_user.get("username") or ""),
+        )
+        return jsonify({"ok": True, "company_id": company_id, "memory": mem})
+
+    @ai_bp.get("/ai/operator/settings")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_settings_get():
+        from .operator_settings import enrich_settings_for_api, get_settings
+
+        company_id = _resolve_company_id_from_request()
+        if not company_id:
+            return jsonify({"error": "company_required", "enabled": False, "planAllowed": False}), 400
+        db = get_db()
+        settings = enrich_settings_for_api(db, company_id, get_settings(db, company_id))
+        plan_allowed = _operator_plan_allowed(db, company_id)
+        company_on = bool(settings.get("enabled", True))
+        effective = company_on and plan_allowed
+        return jsonify(
+            {
+                "company_id": company_id,
+                "settings": settings,
+                **settings,
+                "enabled": effective,
+                "companyEnabled": company_on,
+                "planAllowed": plan_allowed,
+                "capability": "ai_assistant",
+            }
+        )
+
+    @ai_bp.patch("/ai/operator/settings")
+    @ai_bp.post("/ai/operator/settings")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ai_operator_settings_save():
+        from .operator_settings import save_settings
+
+        data = request.get_json(silent=True) or {}
+        company_id = _resolve_company_id_from_request(data)
+        if not company_id:
+            return jsonify({"error": "company_required"}), 400
+        db = get_db()
+        actor = str(g.current_user.get("id") or g.current_user.get("username") or "")
+        settings = save_settings(db, company_id, data, actor=actor)
+        plan_allowed = _operator_plan_allowed(db, company_id)
+        company_on = bool(settings.get("enabled", True))
+        effective = company_on and plan_allowed
+        return jsonify(
+            {
+                "ok": True,
+                "company_id": company_id,
+                "settings": settings,
+                **settings,
+                "enabled": effective,
+                "companyEnabled": company_on,
+                "planAllowed": plan_allowed,
+                "capability": "ai_assistant",
+            }
+        )
+
     def _user_id() -> str:
         return str(g.current_user.get("id") or g.current_user.get("username") or "unknown")
 
@@ -484,6 +829,37 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             )
             if intent_hit:
                 answer = str(intent_hit.get("answer") or "").strip()
+                # Stage executable suggestions so FAB shows real confirm cards.
+                staged = []
+                try:
+                    from .actions import ALLOWED_EXECUTE, propose_action
+
+                    for item in (intent_hit.get("suggestedActions") or intent_hit.get("actions") or []):
+                        if not isinstance(item, dict):
+                            continue
+                        if str(item.get("type") or "") != "execute":
+                            continue
+                        action = str(item.get("action") or "").strip()
+                        if action not in ALLOWED_EXECUTE:
+                            continue
+                        proposal = propose_action(
+                            db,
+                            company_id=company_id,
+                            user_id=_user_id(),
+                            action=action,
+                            params=item.get("params") if isinstance(item.get("params"), dict) else {},
+                            rationale=str(
+                                item.get("labelDe")
+                                or item.get("labelEn")
+                                or item.get("rationale")
+                                or action
+                            ),
+                            risk=str(item.get("risk") or "medium"),
+                        )
+                        if proposal.get("ok") and proposal.get("proposal"):
+                            staged.append(proposal["proposal"])
+                except Exception:
+                    staged = []
                 yield sse_event({"type": "start", "agentId": agent_id, "mode": "intent"})
                 yield sse_event({"type": "answer_start"})
                 step = max(24, len(answer) // 6) if answer else 0
@@ -495,9 +871,12 @@ def register_ai_blueprint(flask_app: Flask) -> None:
                     "answer": answer,
                     "agentId": agent_id,
                     "mode": "intent",
-                    "toolsUsed": [],
+                    "intent": intent_hit.get("intent"),
+                    "toolsUsed": intent_hit.get("toolsUsed") or [],
                     "suggestedActions": intent_hit.get("suggestedActions") or intent_hit.get("actions") or [],
+                    "actions": intent_hit.get("actions") or intent_hit.get("suggestedActions") or [],
                     "sources": intent_hit.get("sources") or [],
+                    "stagedProposals": staged,
                 }
                 yield sse_event(final)
             else:
@@ -785,16 +1164,25 @@ def register_ai_blueprint(flask_app: Flask) -> None:
         if not audio_b64:
             return jsonify({"error": "audio_required", "hint": "Keine Audiodaten."}), 400
         try:
-            audio_bytes = base64.b64decode(audio_b64, validate=True)
+            audio_bytes = base64.b64decode(audio_b64, validate=False)
         except Exception:
             return jsonify({"error": "invalid_audio_base64"}), 400
+        if not audio_bytes:
+            return jsonify({"error": "audio_required", "hint": "Keine Audiodaten."}), 400
 
         mime = str(data.get("mime") or "audio/webm")
         ext = "webm" if "webm" in mime else "m4a" if "m4a" in mime else "wav"
         multilingual = data.get("multilingual", True)
         if isinstance(multilingual, str):
             multilingual = multilingual.lower() not in {"0", "false", "no"}
-        lang_hint = "auto" if multilingual else str(data.get("lang") or request.args.get("lang") or "de")[:2]
+        raw_lang = str(data.get("lang") or request.args.get("lang") or "").strip().lower()
+        # Never slice "auto" → "au". Multilingual / auto always auto-detects.
+        if multilingual or raw_lang in {"", "auto", "mul", "multi", "*", "xx", "detect"}:
+            lang_hint = "auto"
+        else:
+            from .langs import try_normalize_ui_lang
+
+            lang_hint = try_normalize_ui_lang(raw_lang) or "auto"
         tr = transcribe_audio_bytes(
             audio_bytes,
             filename=f"voice.{ext}",
@@ -802,11 +1190,29 @@ def register_ai_blueprint(flask_app: Flask) -> None:
             language=lang_hint,
         )
         if not tr.get("text"):
+            err = tr.get("error", "transcription_failed")
+            logger.warning(
+                "ai_transcribe failed error=%s bytes=%s lang=%s provider=%s",
+                err,
+                len(audio_bytes),
+                lang_hint,
+                tr.get("provider"),
+            )
+            hints = {
+                "openai_not_configured": "Whisper nicht konfiguriert (OPENAI_API_KEY / Azure). Browser-Spracherkennung als Fallback.",
+                "audio_too_short": "Aufnahme zu kurz — bitte länger sprechen oder FAB erneut tippen.",
+                "no_speech_detected": "Keine Sprache erkannt — bitte klarer sprechen.",
+            }
             return jsonify({
-                "error": tr.get("error", "transcription_failed"),
-                "hint": tr.get("hint") or "Transkription fehlgeschlagen.",
+                "error": err,
+                "hint": tr.get("hint") or hints.get(err) or "Transkription fehlgeschlagen.",
+                "provider": tr.get("provider"),
             }), 400
-        return jsonify({"text": tr["text"], "model": tr.get("model")})
+        payload = {"text": tr["text"], "model": tr.get("model")}
+        if tr.get("language"):
+            payload["language"] = tr["language"]
+            payload["lang"] = tr["language"]
+        return jsonify(payload)
 
     @ai_bp.post("/ai/speak")
     @require_auth

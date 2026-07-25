@@ -129,7 +129,15 @@ class DevelopmentConfig(BaseConfig):
 
     SQLITE_PATH = str(BASE_DIR / "backend" / "baupass.db")
 
-    CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:5000", "http://localhost:5000"]
+    CORS_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "http://localhost:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:5000",
+        "http://127.0.0.1:8000",
+        "http://127.0.0.1:8080",
+    ]
 
     RATE_LIMIT_ENABLED = False  # أسرع تطوير بدون rate limiting
 

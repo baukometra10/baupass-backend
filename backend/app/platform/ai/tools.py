@@ -96,7 +96,8 @@ def tool_expired_documents(db, company_id: str, args: dict) -> dict[str, Any]:
     today = today_prefix()
     rows = db.execute(
         """
-        SELECT w.id AS worker_id, w.first_name, w.last_name, wd.doc_type, wd.expiry_date
+        SELECT w.id AS worker_id, w.first_name, w.last_name, wd.id AS document_id,
+               wd.doc_type, wd.expiry_date
         FROM worker_documents wd
         JOIN workers w ON w.id = wd.worker_id
         WHERE w.company_id = ? AND w.deleted_at IS NULL
@@ -284,6 +285,52 @@ def tool_worker_profile(db, company_id: str, args: dict) -> dict[str, Any]:
     }
 
 
+def tool_deployment_month_status(db, company_id: str, args: dict) -> dict[str, Any]:
+    """Read-only Einsatzplan month status + readiness summary (never sends)."""
+    from datetime import datetime, timezone
+
+    from backend.app.platform.workforce.deployment_month import get_month_batch, worker_month_summary
+
+    now = datetime.now(timezone.utc).date()
+    try:
+        year = int(args.get("year") or now.year)
+        month = int(args.get("month") or now.month)
+    except (TypeError, ValueError):
+        year, month = now.year, now.month
+    if month < 1 or month > 12:
+        return {"error": "invalid_month"}
+    batch = get_month_batch(db, company_id, year, month)
+    summaries = worker_month_summary(db, company_id, year, month)
+    ready = sum(1 for s in summaries if s.get("ready"))
+    declined = sum(1 for s in summaries if s.get("hasDeclines"))
+    conflicts = [
+        {
+            "workerId": s["workerId"],
+            "name": s["name"],
+            "daysFilled": s["daysFilled"],
+            "daysInMonth": s["daysInMonth"],
+            "declinedDayCount": s.get("declinedDayCount") or 0,
+        }
+        for s in summaries
+        if (not s.get("ready")) or s.get("hasDeclines")
+    ][:12]
+    return {
+        "year": year,
+        "month": month,
+        "batch": batch,
+        "workersTotal": len(summaries),
+        "workersReady": ready,
+        "workersWithDeclines": declined,
+        "awaitingConfirm": bool(batch.get("awaitingConfirm")),
+        "status": batch.get("status") or "draft",
+        "conflictsPreview": conflicts,
+        "hint": (
+            "Draft only — sending requires employer confirmation via "
+            "confirm_send_deployment_month after explicit approval."
+        ),
+    }
+
+
 TOOL_HANDLERS: dict[str, ToolFn] = {
     "get_on_site_workers": tool_get_on_site_workers,
     "search_workers": tool_search_workers,
@@ -301,6 +348,7 @@ TOOL_HANDLERS: dict[str, ToolFn] = {
     "get_outside_hours_attempts": tool_outside_hours_attempts,
     "get_presence_summary": tool_presence_summary,
     "browse_inbox": tool_browse_inbox,
+    "get_deployment_month_status": tool_deployment_month_status,
 }
 
 
@@ -467,6 +515,24 @@ OPENAI_TOOL_SCHEMAS: list[dict[str, Any]] = [
                 "properties": {
                     "source": {"type": "string"},
                     "limit": {"type": "integer"},
+                },
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_deployment_month_status",
+            "description": (
+                "Einsatzplan / monthly deployment status: draft vs sent, how many workers are ready, "
+                "declines/conflicts. Read-only — does not prepare or send."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "year": {"type": "integer"},
+                    "month": {"type": "integer", "description": "1-12"},
                 },
                 "additionalProperties": False,
             },

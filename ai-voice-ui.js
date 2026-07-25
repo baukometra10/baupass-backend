@@ -174,18 +174,57 @@
     return LANG_MAP[uiLang] || resolveSpeechLang(options);
   }
 
+  function pageLooksArabic() {
+    try {
+      const lang = String(document.documentElement?.lang || document.body?.lang || "").toLowerCase();
+      if (lang.startsWith("ar")) return true;
+      const dir = String(document.documentElement?.dir || document.body?.dir || "").toLowerCase();
+      if (dir === "rtl") return true;
+      if (document.documentElement?.getAttribute?.("data-rtl") === "1") return true;
+    } catch {
+      /* ignore */
+    }
+    return false;
+  }
+
+  /** BCP-47 tag for Web Speech API (Arabic → ar-SA). */
+  function resolveBrowserSpeechLang(options) {
+    const forced = String(options?.speechLang || options?.forceSpeechLang || "").trim();
+    if (forced) {
+      const code = resolveLang(forced);
+      if (code === "ar") return "ar-SA";
+      return LANG_MAP[code] || forced;
+    }
+    const prefer = resolveLang(options?.lang);
+    if (prefer === "ar" || options?.arabicSpeech === true || pageLooksArabic()) {
+      return "ar-SA";
+    }
+    return LANG_MAP[prefer] || resolveLiveSpeechLang(options)
+      || String(global.navigator?.language || "").trim()
+      || "en-US";
+  }
+
+  function isChatgptDictation(options) {
+    return options?.chatgptDictation === true || options?.dictationMode === "chatgpt";
+  }
+
   function preferWhisperTranscription(options) {
+    // ChatGPT-style: always prefer cloud Whisper for every language when allowed.
+    if (isChatgptDictation(options) && options?.useWhisper !== false) return true;
     if (options?.useWhisper === true) return true;
     if (options?.useWhisper === false) return false;
     const uiLang = resolveLang(options?.lang);
-    if (uiLang === "ar") return true;
+    // Arabic (and dialects) need Whisper when available — browser STT is weak.
+    if (uiLang === "ar" || options?.arabicSpeech === true || pageLooksArabic()) return true;
     if (options?.multilingual !== false) return true;
     return !browserSpeechAvailable();
   }
 
   function resolveWhisperLang(options) {
+    // ChatGPT / multilingual: auto-detect so DE/EN/AR/FR/… all work from one mic.
+    if (isChatgptDictation(options) || options?.multilingual !== false) return "auto";
     const uiLang = resolveLang(options?.lang);
-    if (uiLang === "ar") return "ar";
+    if (uiLang === "ar" || options?.arabicSpeech === true || pageLooksArabic()) return "ar";
     if (options?.multilingual === false) return uiLang;
     return "auto";
   }
@@ -315,6 +354,22 @@
     if (!id) return false;
     const ctrl = voiceCaptureByInputId.get(id);
     if (!ctrl) return false;
+    ctrl.stopCapture();
+    return true;
+  }
+
+  /** Stop listening and keep/finalize transcript (do not discard). */
+  function finishVoiceCapture(inputIdOrOptions) {
+    const id = typeof inputIdOrOptions === "string"
+      ? inputIdOrOptions
+      : resolveInputId(null, inputIdOrOptions || {});
+    if (!id) return false;
+    const ctrl = voiceCaptureByInputId.get(id);
+    if (!ctrl) return false;
+    if (typeof ctrl.finishCapture === "function") {
+      ctrl.finishCapture();
+      return true;
+    }
     ctrl.stopCapture();
     return true;
   }
@@ -824,7 +879,8 @@
       err.payload = { error: "no_speech_detected" };
       throw err;
     }
-    return text;
+    const language = String(data.language || data.lang || "").slice(0, 2).toLowerCase();
+    return { text, language };
   }
 
   function inferOpenAiVoiceError(err) {
@@ -935,15 +991,48 @@
   }
 
   function bindVoiceController(options, btnEl, inputEl) {
+    // ChatGPT-style defaults: listen fully → text → auto-send after end silence.
+    if (isChatgptDictation(options)) {
+      if (options.autoStopOnSilence == null) options.autoStopOnSilence = true;
+      if (options.silenceMs == null) options.silenceMs = 5000;
+      if (options.minBeforeAutoStopMs == null) options.minBeforeAutoStopMs = 1800;
+      if (options.preferLiveDraft == null) options.preferLiveDraft = false;
+      if (options.multilingual == null) options.multilingual = true;
+      if (options.autoSubmit == null) options.autoSubmit = true;
+      if (options.fallbackToBrowser == null) options.fallbackToBrowser = true;
+      if (options.liveSpeechDuringRecord == null) options.liveSpeechDuringRecord = true;
+    }
+
     const lang = resolveLang(options.lang);
     const speechLang = resolveSpeechLang(options);
     const ui = labelsForLang(lang);
     const maxRecordMs = Math.max(10000, Number(options.maxRecordMs) || DEFAULT_MAX_RECORD_MS);
     const minRecordMs = Math.max(300, Number(options.minRecordMs) || DEFAULT_MIN_RECORD_MS);
+    const endSilenceMs = Math.max(2500, Number(options.silenceMs) || 5000);
     let useWhisperMode = preferWhisperTranscription(options);
+
+    // If server Whisper is not configured, use browser dictation immediately
+    // (avoids a failed first take that looks like "voice is dead").
+    if (useWhisperMode && typeof global.fetch === "function") {
+      try {
+        const headers = {};
+        if (typeof options.authHeaders === "function") Object.assign(headers, options.authHeaders());
+        else if (options.authHeaders && typeof options.authHeaders === "object") Object.assign(headers, options.authHeaders);
+        void fetch("/api/ai/status", { credentials: "include", headers })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((st) => {
+            const ok = st?.voiceTranscription?.configured ?? st?.whisper?.configured;
+            if (ok === false) useWhisperMode = false;
+          })
+          .catch(() => {});
+      } catch {
+        /* ignore */
+      }
+    }
 
     let browserRecognition = null;
     let browserListening = false;
+    let browserSilenceTimer = null;
     let stream = null;
     let recorder = null;
     let recording = false;
@@ -955,6 +1044,90 @@
     let liveRecognitionActive = false;
     let liveDraftFinal = "";
     let transcribeAborted = false;
+    let audioCtx = null;
+    let audioAnalyser = null;
+    let audioSilenceRaf = 0;
+    let audioSilenceSince = 0;
+    let heardSpeech = false;
+
+    const clearBrowserSilence = () => {
+      if (browserSilenceTimer) {
+        global.clearTimeout(browserSilenceTimer);
+        browserSilenceTimer = null;
+      }
+    };
+
+    const stopAudioSilenceMonitor = () => {
+      if (audioSilenceRaf) {
+        try { global.cancelAnimationFrame(audioSilenceRaf); } catch { /* ignore */ }
+        audioSilenceRaf = 0;
+      }
+      audioSilenceSince = 0;
+      heardSpeech = false;
+      try { audioCtx?.close?.(); } catch { /* ignore */ }
+      audioCtx = null;
+      audioAnalyser = null;
+    };
+
+    const startAudioSilenceMonitor = (mediaStream) => {
+      stopAudioSilenceMonitor();
+      if (options.autoStopOnSilence === false || !mediaStream) return;
+      const AC = global.AudioContext || global.webkitAudioContext;
+      if (!AC) return;
+      try {
+        audioCtx = new AC();
+        try { void audioCtx.resume?.(); } catch { /* ignore */ }
+        const source = audioCtx.createMediaStreamSource(mediaStream);
+        audioAnalyser = audioCtx.createAnalyser();
+        audioAnalyser.fftSize = 2048;
+        audioAnalyser.smoothingTimeConstant = 0.85;
+        source.connect(audioAnalyser);
+        const data = new Uint8Array(audioAnalyser.fftSize);
+        const threshold = Math.max(0.008, Number(options.silenceRmsThreshold) || 0.014);
+        const waitMs = endSilenceMs;
+        const needSpeechMs = Math.max(250, Number(options.minSpeechMs) || 400);
+        const graceMs = Math.max(500, Number(options.listenGraceMs) || 800);
+        const minBefore = Math.max(1500, Number(options.minBeforeAutoStopMs) || 2000);
+        const startedAt = Date.now();
+        let speechAccumMs = 0;
+        let lastTickAt = startedAt;
+        const tick = () => {
+          if (!recording || !audioAnalyser) return;
+          const now = Date.now();
+          const dt = Math.min(100, Math.max(0, now - lastTickAt));
+          lastTickAt = now;
+          audioAnalyser.getByteTimeDomainData(data);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 1) {
+            const v = (data[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / data.length);
+          if (now - startedAt < graceMs) {
+            audioSilenceRaf = global.requestAnimationFrame(tick);
+            return;
+          }
+          if (rms >= threshold) {
+            speechAccumMs += dt;
+            if (speechAccumMs >= needSpeechMs) heardSpeech = true;
+            audioSilenceSince = 0;
+          } else if (heardSpeech && (now - startedAt) >= minBefore) {
+            if (!audioSilenceSince) audioSilenceSince = now;
+            if (now - audioSilenceSince >= waitMs) {
+              stopAudioSilenceMonitor();
+              try { stopWhisperRecording(); } catch { /* ignore */ }
+              return;
+            }
+          } else {
+            audioSilenceSince = 0;
+          }
+          audioSilenceRaf = global.requestAnimationFrame(tick);
+        };
+        audioSilenceRaf = global.requestAnimationFrame(tick);
+      } catch {
+        stopAudioSilenceMonitor();
+      }
+    };
 
     const abortTranscribe = () => {
       transcribeAborted = true;
@@ -964,6 +1137,8 @@
 
     const stopCapture = () => {
       transcribeAborted = true;
+      clearBrowserSilence();
+      stopAudioSilenceMonitor();
       if (browserListening) {
         stopBrowser();
       }
@@ -1005,10 +1180,41 @@
       setListeningState(btnEl, false, lang);
     };
 
+    const finishCapture = () => {
+      if (browserListening) {
+        finishBrowser();
+        return true;
+      }
+      if (recording) {
+        stopWhisperRecording();
+        return true;
+      }
+      return false;
+    };
+
+    const beginCapture = async () => {
+      if (browserListening || recording || btnEl.classList.contains("bp-ai-transcribing")) {
+        return false;
+      }
+      if (useWhisperMode) {
+        const started = await startWhisperRecording();
+        if (started) return true;
+      }
+      if (startBrowser()) return true;
+      if (!useWhisperMode) {
+        return startWhisperRecording();
+      }
+      return false;
+    };
+
+    btnEl.bpStartVoiceCapture = () => beginCapture();
+    btnEl.bpStopVoiceCapture = () => finishCapture();
+
     const inputId = resolveInputId(inputEl, options);
     if (inputId) {
       voiceCaptureByInputId.set(inputId, {
         stopCapture,
+        finishCapture,
         isActive: () => Boolean(
           recording
           || browserListening
@@ -1024,10 +1230,10 @@
       if (!SpeechRecognition || !global.isSecureContext) return;
       liveDraftFinal = inputEl.value.trim();
       liveRecognition = new SpeechRecognition();
-      liveRecognition.lang = resolveLiveSpeechLang(options);
+      liveRecognition.lang = resolveBrowserSpeechLang(options) || resolveLiveSpeechLang(options);
       liveRecognition.continuous = true;
       liveRecognition.interimResults = true;
-      liveRecognition.maxAlternatives = 1;
+      liveRecognition.maxAlternatives = resolveLang(options.lang) === "ar" ? 3 : 1;
       liveRecognition.onresult = (event) => {
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
@@ -1077,24 +1283,28 @@
       return liveDraftFinal.trim();
     };
 
-    const applyDraftIfUsable = (draft) => {
+    const applyDraftIfUsable = (draft, meta) => {
       const cleaned = String(draft || "").trim();
       if (!cleaned || isWeakTranscript(cleaned)) return false;
-      applyTranscript(cleaned, true);
+      applyTranscript(cleaned, true, meta || {});
       return true;
     };
 
-    const applyTranscript = (text, isFinal) => {
+    const applyTranscript = (text, isFinal, meta = {}) => {
       const cleaned = cleanQuestionText(text);
       if (!cleaned) return;
       if (isFinal && isWeakTranscript(cleaned)) return;
       inputEl.value = cleaned;
+      const detectedLang = String(meta.language || meta.lang || "").slice(0, 2).toLowerCase();
+      if (detectedLang) {
+        inputEl.dataset.bpDetectedLang = detectedLang;
+      }
       inputEl.dispatchEvent(new Event("input", { bubbles: true }));
       if (!isFinal) return;
       inputEl.dataset.bpVoiceInput = "1";
       inputEl.focus?.();
       if (typeof options.onTranscript === "function") {
-        options.onTranscript(cleaned);
+        options.onTranscript(cleaned, { language: detectedLang || "" });
       } else if (options.autoSubmit === true) {
         inputEl.form?.requestSubmit?.();
       }
@@ -1118,6 +1328,7 @@
     };
 
     const stopBrowser = () => {
+      clearBrowserSilence();
       try {
         browserRecognition?.stop?.();
       } catch {
@@ -1127,18 +1338,49 @@
       setListeningState(btnEl, false, lang);
     };
 
-    const startBrowser = () => {
+    const finishBrowser = () => {
+      clearBrowserSilence();
+      const text = String(inputEl.value || "").trim();
+      browserListening = false;
+      try { browserRecognition?.stop?.(); } catch { /* ignore */ }
+      setListeningState(btnEl, false, lang);
+      if (typeof options.onListening === "function") options.onListening(false);
+      if (text) applyTranscript(text, true);
+    };
+
+    const startBrowser = (speechLangOverride) => {
       stopSpeaking();
       const SpeechRecognition = global.SpeechRecognition || global.webkitSpeechRecognition;
       if (!SpeechRecognition || !global.isSecureContext) return false;
 
+      const prefer = resolveLang(options.lang);
+      const isArabic = prefer === "ar"
+        || options.arabicSpeech === true
+        || pageLooksArabic()
+        || String(speechLangOverride || "").toLowerCase().startsWith("ar");
+      const browserLang = speechLangOverride
+        || resolveBrowserSpeechLang(options)
+        || speechLang
+        || "en-US";
+      const chatgpt = isChatgptDictation(options);
+
+      let accum = String(inputEl.value || "").trim();
+      clearBrowserSilence();
       browserRecognition = new SpeechRecognition();
-      browserRecognition.lang = options.multilingual !== false
-        ? (String(global.navigator?.language || "").trim() || speechLang)
-        : speechLang;
-      browserRecognition.continuous = false;
+      browserRecognition.lang = browserLang;
+      // Continuous while gathering a full phrase (ChatGPT / Arabic).
+      browserRecognition.continuous = options.browserContinuous === true || isArabic || chatgpt;
       browserRecognition.interimResults = options.interimResults !== false;
-      browserRecognition.maxAlternatives = 1;
+      browserRecognition.maxAlternatives = isArabic ? 3 : 1;
+
+      const scheduleBrowserEnd = () => {
+        clearBrowserSilence();
+        // After ~5s without new speech → finalize text (then autoSubmit if enabled).
+        browserSilenceTimer = global.setTimeout(() => {
+          if (!browserListening) return;
+          finishBrowser();
+        }, endSilenceMs);
+      };
 
       browserRecognition.onstart = () => {
         browserListening = true;
@@ -1146,35 +1388,68 @@
         if (typeof options.onListening === "function") options.onListening(true);
       };
       browserRecognition.onend = () => {
+        // Keep session alive until silence timer / user stop finalizes.
+        if (browserListening && browserRecognition) {
+          try {
+            browserRecognition.start();
+            return;
+          } catch {
+            /* fall through */
+          }
+        }
+        clearBrowserSilence();
         browserListening = false;
         setListeningState(btnEl, false, lang);
         if (typeof options.onListening === "function") options.onListening(false);
       };
       browserRecognition.onerror = (event) => {
+        const code = String(event?.error || "");
+        if (code === "aborted") return;
+        if (
+          isArabic
+          && (code === "language-not-supported" || code === "service-not-allowed")
+          && browserLang === "ar-SA"
+        ) {
+          browserListening = false;
+          if (startBrowser("ar-EG")) return;
+          if (startBrowser("ar")) return;
+        }
+        if (code === "no-speech") {
+          try { browserRecognition?.start?.(); } catch { /* ignore */ }
+          return;
+        }
+        clearBrowserSilence();
         browserListening = false;
         setListeningState(btnEl, false, lang);
-        const code = String(event?.error || "");
-        if (code && code !== "aborted") {
-          notifyError(new Error(code), "speech");
-        }
+        notifyError(new Error(code || "speech"), "speech");
       };
       browserRecognition.onresult = (event) => {
-        let finalText = "";
         let interim = "";
         for (let i = event.resultIndex; i < event.results.length; i += 1) {
           const part = event.results[i][0]?.transcript || "";
-          if (event.results[i].isFinal) finalText += part;
-          else interim += part;
+          if (event.results[i].isFinal) {
+            accum = `${accum} ${part}`.trim();
+          } else {
+            interim += part;
+          }
         }
-        const display = (finalText || interim).trim();
-        if (display) applyTranscript(display, false);
-        if (finalText.trim()) applyTranscript(finalText.trim(), true);
+        const display = `${accum}${interim ? ` ${interim}` : ""}`.trim();
+        // Live text grows calmly while the user speaks.
+        if (display) {
+          inputEl.value = display;
+          try { inputEl.dispatchEvent(new Event("input", { bubbles: true })); } catch { /* ignore */ }
+        }
+        scheduleBrowserEnd();
       };
 
       try {
         browserRecognition.start();
         return true;
       } catch (err) {
+        if (isArabic && browserLang === "ar-SA") {
+          if (startBrowser("ar-EG")) return true;
+          if (startBrowser("ar")) return true;
+        }
         notifyError(err, "speech");
         return false;
       }
@@ -1185,6 +1460,7 @@
         global.clearTimeout(maxRecordTimer);
         maxRecordTimer = null;
       }
+      stopAudioSilenceMonitor();
       liveRecognitionActive = false;
       try {
         liveRecognition?.stop?.();
@@ -1234,24 +1510,23 @@
         return;
       }
       const liveDraft = String(savedLive || inputEl.value || "").trim();
-      if (options.preferLiveDraft !== false && applyDraftIfUsable(liveDraft)) {
+      // ChatGPT mode waits for Whisper (full utterance). Live draft only as fallback.
+      const allowLiveFinal = options.preferLiveDraft !== false && !isChatgptDictation(options);
+      if (allowLiveFinal && applyDraftIfUsable(liveDraft)) {
         return;
       }
       try {
         btnEl.classList.add("bp-ai-transcribing");
         if (typeof options.onTranscribing === "function") options.onTranscribing(true);
-        const text = await transcribeWithWhisper(blob, options);
-        applyTranscript(text, true);
+        const result = await transcribeWithWhisper(blob, options);
+        const text = typeof result === "string" ? result : String(result?.text || "");
+        const language = typeof result === "object" ? String(result?.language || "") : "";
+        applyTranscript(text, true, { language });
       } catch (err) {
         if (applyDraftIfUsable(savedLive || inputEl.value)) return;
         if (options.fallbackToBrowser !== false && isWhisperServerError(err) && browserSpeechAvailable()) {
+          // Silent switch to browser dictation — do not look like a hard failure.
           useWhisperMode = false;
-          const fallbackMsg = resolveLang(lang) === "ar"
-            ? "تعذّر التفريغ على السيرفر — تحدّث مرة أخرى (صوت المتصفح، لغات محدودة)."
-            : resolveLang(lang) === "en"
-              ? "Server transcription unavailable — speak again (browser voice, limited languages)."
-              : "Server-Transkription nicht verfügbar — erneut sprechen (Browser-Sprache, begrenzte Sprachen).";
-          notifyError(Object.assign(new Error("whisper_fallback"), { payload: { error: "whisper_fallback", hint: fallbackMsg } }), "transcribe");
           if (startBrowser()) return;
         }
         notifyError(err, "transcribe");
@@ -1289,6 +1564,7 @@
         };
         recorder.start(RECORD_TIMESLICE_MS);
         recording = true;
+        startAudioSilenceMonitor(stream);
         startLiveSpeechPreview();
         setListeningState(btnEl, true, lang);
         if (typeof options.onListening === "function") options.onListening(true);
@@ -1308,29 +1584,14 @@
         stopSpeaking();
         return;
       }
-      if (browserListening) {
-        stopBrowser();
+      if (browserListening || recording) {
+        finishCapture();
         return;
       }
-      if (recording) {
-        stopWhisperRecording();
-        return;
-      }
-
-      if (useWhisperMode) {
-        const started = await startWhisperRecording();
-        if (!started) {
-          btnEl.disabled = true;
-          btnEl.title = options.unsupportedHint || ui.unsupported;
-        }
-        return;
-      }
-      if (!startBrowser()) {
-        const started = await startWhisperRecording();
-        if (!started) {
-          btnEl.disabled = true;
-          btnEl.title = options.unsupportedHint || ui.unsupported;
-        }
+      const started = await beginCapture();
+      if (!started) {
+        btnEl.disabled = true;
+        btnEl.title = options.unsupportedHint || ui.unsupported;
       }
     });
   }
@@ -1658,7 +1919,10 @@
 
     enhanceComposer(options);
 
-    if (btnEl.dataset.bpVoiceBound === "1") {
+    const inputId = resolveInputId(inputEl, options);
+    const hasController = Boolean(inputId && voiceCaptureByInputId.get(inputId));
+    // If a newer voice script replaced BaupassAiUi, re-bind orphaned mic buttons.
+    if (btnEl.dataset.bpVoiceBound === "1" && hasController) {
       refreshComposerLabels(options);
       return;
     }
@@ -1722,6 +1986,7 @@
     cleanTextForDisplay,
     consumeVoiceInputFlag,
     stopVoiceCapture,
+    finishVoiceCapture,
     isVoiceCaptureActive,
     speakReply,
     speakText,

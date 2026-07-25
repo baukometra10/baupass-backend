@@ -1,9 +1,9 @@
-﻿"""Scheduled AI operations briefing — daily Slack/Teams/email dispatch."""
+﻿"""Scheduled AI operations briefing — per-company hours, Slack/Teams/email."""
 from __future__ import annotations
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -14,8 +14,9 @@ def _cron_enabled() -> bool:
     return os.getenv("BAUPASS_AI_BRIEFING_CRON", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _has_dispatch_channel() -> bool:
-    if (os.getenv("BAUPASS_AI_BRIEFING_EMAIL") or "").strip():
+def _has_global_dispatch_channel() -> bool:
+    email = (os.getenv("BAUPASS_AI_BRIEFING_EMAIL") or "").strip()
+    if email and email.lower() not in {"auto", "automatic", "automatisch", "*"}:
         return True
     for key in (
         "BAUPASS_AI_SLACK_WEBHOOK_URL",
@@ -29,44 +30,120 @@ def _has_dispatch_channel() -> bool:
     return False
 
 
-def seconds_until_next_briefing() -> int:
-    """Seconds until next run at BAUPASS_AI_BRIEFING_HOUR in BAUPASS_AI_BRIEFING_TZ."""
-    hour = max(0, min(23, int(os.getenv("BAUPASS_AI_BRIEFING_HOUR", "7"))))
-    tz_name = (os.getenv("BAUPASS_AI_BRIEFING_TZ") or "Europe/Berlin").strip()
+def _zone(tz_name: str):
     try:
-        tz = ZoneInfo(tz_name)
+        return ZoneInfo((tz_name or "Europe/Berlin").strip() or "Europe/Berlin")
     except Exception:
-        tz = ZoneInfo("UTC")
-    now = datetime.now(tz)
-    target = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-    if now >= target:
-        target += timedelta(days=1)
+        return ZoneInfo("UTC")
+
+
+def seconds_until_next_briefing() -> int:
+    """Next tick: top of next hour (per-company hours are checked each run)."""
+    now = datetime.now(ZoneInfo("UTC"))
+    target = (now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1))
     return max(60, int((target - now).total_seconds()))
 
 
-def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
-    """Generate and dispatch daily briefings for enterprise companies."""
+def build_company_morning_dispatch(
+    db,
+    company_id: str,
+    *,
+    company_name: str = "",
+    lang: str = "de",
+    include_llm: bool = True,
+) -> dict[str, Any]:
+    """Pulse + optional LLM briefing text for one company (cron or manual)."""
     from .assistant import generate_operations_briefing, is_ai_configured
     from .context_builder import build_compact_context
+    from .operator_pulse import build_operator_pulse, format_morning_dispatch
+
+    from .langs import normalize_ui_lang
+
+    lang = normalize_ui_lang(lang)
+    pulse = build_operator_pulse(db, company_id, role="company-admin", lang=lang, surface="general")
+    llm_answer = ""
+    if include_llm and is_ai_configured():
+        try:
+            ctx = build_compact_context(db, company_id, "company-admin")
+            briefing = generate_operations_briefing(company_id, ctx, lang=lang)
+            llm_answer = str(briefing.get("answer") or "").strip()
+        except Exception as exc:
+            logger.warning("LLM briefing failed company=%s: %s", company_id, exc)
+
+    body = format_morning_dispatch(
+        pulse,
+        briefing_answer=llm_answer,
+        company_name=company_name or company_id,
+    )
+    return {
+        "companyId": company_id,
+        "companyName": company_name,
+        "lang": lang,
+        "urgency": pulse.get("urgency"),
+        "urgent": pulse.get("urgent"),
+        "body": body,
+        "pulse": pulse,
+        "sectorTerms": pulse.get("sectorTerms") or {},
+        "hasLlm": bool(llm_answer),
+    }
+
+
+def company_due_hours(
+    settings: dict[str, Any],
+    *,
+    now_utc: datetime | None = None,
+    db=None,
+    company_id: str | None = None,
+) -> list[tuple[int, str, str]]:
+    """
+    Return list of (hour, send_date, tz_name) that are due right now for this company.
+    Due = current local hour matches effective briefing hours (auto from shifts or manual).
+    """
+    from .operator_settings import resolve_briefing_tz, resolve_effective_briefing_hours
+
+    if settings.get("briefingEnabled") is False:
+        return []
+    hours = resolve_effective_briefing_hours(settings, db=db, company_id=company_id)
+    tz_name = resolve_briefing_tz(settings, db=db, company_id=company_id)
+    tz = _zone(tz_name)
+    now = (now_utc or datetime.now(timezone.utc)).astimezone(tz)
+    # Fire in the first ~50 minutes of the hour (hourly cron).
+    if now.minute > 50:
+        return []
+    if now.hour not in hours:
+        return []
+    send_date = now.strftime("%Y-%m-%d")
+    return [(now.hour, send_date, tz_name)]
+
+
+def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
+    """Dispatch pulse briefings for companies whose local briefing hour is now."""
     from .notifications import dispatch_briefing_notifications
+    from .operator_settings import (
+        briefing_already_sent,
+        get_settings,
+        mark_briefing_sent,
+        resolve_briefing_email,
+        resolve_briefing_lang,
+    )
 
     if not _cron_enabled():
         return {"ok": True, "skipped": True, "reason": "cron_disabled"}
 
-    if not is_ai_configured():
-        return {"ok": True, "skipped": True, "reason": "ai_not_configured"}
-
-    if not _has_dispatch_channel():
-        return {"ok": True, "skipped": True, "reason": "no_dispatch_channel"}
-
     legacy = __import__("backend.server", fromlist=["get_db", "company_has_feature", "app"])
-    lang = (os.getenv("BAUPASS_AI_BRIEFING_LANG") or "de")[:2]
-    briefing_email = (os.getenv("BAUPASS_AI_BRIEFING_EMAIL") or "").strip()
+    include_llm = os.getenv("BAUPASS_AI_BRIEFING_LLM", "1").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
 
     processed = 0
     sent_webhooks = 0
     sent_emails = 0
+    skipped_not_due = 0
     errors: list[str] = []
+    now_utc = datetime.now(timezone.utc)
 
     with legacy.app.app_context():
         db = legacy.get_db()
@@ -85,28 +162,66 @@ def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
                 continue
             company_id = str(row["id"])
             try:
-                ctx = build_compact_context(db, company_id, "company-admin")
-                briefing = generate_operations_briefing(company_id, ctx, lang=lang)
-                body = (briefing.get("answer") or "").strip()
-                if not body:
-                    continue
-                processed += 1
-                title = f"Suppix AI — {row['name'] or company_id}"
-                dispatch = dispatch_briefing_notifications(
-                    body, company_id=company_id, title=title
+                settings = get_settings(db, company_id)
+                due = company_due_hours(
+                    settings, now_utc=now_utc, db=db, company_id=company_id
                 )
-                sent_webhooks += int(dispatch.get("sent") or 0)
+                if not due:
+                    skipped_not_due += 1
+                    continue
 
-                if briefing_email:
-                    from .mailer import send_ai_briefing_email
+                company_email = resolve_briefing_email(
+                    settings, db=db, company_id=company_id
+                )
+                if not company_email and not _has_global_dispatch_channel():
+                    errors.append(f"{company_id}:no_dispatch_channel")
+                    continue
 
-                    ok, err = send_ai_briefing_email(
-                        to=briefing_email, subject=title, body_text=body
+                for hour, send_date, _tz in due:
+                    if briefing_already_sent(db, company_id, send_date=send_date, send_hour=hour):
+                        continue
+
+                    lang = resolve_briefing_lang(
+                        settings, db=db, company_id=company_id
                     )
-                    if ok:
-                        sent_emails += 1
+                    payload = build_company_morning_dispatch(
+                        db,
+                        company_id,
+                        company_name=str(row["name"] or company_id),
+                        lang=lang,
+                        include_llm=include_llm,
+                    )
+                    body = (payload.get("body") or "").strip()
+                    if not body:
+                        continue
+                    processed += 1
+                    title = f"Suppix AI — {row['name'] or company_id}"
+                    dispatch = dispatch_briefing_notifications(
+                        body, company_id=company_id, title=title
+                    )
+                    webhook_ok = int(dispatch.get("sent") or 0) > 0
+                    sent_webhooks += int(dispatch.get("sent") or 0)
+
+                    email_ok = False
+                    if company_email:
+                        from .mailer import send_ai_briefing_email
+
+                        ok, err = send_ai_briefing_email(
+                            to=company_email, subject=title, body_text=body
+                        )
+                        if ok:
+                            email_ok = True
+                            sent_emails += 1
+                        else:
+                            errors.append(f"{company_id}:email:{err}")
+
+                    # Only dedupe when at least one channel delivered.
+                    if webhook_ok or email_ok:
+                        mark_briefing_sent(db, company_id, send_date=send_date, send_hour=hour)
+                    elif not company_email and not _has_global_dispatch_channel():
+                        errors.append(f"{company_id}:no_delivery")
                     else:
-                        errors.append(f"{company_id}:email:{err}")
+                        errors.append(f"{company_id}:delivery_failed")
             except Exception as exc:
                 logger.exception("AI briefing failed company=%s", company_id)
                 errors.append(f"{company_id}:{exc}"[:120])
@@ -116,7 +231,9 @@ def run_ai_briefing_cycle_once(*, reschedule: bool = True) -> dict[str, Any]:
         "processed": processed,
         "sentWebhooks": sent_webhooks,
         "sentEmails": sent_emails,
+        "skippedNotDue": skipped_not_due,
         "errors": errors[:20],
+        "mode": "per_company_hours",
     }
 
     if reschedule and _cron_enabled():

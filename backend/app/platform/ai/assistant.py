@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+from contextvars import ContextVar
 from typing import Any
 from urllib import error as urlerror
 from urllib import request as urlrequest
@@ -16,7 +17,21 @@ from .openai_errors import OpenAiApiError, parse_openai_http_error, urlopen_with
 logger = logging.getLogger("baupass.ai")
 
 DEFAULT_AI_MODEL = "gpt-4o-mini"
+DEFAULT_AI_MODEL_ADMIN = "gpt-4o"
+_ADMIN_ROLES = frozenset({"company-admin", "superadmin", "admin"})
 _SK_TOKEN_RE = re.compile(r"sk-[A-Za-z0-9_-]{8,}")
+_ai_role_ctx: ContextVar[str] = ContextVar("baupass_ai_role", default="")
+
+
+def set_ai_role_context(role: str | None):
+    return _ai_role_ctx.set(str(role or "").strip().lower())
+
+
+def reset_ai_role_context(token) -> None:
+    try:
+        _ai_role_ctx.reset(token)
+    except Exception:
+        pass
 
 
 def _looks_like_openai_key(value: str) -> bool:
@@ -30,10 +45,17 @@ def _sanitize_error_detail(detail: str) -> str:
     return _SK_TOKEN_RE.sub("sk-***", detail or "")
 
 
-def resolve_ai_model() -> tuple[str, str | None]:
-    """Return (model_or_deployment_name, config_warning_or_none)."""
+def resolve_ai_model(*, role: str | None = None) -> tuple[str, str | None]:
+    """Return (model_or_deployment_name, config_warning_or_none).
+
+    Company admins / superadmins get a stronger default model (gpt-4o) unless
+    BAUPASS_AI_MODEL_ADMIN / BAUPASS_AI_MODEL override it.
+    """
+    role_l = str(role or _ai_role_ctx.get() or "").strip().lower()
     raw_model = (os.getenv("BAUPASS_AI_MODEL") or "").strip()
     azure_deployment = (os.getenv("AZURE_OPENAI_DEPLOYMENT") or "").strip()
+    admin_model = (os.getenv("BAUPASS_AI_MODEL_ADMIN") or "").strip()
+    azure_admin = (os.getenv("AZURE_OPENAI_DEPLOYMENT_ADMIN") or "").strip()
 
     if _looks_like_openai_key(raw_model):
         logger.warning("BAUPASS_AI_MODEL looks like an API key; using %s", DEFAULT_AI_MODEL)
@@ -47,6 +69,23 @@ def resolve_ai_model() -> tuple[str, str | None]:
             "AZURE_OPENAI_DEPLOYMENT enthält den API-Key. "
             "Nur den Deployment-Namen setzen (z. B. gpt-4o-mini)."
         )
+
+    # Stronger stack for platform admins (employer / superadmin).
+    if role_l in _ADMIN_ROLES:
+        if admin_model and not _looks_like_openai_key(admin_model):
+            return admin_model, None
+        if azure_admin and not _looks_like_openai_key(azure_admin):
+            return azure_admin, None
+        # Explicit global model still wins over the admin default.
+        if raw_model:
+            return raw_model, None
+        if azure_deployment:
+            return azure_deployment, None
+        return (
+            (os.getenv("BAUPASS_AI_MODEL_ADMIN_DEFAULT") or DEFAULT_AI_MODEL_ADMIN).strip()
+            or DEFAULT_AI_MODEL_ADMIN
+        ), None
+
     return (raw_model or DEFAULT_AI_MODEL), None
 
 
@@ -341,7 +380,7 @@ _CHAT_SYSTEM = (
     "You are Suppix AI — a friendly assistant for site operations and access control on WorkPass. "
     "The product is WorkPass by Suppix AI (Suppix Technologie UG). "
     "NEVER mention legacy names: BauPass Control, Control Pass, or Baupass Control. "
-    "Answer in the user's language (German, English, or Arabic). "
+    "Answer in the user's UI language (de, en, ar, tr, fr, es, it, or pl). "
     "Communicate naturally; understand informal phrasing and typos. "
     "Use ONLY the supplied context — do not invent workers, counts, or alerts. "
     "If data is missing, say so honestly and offer what you can do instead."
