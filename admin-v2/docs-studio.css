@@ -2300,6 +2300,28 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
 }
 .brand-card strong { display: block; font-size: 0.86rem; color: var(--text); }
 .brand-card span { display: block; font-size: 0.7rem; color: var(--muted); margin-top: 0.15rem; line-height: 1.35; }
+.brand-logo-actions {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.15rem 0 0.35rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--rail-line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel) 88%, var(--bg));
+}
+.brand-logo-actions.is-readonly {
+  opacity: 0.78;
+}
+.brand-logo-file input[type="file"] {
+  width: 100%;
+  font: inherit;
+  font-size: 0.74rem;
+  color: var(--text);
+}
+#brandLogoStatus:not([hidden]) {
+  margin: 0;
+  font-size: 0.72rem;
+}
 
 .placeholder-check-list {
   list-style: none;

@@ -199,6 +199,25 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         workers = _service.list_workers_brief(get_db(), cid)
         return jsonify({**ctx, "workers": workers})
 
+    @docs_v2_bp.put("/docs/company-logo")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def set_company_logo():
+        """Upload/clear tenant logo for docs letterhead (turnstile: read-only)."""
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        logo = data.get("logoData", data.get("logo_data", data.get("brandingLogoData")))
+        # Explicit null/empty clears; missing key is invalid.
+        if "logoData" not in data and "logo_data" not in data and "brandingLogoData" not in data:
+            return jsonify({"ok": False, "error": "logo_required", "message": "logoData fehlt."}), 400
+        result = _service.set_company_logo(get_db(), company_id=cid, logo_data=logo)
+        if not result.get("ok"):
+            status = 404 if result.get("error") == "company_not_found" else 400
+            return jsonify(result), status
+        return jsonify(result)
+
     @docs_v2_bp.post("/docs/fill-merge")
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")

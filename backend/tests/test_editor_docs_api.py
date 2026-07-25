@@ -217,6 +217,42 @@ def test_docs_merge_fill_and_versions_export(client_and_db):
     assert "suppix" not in letter_html.lower()
     assert "suppix" not in logo_data.lower()
 
+    # Tiny 1x1 PNG — company logo upload for letterhead.
+    tiny_png = (
+        "data:image/png;base64,"
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+    logo_put = client.put(
+        f"/api/v2/docs/company-logo?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "logoData": tiny_png},
+    )
+    assert logo_put.status_code == 200, logo_put.get_json()
+    logo_body = logo_put.get_json() or {}
+    assert logo_body.get("ok") is True
+    assert "data:image/png" in str((logo_body.get("branding") or {}).get("logoData") or "")
+    assert "<img" in str((logo_body.get("letterhead") or {}).get("headerHtml") or "").lower()
+
+    logo_clear = client.put(
+        f"/api/v2/docs/company-logo?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "logoData": ""},
+    )
+    assert logo_clear.status_code == 200
+    assert logo_clear.get_json().get("cleared") is True
+    assert not str((logo_clear.get_json().get("branding") or {}).get("logoData") or "").strip()
+
+    reject_platform = client.put(
+        f"/api/v2/docs/company-logo?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "logoData": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3ESUPPIX%3C/svg%3E",
+        },
+    )
+    assert reject_platform.status_code == 400
+    assert reject_platform.get_json().get("error") == "logo_platform_forbidden"
+
     export_doc = client.get(
         f"/api/v2/docs/{doc['id']}/export?company_id={cid}&format=doc",
         headers=headers,

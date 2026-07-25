@@ -402,6 +402,74 @@ class EditorDocsService:
 </div>"""
         return {"headerHtml": header, "footerHtml": footer}
 
+    def set_company_logo(self, db, *, company_id: str, logo_data: str | None) -> dict[str, Any]:
+        """Set or clear tenant company logo used by docs letterhead (no platform mark)."""
+        from backend.app.platform.company_branding import BRANDING_LOGO_MAX_LEN
+
+        raw = "" if logo_data is None else str(logo_data).strip()
+        if not raw:
+            db.execute(
+                "UPDATE companies SET branding_logo_data = '' WHERE id = ?",
+                (company_id,),
+            )
+            try:
+                db.commit()
+            except Exception:
+                pass
+            ctx = self.build_merge_context(db, company_id=company_id)
+            return {
+                "ok": True,
+                "cleared": True,
+                "branding": ctx.get("branding"),
+                "letterhead": ctx.get("letterhead"),
+            }
+
+        lowered = raw.lower()
+        if not lowered.startswith("data:image/") or "," not in raw:
+            return {
+                "ok": False,
+                "error": "logo_invalid_format",
+                "message": "Logo muss ein Bild als Data-URL sein (PNG/JPG/WebP/SVG).",
+            }
+        if "javascript:" in lowered or "<" in raw.split(",", 1)[0]:
+            return {
+                "ok": False,
+                "error": "logo_invalid_format",
+                "message": "Ungültiges Logo-Format.",
+            }
+        if "suppix" in lowered:
+            return {
+                "ok": False,
+                "error": "logo_platform_forbidden",
+                "message": "Plattform-Logo (SUPPIX) darf nicht als Firmenlogo gesetzt werden.",
+            }
+        if len(raw) > BRANDING_LOGO_MAX_LEN:
+            return {
+                "ok": False,
+                "error": "logo_too_large",
+                "message": "Logo zu groß (max. ca. 130 KB als PNG/JPG).",
+            }
+
+        row = db.execute("SELECT id FROM companies WHERE id = ?", (company_id,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "company_not_found", "message": "Firma nicht gefunden."}
+
+        db.execute(
+            "UPDATE companies SET branding_logo_data = ? WHERE id = ?",
+            (raw, company_id),
+        )
+        try:
+            db.commit()
+        except Exception:
+            pass
+        ctx = self.build_merge_context(db, company_id=company_id)
+        return {
+            "ok": True,
+            "cleared": False,
+            "branding": ctx.get("branding"),
+            "letterhead": ctx.get("letterhead"),
+        }
+
     def fill_merge_fields(
         self,
         db,

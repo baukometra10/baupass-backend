@@ -3667,12 +3667,31 @@
     }
   }
 
+  function canEditCompanyLogo() {
+    const role = currentUserRole();
+    return role === "superadmin" || role === "company-admin";
+  }
+
+  function syncBrandLogoControls() {
+    const canEdit = canEditCompanyLogo();
+    const file = $("brandLogoFile");
+    const uploadBtn = $("brandLogoUploadBtn");
+    const clearBtn = $("brandLogoClearBtn");
+    const readonlyHint = $("brandLogoReadonlyHint");
+    if (file) file.disabled = !canEdit;
+    if (uploadBtn) uploadBtn.disabled = !canEdit;
+    if (clearBtn) clearBtn.disabled = !canEdit;
+    if (readonlyHint) readonlyHint.hidden = canEdit;
+    $("brandLogoActions")?.classList.toggle("is-readonly", !canEdit);
+  }
+
   function renderBrandPreview() {
     const preview = $("brandPreview");
     const hint = $("brandHint");
     if (!companyBranding) {
       if (preview) preview.hidden = true;
       if (hint) hint.textContent = dt("brandLoading");
+      syncBrandLogoControls();
       return;
     }
     const name = companyBranding.companyName || dt("companyFallback");
@@ -3682,8 +3701,10 @@
     if ($("brandName")) $("brandName").textContent = name;
     if ($("brandMeta")) $("brandMeta").textContent = meta || dt("brandContactHint");
     const logo = $("brandLogo");
+    const hasLogo =
+      companyBranding.logoData && String(companyBranding.logoData).startsWith("data:image/");
     if (logo) {
-      if (companyBranding.logoData && String(companyBranding.logoData).startsWith("data:image/")) {
+      if (hasLogo) {
         logo.src = companyBranding.logoData;
         logo.hidden = false;
       } else {
@@ -3693,9 +3714,99 @@
     }
     if (preview) preview.hidden = false;
     if (hint) {
-      hint.textContent = companyBranding.logoData
+      hint.textContent = hasLogo
         ? dt("brandLogoOk")
-        : dt("brandLogoMissing");
+        : canEditCompanyLogo()
+          ? dt("brandLogoMissingCta")
+          : dt("brandLogoMissing");
+    }
+    syncBrandLogoControls();
+  }
+
+  const BRAND_LOGO_MAX_CHARS = 160000;
+
+  function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error(dt("brandLogoReadFail")));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function uploadCompanyLogoFromFile() {
+    if (!canEditCompanyLogo()) {
+      setStatus($("brandLogoStatus"), dt("brandLogoReadonly"), "err");
+      return;
+    }
+    const input = $("brandLogoFile");
+    const file = input?.files?.[0];
+    if (!file) {
+      setStatus($("brandLogoStatus"), dt("brandLogoNeedFile"), "err");
+      return;
+    }
+    if (!String(file.type || "").startsWith("image/")) {
+      setStatus($("brandLogoStatus"), dt("brandLogoBadType"), "err");
+      return;
+    }
+    setStatus($("brandLogoStatus"), dt("brandLogoUploading"), "");
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      if (!dataUrl.startsWith("data:image/")) {
+        setStatus($("brandLogoStatus"), dt("brandLogoBadType"), "err");
+        return;
+      }
+      if (dataUrl.length > BRAND_LOGO_MAX_CHARS) {
+        setStatus($("brandLogoStatus"), dt("brandLogoTooLarge"), "err");
+        return;
+      }
+      if (/suppix/i.test(dataUrl)) {
+        setStatus($("brandLogoStatus"), dt("brandLogoPlatformForbidden"), "err");
+        return;
+      }
+      const data = await api(`/api/v2/docs/company-logo${companyQuery()}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          logoData: dataUrl,
+        }),
+      });
+      companyBranding = data.branding || companyBranding;
+      companyLetterhead = data.letterhead || companyLetterhead;
+      renderBrandPreview();
+      if ($("useLetterhead")) $("useLetterhead").checked = true;
+      ensureCompanyLetterhead({ force: true, silent: true });
+      if (input) input.value = "";
+      setStatus($("brandLogoStatus"), dt("brandLogoUploadOk"), "ok");
+      setStatus($("saveStatus"), dt("brandLogoUploadOk"), "ok");
+    } catch (e) {
+      setStatus($("brandLogoStatus"), e.message || dt("brandLogoUploadFail"), "err");
+    }
+  }
+
+  async function clearCompanyLogo() {
+    if (!canEditCompanyLogo()) {
+      setStatus($("brandLogoStatus"), dt("brandLogoReadonly"), "err");
+      return;
+    }
+    if (!confirm(dt("brandLogoClearConfirm"))) return;
+    setStatus($("brandLogoStatus"), dt("brandLogoClearing"), "");
+    try {
+      const data = await api(`/api/v2/docs/company-logo${companyQuery()}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          logoData: "",
+        }),
+      });
+      companyBranding = data.branding || companyBranding;
+      companyLetterhead = data.letterhead || companyLetterhead;
+      renderBrandPreview();
+      if ($("useLetterhead")?.checked) ensureCompanyLetterhead({ force: true, silent: true });
+      setStatus($("brandLogoStatus"), dt("brandLogoClearOk"), "ok");
+      setStatus($("saveStatus"), dt("brandLogoClearOk"), "ok");
+    } catch (e) {
+      setStatus($("brandLogoStatus"), e.message || dt("brandLogoClearFail"), "err");
     }
   }
 
@@ -5886,6 +5997,24 @@
     $("applyLetterheadBtn")?.addEventListener("click", () => applyCompanyLetterhead());
     $("clearLetterheadBtn")?.addEventListener("click", () => clearCompanyLetterhead());
     $("useLetterhead")?.addEventListener("change", () => syncLetterheadFromToggle());
+    $("brandLogoUploadBtn")?.addEventListener("click", () => {
+      const status = $("brandLogoStatus");
+      if (status) status.hidden = false;
+      uploadCompanyLogoFromFile().catch(() => {});
+    });
+    $("brandLogoClearBtn")?.addEventListener("click", () => {
+      const status = $("brandLogoStatus");
+      if (status) status.hidden = false;
+      clearCompanyLogo().catch(() => {});
+    });
+    $("brandLogoFile")?.addEventListener("change", () => {
+      const status = $("brandLogoStatus");
+      if (status) {
+        status.hidden = false;
+        setStatus(status, $("brandLogoFile")?.files?.[0] ? dt("brandLogoReady") : "", "");
+      }
+    });
+    syncBrandLogoControls();
     document.querySelectorAll("[data-snippet]").forEach((btn) => {
       btn.addEventListener("click", () => insertSnippet(btn.getAttribute("data-snippet") || ""));
     });
