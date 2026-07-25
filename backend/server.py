@@ -8942,6 +8942,66 @@ def start_background_jobs():
             daemon=True,
         ).start()  # baupass:allow-inline-thread
 
+    def run_camera_webhook_retry_job():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_webhook import (
+                    run_camera_webhook_retries,
+                )
+
+                return run_camera_webhook_retries(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: camera webhook retry job failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc), "autoDial": False}
+
+    def camera_webhook_retry_loop():
+        interval = max(30, int(os.getenv("BAUPASS_CAMERA_WEBHOOK_RETRY_SECONDS", "60")))
+        while True:
+            run_camera_webhook_retry_job()
+            time.sleep(interval)
+
+    if str(os.getenv("BAUPASS_CAMERA_WEBHOOK_RETRY_JOB", "1")).strip().lower() not in {
+        "0",
+        "false",
+        "off",
+        "no",
+    }:
+        threading.Thread(
+            target=camera_webhook_retry_loop,
+            name="baupass-camera-webhook-retry",
+            daemon=True,
+        ).start()  # baupass:allow-inline-thread
+
+    def run_camera_evidence_retention_job():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_evidence_retention_job import (
+                    run_camera_evidence_retention,
+                )
+
+                return run_camera_evidence_retention(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: camera evidence retention job failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc), "autoDial": False}
+
+    def camera_evidence_retention_loop():
+        interval = max(300, int(os.getenv("BAUPASS_CAMERA_EVIDENCE_SECONDS", "3600")))
+        while True:
+            run_camera_evidence_retention_job()
+            time.sleep(interval)
+
+    if str(os.getenv("BAUPASS_CAMERA_EVIDENCE_JOB", "1")).strip().lower() not in {
+        "0",
+        "false",
+        "off",
+        "no",
+    }:
+        threading.Thread(
+            target=camera_evidence_retention_loop,
+            name="baupass-camera-evidence-retention",
+            daemon=True,
+        ).start()  # baupass:allow-inline-thread
+
     def run_platform_guardian_once():
         try:
             with app.app_context():

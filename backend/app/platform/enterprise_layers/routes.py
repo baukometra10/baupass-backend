@@ -528,6 +528,90 @@ def register_enterprise_layers(flask_app) -> None:
             return jsonify({"error": "not_found"}), 404
         return jsonify({"ok": True})
 
+    @enterprise_layers_bp.post("/integrations/cameras/watch/test-alarm")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def post_camera_watch_test_alarm():
+        from backend.app.platform.physical_operations.camera_escalation import create_test_alarm
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        try:
+            result = create_test_alarm(
+                get_db(),
+                cid,
+                dry_run=bool(data.get("dryRun") or data.get("dry_run")),
+                severity=str(data.get("severity") or "high"),
+                send_webhook=bool(data.get("sendWebhook", data.get("send_webhook", True))),
+                actor_user_id=str(g.current_user.get("id") or g.current_user.get("username") or ""),
+            )
+        except ValueError as exc:
+            return jsonify({"ok": False, "error": str(exc), "autoDial": False}), 400
+        return jsonify({**result, "autoDial": False})
+
+    @enterprise_layers_bp.post("/integrations/cameras/watch/test-webhook")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def post_camera_watch_test_webhook():
+        from backend.app.platform.physical_operations.camera_webhook import fire_test_webhook
+        from backend.app.platform.physical_operations.camera_watch import resolve_watch_settings
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        cfg = resolve_watch_settings(get_db(), cid)
+        result = fire_test_webhook(
+            get_db(),
+            cid,
+            url=str(data.get("url") or data.get("securityWebhookUrl") or "") or None,
+            secret=data.get("secret") if "secret" in data or "webhookSecret" in data else None,
+            watch_cfg={
+                **cfg,
+                "securityWebhookUrl": str(
+                    data.get("url") or data.get("securityWebhookUrl") or cfg.get("securityWebhookUrl") or ""
+                ),
+                "webhookSecret": str(
+                    data.get("secret")
+                    if "secret" in data
+                    else data.get("webhookSecret", cfg.get("webhookSecret") or "")
+                ),
+            },
+        )
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+
+    @enterprise_layers_bp.get("/integrations/cameras/watch/audit-export")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def get_camera_watch_audit_export():
+        from flask import Response
+
+        from backend.app.platform.physical_operations.camera_export import build_audit_export
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        fmt = str(request.args.get("format") or "json").strip().lower()
+        try:
+            data, mime, filename = build_audit_export(
+                get_db(),
+                cid,
+                from_ts=request.args.get("from") or request.args.get("from_ts"),
+                to_ts=request.args.get("to") or request.args.get("to_ts"),
+                fmt=fmt,
+                include_media=str(request.args.get("media") or "0").lower() in {"1", "true", "yes"},
+            )
+        except Exception as exc:
+            return jsonify({"error": str(exc), "autoDial": False}), 500
+        return Response(
+            data,
+            mimetype=mime,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
     @enterprise_layers_bp.get("/integrations/cameras/escalations")
     @require_auth
     @require_roles("superadmin", "company-admin")

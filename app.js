@@ -1080,7 +1080,7 @@ const UI_TRANSLATIONS = {
     camerasTabBulk: "Massen-Import",
     camerasTabSingle: "Einzelne Kamera",
     camerasTabBridge: "Bridge einrichten",
-    camerasBulkHint: "Pro Zeile: Name, Standort, RTSP-URL — Komma, Semikolon oder Tab. Max. 100.",
+    camerasBulkHint: "Pro Zeile: Name; Standort; RTSP[; Zone; Lat; Lng] — Komma, Semikolon oder Tab. Max. 100.",
     camerasBulkImportBtn: "Kameras importieren",
     camerasBulkSampleBtn: "Beispiel einfügen",
     camerasBulkSuccess: "{n} Kamera(s) importiert.",
@@ -21951,8 +21951,8 @@ if (camerasRefreshBtn) {
     if (!el) return;
     el.value = [
       "Tor Nord; Eingang; rtsp://192.168.1.101/stream1",
-      "Halle Ost; Lager; rtsp://192.168.1.102/stream1",
-      "Parkplatz; Außen; rtsp://192.168.1.103/stream1",
+      "Halle Ost; Lager; rtsp://192.168.1.102/stream1;Zone A;52.52;13.40",
+      "Parkplatz; Außen; rtsp://192.168.1.103/stream1;Tor;52.5201;13.405",
     ].join("\n");
   });
   document.getElementById("cameraBridgeRefreshBtn")?.addEventListener("click", () => {

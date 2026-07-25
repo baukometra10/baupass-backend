@@ -36,6 +36,7 @@ def build_camera_incident_pdf(
     police_suggestion: dict[str, Any] | None = None,
     history: list[dict[str, Any]] | None = None,
     disclaimer: str | None = None,
+    privacy_notice: str | None = None,
 ) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
@@ -105,6 +106,13 @@ def build_camera_incident_pdf(
             if note:
                 suffix += f" — {note}"[:60]
             line(f"  {ts} {et}{suffix}", size=8)
+
+    if privacy_notice:
+        y -= 2 * mm
+        line("Datenschutzhinweis / Privacy notice", bold=True, size=10)
+        notice = str(privacy_notice)[:500]
+        for i in range(0, len(notice), 110):
+            line(f"  {notice[i:i + 110]}", size=8)
 
     if disclaimer:
         y -= 2 * mm

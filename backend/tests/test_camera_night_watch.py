@@ -15,13 +15,25 @@ from backend.app.platform.physical_operations.camera_ai import analyze_camera_ev
 from backend.app.platform.physical_operations.camera_escalation import (
     acknowledge_escalation,
     create_critical_escalation,
+    create_test_alarm,
     get_escalation,
     list_escalations,
     mark_false_positive,
 )
 from backend.app.platform.physical_operations.camera_escalation_chain_job import run_camera_escalation_chain
-from backend.app.platform.physical_operations.camera_export import build_escalation_export_zip
-from backend.app.platform.physical_operations.camera_registry import create_camera, touch_camera_heartbeat
+from backend.app.platform.physical_operations.camera_evidence_retention_job import (
+    run_camera_evidence_retention,
+)
+from backend.app.platform.physical_operations.camera_export import (
+    build_audit_export,
+    build_escalation_export_zip,
+)
+from backend.app.platform.physical_operations.camera_notifications import notify_camera_violation
+from backend.app.platform.physical_operations.camera_registry import (
+    create_camera,
+    parse_camera_bulk_text,
+    touch_camera_heartbeat,
+)
 from backend.app.platform.physical_operations.camera_vision import (
     analyze_snapshot_b64,
     vision_result_to_event_payload,
@@ -32,11 +44,17 @@ from backend.app.platform.physical_operations.camera_watch import (
     is_after_hours,
     is_after_hours_for_site,
     is_alert_suppressed,
+    quiet_suppressed_channels,
     resolve_watch_settings,
     upsert_site_watch_settings,
     upsert_watch_override,
     upsert_watch_settings,
     watch_status,
+)
+from backend.app.platform.physical_operations.camera_webhook import (
+    build_webhook_headers,
+    fire_test_webhook,
+    sign_webhook_body,
 )
 from backend.app.platform.physical_operations.nvr_webhook import ingest_nvr_webhook, normalize_nvr_payload
 from backend.app.platform.physical_operations.police_directory import (
@@ -508,6 +526,212 @@ class CameraNightWatchTests(unittest.TestCase):
             self.assertIn("incident.pdf", names)
             self.assertIn("meta.json", names)
             self.assertIn("snapshot.jpg", names)
+        db.close()
+
+    def test_webhook_signature_header_when_secret_set(self):
+        body = b'{"type":"camera.test_webhook","test":true}'
+        secret = "unit-test-secret"
+        sig = sign_webhook_body(secret, body)
+        self.assertTrue(sig.startswith("sha256="))
+        headers = build_webhook_headers(
+            body=body,
+            secret=secret,
+            event="camera.test_webhook",
+            delivery_id="cwd-test-1",
+        )
+        self.assertEqual(headers["X-WorkPass-Signature"], sig)
+        self.assertEqual(headers["X-WorkPass-Event"], "camera.test_webhook")
+        self.assertEqual(headers["X-WorkPass-Delivery-Id"], "cwd-test-1")
+        unsigned = build_webhook_headers(body=body, secret="", event="camera.test_webhook")
+        self.assertNotIn("X-WorkPass-Signature", unsigned)
+
+    def test_quiet_hours_suppress_sms(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "timezone": "UTC",
+                "quietHours": {
+                    "enabled": True,
+                    "start": "00:00",
+                    "end": "23:59",
+                    "channels": ["sms"],
+                },
+                "notifyRules": {"sms": "high", "push": "high", "email": "immediate"},
+            },
+        )
+        cfg = resolve_watch_settings(db, "cmp-watch")
+        noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        suppressed = quiet_suppressed_channels(cfg, severity="high", at=noon)
+        self.assertIn("sms", suppressed)
+        # Critical may still allow push even if push listed
+        cfg2 = {
+            **cfg,
+            "quietHours": {"enabled": True, "start": "00:00", "end": "23:59", "channels": ["sms", "push"]},
+        }
+        suppressed_crit = quiet_suppressed_channels(cfg2, severity="critical", at=noon)
+        self.assertIn("sms", suppressed_crit)
+        self.assertNotIn("push", suppressed_crit)
+        db.close()
+
+    def test_evidence_retention_clears_old_clip(self):
+        db = self._conn()
+        upsert_watch_settings(db, "cmp-watch", {"enabled": True, "evidenceRetentionDays": 7})
+        clip = base64.b64encode(b"old-clip-bytes").decode("ascii")
+        snap = base64.b64encode(b"\xff\xd8\xff\xd9old").decode("ascii")
+        created = create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-ret-1",
+            camera_id="cam-ret",
+            camera_name="Ret",
+            location="Yard",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+            snapshot_b64=snap,
+            clip_b64=clip,
+        )
+        eid = created["id"]
+        db.execute(
+            "UPDATE camera_escalations SET created_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00.000000Z", eid),
+        )
+        db.commit()
+        out = run_camera_evidence_retention(db)
+        self.assertTrue(out.get("ok"))
+        self.assertGreaterEqual(int(out.get("cleared") or 0), 1)
+        row = db.execute(
+            "SELECT snapshot_b64, clip_b64, status FROM camera_escalations WHERE id = ?",
+            (eid,),
+        ).fetchone()
+        self.assertEqual(str(row["snapshot_b64"] or ""), "")
+        self.assertEqual(str(row["clip_b64"] or ""), "")
+        self.assertTrue(row["status"])  # metadata kept
+        db.close()
+
+    def test_bulk_parse_zone_lat_lng(self):
+        items = parse_camera_bulk_text(
+            "Gate; Yard; rtsp://1;Zone A;52.52;13.40\n"
+            "Legacy; Site; rtsp://2;cam-legacy-1"
+        )
+        self.assertEqual(len(items), 2)
+        self.assertEqual(items[0].get("zoneName"), "Zone A")
+        self.assertAlmostEqual(float(items[0]["latitude"]), 52.52)
+        self.assertAlmostEqual(float(items[0]["longitude"]), 13.40)
+        self.assertEqual(items[1].get("id"), "cam-legacy-1")
+
+    def test_test_alarm_and_test_webhook_helpers(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "requireDualAck": False,
+                "country": "DE",
+                "city": "Berlin",
+                "securityWebhookUrl": "",
+            },
+        )
+        dry = create_test_alarm(db, "cmp-watch", dry_run=True, severity="critical")
+        self.assertTrue(dry.get("ok"))
+        self.assertTrue(dry.get("dryRun"))
+        self.assertTrue(dry.get("test"))
+        self.assertFalse(dry.get("autoDial", True))
+        real = create_test_alarm(db, "cmp-watch", dry_run=False, severity="high")
+        self.assertTrue(real.get("ok"))
+        self.assertTrue(real.get("id"))
+        detail = get_escalation(db, "cmp-watch", real["id"])
+        self.assertTrue(detail.get("test"))
+        self.assertIn("slaLabel", detail)
+        self.assertIsInstance(detail.get("ageSeconds"), int)
+        tw = fire_test_webhook(db, "cmp-watch", url="")
+        self.assertFalse(tw.get("ok"))
+        self.assertEqual(tw.get("error"), "webhook_url_required")
+        self.assertFalse(tw.get("autoDial", True))
+        db.close()
+
+    def test_audit_export_returns_data(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "requireDualAck": False,
+                "privacyNotice": "Nur für Versicherer — kein Auto-Notruf.",
+                "country": "DE",
+                "city": "Berlin",
+            },
+        )
+        create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-audit-1",
+            camera_id="cam-audit",
+            camera_name="Audit Cam",
+            location="Yard",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+        )
+        raw, mime, filename = build_audit_export(
+            db, "cmp-watch", from_ts="2020-01-01", to_ts="2099-12-31", fmt="json"
+        )
+        self.assertEqual(mime, "application/json")
+        self.assertIn("audit", filename)
+        payload = __import__("json").loads(raw.decode("utf-8"))
+        self.assertGreaterEqual(int(payload["meta"]["count"]), 1)
+        self.assertIn("privacyNotice", payload["meta"])
+        self.assertFalse(payload["meta"].get("autoDial", True))
+        self.assertTrue(payload["escalations"][0].get("hasSnapshot") in (True, False))
+        zraw, zmime, _ = build_audit_export(db, "cmp-watch", fmt="zip")
+        self.assertEqual(zmime, "application/zip")
+        self.assertGreater(len(zraw), 50)
+        db.close()
+
+    def test_quiet_hours_in_notify_path(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "timezone": "UTC",
+                "requireDualAck": False,
+                "quietHours": {"enabled": True, "start": "00:00", "end": "23:59", "channels": ["sms"]},
+                "notifyRules": {"sms": "high", "push": "off", "email": "off"},
+            },
+        )
+        result = notify_camera_violation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-quiet-1",
+            camera_id="cam-q",
+            camera_name="Quiet",
+            location="Yard",
+            event_type="motion",
+            created_at="2026-07-20T12:00:00Z",
+            analysis={
+                "maxSeverity": "high",
+                "critical": False,
+                "afterHours": True,
+                "alerts": [{"type": "after_hours_activity", "severity": "high", "message": "night"}],
+            },
+        )
+        self.assertTrue(result.get("ok"))
+        self.assertIn("sms", result.get("quietSuppressed") or [])
+        self.assertFalse(result.get("smsSent"))
+        self.assertFalse(result.get("autoDial", True))
         db.close()
 
 

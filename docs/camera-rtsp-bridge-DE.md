@@ -71,17 +71,38 @@ Außerhalb der Betriebszeiten (Standard 06:00–18:00, Mo–Fr, TZ `Europe/Berli
 
 - Events werden höher priorisiert (`afterHours`), Bewegung → „Verdächtiger Vorfall“ (kein bestätigter Diebstahl)
 - Kritische Events erzwingen Snapshot (Payload oder letzter Heartbeat-Frame)
-- Critical-Pack mit **Polizei-Vorschlag** (Land/Stadt/Koordinaten, OSM-Cache) — **kein Auto-Notruf**
+- Critical-Pack mit **Polizei-Vorschlag** (Land/Stadt/Koordinaten, OSM-Cache) — **kein Auto-Notruf** (nur assisted / menschliche Freigabe)
 - Critical: SMS/Push an Firma + optional kurzer Video-Clip (5–10 s) vom RTSP-Agent
 - Fehlalarm-Feedback senkt Wiederholungsalarme (Lern-Schwellen)
 - Multi-Standort: Watch-Zeiten/Koordinaten pro Site (`camera_watch_sites`, Location = Site-Key)
 - UI: `/admin-v2/camera-watch.html` (Einstellungen, Sites, Eskalations-Detail)
+- Admin-Push öffnet `/admin-v2/camera-watch.html?company_id=…&escalation=…` (Deep-Link; Mobile-Worker-App hat keinen Admin-Route-Handler — Push ist für Admin-Web)
 - API:
   - `GET/PUT /api/integrations/cameras/watch`
   - `PUT/DELETE /api/integrations/cameras/watch/sites/<site_key>`
+  - `POST /api/integrations/cameras/watch/test-alarm` — kurzer Test-Escalation (`test: true`)
+  - `POST /api/integrations/cameras/watch/test-webhook` — nur Sample-Webhook (ohne Escalation)
+  - `GET /api/integrations/cameras/watch/audit-export?from=&to=&format=json|zip` — Versicherer-Audit (ohne große Medien)
   - `GET /api/integrations/cameras/escalations[/<id>]`
   - `POST .../escalations/<id>/ack`
   - `POST .../escalations/<id>/false-positive`
+
+### Paket A – Ops (Signatur, Retry, Ruhezeiten, SLA)
+
+- Security-Webhook mit optionalem HMAC: Header `X-WorkPass-Signature: sha256=<hex>` über den Roh-Body (`webhook_secret`), plus `X-WorkPass-Event`, `X-WorkPass-Delivery-Id`
+- Fehlgeschlagene Deliveries → `camera_webhook_deliveries` mit Exponential Backoff (`BAUPASS_CAMERA_WEBHOOK_RETRY_JOB`, ~60 s)
+- Ruhezeiten (`quiet_hours_json`): gelistete Kanäle unterdrücken (Default SMS); Critical-Push bleibt möglich; SMS nur mit `notifyRules.smsQuietBypass=true`
+- Escalation-Serialize: `ageSeconds`, `chainStage`, `chainNextAt`, `slaLabel` („offen seit Xm · Stufe n · …“)
+
+### Paket B – Evidenz & Compliance
+
+- `evidence_retention_days` (Default 30): Job löscht `snapshot_b64`/`clip_b64` alter Escalations, behält Meta/History (`BAUPASS_CAMERA_EVIDENCE_JOB`, ~3600 s)
+- Audit-Export + Datenschutzhinweis (`privacy_notice`) in GET watch / UI-Banner / PDF-Meta (erste 500 Zeichen)
+
+### Paket C – Alltag
+
+- Webhook-Onboarding in camera-watch (Teams/Slack/curl-Beispiel, Test-Webhook + Test-Alarm)
+- Massen-Import: `name;location;rtsp;zone;lat;lng[;id]`
 
 **Vision-Job** (alle ~300 s, `BAUPASS_CAMERA_VISION_SECONDS`): holt Snapshots nach Feierabend und analysiert (OpenAI/Azure Vision oder Heuristik).
 
@@ -95,6 +116,10 @@ Außerhalb der Betriebszeiten (Standard 06:00–18:00, Mo–Fr, TZ `Europe/Berli
 | `BAUPASS_OVERPASS_URL` | optionaler Overpass-Endpoint |
 | `BAUPASS_CAMERA_CLIP` | Agent: immer Clip mitschicken |
 | `BAUPASS_CAMERA_CLIP_SECONDS` | Clip-Länge 5–10 (default 8) |
+| `BAUPASS_CAMERA_WEBHOOK_RETRY_JOB` | Webhook-Retry-Job an/aus (default an) |
+| `BAUPASS_CAMERA_WEBHOOK_RETRY_SECONDS` | Retry-Intervall (default 60) |
+| `BAUPASS_CAMERA_EVIDENCE_JOB` | Evidenz-Retention-Job an/aus (default an) |
+| `BAUPASS_CAMERA_EVIDENCE_SECONDS` | Retention-Intervall (default 3600) |
 
 ## Gesichtserkennung
 
@@ -110,14 +135,16 @@ WorkPass → **Geräte** → Tab **Massen-Import**
 
 ```
 Tor Nord; Eingang; rtsp://192.168.1.101/stream1
-Halle Ost; Lager; rtsp://192.168.1.102/stream1
+Halle Ost; Lager; rtsp://192.168.1.102/stream1;Zone A;52.52;13.40
 ```
+
+Spalten: `name;location;rtsp[;zone[;lat;lng[;id]]]` — Komma/Semikolon/Tab. Altes 4-Felder-Format mit `cam-…` als ID bleibt gültig.
 
 API:
 
 ```json
 POST /api/integrations/cameras/bulk
-{ "lines": "Tor Nord; Eingang; rtsp://...\nHalle; Lager; rtsp://..." }
+{ "lines": "Tor Nord; Eingang; rtsp://...\nHalle; Lager; rtsp://...;Zone A;52.52;13.40" }
 ```
 
 ## Multi-Kamera-Agent

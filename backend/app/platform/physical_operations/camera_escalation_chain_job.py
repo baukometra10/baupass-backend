@@ -101,21 +101,24 @@ def _notify_second_contact(db, contact: str, *, title: str, message: str) -> dic
     return result
 
 
-def _post_security_webhook(url: str, payload: dict[str, Any]) -> bool:
+def _post_security_webhook(db, url: str, payload: dict[str, Any], *, cfg: dict[str, Any] | None = None) -> bool:
     if not str(url or "").startswith("http"):
         return False
     try:
-        import urllib.request
+        from .camera_webhook import deliver_or_enqueue_webhook
 
-        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-        req = urllib.request.Request(
-            str(url),
-            data=body,
-            headers={"Content-Type": "application/json"},
-            method="POST",
+        settings = cfg or {}
+        result = deliver_or_enqueue_webhook(
+            db,
+            company_id=str(payload.get("companyId") or ""),
+            url=url,
+            payload=payload,
+            secret=str(settings.get("webhookSecret") or ""),
+            event=str(payload.get("type") or "camera.escalation_chain_security"),
+            escalation_id=str(payload.get("escalationId") or ""),
+            retry_max=int(settings.get("webhookRetryMax") or 3),
         )
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            return 200 <= int(resp.status) < 300
+        return bool(result.get("ok") or result.get("queued"))
     except Exception:
         return False
 
@@ -198,6 +201,7 @@ def run_camera_escalation_chain(db) -> dict[str, Any]:
             if stage == 1:
                 webhook = str(cfg.get("securityWebhookUrl") or "").strip()
                 sent = _post_security_webhook(
+                    db,
                     webhook,
                     {
                         "type": "camera.escalation_chain_security",
@@ -208,7 +212,9 @@ def run_camera_escalation_chain(db) -> dict[str, Any]:
                         "severity": row["severity"],
                         "autoDial": False,
                         "chainStage": 2,
+                        "test": bool(details.get("test")),
                     },
+                    cfg=cfg,
                 )
                 _advance_chain(db, row, stage=2, next_at=None)
                 _append_chain_event(

@@ -110,6 +110,10 @@ def _notify_sms_push(
             from backend.app.platform.push.admin_delivery import deliver_admin_push
 
             esc = escalation_id or event_id or "cam"
+            # Deep-link always includes company_id; escalation id when available
+            deep = f"/admin-v2/camera-watch.html?company_id={company_id}"
+            if escalation_id:
+                deep = f"{deep}&escalation={escalation_id}"
             push = deliver_admin_push(
                 db,
                 str(company_id),
@@ -117,9 +121,10 @@ def _notify_sms_push(
                 message[:160],
                 tag=f"camera-{esc}"[:64],
                 extra={
-                    "url": f"/admin-v2/camera-watch.html?company_id={company_id}"
-                    + (f"&escalation={escalation_id}" if escalation_id else ""),
+                    "url": deep,
                     "kind": "camera_critical",
+                    "company_id": str(company_id),
+                    "escalation": str(escalation_id or ""),
                 },
             )
             result["push"] = int(push.get("sent") or 0) > 0
@@ -175,7 +180,7 @@ def notify_camera_violation(
     if len(alert_lines) > 1:
         summary = f"{summary} (+{len(alert_lines) - 1} weitere)"
 
-    from .camera_watch import resolve_watch_settings, severity_rank
+    from .camera_watch import quiet_suppressed_channels, resolve_watch_settings, severity_rank
 
     after_hours = bool(analysis.get("afterHours"))
     max_sev = str(analysis.get("maxSeverity") or "").lower() or "info"
@@ -190,6 +195,13 @@ def notify_camera_violation(
     send_push_flag = severity_rank(max_sev) >= severity_rank(push_min)
     # Digest mode: skip immediate email unless critical
     send_email_now = not (email_mode == "digest" and not critical)
+    quiet_skip = quiet_suppressed_channels(watch_cfg, severity=max_sev)
+    if "sms" in quiet_skip:
+        send_sms_flag = False
+    if "push" in quiet_skip:
+        send_push_flag = False
+    if "email" in quiet_skip:
+        send_email_now = False
     watch_tag = " [Außerhalb Arbeitszeit / Watch-Mode]" if after_hours else ""
     title = f"Kamera-Alarm{watch_tag}: {camera_name or camera_id}"
     message = (
@@ -341,6 +353,7 @@ def notify_camera_violation(
         "police": (escalation or {}).get("police") if isinstance(escalation, dict) else None,
         "smsSent": channels.get("sms"),
         "pushSent": channels.get("push"),
+        "quietSuppressed": sorted(quiet_skip),
         "notifyRules": notify_rules,
         "autoDial": False,
     }

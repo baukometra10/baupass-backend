@@ -74,6 +74,16 @@
       latitude: lat === "" ? null : Number(lat),
       longitude: lng === "" ? null : Number(lng),
       securityWebhookUrl: get("securityWebhookUrl") || "",
+      webhookSecret: get("webhookSecret") || "",
+      webhookRetryMax: Number(get("webhookRetryMax") || 3) || 3,
+      evidenceRetentionDays: Number(get("evidenceRetentionDays") || 30) || 30,
+      privacyNotice: get("privacyNotice") || "",
+      quietHours: {
+        enabled: get("quietEnabled") === "1" || get("quietEnabled") === "true",
+        start: get("quietStart") || "22:00",
+        end: get("quietEnd") || "06:00",
+        channels: ["sms"],
+      },
       siteName: get("siteName") || "",
       siteKey: get("siteKey") || "",
       escalateAfterMinutes: Number(get("escalateAfterMinutes") || 15) || 15,
@@ -105,6 +115,14 @@
     set("latitude", data.latitude ?? "");
     set("longitude", data.longitude ?? "");
     set("securityWebhookUrl", data.securityWebhookUrl || "");
+    set("webhookSecret", data.webhookSecret || "");
+    set("webhookRetryMax", data.webhookRetryMax ?? 3);
+    set("evidenceRetentionDays", data.evidenceRetentionDays ?? 30);
+    set("privacyNotice", data.privacyNotice || "");
+    const qh = data.quietHours || {};
+    set("quietEnabled", qh.enabled ? "1" : "0");
+    set("quietStart", qh.start || "22:00");
+    set("quietEnd", qh.end || "06:00");
     set("siteKey", data.siteKey || "");
     set("siteName", data.siteName || "");
     set("escalateAfterMinutes", data.escalateAfterMinutes ?? 15);
@@ -114,6 +132,35 @@
     set("notifySms", rules.sms || "critical");
     set("notifyPush", rules.push || "high");
     set("notifyEmail", rules.email || "immediate");
+  }
+
+  function renderPrivacyAndWebhookHelp() {
+    const notice = String(state.watch?.privacyNotice || "").trim();
+    const banner = $("cwPrivacyBanner");
+    const text = $("cwPrivacyText");
+    if (banner && text) {
+      if (notice) {
+        banner.hidden = false;
+        text.textContent = notice;
+      } else {
+        banner.hidden = true;
+        text.textContent = "";
+      }
+    }
+    const curl = $("cwWebhookCurl");
+    if (!curl) return;
+    const url = state.watch?.securityWebhookUrl || "https://hooks.example.com/services/…";
+    curl.textContent = [
+      "# Beispiel (Test-Webhook)",
+      `curl -X POST '${url}' \\`,
+      "  -H 'Content-Type: application/json' \\",
+      "  -H 'X-WorkPass-Event: camera.test_webhook' \\",
+      "  -H 'X-WorkPass-Delivery-Id: cwd-example' \\",
+      "  -H 'X-WorkPass-Signature: sha256=<hmac-hex>' \\",
+      `  -d '{"type":"camera.test_webhook","test":true,"autoDial":false,"companyId":"${companyId}"}'`,
+      "",
+      "# In dieser UI: URL + optional Secret speichern → „Test-Webhook“",
+    ].join("\n");
   }
 
   function setMsg(id, text, ok = true) {
@@ -214,10 +261,14 @@
         const dual = e.dualAckRequired
           ? ` · Ack ${e.ackCount || 0}/2`
           : "";
-        const chain = e.chainStage != null ? ` · Kette ${e.chainStage}` : "";
+        const sla = e.slaLabel
+          ? escapeHtml(e.slaLabel)
+          : `Stufe ${escapeHtml(String(e.chainStage ?? 0))}`;
+        const testTag = e.test ? " · TEST" : "";
         return `<li class="${active}" data-esc="${escapeAttr(e.id)}">
           <strong>${escapeHtml(e.cameraName || e.cameraId || "Kamera")}</strong>
-          <span class="muted"> · ${escapeHtml(e.status || "")}${dual}${chain}</span><br/>
+          <span class="muted"> · ${escapeHtml(e.status || "")}${dual}${testTag}</span><br/>
+          <span class="muted">${sla}</span><br/>
           <span class="muted">${escapeHtml(e.policeName || e.policePhone || "Polizei-Vorschlag")}</span>
         </li>`;
       })
@@ -314,11 +365,15 @@
         e.eventType,
         e.siteKey || e.location,
         e.createdAt,
-        e.chainStage != null ? `Kette ${e.chainStage}` : "",
+        e.test ? "TEST" : "",
         e.falsePositive ? "Fehlalarm" : "",
       ]
         .filter(Boolean)
         .join(" · ");
+      const slaEl = $("cwDetailSla");
+      if (slaEl) {
+        slaEl.textContent = e.slaLabel || `offen · Stufe ${e.chainStage ?? 0}`;
+      }
       const need = e.dualAckRequired ? 2 : 1;
       const have = Number(e.ackCount || 0);
       $("cwAckBadge").textContent = e.dualAckRequired
@@ -375,6 +430,7 @@
       state.escalations = Array.isArray(data.escalations) ? data.escalations : [];
       state.cameras = Array.isArray(cams.cameras) ? cams.cameras : [];
       fillForm($("cwCompanyForm"), state.watch);
+      renderPrivacyAndWebhookHelp();
       const badge = $("cwWatchBadge");
       if (badge) {
         badge.textContent = state.watch.afterHours
@@ -499,6 +555,67 @@
         await refresh();
       } catch (err) {
         setMsg("cwDetailMsg", err.message || "Fehler", false);
+      }
+    });
+
+    $("cwTestAlarm")?.addEventListener("click", async () => {
+      try {
+        const data = await api("/api/integrations/cameras/watch/test-alarm", {
+          method: "POST",
+          body: JSON.stringify({ severity: "high" }),
+        });
+        setMsg(
+          "cwCompanyMsg",
+          data.dryRun
+            ? "Dry-Run OK (kein Escalation)."
+            : `Test-Alarm erstellt${data.id ? `: ${data.id}` : ""}. Kein Auto-Notruf.`,
+          true,
+        );
+        await refresh();
+        if (data.id) await loadEscalationDetail(data.id);
+      } catch (err) {
+        setMsg("cwCompanyMsg", err.message || "Test-Alarm fehlgeschlagen", false);
+      }
+    });
+
+    $("cwTestWebhook")?.addEventListener("click", async () => {
+      try {
+        const payload = formToPayload($("cwCompanyForm"));
+        const data = await api("/api/integrations/cameras/watch/test-webhook", {
+          method: "POST",
+          body: JSON.stringify({
+            url: payload.securityWebhookUrl || undefined,
+            secret: payload.webhookSecret || undefined,
+          }),
+        });
+        setMsg(
+          "cwCompanyMsg",
+          data.ok
+            ? `Test-Webhook gesendet${data.signed ? " (signiert)" : ""}.`
+            : data.error || "Webhook fehlgeschlagen",
+          !!data.ok,
+        );
+      } catch (err) {
+        setMsg("cwCompanyMsg", err.message || "Test-Webhook fehlgeschlagen", false);
+      }
+    });
+
+    $("cwAuditExport")?.addEventListener("click", async () => {
+      try {
+        const res = await fetch(qs("/api/integrations/cameras/watch/audit-export?format=json"), {
+          headers: headers(),
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("audit_export_failed");
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `camera-watch-audit-${companyId || "export"}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setMsg("cwCompanyMsg", "Audit-Export heruntergeladen.", true);
+      } catch (err) {
+        setMsg("cwCompanyMsg", err.message || "Audit-Export fehlgeschlagen", false);
       }
     });
 

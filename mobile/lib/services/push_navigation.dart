@@ -14,6 +14,8 @@ class PushNavigation {
         /* fall through */
       }
     }
+    // Admin camera-watch pushes use url=/admin-v2/camera-watch.html?company_id=&escalation=
+    // (see camera_notifications.deliver_admin_push). Worker app has no admin route — ignore.
     switch (data['tag']) {
       case 'deployment-plan':
       case 'deployment_plan':

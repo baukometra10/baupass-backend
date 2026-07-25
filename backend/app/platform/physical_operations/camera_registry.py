@@ -156,7 +156,10 @@ def _slug_camera_id(name: str) -> str:
 
 
 def parse_camera_bulk_text(text: str) -> list[dict[str, Any]]:
-    """Parse bulk camera lines: name,location,rtsp (comma/semicolon/tab)."""
+    """Parse bulk camera lines: name;location;rtsp[;zone[;lat;lng[;id]]] (comma/semicolon/tab).
+
+    Backward compatible: a lone 4th field starting with ``cam-`` is treated as id.
+    """
     items: list[dict[str, Any]] = []
     for raw in str(text or "").splitlines():
         line = raw.strip()
@@ -177,11 +180,41 @@ def parse_camera_bulk_text(text: str) -> list[dict[str, Any]]:
             "name": name,
             "location": location,
             "rtspUrl": rtsp_url,
+            "id": _slug_camera_id(name),
         }
-        if parts[0] and len(parts) >= 4 and parts[3]:
-            item["id"] = parts[3]
-        else:
-            item["id"] = _slug_camera_id(name)
+        n = len(parts)
+        if n >= 6:
+            if parts[3]:
+                item["zoneName"] = parts[3]
+                item["zone_name"] = parts[3]
+            try:
+                if parts[4] != "":
+                    item["latitude"] = float(parts[4])
+            except Exception:
+                pass
+            try:
+                if parts[5] != "":
+                    item["longitude"] = float(parts[5])
+            except Exception:
+                pass
+            if n >= 7 and parts[6]:
+                item["id"] = parts[6]
+        elif n == 5:
+            if parts[3]:
+                item["zoneName"] = parts[3]
+                item["zone_name"] = parts[3]
+            try:
+                if parts[4] != "":
+                    item["latitude"] = float(parts[4])
+            except Exception:
+                pass
+        elif n == 4 and parts[3]:
+            fourth = parts[3]
+            if fourth.lower().startswith("cam-"):
+                item["id"] = fourth
+            else:
+                item["zoneName"] = fourth
+                item["zone_name"] = fourth
         items.append(item)
     return items
 
@@ -213,6 +246,12 @@ def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dic
             "location": str(item.get("location") or "").strip(),
             "rtspUrl": str(item.get("rtspUrl") or item.get("rtsp_url") or "").strip(),
         }
+        if item.get("zoneName") or item.get("zone_name"):
+            payload["zoneName"] = str(item.get("zoneName") or item.get("zone_name") or "").strip()
+        if item.get("latitude") is not None:
+            payload["latitude"] = item.get("latitude")
+        if item.get("longitude") is not None:
+            payload["longitude"] = item.get("longitude")
         try:
             existing = get_camera(db, company_id, cam_id)
             if existing:

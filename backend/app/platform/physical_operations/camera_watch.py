@@ -19,6 +19,14 @@ DEFAULT_NOTIFY_RULES: dict[str, Any] = {
     "push": "high",
     "email": "immediate",
 }
+DEFAULT_QUIET_HOURS: dict[str, Any] = {
+    "enabled": False,
+    "start": "22:00",
+    "end": "06:00",
+    "channels": ["sms"],
+}
+DEFAULT_WEBHOOK_RETRY_MAX = 3
+DEFAULT_EVIDENCE_RETENTION_DAYS = 30
 OVERRIDE_KINDS = frozenset({"holiday", "special_hours", "force_watch", "force_open", "force_after_hours"})
 
 
@@ -98,6 +106,104 @@ def _notify_rules_json(rules: dict[str, Any] | None) -> str:
     return json.dumps(rules if isinstance(rules, dict) else DEFAULT_NOTIFY_RULES, ensure_ascii=False)
 
 
+def _parse_quiet_hours(raw: Any) -> dict[str, Any]:
+    base = dict(DEFAULT_QUIET_HOURS)
+    data = raw
+    if isinstance(raw, str):
+        try:
+            data = json.loads(raw or "{}")
+        except Exception:
+            data = {}
+    if not isinstance(data, dict):
+        return base
+    channels = data.get("channels", base["channels"])
+    if isinstance(channels, str):
+        channels = [c.strip() for c in channels.split(",") if c.strip()]
+    if not isinstance(channels, list):
+        channels = list(base["channels"])
+    channels = [str(c).strip().lower() for c in channels if str(c).strip()]
+    return {
+        "enabled": _parse_bool(data.get("enabled"), False),
+        "start": str(data.get("start") or base["start"]).strip()[:8] or base["start"],
+        "end": str(data.get("end") or base["end"]).strip()[:8] or base["end"],
+        "channels": channels or list(base["channels"]),
+    }
+
+
+def _quiet_hours_json(qh: dict[str, Any] | None) -> str:
+    return json.dumps(_parse_quiet_hours(qh), ensure_ascii=False)
+
+
+def _parse_retry_max(value: Any, default: int = DEFAULT_WEBHOOK_RETRY_MAX) -> int:
+    try:
+        return max(0, min(20, int(value)))
+    except Exception:
+        return default
+
+
+def _parse_retention_days(value: Any, default: int = DEFAULT_EVIDENCE_RETENTION_DAYS) -> int:
+    try:
+        return max(1, min(3650, int(value)))
+    except Exception:
+        return default
+
+
+def is_in_quiet_hours(
+    settings: dict[str, Any] | None,
+    *,
+    at: datetime | None = None,
+) -> bool:
+    """True when quiet_hours.enabled and local clock is inside start–end window."""
+    cfg = settings or {}
+    qh = _parse_quiet_hours(cfg.get("quietHours") or cfg.get("quiet_hours"))
+    if not qh.get("enabled"):
+        return False
+    tz = _resolve_tz(str(cfg.get("timezone") or DEFAULT_TZ))
+    now = at.astimezone(tz) if at is not None else datetime.now(tz)
+    start = _parse_hhmm(str(qh.get("start") or "22:00"), "22:00")
+    end = _parse_hhmm(str(qh.get("end") or "06:00"), "06:00")
+    cur = now.timetz().replace(tzinfo=None) if hasattr(now, "timetz") else now.time()
+    # Quiet window uses same overnight logic as work window: inside [start,end) or overnight wrap
+    if start <= end:
+        return start <= cur < end
+    return cur >= start or cur < end
+
+
+def quiet_suppressed_channels(
+    settings: dict[str, Any] | None,
+    *,
+    severity: str = "",
+    at: datetime | None = None,
+) -> set[str]:
+    """Channels to skip during quiet hours.
+
+    Default suppresses SMS. Critical may still push unless push is listed AND
+    notifyRules block it — SMS stays suppressed unless notifyRules.smsQuietBypass.
+    """
+    cfg = settings or {}
+    if not is_in_quiet_hours(cfg, at=at):
+        return set()
+    qh = _parse_quiet_hours(cfg.get("quietHours") or cfg.get("quiet_hours"))
+    channels = {str(c).lower() for c in (qh.get("channels") or ["sms"])}
+    notify_rules = cfg.get("notifyRules") if isinstance(cfg.get("notifyRules"), dict) else {}
+    sms_bypass = _parse_bool(notify_rules.get("smsQuietBypass"), False)
+    critical = severity_rank(severity) >= severity_rank("critical")
+    suppressed: set[str] = set()
+    for ch in channels:
+        if ch == "sms":
+            if not sms_bypass:
+                suppressed.add("sms")
+            continue
+        # Critical may still use push/email even if listed, unless explicitly off
+        if critical and ch in {"push", "email"}:
+            continue
+        suppressed.add(ch)
+    # Invariant: SMS quiet-suppress unless bypass (even if not listed)
+    if "sms" not in channels and not sms_bypass:
+        suppressed.add("sms")
+    return suppressed
+
+
 def default_watch_settings(company_id: str) -> dict[str, Any]:
     return {
         "companyId": str(company_id),
@@ -111,6 +217,11 @@ def default_watch_settings(company_id: str) -> dict[str, Any]:
         "latitude": None,
         "longitude": None,
         "securityWebhookUrl": "",
+        "webhookSecret": "",
+        "webhookRetryMax": DEFAULT_WEBHOOK_RETRY_MAX,
+        "evidenceRetentionDays": DEFAULT_EVIDENCE_RETENTION_DAYS,
+        "privacyNotice": "",
+        "quietHours": dict(DEFAULT_QUIET_HOURS),
         "escalateAfterMinutes": DEFAULT_ESCALATE_AFTER_MINUTES,
         "escalateSecondContact": "",
         "requireDualAck": True,
@@ -145,6 +256,15 @@ def get_watch_settings(db, company_id: str) -> dict[str, Any]:
         "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
         "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
         "securityWebhookUrl": str(row["security_webhook_url"] or ""),
+        "webhookSecret": str(_row_get(row, "webhook_secret", "") or ""),
+        "webhookRetryMax": _parse_retry_max(
+            _row_get(row, "webhook_retry_max", DEFAULT_WEBHOOK_RETRY_MAX)
+        ),
+        "evidenceRetentionDays": _parse_retention_days(
+            _row_get(row, "evidence_retention_days", DEFAULT_EVIDENCE_RETENTION_DAYS)
+        ),
+        "privacyNotice": str(_row_get(row, "privacy_notice", "") or ""),
+        "quietHours": _parse_quiet_hours(_row_get(row, "quiet_hours_json", "{}")),
         "escalateAfterMinutes": _parse_escalate_minutes(
             _row_get(row, "escalate_after_minutes", DEFAULT_ESCALATE_AFTER_MINUTES)
         ),
@@ -152,6 +272,46 @@ def get_watch_settings(db, company_id: str) -> dict[str, Any]:
         "requireDualAck": _parse_bool(_row_get(row, "require_dual_ack", 1), True),
         "notifyRules": _parse_notify_rules(_row_get(row, "notify_rules_json", "{}")),
         "updatedAt": str(row["updated_at"] or "") or None,
+    }
+
+
+def _extract_ops_fields(data: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
+    webhook_secret = str(
+        data.get("webhookSecret")
+        if "webhookSecret" in data or "webhook_secret" in data
+        else cur.get("webhookSecret") or ""
+    ).strip()[:200]
+    if "webhookSecret" in data or "webhook_secret" in data:
+        webhook_secret = str(data.get("webhookSecret", data.get("webhook_secret")) or "").strip()[:200]
+    retry_max = _parse_retry_max(
+        data.get("webhookRetryMax", data.get("webhook_retry_max", cur.get("webhookRetryMax"))),
+        DEFAULT_WEBHOOK_RETRY_MAX,
+    )
+    retention = _parse_retention_days(
+        data.get(
+            "evidenceRetentionDays",
+            data.get("evidence_retention_days", cur.get("evidenceRetentionDays")),
+        ),
+        DEFAULT_EVIDENCE_RETENTION_DAYS,
+    )
+    privacy = str(
+        data.get("privacyNotice")
+        if "privacyNotice" in data or "privacy_notice" in data
+        else cur.get("privacyNotice") or ""
+    ).strip()[:4000]
+    if "privacyNotice" in data or "privacy_notice" in data:
+        privacy = str(data.get("privacyNotice", data.get("privacy_notice")) or "").strip()[:4000]
+    if "quietHours" in data or "quiet_hours" in data:
+        quiet = _parse_quiet_hours(data.get("quietHours", data.get("quiet_hours")))
+    else:
+        quiet = _parse_quiet_hours(cur.get("quietHours"))
+    return {
+        "webhookSecret": webhook_secret,
+        "webhookRetryMax": retry_max,
+        "evidenceRetentionDays": retention,
+        "privacyNotice": privacy,
+        "quietHours": quiet,
+        "quietHoursJson": _quiet_hours_json(quiet),
     }
 
 
@@ -204,6 +364,7 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
     else:
         notify_rules = _parse_notify_rules(cur.get("notifyRules"))
     notify_json = _notify_rules_json(notify_rules)
+    ops = _extract_ops_fields(data, cur)
     ts = now_iso()
     try:
         db.execute(
@@ -212,8 +373,9 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 company_id, enabled, timezone, work_start, work_end, work_days,
                 country, city, latitude, longitude, security_webhook_url,
                 escalate_after_minutes, escalate_second_contact, require_dual_ack,
-                notify_rules_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                notify_rules_json, webhook_secret, webhook_retry_max,
+                evidence_retention_days, privacy_notice, quiet_hours_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(company_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 timezone = excluded.timezone,
@@ -229,6 +391,11 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 escalate_second_contact = excluded.escalate_second_contact,
                 require_dual_ack = excluded.require_dual_ack,
                 notify_rules_json = excluded.notify_rules_json,
+                webhook_secret = excluded.webhook_secret,
+                webhook_retry_max = excluded.webhook_retry_max,
+                evidence_retention_days = excluded.evidence_retention_days,
+                privacy_notice = excluded.privacy_notice,
+                quiet_hours_json = excluded.quiet_hours_json,
                 updated_at = excluded.updated_at
             """,
             (
@@ -247,47 +414,99 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 second_contact,
                 1 if require_dual else 0,
                 notify_json,
+                ops["webhookSecret"],
+                ops["webhookRetryMax"],
+                ops["evidenceRetentionDays"],
+                ops["privacyNotice"],
+                ops["quietHoursJson"],
                 ts,
             ),
         )
         db.commit()
     except Exception:
         # Graceful: new columns missing — keep old INSERT path
-        db.execute(
-            """
-            INSERT INTO camera_watch_settings (
-                company_id, enabled, timezone, work_start, work_end, work_days,
-                country, city, latitude, longitude, security_webhook_url, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(company_id) DO UPDATE SET
-                enabled = excluded.enabled,
-                timezone = excluded.timezone,
-                work_start = excluded.work_start,
-                work_end = excluded.work_end,
-                work_days = excluded.work_days,
-                country = excluded.country,
-                city = excluded.city,
-                latitude = excluded.latitude,
-                longitude = excluded.longitude,
-                security_webhook_url = excluded.security_webhook_url,
-                updated_at = excluded.updated_at
-            """,
-            (
-                cid,
-                1 if enabled else 0,
-                tz,
-                work_start or DEFAULT_WORK_START,
-                work_end or DEFAULT_WORK_END,
-                work_days or DEFAULT_WORK_DAYS,
-                country,
-                city,
-                lat_f,
-                lng_f,
-                webhook,
-                ts,
-            ),
-        )
-        db.commit()
+        try:
+            db.execute(
+                """
+                INSERT INTO camera_watch_settings (
+                    company_id, enabled, timezone, work_start, work_end, work_days,
+                    country, city, latitude, longitude, security_webhook_url,
+                    escalate_after_minutes, escalate_second_contact, require_dual_ack,
+                    notify_rules_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id) DO UPDATE SET
+                    enabled = excluded.enabled,
+                    timezone = excluded.timezone,
+                    work_start = excluded.work_start,
+                    work_end = excluded.work_end,
+                    work_days = excluded.work_days,
+                    country = excluded.country,
+                    city = excluded.city,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    security_webhook_url = excluded.security_webhook_url,
+                    escalate_after_minutes = excluded.escalate_after_minutes,
+                    escalate_second_contact = excluded.escalate_second_contact,
+                    require_dual_ack = excluded.require_dual_ack,
+                    notify_rules_json = excluded.notify_rules_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    cid,
+                    1 if enabled else 0,
+                    tz,
+                    work_start or DEFAULT_WORK_START,
+                    work_end or DEFAULT_WORK_END,
+                    work_days or DEFAULT_WORK_DAYS,
+                    country,
+                    city,
+                    lat_f,
+                    lng_f,
+                    webhook,
+                    escalate_after,
+                    second_contact,
+                    1 if require_dual else 0,
+                    notify_json,
+                    ts,
+                ),
+            )
+            db.commit()
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO camera_watch_settings (
+                    company_id, enabled, timezone, work_start, work_end, work_days,
+                    country, city, latitude, longitude, security_webhook_url, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id) DO UPDATE SET
+                    enabled = excluded.enabled,
+                    timezone = excluded.timezone,
+                    work_start = excluded.work_start,
+                    work_end = excluded.work_end,
+                    work_days = excluded.work_days,
+                    country = excluded.country,
+                    city = excluded.city,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    security_webhook_url = excluded.security_webhook_url,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    cid,
+                    1 if enabled else 0,
+                    tz,
+                    work_start or DEFAULT_WORK_START,
+                    work_end or DEFAULT_WORK_END,
+                    work_days or DEFAULT_WORK_DAYS,
+                    country,
+                    city,
+                    lat_f,
+                    lng_f,
+                    webhook,
+                    ts,
+                ),
+            )
+            db.commit()
     return get_watch_settings(db, cid)
 
 
@@ -526,6 +745,15 @@ def _row_to_settings(cid: str, row, *, site_key: str = "", site_name: str = "") 
         "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
         "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
         "securityWebhookUrl": str(row["security_webhook_url"] or ""),
+        "webhookSecret": str(_row_get(row, "webhook_secret", "") or ""),
+        "webhookRetryMax": _parse_retry_max(
+            _row_get(row, "webhook_retry_max", DEFAULT_WEBHOOK_RETRY_MAX)
+        ),
+        "evidenceRetentionDays": _parse_retention_days(
+            _row_get(row, "evidence_retention_days", DEFAULT_EVIDENCE_RETENTION_DAYS)
+        ),
+        "privacyNotice": str(_row_get(row, "privacy_notice", "") or ""),
+        "quietHours": _parse_quiet_hours(_row_get(row, "quiet_hours_json", "{}")),
         "escalateAfterMinutes": _parse_escalate_minutes(
             _row_get(row, "escalate_after_minutes", DEFAULT_ESCALATE_AFTER_MINUTES)
         ),
@@ -626,6 +854,7 @@ def upsert_site_watch_settings(
     else:
         notify_rules = _parse_notify_rules(cur.get("notifyRules"))
     notify_json = _notify_rules_json(notify_rules)
+    ops = _extract_ops_fields(data, cur)
     ts = now_iso()
     try:
         db.execute(
@@ -634,8 +863,9 @@ def upsert_site_watch_settings(
                 company_id, site_key, site_name, enabled, timezone, work_start, work_end, work_days,
                 country, city, latitude, longitude, security_webhook_url,
                 escalate_after_minutes, escalate_second_contact, require_dual_ack,
-                notify_rules_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                notify_rules_json, webhook_secret, webhook_retry_max,
+                evidence_retention_days, privacy_notice, quiet_hours_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(company_id, site_key) DO UPDATE SET
                 site_name = excluded.site_name,
                 enabled = excluded.enabled,
@@ -652,6 +882,11 @@ def upsert_site_watch_settings(
                 escalate_second_contact = excluded.escalate_second_contact,
                 require_dual_ack = excluded.require_dual_ack,
                 notify_rules_json = excluded.notify_rules_json,
+                webhook_secret = excluded.webhook_secret,
+                webhook_retry_max = excluded.webhook_retry_max,
+                evidence_retention_days = excluded.evidence_retention_days,
+                privacy_notice = excluded.privacy_notice,
+                quiet_hours_json = excluded.quiet_hours_json,
                 updated_at = excluded.updated_at
             """,
             (
@@ -672,49 +907,104 @@ def upsert_site_watch_settings(
                 second_contact,
                 1 if require_dual else 0,
                 notify_json,
+                ops["webhookSecret"],
+                ops["webhookRetryMax"],
+                ops["evidenceRetentionDays"],
+                ops["privacyNotice"],
+                ops["quietHoursJson"],
                 ts,
             ),
         )
         db.commit()
     except Exception:
-        db.execute(
-            """
-            INSERT INTO camera_watch_sites (
-                company_id, site_key, site_name, enabled, timezone, work_start, work_end, work_days,
-                country, city, latitude, longitude, security_webhook_url, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(company_id, site_key) DO UPDATE SET
-                site_name = excluded.site_name,
-                enabled = excluded.enabled,
-                timezone = excluded.timezone,
-                work_start = excluded.work_start,
-                work_end = excluded.work_end,
-                work_days = excluded.work_days,
-                country = excluded.country,
-                city = excluded.city,
-                latitude = excluded.latitude,
-                longitude = excluded.longitude,
-                security_webhook_url = excluded.security_webhook_url,
-                updated_at = excluded.updated_at
-            """,
-            (
-                cid,
-                key,
-                site_name,
-                1 if enabled else 0,
-                tz,
-                work_start,
-                work_end,
-                work_days,
-                country,
-                city,
-                lat_f,
-                lng_f,
-                webhook,
-                ts,
-            ),
-        )
-        db.commit()
+        try:
+            db.execute(
+                """
+                INSERT INTO camera_watch_sites (
+                    company_id, site_key, site_name, enabled, timezone, work_start, work_end, work_days,
+                    country, city, latitude, longitude, security_webhook_url,
+                    escalate_after_minutes, escalate_second_contact, require_dual_ack,
+                    notify_rules_json, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id, site_key) DO UPDATE SET
+                    site_name = excluded.site_name,
+                    enabled = excluded.enabled,
+                    timezone = excluded.timezone,
+                    work_start = excluded.work_start,
+                    work_end = excluded.work_end,
+                    work_days = excluded.work_days,
+                    country = excluded.country,
+                    city = excluded.city,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    security_webhook_url = excluded.security_webhook_url,
+                    escalate_after_minutes = excluded.escalate_after_minutes,
+                    escalate_second_contact = excluded.escalate_second_contact,
+                    require_dual_ack = excluded.require_dual_ack,
+                    notify_rules_json = excluded.notify_rules_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    cid,
+                    key,
+                    site_name,
+                    1 if enabled else 0,
+                    tz,
+                    work_start,
+                    work_end,
+                    work_days,
+                    country,
+                    city,
+                    lat_f,
+                    lng_f,
+                    webhook,
+                    escalate_after,
+                    second_contact,
+                    1 if require_dual else 0,
+                    notify_json,
+                    ts,
+                ),
+            )
+            db.commit()
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO camera_watch_sites (
+                    company_id, site_key, site_name, enabled, timezone, work_start, work_end, work_days,
+                    country, city, latitude, longitude, security_webhook_url, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id, site_key) DO UPDATE SET
+                    site_name = excluded.site_name,
+                    enabled = excluded.enabled,
+                    timezone = excluded.timezone,
+                    work_start = excluded.work_start,
+                    work_end = excluded.work_end,
+                    work_days = excluded.work_days,
+                    country = excluded.country,
+                    city = excluded.city,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    security_webhook_url = excluded.security_webhook_url,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    cid,
+                    key,
+                    site_name,
+                    1 if enabled else 0,
+                    tz,
+                    work_start,
+                    work_end,
+                    work_days,
+                    country,
+                    city,
+                    lat_f,
+                    lng_f,
+                    webhook,
+                    ts,
+                ),
+            )
+            db.commit()
     return get_site_watch_settings(db, cid, key) or cur
 
 

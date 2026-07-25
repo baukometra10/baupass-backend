@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SUPPIX — Kamera-Wächter</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725watch2" />
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725watch3" />
   <style>
     .cw-wrap { max-width: 1180px; margin: 0 auto; padding: 1rem 1.1rem 2.5rem; }
     .cw-grid { display: grid; gap: 1rem; grid-template-columns: 1.15fr 0.85fr; }
@@ -60,6 +60,9 @@
           <label><span>Latitude</span><input name="latitude" placeholder="52.52" /></label>
           <label><span>Longitude</span><input name="longitude" placeholder="13.40" /></label>
           <label class="full"><span>Security-Webhook (Firma)</span><input name="securityWebhookUrl" placeholder="https://…" /></label>
+          <label><span>Webhook-Secret (HMAC)</span><input name="webhookSecret" type="password" autocomplete="off" placeholder="optional" /></label>
+          <label><span>Webhook-Retries</span><input name="webhookRetryMax" type="number" min="0" max="20" placeholder="3" /></label>
+          <label><span>Evidenz-Aufbewahrung (Tage)</span><input name="evidenceRetentionDays" type="number" min="1" max="3650" placeholder="30" /></label>
           <label><span>Eskalation nach (Min.)</span><input name="escalateAfterMinutes" type="number" min="1" max="1440" placeholder="15" /></label>
           <label><span>Zweitkontakt (Tel/E-Mail)</span><input name="escalateSecondContact" placeholder="+49… oder mail@" /></label>
           <label><span>Zwei-Augen-Ack</span>
@@ -74,11 +77,32 @@
           <label><span>E-Mail</span>
             <select name="notifyEmail"><option value="immediate">Sofort</option><option value="digest">Digest</option><option value="off">Aus</option></select>
           </label>
+          <label><span>Ruhezeiten</span>
+            <select name="quietEnabled"><option value="0">Aus</option><option value="1">An</option></select>
+          </label>
+          <label><span>Ruhe von</span><input name="quietStart" placeholder="22:00" /></label>
+          <label><span>Ruhe bis</span><input name="quietEnd" placeholder="06:00" /></label>
+          <label class="full"><span>Datenschutzhinweis</span><input name="privacyNotice" placeholder="Kurzer Hinweis für Admins / Export" /></label>
         </form>
         <div class="cw-actions">
           <button type="button" class="primary" id="cwSaveCompany">Firma speichern</button>
+          <button type="button" class="ghost" id="cwTestAlarm">Test-Alarm</button>
+          <button type="button" class="ghost" id="cwTestWebhook">Test-Webhook</button>
         </div>
         <p class="muted" id="cwCompanyMsg" style="margin:0.5rem 0 0;font-size:0.78rem"></p>
+        <div id="cwPrivacyBanner" class="cw-card" hidden style="margin-top:0.65rem;padding:0.65rem;border-color:rgba(148,163,184,.35)">
+          <strong>Datenschutzhinweis</strong>
+          <p class="muted" id="cwPrivacyText" style="margin:0.35rem 0 0;font-size:0.78rem;white-space:pre-wrap"></p>
+        </div>
+        <div class="cw-card" style="margin-top:0.75rem;padding:0.65rem">
+          <strong>Webhook-Onboarding (Teams / Slack / generisch)</strong>
+          <p class="muted" style="margin:0.35rem 0;font-size:0.78rem">
+            Incoming-Webhook-URL von Teams oder Slack einfügen, optional Secret setzen.
+            Signatur-Header: <code>X-WorkPass-Signature: sha256=…</code> (HMAC über den Roh-Body).
+            Kein Auto-Notruf — nur Benachrichtigung.
+          </p>
+          <pre id="cwWebhookCurl" class="muted" style="margin:0;font-size:0.68rem;white-space:pre-wrap;overflow:auto"></pre>
+        </div>
 
         <h2 style="margin-top:1.1rem">Sonderzeiten / Feiertage</h2>
         <form id="cwOverrideForm" class="cw-fields">
@@ -129,10 +153,14 @@
 
       <section class="cw-card">
         <h2>Eskalationen</h2>
+        <div class="cw-actions" style="margin-bottom:0.45rem">
+          <button type="button" class="ghost" id="cwAuditExport">Audit-Export (JSON)</button>
+        </div>
         <ul class="cw-list" id="cwEscList"></ul>
         <div id="cwDetail" hidden style="margin-top:0.85rem">
           <h2 id="cwDetailTitle">Detail</h2>
           <p class="muted" id="cwDetailMeta"></p>
+          <p class="muted" id="cwDetailSla" style="font-size:0.78rem"></p>
           <p class="muted" id="cwAckBadge" style="font-size:0.78rem"></p>
           <div class="cw-media" id="cwMedia"></div>
           <div class="cw-card" style="margin-top:0.65rem;padding:0.65rem">
@@ -155,6 +183,6 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/storage.js?v=20260619s1"></script>
-  <script src="/admin-v2/camera-watch-app.js?v=20260725watch2"></script>
+  <script src="/admin-v2/camera-watch-app.js?v=20260725watch3"></script>
 </body>
 </html>

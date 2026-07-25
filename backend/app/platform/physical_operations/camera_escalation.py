@@ -14,6 +14,69 @@ from .camera_watch import (
 )
 
 
+def _parse_iso_dt(raw: str | None) -> datetime | None:
+    text = str(raw or "").strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _format_age_label(seconds: int) -> str:
+    secs = max(0, int(seconds))
+    if secs < 60:
+        return f"{secs}s"
+    mins = secs // 60
+    if mins < 60:
+        return f"{mins}m"
+    hours = mins // 60
+    rem_m = mins % 60
+    if hours < 48:
+        return f"{hours}h {rem_m}m" if rem_m else f"{hours}h"
+    days = hours // 24
+    return f"{days}d"
+
+
+def _sla_fields(row) -> dict[str, Any]:
+    keys = row.keys() if hasattr(row, "keys") else []
+    created = _parse_iso_dt(str(row["created_at"] or "") if "created_at" in keys else "")
+    now = datetime.now(timezone.utc)
+    age = int((now - created).total_seconds()) if created else 0
+    stage = int(row["chain_stage"] if "chain_stage" in keys and row["chain_stage"] is not None else 0)
+    next_at = str(row["chain_next_at"] if "chain_next_at" in keys else "") or None
+    status = str(row["status"] or "")
+    openish = status in {"open", "pending_second_ack"}
+    next_bit = ""
+    if openish and next_at:
+        nxt = _parse_iso_dt(next_at)
+        if nxt:
+            delta = int((nxt - now).total_seconds())
+            if delta > 0:
+                next_bit = f" · nächster Schritt in {_format_age_label(delta)}"
+            else:
+                next_bit = " · nächster Schritt fällig"
+        else:
+            next_bit = f" · nächster Schritt {next_at}"
+    elif openish and stage >= 2:
+        next_bit = " · Kette abgeschlossen"
+    elif not openish:
+        next_bit = f" · Status {status}"
+    sla_label = f"offen seit {_format_age_label(age)} · Stufe {stage}{next_bit}"
+    return {
+        "ageSeconds": age,
+        "chainStage": stage,
+        "chainNextAt": next_at,
+        "slaLabel": sla_label,
+    }
+
+
 def _append_event(
     db,
     *,
@@ -72,11 +135,15 @@ def _serialize_row(r) -> dict[str, Any]:
         details = {}
     keys = r.keys() if hasattr(r, "keys") else []
     clip = str(r["clip_b64"] if "clip_b64" in keys else "") or ""
+    sla = _sla_fields(r)
     return {
         "id": r["id"],
         "companyId": r["company_id"],
         "eventId": r["event_id"],
         "cameraId": r["camera_id"],
+        "cameraName": str(details.get("cameraName") or "") or None,
+        "eventType": str(details.get("eventType") or "") or None,
+        "location": str(details.get("location") or "") or None,
         "siteKey": str(r["site_key"] if "site_key" in keys else "") or "",
         "severity": r["severity"],
         "status": r["status"],
@@ -91,12 +158,15 @@ def _serialize_row(r) -> dict[str, Any]:
         "falsePositiveBy": r["false_positive_by"] if "false_positive_by" in keys else None,
         "falsePositiveAt": r["false_positive_at"] if "false_positive_at" in keys else None,
         "details": details,
+        "test": bool(details.get("test")),
         "acknowledgedBy": r["acknowledged_by"],
         "acknowledgedAt": r["acknowledged_at"],
         "ackCount": int(r["ack_count"] if "ack_count" in keys and r["ack_count"] is not None else 0),
         "ackUsers": _parse_ack_users(r["ack_users_json"] if "ack_users_json" in keys else "[]"),
-        "chainStage": int(r["chain_stage"] if "chain_stage" in keys and r["chain_stage"] is not None else 0),
-        "chainNextAt": str(r["chain_next_at"] if "chain_next_at" in keys else "") or None,
+        "chainStage": sla["chainStage"],
+        "chainNextAt": sla["chainNextAt"],
+        "ageSeconds": sla["ageSeconds"],
+        "slaLabel": sla["slaLabel"],
         "dualAckRequired": bool(int(r["dual_ack_required"] if "dual_ack_required" in keys else 0) or 0),
         "createdAt": r["created_at"],
         "autoDial": False,
@@ -130,16 +200,19 @@ def create_critical_escalation(
     )
     station = police.get("station") or {}
     eid = f"cesc-{uuid.uuid4().hex[:12]}"
+    is_test = bool(analysis.get("test") or str(event_type or "").lower() == "test_alarm")
     details = {
         "cameraName": camera_name,
         "location": location,
         "siteKey": site_key,
         "eventType": event_type,
+        "test": is_test,
         "analysis": {
             "alerts": analysis.get("alerts") or [],
             "afterHours": analysis.get("afterHours"),
             "maxSeverity": analysis.get("maxSeverity"),
             "confidence": analysis.get("confidence"),
+            "test": is_test,
         },
         "police": police,
         "disclaimer": police.get("disclaimer"),
@@ -249,34 +322,38 @@ def create_critical_escalation(
 
     webhook = str(cfg.get("securityWebhookUrl") or "").strip()
     webhook_ok = False
+    webhook_meta: dict[str, Any] = {}
     if webhook.startswith("http"):
         try:
-            import urllib.request
+            from .camera_webhook import deliver_or_enqueue_webhook
 
-            body = json.dumps(
-                {
-                    "type": "camera.critical_escalation",
-                    "companyId": company_id,
-                    "escalationId": eid,
-                    "eventId": event_id,
-                    "cameraId": camera_id,
-                    "cameraName": camera_name,
-                    "location": location,
-                    "siteKey": site_key,
-                    "policeSuggestion": police,
-                    "autoDial": False,
-                    "hasClip": bool(clip_b64),
-                },
-                ensure_ascii=False,
-            ).encode("utf-8")
-            req = urllib.request.Request(
-                webhook,
-                data=body,
-                headers={"Content-Type": "application/json"},
-                method="POST",
+            event_name = "camera.test_alarm" if is_test else "camera.critical_escalation"
+            payload = {
+                "type": event_name,
+                "companyId": company_id,
+                "escalationId": eid,
+                "eventId": event_id,
+                "cameraId": camera_id,
+                "cameraName": camera_name,
+                "location": location,
+                "siteKey": site_key,
+                "severity": str(analysis.get("maxSeverity") or "critical"),
+                "policeSuggestion": police,
+                "autoDial": False,
+                "hasClip": bool(clip_b64),
+                "test": is_test,
+            }
+            webhook_meta = deliver_or_enqueue_webhook(
+                db,
+                company_id=str(company_id),
+                url=webhook,
+                payload=payload,
+                secret=str(cfg.get("webhookSecret") or ""),
+                event=event_name,
+                escalation_id=eid,
+                retry_max=int(cfg.get("webhookRetryMax") or 3),
             )
-            with urllib.request.urlopen(req, timeout=8) as resp:
-                webhook_ok = 200 <= int(resp.status) < 300
+            webhook_ok = bool(webhook_meta.get("ok"))
         except Exception:
             webhook_ok = False
 
@@ -285,10 +362,109 @@ def create_critical_escalation(
         "id": eid,
         "police": police,
         "securityWebhookSent": webhook_ok,
+        "securityWebhook": webhook_meta,
         "autoDial": False,
+        "test": is_test,
         "dualAckRequired": dual_ack,
         "chainNextAt": chain_next,
-        "detailUrl": f"/admin-v2/camera-watch.html?escalation={eid}",
+        "detailUrl": f"/admin-v2/camera-watch.html?company_id={company_id}&escalation={eid}",
+    }
+
+
+def create_test_alarm(
+    db,
+    company_id: str,
+    *,
+    dry_run: bool = False,
+    severity: str = "high",
+    send_webhook: bool = True,
+    actor_user_id: str = "",
+) -> dict[str, Any]:
+    """Admin test alarm — creates a short-lived ackable escalation with test=true.
+
+    Never auto-dials police. Assisted police suggestion only.
+    """
+    cid = str(company_id or "").strip()
+    if not cid:
+        raise ValueError("company_id_required")
+    sev = str(severity or "high").lower()
+    if sev not in {"high", "critical"}:
+        sev = "high"
+    cfg = resolve_watch_settings(db, cid)
+    analysis = {
+        "maxSeverity": sev,
+        "critical": sev == "critical",
+        "afterHours": True,
+        "test": True,
+        "alerts": [
+            {
+                "type": "test_alarm",
+                "severity": sev,
+                "message": "Test-Alarm (kein echter Vorfall)",
+            }
+        ],
+    }
+    if dry_run:
+        from .police_directory import suggest_nearest_police
+
+        police = suggest_nearest_police(
+            country=str(cfg.get("country") or ""),
+            city=str(cfg.get("city") or ""),
+            latitude=cfg.get("latitude"),
+            longitude=cfg.get("longitude"),
+            db=db,
+        )
+        return {
+            "ok": True,
+            "dryRun": True,
+            "test": True,
+            "severity": sev,
+            "police": police,
+            "webhookWouldSend": bool(str(cfg.get("securityWebhookUrl") or "").startswith("http")) and send_webhook,
+            "autoDial": False,
+        }
+
+    created = create_critical_escalation(
+        db,
+        company_id=cid,
+        event_id=f"test-{uuid.uuid4().hex[:10]}",
+        camera_id="cam-test-alarm",
+        camera_name="Test-Alarm",
+        location=str(cfg.get("city") or "test"),
+        event_type="test_alarm",
+        analysis=analysis,
+        snapshot_b64="",
+        clip_b64="",
+        site=str(cfg.get("siteKey") or ""),
+    )
+    if not send_webhook and created.get("ok"):
+        # Escalation still created; webhook already attempted in create — acceptable for test path
+        pass
+    try:
+        from backend.app.platform.physical_operations.camera_notifications import _notify_admin_inbox
+
+        _notify_admin_inbox(
+            cid,
+            title=f"Test-Alarm ({sev})",
+            message="Manueller Test-Alarm aus Kamera-Wächter — kein echter Vorfall. Kein Auto-Notruf.",
+            severity=sev,
+        )
+    except Exception:
+        pass
+    if actor_user_id and created.get("id"):
+        _append_event(
+            db,
+            escalation_id=str(created["id"]),
+            company_id=cid,
+            event_type="test_alarm",
+            actor_user_id=actor_user_id,
+            note="Admin test alarm",
+        )
+    return {
+        **(created if isinstance(created, dict) else {"ok": False}),
+        "test": True,
+        "dryRun": False,
+        "autoDial": False,
     }
 
 

@@ -1654,5 +1654,46 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="048",
+        name="camera_watch_ops_abc",
+        up_sql="""
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS webhook_retry_max INTEGER NOT NULL DEFAULT 3;
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER NOT NULL DEFAULT 30;
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS privacy_notice TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS quiet_hours_json TEXT NOT NULL DEFAULT '{}';
+
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS webhook_secret TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS webhook_retry_max INTEGER NOT NULL DEFAULT 3;
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS evidence_retention_days INTEGER NOT NULL DEFAULT 30;
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS privacy_notice TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS quiet_hours_json TEXT NOT NULL DEFAULT '{}';
+
+            CREATE TABLE IF NOT EXISTS camera_webhook_deliveries (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                escalation_id TEXT NOT NULL DEFAULT '',
+                url TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT NOT NULL DEFAULT '',
+                next_retry_at TEXT,
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_webhook_deliveries_retry
+                ON camera_webhook_deliveries(status, next_retry_at);
+            CREATE INDEX IF NOT EXISTS idx_camera_webhook_deliveries_company
+                ON camera_webhook_deliveries(company_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_camera_webhook_deliveries_company;
+            DROP INDEX IF EXISTS idx_camera_webhook_deliveries_retry;
+            DROP TABLE IF EXISTS camera_webhook_deliveries;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))
