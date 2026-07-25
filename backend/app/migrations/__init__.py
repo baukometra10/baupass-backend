@@ -1408,5 +1408,74 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="043",
+        name="editor_documents_core",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS editor_documents (
+                id TEXT PRIMARY KEY,
+                company_id TEXT,
+                title TEXT NOT NULL DEFAULT 'Unbenannt',
+                mode TEXT NOT NULL DEFAULT 'general',
+                status TEXT NOT NULL DEFAULT 'draft',
+                content_json TEXT NOT NULL DEFAULT '',
+                content_html TEXT NOT NULL DEFAULT '',
+                content_text TEXT NOT NULL DEFAULT '',
+                worker_id TEXT,
+                contract_id TEXT,
+                created_by_user_id TEXT,
+                updated_by_user_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_editor_documents_company
+                ON editor_documents(company_id, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_editor_documents_mode
+                ON editor_documents(company_id, mode, updated_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_editor_documents_contract
+                ON editor_documents(contract_id, updated_at DESC)
+                WHERE contract_id IS NOT NULL AND contract_id != '';
+            CREATE INDEX IF NOT EXISTS idx_editor_documents_worker
+                ON editor_documents(worker_id, updated_at DESC)
+                WHERE worker_id IS NOT NULL AND worker_id != '';
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_editor_documents_worker;
+            DROP INDEX IF EXISTS idx_editor_documents_contract;
+            DROP INDEX IF EXISTS idx_editor_documents_mode;
+            DROP INDEX IF EXISTS idx_editor_documents_company;
+            DROP TABLE IF EXISTS editor_documents;
+        """,
+    ),
+
+    Migration(
+        version="044",
+        name="editor_document_versions",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS editor_document_versions (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                company_id TEXT,
+                version_no INTEGER NOT NULL DEFAULT 1,
+                title TEXT NOT NULL DEFAULT '',
+                content_json TEXT NOT NULL DEFAULT '',
+                content_html TEXT NOT NULL DEFAULT '',
+                content_text TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                created_by_user_id TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_editor_doc_versions_doc
+                ON editor_document_versions(document_id, version_no DESC);
+            CREATE INDEX IF NOT EXISTS idx_editor_doc_versions_company
+                ON editor_document_versions(company_id, created_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_editor_doc_versions_company;
+            DROP INDEX IF EXISTS idx_editor_doc_versions_doc;
+            DROP TABLE IF EXISTS editor_document_versions;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))
