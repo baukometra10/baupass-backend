@@ -283,6 +283,13 @@ def build_openapi_document(base_url: str = "") -> dict[str, Any]:
                     "description": "Auth: X-WorkPass-Rtsp-Token, X-Device-API-Key, or admin session",
                 },
             },
+            "/api/integrations/cameras/watch": {
+                "get": op("Cameras", "Night-watch status + escalations", roles="superadmin, company-admin"),
+                "put": op("Cameras", "Update night-watch business hours / site location", roles="superadmin, company-admin"),
+            },
+            "/api/integrations/cameras/escalations": {
+                "get": op("Cameras", "List assisted police escalation packs", roles="superadmin, company-admin"),
+            },
             "/api/integrations/cameras/events": {
                 "get": op("Cameras", "Recent camera AI events", roles="superadmin, company-admin"),
             },

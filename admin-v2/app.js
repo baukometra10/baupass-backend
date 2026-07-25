@@ -1414,10 +1414,10 @@ function renderCommandPaletteList(query) {
     if (item.legacyView && !isSuperadminUser()) {
       return false;
     }
-    // Pförtner (turnstile): no docs/contracts navigation.
+    // Pförtner (turnstile): no Arbeitsverträge — Docs-Editor ist frei nutzbar.
     if (
       String(getUser()?.role || "").toLowerCase() === "turnstile" &&
-      (String(item.href || "").includes("contracts.html") || String(item.href || "").includes("docs.html"))
+      String(item.href || "").includes("contracts.html")
     ) {
       return false;
     }
@@ -3143,16 +3143,15 @@ async function renderBetriebActionHub(companyId) {
         locked: !legacyFeatureEnabled(features, "employment_contracts"),
         upgradeLabel: t("contracts.upgrade"),
       }),
-    !isTurnstile &&
-      renderBetriebActionCard({
-        href: `/admin-v2/docs.html${q}`,
-        icon: "✍️",
-        title: t("docs.title"),
-        desc: t("docs.desc"),
-        cta: t("docs.open"),
-        locked: false,
-        upgradeLabel: "",
-      }),
+    renderBetriebActionCard({
+      href: `/admin-v2/docs.html${q}`,
+      icon: "✍️",
+      title: t("docs.title"),
+      desc: t("docs.desc"),
+      cta: t("docs.open"),
+      locked: false,
+      upgradeLabel: "",
+    }),
     renderBetriebActionCard({
       href: `/admin-v2/chat.html${q}`,
       icon: "💬",
@@ -3614,17 +3613,15 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
         locked: !legacyFeatureEnabled(features, "employment_contracts"),
         upgradeLabel: t("contracts.upgrade"),
       });
-  const docsCard = isTurnstile
-    ? ""
-    : renderBetriebActionCard({
-        href: `/admin-v2/docs.html${q}`,
-        icon: "✍️",
-        title: t("docs.open"),
-        desc: t("docs.desc"),
-        cta: t("docs.open"),
-        locked: false,
-        upgradeLabel: "",
-      });
+  const docsCard = renderBetriebActionCard({
+    href: `/admin-v2/docs.html${q}`,
+    icon: "✍️",
+    title: t("docs.open"),
+    desc: t("docs.desc"),
+    cta: t("docs.open"),
+    locked: false,
+    upgradeLabel: "",
+  });
   const chatCard = renderBetriebActionCard({
     href: `/admin-v2/chat.html${q}`,
     icon: "💬",
@@ -5758,6 +5755,11 @@ async function loadOverview() {
     const sec = opsBrief?.layers?.["2_ai_security"] || {};
     const camList = Array.isArray(cameras?.cameras) ? cameras.cameras : [];
     const camsOnline = camList.filter((c) => c.online).length;
+    const watch = cameras?.watch || cameras?.summary || {};
+    const watchActive = !!watch.watchModeActive;
+    const watchEnabled = watch.watchEnabled !== false;
+    const camLayer = opsBrief?.layers?.["6_camera_ai"] || {};
+    const openEsc = Number(camLayer.openEscalations || 0);
     const onSite = opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
     const checkIns = opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
     const securityOpen = (sec.openAlerts || []).length;
@@ -5768,20 +5770,39 @@ async function loadOverview() {
     const liveBadge = window.__adminRealtimeLive
       ? `<span class="badge badge-ok">${t("lage.live")}</span>`
       : `<span class="badge">${t("lage.poll")}</span>`;
+    const watchBadge = watchActive
+      ? `<span class="badge badge-warn">${t("lage.watchActive")}</span>`
+      : watchEnabled
+        ? `<span class="badge">${t("lage.watchStandby")}</span>`
+        : `<span class="badge">${t("lage.watchOff")}</span>`;
+    const escHtml = (camLayer.latestEscalations || [])
+      .slice(0, 2)
+      .map((e) => {
+        const police = e.policeName || e.details?.police?.station?.name || "—";
+        return `<li><strong>${escapeHtml(e.cameraId || "")}</strong> · ${escapeHtml(police)} · <button type="button" class="btn-link camera-esc-ack" data-id="${escapeAttr(e.id)}">${t("lage.watchAck")}</button></li>`;
+      })
+      .join("");
     lage.innerHTML = `
       <div class="lage-panel-head">
         <div>
           <h3>${t("lage.title")}</h3>
           <p class="muted small" style="margin:0.2rem 0 0">${t("lage.subtitle")}</p>
         </div>
-        ${liveBadge}
+        <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">${liveBadge}${watchBadge}</div>
       </div>
       <div class="lage-grid">
         <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
         <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.watchMode")}</span><strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></div>
         <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
+      </div>
+      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
+        <strong>${t("lage.watchTitle")}</strong>
+        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchEscalations")}: <strong>${openEsc}</strong> · ${t("lage.watchNoAutodial")}</p>
+        ${escHtml ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${escHtml}</ul>` : ""}
       </div>
       <div class="lage-actions">
         <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
@@ -5797,6 +5818,22 @@ async function loadOverview() {
         switchToTab(tab);
         if (tab === "inbox") await loadInbox();
         else if (tab === "access") await loadAccess();
+      });
+    });
+    lage.querySelectorAll(".camera-esc-ack").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        if (!id) return;
+        try {
+          await api(`/api/integrations/cameras/escalations/${encodeURIComponent(id)}/ack${q}`, {
+            method: "POST",
+            body: JSON.stringify({ securityNotified: true }),
+          });
+          showActionToast(t("lage.watchAckOk"));
+          await loadOverview();
+        } catch (e) {
+          showActionToast(e.message || t("common.error"), true);
+        }
       });
     });
   } else if (lage) {

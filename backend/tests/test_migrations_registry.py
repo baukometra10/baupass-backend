@@ -17,6 +17,11 @@ def test_site_cameras_migration_registered():
     assert by_name.get("site_cameras_registry") == "025"
 
 
+def test_camera_night_watch_migration_registered():
+    by_name = {m.name: m.version for m in ALL_MIGRATIONS}
+    assert by_name.get("camera_night_watch") == "045"
+
+
 def test_ai_chat_sessions_migration_registered():
     by_name = {m.name: m.version for m in ALL_MIGRATIONS}
     assert by_name.get("ai_chat_sessions") == "024"

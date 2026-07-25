@@ -64,6 +64,24 @@ Kein Heartbeat innerhalb von 180 s (`BAUPASS_CAMERA_ONLINE_THRESHOLD_SECONDS`) �
 
 **Nachtbericht:** Täglicher Job (`BAUPASS_CAMERA_NIGHTLY_DIGEST=1`) — PDF mit Vorfällen der letzten 12 h.
 
+## Kamera-Nachtschicht (Watch-Mode)
+
+Außerhalb der Betriebszeiten (Standard 06:00–18:00, Mo–Fr, TZ `Europe/Berlin`):
+
+- Events werden höher priorisiert (`afterHours`), Bewegung → „Verdächtiger Vorfall“ (kein bestätigter Diebstahl)
+- Kritische Events erzwingen Snapshot (Payload oder letzter Heartbeat-Frame)
+- Critical-Pack mit **Polizei-Vorschlag** (Land/Stadt/Koordinaten) — **kein Auto-Notruf**
+- API: `GET/PUT /api/integrations/cameras/watch`, `GET /api/integrations/cameras/escalations`, `POST .../escalations/<id>/ack`
+
+**Vision-Job** (alle ~300 s, `BAUPASS_CAMERA_VISION_SECONDS`): holt Snapshots nach Feierabend und analysiert (OpenAI/Azure Vision oder Heuristik).
+
+| Env | Zweck |
+|-----|--------|
+| `BAUPASS_CAMERA_VISION_JOB` | Job an/aus (default an) |
+| `BAUPASS_CAMERA_VISION_HEURISTIC` | Heuristik ohne Cloud-Key (default an) |
+| `OPENAI_API_KEY` / Azure Vision Vars | echte Frame-Analyse |
+| `BAUPASS_CAMERA_VISION_DEDUP_MINUTES` | Dedup pro Kamera (default 10) |
+
 ## Gesichtserkennung
 
 Mit `worker_id` + Worker-Foto → Stub `face_match`. Mit `image_base64` + Azure:

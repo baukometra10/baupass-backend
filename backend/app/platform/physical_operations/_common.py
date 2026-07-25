@@ -9,7 +9,8 @@ from zoneinfo import ZoneInfo
 
 
 def now_iso() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    # Include seconds — "%H:%M:%f" produces invalid timestamps like "16:46:057346Z".
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def today_prefix(reference: datetime | None = None) -> str:

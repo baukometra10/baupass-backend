@@ -107,10 +107,14 @@ def notify_camera_violation(
     if len(alert_lines) > 1:
         summary = f"{summary} (+{len(alert_lines) - 1} weitere)"
 
-    title = f"Kamera-Alarm: {camera_name or camera_id}"
+    after_hours = bool(analysis.get("afterHours"))
+    critical = bool(analysis.get("critical") or str(analysis.get("maxSeverity") or "").lower() == "critical")
+    watch_tag = " [Außerhalb Arbeitszeit / Watch-Mode]" if after_hours else ""
+    title = f"Kamera-Alarm{watch_tag}: {camera_name or camera_id}"
     message = (
         f"{created_at}: {camera_name or camera_id} ({location or 'Baustelle'}) — "
         f"{event_type}. {summary}"
+        + (" · Verdächtiger Vorfall außerhalb der Betriebszeiten (nicht als Diebstahl bestätigt)." if after_hours else "")
     )
 
     try:
@@ -135,7 +139,31 @@ def notify_camera_violation(
     except Exception:
         pass
 
-    _notify_admin_inbox(str(company_id), title=title, message=message, severity="high")
+    _notify_admin_inbox(
+        str(company_id),
+        title=title,
+        message=message,
+        severity="critical" if critical else "high",
+    )
+
+    escalation = None
+    if critical:
+        try:
+            from .camera_escalation import create_critical_escalation
+
+            escalation = create_critical_escalation(
+                db,
+                company_id=str(company_id),
+                event_id=event_id,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                location=location,
+                event_type=event_type,
+                analysis=analysis,
+                snapshot_b64=snapshot_b64 or "",
+            )
+        except Exception:
+            escalation = None
 
     pdf_bytes = None
     try:
@@ -155,10 +183,23 @@ def notify_camera_violation(
     except Exception:
         pdf_bytes = None
 
-    subject = f"SUPPIX Kamera-Alarm — {camera_name or camera_id}"
+    subject = f"SUPPIX Kamera-Alarm{watch_tag} — {camera_name or camera_id}"
+    police_lines = []
+    if escalation and isinstance(escalation, dict):
+        police = escalation.get("police") or {}
+        station = police.get("station") or {}
+        if station:
+            police_lines.append(
+                f"Empfohlene Polizeidienststelle: {station.get('name')} · {station.get('address')} · {station.get('phone')}"
+            )
+        emerg = police.get("countryEmergency") or {}
+        if emerg.get("number"):
+            police_lines.append(f"Notruf ({emerg.get('country') or ''}): {emerg.get('number')} ({emerg.get('label')})")
+        police_lines.append("Kein automatischer Notruf — menschliche Freigabe erforderlich.")
     text_body = (
         f"{message}\n\n"
         + "\n".join(f"- {line}" for line in alert_lines)
+        + ("\n\n" + "\n".join(police_lines) if police_lines else "")
         + "\n\nBitte Live-Ansicht und Ereignisliste in WorkPass prüfen."
     )
     msg_safe = html.escape(message)
@@ -192,7 +233,15 @@ def notify_camera_violation(
     except Exception:
         pass
 
-    return {"ok": True, "emailsSent": emails_sent, "eventId": event_id}
+    return {
+        "ok": True,
+        "emailsSent": emails_sent,
+        "eventId": event_id,
+        "afterHours": after_hours,
+        "critical": critical,
+        "escalationId": (escalation or {}).get("id") if isinstance(escalation, dict) else None,
+        "police": (escalation or {}).get("police") if isinstance(escalation, dict) else None,
+    }
 
 
 def notify_camera_offline(

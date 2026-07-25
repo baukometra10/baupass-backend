@@ -8898,6 +8898,25 @@ def start_background_jobs():
 
     threading.Thread(target=camera_health_loop, name="baupass-camera-health", daemon=True).start()  # baupass:allow-inline-thread
 
+    def run_camera_vision_job():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_vision_job import run_camera_after_hours_vision
+
+                return run_camera_after_hours_vision(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: camera vision job failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
+
+    def camera_vision_loop():
+        interval = max(120, int(os.getenv("BAUPASS_CAMERA_VISION_SECONDS", "300")))
+        while True:
+            run_camera_vision_job()
+            time.sleep(interval)
+
+    if str(os.getenv("BAUPASS_CAMERA_VISION_JOB", "1")).strip().lower() not in {"0", "false", "off", "no"}:
+        threading.Thread(target=camera_vision_loop, name="baupass-camera-vision", daemon=True).start()  # baupass:allow-inline-thread
+
     def run_platform_guardian_once():
         try:
             with app.app_context():

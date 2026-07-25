@@ -8,7 +8,7 @@ from typing import Any
 from ._common import now_iso
 
 
-def analyze_camera_event(company_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+def analyze_camera_event(company_id: Any, payload: dict[str, Any], *, after_hours: bool | None = None) -> dict[str, Any]:
     """Rule-based analysis when no external CV service is connected."""
     event_type = str(payload.get("event_type") or payload.get("type") or "motion").lower()
     worker_id = payload.get("worker_id")
@@ -26,12 +26,34 @@ def analyze_camera_event(company_id: int, payload: dict[str, Any]) -> dict[str, 
         ppe_compliant = 1
     if zone and payload.get("in_restricted_zone"):
         zone_violation = 1
-        alerts.append({"type": "restricted_zone", "severity": "critical", "message": f"Entry in restricted zone: {zone}"})
-    if event_type in ("unknown_person", "tailgating", "forced_entry"):
-        alerts.append({"type": event_type, "severity": "critical", "message": "Suspicious access event from camera"})
+        alerts.append(
+            {
+                "type": "restricted_zone",
+                "severity": "critical",
+                "message": f"Entry in unauthorized / restricted area: {zone}",
+            }
+        )
+    if event_type in ("unknown_person", "tailgating", "forced_entry", "possible_intrusion"):
+        alerts.append(
+            {
+                "type": event_type,
+                "severity": "critical",
+                "message": "Suspicious access event from camera (not confirmed theft)",
+            }
+        )
+    if event_type == "restricted_area_activity":
+        zone_violation = 1
+        alerts.append(
+            {
+                "type": "restricted_area_activity",
+                "severity": "critical",
+                "message": "Activity in unauthorized area detected by vision review",
+            }
+        )
     if payload.get("face_match") is False:
         alerts.append({"type": "identity_mismatch", "severity": "high", "message": "Face/badge mismatch"})
-    return {
+
+    analysis = {
         "event_type": event_type,
         "worker_id": worker_id,
         "confidence": confidence,
@@ -40,23 +62,32 @@ def analyze_camera_event(company_id: int, payload: dict[str, Any]) -> dict[str, 
         "alerts": alerts,
     }
 
+    from .camera_watch import apply_after_hours_escalation
 
-def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    from .camera_registry import touch_camera_heartbeat
+    if after_hours is None:
+        after_hours = bool(payload.get("afterHours") or payload.get("after_hours"))
+    return apply_after_hours_escalation(analysis, after_hours=bool(after_hours))
+
+
+def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    from .camera_registry import get_camera_snapshot_b64, touch_camera_heartbeat
+    from .camera_watch import is_after_hours, mark_dedup_alert, should_dedup_alert
 
     company_id_str = str(company_id)
     camera_id = str(payload.get("camera_id") or "unknown")
     created_at = now_iso()
     is_heartbeat_only = bool(payload.get("heartbeat")) and not payload.get("event_type")
 
+    snapshot_b64 = str(
+        payload.get("image_base64") or payload.get("snapshot_base64") or payload.get("photo_base64") or ""
+    )
+
     touch_camera_heartbeat(
         db,
         company_id_str,
         camera_id,
         payload=payload,
-        snapshot_b64=str(
-            payload.get("image_base64") or payload.get("snapshot_base64") or payload.get("photo_base64") or ""
-        ),
+        snapshot_b64=snapshot_b64,
         health_error=str(payload.get("health_error") or payload.get("error") or ""),
     )
 
@@ -66,7 +97,27 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
         publish_event("camera.heartbeat", company_id_str, {"camera_id": camera_id})
         return {"id": None, "heartbeat": True, "camera_id": camera_id}
 
-    analysis = analyze_camera_event(company_id, payload)
+    after_hours = is_after_hours(db, company_id_str)
+    analysis = analyze_camera_event(company_id_str, payload, after_hours=after_hours)
+
+    # Critical alerts require evidence — fall back to last camera snapshot.
+    if analysis.get("snapshotRequired") and not snapshot_b64:
+        fallback = get_camera_snapshot_b64(db, company_id_str, camera_id) or ""
+        if fallback:
+            snapshot_b64 = fallback
+            analysis["snapshotFallback"] = True
+    analysis["hasSnapshot"] = bool(snapshot_b64)
+
+    # Dedup repeated after-hours noise for same camera/event type.
+    alert_key = f"{analysis.get('event_type')}:{analysis.get('maxSeverity')}"
+    if analysis.get("alerts") and should_dedup_alert(db, company_id_str, camera_id, alert_key, minutes=5):
+        return {
+            "id": None,
+            "deduped": True,
+            "camera_id": camera_id,
+            "analysis": analysis,
+        }
+
     eid = f"cam-{uuid.uuid4().hex[:12]}"
     try:
         db.execute(
@@ -85,7 +136,7 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
                 analysis["confidence"],
                 analysis.get("ppe_compliant"),
                 analysis.get("zone_violation") or 0,
-                json.dumps({**payload, "analysis": analysis}),
+                json.dumps({**payload, "analysis": analysis, "hasSnapshot": bool(snapshot_b64)}, ensure_ascii=False),
                 created_at,
             ),
         )
@@ -106,16 +157,15 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
                 company_id=company_id_str,
                 event_id=eid,
                 camera_id=camera_id,
-                camera_name=str(cam_row["name"] if cam_row else camera_id),
+                camera_name=str(cam_row["name"] if cam_row else payload.get("camera_name") or camera_id),
                 location=str(cam_row["location"] if cam_row else payload.get("location") or ""),
                 event_type=analysis["event_type"],
                 created_at=created_at,
                 analysis=analysis,
-                snapshot_b64=str(
-                    payload.get("image_base64") or payload.get("snapshot_base64") or ""
-                ),
+                snapshot_b64=snapshot_b64,
                 worker_id=analysis.get("worker_id"),
             )
+            mark_dedup_alert(db, company_id_str, camera_id, alert_key)
         except Exception:
             from .security_engine import _persist_alert
 
@@ -135,4 +185,4 @@ def ingest_camera_event(db, company_id: int, payload: dict[str, Any]) -> dict[st
     from backend.app.platform.events.bus import publish_event
 
     publish_event("camera.ai.event", company_id_str, {"event_id": eid, "analysis": analysis})
-    return {"id": eid, "analysis": analysis}
+    return {"id": eid, "analysis": analysis, "afterHours": after_hours}

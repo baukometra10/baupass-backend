@@ -1477,5 +1477,62 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="045",
+        name="camera_night_watch",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS camera_watch_settings (
+                company_id TEXT PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                timezone TEXT NOT NULL DEFAULT 'Europe/Berlin',
+                work_start TEXT NOT NULL DEFAULT '06:00',
+                work_end TEXT NOT NULL DEFAULT '18:00',
+                work_days TEXT NOT NULL DEFAULT '1,2,3,4,5',
+                country TEXT NOT NULL DEFAULT '',
+                city TEXT NOT NULL DEFAULT '',
+                latitude REAL,
+                longitude REAL,
+                security_webhook_url TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS camera_escalations (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                camera_id TEXT NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'critical',
+                status TEXT NOT NULL DEFAULT 'open',
+                police_name TEXT NOT NULL DEFAULT '',
+                police_address TEXT NOT NULL DEFAULT '',
+                police_phone TEXT NOT NULL DEFAULT '',
+                police_country TEXT NOT NULL DEFAULT '',
+                police_city TEXT NOT NULL DEFAULT '',
+                snapshot_b64 TEXT NOT NULL DEFAULT '',
+                details_json TEXT NOT NULL DEFAULT '{}',
+                acknowledged_by TEXT,
+                acknowledged_at TEXT,
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_escalations_company
+                ON camera_escalations(company_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_camera_escalations_status
+                ON camera_escalations(company_id, status, created_at DESC);
+            CREATE TABLE IF NOT EXISTS camera_vision_dedup (
+                company_id TEXT NOT NULL,
+                camera_id TEXT NOT NULL,
+                alert_key TEXT NOT NULL,
+                last_at TEXT NOT NULL,
+                PRIMARY KEY (company_id, camera_id, alert_key)
+            );
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS camera_vision_dedup;
+            DROP INDEX IF EXISTS idx_camera_escalations_status;
+            DROP INDEX IF EXISTS idx_camera_escalations_company;
+            DROP TABLE IF EXISTS camera_escalations;
+            DROP TABLE IF EXISTS camera_watch_settings;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

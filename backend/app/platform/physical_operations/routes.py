@@ -182,10 +182,26 @@ def register_physical_operations(flask_app) -> None:
                 (cid,),
             ).fetchall()
             from backend.app.platform.physical_operations.camera_registry import camera_is_online
+            from backend.app.platform.physical_operations.camera_watch import watch_status
+            from backend.app.platform.physical_operations.camera_escalation import list_escalations
 
             online = sum(1 for r in cam_rows if camera_is_online(str(r["last_seen_at"] or "")))
             total = len(cam_rows)
-            return {"events24h": events24h, "camerasTotal": total, "camerasOnline": online}
+            watch = watch_status(db, cid)
+            open_esc = list_escalations(db, cid, limit=5, status="open")
+            return {
+                "events24h": events24h,
+                "camerasTotal": total,
+                "camerasOnline": online,
+                "watchModeActive": bool(watch.get("watchModeActive")),
+                "afterHours": bool(watch.get("afterHours")),
+                "watchEnabled": bool(watch.get("enabled")),
+                "watchTimezone": watch.get("timezone"),
+                "workStart": watch.get("workStart"),
+                "workEnd": watch.get("workEnd"),
+                "openEscalations": len(open_esc),
+                "latestEscalations": open_esc[:3],
+            }
         except Exception:
             return {"events24h": 0}
 

@@ -204,9 +204,30 @@ def register_enterprise_layers(flask_app) -> None:
             return jsonify({"cameras": [], "hint": "company_id_required"})
         
         try:
-            cameras = list_cameras(get_db(), cid)
+            db = get_db()
+            cameras = list_cameras(db, cid)
             online = sum(1 for c in cameras if c.get("online"))
-            return jsonify({"cameras": cameras, "summary": {"total": len(cameras), "online": online, "offline": len(cameras) - online}})
+            watch = {}
+            try:
+                from backend.app.platform.physical_operations.camera_watch import watch_status
+
+                watch = watch_status(db, cid)
+            except Exception:
+                watch = {}
+            return jsonify(
+                {
+                    "cameras": cameras,
+                    "summary": {
+                        "total": len(cameras),
+                        "online": online,
+                        "offline": len(cameras) - online,
+                        "watchModeActive": bool(watch.get("watchModeActive")),
+                        "afterHours": bool(watch.get("afterHours")),
+                        "watchEnabled": bool(watch.get("enabled", True)),
+                    },
+                    "watch": watch,
+                }
+            )
         except Exception as e:
             error_msg = str(e)
             if "no such table" in error_msg.lower() or "does not exist" in error_msg.lower():
@@ -361,6 +382,76 @@ def register_enterprise_layers(flask_app) -> None:
             except Exception:
                 return jsonify({"error": "invalid_snapshot"}), 500
         return jsonify({"cameraId": camera_id, "snapshotBase64": b64})
+
+    @enterprise_layers_bp.get("/integrations/cameras/watch")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def get_camera_watch():
+        from backend.app.platform.physical_operations.camera_escalation import list_escalations
+        from backend.app.platform.physical_operations.camera_watch import watch_status
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        db = get_db()
+        status = watch_status(db, cid)
+        return jsonify(
+            {
+                "ok": True,
+                "watch": status,
+                "escalations": list_escalations(db, cid, limit=20),
+            }
+        )
+
+    @enterprise_layers_bp.put("/integrations/cameras/watch")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def put_camera_watch():
+        from backend.app.platform.physical_operations.camera_watch import upsert_watch_settings, watch_status
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        try:
+            upsert_watch_settings(get_db(), cid, data)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True, "watch": watch_status(get_db(), cid)})
+
+    @enterprise_layers_bp.get("/integrations/cameras/escalations")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def list_camera_escalations():
+        from backend.app.platform.physical_operations.camera_escalation import list_escalations
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        status = request.args.get("status")
+        limit = min(100, max(1, int(request.args.get("limit", "30"))))
+        return jsonify({"ok": True, "items": list_escalations(get_db(), cid, limit=limit, status=status)})
+
+    @enterprise_layers_bp.post("/integrations/cameras/escalations/<escalation_id>/ack")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ack_camera_escalation(escalation_id: str):
+        from backend.app.platform.physical_operations.camera_escalation import acknowledge_escalation
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        item = acknowledge_escalation(
+            get_db(),
+            cid,
+            escalation_id,
+            actor_user_id=str(g.current_user.get("id") or g.current_user.get("username") or ""),
+            mark_security_notified=bool(data.get("securityNotified") or data.get("notifySecurity")),
+        )
+        if not item:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True, "escalation": item})
 
     @enterprise_layers_bp.post("/integrations/biometric/events")
     @require_auth
