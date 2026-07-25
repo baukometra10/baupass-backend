@@ -17,9 +17,13 @@
     cameras: [],
     selectedEscId: "",
     selectedSiteKey: "",
+    selectedCamId: "",
+    escFilter: "open",
+    activeTab: "lage",
   };
   let map = null;
   let mapLayer = null;
+  let refreshTimer = null;
 
   const $ = (id) => document.getElementById(id);
 
@@ -63,7 +67,7 @@
     const lat = get("latitude");
     const lng = get("longitude");
     const dual = get("requireDualAck");
-    const payload = {
+    return {
       enabled: enabledRaw === "" ? true : enabledRaw === "1" || enabledRaw === "true",
       timezone: get("timezone") || "Europe/Berlin",
       workStart: get("workStart") || "06:00",
@@ -95,7 +99,6 @@
         email: get("notifyEmail") || "immediate",
       },
     };
-    return payload;
   }
 
   function fillForm(form, data) {
@@ -132,35 +135,15 @@
     set("notifySms", rules.sms || "critical");
     set("notifyPush", rules.push || "high");
     set("notifyEmail", rules.email || "immediate");
-  }
-
-  function renderPrivacyAndWebhookHelp() {
-    const notice = String(state.watch?.privacyNotice || "").trim();
-    const banner = $("cwPrivacyBanner");
-    const text = $("cwPrivacyText");
-    if (banner && text) {
-      if (notice) {
-        banner.hidden = false;
-        text.textContent = notice;
-      } else {
-        banner.hidden = true;
-        text.textContent = "";
-      }
-    }
-    const curl = $("cwWebhookCurl");
-    if (!curl) return;
-    const url = state.watch?.securityWebhookUrl || "https://hooks.example.com/services/…";
-    curl.textContent = [
-      "# Beispiel (Test-Webhook)",
-      `curl -X POST '${url}' \\`,
-      "  -H 'Content-Type: application/json' \\",
-      "  -H 'X-WorkPass-Event: camera.test_webhook' \\",
-      "  -H 'X-WorkPass-Delivery-Id: cwd-example' \\",
-      "  -H 'X-WorkPass-Signature: sha256=<hmac-hex>' \\",
-      `  -d '{"type":"camera.test_webhook","test":true,"autoDial":false,"companyId":"${companyId}"}'`,
-      "",
-      "# In dieser UI: URL + optional Secret speichern → „Test-Webhook“",
-    ].join("\n");
+    set("name", data.name || "");
+    set("location", data.location || "");
+    set("zoneName", data.zoneName || "");
+    set("minConfidence", data.minConfidence ?? 0);
+    set(
+      "zoneCriticalOnlyAfterHours",
+      data.zoneCriticalOnlyAfterHours === true || data.zoneCriticalOnlyAfterHours === 1 ? "1" : "0",
+    );
+    set("rtspUrl", data.rtspUrl || "");
   }
 
   function setMsg(id, text, ok = true) {
@@ -186,6 +169,182 @@
     if (!raw) return "";
     if (raw.startsWith("data:")) return raw;
     return `data:${mime};base64,${raw}`;
+  }
+
+  function switchTab(tab) {
+    state.activeTab = tab;
+    document.querySelectorAll(".cw-tab").forEach((btn) => {
+      btn.classList.toggle("active", btn.getAttribute("data-tab") === tab);
+    });
+    document.querySelectorAll(".cw-pane").forEach((pane) => {
+      pane.classList.toggle("active", pane.id === `pane-${tab}`);
+    });
+    if (tab === "lage") setTimeout(() => map?.invalidateSize(), 80);
+  }
+
+  function openEscalations() {
+    switchTab("esc");
+  }
+
+  function setKpi(id, value, { warn = false, ok = false, pulse = false } = {}) {
+    const el = $(id);
+    if (!el) return;
+    const strong = el.querySelector("strong");
+    if (strong) strong.textContent = value;
+    el.classList.toggle("warn", !!warn);
+    el.classList.toggle("ok", !!ok);
+    el.classList.toggle("pulse", !!pulse);
+  }
+
+  function renderKpis() {
+    const w = state.watch || {};
+    const cams = state.cameras || [];
+    const online = cams.filter((c) => c.online).length;
+    const openEsc = (state.escalations || []).filter((e) =>
+      ["open", "pending_second_ack"].includes(String(e.status || "")),
+    );
+    const maxStage = openEsc.reduce((m, e) => Math.max(m, Number(e.chainStage || 0)), 0);
+    const quiet = w.quietHours?.enabled ? `${w.quietHours.start || "22:00"}–${w.quietHours.end || "06:00"}` : "Aus";
+    const mode = w.afterHours ? "Nachtschicht" : w.enabled === false ? "Aus" : "Bereit";
+    setKpi("kpiWatch", mode, { warn: !!w.afterHours, ok: !w.afterHours && w.enabled !== false, pulse: !!w.afterHours });
+    setKpi("kpiCams", `${online}/${cams.length}`, { ok: online > 0, warn: cams.length > 0 && online === 0 });
+    setKpi("kpiEsc", String(openEsc.length), { warn: openEsc.length > 0 });
+    setKpi("kpiChain", String(maxStage), { warn: maxStage >= 1 });
+    setKpi("kpiQuiet", quiet);
+    setKpi("kpiSites", String((state.sites || []).length));
+
+    const badge = $("cwWatchBadge");
+    if (badge) {
+      badge.textContent = w.afterHours ? "Nachtschicht aktiv" : w.enabled === false ? "Watch aus" : "Watch bereit";
+      badge.className = `cw-badge${w.afterHours ? "" : w.enabled === false ? " off" : " ok"}`;
+    }
+    const summary = $("cwLageSummary");
+    if (summary) {
+      summary.textContent = [
+        `${w.workStart || "06:00"}–${w.workEnd || "18:00"} (${w.timezone || "Europe/Berlin"})`,
+        `Kette nach ${w.escalateAfterMinutes || 15} Min`,
+        openEsc.length ? `${openEsc.length} offen` : "keine offenen Escalations",
+        "kein Auto-Notruf",
+      ].join(" · ");
+    }
+  }
+
+  function renderPrivacyAndWebhookHelp() {
+    const notice = String(state.watch?.privacyNotice || "").trim();
+    const banner = $("cwPrivacyBanner");
+    const text = $("cwPrivacyText");
+    if (banner && text) {
+      banner.hidden = !notice;
+      text.textContent = notice || "";
+    }
+    const curl = $("cwWebhookCurl");
+    if (!curl) return;
+    const url = state.watch?.securityWebhookUrl || "https://hooks.example.com/services/…";
+    curl.textContent = [
+      "# Beispiel (Test-Webhook)",
+      `curl -X POST '${url}' \\`,
+      "  -H 'Content-Type: application/json' \\",
+      "  -H 'X-WorkPass-Event: camera.test_webhook' \\",
+      "  -H 'X-WorkPass-Signature: sha256=<hmac-hex>' \\",
+      `  -d '{"type":"camera.test_webhook","test":true,"autoDial":false,"companyId":"${companyId}"}'`,
+    ].join("\n");
+  }
+
+  function filteredEscalations() {
+    const all = state.escalations || [];
+    if (state.escFilter === "all") return all;
+    if (state.escFilter === "test") return all.filter((e) => e.test);
+    return all.filter((e) => ["open", "pending_second_ack"].includes(String(e.status || "")));
+  }
+
+  function escListHtml(items, emptyText) {
+    if (!items.length) return `<li class="muted">${escapeHtml(emptyText)}</li>`;
+    return items
+      .map((e) => {
+        const active = e.id === state.selectedEscId ? " active" : "";
+        const urgent =
+          ["open", "pending_second_ack"].includes(String(e.status || "")) && Number(e.chainStage || 0) >= 1
+            ? " urgent"
+            : "";
+        const dual = e.dualAckRequired ? ` · Ack ${e.ackCount || 0}/2` : "";
+        const sla = e.slaLabel ? escapeHtml(e.slaLabel) : `Stufe ${escapeHtml(String(e.chainStage ?? 0))}`;
+        const testTag = e.test ? " · TEST" : "";
+        return `<li class="${active}${urgent}" data-esc="${escapeAttr(e.id)}">
+          <strong>${escapeHtml(e.cameraName || e.cameraId || "Kamera")}</strong>
+          <span class="muted"> · ${escapeHtml(e.status || "")}${dual}${testTag}</span><br/>
+          <span class="muted">${sla}</span><br/>
+          <span class="muted">${escapeHtml(e.policeName || e.policePhone || "Polizei-Vorschlag")}</span>
+        </li>`;
+      })
+      .join("");
+  }
+
+  function wireEscClicks(listEl) {
+    listEl?.querySelectorAll("[data-esc]").forEach((li) => {
+      li.addEventListener("click", () => {
+        openEscalations();
+        loadEscalationDetail(li.getAttribute("data-esc"));
+      });
+    });
+  }
+
+  function renderEscalations() {
+    const items = filteredEscalations();
+    const list = $("cwEscList");
+    if (list) {
+      list.innerHTML = escListHtml(items, "Keine Escalations für diesen Filter.");
+      wireEscClicks(list);
+    }
+    const lage = $("cwLageEscList");
+    if (lage) {
+      const open = (state.escalations || [])
+        .filter((e) => ["open", "pending_second_ack"].includes(String(e.status || "")))
+        .slice(0, 5);
+      lage.innerHTML = escListHtml(open, "Keine offenen Escalations — Lage ruhig.");
+      wireEscClicks(lage);
+    }
+  }
+
+  function renderCameras() {
+    const list = $("cwCamList");
+    if (!list) return;
+    const cams = state.cameras || [];
+    if (!cams.length) {
+      list.innerHTML = `<li class="muted">Keine Kameras registriert — unter Geräte / Bridge importieren.</li>`;
+      return;
+    }
+    list.innerHTML = cams
+      .map((c) => {
+        const active = c.id === state.selectedCamId ? " active" : "";
+        const openForCam = (state.escalations || []).filter(
+          (e) =>
+            e.cameraId === c.id && ["open", "pending_second_ack"].includes(String(e.status || "")),
+        ).length;
+        return `<li class="${active}" data-cam="${escapeAttr(c.id)}">
+          <div class="cw-cam-row">
+            <div><span class="cw-dot ${c.online ? "on" : ""}"></span><strong>${escapeHtml(c.name || c.id)}</strong>
+              <div class="muted" style="font-size:0.72rem">${escapeHtml(c.location || "—")} · ${escapeHtml(c.zoneName || "keine Zone")}</div>
+            </div>
+            <div class="muted" style="font-size:0.75rem">${c.online ? "online" : "offline"}</div>
+            <div class="muted" style="font-size:0.75rem">${c.latitude != null ? Number(c.latitude).toFixed(4) : "—"}</div>
+            <div class="muted" style="font-size:0.75rem">${openForCam ? `${openForCam} Esc` : "—"}</div>
+            <div class="muted" style="font-size:0.75rem">${c.hasSnapshot ? "Snapshot" : ""}</div>
+          </div>
+        </li>`;
+      })
+      .join("");
+    list.querySelectorAll("[data-cam]").forEach((li) => {
+      li.addEventListener("click", () => selectCamera(li.getAttribute("data-cam")));
+    });
+  }
+
+  function selectCamera(id) {
+    state.selectedCamId = id;
+    const cam = (state.cameras || []).find((c) => c.id === id);
+    const edit = $("cwCamEdit");
+    if (edit) edit.hidden = !cam;
+    if (cam) fillForm($("cwCamForm"), cam);
+    renderCameras();
   }
 
   function renderSites() {
@@ -248,38 +407,10 @@
     });
   }
 
-  function renderEscalations() {
-    const list = $("cwEscList");
-    if (!list) return;
-    if (!state.escalations.length) {
-      list.innerHTML = `<li class="muted">Keine offenen Eskalationen.</li>`;
-      return;
-    }
-    list.innerHTML = state.escalations
-      .map((e) => {
-        const active = e.id === state.selectedEscId ? " active" : "";
-        const dual = e.dualAckRequired
-          ? ` · Ack ${e.ackCount || 0}/2`
-          : "";
-        const sla = e.slaLabel
-          ? escapeHtml(e.slaLabel)
-          : `Stufe ${escapeHtml(String(e.chainStage ?? 0))}`;
-        const testTag = e.test ? " · TEST" : "";
-        return `<li class="${active}" data-esc="${escapeAttr(e.id)}">
-          <strong>${escapeHtml(e.cameraName || e.cameraId || "Kamera")}</strong>
-          <span class="muted"> · ${escapeHtml(e.status || "")}${dual}${testTag}</span><br/>
-          <span class="muted">${sla}</span><br/>
-          <span class="muted">${escapeHtml(e.policeName || e.policePhone || "Polizei-Vorschlag")}</span>
-        </li>`;
-      })
-      .join("");
-    list.querySelectorAll("[data-esc]").forEach((li) => {
-      li.addEventListener("click", () => loadEscalationDetail(li.getAttribute("data-esc")));
-    });
-  }
-
   function ensureMap() {
     if (!window.L || map) return map;
+    const el = $("cwMap");
+    if (!el) return null;
     map = L.map("cwMap").setView([51.16, 10.45], 5);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "&copy; OpenStreetMap",
@@ -315,7 +446,9 @@
         color,
         fillColor: color,
         fillOpacity: 0.85,
-      }).bindPopup(`<strong>${escapeHtml(cam.name || cam.id)}</strong><br/>${escapeHtml(cam.location || "")}`);
+      }).bindPopup(
+        `<strong>${escapeHtml(cam.name || cam.id)}</strong><br/>${escapeHtml(cam.zoneName || cam.location || "")}`,
+      );
       mapLayer.addLayer(m);
       points.push([Number(lat), Number(lng)]);
     }
@@ -336,6 +469,7 @@
       );
       m.on("popupopen", () => {
         document.querySelector(`[data-open-esc="${CSS.escape(e.id)}"]`)?.addEventListener("click", () => {
+          openEscalations();
           loadEscalationDetail(e.id);
         });
       });
@@ -343,18 +477,18 @@
       points.push([Number(lat), Number(lng)]);
     }
 
-    if (points.length) {
-      map.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
-    }
-    setTimeout(() => map.invalidateSize(), 80);
+    if (points.length) map.fitBounds(points, { padding: [24, 24], maxZoom: 14 });
+    setTimeout(() => map?.invalidateSize(), 80);
   }
 
   async function loadEscalationDetail(id) {
     state.selectedEscId = id;
     renderEscalations();
     const detail = $("cwDetail");
+    const empty = $("cwDetailEmpty");
     if (!detail) return;
     detail.hidden = false;
+    if (empty) empty.hidden = true;
     setMsg("cwDetailMsg", "Lade…", true);
     try {
       const data = await api(`/api/integrations/cameras/escalations/${encodeURIComponent(id)}?media=1`);
@@ -371,9 +505,7 @@
         .filter(Boolean)
         .join(" · ");
       const slaEl = $("cwDetailSla");
-      if (slaEl) {
-        slaEl.textContent = e.slaLabel || `offen · Stufe ${e.chainStage ?? 0}`;
-      }
+      if (slaEl) slaEl.textContent = e.slaLabel || `offen · Stufe ${e.chainStage ?? 0}`;
       const need = e.dualAckRequired ? 2 : 1;
       const have = Number(e.ackCount || 0);
       $("cwAckBadge").textContent = e.dualAckRequired
@@ -396,19 +528,14 @@
       const camLink = $("cwCamLink");
       if (camLink && e.cameraId) {
         camLink.href = qs(`/api/integrations/cameras/${encodeURIComponent(e.cameraId)}/snapshot?format=jpeg`);
-        camLink.hidden = false;
       }
-      const zip = $("cwExportZip");
-      const pdf = $("cwExportPdf");
-      if (zip) zip.href = qs(`/api/integrations/cameras/escalations/${encodeURIComponent(id)}/export?format=zip`);
-      if (pdf) pdf.href = qs(`/api/integrations/cameras/escalations/${encodeURIComponent(id)}/export?format=pdf`);
       setMsg("cwDetailMsg", "", true);
     } catch (err) {
       setMsg("cwDetailMsg", err.message || "Fehler", false);
     }
   }
 
-  async function refresh() {
+  async function refresh({ silent = false } = {}) {
     if (!token) {
       $("cwStatusLine").textContent = "Bitte zuerst im Admin einloggen.";
       return;
@@ -419,6 +546,8 @@
     }
     const back = $("cwBack");
     if (back) back.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}`;
+    const devices = $("cwDevicesLink");
+    if (devices) devices.href = `/index.html?company_id=${encodeURIComponent(companyId)}#devices`;
     try {
       const [data, cams] = await Promise.all([
         api("/api/integrations/cameras/watch"),
@@ -431,29 +560,50 @@
       state.cameras = Array.isArray(cams.cameras) ? cams.cameras : [];
       fillForm($("cwCompanyForm"), state.watch);
       renderPrivacyAndWebhookHelp();
-      const badge = $("cwWatchBadge");
-      if (badge) {
-        badge.textContent = state.watch.afterHours
-          ? "Nachtschicht aktiv"
-          : state.watch.enabled === false
-            ? "Watch aus"
-            : "Watch bereit";
-      }
-      $("cwStatusLine").textContent = `${state.watch.workStart || "06:00"}–${state.watch.workEnd || "18:00"} · Kette ${state.watch.escalateAfterMinutes || 15} Min · ${state.escalations.length} Eskalation(en)`;
+      renderKpis();
+      $("cwStatusLine").textContent = `Aktualisiert ${new Date().toLocaleTimeString()} · ${state.escalations.length} Esc · ${state.cameras.length} Kameras`;
       renderSites();
       renderOverrides();
       renderEscalations();
+      renderCameras();
       renderMap();
-      const deepEsc = params.get("escalation") || "";
-      const prefer = state.selectedEscId || deepEsc;
-      if (prefer) await loadEscalationDetail(prefer);
-      else if (state.escalations[0]?.id) await loadEscalationDetail(state.escalations[0].id);
+      if (!silent) {
+        const deepEsc = params.get("escalation") || "";
+        const prefer = state.selectedEscId || deepEsc;
+        if (prefer) {
+          if (deepEsc) openEscalations();
+          await loadEscalationDetail(prefer);
+        }
+      } else if (state.selectedEscId) {
+        await loadEscalationDetail(state.selectedEscId);
+      }
     } catch (err) {
       $("cwStatusLine").textContent = err.message || "Laden fehlgeschlagen";
     }
   }
 
+  function setupAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = null;
+    const box = $("cwAutoRefresh");
+    if (!box?.checked) return;
+    refreshTimer = setInterval(() => refresh({ silent: true }), 30000);
+  }
+
   function bind() {
+    document.querySelectorAll(".cw-tab").forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab") || "lage"));
+    });
+    document.querySelectorAll(".cw-esc-filter").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.escFilter = btn.getAttribute("data-filter") || "open";
+        document.querySelectorAll(".cw-esc-filter").forEach((b) => b.classList.toggle("active", b === btn));
+        renderEscalations();
+      });
+    });
+    $("cwRefresh")?.addEventListener("click", () => refresh());
+    $("cwAutoRefresh")?.addEventListener("change", setupAutoRefresh);
+
     $("cwSaveCompany")?.addEventListener("click", async () => {
       try {
         const payload = formToPayload($("cwCompanyForm"));
@@ -524,6 +674,41 @@
       }
     });
 
+    $("cwSaveCam")?.addEventListener("click", async () => {
+      if (!state.selectedCamId) return;
+      const form = $("cwCamForm");
+      const fd = new FormData(form);
+      const get = (k) => String(fd.get(k) || "").trim();
+      try {
+        await api(`/api/integrations/cameras/${encodeURIComponent(state.selectedCamId)}`, {
+          method: "PUT",
+          body: JSON.stringify({
+            name: get("name"),
+            location: get("location"),
+            zoneName: get("zoneName"),
+            minConfidence: Number(get("minConfidence") || 0),
+            zoneCriticalOnlyAfterHours: get("zoneCriticalOnlyAfterHours") === "1",
+            latitude: get("latitude") === "" ? null : Number(get("latitude")),
+            longitude: get("longitude") === "" ? null : Number(get("longitude")),
+            rtspUrl: get("rtspUrl"),
+          }),
+        });
+        setMsg("cwCamMsg", "Kamera gespeichert.", true);
+        await refresh({ silent: true });
+        selectCamera(state.selectedCamId);
+      } catch (err) {
+        setMsg("cwCamMsg", err.message || "Fehler", false);
+      }
+    });
+
+    $("cwCamSnapshot")?.addEventListener("click", () => {
+      if (!state.selectedCamId) return;
+      window.open(
+        qs(`/api/integrations/cameras/${encodeURIComponent(state.selectedCamId)}/snapshot?format=jpeg`),
+        "_blank",
+      );
+    });
+
     $("cwAck")?.addEventListener("click", async () => {
       if (!state.selectedEscId) return;
       try {
@@ -537,7 +722,7 @@
         } else {
           setMsg("cwDetailMsg", "Als bearbeitet markiert.", true);
         }
-        await refresh();
+        await refresh({ silent: true });
       } catch (err) {
         setMsg("cwDetailMsg", err.message || "Fehler", false);
       }
@@ -552,7 +737,7 @@
           { method: "POST", body: JSON.stringify({ note }) },
         );
         setMsg("cwDetailMsg", "Als Fehlalarm markiert.", true);
-        await refresh();
+        await refresh({ silent: true });
       } catch (err) {
         setMsg("cwDetailMsg", err.message || "Fehler", false);
       }
@@ -572,7 +757,10 @@
           true,
         );
         await refresh();
-        if (data.id) await loadEscalationDetail(data.id);
+        if (data.id) {
+          openEscalations();
+          await loadEscalationDetail(data.id);
+        }
       } catch (err) {
         setMsg("cwCompanyMsg", err.message || "Test-Alarm fehlgeschlagen", false);
       }
@@ -584,9 +772,10 @@
         if (!String(payload.securityWebhookUrl || "").startsWith("http")) {
           setMsg(
             "cwCompanyMsg",
-            "Bitte zuerst Security-Webhook (Firma) mit https://… eintragen und speichern, dann testen.",
+            "Bitte zuerst Security-Webhook (Firma) mit https://… unter Einstellungen speichern.",
             false,
           );
+          switchTab("settings");
           return;
         }
         const data = await api("/api/integrations/cameras/watch/test-webhook", {
@@ -596,25 +785,15 @@
             secret: payload.webhookSecret || undefined,
           }),
         });
-        const errMap = {
-          webhook_url_required: "Keine Webhook-URL — bitte https://… speichern und erneut testen.",
-        };
         setMsg(
           "cwCompanyMsg",
           data.ok
             ? `Test-Webhook gesendet${data.signed ? " (signiert)" : ""}.`
-            : data.message || errMap[data.error] || data.error || "Webhook fehlgeschlagen",
+            : data.message || data.error || "Webhook fehlgeschlagen",
           !!data.ok,
         );
       } catch (err) {
-        const msg = String(err.message || "");
-        setMsg(
-          "cwCompanyMsg",
-          msg === "webhook_url_required"
-            ? "Keine Webhook-URL — bitte https://… speichern und erneut testen."
-            : msg || "Test-Webhook fehlgeschlagen",
-          false,
-        );
+        setMsg("cwCompanyMsg", err.message || "Test-Webhook fehlgeschlagen", false);
       }
     });
 
@@ -637,7 +816,6 @@
       }
     });
 
-    // Auth header for export downloads (anchor alone may miss bearer)
     ["cwExportZip", "cwExportPdf"].forEach((id) => {
       $(id)?.addEventListener("click", async (ev) => {
         ev.preventDefault();
@@ -663,5 +841,7 @@
   }
 
   bind();
+  setupAutoRefresh();
+  if (params.get("escalation")) switchTab("esc");
   refresh();
 })();
