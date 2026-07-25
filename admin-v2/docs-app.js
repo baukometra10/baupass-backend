@@ -2667,14 +2667,56 @@
     const modal = $("diffModal");
     if (modal) modal.hidden = true;
     diffVersionId = "";
+    diffModalMode = "preview";
+    const paper = $("versionPreviewPaper");
+    if (paper) paper.innerHTML = "";
   }
 
   let diffRowsCache = [];
   let diffTextCache = { oldText: "", newText: "" };
+  let diffModalMode = "preview";
+
+  function setDiffModalMode(mode) {
+    diffModalMode = mode === "diff" ? "diff" : "preview";
+    const isPreview = diffModalMode === "preview";
+    $("diffTabPreview")?.classList.toggle("is-active", isPreview);
+    $("diffTabDiff")?.classList.toggle("is-active", !isPreview);
+    $("diffTabPreview")?.setAttribute("aria-selected", isPreview ? "true" : "false");
+    $("diffTabDiff")?.setAttribute("aria-selected", isPreview ? "false" : "true");
+    if ($("diffToolbar")) $("diffToolbar").hidden = isPreview;
+    if ($("versionPreviewPane")) $("versionPreviewPane").hidden = !isPreview;
+    if ($("diffModalBody")) $("diffModalBody").hidden = isPreview;
+    if ($("diffModalTitle")) {
+      $("diffModalTitle").textContent = isPreview ? dt("versionPreviewTitle") : dt("diffTitle");
+    }
+    if (!isPreview) renderDiffBody();
+    else renderVersionPreview();
+  }
+
+  function renderVersionPreview() {
+    const paper = $("versionPreviewPaper");
+    if (!paper) return;
+    const html = String(diffVersionHtml || "").trim();
+    if (!html) {
+      paper.innerHTML = `<p class="version-preview-empty">${escapeHtml(dt("versionPreviewEmpty"))}</p>`;
+      return;
+    }
+    // Prefer body from envelope; keep header/footer from version HTML when present.
+    const mainMatch = /<main[^>]*class="wp-doc-body"[^>]*>([\s\S]*?)<\/main>/i.exec(html);
+    const headerMatch = /<header[^>]*class="wp-doc-header"[^>]*>([\s\S]*?)<\/header>/i.exec(html);
+    const footerMatch = /<footer[^>]*class="wp-doc-footer"[^>]*>([\s\S]*?)<\/footer>/i.exec(html);
+    const header = headerMatch ? headerMatch[1] : "";
+    const body = mainMatch ? mainMatch[1] : html;
+    const footer = footerMatch ? footerMatch[1] : "";
+    paper.innerHTML =
+      (header ? `<div class="version-preview-header">${header}</div>` : "") +
+      `<div class="version-preview-body">${body}</div>` +
+      (footer ? `<div class="version-preview-footer">${footer}</div>` : "");
+  }
 
   function renderDiffBody() {
     const body = $("diffModalBody");
-    if (!body) return;
+    if (!body || body.hidden) return;
     const onlyChanges = !!$("diffOnlyChanges")?.checked;
     const unified = !!$("diffUnifiedView")?.checked;
     const rows = diffRowsCache || [];
@@ -2727,9 +2769,10 @@
     });
   }
 
-  async function openVersionDiff(versionId) {
+  async function openVersionDiff(versionId, opts = {}) {
     if (!currentDoc?.id || !versionId) return;
-    setStatus($("saveStatus"), dt("diffLoading"));
+    const mode = opts.mode === "diff" ? "diff" : "preview";
+    setStatus($("saveStatus"), mode === "preview" ? dt("versionPreviewLoading") : dt("diffLoading"));
     try {
       const data = await api(
         `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/versions/${encodeURIComponent(versionId)}${companyQuery()}`,
@@ -2737,13 +2780,29 @@
       const version = data.version || {};
       diffVersionId = String(version.id || versionId);
       diffVersionHtml = String(version.contentHtml || version.content_html || "");
+      // If version stored body-only, still try content_json envelope for header/footer preview.
+      if (!/<header[^>]*wp-doc-header/i.test(diffVersionHtml) && version.contentJson) {
+        try {
+          const parsed =
+            typeof version.contentJson === "string" ? JSON.parse(version.contentJson) : version.contentJson;
+          if (parsed && parsed.schema === "workpass-doc-v2") {
+            const hdr = String(parsed.headerHtml || "");
+            const ftr = String(parsed.footerHtml || "");
+            const body = diffVersionHtml || "<p><br></p>";
+            diffVersionHtml =
+              (hdr ? `<header class="wp-doc-header">${hdr}</header>` : "") +
+              `<main class="wp-doc-body">${body}</main>` +
+              (ftr ? `<footer class="wp-doc-footer">${ftr}</footer>` : "");
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       diffVersionMeta = version;
       const oldText = String(version.contentText || version.content_text || "");
       const newText = getText();
       diffTextCache = { oldText, newText };
       diffRowsCache = computeLineDiff(oldText, newText);
-      renderDiffBody();
-      if ($("diffModalTitle")) $("diffModalTitle").textContent = dt("diffTitle");
       if ($("diffModalMeta")) {
         $("diffModalMeta").textContent = dt("diffMeta", {
           ver: version.version_no ?? "?",
@@ -2753,8 +2812,9 @@
       }
       const modal = $("diffModal");
       if (modal) modal.hidden = false;
+      setDiffModalMode(mode);
       if (window.DocsIcons) window.DocsIcons.mountAll(modal, true);
-      setStatus($("saveStatus"), dt("diffReady"), "ok");
+      setStatus($("saveStatus"), mode === "preview" ? dt("versionPreviewReady") : dt("diffReady"), "ok");
     } catch (e) {
       setStatus($("saveStatus"), e.message || dt("diffFail"), "err");
     }
@@ -4836,16 +4896,25 @@
             <span class="doc-sub">${escapeHtml(formatWhen(v.created_at))}</span>
           </button>
           <div class="version-actions">
+            <button type="button" class="cmd quiet" data-preview="${escapeHtml(v.id)}" data-di18n="versionPreviewBtn">Vorschau</button>
             <button type="button" class="cmd quiet" data-diff="${escapeHtml(v.id)}" data-di18n="diffBtn">Diff</button>
             <button type="button" class="cmd quiet" data-restore="${escapeHtml(v.id)}" data-di18n="diffRestore">Wiederherstellen</button>
           </div>
         </li>`,
         )
         .join("");
+      list.querySelectorAll("button[data-preview]").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          openVersionDiff(btn.getAttribute("data-preview"), { mode: "preview" }).catch((err) =>
+            setStatus($("saveStatus"), err.message, "err"),
+          );
+        });
+      });
       list.querySelectorAll("button[data-diff]").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          openVersionDiff(btn.getAttribute("data-diff")).catch((err) =>
+          openVersionDiff(btn.getAttribute("data-diff"), { mode: "diff" }).catch((err) =>
             setStatus($("saveStatus"), err.message, "err"),
           );
         });
@@ -4853,15 +4922,15 @@
       list.querySelectorAll("button[data-restore]").forEach((btn) => {
         btn.addEventListener("click", (e) => {
           e.stopPropagation();
-          restoreVersion(btn.getAttribute("data-restore")).catch((err) =>
+          // Always preview before restoring — avoids blind overwrite.
+          openVersionDiff(btn.getAttribute("data-restore"), { mode: "preview" }).catch((err) =>
             setStatus($("saveStatus"), err.message, "err"),
           );
         });
       });
-      // Keep row click as restore for power users who expect old behavior? Better: open diff.
       list.querySelectorAll("button[data-version]").forEach((btn) => {
         btn.addEventListener("click", () =>
-          openVersionDiff(btn.getAttribute("data-version")).catch((e) =>
+          openVersionDiff(btn.getAttribute("data-version"), { mode: "preview" }).catch((e) =>
             setStatus($("saveStatus"), e.message, "err"),
           ),
         );
@@ -6408,6 +6477,8 @@
     $("diffModalBackdrop")?.addEventListener("click", () => closeDiffModal());
     $("diffModalClose")?.addEventListener("click", () => closeDiffModal());
     $("diffCloseBtn")?.addEventListener("click", () => closeDiffModal());
+    $("diffTabPreview")?.addEventListener("click", () => setDiffModalMode("preview"));
+    $("diffTabDiff")?.addEventListener("click", () => setDiffModalMode("diff"));
     $("diffRestoreBtn")?.addEventListener("click", () => {
       if (!diffVersionId) return;
       restoreVersion(diffVersionId)

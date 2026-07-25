@@ -380,25 +380,35 @@ class EditorDocsService:
             safe_src = raw_logo.replace('"', "").replace("'", "")
             logo_html = (
                 f'<img class="wp-lh-logo" src="{safe_src}" alt="" '
-                f'style="max-height:48px;max-width:140px;object-fit:contain" />'
+                f'style="max-height:52px;max-width:150px;object-fit:contain;display:block" />'
             )
-        header = f"""<div class="wp-letterhead" style="border-bottom:2px solid {accent};padding-bottom:8px">
-  <div class="wp-lh-top" style="display:flex;gap:12px;align-items:center">
-    {logo_html}
-    <div>
-      <div class="wp-hf-brand" style="font-weight:700;font-size:1rem;color:#0f172a">{name}</div>
-      <div class="wp-hf-meta" style="font-size:0.75rem;color:#64748b">{sector_safe}</div>
+        contact_lines = [
+            html_escape(p, quote=True)
+            for p in (address, contact, email)
+            if p and str(p).strip() and str(p).strip() != "—"
+        ]
+        contact_html = "<br>".join(contact_lines) if contact_lines else "&nbsp;"
+        # DIN-ähnlicher Briefkopf: Logo + Firma links, Kontaktdaten rechts.
+        header = f"""<div class="wp-letterhead" style="border-bottom:2px solid {accent};padding:0 0 10px">
+  <div class="wp-lh-row" style="display:flex;justify-content:space-between;align-items:flex-start;gap:18px">
+    <div class="wp-lh-brand" style="display:flex;gap:12px;align-items:center;min-width:0">
+      {logo_html}
+      <div class="wp-lh-nameblock">
+        <div class="wp-hf-brand" style="font-weight:700;font-size:1.05rem;line-height:1.25;color:#0f172a;letter-spacing:-0.01em">{name}</div>
+        <div class="wp-hf-meta" style="font-size:0.72rem;color:#64748b;margin-top:2px">{sector_safe}</div>
+      </div>
+    </div>
+    <div class="wp-lh-contact" style="text-align:right;font-size:0.72rem;color:#475569;line-height:1.45;max-width:46%">
+      {contact_html}
     </div>
   </div>
 </div>"""
-        foot_bits = [
-            html_escape(p, quote=True)
-            for p in (address, contact, email)
-            if p and p != "—"
-        ]
-        footer = f"""<div class="wp-letterfoot" style="border-top:1px solid {accent};padding-top:8px;font-size:0.72rem;color:#64748b;line-height:1.45">
-  <div style="font-weight:650;color:#334155">{name}</div>
-  <div>{" · ".join(foot_bits) if foot_bits else " "}</div>
+        foot_bits = contact_lines
+        footer = f"""<div class="wp-letterfoot" style="border-top:1px solid {accent};padding-top:8px;font-size:0.7rem;color:#64748b;line-height:1.45">
+  <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div style="font-weight:650;color:#334155">{name}</div>
+    <div>{" · ".join(foot_bits) if foot_bits else "&nbsp;"}</div>
+  </div>
 </div>"""
         return {"headerHtml": header, "footerHtml": footer}
 
