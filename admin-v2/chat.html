@@ -660,9 +660,59 @@
       max-height: 42vh;
       overflow: auto;
     }
-    .voice-call-overlay.is-conference .voice-call-video-grid { display: grid; }
-    .voice-call-overlay.is-conference .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
-    .voice-call-overlay.is-conference .voice-call-rings { opacity: 0.35; }
+    .voice-call-overlay.is-conference .voice-call-video-grid,
+    .voice-call-overlay.is-video .voice-call-video-grid { display: grid; }
+    .voice-call-overlay.is-conference .voice-call-avatar,
+    .voice-call-overlay.is-video .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
+    .voice-call-overlay.is-conference .voice-call-rings,
+    .voice-call-overlay.is-video .voice-call-rings { opacity: 0.35; }
+    .voice-call-peer-banner {
+      margin: 0.55rem auto 0;
+      max-width: 28rem;
+      padding: 0.55rem 0.85rem;
+      border-radius: 12px;
+      background: rgba(251, 191, 36, 0.16);
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      color: #fde68a;
+      font-size: 0.84rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .voice-call-peer-banner.hidden { display: none; }
+    .voice-call-image-toast {
+      position: fixed;
+      inset: 0;
+      z-index: 12050;
+      display: grid;
+      place-items: center;
+      background: rgba(0, 0, 0, 0.72);
+      padding: 1rem;
+    }
+    .voice-call-image-toast.hidden { display: none; }
+    .voice-call-image-toast-inner {
+      width: min(520px, 94vw);
+      background: #111b21;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 0.85rem;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.45);
+    }
+    .voice-call-image-toast-inner img {
+      width: 100%;
+      max-height: 60vh;
+      object-fit: contain;
+      border-radius: 10px;
+      background: #0b141a;
+    }
+    .voice-call-image-toast-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-top: 0.65rem;
+      color: #e9edef;
+      font-size: 0.85rem;
+    }
     .voice-call-overlay.is-net-error .voice-call-stage::after {
       content: "";
       position: absolute;
@@ -1428,6 +1478,7 @@
       <p id="voiceCallStatus" data-aci18n="voiceCallDialing">Wählt…</p>
       <p id="voiceCallQuality" class="voice-call-quality hidden" aria-live="polite"></p>
       <p id="voiceCallCamHint" class="voice-call-cam-hint hidden" aria-live="polite">Kamera ist aus — einschalten, damit der Mitarbeiter Sie sieht.</p>
+      <p id="voiceCallPeerCamBanner" class="voice-call-peer-banner hidden" role="status" aria-live="assertive"></p>
       <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
       <p id="voiceCallDiag" class="voice-call-diag hidden" aria-live="polite"></p>
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
@@ -1480,8 +1531,19 @@
       </div>
       <div class="voice-call-toolbar-extra">
         <button type="button" id="voiceCallRetryBtn" class="voice-call-pill-btn primary hidden" data-aci18n="conferenceRetry" data-aci18n-attr="title" title="Erneut verbinden">Erneut verbinden</button>
+        <button type="button" id="voiceCallShareImgBtn" class="voice-call-pill-btn" data-aci18n="voiceCallShareImage" data-aci18n-attr="title" title="Bild senden">Bild</button>
         <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" data-aci18n-attr="title" disabled title="Einladen">+ Einladen</button>
         <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" data-aci18n-attr="title" title="Notiz">Notiz</button>
+      </div>
+      <input type="file" id="voiceCallShareImgInput" accept="image/*" class="hidden" style="display:none" />
+    </div>
+  </div>
+  <div id="voiceCallImageToast" class="voice-call-image-toast hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallImageToastLabel">
+    <div class="voice-call-image-toast-inner">
+      <img id="voiceCallImageToastImg" alt="" />
+      <div class="voice-call-image-toast-meta">
+        <span id="voiceCallImageToastLabel"></span>
+        <button type="button" id="voiceCallImageToastClose" class="voice-call-pill-btn" data-aci18n="conferenceClose" data-aci18n-attr="aria-label,title" aria-label="Schließen" title="Schließen">✕</button>
       </div>
     </div>
   </div>
@@ -1515,8 +1577,8 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
-  <script src="/chat-voice-call.js?v=20260720callFix3"></script>
-  <script src="/chat-conference.js?v=20260719confCam1"></script>
+  <script src="/chat-voice-call.js?v=20260726rings2"></script>
+  <script src="/chat-conference.js?v=20260725confCam2"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260719chat44"></script>
   <script src="/e2e-crypto.js?v=20260719e2e5"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -4196,14 +4258,111 @@
       btn.title = text;
       const hint = document.getElementById("voiceCallCamHint");
       if (hint) {
-        const conferenceActive = Boolean(window.SUPPIXConference?.isActive?.());
-        const show = conferenceActive && !on;
+        const inCall = Boolean(window.SUPPIXConference?.isActive?.() || activeVoiceCallSession);
+        const show = inCall && !on;
         hint.classList.toggle("hidden", !show);
         if (show) {
           hint.textContent = window.adminChatT("voiceCallCamHint")
             || "Kamera ist aus — einschalten, damit der Mitarbeiter Sie sieht.";
         }
       }
+    }
+    function showVoiceCallPeerCamBanner(message, { sticky = false } = {}) {
+      const el = document.getElementById("voiceCallPeerCamBanner");
+      if (!el) return;
+      el.textContent = String(message || "").trim();
+      el.classList.toggle("hidden", !el.textContent);
+      if (el._hideTimer) clearTimeout(el._hideTimer);
+      if (el.textContent && !sticky) {
+        el._hideTimer = setTimeout(() => {
+          el.classList.add("hidden");
+          el.textContent = "";
+        }, 8000);
+      }
+    }
+    function clearVoiceCallPeerCamBanner() {
+      const el = document.getElementById("voiceCallPeerCamBanner");
+      if (!el) return;
+      if (el._hideTimer) clearTimeout(el._hideTimer);
+      el.classList.add("hidden");
+      el.textContent = "";
+    }
+    function upsertDirectCallVideoTile(id, stream, label, muted = false) {
+      const grid = document.getElementById("voiceCallVideoGrid");
+      const overlay = document.getElementById("voiceCallOverlay");
+      if (!grid || !stream) return;
+      let tile = grid.querySelector(`[data-direct-tile="${CSS.escape(id)}"]`);
+      if (!tile) {
+        tile = document.createElement("div");
+        tile.className = "voice-call-video-tile";
+        tile.dataset.directTile = id;
+        tile.innerHTML = `<video playsinline autoplay></video><span class="tile-label"></span>`;
+        grid.appendChild(tile);
+      }
+      const video = tile.querySelector("video");
+      const labelEl = tile.querySelector(".tile-label");
+      if (video && video.srcObject !== stream) {
+        video.srcObject = stream;
+        video.muted = Boolean(muted);
+        video.play?.().catch?.(() => {});
+      }
+      if (labelEl) labelEl.textContent = label || id;
+      overlay?.classList.add("is-video");
+      grid.setAttribute("aria-hidden", "false");
+    }
+    function clearDirectCallVideoTiles() {
+      const grid = document.getElementById("voiceCallVideoGrid");
+      const overlay = document.getElementById("voiceCallOverlay");
+      if (grid) {
+        grid.querySelectorAll("[data-direct-tile]").forEach((el) => el.remove());
+        if (!grid.children.length) grid.setAttribute("aria-hidden", "true");
+      }
+      if (!window.SUPPIXConference?.isActive?.()) overlay?.classList.remove("is-video");
+    }
+    function showVoiceCallImageToast(dataUrl, fromName) {
+      const toast = document.getElementById("voiceCallImageToast");
+      const img = document.getElementById("voiceCallImageToastImg");
+      const label = document.getElementById("voiceCallImageToastLabel");
+      if (!toast || !img) return;
+      img.src = String(dataUrl || "");
+      if (label) {
+        label.textContent = window.adminChatT("voiceCallImageFrom", { name: fromName || "…" })
+          || `Bild von ${fromName || "…"}`;
+      }
+      toast.classList.remove("hidden");
+    }
+    function hideVoiceCallImageToast() {
+      const toast = document.getElementById("voiceCallImageToast");
+      const img = document.getElementById("voiceCallImageToastImg");
+      toast?.classList.add("hidden");
+      if (img) img.removeAttribute("src");
+    }
+    async function compressImageFileForCall(file, maxEdge = 720, quality = 0.68) {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const targetChars = 160000; // keep signaling payload small
+      let edge = Math.min(maxEdge, Math.max(bitmap.width, bitmap.height));
+      let q = quality;
+      let dataUrl = "";
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const scale = Math.min(1, edge / Math.max(bitmap.width, bitmap.height));
+        const w = Math.max(1, Math.round(bitmap.width * scale));
+        const h = Math.max(1, Math.round(bitmap.height * scale));
+        canvas.width = w;
+        canvas.height = h;
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(bitmap, 0, 0, w, h);
+        dataUrl = canvas.toDataURL("image/jpeg", q);
+        if (dataUrl.length <= targetChars) break;
+        if (q > 0.42) q = Math.max(0.4, q - 0.1);
+        else edge = Math.max(320, Math.round(edge * 0.78));
+      }
+      bitmap.close?.();
+      if (dataUrl.length > 300000) {
+        throw new Error(window.adminChatT("voiceCallImageFailed") || "Bild zu groß");
+      }
+      return dataUrl;
     }
     function resetVoiceCallControls() {
       if (typeof resetCallControlState === "function") resetCallControlState();
@@ -4306,6 +4465,9 @@
         stopVoiceCallTimer();
         stopVoiceCallRingTimer();
         resetVoiceCallControls();
+        clearDirectCallVideoTiles();
+        clearVoiceCallPeerCamBanner();
+        hideVoiceCallImageToast();
         try { window.__adminIncomingRingtone?.stop?.(); } catch (_) { /* ignore */ }
         try { window.__conferenceRingtone?.stop?.(); } catch (_) { /* ignore */ }
         window.__adminIncomingRingtone = null;
@@ -4392,15 +4554,70 @@
     let dismissedAdminCallId = "";
     let pendingIncomingCall = null;
     function buildAdminVoiceCallSession() {
+      const adminName = String(window.__ADMIN_DISPLAY_NAME || "Arbeitgeber").trim() || "Arbeitgeber";
       return window.SUPPIXVoiceCall.createSession({
         api: voiceCallApi,
         role: "admin",
+        displayName: adminName,
         onAudioLevels: ({ local, remote }) => {
           const micFill = document.getElementById("voiceCallMicFill");
           const remoteFill = document.getElementById("voiceCallRemoteFill");
           if (micFill) micFill.style.width = `${Math.round((local || 0) * 100)}%`;
           if (remoteFill) remoteFill.style.width = `${Math.round((remote || 0) * 100)}%`;
           updateVoiceCallLiveWave(local, remote);
+        },
+        onCameraIntent: (payload) => {
+          const name = String(payload?.fromName || window.adminChatT("workerDefault") || "Mitarbeiter").trim();
+          showVoiceCallPeerCamBanner(
+            window.adminChatT("voiceCallPeerCameraIntent", { name })
+              || `${name} möchte die Kamera öffnen.`,
+          );
+          try {
+            if (window.Notification && Notification.permission === "granted") {
+              new Notification(window.adminChatT("voiceCallPeerCameraTitle") || "Kamera-Anfrage", {
+                body: window.adminChatT("voiceCallPeerCameraIntent", { name }) || `${name} möchte die Kamera öffnen.`,
+                tag: "voice-call-cam-intent",
+              });
+            }
+          } catch (_) { /* ignore */ }
+        },
+        onCameraState: (payload) => {
+          if (payload?.enabled) {
+            const name = String(payload?.fromName || window.adminChatT("workerDefault") || "Mitarbeiter").trim();
+            showVoiceCallPeerCamBanner(
+              window.adminChatT("voiceCallPeerCameraOn", { name }) || `${name} hat die Kamera eingeschaltet.`,
+              { sticky: true },
+            );
+          } else {
+            clearVoiceCallPeerCamBanner();
+          }
+        },
+        onCallImage: (payload) => {
+          const dataUrl = String(payload?.dataUrl || "");
+          if (!dataUrl) return;
+          showVoiceCallImageToast(dataUrl, payload?.fromName || window.adminChatT("workerDefault") || "Mitarbeiter");
+        },
+        onLocalVideo: (stream, enabled) => {
+          if (enabled && stream) {
+            upsertDirectCallVideoTile("local", stream, window.adminChatT("voiceCallMicLabel") || "Sie", true);
+          } else {
+            document.querySelector('#voiceCallVideoGrid [data-direct-tile="local"]')?.remove();
+            if (!document.querySelector("#voiceCallVideoGrid [data-direct-tile]")) {
+              document.getElementById("voiceCallOverlay")?.classList.remove("is-video");
+            }
+          }
+        },
+        onRemoteVideo: (stream, hasVideo) => {
+          if (hasVideo && stream) {
+            upsertDirectCallVideoTile(
+              "remote",
+              stream,
+              window.adminChatT("voiceCallRemoteLabel") || "Mitarbeiter",
+              false,
+            );
+          } else {
+            document.querySelector('#voiceCallVideoGrid [data-direct-tile="remote"]')?.remove();
+          }
         },
         onState: (state, reason) => {
           if (state === "unreachable") {
@@ -4422,6 +4639,9 @@
             } catch (_) { /* ignore */ }
             activeVoiceCallSession = null;
             pendingIncomingCall = null;
+            clearDirectCallVideoTiles();
+            clearVoiceCallPeerCamBanner();
+            hideVoiceCallImageToast();
             if (unreachable) {
               setVoiceCallOverlay(
                 true,
@@ -4459,6 +4679,8 @@
             if (activeVoiceCallSession) await activeVoiceCallSession.end("error");
             activeVoiceCallSession = null;
             pendingIncomingCall = null;
+            clearDirectCallVideoTiles();
+            clearVoiceCallPeerCamBanner();
             setVoiceCallOverlay(false);
             setThreadMeta(String(error?.message || error || window.adminChatT("voiceCallFailed")), { dynamic: true });
           })();
@@ -4489,7 +4711,6 @@
         window.__adminIncomingRingtone?.stop?.();
         window.__adminIncomingRingtone = window.SUPPIXVoiceCall?.createRingtone?.({
           mode: "incoming",
-          pauseMs: 1800,
           whatsappStyle: true,
         });
         window.__adminIncomingRingtone?.setOutputEnabled?.(callControlState.speakerOn !== false);
@@ -4696,10 +4917,11 @@
     }
 
     async function applyCallCamera(on) {
-      callControlState.camOn = Boolean(on);
-      conferenceCamOn = callControlState.camOn;
-      updateVoiceCallCamBtn(callControlState.camOn);
+      const wantOn = Boolean(on);
       if (window.SUPPIXConference?.isActive?.()) {
+        callControlState.camOn = wantOn;
+        conferenceCamOn = callControlState.camOn;
+        updateVoiceCallCamBtn(callControlState.camOn);
         try {
           await window.SUPPIXConference.setCameraEnabled(callControlState.camOn);
           callControlState.camOn = Boolean(window.SUPPIXConference.isCameraOn?.());
@@ -4719,13 +4941,31 @@
         );
         return callControlState.camOn;
       }
-      // 1:1 / waiting: still toggle UI so the button clearly reacts
-      flashCallControlFeedback(
-        callControlState.camOn
-          ? (window.adminChatT("voiceCallCameraConferenceOnly") || "Kamera nur in der Konferenz verfügbar.")
-          : (window.adminChatT("voiceCallCameraOff") || "Kamera aus")
-      );
-      return callControlState.camOn;
+      if (activeVoiceCallSession?.setCameraEnabled) {
+        try {
+          if (wantOn) {
+            flashCallControlFeedback(
+              window.adminChatT("voiceCallCameraRequesting") || "Kamera-Anfrage wird gesendet…"
+            );
+          }
+          const result = await activeVoiceCallSession.setCameraEnabled(wantOn);
+          callControlState.camOn = Boolean(result);
+          updateVoiceCallCamBtn(callControlState.camOn);
+          flashCallControlFeedback(
+            callControlState.camOn
+              ? (window.adminChatT("voiceCallCamera") || "Kamera")
+              : (window.adminChatT("voiceCallCameraOff") || "Kamera aus")
+          );
+          return callControlState.camOn;
+        } catch (error) {
+          callControlState.camOn = false;
+          updateVoiceCallCamBtn(false);
+          flashCallControlFeedback(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")));
+          return false;
+        }
+      }
+      flashCallControlFeedback(window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.");
+      return false;
     }
 
     function resetCallControlState() {
@@ -4988,6 +5228,48 @@
       event.stopPropagation();
       await applyCallCamera(!callControlState.camOn);
     });
+    document.getElementById("voiceCallShareImgBtn")?.addEventListener("click", () => {
+      if (!activeVoiceCallSession?.sendCallImage && !window.SUPPIXConference?.isActive?.()) {
+        flashCallControlFeedback(window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.");
+        return;
+      }
+      document.getElementById("voiceCallShareImgInput")?.click();
+    });
+    document.getElementById("voiceCallShareImgInput")?.addEventListener("change", async (event) => {
+      const file = event.target?.files?.[0];
+      event.target.value = "";
+      if (!file || !activeVoiceCallSession?.sendCallImage) return;
+      try {
+        const dataUrl = await compressImageFileForCall(file);
+        await activeVoiceCallSession.sendCallImage(dataUrl, {
+          fromName: String(window.__ADMIN_DISPLAY_NAME || "Arbeitgeber"),
+        });
+        flashCallControlFeedback(window.adminChatT("voiceCallImageSent") || "Bild gesendet");
+      } catch (error) {
+        flashCallControlFeedback(String(error?.message || error || window.adminChatT("voiceCallImageFailed") || "Bild fehlgeschlagen"));
+      }
+    });
+    document.getElementById("voiceCallImageToastClose")?.addEventListener("click", hideVoiceCallImageToast);
+    document.getElementById("voiceCallImageToast")?.addEventListener("click", (event) => {
+      if (event.target?.id === "voiceCallImageToast") hideVoiceCallImageToast();
+    });
+    try {
+      window.SUPPIXConference?.setOnCameraIntent?.((name) => {
+        const who = String(name || window.adminChatT("workerDefault") || "Mitarbeiter").trim();
+        showVoiceCallPeerCamBanner(
+          window.adminChatT("voiceCallPeerCameraIntent", { name: who })
+            || `${who} möchte die Kamera öffnen.`,
+        );
+        try {
+          if (window.Notification && Notification.permission === "granted") {
+            new Notification(window.adminChatT("voiceCallPeerCameraTitle") || "Kamera-Anfrage", {
+              body: window.adminChatT("voiceCallPeerCameraIntent", { name: who }) || `${who} möchte die Kamera öffnen.`,
+              tag: "conf-cam-intent",
+            });
+          }
+        } catch (_) { /* ignore */ }
+      });
+    } catch (_) { /* ignore */ }
     document.getElementById("voiceCallNoteBtn")?.addEventListener("click", async () => {
       const roomId = activeConferenceRoomId || window.SUPPIXConference?.getActiveRoomId?.() || "";
       if (!roomId) return;
@@ -5282,6 +5564,18 @@
           } catch { /* ignore */ }
         }
         if (event?.data?.type === "SUPPIX_CHAT_PUSH") {
+          const push = event.data || {};
+          if (String(push.tag || "") === "voice-call-camera") {
+            const name = String(push.fromName || push.workerName || window.adminChatT("workerDefault") || "Mitarbeiter").trim();
+            showVoiceCallPeerCamBanner(
+              window.adminChatT("voiceCallPeerCameraIntent", { name })
+                || `${name} möchte die Kamera öffnen.`,
+            );
+            const wid = String(push.workerId || "").trim();
+            if (wid && !activeVoiceCallSession) {
+              void openThread(push.threadId || "", wid).catch(() => {});
+            }
+          }
           window.SUPPIXChatGlobalNotify?.handleSwPush?.(event.data);
         }
       });

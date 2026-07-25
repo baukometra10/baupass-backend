@@ -5290,6 +5290,19 @@ function registerWorkerSw() {
       navigateWorkerAppFromNotification(event.data.url);
     }
     if (event.data?.type === "SUPPIX_CHAT_PUSH") {
+      const push = event.data || {};
+      if (String(push.tag || "") === "voice-call-camera") {
+        const name = String(push.fromName || "Arbeitgeber").trim() || "Arbeitgeber";
+        try {
+          window.SUPPIXWorkerVoiceCall?.showCameraIntentBanner?.(name);
+        } catch (_) { /* ignore */ }
+        try {
+          window.showWorkerNotice?.(
+            (typeof t === "function" ? t("voiceCallPeerCameraIntent") : "")
+              || `${name} möchte die Kamera öffnen.`
+          );
+        } catch (_) { /* ignore */ }
+      }
       window.SUPPIXChatGlobalNotify?.handleSwPush?.(event.data);
     }
     if (event.data?.type === "SW_FLUSH_OFFLINE_QUEUE" && workerToken) {

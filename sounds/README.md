@@ -1,7 +1,16 @@
 # Call sounds
 
-- `phone-call-ring.mp3` — classic US dual-tone burst (440 Hz + 480 Hz, ~2s).
-- `phone-call-ring-cycle.mp3` — ~12s phone cadence (2s ring / 4s silence × 2),
-  then a short pause and repeat until hangup/answer.
+Distinct tones (WhatsApp / Messenger style) — never reuse the same clip for both directions.
 
-Generated with ffmpeg (clean sine tones), not the short Freesound clip.
+| File | Role | Character |
+|------|------|-----------|
+| `phone-call-ring.mp3` | **Incoming** | Dual chirp 440+480 Hz (two short pulses) + silence (~3.2s loop) |
+| `phone-call-ringback.mp3` | **Outgoing** | European ringback 425 Hz (~1s on / long pause, 6s loop) |
+| `phone-call-ring-cycle.mp3` | Alias of ringback | Kept for older cache URLs |
+
+Mobile copies:
+
+- `mobile/assets/sounds/incoming_ring.mp3` ← incoming
+- `mobile/assets/sounds/outgoing_ringback.mp3` ← outgoing
+
+Generated with ffmpeg (clean sine tones).

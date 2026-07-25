@@ -12,6 +12,7 @@ class PushForegroundListener {
     required GlobalKey<ScaffoldMessengerState> messengerKey,
     void Function(WorkerAppRoute route)? onRoute,
     void Function(String callId)? onVoiceCall,
+    void Function(String callId, String fromName)? onCameraIntent,
     void Function(String roomId)? onConferenceInvite,
   }) {
     if (!FirebaseBootstrap.isReady) return;
@@ -20,8 +21,12 @@ class PushForegroundListener {
       final tag = (message.data['tag'] ?? '').trim();
       final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
       final roomId = (message.data['roomId'] ?? message.data['room_id'] ?? '').trim();
+      final fromName = (message.data['fromName'] ?? message.data['from_name'] ?? 'Arbeitgeber').toString();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+      }
+      if (tag == 'voice-call-camera' && onCameraIntent != null) {
+        onCameraIntent(callId, fromName);
       }
       if (tag == 'conference-invite' && roomId.isNotEmpty && onConferenceInvite != null) {
         onConferenceInvite(roomId);
@@ -34,8 +39,25 @@ class PushForegroundListener {
       final tag = (message.data['tag'] ?? '').trim();
       final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
       final roomId = (message.data['roomId'] ?? message.data['room_id'] ?? '').trim();
+      final fromName = (message.data['fromName'] ?? message.data['from_name'] ?? 'Arbeitgeber').toString();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+        return;
+      }
+      if (tag == 'voice-call-camera') {
+        if (onCameraIntent != null) onCameraIntent(callId, fromName);
+        final title = message.notification?.title ??
+            message.data['title'] ??
+            'Kamera-Anfrage';
+        final body = message.notification?.body ??
+            message.data['body'] ??
+            '$fromName möchte die Kamera öffnen.';
+        messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text('$title: $body'),
+            duration: const Duration(seconds: 6),
+          ),
+        );
         return;
       }
       if (tag == 'conference-invite') {

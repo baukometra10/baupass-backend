@@ -34,6 +34,7 @@
         <div class="worker-voice-call-avatar" id="workerVoiceCallAvatar">AG</div>
         <h4 id="workerVoiceCallTitle">${t("voiceCallTitle", "Sprachanruf")}</h4>
         <p id="workerVoiceCallStatus">${t("voiceCallRinging", "Eingehender Anruf…")}</p>
+        <p id="workerVoiceCallPeerBanner" class="worker-voice-call-peer-banner hidden" role="status" aria-live="assertive"></p>
         <p id="workerVoiceCallTimer" class="worker-voice-call-timer hidden">00:00</p>
         <div id="workerVoiceCallLiveWave" class="worker-voice-call-live-wave"></div>
         <div class="worker-voice-call-meters">
@@ -46,6 +47,7 @@
         </div>
         <div class="worker-voice-call-controls active-only hidden">
           <button type="button" id="workerVoiceCallMuteBtn" aria-label="${t("voiceCallMute", "Stumm")}" title="${t("voiceCallMute", "Stumm")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 19v3"/></svg></span></button>
+          <button type="button" id="workerVoiceCallCamBtn" aria-label="${t("voiceCallCamera", "Kamera")}" title="${t("voiceCallCamera", "Kamera")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span></button>
           <button type="button" id="workerVoiceCallSpeakerBtn" aria-label="${t("voiceCallSpeaker", "Lautsprecher")}" title="${t("voiceCallSpeaker", "Lautsprecher")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span></button>
           <button type="button" id="workerVoiceCallHangupBtn" class="danger" aria-label="${t("voiceCallHangup", "Auflegen")}" title="${t("voiceCallHangup", "Auflegen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span></button>
         </div>
@@ -80,6 +82,8 @@
 .worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:76px;height:76px;min-width:76px;min-height:76px}
 .worker-voice-call-controls button.is-active{background:#f8fafc!important;color:#b91c1c!important;box-shadow:0 0 0 3px rgba(248,113,113,.35)}
 .worker-voice-call-controls button.is-active .wvc-ico{color:#b91c1c}
+.worker-voice-call-peer-banner{margin:.55rem auto 0;max-width:22rem;padding:.55rem .85rem;border-radius:12px;background:rgba(251,191,36,.16);border:1px solid rgba(251,191,36,.45);color:#fde68a;font-size:.84rem;font-weight:600;line-height:1.35}
+.worker-voice-call-peer-banner.hidden{display:none}
 #voiceCallVideoGrid{width:min(920px,94vw);margin:.75rem auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;max-height:36vh;overflow:auto}
 .chat-call-log,.worker-chat-call-log{display:inline-flex;align-items:center;gap:.55rem;padding:.45rem .75rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(0,168,132,.22)}
 .chat-call-log-btn,.worker-chat-call-log-btn{margin-top:.35rem;border-radius:999px;padding:.35rem .75rem;border:1px solid rgba(0,168,132,.35);background:rgba(0,168,132,.18);color:#ecfeff;font-size:.75rem;font-weight:600;cursor:pointer}`;
@@ -90,9 +94,32 @@
     overlay.querySelector("#workerVoiceCallHangupBtn")?.addEventListener("click", () => controller?.hangup());
     overlay.querySelector("#workerVoiceCallMuteBtn")?.addEventListener("click", () => controller?.toggleMute());
     overlay.querySelector("#workerVoiceCallSpeakerBtn")?.addEventListener("click", () => controller?.toggleSpeaker());
+    overlay.querySelector("#workerVoiceCallCamBtn")?.addEventListener("click", () => controller?.toggleCamera());
     const wave = overlay.querySelector("#workerVoiceCallLiveWave");
     if (wave && !wave.childElementCount) wave.innerHTML = Array.from({ length: 28 }, () => "<span></span>").join("");
     return overlay;
+  }
+
+  function showPeerBanner(message) {
+    const el = document.getElementById("workerVoiceCallPeerBanner");
+    if (!el) return;
+    el.textContent = String(message || "").trim();
+    el.classList.toggle("hidden", !el.textContent);
+    if (el._hideTimer) clearTimeout(el._hideTimer);
+    if (el.textContent) {
+      el._hideTimer = setTimeout(() => {
+        el.classList.add("hidden");
+        el.textContent = "";
+      }, 8000);
+    }
+  }
+
+  function clearPeerBanner() {
+    const el = document.getElementById("workerVoiceCallPeerBanner");
+    if (!el) return;
+    if (el._hideTimer) clearTimeout(el._hideTimer);
+    el.classList.add("hidden");
+    el.textContent = "";
   }
 
   let controller = null;
@@ -115,6 +142,7 @@
     active?.classList.toggle("hidden", mode !== "active");
     if (!visible) {
       stopTimer();
+      clearPeerBanner();
       try { incomingTone?.stop?.(); } catch (_) { /* ignore */ }
       incomingTone = null;
       overlay.classList.remove("is-conference");
@@ -249,7 +277,66 @@
       try { incomingTone?.setOutputEnabled?.(on); } catch (_) { /* ignore */ }
       return on;
     },
+    async toggleCamera() {
+      if (conferenceActive && global.SUPPIXConference?.isActive?.()) {
+        const next = !Boolean(global.SUPPIXConference.isCameraOn?.());
+        try {
+          await global.SUPPIXConference.setCameraEnabled?.(next);
+          document.getElementById("workerVoiceCallCamBtn")?.classList.toggle("is-active", next);
+        } catch (_) { /* ignore */ }
+        return;
+      }
+      if (!session?.setCameraEnabled) return;
+      try {
+        const next = !Boolean(session.isCameraOn?.());
+        const on = await session.setCameraEnabled(next);
+        document.getElementById("workerVoiceCallCamBtn")?.classList.toggle("is-active", Boolean(on));
+      } catch (_) {
+        document.getElementById("workerVoiceCallCamBtn")?.classList.remove("is-active");
+      }
+    },
   };
+
+  function attachCallMediaCallbacks(opts = {}) {
+    return {
+      displayName: opts.displayName || t("workerDefault", "Mitarbeiter"),
+      onCameraIntent: (payload) => {
+        const name = String(payload?.fromName || t("senderCompany", "Arbeitgeber")).trim();
+        showPeerBanner(t("voiceCallPeerCameraIntent", `${name} möchte die Kamera öffnen.`).replace("{name}", name));
+      },
+      onCameraState: (payload) => {
+        if (payload?.enabled) {
+          const name = String(payload?.fromName || t("senderCompany", "Arbeitgeber")).trim();
+          showPeerBanner(t("voiceCallPeerCameraOn", `${name} hat die Kamera eingeschaltet.`).replace("{name}", name));
+        } else {
+          clearPeerBanner();
+        }
+      },
+      onCallImage: (payload) => {
+        const dataUrl = String(payload?.dataUrl || "");
+        if (!dataUrl.startsWith("data:image/")) return;
+        const name = String(payload?.fromName || t("senderCompany", "Arbeitgeber")).trim();
+        showPeerBanner(t("voiceCallImageFrom", `Bild von ${name}`).replace("{name}", name));
+        let toast = document.getElementById("workerVoiceCallImageToast");
+        if (!toast) {
+          toast = document.createElement("div");
+          toast.id = "workerVoiceCallImageToast";
+          toast.style.cssText = "position:fixed;inset:0;z-index:15000;display:grid;place-items:center;background:rgba(0,0,0,.72);padding:1rem;";
+          toast.innerHTML = `<div style="width:min(480px,94vw);background:#111b21;border-radius:16px;padding:.85rem;border:1px solid rgba(255,255,255,.1)"><img id="workerVoiceCallImageToastImg" alt="" style="width:100%;max-height:60vh;object-fit:contain;border-radius:10px"/><div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;margin-top:.65rem;color:#e9edef"><span id="workerVoiceCallImageToastLabel"></span><button type="button" id="workerVoiceCallImageToastClose" style="border:0;border-radius:999px;padding:.35rem .75rem;background:rgba(255,255,255,.12);color:#fff;cursor:pointer">✕</button></div></div>`;
+          document.body.appendChild(toast);
+          toast.querySelector("#workerVoiceCallImageToastClose")?.addEventListener("click", () => toast.classList.add("hidden"));
+          toast.addEventListener("click", (ev) => {
+            if (ev.target === toast) toast.classList.add("hidden");
+          });
+        }
+        const img = toast.querySelector("#workerVoiceCallImageToastImg");
+        const label = toast.querySelector("#workerVoiceCallImageToastLabel");
+        if (img) img.src = dataUrl;
+        if (label) label.textContent = t("voiceCallImageFrom", `Bild von ${name}`).replace("{name}", name);
+        toast.classList.remove("hidden");
+      },
+    };
+  }
 
   async function handleIncoming(call) {
     if (!call || !call.id || !global.SUPPIXVoiceCall?.isSupported?.()) return;
@@ -258,6 +345,7 @@
     session = global.SUPPIXVoiceCall.createSession({
       api: apiFn,
       role: "worker",
+      ...attachCallMediaCallbacks(),
       onAudioLevels: ({ local, remote }) => updateLevels(local, remote),
       onState: (state) => {
         if (state === "connected" || state === "accepted") {
@@ -315,6 +403,12 @@
           stage?.insertBefore(grid, status);
         }
         document.getElementById("voiceCallOverlay")?.classList.add("is-conference");
+        global.SUPPIXConference?.setOnCameraIntent?.((name) => {
+          const who = String(name || t("senderCompany", "Arbeitgeber")).trim();
+          showPeerBanner(
+            t("voiceCallPeerCameraIntent", `${who} möchte die Kamera öffnen.`).replace("{name}", who),
+          );
+        });
         await global.SUPPIXConference?.connect?.({
           livekitUrl: data.livekitUrl,
           token: data.token,
@@ -424,6 +518,13 @@
     stop: stopPolling,
     wakeForCallId,
     pollIncomingOnce,
+    showCameraIntentBanner(name) {
+      const who = String(name || t("senderCompany", "Arbeitgeber")).trim();
+      ensureOverlay();
+      showPeerBanner(
+        t("voiceCallPeerCameraIntent", `${who} möchte die Kamera öffnen.`).replace("{name}", who),
+      );
+    },
     async startOutgoingCall(api) {
       if (typeof api !== "function" || !global.SUPPIXVoiceCall?.isSupported?.()) {
         return Promise.reject(new Error("voice_call_unsupported"));
@@ -435,6 +536,7 @@
       session = global.SUPPIXVoiceCall.createSession({
         api,
         role: "worker",
+        ...attachCallMediaCallbacks(),
         onAudioLevels: ({ local, remote }) => updateLevels(local, remote),
         onState: (state) => {
           if (state === "ringing" || state === "dialing") {

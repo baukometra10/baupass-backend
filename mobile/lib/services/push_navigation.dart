@@ -41,6 +41,7 @@ class PushNavigation {
       case 'worker-chat':
         return const WorkerAppRoute(tabIndex: 3, openChat: true);
       case 'voice-call':
+      case 'voice-call-camera':
         final callId = (data['callId'] ?? data['call_id'] ?? '').trim();
         return WorkerAppRoute(
           tabIndex: 3,

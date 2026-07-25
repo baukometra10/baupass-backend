@@ -209,7 +209,7 @@ function buildPushNotificationOptions(data, tag, targetUrl) {
     dir: "auto",
     silent: false,
     renotify: true,
-    requireInteraction: logicalTag === "worker-chat" || logicalTag === "voice-call" || logicalTag === "conference-invite" || logicalTag.startsWith("leave-"),
+    requireInteraction: logicalTag === "worker-chat" || logicalTag === "voice-call" || logicalTag === "voice-call-camera" || logicalTag === "conference-invite" || logicalTag.startsWith("leave-"),
     vibrate: [200, 100, 200],
     timestamp: Number(data.timestamp) || Date.now(),
     data: { url: targetUrl, tag: logicalTag },

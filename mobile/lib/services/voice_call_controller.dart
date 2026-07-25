@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../core/session_store.dart';
+import 'call_image_compress.dart';
 import 'voice_call_repository.dart';
 import 'callkit_service.dart';
 import 'push_background_handler.dart';
@@ -40,13 +43,18 @@ class VoiceCallController extends ChangeNotifier {
   Duration _elapsed = Duration.zero;
   bool _muted = false;
   bool _speakerOn = true;
+  bool _cameraOn = false;
   double _localLevel = 0;
   double _remoteLevel = 0;
   String _connectionDiag = '';
+  String _peerCameraBanner = '';
+  String? _incomingImageDataUrl;
+  String _incomingImageFrom = '';
   String? _lastDismissedCallId;
   bool _isOutgoing = false;
   AudioPlayer? _ringPlayer;
   String? _pendingCallKitAction; // accept | decline
+  Timer? _peerBannerTimer;
 
   VoiceCallUiPhase get phase => _phase;
   bool get isOutgoing => _isOutgoing;
@@ -62,9 +70,13 @@ class VoiceCallController extends ChangeNotifier {
   Duration get elapsed => _elapsed;
   bool get muted => _muted;
   bool get speakerOn => _speakerOn;
+  bool get cameraOn => _cameraOn;
   double get localLevel => _localLevel;
   double get remoteLevel => _remoteLevel;
   String get connectionDiag => _connectionDiag;
+  String get peerCameraBanner => _peerCameraBanner;
+  String? get incomingImageDataUrl => _incomingImageDataUrl;
+  String get incomingImageFrom => _incomingImageFrom;
   bool get isActive => _phase != VoiceCallUiPhase.idle && _phase != VoiceCallUiPhase.ended;
   WorkerVoiceCallSession? get rtcSession => _sessionRtc;
 
@@ -335,23 +347,7 @@ class VoiceCallController extends ChangeNotifier {
       _startRingFeedback();
       _startRingTimeout();
       notifyListeners();
-      _sessionRtc = WorkerVoiceCallSession(
-        repo: repo,
-        session: session,
-        call: call,
-        onState: _onRtcState,
-        onRemoteStream: (_) => notifyListeners(),
-        onAudioLevels: (local, remote) {
-          _localLevel = local;
-          _remoteLevel = remote;
-          notifyListeners();
-        },
-        onConnectionDiag: (summary) {
-          if (_connectionDiag == summary) return;
-          _connectionDiag = summary;
-          notifyListeners();
-        },
-      );
+      _sessionRtc = _buildRtcSession(session, call);
       await _sessionRtc!.startOutgoing();
       await _sessionRtc!.setSpeakerphone(_speakerOn);
     } catch (_) {
@@ -361,10 +357,22 @@ class VoiceCallController extends ChangeNotifier {
 
   void _startRingFeedback() {
     _stopRingFeedback();
-    _ringTimer = Timer.periodic(const Duration(milliseconds: 1600), (_) {
-      HapticFeedback.mediumImpact();
+    // Incoming: stronger WhatsApp-like pulse; outgoing: lighter wait-tone cadence.
+    final hapticEvery = _isOutgoing
+        ? const Duration(milliseconds: 2800)
+        : const Duration(milliseconds: 1600);
+    _ringTimer = Timer.periodic(hapticEvery, (_) {
+      if (_isOutgoing) {
+        HapticFeedback.selectionClick();
+      } else {
+        HapticFeedback.mediumImpact();
+      }
     });
-    HapticFeedback.heavyImpact();
+    if (_isOutgoing) {
+      HapticFeedback.lightImpact();
+    } else {
+      HapticFeedback.heavyImpact();
+    }
     unawaited(_playRingAsset());
   }
 
@@ -372,21 +380,30 @@ class VoiceCallController extends ChangeNotifier {
     try {
       final player = AudioPlayer();
       _ringPlayer = player;
+      // Distinct assets: dual-chirp incoming vs 425 Hz ringback outgoing.
       final asset = _isOutgoing
           ? 'assets/sounds/outgoing_ringback.mp3'
           : 'assets/sounds/incoming_ring.mp3';
       await player.setAsset(asset);
+      // Both assets include silence; loop the full cadence.
       await player.setLoopMode(LoopMode.one);
-      await player.setVolume(_isOutgoing ? 0.85 : 1.0);
+      await player.setVolume(_isOutgoing ? 0.78 : 1.0);
       await player.play();
     } catch (_) {
       // Fallback when asset/player unavailable.
       SystemSound.play(SystemSoundType.alert);
       _ringTimer?.cancel();
-      _ringTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
-        HapticFeedback.heavyImpact();
-        SystemSound.play(SystemSoundType.click);
-      });
+      _ringTimer = Timer.periodic(
+        Duration(milliseconds: _isOutgoing ? 2800 : 1600),
+        (_) {
+          if (_isOutgoing) {
+            HapticFeedback.selectionClick();
+          } else {
+            HapticFeedback.heavyImpact();
+          }
+          SystemSound.play(SystemSoundType.click);
+        },
+      );
     }
   }
 
@@ -421,12 +438,23 @@ class VoiceCallController extends ChangeNotifier {
     _statusNote = 'Verbindung wird aufgebaut…';
     notifyListeners();
 
-    _sessionRtc = WorkerVoiceCallSession(
+    _sessionRtc = _buildRtcSession(session, call);
+    await _sessionRtc!.acceptAndConnect();
+    await _sessionRtc!.setSpeakerphone(_speakerOn);
+  }
+
+  WorkerVoiceCallSession _buildRtcSession(WorkerSession session, Map<String, dynamic> call) {
+    return WorkerVoiceCallSession(
       repo: repo,
       session: session,
       call: call,
+      displayName: 'Mitarbeiter',
       onState: _onRtcState,
       onRemoteStream: (_) => notifyListeners(),
+      onLocalStream: (_, cameraOn) {
+        _cameraOn = cameraOn;
+        notifyListeners();
+      },
       onAudioLevels: (local, remote) {
         _localLevel = local;
         _remoteLevel = remote;
@@ -437,9 +465,69 @@ class VoiceCallController extends ChangeNotifier {
         _connectionDiag = summary;
         notifyListeners();
       },
+      onCameraIntent: (payload) {
+        final name = (payload['fromName'] ?? 'Arbeitgeber').toString().trim();
+        _setPeerCameraBanner('$name möchte die Kamera öffnen.');
+        HapticFeedback.heavyImpact();
+        SystemSound.play(SystemSoundType.alert);
+      },
+      onCameraState: (payload) {
+        final enabled = payload['enabled'] == true;
+        final name = (payload['fromName'] ?? 'Arbeitgeber').toString().trim();
+        if (enabled) {
+          _setPeerCameraBanner('$name hat die Kamera eingeschaltet.', sticky: true);
+        } else {
+          _clearPeerCameraBanner();
+        }
+        notifyListeners();
+      },
+      onCallImage: (payload) {
+        final dataUrl = (payload['dataUrl'] ?? '').toString();
+        if (dataUrl.isEmpty) return;
+        _incomingImageDataUrl = dataUrl;
+        _incomingImageFrom = (payload['fromName'] ?? 'Arbeitgeber').toString();
+        HapticFeedback.mediumImpact();
+        notifyListeners();
+      },
     );
-    await _sessionRtc!.acceptAndConnect();
-    await _sessionRtc!.setSpeakerphone(_speakerOn);
+  }
+
+  void _setPeerCameraBanner(String message, {bool sticky = false}) {
+    _peerBannerTimer?.cancel();
+    _peerCameraBanner = message;
+    notifyListeners();
+    if (!sticky) {
+      _peerBannerTimer = Timer(const Duration(seconds: 8), () {
+        if (_peerCameraBanner == message) {
+          _peerCameraBanner = '';
+          notifyListeners();
+        }
+      });
+    }
+  }
+
+  void _clearPeerCameraBanner() {
+    _peerBannerTimer?.cancel();
+    _peerCameraBanner = '';
+  }
+
+  void clearIncomingImage() {
+    _incomingImageDataUrl = null;
+    _incomingImageFrom = '';
+    notifyListeners();
+  }
+
+  /// Used when a camera-intent push arrives while the call UI may be backgrounded.
+  void notifyCameraIntentFromPush({String fromName = 'Arbeitgeber', String? callId}) {
+    final id = (callId ?? '').trim();
+    final currentId = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+    if (id.isNotEmpty && currentId.isNotEmpty && id != currentId) {
+      wakeForCall(id);
+    }
+    final name = fromName.trim().isEmpty ? 'Arbeitgeber' : fromName.trim();
+    _setPeerCameraBanner('$name möchte die Kamera öffnen.');
+    HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.alert);
   }
 
   Future<void> decline() async {
@@ -497,6 +585,66 @@ class VoiceCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleCamera() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) {
+      _statusNote = 'Anruf noch nicht verbunden';
+      notifyListeners();
+      return;
+    }
+    try {
+      if (!_cameraOn) {
+        _statusNote = 'Kamera-Anfrage wird gesendet…';
+        notifyListeners();
+      }
+      final on = await session.setCameraEnabled(!_cameraOn);
+      _cameraOn = on;
+      _statusNote = on ? 'Kamera an' : 'Kamera aus';
+      notifyListeners();
+    } catch (_) {
+      _cameraOn = false;
+      _statusNote = 'Kamera konnte nicht aktiviert werden';
+      notifyListeners();
+    }
+  }
+
+  Future<void> shareImage() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) {
+      _statusNote = 'Anruf noch nicht verbunden';
+      notifyListeners();
+      return;
+    }
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        withData: true,
+        allowMultiple: false,
+      );
+      final file = result?.files.isNotEmpty == true ? result!.files.first : null;
+      final bytes = file?.bytes;
+      if (bytes == null || bytes.isEmpty) return;
+      final compressed = compressCallImageBytes(bytes);
+      final dataUrl = 'data:image/jpeg;base64,${base64Encode(compressed)}';
+      if (dataUrl.length > 300000) {
+        _statusNote = 'Bild zu groß — bitte kleinere Datei wählen';
+        notifyListeners();
+        return;
+      }
+      await session.sendCallImage(dataUrl);
+      _statusNote = 'Bild gesendet';
+      notifyListeners();
+    } on ArgumentError catch (e) {
+      _statusNote = e.message == 'call_image_too_large'
+          ? 'Bild zu groß — bitte kleinere Datei wählen'
+          : 'Bild konnte nicht gesendet werden';
+      notifyListeners();
+    } catch (_) {
+      _statusNote = 'Bild konnte nicht gesendet werden';
+      notifyListeners();
+    }
+  }
+
   void _onRtcState(String state) {
     if (state == 'connected') {
       _clearRingTimeout();
@@ -539,14 +687,19 @@ class VoiceCallController extends ChangeNotifier {
   void _finishEnded(String note) {
     _stopRingFeedback();
     _clearRingTimeout();
+    _peerBannerTimer?.cancel();
     _durationTimer?.cancel();
     _durationTimer = null;
     _connectedAt = null;
     _elapsed = Duration.zero;
     _muted = false;
+    _cameraOn = false;
     _localLevel = 0;
     _remoteLevel = 0;
     _connectionDiag = '';
+    _peerCameraBanner = '';
+    _incomingImageDataUrl = null;
+    _incomingImageFrom = '';
     _isOutgoing = false;
     _phase = VoiceCallUiPhase.ended;
     _statusNote = note;

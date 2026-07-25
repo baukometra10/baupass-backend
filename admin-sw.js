@@ -50,7 +50,8 @@ self.addEventListener("push", (event) => {
           companyId: data.companyId || data.company_id || "",
         },
         renotify: true,
-        requireInteraction: tag === "admin-chat" || tag === "voice-call",
+        requireInteraction:
+          tag === "admin-chat" || tag === "voice-call" || tag === "voice-call-camera",
       }),
       clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
         windowClients.forEach((client) => {
@@ -67,6 +68,8 @@ self.addEventListener("push", (event) => {
             companyId: data.companyId || data.company_id || "",
             preview: data.preview || data.body || "",
             url: targetUrl,
+            fromName: data.fromName || data.workerName || "",
+            typeHint: data.type || "",
           });
         });
       }),

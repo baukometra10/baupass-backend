@@ -128,6 +128,64 @@ def test_worker_can_accept_and_exchange_signals(client_and_db):
     assert any("@voice-call|" in str(row.get("body") or "") for row in rows)
 
 
+def test_camera_and_image_signals_allowed(client_and_db):
+    """In-call camera consent + photo share must be valid signal types."""
+    from backend.app.platform.voice_calls.service import VoiceCallService, utc_now_iso
+
+    client, _ = client_and_db
+    with server.app.app_context():
+        db = server.get_db()
+        svc = VoiceCallService(db)
+        call_id = "vc-cam-test-1"
+        now = utc_now_iso()
+        db.execute(
+            """
+            INSERT INTO chat_voice_calls
+            (id, company_id, worker_id, caller_user_id, status, created_at, answered_at, initiated_by)
+            VALUES (?, 'cmp-1', 'w-1', 'admin', 'accepted', ?, ?, 'admin')
+            """,
+            (call_id, now, now),
+        )
+        db.commit()
+
+        intent = svc.add_signal(
+            call_id,
+            sender_role="admin",
+            signal_type="camera_intent",
+            payload={"enabled": True, "fromName": "Admin"},
+        )
+        assert intent.get("signalType") == "camera_intent"
+
+        tiny = "data:image/jpeg;base64,/9j/4AAQ"
+        image = svc.add_signal(
+            call_id,
+            sender_role="worker",
+            signal_type="call_image",
+            payload={"dataUrl": tiny, "fromName": "Worker"},
+        )
+        assert image.get("id")
+
+        rows = db.execute(
+            "SELECT signal_type FROM chat_voice_call_signals WHERE call_id = ? ORDER BY seq",
+            (call_id,),
+        ).fetchall()
+        types = {row["signal_type"] for row in rows}
+        assert "camera_intent" in types
+        assert "call_image" in types
+
+        try:
+            svc.add_signal(
+                call_id,
+                sender_role="admin",
+                signal_type="call_image",
+                payload={"dataUrl": "data:image/jpeg;base64," + ("A" * 330000)},
+            )
+            assert False, "expected call_image_too_large"
+        except ValueError as exc:
+            assert str(exc) == "call_image_too_large"
+    assert client is not None
+
+
 def test_signal_pagination_keeps_same_timestamp_candidates(client_and_db, monkeypatch):
     """ICE bursts often share a second; since_id must not drop sibling rows."""
     from backend.app.platform.voice_calls import service as voice_service

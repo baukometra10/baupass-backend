@@ -87,6 +87,7 @@ class _WorkerAppState extends State<WorkerApp> {
       messengerKey: _messengerKey,
       onRoute: _queueOrApplyRoute,
       onVoiceCall: _queueOrWakeVoiceCall,
+      onCameraIntent: _queueOrWakeCameraIntent,
       onConferenceInvite: _queueOrWakeConference,
     );
     _boot();
@@ -112,6 +113,20 @@ class _WorkerAppState extends State<WorkerApp> {
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _shellKey.currentState?.wakeForVoiceCall(id);
+    });
+  }
+
+  void _queueOrWakeCameraIntent(String callId, String fromName) {
+    final id = callId.trim();
+    if (_session == null) {
+      if (id.isNotEmpty) _pendingVoiceCallId = id;
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _shellKey.currentState?.notifyCameraIntent(
+        callId: id,
+        fromName: fromName,
+      );
     });
   }
 

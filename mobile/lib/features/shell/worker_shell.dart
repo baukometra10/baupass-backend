@@ -256,6 +256,10 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     _voiceCall.wakeForCall(callId);
   }
 
+  void notifyCameraIntent({String callId = '', String fromName = 'Arbeitgeber'}) {
+    _voiceCall.notifyCameraIntentFromPush(fromName: fromName, callId: callId);
+  }
+
   void wakeForConference(String roomId) {
     final id = roomId.trim();
     if (id.isNotEmpty) {

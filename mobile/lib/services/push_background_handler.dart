@@ -36,6 +36,12 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         callerName: title.isNotEmpty ? title : 'Arbeitgeber',
         handle: body.isNotEmpty ? body : 'Eingehender Anruf',
       );
+    } else if (tag == 'voice-call-camera' && callId.isNotEmpty) {
+      await prefs.setString(kPendingVoiceCallIdKey, callId);
+      await prefs.setString(
+        'pending_camera_intent_name',
+        (data['fromName'] ?? data['from_name'] ?? 'Arbeitgeber').toString(),
+      );
     } else if (tag == 'conference-invite' && roomId.isNotEmpty) {
       await prefs.setString(kPendingConferenceRoomIdKey, roomId);
     }

@@ -686,7 +686,15 @@ class VoiceCallService:
         call = self.get_call(call_id)
         if call.get("status") not in ACTIVE_STATUSES and signal_type != "hangup":
             raise ValueError("call_not_active")
-        allowed = {"offer", "answer", "ice-candidate", "hangup"}
+        allowed = {
+            "offer",
+            "answer",
+            "ice-candidate",
+            "hangup",
+            "camera_intent",
+            "camera_state",
+            "call_image",
+        }
         stype = str(signal_type or "").strip().lower()
         if stype not in allowed:
             raise ValueError("invalid_signal_type")
@@ -699,6 +707,22 @@ class VoiceCallService:
             payload_obj = payload
         else:
             payload_obj = {}
+        if stype == "call_image":
+            raw_img = str(payload_obj.get("dataUrl") or payload_obj.get("image") or "")
+            # Keep signaling payloads small (≈300KB) — UI should compress before send.
+            if len(raw_img) > 320_000:
+                raise ValueError("call_image_too_large")
+            payload_obj = {
+                "dataUrl": raw_img[:320_000],
+                "fromName": str(payload_obj.get("fromName") or "")[:80],
+                "mime": str(payload_obj.get("mime") or "image/jpeg")[:40],
+            }
+        elif stype in {"camera_intent", "camera_state"}:
+            payload_obj = {
+                "enabled": bool(payload_obj.get("enabled", True)),
+                "fromName": str(payload_obj.get("fromName") or "")[:80],
+                "role": role,
+            }
         signal_id = f"vs-{secrets.token_urlsafe(12)}"
         now = utc_now_iso()
         next_seq_row = self.db.execute(
@@ -727,7 +751,87 @@ class VoiceCallService:
             )
         except Exception:
             pass
+        if stype == "camera_intent" and payload_obj.get("enabled", True):
+            try:
+                self._notify_camera_intent(
+                    call,
+                    sender_role=role,
+                    from_name=str(payload_obj.get("fromName") or ""),
+                )
+            except Exception:
+                pass
         return {"id": signal_id, "callId": call_id, "signalType": stype, "createdAt": now}
+
+    def _notify_camera_intent(self, call: dict[str, Any], *, sender_role: str, from_name: str) -> None:
+        """Push the peer when someone wants to open the camera (works outside call UI)."""
+        company_id = str(call.get("companyId") or "").strip()
+        worker_id = str(call.get("workerId") or "").strip()
+        call_id = str(call.get("id") or "").strip()
+        if not company_id or not call_id:
+            return
+        name = str(from_name or "").strip()
+        if not name:
+            if sender_role == "admin":
+                name = str(call.get("callerName") or call.get("companyName") or "Arbeitgeber").strip()
+            else:
+                name = str(call.get("callerName") or "Mitarbeiter").strip()
+        title = "Kamera-Anfrage"
+        body = f"{name} möchte die Kamera öffnen."
+        if sender_role == "admin" and worker_id:
+            try:
+                from backend.app.platform.push.delivery import deliver_worker_push
+
+                deliver_worker_push(
+                    self.db,
+                    worker_id,
+                    title=title,
+                    body=body,
+                    tag="voice-call-camera",
+                    company_id=company_id,
+                    extra={
+                        "callId": call_id,
+                        "type": "voice_call_camera_intent",
+                        "fromName": name[:80],
+                        "fromRole": "admin",
+                    },
+                )
+            except Exception:
+                pass
+            return
+        if sender_role == "worker":
+            try:
+                self._notify_admin_voice_event(
+                    company_id,
+                    title=title,
+                    message=body,
+                    worker_id=worker_id,
+                )
+            except Exception:
+                pass
+            try:
+                from backend.app.platform.push.admin_delivery import deliver_admin_push
+
+                deliver_admin_push(
+                    self.db,
+                    company_id,
+                    title,
+                    body,
+                    tag="voice-call-camera",
+                    extra={
+                        "callId": call_id,
+                        "workerId": worker_id,
+                        "workerName": name[:80],
+                        "companyId": company_id,
+                        "type": "voice_call_camera_intent",
+                        "fromRole": "worker",
+                        "url": (
+                            f"/admin-v2/chat.html?worker_id={worker_id}"
+                            f"&call_id={call_id}&company_id={company_id}"
+                        ),
+                    },
+                )
+            except Exception:
+                pass
 
     def list_signals(self, call_id: str, *, for_role: str, since_id: str = "") -> list[dict[str, Any]]:
         self.get_call(call_id)

@@ -1,5 +1,6 @@
 /**
- * SUPPIX voice call — WebRTC audio + HTTP signaling (admin + worker web).
+ * SUPPIX voice/video call — WebRTC + HTTP signaling (admin + worker web).
+ * Supports optional camera, peer camera-intent notices, and in-call image share.
  */
 (function (global) {
   const POLL_MS = 700;
@@ -14,30 +15,41 @@
     },
     video: false,
   };
+  const VIDEO_CONSTRAINTS = {
+    video: {
+      facingMode: "user",
+      width: { ideal: 640 },
+      height: { ideal: 480 },
+      frameRate: { ideal: 24, max: 30 },
+    },
+    audio: false,
+  };
+  const OFFER_OPTS = { offerToReceiveAudio: true, offerToReceiveVideo: true };
 
   function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
-   * Call ringtone from project asset (Freesound phone-call sample).
-   * Incoming: short classic dual-tone (WhatsApp-like) with pause between rings.
-   * Outgoing: longer cycle / arpeggio ringback so caller hears "it is ringing".
+   * Distinct call tones (WhatsApp / Messenger style):
+   * - incoming: dual-chirp ringtone (440+480) with silence baked into the asset
+   * - outgoing: European-style 425 Hz ringback (waiting tone) — clearly different
    * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
     const mode = options.mode === "incoming" ? "incoming" : "outgoing";
     // Never mix styles: incoming ≠ outgoing.
     const whatsappStyle = mode === "incoming" ? (options.whatsappStyle !== false) : false;
+    const defaultSrc =
+      mode === "incoming"
+        ? "/sounds/phone-call-ring.mp3"
+        : "/sounds/phone-call-ringback.mp3";
     const src =
-      String(
-        options.src
-        || global.SUPPIX_CALL_RINGTONE_URL
-        || (mode === "incoming" ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3")
-      ).trim() || (mode === "incoming" ? "/sounds/phone-call-ring.mp3" : "/sounds/phone-call-ring-cycle.mp3");
+      String(options.src || global.SUPPIX_CALL_RINGTONE_URL || defaultSrc).trim() || defaultSrc;
+    // Assets already include silence; keep only a short gap between loops.
     const pauseMs = Math.max(
-      400,
-      Number(options.pauseMs) || (mode === "incoming" ? 1800 : 900),
+      80,
+      Number(options.pauseMs) || (mode === "incoming" ? 220 : 180),
     );
     let audio = null;
     let stopped = false;
@@ -106,7 +118,7 @@
       try {
         const ctx = new (global.AudioContext || global.webkitAudioContext)();
         fallbackCtx = ctx;
-        // WhatsApp-like dual tone (US ring: 440 + 480 Hz) for incoming; arpeggio for outgoing.
+        // Incoming: WhatsApp dual chirp. Outgoing: single 425 Hz ringback (PSTN-EU feel).
         const master = ctx.createGain();
         fallbackMaster = master;
         master.gain.value = outputEnabled ? 0.75 : 0.0001;
@@ -114,42 +126,48 @@
         const ringBurst = () => {
           if (stopped || !fallbackCtx) return;
           const t0 = ctx.currentTime + 0.02;
-          const tones = whatsappStyle ? [440, 480] : [349.23, 440.0, 523.25, 659.25];
-          const pulseMs = whatsappStyle ? 0.42 : 0.12;
-          const gap = whatsappStyle ? 0.22 : 0.1;
-          // Two pulses then pause (WhatsApp cadence)
-          const pulses = whatsappStyle ? 2 : 1;
-          for (let p = 0; p < pulses; p++) {
-            const base = t0 + p * (pulseMs + gap);
-            tones.forEach((hz) => {
-              const osc = ctx.createOscillator();
-              const g = ctx.createGain();
-              osc.type = "sine";
-              osc.frequency.value = hz;
-              g.gain.setValueAtTime(0.0001, base);
-              g.gain.exponentialRampToValueAtTime(whatsappStyle ? 0.18 : 0.14, base + 0.03);
-              g.gain.exponentialRampToValueAtTime(0.0001, base + pulseMs);
-              osc.connect(g);
-              g.connect(master);
-              osc.start(base);
-              osc.stop(base + pulseMs + 0.02);
-            });
+          if (whatsappStyle) {
+            const tones = [440, 480];
+            const pulseMs = 0.4;
+            const gap = 0.15;
+            for (let p = 0; p < 2; p++) {
+              const base = t0 + p * (pulseMs + gap);
+              tones.forEach((hz) => {
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.value = hz;
+                g.gain.setValueAtTime(0.0001, base);
+                g.gain.exponentialRampToValueAtTime(0.2, base + 0.03);
+                g.gain.exponentialRampToValueAtTime(0.0001, base + pulseMs);
+                osc.connect(g);
+                g.connect(master);
+                osc.start(base);
+                osc.stop(base + pulseMs + 0.02);
+              });
+            }
+            return;
           }
+          // Outgoing ringback: one solid 425 Hz second, then long silence via timer.
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = 425;
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.04);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
+          osc.connect(g);
+          g.connect(master);
+          osc.start(t0);
+          osc.stop(t0 + 1.05);
         };
         if (ctx.state === "suspended") void ctx.resume();
-        let burstCount = 0;
         const burst = () => {
           if (stopped || !fallbackCtx) return;
           ringBurst();
-          burstCount += 1;
-          if (whatsappStyle) {
-            fallbackTimer = global.setTimeout(burst, pauseMs + 900);
-          } else if (burstCount < 10) {
-            fallbackTimer = global.setTimeout(burst, 1200);
-          } else {
-            burstCount = 0;
-            fallbackTimer = global.setTimeout(burst, pauseMs + 200);
-          }
+          // Incoming ~3.2s cadence; outgoing ~1s tone + ~5s wait (Messenger-like wait tone).
+          const nextMs = whatsappStyle ? 3200 : 6000;
+          fallbackTimer = global.setTimeout(burst, nextMs);
         };
         burst();
       } catch (_) {
@@ -166,7 +184,7 @@
           audio.loop = false; // full cycle must finish; we restart after a pause
           audio.playsInline = true;
           audio.setAttribute("playsinline", "true");
-          audio.src = src.includes("?") ? src : `${src}?v=20260719wa`;
+          audio.src = src.includes("?") ? src : `${src}?v=20260726rings`;
           applyOutput();
           audio.addEventListener("ended", () => {
             if (!stopped) scheduleNextCycle();
@@ -218,17 +236,36 @@
   }
 
   class VoiceCallSession {
-    constructor({ api, role, onState, onError, onAudioLevels }) {
+    constructor({
+      api,
+      role,
+      onState,
+      onError,
+      onAudioLevels,
+      onCameraIntent,
+      onCameraState,
+      onCallImage,
+      onLocalVideo,
+      onRemoteVideo,
+      displayName,
+    }) {
       this.api = api;
       this.role = role;
       this.onState = onState || (() => {});
       this.onError = onError || (() => {});
       this.onAudioLevels = onAudioLevels || (() => {});
+      this.onCameraIntent = onCameraIntent || (() => {});
+      this.onCameraState = onCameraState || (() => {});
+      this.onCallImage = onCallImage || (() => {});
+      this.onLocalVideo = onLocalVideo || (() => {});
+      this.onRemoteVideo = onRemoteVideo || (() => {});
+      this.displayName = String(displayName || "").trim();
       this.callId = "";
       this.workerId = "";
       this.iceServers = [];
       this.pc = null;
       this.localStream = null;
+      this.remoteStream = null;
       this.remoteAudio = null;
       this.pollTimer = null;
       this.lastSignalId = "";
@@ -237,6 +274,7 @@
       this.ringDeadline = 0;
       this.muted = false;
       this.speakerOn = true;
+      this.cameraOn = false;
       this.outputVolume = 1;
       this.companyId = "";
       this.ringTimeoutTimer = null;
@@ -251,6 +289,8 @@
       this.deferredOffer = false;
       this.offerSent = false;
       this.pendingIce = [];
+      this._makingOffer = false;
+      this._ignoreOffer = false;
     }
 
     _callStatusPath() {
@@ -323,6 +363,109 @@
       this.outputVolume = vol;
       this._applySpeakerToRemoteAudio();
       return vol;
+    }
+
+    isCameraOn() {
+      return Boolean(this.cameraOn);
+    }
+
+    async sendCameraIntent(enabled = true) {
+      if (!this.callId || this.ended) return false;
+      await this._sendSignal("camera_intent", {
+        enabled: Boolean(enabled),
+        fromName: this.displayName || "",
+      });
+      return true;
+    }
+
+    async sendCallImage(dataUrl, opts = {}) {
+      if (!this.callId || this.ended) return false;
+      const raw = String(dataUrl || "");
+      if (!raw.startsWith("data:image/")) throw new Error("invalid_image");
+      if (raw.length > 300000) throw new Error("call_image_too_large");
+      await this._sendSignal("call_image", {
+        dataUrl: raw,
+        fromName: String(opts.fromName || this.displayName || "").slice(0, 80),
+        mime: String(opts.mime || "image/jpeg").slice(0, 40),
+      });
+      return true;
+    }
+
+    async setCameraEnabled(enabled) {
+      const next = Boolean(enabled);
+      if (this.ended) return false;
+      if (!this.pc || !this.callId) {
+        throw new Error("call_not_connected");
+      }
+      if (next === this.cameraOn) return this.cameraOn;
+      if (next) {
+        await this.sendCameraIntent(true);
+        await sleep(320);
+        let videoTrack = this.localStream?.getVideoTracks?.()?.[0] || null;
+        if (!videoTrack || videoTrack.readyState === "ended") {
+          const camStream = await navigator.mediaDevices.getUserMedia(VIDEO_CONSTRAINTS);
+          videoTrack = camStream.getVideoTracks()[0];
+          if (!this.localStream) this.localStream = camStream;
+          else this.localStream.addTrack(videoTrack);
+          this.pc.addTrack(videoTrack, this.localStream);
+        } else {
+          videoTrack.enabled = true;
+        }
+        await this._renegotiate();
+        this.cameraOn = true;
+      } else {
+        const senders = this.pc.getSenders?.() || [];
+        for (const sender of senders) {
+          if (sender.track?.kind === "video") {
+            try {
+              sender.track.stop();
+            } catch (_) {
+              /* ignore */
+            }
+            try {
+              this.pc.removeTrack(sender);
+            } catch (_) {
+              /* ignore */
+            }
+          }
+        }
+        (this.localStream?.getVideoTracks?.() || []).forEach((track) => {
+          try {
+            track.stop();
+            this.localStream.removeTrack(track);
+          } catch (_) {
+            /* ignore */
+          }
+        });
+        await this._renegotiate();
+        this.cameraOn = false;
+      }
+      try {
+        await this._sendSignal("camera_state", {
+          enabled: this.cameraOn,
+          fromName: this.displayName || "",
+        });
+      } catch (_) {
+        /* ignore */
+      }
+      try {
+        this.onLocalVideo(this.localStream, this.cameraOn);
+      } catch (_) {
+        /* ignore */
+      }
+      return this.cameraOn;
+    }
+
+    async _renegotiate() {
+      if (!this.pc || this.ended) return;
+      this._makingOffer = true;
+      try {
+        const offer = await this.pc.createOffer(OFFER_OPTS);
+        await this.pc.setLocalDescription(offer);
+        await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      } finally {
+        this._makingOffer = false;
+      }
     }
 
     _getAudioLevel(analyser, buffer) {
@@ -466,12 +609,20 @@
       stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
       this._startAudioMeters();
       this.pc.ontrack = (event) => {
-        const remoteStream = event.streams[0];
+        const remoteStream = event.streams[0] || (event.track ? new MediaStream([event.track]) : null);
+        if (!remoteStream) return;
+        this.remoteStream = remoteStream;
         const audio = this._ensureRemoteAudio();
         audio.srcObject = remoteStream;
         this._applySpeakerToRemoteAudio();
         audio.play().catch(() => {});
         this._attachRemoteAnalyser(remoteStream);
+        const hasVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled !== false);
+        try {
+          this.onRemoteVideo(remoteStream, hasVideo);
+        } catch (_) {
+          /* ignore */
+        }
       };
       this.pc.onicecandidate = (event) => {
         if (!event.candidate || !this.callId) return;
@@ -518,22 +669,53 @@
     }
 
     async _applyRemoteSignal(signal) {
-      const pc = await this._createPeer();
       const payload = signal.payload || {};
-      if (signal.signalType === "offer") {
+      const stype = signal.signalType;
+      if (stype === "camera_intent") {
+        try {
+          this.onCameraIntent(payload || {});
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
+      if (stype === "camera_state") {
+        try {
+          this.onCameraState(payload || {});
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
+      if (stype === "call_image") {
+        try {
+          this.onCallImage(payload || {});
+        } catch (_) {
+          /* ignore */
+        }
+        return;
+      }
+      const pc = await this._createPeer();
+      if (stype === "offer") {
+        // Perfect negotiation: polite peer (worker) always accepts; admin yields if glare.
+        const polite = this.role !== "admin";
+        const offerCollision = this._makingOffer || pc.signalingState !== "stable";
+        this._ignoreOffer = !polite && offerCollision;
+        if (this._ignoreOffer) return;
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
         await this._flushPendingIce(pc);
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer(OFFER_OPTS);
         await pc.setLocalDescription(answer);
         await this._sendSignal("answer", { type: answer.type, sdp: answer.sdp });
         this._stopRingtone();
         this.onState("connecting");
-      } else if (signal.signalType === "answer") {
+      } else if (stype === "answer") {
+        if (this._ignoreOffer) return;
         await pc.setRemoteDescription(new RTCSessionDescription(payload));
         await this._flushPendingIce(pc);
         this._stopRingtone();
         this.onState("connecting");
-      } else if (signal.signalType === "ice-candidate" && payload) {
+      } else if (stype === "ice-candidate" && payload) {
         if (!pc.remoteDescription) {
           this.pendingIce.push(payload);
           return;
@@ -543,7 +725,7 @@
         } catch (_) {
           /* ignore duplicate */
         }
-      } else if (signal.signalType === "hangup") {
+      } else if (stype === "hangup") {
         await this.end("remote_hangup", { remote: true });
       }
     }
@@ -564,9 +746,14 @@
       this.offerSent = true;
       this._stopRingtone();
       await this._createPeer();
-      const offer = await this.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: false });
-      await this.pc.setLocalDescription(offer);
-      await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      this._makingOffer = true;
+      try {
+        const offer = await this.pc.createOffer(OFFER_OPTS);
+        await this.pc.setLocalDescription(offer);
+        await this._sendSignal("offer", { type: offer.type, sdp: offer.sdp });
+      } finally {
+        this._makingOffer = false;
+      }
       this.onState("connecting");
     }
 
@@ -729,6 +916,8 @@
         this.localStream.getTracks().forEach((track) => track.stop());
         this.localStream = null;
       }
+      this.remoteStream = null;
+      this.cameraOn = false;
       if (this.remoteAudio) {
         this.remoteAudio.pause();
         this.remoteAudio.srcObject = null;

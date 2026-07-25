@@ -27,6 +27,7 @@ dependencies:
   firebase_messaging: ^15.1.0
   open_file: ^3.5.10
   file_picker: ^10.3.10
+  image: ^4.5.4
   url_launcher: ^6.3.1
   flutter_webrtc: ^0.12.12
   flutter_callkit_incoming: ^2.0.4+1

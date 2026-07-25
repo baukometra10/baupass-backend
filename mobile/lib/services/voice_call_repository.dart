@@ -22,6 +22,25 @@ class VoiceCallRepository {
     'video': false,
   };
 
+  static const Map<String, dynamic> cameraOnlyConstraints = {
+    'audio': false,
+    'video': {
+      'facingMode': 'user',
+      'mandatory': {
+        'minWidth': '320',
+        'minHeight': '240',
+        'maxWidth': '640',
+        'maxHeight': '480',
+      },
+    },
+  };
+
+  static const Map<String, dynamic> offerOptions = {
+    'offerToReceiveAudio': true,
+    'offerToReceiveVideo': true,
+    'voiceActivityDetection': true,
+  };
+
   Future<Map<String, dynamic>?> incomingCall(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/worker-app/chat/calls/incoming',
@@ -183,8 +202,13 @@ class WorkerVoiceCallSession {
     required this.call,
     required this.onState,
     this.onRemoteStream,
+    this.onLocalStream,
     this.onAudioLevels,
     this.onConnectionDiag,
+    this.onCameraIntent,
+    this.onCameraState,
+    this.onCallImage,
+    this.displayName = 'Mitarbeiter',
   });
 
   final VoiceCallRepository repo;
@@ -192,8 +216,13 @@ class WorkerVoiceCallSession {
   final Map<String, dynamic> call;
   final void Function(String state) onState;
   final void Function(MediaStream stream)? onRemoteStream;
+  final void Function(MediaStream? stream, bool cameraOn)? onLocalStream;
   final void Function(double local, double remote)? onAudioLevels;
   final void Function(String summary)? onConnectionDiag;
+  final void Function(Map<String, dynamic> payload)? onCameraIntent;
+  final void Function(Map<String, dynamic> payload)? onCameraState;
+  final void Function(Map<String, dynamic> payload)? onCallImage;
+  final String displayName;
 
   RTCPeerConnection? _pc;
   MediaStream? _localStream;
@@ -203,11 +232,15 @@ class WorkerVoiceCallSession {
   String _lastSignalId = '';
   bool _ended = false;
   bool _muted = false;
+  bool _cameraOn = false;
   bool _deferredOffer = false;
   bool _offerSent = false;
+  bool _makingOffer = false;
   final List<Map<String, dynamic>> _pendingIce = <Map<String, dynamic>>[];
 
   String get callId => (call['id'] ?? call['callId'] ?? '').toString();
+  bool get cameraOn => _cameraOn;
+  MediaStream? get localStream => _localStream;
 
   Future<void> _setupPeerConnection() async {
     _pc = await createPeerConnection(repo.peerConfig(call));
@@ -215,6 +248,7 @@ class WorkerVoiceCallSession {
     for (final track in _localStream!.getTracks()) {
       await _pc!.addTrack(track, _localStream!);
     }
+    onLocalStream?.call(_localStream, _cameraOn);
     _pc!.onTrack = (event) {
       if (event.streams.isNotEmpty) {
         _remoteStream = event.streams.first;
@@ -260,20 +294,121 @@ class WorkerVoiceCallSession {
     _offerSent = true;
     onState('connecting');
     await _setupPeerConnection();
-    final offer = await _pc!.createOffer({
-      'offerToReceiveAudio': true,
-      'offerToReceiveVideo': false,
-      'voiceActivityDetection': true,
-    });
-    await _pc!.setLocalDescription(offer);
-    await repo.sendSignal(
-      session,
-      callId,
-      type: 'offer',
-      payload: {'type': offer.type, 'sdp': offer.sdp},
-    );
+    _makingOffer = true;
+    try {
+      final offer = await _pc!.createOffer(VoiceCallRepository.offerOptions);
+      await _pc!.setLocalDescription(offer);
+      await repo.sendSignal(
+        session,
+        callId,
+        type: 'offer',
+        payload: {'type': offer.type, 'sdp': offer.sdp},
+      );
+    } finally {
+      _makingOffer = false;
+    }
     _startMeters();
   }
+
+  Future<void> _renegotiate() async {
+    final pc = _pc;
+    if (pc == null || _ended) return;
+    _makingOffer = true;
+    try {
+      final offer = await pc.createOffer(VoiceCallRepository.offerOptions);
+      await pc.setLocalDescription(offer);
+      await repo.sendSignal(
+        session,
+        callId,
+        type: 'offer',
+        payload: {'type': offer.type, 'sdp': offer.sdp},
+      );
+    } finally {
+      _makingOffer = false;
+    }
+  }
+
+  Future<bool> setCameraEnabled(bool enabled) async {
+    final pc = _pc;
+    if (pc == null || _ended) {
+      throw StateError('call_not_connected');
+    }
+    final next = enabled;
+    if (next == _cameraOn) return _cameraOn;
+    if (next) {
+      await repo.sendSignal(
+        session,
+        callId,
+        type: 'camera_intent',
+        payload: {'enabled': true, 'fromName': displayName},
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 320));
+      var videoTracks = _localStream?.getVideoTracks() ?? const <MediaStreamTrack>[];
+      MediaStreamTrack? videoTrack = videoTracks.isEmpty ? null : videoTracks.first;
+      if (videoTrack == null || videoTrack.enabled == false) {
+        final camStream = await navigator.mediaDevices.getUserMedia(VoiceCallRepository.cameraOnlyConstraints);
+        videoTrack = camStream.getVideoTracks().first;
+        _localStream ??= camStream;
+        await _localStream!.addTrack(videoTrack);
+        await pc.addTrack(videoTrack, _localStream!);
+      } else {
+        videoTrack.enabled = true;
+      }
+      await _renegotiate();
+      _cameraOn = true;
+    } else {
+      for (final sender in await pc.getSenders()) {
+        final track = sender.track;
+        if (track?.kind == 'video') {
+          try {
+            await track?.stop();
+          } catch (_) {}
+          try {
+            await pc.removeTrack(sender);
+          } catch (_) {}
+        }
+      }
+      for (final track in List<MediaStreamTrack>.from(_localStream?.getVideoTracks() ?? const [])) {
+        try {
+          await track.stop();
+          await _localStream?.removeTrack(track);
+        } catch (_) {}
+      }
+      await _renegotiate();
+      _cameraOn = false;
+    }
+    try {
+      await repo.sendSignal(
+        session,
+        callId,
+        type: 'camera_state',
+        payload: {'enabled': _cameraOn, 'fromName': displayName},
+      );
+    } catch (_) {}
+    onLocalStream?.call(_localStream, _cameraOn);
+    return _cameraOn;
+  }
+
+  Future<void> sendCallImage(String dataUrl, {String? fromName}) async {
+    final raw = dataUrl.trim();
+    if (!raw.startsWith('data:image/')) {
+      throw ArgumentError('invalid_image');
+    }
+    if (raw.length > 300000) {
+      throw ArgumentError('call_image_too_large');
+    }
+      final name = (fromName ?? displayName).toString().trim();
+      await repo.sendSignal(
+        session,
+        callId,
+        type: 'call_image',
+        payload: {
+          'dataUrl': raw,
+          'fromName': name.length > 80 ? name.substring(0, 80) : name,
+          'mime': 'image/jpeg',
+        },
+      );
+    }
 
   Future<void> acceptAndConnect() async {
     onState('connecting');
@@ -373,21 +508,33 @@ class WorkerVoiceCallSession {
   }
 
   Future<void> _applySignal(Map<String, dynamic> signal) async {
-    final pc = _pc;
-    if (pc == null) return;
     final type = (signal['signalType'] ?? '').toString();
     final payloadRaw = signal['payload'];
     final payload = payloadRaw is Map
         ? Map<String, dynamic>.from(payloadRaw)
         : <String, dynamic>{};
+    if (type == 'camera_intent') {
+      onCameraIntent?.call(payload);
+      return;
+    }
+    if (type == 'camera_state') {
+      onCameraState?.call(payload);
+      return;
+    }
+    if (type == 'call_image') {
+      onCallImage?.call(payload);
+      return;
+    }
+    final pc = _pc;
+    if (pc == null) return;
     if (type == 'offer') {
+      // Worker is the polite peer — always accept remote offers (incl. renegotiation).
+      if (_makingOffer) {
+        /* glare: still accept as polite */
+      }
       await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'offer'));
       await _flushPendingIce(pc);
-      final answer = await pc.createAnswer({
-        'offerToReceiveAudio': true,
-        'offerToReceiveVideo': false,
-        'voiceActivityDetection': true,
-      });
+      final answer = await pc.createAnswer(VoiceCallRepository.offerOptions);
       await pc.setLocalDescription(answer);
       await repo.sendSignal(
         session,
@@ -473,6 +620,7 @@ class WorkerVoiceCallSession {
     await _localStream?.dispose();
     _localStream = null;
     _remoteStream = null;
+    _cameraOn = false;
     onState('ended');
   }
 

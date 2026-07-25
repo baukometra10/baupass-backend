@@ -1228,6 +1228,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             "forbidden": 403,
             "invalid_signal_type": 400,
             "invalid_sender_role": 400,
+            "call_image_too_large": 413,
         }
         messages = {
             "worker_not_found": "Mitarbeiter nicht gefunden.",
@@ -1238,6 +1239,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
             "forbidden": "Keine Berechtigung.",
             "invalid_signal_type": "Ungueltiger Signaltyp.",
             "invalid_sender_role": "Ungueltige Rolle.",
+            "call_image_too_large": "Bild zu gross fuer den Anrufkanal.",
         }
         return jsonify({"error": code, "message": messages.get(code, code)}), status_map.get(code, 400)
 
