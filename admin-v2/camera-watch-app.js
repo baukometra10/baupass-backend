@@ -581,6 +581,14 @@
     $("cwTestWebhook")?.addEventListener("click", async () => {
       try {
         const payload = formToPayload($("cwCompanyForm"));
+        if (!String(payload.securityWebhookUrl || "").startsWith("http")) {
+          setMsg(
+            "cwCompanyMsg",
+            "Bitte zuerst Security-Webhook (Firma) mit https://… eintragen und speichern, dann testen.",
+            false,
+          );
+          return;
+        }
         const data = await api("/api/integrations/cameras/watch/test-webhook", {
           method: "POST",
           body: JSON.stringify({
@@ -588,15 +596,25 @@
             secret: payload.webhookSecret || undefined,
           }),
         });
+        const errMap = {
+          webhook_url_required: "Keine Webhook-URL — bitte https://… speichern und erneut testen.",
+        };
         setMsg(
           "cwCompanyMsg",
           data.ok
             ? `Test-Webhook gesendet${data.signed ? " (signiert)" : ""}.`
-            : data.error || "Webhook fehlgeschlagen",
+            : data.message || errMap[data.error] || data.error || "Webhook fehlgeschlagen",
           !!data.ok,
         );
       } catch (err) {
-        setMsg("cwCompanyMsg", err.message || "Test-Webhook fehlgeschlagen", false);
+        const msg = String(err.message || "");
+        setMsg(
+          "cwCompanyMsg",
+          msg === "webhook_url_required"
+            ? "Keine Webhook-URL — bitte https://… speichern und erneut testen."
+            : msg || "Test-Webhook fehlgeschlagen",
+          false,
+        );
       }
     });
 

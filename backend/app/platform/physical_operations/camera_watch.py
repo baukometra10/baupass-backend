@@ -244,35 +244,40 @@ def get_watch_settings(db, company_id: str) -> dict[str, Any]:
         return base
     if not row:
         return base
-    return {
-        "companyId": cid,
-        "enabled": bool(int(row["enabled"] or 0)),
-        "timezone": str(row["timezone"] or DEFAULT_TZ),
-        "workStart": str(row["work_start"] or DEFAULT_WORK_START),
-        "workEnd": str(row["work_end"] or DEFAULT_WORK_END),
-        "workDays": str(row["work_days"] or DEFAULT_WORK_DAYS),
-        "country": str(row["country"] or ""),
-        "city": str(row["city"] or ""),
-        "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
-        "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
-        "securityWebhookUrl": str(row["security_webhook_url"] or ""),
-        "webhookSecret": str(_row_get(row, "webhook_secret", "") or ""),
-        "webhookRetryMax": _parse_retry_max(
-            _row_get(row, "webhook_retry_max", DEFAULT_WEBHOOK_RETRY_MAX)
-        ),
-        "evidenceRetentionDays": _parse_retention_days(
-            _row_get(row, "evidence_retention_days", DEFAULT_EVIDENCE_RETENTION_DAYS)
-        ),
-        "privacyNotice": str(_row_get(row, "privacy_notice", "") or ""),
-        "quietHours": _parse_quiet_hours(_row_get(row, "quiet_hours_json", "{}")),
-        "escalateAfterMinutes": _parse_escalate_minutes(
-            _row_get(row, "escalate_after_minutes", DEFAULT_ESCALATE_AFTER_MINUTES)
-        ),
-        "escalateSecondContact": str(_row_get(row, "escalate_second_contact", "") or ""),
-        "requireDualAck": _parse_bool(_row_get(row, "require_dual_ack", 1), True),
-        "notifyRules": _parse_notify_rules(_row_get(row, "notify_rules_json", "{}")),
-        "updatedAt": str(row["updated_at"] or "") or None,
-    }
+    try:
+        lat = _row_get(row, "latitude", None)
+        lng = _row_get(row, "longitude", None)
+        return {
+            "companyId": cid,
+            "enabled": _parse_bool(_row_get(row, "enabled", 1), True),
+            "timezone": str(_row_get(row, "timezone", DEFAULT_TZ) or DEFAULT_TZ),
+            "workStart": str(_row_get(row, "work_start", DEFAULT_WORK_START) or DEFAULT_WORK_START),
+            "workEnd": str(_row_get(row, "work_end", DEFAULT_WORK_END) or DEFAULT_WORK_END),
+            "workDays": str(_row_get(row, "work_days", DEFAULT_WORK_DAYS) or DEFAULT_WORK_DAYS),
+            "country": str(_row_get(row, "country", "") or ""),
+            "city": str(_row_get(row, "city", "") or ""),
+            "latitude": float(lat) if lat is not None and str(lat).strip() != "" else None,
+            "longitude": float(lng) if lng is not None and str(lng).strip() != "" else None,
+            "securityWebhookUrl": str(_row_get(row, "security_webhook_url", "") or ""),
+            "webhookSecret": str(_row_get(row, "webhook_secret", "") or ""),
+            "webhookRetryMax": _parse_retry_max(
+                _row_get(row, "webhook_retry_max", DEFAULT_WEBHOOK_RETRY_MAX)
+            ),
+            "evidenceRetentionDays": _parse_retention_days(
+                _row_get(row, "evidence_retention_days", DEFAULT_EVIDENCE_RETENTION_DAYS)
+            ),
+            "privacyNotice": str(_row_get(row, "privacy_notice", "") or ""),
+            "quietHours": _parse_quiet_hours(_row_get(row, "quiet_hours_json", "{}")),
+            "escalateAfterMinutes": _parse_escalate_minutes(
+                _row_get(row, "escalate_after_minutes", DEFAULT_ESCALATE_AFTER_MINUTES)
+            ),
+            "escalateSecondContact": str(_row_get(row, "escalate_second_contact", "") or ""),
+            "requireDualAck": _parse_bool(_row_get(row, "require_dual_ack", 1), True),
+            "notifyRules": _parse_notify_rules(_row_get(row, "notify_rules_json", "{}")),
+            "updatedAt": str(_row_get(row, "updated_at", "") or "") or None,
+        }
+    except Exception:
+        return base
 
 
 def _extract_ops_fields(data: dict[str, Any], cur: dict[str, Any]) -> dict[str, Any]:
@@ -731,20 +736,30 @@ def normalize_site_key(site: str | None) -> str:
 
 
 def _row_to_settings(cid: str, row, *, site_key: str = "", site_name: str = "") -> dict[str, Any]:
+    lat = _row_get(row, "latitude", None)
+    lng = _row_get(row, "longitude", None)
+    try:
+        lat_f = float(lat) if lat is not None and str(lat).strip() != "" else None
+    except Exception:
+        lat_f = None
+    try:
+        lng_f = float(lng) if lng is not None and str(lng).strip() != "" else None
+    except Exception:
+        lng_f = None
     return {
         "companyId": cid,
         "siteKey": site_key or str(_row_get(row, "site_key", "") or "") or "",
         "siteName": site_name or str(_row_get(row, "site_name", "") or "") or "",
-        "enabled": bool(int(row["enabled"] or 0)),
-        "timezone": str(row["timezone"] or DEFAULT_TZ),
-        "workStart": str(row["work_start"] or DEFAULT_WORK_START),
-        "workEnd": str(row["work_end"] or DEFAULT_WORK_END),
-        "workDays": str(row["work_days"] or DEFAULT_WORK_DAYS),
-        "country": str(row["country"] or ""),
-        "city": str(row["city"] or ""),
-        "latitude": float(row["latitude"]) if row["latitude"] is not None else None,
-        "longitude": float(row["longitude"]) if row["longitude"] is not None else None,
-        "securityWebhookUrl": str(row["security_webhook_url"] or ""),
+        "enabled": _parse_bool(_row_get(row, "enabled", 1), True),
+        "timezone": str(_row_get(row, "timezone", DEFAULT_TZ) or DEFAULT_TZ),
+        "workStart": str(_row_get(row, "work_start", DEFAULT_WORK_START) or DEFAULT_WORK_START),
+        "workEnd": str(_row_get(row, "work_end", DEFAULT_WORK_END) or DEFAULT_WORK_END),
+        "workDays": str(_row_get(row, "work_days", DEFAULT_WORK_DAYS) or DEFAULT_WORK_DAYS),
+        "country": str(_row_get(row, "country", "") or ""),
+        "city": str(_row_get(row, "city", "") or ""),
+        "latitude": lat_f,
+        "longitude": lng_f,
+        "securityWebhookUrl": str(_row_get(row, "security_webhook_url", "") or ""),
         "webhookSecret": str(_row_get(row, "webhook_secret", "") or ""),
         "webhookRetryMax": _parse_retry_max(
             _row_get(row, "webhook_retry_max", DEFAULT_WEBHOOK_RETRY_MAX)
@@ -760,7 +775,7 @@ def _row_to_settings(cid: str, row, *, site_key: str = "", site_name: str = "") 
         "escalateSecondContact": str(_row_get(row, "escalate_second_contact", "") or ""),
         "requireDualAck": _parse_bool(_row_get(row, "require_dual_ack", 1), True),
         "notifyRules": _parse_notify_rules(_row_get(row, "notify_rules_json", "{}")),
-        "updatedAt": str(row["updated_at"] or "") or None,
+        "updatedAt": str(_row_get(row, "updated_at", "") or "") or None,
     }
 
 
@@ -769,17 +784,34 @@ def list_watch_sites(db, company_id: str) -> list[dict[str, Any]]:
     if not cid:
         return []
     try:
-        rows = db.execute(
-            """
-            SELECT * FROM camera_watch_sites
-            WHERE company_id = ?
-            ORDER BY site_name COLLATE NOCASE, site_key
-            """,
-            (cid,),
-        ).fetchall()
+        try:
+            rows = db.execute(
+                """
+                SELECT * FROM camera_watch_sites
+                WHERE company_id = ?
+                ORDER BY site_name COLLATE NOCASE, site_key
+                """,
+                (cid,),
+            ).fetchall()
+        except Exception:
+            # PostgreSQL has no NOCASE collation — fall back.
+            rows = db.execute(
+                """
+                SELECT * FROM camera_watch_sites
+                WHERE company_id = ?
+                ORDER BY lower(site_name), site_key
+                """,
+                (cid,),
+            ).fetchall()
     except Exception:
         return []
-    return [_row_to_settings(cid, r) for r in rows]
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        try:
+            out.append(_row_to_settings(cid, r))
+        except Exception:
+            continue
+    return out
 
 
 def get_site_watch_settings(db, company_id: str, site_key: str) -> dict[str, Any] | None:

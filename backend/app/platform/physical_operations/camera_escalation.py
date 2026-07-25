@@ -44,37 +44,75 @@ def _format_age_label(seconds: int) -> str:
     return f"{days}d"
 
 
+def _row_keys(row) -> set[str]:
+    try:
+        if hasattr(row, "keys"):
+            return {str(k) for k in row.keys()}
+    except Exception:
+        pass
+    try:
+        return {str(k) for k in dict(row).keys()}
+    except Exception:
+        return set()
+
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _row_val(row, key: str, default: Any = None) -> Any:
+    if key not in _row_keys(row):
+        return default
+    try:
+        val = row[key]
+        return default if val is None else val
+    except Exception:
+        return default
+
+
 def _sla_fields(row) -> dict[str, Any]:
-    keys = row.keys() if hasattr(row, "keys") else []
-    created = _parse_iso_dt(str(row["created_at"] or "") if "created_at" in keys else "")
-    now = datetime.now(timezone.utc)
-    age = int((now - created).total_seconds()) if created else 0
-    stage = int(row["chain_stage"] if "chain_stage" in keys and row["chain_stage"] is not None else 0)
-    next_at = str(row["chain_next_at"] if "chain_next_at" in keys else "") or None
-    status = str(row["status"] or "")
-    openish = status in {"open", "pending_second_ack"}
-    next_bit = ""
-    if openish and next_at:
-        nxt = _parse_iso_dt(next_at)
-        if nxt:
-            delta = int((nxt - now).total_seconds())
-            if delta > 0:
-                next_bit = f" · nächster Schritt in {_format_age_label(delta)}"
+    try:
+        created = _parse_iso_dt(str(_row_val(row, "created_at", "") or ""))
+        now = datetime.now(timezone.utc)
+        age = int((now - created).total_seconds()) if created else 0
+        stage = _safe_int(_row_val(row, "chain_stage", 0), 0)
+        next_at = str(_row_val(row, "chain_next_at", "") or "") or None
+        status = str(_row_val(row, "status", "") or "")
+        openish = status in {"open", "pending_second_ack"}
+        next_bit = ""
+        if openish and next_at:
+            nxt = _parse_iso_dt(next_at)
+            if nxt:
+                delta = int((nxt - now).total_seconds())
+                if delta > 0:
+                    next_bit = f" · nächster Schritt in {_format_age_label(delta)}"
+                else:
+                    next_bit = " · nächster Schritt fällig"
             else:
-                next_bit = " · nächster Schritt fällig"
-        else:
-            next_bit = f" · nächster Schritt {next_at}"
-    elif openish and stage >= 2:
-        next_bit = " · Kette abgeschlossen"
-    elif not openish:
-        next_bit = f" · Status {status}"
-    sla_label = f"offen seit {_format_age_label(age)} · Stufe {stage}{next_bit}"
-    return {
-        "ageSeconds": age,
-        "chainStage": stage,
-        "chainNextAt": next_at,
-        "slaLabel": sla_label,
-    }
+                next_bit = f" · nächster Schritt {next_at}"
+        elif openish and stage >= 2:
+            next_bit = " · Kette abgeschlossen"
+        elif not openish:
+            next_bit = f" · Status {status}"
+        sla_label = f"offen seit {_format_age_label(age)} · Stufe {stage}{next_bit}"
+        return {
+            "ageSeconds": age,
+            "chainStage": stage,
+            "chainNextAt": next_at,
+            "slaLabel": sla_label,
+        }
+    except Exception:
+        return {
+            "ageSeconds": 0,
+            "chainStage": 0,
+            "chainNextAt": None,
+            "slaLabel": "offen",
+        }
 
 
 def _append_event(
@@ -130,47 +168,71 @@ def _parse_ack_users(raw: Any) -> list[str]:
 def _serialize_row(r) -> dict[str, Any]:
     details = {}
     try:
-        details = json.loads(r["details_json"] or "{}")
+        details = json.loads(_row_val(r, "details_json", "{}") or "{}")
     except Exception:
         details = {}
-    keys = r.keys() if hasattr(r, "keys") else []
-    clip = str(r["clip_b64"] if "clip_b64" in keys else "") or ""
+    if not isinstance(details, dict):
+        details = {}
+    clip = str(_row_val(r, "clip_b64", "") or "")
+    snap = str(_row_val(r, "snapshot_b64", "") or "")
     sla = _sla_fields(r)
-    return {
-        "id": r["id"],
-        "companyId": r["company_id"],
-        "eventId": r["event_id"],
-        "cameraId": r["camera_id"],
-        "cameraName": str(details.get("cameraName") or "") or None,
-        "eventType": str(details.get("eventType") or "") or None,
-        "location": str(details.get("location") or "") or None,
-        "siteKey": str(r["site_key"] if "site_key" in keys else "") or "",
-        "severity": r["severity"],
-        "status": r["status"],
-        "policeName": r["police_name"],
-        "policeAddress": r["police_address"],
-        "policePhone": r["police_phone"],
-        "policeCountry": r["police_country"],
-        "policeCity": r["police_city"],
-        "hasSnapshot": bool(str(r["snapshot_b64"] or "").strip()),
-        "hasClip": bool(clip.strip()),
-        "falsePositive": bool(int(r["false_positive"] if "false_positive" in keys else 0) or 0),
-        "falsePositiveBy": r["false_positive_by"] if "false_positive_by" in keys else None,
-        "falsePositiveAt": r["false_positive_at"] if "false_positive_at" in keys else None,
-        "details": details,
-        "test": bool(details.get("test")),
-        "acknowledgedBy": r["acknowledged_by"],
-        "acknowledgedAt": r["acknowledged_at"],
-        "ackCount": int(r["ack_count"] if "ack_count" in keys and r["ack_count"] is not None else 0),
-        "ackUsers": _parse_ack_users(r["ack_users_json"] if "ack_users_json" in keys else "[]"),
-        "chainStage": sla["chainStage"],
-        "chainNextAt": sla["chainNextAt"],
-        "ageSeconds": sla["ageSeconds"],
-        "slaLabel": sla["slaLabel"],
-        "dualAckRequired": bool(int(r["dual_ack_required"] if "dual_ack_required" in keys else 0) or 0),
-        "createdAt": r["created_at"],
-        "autoDial": False,
-    }
+    try:
+        return {
+            "id": _row_val(r, "id"),
+            "companyId": _row_val(r, "company_id"),
+            "eventId": _row_val(r, "event_id"),
+            "cameraId": _row_val(r, "camera_id"),
+            "cameraName": str(details.get("cameraName") or "") or None,
+            "eventType": str(details.get("eventType") or "") or None,
+            "location": str(details.get("location") or "") or None,
+            "siteKey": str(_row_val(r, "site_key", "") or ""),
+            "severity": _row_val(r, "severity"),
+            "status": _row_val(r, "status"),
+            "policeName": _row_val(r, "police_name"),
+            "policeAddress": _row_val(r, "police_address"),
+            "policePhone": _row_val(r, "police_phone"),
+            "policeCountry": _row_val(r, "police_country"),
+            "policeCity": _row_val(r, "police_city"),
+            "hasSnapshot": bool(snap.strip()),
+            "hasClip": bool(clip.strip()),
+            "falsePositive": bool(_safe_int(_row_val(r, "false_positive", 0), 0)),
+            "falsePositiveBy": _row_val(r, "false_positive_by"),
+            "falsePositiveAt": _row_val(r, "false_positive_at"),
+            "details": details,
+            "test": bool(details.get("test")),
+            "acknowledgedBy": _row_val(r, "acknowledged_by"),
+            "acknowledgedAt": _row_val(r, "acknowledged_at"),
+            "ackCount": _safe_int(_row_val(r, "ack_count", 0), 0),
+            "ackUsers": _parse_ack_users(_row_val(r, "ack_users_json", "[]")),
+            "chainStage": sla["chainStage"],
+            "chainNextAt": sla["chainNextAt"],
+            "ageSeconds": sla["ageSeconds"],
+            "slaLabel": sla["slaLabel"],
+            "dualAckRequired": bool(_safe_int(_row_val(r, "dual_ack_required", 0), 0)),
+            "createdAt": _row_val(r, "created_at"),
+            "autoDial": False,
+        }
+    except Exception as exc:
+        return {
+            "id": _row_val(r, "id"),
+            "companyId": _row_val(r, "company_id"),
+            "cameraId": _row_val(r, "camera_id"),
+            "status": _row_val(r, "status"),
+            "severity": _row_val(r, "severity"),
+            "createdAt": _row_val(r, "created_at"),
+            "error": f"serialize_failed:{exc}",
+            "autoDial": False,
+            "slaLabel": "offen",
+            "ageSeconds": 0,
+            "chainStage": 0,
+            "ackCount": 0,
+            "ackUsers": [],
+            "dualAckRequired": False,
+            "hasSnapshot": False,
+            "hasClip": False,
+            "falsePositive": False,
+            "details": details,
+        }
 
 
 def create_critical_escalation(
@@ -492,7 +554,13 @@ def list_escalations(db, company_id: str, *, limit: int = 30, status: str | None
             ).fetchall()
     except Exception:
         return []
-    return [_serialize_row(r) for r in rows]
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        try:
+            out.append(_serialize_row(r))
+        except Exception:
+            continue
+    return out
 
 
 def get_escalation(

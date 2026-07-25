@@ -407,15 +407,44 @@ def register_enterprise_layers(flask_app) -> None:
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
         db = get_db()
-        status = watch_status(db, cid)
+        errors: list[str] = []
+        try:
+            status = watch_status(db, cid)
+        except Exception as exc:
+            errors.append(f"watch:{exc}")
+            status = {
+                "companyId": cid,
+                "enabled": True,
+                "afterHours": False,
+                "watchModeActive": False,
+                "label": "watch_standby",
+                "error": str(exc),
+            }
+        try:
+            sites = list_watch_sites(db, cid)
+        except Exception as exc:
+            errors.append(f"sites:{exc}")
+            sites = []
+        try:
+            overrides = list_watch_overrides(db, cid)
+        except Exception as exc:
+            errors.append(f"overrides:{exc}")
+            overrides = []
+        try:
+            escalations = list_escalations(db, cid, limit=20)
+        except Exception as exc:
+            errors.append(f"escalations:{exc}")
+            escalations = []
         return jsonify(
             {
                 "ok": True,
                 "watch": status,
-                "notifyRules": status.get("notifyRules") or {},
-                "sites": list_watch_sites(db, cid),
-                "overrides": list_watch_overrides(db, cid),
-                "escalations": list_escalations(db, cid, limit=20),
+                "notifyRules": (status or {}).get("notifyRules") or {},
+                "sites": sites,
+                "overrides": overrides,
+                "escalations": escalations,
+                "warnings": errors,
+                "autoDial": False,
             }
         )
 
@@ -580,6 +609,14 @@ def register_enterprise_layers(flask_app) -> None:
                 ),
             },
         )
+        # Missing URL is a client config issue — return 200 with ok:false for UI messaging.
+        if result.get("error") == "webhook_url_required":
+            return jsonify(
+                {
+                    **result,
+                    "message": "Bitte zuerst Security-Webhook (Firma) speichern (https://…), dann testen.",
+                }
+            ), 200
         status = 200 if result.get("ok") else 400
         return jsonify(result), status
 
