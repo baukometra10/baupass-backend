@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import hmac
+import html as html_lib
 import io
 import json
 import os
@@ -16,6 +17,7 @@ from typing import Any
 from urllib.request import Request, urlopen
 
 _HTML_TAG_RE = re.compile(r"<[^>]+>")
+_TABLE_RE = re.compile(r"<table\b[^>]*>[\s\S]*?</table>", re.I)
 
 
 def onlyoffice_enabled() -> bool:
@@ -199,6 +201,65 @@ def _mm_to_twips(mm_val: float) -> int:
     return max(400, int(float(mm_val) * 56.7))
 
 
+def _cell_text(fragment: str) -> str:
+    text = _HTML_TAG_RE.sub(" ", fragment or "")
+    text = html_lib.unescape(text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _parse_html_table(table_html: str) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for tr in re.finditer(r"<tr\b[^>]*>([\s\S]*?)</tr>", table_html or "", re.I):
+        cells: list[str] = []
+        for cell in re.finditer(r"<t[dh]\b[^>]*>([\s\S]*?)</t[dh]>", tr.group(1), re.I):
+            cells.append(_cell_text(cell.group(1)))
+        if cells:
+            rows.append(cells)
+    return rows or [[""]]
+
+
+def _extract_html_tables(html: str) -> tuple[str, list[list[list[str]]]]:
+    tables: list[list[list[str]]] = []
+
+    def _repl(match: re.Match) -> str:
+        idx = len(tables)
+        tables.append(_parse_html_table(match.group(0)))
+        return f"<p>[[WPTABLE:{idx}]]</p>"
+
+    cleaned = _TABLE_RE.sub(_repl, html or "")
+    return cleaned, tables
+
+
+def _table_to_ooxml(rows: list[list[str]], *, usable_twips: int = 9000) -> str:
+    cols = max((len(r) for r in rows), default=1) or 1
+    col_w = max(720, int(usable_twips // cols))
+    grid = "".join(f'<w:gridCol w:w="{col_w}"/>' for _ in range(cols))
+    border = 'w:val="single" w:sz="4" w:space="0" w:color="666666"'
+    trs: list[str] = []
+    for row in rows:
+        tcs: list[str] = []
+        for i in range(cols):
+            cell = row[i] if i < len(row) else ""
+            tcs.append(
+                f'<w:tc><w:tcPr><w:tcW w:w="{col_w}" w:type="dxa"/></w:tcPr>'
+                f"<w:p><w:r><w:t>{_xml_escape(cell)}</w:t></w:r></w:p></w:tc>"
+            )
+        trs.append(f"<w:tr>{''.join(tcs)}</w:tr>")
+    return (
+        "<w:tbl>"
+        "<w:tblPr>"
+        '<w:tblW w:w="0" w:type="auto"/>'
+        "<w:tblBorders>"
+        f"<w:top {border}/><w:left {border}/><w:bottom {border}/><w:right {border}/>"
+        f"<w:insideH {border}/><w:insideV {border}/>"
+        "</w:tblBorders>"
+        "</w:tblPr>"
+        f"<w:tblGrid>{grid}</w:tblGrid>"
+        f"{''.join(trs)}"
+        "</w:tbl>"
+    )
+
+
 def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = None) -> bytes:
     """OOXML .docx from HTML with headings/bold, page layout, and embedded images/signatures."""
     img_store: list[tuple[str, bytes]] = []
@@ -232,6 +293,7 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
         html or "",
         flags=re.I,
     )
+    cleaned, table_store = _extract_html_tables(cleaned)
     blocks = html_to_rich_blocks(cleaned)
     body_parts: list[str] = []
     media_files: list[tuple[str, bytes]] = []
@@ -300,8 +362,16 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
             f"<w:r><w:t>{_xml_escape(title)}</w:t></w:r></w:p>"
         )
     for block in blocks:
+        runs = block.get("runs") or []
+        plain = "".join(str(r.get("text") or "") for r in runs).strip()
+        tm = re.fullmatch(r"\[\[WPTABLE:(\d+)\]\]", plain)
+        if tm:
+            tidx = int(tm.group(1))
+            if 0 <= tidx < len(table_store):
+                body_parts.append(_table_to_ooxml(table_store[tidx]))
+            continue
         style = str(block.get("style") or "Normal")
-        runs_xml = _runs_to_xml(block.get("runs") or [])
+        runs_xml = _runs_to_xml(runs)
         if not runs_xml:
             continue
         p_style = f'<w:pPr><w:pStyle w:val="{_xml_escape(style)}"/></w:pPr>' if style != "Normal" else "<w:pPr/>"

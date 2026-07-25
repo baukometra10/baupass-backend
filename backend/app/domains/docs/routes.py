@@ -585,7 +585,18 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             report_meta={"kind": "editor_doc", "document_id": doc_id, "company_id": cid},
         )
         if not ok:
-            return jsonify({"ok": False, "error": "send_failed", "message": err or "send_failed"}), 502
+            hint = (
+                "SMTP/API-Mail ist nicht konfiguriert oder fehlgeschlagen. "
+                "Einstellungen → E-Mail (SMTP_HOST / Resend / Brevo) prüfen."
+            )
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "send_failed",
+                    "message": err or "send_failed",
+                    "hint": hint,
+                }
+            ), 502
         return jsonify({"ok": True, "to": to, "filename": payload.get("filename")})
 
     @docs_v2_bp.get("/docs/onlyoffice/status")
@@ -789,6 +800,8 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @deny_turnstile_sensitive(surface="docs", action="presence")
     @require_roles("superadmin", "company-admin")
     def upsert_doc_presence(doc_id: str):
+        import hashlib
+
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
@@ -803,11 +816,16 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             user_id=_actor_id() or "anon",
             display_name=_actor_name() or _actor_id() or "User",
         )
+        body = str(doc.get("content_html") or "")
+        content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()[:24]
         return jsonify(
             {
                 "ok": True,
                 "peers": peers,
                 "updatedAt": doc.get("updated_at"),
+                "contentHash": content_hash,
+                "title": doc.get("title") or "",
+                "status": doc.get("status") or "draft",
             }
         )
 
@@ -830,6 +848,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @require_owner_step_up
     def create_doc_signature(doc_id: str):
         import hashlib
+        import json as _json
+
+        from werkzeug.security import generate_password_hash
 
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
@@ -838,19 +859,53 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
+        pin = str(data.get("pin") or data.get("confirmPin") or "").strip()
+        if len(pin) < 4:
+            return jsonify({"error": "pin_required", "message": "PIN mindestens 4 Zeichen"}), 400
         body = str(doc.get("content_html") or "")
         content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
+        signer_name = str(data.get("signerName") or data.get("signer_name") or "").strip()
+        stamped = bool(data.get("stamped"))
+        level = "aes"  # advanced electronic signature (platform) — not QES/eIDAS TSP
+        manifest = {
+            "level": level,
+            "documentId": doc_id,
+            "companyId": cid,
+            "title": doc.get("title") or "",
+            "signerName": signer_name,
+            "actorUserId": _actor_id(),
+            "stamped": stamped,
+            "contentHashSha256": content_hash,
+            "pinHash": generate_password_hash(pin),
+            "note": "Advanced electronic signature (AES). Not a qualified electronic signature (QES).",
+        }
+        payload = str(data.get("signatureData") or data.get("signature_data") or "")[:100000]
+        packed = _json.dumps({"manifest": manifest, "imageData": payload}, ensure_ascii=False)
         row = _service.repo.add_signature(
             get_db(),
             document_id=doc_id,
             company_id=cid,
-            signer_name=str(data.get("signerName") or data.get("signer_name") or "").strip(),
+            signer_name=signer_name,
             actor_user_id=_actor_id(),
-            stamped=bool(data.get("stamped")),
+            stamped=stamped,
             content_hash=content_hash,
-            signature_data=str(data.get("signatureData") or data.get("signature_data") or "")[:120000],
+            signature_data=packed[:120000],
         )
-        return jsonify({"ok": True, "signature": row})
+        lock_raw = data.get("lockAfter")
+        lock_after = lock_raw is True or str(lock_raw or "").lower() in {"1", "true", "yes"}
+        if lock_after and stamped:
+            try:
+                _service.set_status(
+                    get_db(),
+                    doc_id,
+                    company_id=cid,
+                    actor_user_id=_actor_id(),
+                    status="approved",
+                )
+                doc = _service.get_doc(get_db(), doc_id, company_id=cid) or doc
+            except Exception:
+                pass
+        return jsonify({"ok": True, "signature": row, "level": level, "document": doc})
 
     @docs_v2_bp.get("/docs/<doc_id>/signatures")
     @require_auth

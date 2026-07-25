@@ -1672,7 +1672,7 @@
         label: dt("printPreview"),
         hint: "Ctrl+P",
         icon: "print",
-        run: () => openPrintPreview({ showMarks: false }),
+        run: () => openPrintPreviewPdf().catch(() => {}),
       },
       {
         id: "comments",
@@ -2507,26 +2507,62 @@
     window.DocsIcons?.mountAll(modal, true);
   }
 
-  function runCleanBrowserPrint() {
+  async function runCleanBrowserPrint() {
     document.body.classList.add("docs-printing-locked", "docs-print-clean");
     hideAiOperatorForPrint(true);
-    // Ensure empty HF placeholders are suppressed during print.
+    try {
+      const modal = $("printPreviewModal");
+      const body = $("printPreviewBody");
+      let iframe = body?.querySelector("iframe.print-pdf-frame");
+      if (!(iframe && modal && !modal.hidden)) {
+        await openPrintPreviewPdf();
+        iframe = body?.querySelector("iframe.print-pdf-frame");
+      }
+      if (iframe) {
+        const printFrame = () => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch {
+            /* ignore */
+          }
+          window.setTimeout(() => {
+            document.body.classList.remove("docs-printing-locked", "docs-print-clean");
+          }, 400);
+        };
+        if (iframe.contentDocument?.readyState === "complete") {
+          window.setTimeout(printFrame, 250);
+        } else {
+          iframe.addEventListener("load", () => window.setTimeout(printFrame, 250), { once: true });
+          window.setTimeout(printFrame, 1200);
+        }
+        return;
+      }
+    } catch {
+      /* fall through to HTML print */
+    }
     document.querySelectorAll(".docs-hf").forEach((el) => {
       if (!String(el.textContent || "").replace(/\u00a0/g, " ").trim()) el.classList.add("is-empty-hf");
     });
     closePrintPreview();
-    window.setTimeout(() => window.print(), 40);
+    window.setTimeout(() => {
+      window.print();
+      document.body.classList.remove("docs-printing-locked", "docs-print-clean");
+    }, 40);
   }
 
   function closePrintPreview() {
     const body = $("printPreviewBody");
     if (body?._pdfUrl) {
-      try { URL.revokeObjectURL(body._pdfUrl); } catch { /* ignore */ }
+      try {
+        URL.revokeObjectURL(body._pdfUrl);
+      } catch {
+        /* ignore */
+      }
       body._pdfUrl = null;
     }
     const modal = $("printPreviewModal");
     if (modal) modal.hidden = true;
-    const body = $("printPreviewBody");
     if (body) body.innerHTML = "";
     if (!document.body.classList.contains("docs-printing-locked")) {
       hideAiOperatorForPrint(false);
@@ -2952,6 +2988,7 @@
         ? ""
         : String(($("workerSelect")?.selectedOptions?.[0]?.textContent || "").trim() || "");
     }
+    if ($("signPinInput")) $("signPinInput").value = "";
     bindSignCanvas();
     clearSignCanvas();
     setStatus($("signModalStatus"), "");
@@ -2985,11 +3022,18 @@
     closeSignModal();
   }
 
-  function insertSignatureFromModal() {
+  async function insertSignatureFromModal() {
     const canvas = $("signCanvas");
     const signer = String($("signNameInput")?.value || "").trim();
+    const pin = String($("signPinInput")?.value || "").trim();
     const when = todayIso();
     const stampOn = !!$("signStampCheck")?.checked;
+    const lockAfter = !!$("signLockCheck")?.checked;
+    if (pin.length < 4) {
+      setStatus($("signModalStatus"), dt("signPinRequired"), "err");
+      $("signPinInput")?.focus();
+      return;
+    }
     let imageHtml = "";
     if (canvas && signHasInk) {
       try {
@@ -3015,14 +3059,28 @@
       nameLine +
       stamp +
       `<p class="wp-sign-date">${escapeHtml(dt("signDateLabel"))}: ${escapeHtml(when)}</p>` +
+      `<p class="wp-sign-aes">${escapeHtml(dt("signAesNote"))}</p>` +
       `</div><p><br></p>`;
     insertHtmlAtCursor(html);
     setStatus($("saveStatus"), dt("signInserted"), "ok");
-    recordSignatureAudit({
-      signerName: signer,
-      stamped: stampOn,
-      signatureData: canvas && signHasInk ? canvas.toDataURL("image/png") : "",
-    }).catch(() => {});
+    try {
+      await saveDoc();
+    } catch {
+      /* still try audit */
+    }
+    try {
+      await recordSignatureAudit({
+        signerName: signer,
+        stamped: stampOn,
+        signatureData: canvas && signHasInk ? canvas.toDataURL("image/png") : "",
+        pin,
+        lockAfter: lockAfter && stampOn,
+      });
+      setStatus($("signModalStatus"), dt("signAuditOk"), "ok");
+    } catch (e) {
+      setStatus($("signModalStatus"), e.body?.message || e.message || dt("signPinRequired"), "err");
+      return;
+    }
     closeSignModal();
   }
 
@@ -3843,7 +3901,9 @@
       setStatus($("saveStatus"), dt("emailSentOk", { to }), "ok");
       window.setTimeout(() => closeEmailModal(), 900);
     } catch (e) {
-      const msg = e.message || e.body?.message || dt("emailPdfFail");
+      const base = e.body?.message || e.message || dt("emailPdfFail");
+      const hint = e.body?.hint || dt("emailSmtpHint");
+      const msg = hint && !String(base).includes(hint) ? `${base} — ${hint}` : base;
       setStatus($("emailModalStatus"), msg, "err");
       setStatus($("saveStatus"), msg, "err");
     }
@@ -4850,10 +4910,14 @@
       else setHtml("<p><br></p>");
     }
     dirty = false;
+    lastKnownUpdatedAt = String(doc?.updated_at || "");
+    lastKnownContentHash = "";
+    hideCollabConflict();
     setStatus($("saveStatus"), dt("loaded"), "ok");
     updatePageLabel();
     refreshVersions().catch(() => {});
     maybeOfferOfflineDraft(doc);
+    startPresenceLoop();
   }
 
   async function refreshList(selectId) {
@@ -4943,6 +5007,9 @@
       currentDoc = data.document;
       dirty = false;
       lastSavedAt = Date.now();
+      lastKnownUpdatedAt = String(currentDoc?.updated_at || lastKnownUpdatedAt || "");
+      lastKnownContentHash = "";
+      hideCollabConflict();
       clearOfflineDraft(currentDoc?.id || "new");
       hideOfflineBanner();
       renderDocMeta(currentDoc);
@@ -4971,6 +5038,7 @@
 
   function scheduleAutosave() {
     if (saveTimer) clearTimeout(saveTimer);
+    const delay = peerCount > 0 ? 2000 : 4000;
     saveTimer = setTimeout(() => {
       if (!dirty) return;
       autosavePass = true;
@@ -4979,7 +5047,7 @@
         .finally(() => {
           autosavePass = false;
         });
-    }, 4000);
+    }, delay);
   }
 
   async function deleteDoc() {
@@ -5483,7 +5551,7 @@
       }
     });
     $("printBtn")?.addEventListener("click", () => exportDoc("pdf").catch(() => {}));
-    $("printBrowserBtn")?.addEventListener("click", () => openPrintPreview({ showMarks: false }));
+    $("printBrowserBtn")?.addEventListener("click", () => openPrintPreviewPdf().catch(() => {}));
     $("fullscreenBtn")?.addEventListener("click", () => toggleFocusMode());
     $("exitFocusBtn")?.addEventListener("click", () => toggleFocusMode(false));
     $("applyTemplateBtn")?.addEventListener("click", applyTemplate);
@@ -5504,7 +5572,20 @@
     $("signBackdrop")?.addEventListener("click", () => closeSignModal());
     $("signClearBtn")?.addEventListener("click", () => clearSignCanvas());
     $("signLineOnlyBtn")?.addEventListener("click", () => insertSignatureBlockLineOnly());
-    $("signInsertBtn")?.addEventListener("click", () => insertSignatureFromModal());
+    $("signInsertBtn")?.addEventListener("click", () => {
+      insertSignatureFromModal().catch(() => {});
+    });
+    $("collabReloadBtn")?.addEventListener("click", () => {
+      dirty = false;
+      conflictIgnoredHash = "";
+      pendingRemoteHash = "";
+      hideCollabConflict();
+      reloadFromServerQuiet().catch(() => {});
+    });
+    $("collabKeepBtn")?.addEventListener("click", () => {
+      if (pendingRemoteHash) conflictIgnoredHash = pendingRemoteHash;
+      hideCollabConflict();
+    });
     $("checkPlaceholdersBtn")?.addEventListener("click", () => {
       renderPlaceholderCheck();
       const items = collectOpenPlaceholders();
@@ -5528,7 +5609,7 @@
       btn.addEventListener("click", () => insertSnippet(btn.getAttribute("data-snippet") || ""));
     });
     $("sharePdfBtn")?.addEventListener("click", () => exportDoc("pdf").catch(() => {}));
-    $("sharePrintBtn")?.addEventListener("click", () => openPrintPreview({ showMarks: false }));
+    $("sharePrintBtn")?.addEventListener("click", () => openPrintPreviewPdf().catch(() => {}));
     $("shareEmailBtn")?.addEventListener("click", () => shareByEmail().catch(() => {}));
 
     $("emptyTplBtn")?.addEventListener("click", () => {
@@ -5678,7 +5759,7 @@
         renderCommentsPanel();
       });
     });
-    $("printPreviewBtn")?.addEventListener("click", () => openPrintPreview({ showMarks: false }));
+    $("printPreviewBtn")?.addEventListener("click", () => openPrintPreviewPdf().catch(() => {}));
     $("printPreviewClose")?.addEventListener("click", () => closePrintPreview());
     $("printPreviewDismiss")?.addEventListener("click", () => closePrintPreview());
     $("printPreviewBackdrop")?.addEventListener("click", () => closePrintPreview());
@@ -6099,7 +6180,7 @@
         saveDoc().catch((err) => setStatus($("saveStatus"), err.message, "err"));
       } else if (key === "p") {
         e.preventDefault();
-        openPrintPreview({ showMarks: false });
+        openPrintPreviewPdf().catch(() => {});
       } else if (key === "d") {
         e.preventDefault();
         duplicateDoc().catch((err) => setStatus($("saveStatus"), err.message, "err"));
@@ -6317,19 +6398,53 @@
 
   let presenceTimer = 0;
   let lastKnownUpdatedAt = "";
+  let lastKnownContentHash = "";
+  let peerCount = 0;
+  let conflictIgnoredHash = "";
+  let pendingRemoteHash = "";
+  let collabReloading = false;
+
+  function myActorId() {
+    try {
+      const u = JSON.parse(String(wpGet(USER_KEY) || "null"));
+      return String(u?.id || u?.username || "");
+    } catch {
+      return "";
+    }
+  }
+
+  function hideCollabConflict() {
+    const el = $("collabConflictBanner");
+    if (el) el.hidden = true;
+  }
+
+  function showCollabConflict() {
+    const el = $("collabConflictBanner");
+    if (el) el.hidden = false;
+  }
+
+  async function reloadFromServerQuiet() {
+    if (!currentDoc?.id || collabReloading) return;
+    collabReloading = true;
+    try {
+      const id = currentDoc.id;
+      const data = await api(`/api/v2/docs/${encodeURIComponent(id)}${companyQuery()}`);
+      loadIntoEditor(data.document);
+      setStatus($("saveStatus"), dt("presenceReloaded"), "ok");
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("presenceUpdated"), "err");
+    } finally {
+      collabReloading = false;
+    }
+  }
+
   function renderPresence(peers) {
     const chip = $("presenceChip");
     const label = $("presenceLabel");
     if (!chip || !label) return;
-    const me = String(wpGet(USER_KEY) || "");
-    let meId = "";
-    try {
-      const u = JSON.parse(me || "null");
-      meId = String(u?.id || u?.username || "");
-    } catch {
-      meId = "";
-    }
+    const meId = myActorId();
     const others = (peers || []).filter((p) => String(p.user_id || "") !== meId);
+    peerCount = others.length;
     if (!others.length) {
       chip.hidden = true;
       return;
@@ -6342,6 +6457,7 @@
         : dt("presenceMany", { n: others.length, names: names.join(", ") });
     chip.title = others.map((p) => p.display_name || p.user_id).join(", ");
   }
+
   async function heartbeatPresence() {
     if (!currentDoc?.id || !activeCompanyId()) return;
     try {
@@ -6351,23 +6467,42 @@
       });
       renderPresence(data.peers || []);
       const remote = String(data.updatedAt || "");
-      if (lastKnownUpdatedAt && remote && remote !== lastKnownUpdatedAt && !dirty) {
-        setStatus($("saveStatus"), dt("presenceUpdated"), "");
+      const remoteHash = String(data.contentHash || "");
+      if (remoteHash && lastKnownContentHash && remoteHash !== lastKnownContentHash) {
+        if (!dirty) {
+          lastKnownContentHash = remoteHash;
+          if (remote) lastKnownUpdatedAt = remote;
+          await reloadFromServerQuiet();
+          return;
+        }
+        if (remoteHash !== conflictIgnoredHash) {
+          pendingRemoteHash = remoteHash;
+          showCollabConflict();
+        }
+      } else if (remoteHash && !lastKnownContentHash) {
+        lastKnownContentHash = remoteHash;
       }
       if (remote) lastKnownUpdatedAt = remote;
     } catch {
       /* ignore */
     }
   }
+
   function startPresenceLoop() {
-    if (presenceTimer) return;
+    if (presenceTimer) {
+      heartbeatPresence().catch(() => {});
+      return;
+    }
     heartbeatPresence().catch(() => {});
-    presenceTimer = window.setInterval(() => heartbeatPresence().catch(() => {}), 8000);
+    presenceTimer = window.setInterval(() => heartbeatPresence().catch(() => {}), peerCount > 0 ? 4000 : 8000);
   }
+
   function stopPresenceLoop() {
     if (presenceTimer) window.clearInterval(presenceTimer);
     presenceTimer = 0;
+    peerCount = 0;
     renderPresence([]);
+    hideCollabConflict();
   }
 
   async function refreshSignatures() {
@@ -6399,7 +6534,7 @@
     }
   }
 
-  async function recordSignatureAudit({ signerName, stamped, signatureData }) {
+  async function recordSignatureAudit({ signerName, stamped, signatureData, pin, lockAfter }) {
     if (!currentDoc?.id) {
       try {
         await saveDoc();
@@ -6407,21 +6542,27 @@
         /* ignore */
       }
     }
-    if (!currentDoc?.id) return;
-    try {
-      await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/signatures${companyQuery()}`, {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompanyId(),
-          signerName: signerName || "",
-          stamped: !!stamped,
-          signatureData: signatureData || "",
-        }),
-      });
-      refreshSignatures().catch(() => {});
-    } catch {
-      /* non-blocking */
+    if (!currentDoc?.id) throw new Error(dt("needSave"));
+    const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/signatures${companyQuery()}`, {
+      method: "POST",
+      body: JSON.stringify({
+        company_id: activeCompanyId(),
+        signerName: signerName || "",
+        stamped: !!stamped,
+        signatureData: signatureData || "",
+        pin: pin || "",
+        lockAfter: !!lockAfter,
+      }),
+    });
+    if (data.document) {
+      currentDoc = data.document;
+      renderDocMeta(currentDoc);
+      maybeAutoWatermark(currentDoc?.status);
+      lastKnownUpdatedAt = String(currentDoc?.updated_at || "");
+      lastKnownContentHash = "";
     }
+    refreshSignatures().catch(() => {});
+    return data;
   }
 
   function populateEmailWorkers() {

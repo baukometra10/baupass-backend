@@ -3112,6 +3112,36 @@ body.page-a1 @page { size: A1; }
   background: #34d399;
   box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
 }
+.collab-conflict {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-inline: 0.15rem 0.4rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: #fde68a;
+  font: 600 0.68rem/1.25 var(--ui);
+}
+.collab-conflict[hidden] { display: none !important; }
+.collab-conflict .action-row {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+.collab-conflict .cmd {
+  padding: 0.2rem 0.45rem;
+  font-size: 0.66rem;
+}
+.email-smtp-hint { opacity: 0.85; }
+.wp-sign-aes {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+}
 .print-pdf-frame {
   width: 100%;
   min-height: min(72vh, 820px);
