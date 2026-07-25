@@ -82,6 +82,48 @@ def _send_admin_emails(
     return sent
 
 
+def _notify_critical_sms_push(
+    db,
+    company_id: str,
+    *,
+    title: str,
+    message: str,
+    escalation_id: str | None,
+    event_id: str = "",
+) -> dict:
+    result = {"sms": False, "push": False}
+    try:
+        from backend.app.platform.security.contracts_lock import company_owner_phone
+        from backend.app.platform.notifications.sms import send_sms, sms_configured
+
+        phone = company_owner_phone(db, company_id)
+        if phone and sms_configured():
+            ok, _ = send_sms(to=phone, body=f"{title}\n{message}"[:300])
+            result["sms"] = bool(ok)
+    except Exception:
+        pass
+    try:
+        from backend.app.platform.push.admin_delivery import deliver_admin_push
+
+        esc = escalation_id or event_id or "cam"
+        push = deliver_admin_push(
+            db,
+            str(company_id),
+            title[:80],
+            message[:160],
+            tag=f"camera-{esc}"[:64],
+            extra={
+                "url": f"/admin-v2/camera-watch.html?company_id={company_id}"
+                + (f"&escalation={escalation_id}" if escalation_id else ""),
+                "kind": "camera_critical",
+            },
+        )
+        result["push"] = int(push.get("sent") or 0) > 0
+    except Exception:
+        pass
+    return result
+
+
 def notify_camera_violation(
     db,
     *,
@@ -94,6 +136,7 @@ def notify_camera_violation(
     created_at: str,
     analysis: dict[str, Any],
     snapshot_b64: str | None = None,
+    clip_b64: str | None = None,
     worker_id: str | None = None,
 ) -> dict[str, Any]:
     alerts = list(analysis.get("alerts") or [])
@@ -109,6 +152,7 @@ def notify_camera_violation(
 
     after_hours = bool(analysis.get("afterHours"))
     critical = bool(analysis.get("critical") or str(analysis.get("maxSeverity") or "").lower() == "critical")
+    channels = {"sms": False, "push": False}
     watch_tag = " [Außerhalb Arbeitszeit / Watch-Mode]" if after_hours else ""
     title = f"Kamera-Alarm{watch_tag}: {camera_name or camera_id}"
     message = (
@@ -161,9 +205,21 @@ def notify_camera_violation(
                 event_type=event_type,
                 analysis=analysis,
                 snapshot_b64=snapshot_b64 or "",
+                clip_b64=clip_b64 or "",
+                site=location,
             )
         except Exception:
             escalation = None
+
+    if critical:
+        channels = _notify_critical_sms_push(
+            db,
+            str(company_id),
+            title=title,
+            message=message,
+            escalation_id=(escalation or {}).get("id") if isinstance(escalation, dict) else None,
+            event_id=event_id,
+        )
 
     pdf_bytes = None
     try:
@@ -241,6 +297,8 @@ def notify_camera_violation(
         "critical": critical,
         "escalationId": (escalation or {}).get("id") if isinstance(escalation, dict) else None,
         "police": (escalation or {}).get("police") if isinstance(escalation, dict) else None,
+        "smsSent": channels.get("sms"),
+        "pushSent": channels.get("push"),
     }
 
 

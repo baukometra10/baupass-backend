@@ -71,16 +71,23 @@ def analyze_camera_event(company_id: Any, payload: dict[str, Any], *, after_hour
 
 def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[str, Any]:
     from .camera_registry import get_camera_snapshot_b64, touch_camera_heartbeat
-    from .camera_watch import is_after_hours, mark_dedup_alert, should_dedup_alert
+    from .camera_watch import (
+        is_after_hours_for_site,
+        is_alert_suppressed,
+        mark_dedup_alert,
+        should_dedup_alert,
+    )
 
     company_id_str = str(company_id)
     camera_id = str(payload.get("camera_id") or "unknown")
     created_at = now_iso()
     is_heartbeat_only = bool(payload.get("heartbeat")) and not payload.get("event_type")
+    site = str(payload.get("location") or payload.get("site") or payload.get("site_key") or "")
 
     snapshot_b64 = str(
         payload.get("image_base64") or payload.get("snapshot_base64") or payload.get("photo_base64") or ""
     )
+    clip_b64 = str(payload.get("clip_base64") or payload.get("clipBase64") or payload.get("video_base64") or "")
 
     touch_camera_heartbeat(
         db,
@@ -97,7 +104,7 @@ def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[st
         publish_event("camera.heartbeat", company_id_str, {"camera_id": camera_id})
         return {"id": None, "heartbeat": True, "camera_id": camera_id}
 
-    after_hours = is_after_hours(db, company_id_str)
+    after_hours = is_after_hours_for_site(db, company_id_str, site=site)
     analysis = analyze_camera_event(company_id_str, payload, after_hours=after_hours)
 
     # Critical alerts require evidence — fall back to last camera snapshot.
@@ -107,10 +114,14 @@ def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[st
             snapshot_b64 = fallback
             analysis["snapshotFallback"] = True
     analysis["hasSnapshot"] = bool(snapshot_b64)
+    analysis["hasClip"] = bool(clip_b64)
 
-    # Dedup repeated after-hours noise for same camera/event type.
+    # Dedup / false-positive learning suppress window.
     alert_key = f"{analysis.get('event_type')}:{analysis.get('maxSeverity')}"
-    if analysis.get("alerts") and should_dedup_alert(db, company_id_str, camera_id, alert_key, minutes=5):
+    if analysis.get("alerts") and (
+        is_alert_suppressed(db, company_id_str, camera_id, str(analysis.get("event_type") or alert_key))
+        or should_dedup_alert(db, company_id_str, camera_id, alert_key, minutes=5)
+    ):
         return {
             "id": None,
             "deduped": True,
@@ -158,11 +169,12 @@ def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[st
                 event_id=eid,
                 camera_id=camera_id,
                 camera_name=str(cam_row["name"] if cam_row else payload.get("camera_name") or camera_id),
-                location=str(cam_row["location"] if cam_row else payload.get("location") or ""),
+                location=str(cam_row["location"] if cam_row else payload.get("location") or site),
                 event_type=analysis["event_type"],
                 created_at=created_at,
                 analysis=analysis,
                 snapshot_b64=snapshot_b64,
+                clip_b64=clip_b64,
                 worker_id=analysis.get("worker_id"),
             )
             mark_dedup_alert(db, company_id_str, camera_id, alert_key)

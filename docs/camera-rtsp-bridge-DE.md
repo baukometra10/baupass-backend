@@ -33,6 +33,7 @@
   "heartbeat": false,
   "worker_id": "w-xyz",
   "image_base64": "<JPEG base64 optional>",
+  "clip_base64": "<MP4 base64 optional, 5–10s evidence>",
   "ppe": false,
   "zone": "Zone A",
   "in_restricted_zone": true,
@@ -70,8 +71,17 @@ Außerhalb der Betriebszeiten (Standard 06:00–18:00, Mo–Fr, TZ `Europe/Berli
 
 - Events werden höher priorisiert (`afterHours`), Bewegung → „Verdächtiger Vorfall“ (kein bestätigter Diebstahl)
 - Kritische Events erzwingen Snapshot (Payload oder letzter Heartbeat-Frame)
-- Critical-Pack mit **Polizei-Vorschlag** (Land/Stadt/Koordinaten) — **kein Auto-Notruf**
-- API: `GET/PUT /api/integrations/cameras/watch`, `GET /api/integrations/cameras/escalations`, `POST .../escalations/<id>/ack`
+- Critical-Pack mit **Polizei-Vorschlag** (Land/Stadt/Koordinaten, OSM-Cache) — **kein Auto-Notruf**
+- Critical: SMS/Push an Firma + optional kurzer Video-Clip (5–10 s) vom RTSP-Agent
+- Fehlalarm-Feedback senkt Wiederholungsalarme (Lern-Schwellen)
+- Multi-Standort: Watch-Zeiten/Koordinaten pro Site (`camera_watch_sites`, Location = Site-Key)
+- UI: `/admin-v2/camera-watch.html` (Einstellungen, Sites, Eskalations-Detail)
+- API:
+  - `GET/PUT /api/integrations/cameras/watch`
+  - `PUT/DELETE /api/integrations/cameras/watch/sites/<site_key>`
+  - `GET /api/integrations/cameras/escalations[/<id>]`
+  - `POST .../escalations/<id>/ack`
+  - `POST .../escalations/<id>/false-positive`
 
 **Vision-Job** (alle ~300 s, `BAUPASS_CAMERA_VISION_SECONDS`): holt Snapshots nach Feierabend und analysiert (OpenAI/Azure Vision oder Heuristik).
 
@@ -81,6 +91,10 @@ Außerhalb der Betriebszeiten (Standard 06:00–18:00, Mo–Fr, TZ `Europe/Berli
 | `BAUPASS_CAMERA_VISION_HEURISTIC` | Heuristik ohne Cloud-Key (default an) |
 | `OPENAI_API_KEY` / Azure Vision Vars | echte Frame-Analyse |
 | `BAUPASS_CAMERA_VISION_DEDUP_MINUTES` | Dedup pro Kamera (default 10) |
+| `BAUPASS_POLICE_OSM` | OSM/Overpass für Polizei-Stationen (default an) |
+| `BAUPASS_OVERPASS_URL` | optionaler Overpass-Endpoint |
+| `BAUPASS_CAMERA_CLIP` | Agent: immer Clip mitschicken |
+| `BAUPASS_CAMERA_CLIP_SECONDS` | Clip-Länge 5–10 (default 8) |
 
 ## Gesichtserkennung
 
@@ -134,6 +148,12 @@ set BAUPASS_CAMERA_RTSP_URL=rtsp://192.168.1.50/stream1
 python scripts/rtsp_camera_agent.py --interval 60 --snapshot
 ```
 
+Kritischer Event mit Evidence-Clip:
+
+```bash
+python scripts/rtsp_camera_agent.py --once --event forced_entry --snapshot --clip --clip-seconds 8
+```
+
 Heartbeat:
 
 ```bash
@@ -158,3 +178,8 @@ WorkPass → **Geräte** → Panel «Kamera-KI & RTSP-Bridge»
 - Online/Offline-Status
 - Live-Snapshot (letztes Bild vom Agent)
 - Sicherheitsereignisse
+
+WorkPass → **Betrieb** → **Kamera-Wächter** (`/admin-v2/camera-watch.html`)
+
+- Firmen- und Standort-Arbeitszeiten
+- Offene Eskalationen mit Snapshot/Clip, Polizei-Vorschlag, Ack / Fehlalarm

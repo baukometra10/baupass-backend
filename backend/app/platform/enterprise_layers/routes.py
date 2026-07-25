@@ -388,7 +388,7 @@ def register_enterprise_layers(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def get_camera_watch():
         from backend.app.platform.physical_operations.camera_escalation import list_escalations
-        from backend.app.platform.physical_operations.camera_watch import watch_status
+        from backend.app.platform.physical_operations.camera_watch import list_watch_sites, watch_status
 
         cid = _cid()
         if not cid:
@@ -399,6 +399,7 @@ def register_enterprise_layers(flask_app) -> None:
             {
                 "ok": True,
                 "watch": status,
+                "sites": list_watch_sites(db, cid),
                 "escalations": list_escalations(db, cid, limit=20),
             }
         )
@@ -407,7 +408,11 @@ def register_enterprise_layers(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def put_camera_watch():
-        from backend.app.platform.physical_operations.camera_watch import upsert_watch_settings, watch_status
+        from backend.app.platform.physical_operations.camera_watch import (
+            list_watch_sites,
+            upsert_watch_settings,
+            watch_status,
+        )
 
         cid = _cid()
         if not cid:
@@ -417,7 +422,38 @@ def register_enterprise_layers(flask_app) -> None:
             upsert_watch_settings(get_db(), cid, data)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        return jsonify({"ok": True, "watch": watch_status(get_db(), cid)})
+        db = get_db()
+        return jsonify({"ok": True, "watch": watch_status(db, cid), "sites": list_watch_sites(db, cid)})
+
+    @enterprise_layers_bp.put("/integrations/cameras/watch/sites/<site_key>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def put_camera_watch_site(site_key: str):
+        from backend.app.platform.physical_operations.camera_watch import upsert_site_watch_settings
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        try:
+            site = upsert_site_watch_settings(get_db(), cid, site_key, data)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"ok": True, "site": site})
+
+    @enterprise_layers_bp.delete("/integrations/cameras/watch/sites/<site_key>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def delete_camera_watch_site(site_key: str):
+        from backend.app.platform.physical_operations.camera_watch import delete_site_watch_settings
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        ok = delete_site_watch_settings(get_db(), cid, site_key)
+        if not ok:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True})
 
     @enterprise_layers_bp.get("/integrations/cameras/escalations")
     @require_auth
@@ -431,6 +467,21 @@ def register_enterprise_layers(flask_app) -> None:
         status = request.args.get("status")
         limit = min(100, max(1, int(request.args.get("limit", "30"))))
         return jsonify({"ok": True, "items": list_escalations(get_db(), cid, limit=limit, status=status)})
+
+    @enterprise_layers_bp.get("/integrations/cameras/escalations/<escalation_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def get_camera_escalation(escalation_id: str):
+        from backend.app.platform.physical_operations.camera_escalation import get_escalation
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        include_media = str(request.args.get("media") or "1").lower() not in {"0", "false", "no"}
+        item = get_escalation(get_db(), cid, escalation_id, include_media=include_media)
+        if not item:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True, "escalation": item})
 
     @enterprise_layers_bp.post("/integrations/cameras/escalations/<escalation_id>/ack")
     @require_auth
@@ -448,6 +499,27 @@ def register_enterprise_layers(flask_app) -> None:
             escalation_id,
             actor_user_id=str(g.current_user.get("id") or g.current_user.get("username") or ""),
             mark_security_notified=bool(data.get("securityNotified") or data.get("notifySecurity")),
+        )
+        if not item:
+            return jsonify({"error": "not_found"}), 404
+        return jsonify({"ok": True, "escalation": item})
+
+    @enterprise_layers_bp.post("/integrations/cameras/escalations/<escalation_id>/false-positive")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def false_positive_camera_escalation(escalation_id: str):
+        from backend.app.platform.physical_operations.camera_escalation import mark_false_positive
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        data = request.get_json(silent=True) or {}
+        item = mark_false_positive(
+            get_db(),
+            cid,
+            escalation_id,
+            actor_user_id=str(g.current_user.get("id") or g.current_user.get("username") or ""),
+            note=str(data.get("note") or ""),
         )
         if not item:
             return jsonify({"error": "not_found"}), 404

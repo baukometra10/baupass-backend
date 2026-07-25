@@ -3152,6 +3152,16 @@ async function renderBetriebActionHub(companyId) {
       locked: false,
       upgradeLabel: "",
     }),
+    !isTurnstile &&
+      renderBetriebActionCard({
+        href: `/admin-v2/camera-watch.html${q}`,
+        icon: "📹",
+        title: t("cameraWatch.title"),
+        desc: t("cameraWatch.desc"),
+        cta: t("cameraWatch.open"),
+        locked: false,
+        upgradeLabel: "",
+      }),
     renderBetriebActionCard({
       href: `/admin-v2/chat.html${q}`,
       icon: "💬",
@@ -5757,7 +5767,7 @@ async function loadOverview() {
     const camsOnline = camList.filter((c) => c.online).length;
     const watch = cameras?.watch || cameras?.summary || {};
     const watchActive = !!watch.watchModeActive;
-    const watchEnabled = watch.watchEnabled !== false;
+    const watchEnabled = watch.enabled !== false && watch.watchEnabled !== false;
     const camLayer = opsBrief?.layers?.["6_camera_ai"] || {};
     const openEsc = Number(camLayer.openEscalations || 0);
     const onSite = opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
@@ -5803,6 +5813,7 @@ async function loadOverview() {
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
         <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchEscalations")}: <strong>${openEsc}</strong> · ${t("lage.watchNoAutodial")}</p>
         ${escHtml ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${escHtml}</ul>` : ""}
+        <p style="margin:0.45rem 0 0"><a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a></p>
       </div>
       <div class="lage-actions">
         <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>

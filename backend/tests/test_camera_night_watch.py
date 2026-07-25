@@ -16,7 +16,9 @@ from backend.app.platform.physical_operations.camera_ai import analyze_camera_ev
 from backend.app.platform.physical_operations.camera_escalation import (
     acknowledge_escalation,
     create_critical_escalation,
+    get_escalation,
     list_escalations,
+    mark_false_positive,
 )
 from backend.app.platform.physical_operations.camera_registry import create_camera, touch_camera_heartbeat
 from backend.app.platform.physical_operations.camera_vision import (
@@ -27,10 +29,18 @@ from backend.app.platform.physical_operations.camera_vision_job import run_camer
 from backend.app.platform.physical_operations.camera_watch import (
     apply_after_hours_escalation,
     is_after_hours,
+    is_after_hours_for_site,
+    is_alert_suppressed,
+    resolve_watch_settings,
+    upsert_site_watch_settings,
     upsert_watch_settings,
     watch_status,
 )
-from backend.app.platform.physical_operations.police_directory import suggest_nearest_police
+from backend.app.platform.physical_operations.police_directory import (
+    _cache_get,
+    _cache_put,
+    suggest_nearest_police,
+)
 
 
 class CameraNightWatchTests(unittest.TestCase):
@@ -206,6 +216,98 @@ class CameraNightWatchTests(unittest.TestCase):
         )
         self.assertTrue(critical.get("ok"))
         self.assertFalse(critical.get("autoDial", True))
+
+    def test_multi_site_watch_settings(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "timezone": "UTC",
+                "workStart": "08:00",
+                "workEnd": "16:00",
+                "workDays": "1,2,3,4,5",
+                "city": "Berlin",
+            },
+        )
+        upsert_site_watch_settings(
+            db,
+            "cmp-watch",
+            "yard-north",
+            {
+                "siteName": "Hof Nord",
+                "enabled": True,
+                "timezone": "UTC",
+                "workStart": "06:00",
+                "workEnd": "22:00",
+                "workDays": "1,2,3,4,5,6,7",
+                "city": "Hamburg",
+                "latitude": 53.55,
+                "longitude": 9.99,
+            },
+        )
+        resolved = resolve_watch_settings(db, "cmp-watch", site="yard-north")
+        self.assertEqual(resolved.get("resolvedFrom"), "site")
+        self.assertEqual(resolved.get("city"), "Hamburg")
+        self.assertEqual(resolved.get("workStart"), "06:00")
+        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=ZoneInfo("UTC"))
+        self.assertFalse(is_after_hours_for_site(db, "cmp-watch", site="yard-north", at=monday_noon))
+        company_only = resolve_watch_settings(db, "cmp-watch", site="unknown-site")
+        self.assertEqual(company_only.get("resolvedFrom"), "company")
+        self.assertEqual(company_only.get("city"), "Berlin")
+        db.close()
+
+    def test_escalation_detail_clip_and_false_positive_learning(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {"enabled": True, "country": "DE", "city": "Berlin", "latitude": 52.52, "longitude": 13.40},
+        )
+        clip = base64.b64encode(b"fake-mp4-bytes-for-test").decode("ascii")
+        snap = base64.b64encode(b"\xff\xd8\xff\xd9x").decode("ascii")
+        created = create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-clip-1",
+            camera_id="cam-fp-1",
+            camera_name="Gate",
+            location="yard-north",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+            snapshot_b64=snap,
+            clip_b64=clip,
+            site="yard-north",
+        )
+        self.assertTrue(created.get("ok"))
+        eid = created["id"]
+        detail = get_escalation(db, "cmp-watch", eid, include_media=True)
+        self.assertTrue(detail["hasSnapshot"] or detail.get("snapshotBase64"))
+        self.assertEqual(detail.get("clipBase64"), clip)
+        self.assertTrue(detail.get("history") is not None)
+        fp = mark_false_positive(db, "cmp-watch", eid, actor_user_id="admin-1", note="cat")
+        self.assertEqual(fp["status"], "false_positive")
+        self.assertTrue(is_alert_suppressed(db, "cmp-watch", "cam-fp-1", "forced_entry"))
+        db.close()
+
+    def test_police_cache_roundtrip(self):
+        db = self._conn()
+        payload = {
+            "autoDial": False,
+            "station": {"name": "Cached PD", "city": "Berlin", "country": "DE", "phone": "110"},
+        }
+        _cache_put(db, "de|berlin|52.5|13.4", "DE", "Berlin", payload, hours=1)
+        hit = _cache_get(db, "de|berlin|52.5|13.4")
+        self.assertIsNotNone(hit)
+        self.assertEqual(hit["station"]["name"], "Cached PD")
+        sug = suggest_nearest_police(country="DE", city="Berlin", latitude=52.52, longitude=13.40, db=db)
+        self.assertFalse(sug.get("autoDial"))
+        db.close()
 
 
 if __name__ == "__main__":

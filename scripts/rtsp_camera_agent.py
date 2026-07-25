@@ -14,6 +14,10 @@ Heartbeat only (no AI event):
 Optional RTSP snapshot via ffmpeg (requires ffmpeg on PATH):
   set BAUPASS_CAMERA_RTSP_URL=rtsp://user:pass@192.168.1.50/stream1
   python scripts/rtsp_camera_agent.py --once --snapshot
+
+Short evidence clip (5–10s MP4) for critical-style events:
+  python scripts/rtsp_camera_agent.py --once --event forced_entry --clip
+  # or BAUPASS_CAMERA_CLIP=1 / --clip-seconds 8
 """
 from __future__ import annotations
 
@@ -28,6 +32,15 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+
+CLIP_EVENT_TYPES = {
+    "forced_entry",
+    "intrusion",
+    "break_in",
+    "unknown_person",
+    "after_hours_activity",
+    "critical",
+}
 
 
 def _capture_rtsp_jpeg(rtsp_url: str, timeout_sec: int = 15) -> str | None:
@@ -59,6 +72,56 @@ def _capture_rtsp_jpeg(rtsp_url: str, timeout_sec: int = 15) -> str | None:
         with open(tmp.name, "rb") as fh:
             data = fh.read()
         if len(data) < 500:
+            return None
+        return base64.b64encode(data).decode("ascii")
+    except Exception:
+        return None
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+def _capture_rtsp_clip(rtsp_url: str, duration_sec: int = 8, timeout_sec: int = 45) -> str | None:
+    """Capture a short MP4 clip from RTSP for critical evidence packs."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg or not rtsp_url.strip():
+        return None
+    seconds = max(5, min(10, int(duration_sec or 8)))
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
+    tmp.close()
+    try:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-y",
+                "-rtsp_transport",
+                "tcp",
+                "-i",
+                rtsp_url,
+                "-t",
+                str(seconds),
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "28",
+                "-an",
+                "-movflags",
+                "+faststart",
+                tmp.name,
+            ],
+            capture_output=True,
+            timeout=max(timeout_sec, seconds + 20),
+        )
+        if proc.returncode != 0:
+            return None
+        with open(tmp.name, "rb") as fh:
+            data = fh.read()
+        # Keep payload modest for JSON ingest (~2.5 MB)
+        if len(data) < 800 or len(data) > 2_500_000:
             return None
         return base64.b64encode(data).decode("ascii")
     except Exception:
@@ -102,6 +165,7 @@ def send_once(
     worker_id: str | None,
     heartbeat: bool,
     snapshot_b64: str | None,
+    clip_b64: str | None = None,
     camera_name: str,
     location: str,
     rtsp_url: str,
@@ -122,6 +186,8 @@ def send_once(
         body["worker_id"] = worker_id
     if snapshot_b64:
         body["image_base64"] = snapshot_b64
+    if clip_b64:
+        body["clip_base64"] = clip_b64
     return post_payload(api_url, token, company_id, body)
 
 
@@ -169,6 +235,17 @@ def main() -> int:
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--heartbeat", action="store_true", help="Send heartbeat only (no AI event row)")
     parser.add_argument("--snapshot", action="store_true", help="Capture JPEG from RTSP via ffmpeg")
+    parser.add_argument(
+        "--clip",
+        action="store_true",
+        help="Capture 5–10s MP4 evidence clip (also auto for critical event types)",
+    )
+    parser.add_argument(
+        "--clip-seconds",
+        type=int,
+        default=int(os.getenv("BAUPASS_CAMERA_CLIP_SECONDS", "8") or "8"),
+        help="Clip length in seconds (5–10)",
+    )
     args = parser.parse_args()
 
     if not args.token:
@@ -209,14 +286,24 @@ def main() -> int:
         print("No cameras configured", file=sys.stderr)
         return 1
 
+    env_clip = str(os.getenv("BAUPASS_CAMERA_CLIP", "")).strip().lower() in {"1", "true", "yes", "on"}
+    want_clip = bool(args.clip or env_clip) or (
+        not args.heartbeat and str(args.event or "").lower() in CLIP_EVENT_TYPES
+    )
+
     def tick() -> None:
         for target in camera_targets:
             snap = None
+            clip = None
             rtsp_url = target.get("rtsp_url") or ""
             if args.snapshot or rtsp_url:
                 snap = _capture_rtsp_jpeg(rtsp_url)
                 if args.snapshot and rtsp_url and not snap:
                     print(f"Warning: ffmpeg snapshot failed for {target.get('camera_id')}", file=sys.stderr)
+            if want_clip and rtsp_url and not args.heartbeat:
+                clip = _capture_rtsp_clip(rtsp_url, duration_sec=args.clip_seconds)
+                if not clip:
+                    print(f"Warning: ffmpeg clip failed for {target.get('camera_id')}", file=sys.stderr)
             try:
                 result = send_once(
                     api_url=args.api_url,
@@ -227,6 +314,7 @@ def main() -> int:
                     worker_id=worker_id,
                     heartbeat=args.heartbeat,
                     snapshot_b64=snap,
+                    clip_b64=clip,
                     camera_name=target["camera_name"],
                     location=target["location"],
                     rtsp_url=rtsp_url,

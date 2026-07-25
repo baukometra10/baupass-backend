@@ -1534,5 +1534,77 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="046",
+        name="camera_watch_extensions",
+        up_sql="""
+            CREATE TABLE IF NOT EXISTS camera_watch_sites (
+                company_id TEXT NOT NULL,
+                site_key TEXT NOT NULL,
+                site_name TEXT NOT NULL DEFAULT '',
+                enabled INTEGER NOT NULL DEFAULT 1,
+                timezone TEXT NOT NULL DEFAULT 'Europe/Berlin',
+                work_start TEXT NOT NULL DEFAULT '06:00',
+                work_end TEXT NOT NULL DEFAULT '18:00',
+                work_days TEXT NOT NULL DEFAULT '1,2,3,4,5',
+                country TEXT NOT NULL DEFAULT '',
+                city TEXT NOT NULL DEFAULT '',
+                latitude REAL,
+                longitude REAL,
+                security_webhook_url TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (company_id, site_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_watch_sites_company
+                ON camera_watch_sites(company_id, site_name COLLATE NOCASE);
+
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS clip_b64 TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS false_positive INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS false_positive_by TEXT;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS false_positive_at TEXT;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS site_key TEXT NOT NULL DEFAULT '';
+
+            CREATE TABLE IF NOT EXISTS camera_escalation_events (
+                id TEXT PRIMARY KEY,
+                escalation_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                actor_user_id TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_esc_events
+                ON camera_escalation_events(escalation_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS camera_alert_thresholds (
+                company_id TEXT NOT NULL,
+                camera_id TEXT NOT NULL,
+                alert_key TEXT NOT NULL,
+                false_positive_count INTEGER NOT NULL DEFAULT 0,
+                suppress_minutes INTEGER NOT NULL DEFAULT 30,
+                suppress_until TEXT,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (company_id, camera_id, alert_key)
+            );
+
+            CREATE TABLE IF NOT EXISTS police_station_cache (
+                cache_key TEXT PRIMARY KEY,
+                country TEXT NOT NULL DEFAULT '',
+                city TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL
+            );
+        """,
+        down_sql="""
+            DROP TABLE IF EXISTS police_station_cache;
+            DROP TABLE IF EXISTS camera_alert_thresholds;
+            DROP INDEX IF EXISTS idx_camera_esc_events;
+            DROP TABLE IF EXISTS camera_escalation_events;
+            DROP INDEX IF EXISTS idx_camera_watch_sites_company;
+            DROP TABLE IF EXISTS camera_watch_sites;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))
