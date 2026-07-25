@@ -30,6 +30,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         company_owner_email,
         company_owner_phone,
         consume_otp,
+        deny_turnstile_sensitive,
         generate_otp_code,
         lock_contracts_session,
         lock_status,
@@ -55,6 +56,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/lock-status")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     def contracts_lock_status():
@@ -65,6 +67,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/lock/request-otp")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     def contracts_lock_request_otp():
@@ -183,6 +186,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/lock/verify")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     def contracts_lock_verify():
@@ -254,6 +258,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/lock")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     def contracts_lock_now():
@@ -282,6 +287,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/templates")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -294,6 +300,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/draft")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -321,6 +328,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/<contract_id>/regenerate")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -343,6 +351,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -359,6 +368,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/<contract_id>")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -377,6 +387,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.put("/contracts/<contract_id>")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -416,6 +427,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.delete("/contracts/<contract_id>")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -431,6 +443,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/<contract_id>/generate-pdf")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -453,6 +466,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/<contract_id>/download.pdf")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -470,6 +484,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/<contract_id>/sign-link")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -522,6 +537,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/workers/<worker_id>/employment-contracts")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -538,6 +554,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/<contract_id>/sign-link/email")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -568,6 +585,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.post("/contracts/<contract_id>/sign-link/sms")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -598,6 +616,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/<contract_id>/events")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -610,6 +629,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/<contract_id>/sign-sessions")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
@@ -693,6 +713,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/<contract_id>/preview.pdf")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_contracts_unlocked
@@ -714,6 +735,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts/integrations-status")
     @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     def contract_integrations_status():

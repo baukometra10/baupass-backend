@@ -178,6 +178,8 @@ def build_operations_inbox(
                 "repeated_late_checkin": "Wiederholte Verspätung",
                 "tomorrow_attendance_forecast": "Prognose für morgen",
             }
+            if code.startswith("sensitive_attempt"):
+                title_map[code] = "Sensibler Zugriff blockiert"
             details_obj = {}
             raw_details = r["details"] or ""
             if isinstance(raw_details, str) and raw_details.strip():

@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="de" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#050816" />
+  <meta name="apple-mobile-web-app-title" content="SUPPIX Docs" />
+  <meta name="application-name" content="SUPPIX Docs" />
+  <title>SUPPIX — Dokumenteneditor</title>
+  <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
+  <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/source-serif-4@5.2.6/index.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.6/index.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" />
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260724docs49" />
+  <link rel="stylesheet" href="/admin-v2/docs-studio.css?v=20260724docs49" />
+  <style>
+    .docs-lock-overlay {
+      position: fixed; inset: 0; z-index: 12000; display: flex; align-items: center; justify-content: center;
+      background: rgba(5, 8, 22, 0.72); backdrop-filter: blur(6px); padding: 1rem;
+    }
+    .docs-lock-overlay.hidden { display: none; }
+    .docs-lock-card {
+      width: min(420px, 100%); background: #12182b; border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 14px; padding: 1.25rem 1.35rem; color: #e8ecf7; box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    }
+    .docs-lock-card h2 { margin: 0 0 0.35rem; font-size: 1.15rem; }
+    .docs-lock-card p { margin: 0 0 0.85rem; font-size: 0.88rem; color: #aeb8d4; line-height: 1.4; }
+    .docs-lock-card label { display: block; margin: 0.55rem 0; font-size: 0.78rem; color: #c5cee6; }
+    .docs-lock-card input {
+      width: 100%; margin-top: 0.25rem; padding: 0.55rem 0.65rem; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.14); background: #0b1020; color: #f2f5ff;
+    }
+    .docs-lock-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+    .docs-lock-actions .primary {
+      background: #3b82f6; color: #fff; border: 0; border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer;
+    }
+    .docs-lock-actions button { border-radius: 8px; padding: 0.5rem 0.9rem; cursor: pointer; }
+    .docs-lock-msg { min-height: 1.1rem; font-size: 0.78rem; margin-top: 0.35rem; }
+    .docs-lock-msg.is-error { color: #f87171; }
+    .docs-lock-msg.is-ok { color: #4ade80; }
+    .docs-lock-msg.is-warn { color: #fbbf24; }
+  </style>
+</head>
+<body class="docs-page">
+  <div id="docsLockOverlay" class="docs-lock-overlay hidden" aria-modal="true" role="dialog">
+    <div class="docs-lock-card">
+      <h2 id="docsLockTitle">Owner-Freigabe</h2>
+      <p id="docsLockDesc">Dokumente und Freigabe-Links sind geschützt. Bitte Code des Firmeninhabers bestätigen.</p>
+      <div id="docsLockSetupBlock" class="hidden">
+        <label>Owner-Handy (mit Ländervorwahl)<input id="docsLockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+      </div>
+      <div id="docsLockEmailBlock">
+        <label><span id="docsLockEmailLabel">Backup-E-Mail</span><input id="docsLockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+      </div>
+      <div id="docsLockCodeBlock" class="hidden">
+        <label>Sicherheitscode<input id="docsLockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
+      </div>
+      <p id="docsLockMsg" class="docs-lock-msg"></p>
+      <div class="docs-lock-actions">
+        <button type="button" class="primary" id="docsLockSendBtn">Code senden</button>
+        <button type="button" class="primary hidden" id="docsLockVerifyBtn">Freischalten</button>
+        <button type="button" class="hidden" id="docsLockSkipBtn">Später</button>
+      </div>
+    </div>
+  </div>
+  <a class="skip-link" href="#quillEditor">Zum Editor springen</a>
+  <div class="docs-shell" id="docsMainRoot">
+    <aside class="docs-sidebar" id="docsSidebar">
+      <div class="side-top">
+        <a class="back" id="backLink" href="/admin-v2/index.html" data-di18n="back">Betrieb</a>
+        <button type="button" class="cmd primary tb-chip" id="newDocBtn" data-wp-ico="plus">
+          <span class="wp-ico-label" data-di18n="newDoc">Neu</span>
+        </button>
+      </div>
+      <label class="field compact side-lang">
+        <span data-di18n="uiLang">Sprache</span>
+        <select id="docsLangSelect" aria-label="Sprache">
+          <option value="de">Deutsch</option>
+          <option value="en">English</option>
+          <option value="ar">العربية</option>
+          <option value="tr">Türkçe</option>
+          <option value="fr">Français</option>
+          <option value="es">Español</option>
+          <option value="it">Italiano</option>
+          <option value="pl">Polski</option>
+        </select>
+      </label>
+
+      <div class="side-tabs" role="tablist" aria-label="Sidebar">
+        <button type="button" class="side-tab active" role="tab" id="sideTabTemplates" data-side-tab="templates" aria-selected="true" data-di18n="tabTemplates">Vorlagen</button>
+        <button type="button" class="side-tab" role="tab" id="sideTabDocs" data-side-tab="docs" aria-selected="false" data-di18n="tabDocs">Dokumente</button>
+      </div>
+
+      <div class="side-panel active" id="sidePanelTemplates" role="tabpanel" data-side-panel="templates">
+        <div class="side-panel-head">
+          <p class="side-label" data-di18n="templates">Fertige Vorlagen</p>
+          <p class="side-hint" data-di18n="templatesHint">Thema wählen, Vorlage einsetzen, Platzhalter füllen.</p>
+        </div>
+        <div class="tpl-gallery" id="templateGallery"></div>
+        <select id="templateSelect" class="hidden" aria-hidden="true">
+          <option value="">—</option>
+          <option value="blank">Leer</option>
+          <option value="letter">Geschäftsbrief</option>
+          <option value="invitation">Einladung</option>
+          <option value="reminder">Erinnerung</option>
+          <option value="complaint_ack">Eingang</option>
+          <option value="warning">Hinweis</option>
+          <option value="certificate">Bescheinigung</option>
+          <option value="praise">Anerkennung</option>
+          <option value="absence">Abwesenheit</option>
+          <option value="vacation">Urlaub</option>
+          <option value="access">Zutritt</option>
+          <option value="handover">Übergabe</option>
+          <option value="induction">Einweisung</option>
+          <option value="policy">Anweisung</option>
+          <option value="meeting">Protokoll</option>
+        </select>
+        <button type="button" class="cmd quiet hidden" id="applyTemplateBtn" data-di18n="applyTemplateBtn">Vorlage einsetzen</button>
+        <div class="side-snippets">
+          <p class="side-label" data-di18n="snippets">Textbausteine</p>
+          <div class="chip-row side-chips">
+            <button type="button" class="chip" data-snippet="greeting" data-di18n="snGreeting">Anrede</button>
+            <button type="button" class="chip" data-snippet="closing" data-di18n="snClosing">Grußformel</button>
+            <button type="button" class="chip" data-snippet="address_block" data-di18n="snAddress">Firmenadresse</button>
+            <button type="button" class="chip" data-snippet="worker_line" data-di18n="snWorker">MA-Zeile</button>
+            <button type="button" class="chip" data-snippet="date_line" data-di18n="snDate">Datum</button>
+            <button type="button" class="chip" data-snippet="signature" data-di18n="snSign">Unterschrift</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="side-panel" id="sidePanelDocs" role="tabpanel" data-side-panel="docs" hidden>
+        <div class="side-panel-head side-list-head">
+          <span data-di18n="docs">Dokumente</span>
+          <span class="status" id="listStatus"></span>
+        </div>
+        <input id="docsSearch" class="docs-search" type="search" data-di18n="searchDocs" data-di18n-attr="placeholder" placeholder="Dokumente suchen…" autocomplete="off" />
+        <div class="chip-row side-chips docs-status-filters" id="docsStatusFilters"></div>
+        <div class="pane-scroll side-docs">
+          <ul class="docs-list" id="docsList"></ul>
+        </div>
+      </div>
+    </aside>
+
+    <main class="docs-main">
+      <div class="mobile-bar">
+        <button type="button" class="cmd" id="toggleSideBtn" data-di18n="mobileDocs">Dokumente</button>
+        <button type="button" class="cmd" id="toggleRailBtn" data-di18n="mobileOut">Ausgabe</button>
+      </div>
+
+      <div class="contract-banner hidden" id="contractBanner" role="status">
+        <span data-di18n="contractBanner">Vertragsmodus — Text speichern und zurückübernehmen.</span>
+        <button type="button" class="cmd primary" id="applyReturnContractBtn" data-di18n="applyAndReturn">Übernehmen &amp; zurück</button>
+      </div>
+      <div class="titlebar">
+        <div class="tpl-edit-banner" id="tplEditBanner" hidden>
+          <span id="tplEditBannerText" data-di18n="tplEditHint">Vorlage im Editor — nach Anpassung als eigene Vorlage speichern.</span>
+          <span class="action-row">
+            <button type="button" class="cmd quiet" id="tplEditSaveBtn" data-di18n="saveAsTemplate">Als Vorlage speichern</button>
+            <button type="button" class="cmd quiet" id="tplEditDismissBtn" data-di18n="close">Schließen</button>
+          </span>
+        </div>
+        <div class="titlebar-row">
+          <input id="docTitle" class="title-input" data-di18n="titlePh" data-di18n-attr="placeholder" placeholder="Dokumenttitel" />
+          <div class="workflow-badge" id="workflowBadge" data-status="draft">
+            <span class="workflow-badge-dot"></span>
+            <span id="workflowBadgeLabel" data-di18n="statusDraft">Entwurf</span>
+          </div>
+          <div class="title-actions">
+            <button type="button" class="cmd primary tb-chip" id="saveBtn" data-wp-ico="save">
+              <span class="wp-ico-label" data-di18n="save">Speichern</span>
+            </button>
+            <div class="more-wrap">
+              <button type="button" class="cmd quiet tb-ico" id="moreBtn" aria-expanded="false" aria-controls="moreMenu" data-wp-ico="more" data-di18n="more" data-di18n-attr="aria-label" aria-label="Mehr"></button>
+              <div class="more-menu" id="moreMenu" role="menu">
+                <button type="button" id="duplicateBtn" data-di18n="duplicate">Duplizieren</button>
+                <button type="button" id="saveAsTemplateBtn" data-di18n="saveAsTemplate">Als Vorlage speichern</button>
+                <button type="button" id="copyEditorLinkBtn" data-di18n="copyEditorLink">Editor-Link kopieren</button>
+                <button type="button" id="shareLinkBtn" data-di18n="shareLink">Freigabe-Link (72h)</button>
+                <button type="button" id="importDocxBtn" data-di18n="importDocx">Word importieren…</button>
+                <button type="button" id="insertTocBtn" data-di18n="insertToc">Inhaltsverzeichnis</button>
+                <button type="button" id="exportDocBtn" data-di18n="exportDocx">Word (.docx)</button>
+                <button type="button" id="exportHtmlBtn" data-di18n="exportHtml">HTML</button>
+                <button type="button" id="wordProBtn" data-di18n="wordPro">Word Pro</button>
+                <button type="button" id="fullscreenBtn" data-di18n="focus">Fokus</button>
+                <button type="button" id="applyContractBtn" class="hidden" data-di18n="toContract">Zum Vertrag</button>
+                <button type="button" id="returnContractBtn" class="hidden" data-di18n="returnContract">Zurück zum Vertrag</button>
+                <button type="button" class="danger" id="deleteBtn" data-di18n="delete">Löschen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toolbar-bar" id="docsRibbon" role="toolbar" aria-label="Formatierung" data-di18n="ribbon" data-di18n-attr="aria-label">
+        <div class="tb-group tb-history">
+          <span class="tb-label" data-di18n="tbEdit">Bearbeiten</span>
+          <div class="tb-actions tb-ico-row">
+            <button type="button" class="cmd quiet tb-ico" id="undoBtn" title="Ctrl+Z" data-wp-ico="undo" data-di18n="undo" data-di18n-attr="aria-label" aria-label="Rückgängig"></button>
+            <button type="button" class="cmd quiet tb-ico" id="redoBtn" title="Ctrl+Y" data-wp-ico="redo" data-di18n="redo" data-di18n-attr="aria-label" aria-label="Wiederholen"></button>
+            <button type="button" class="cmd quiet tb-ico" id="findOpenBtn" title="Ctrl+F" data-wp-ico="search" data-di18n="find" data-di18n-attr="aria-label" aria-label="Suchen"></button>
+            <button type="button" class="cmd quiet tb-ico" id="replaceOpenBtn" title="Ctrl+H" data-wp-ico="search" data-di18n="replace" data-di18n-attr="aria-label" aria-label="Ersetzen"></button>
+            <button type="button" class="cmd quiet tb-ico" id="cmdPaletteBtn" title="Ctrl+K" data-wp-ico="command" data-di18n="cmdPalette" data-di18n-attr="aria-label" aria-label="Befehle"></button>
+            <button type="button" class="cmd quiet tb-ico" id="shortcutsBtn" title="Ctrl+/" data-wp-ico="command" data-di18n="shortcuts" data-di18n-attr="aria-label" aria-label="Tastaturkürzel"></button>
+          </div>
+        </div>
+        <div class="tb-group">
+          <span class="tb-label" data-di18n="style">Stil</span>
+          <label class="field compact tb-field">
+            <select id="styleSelect" aria-label="Stil">
+              <option value="normal" data-di18n="styleNormal">Standard</option>
+              <option value="title" data-di18n="styleTitle">Titel</option>
+              <option value="subtitle" data-di18n="styleSubtitle">Untertitel</option>
+              <option value="h1" data-di18n="styleH1">Überschrift 1</option>
+              <option value="h2" data-di18n="styleH2">Überschrift 2</option>
+              <option value="h3" data-di18n="styleH3">Überschrift 3</option>
+              <option value="letter" data-di18n="styleLetter">Briefkopf</option>
+              <option value="quote" data-di18n="styleQuote">Zitat</option>
+              <option value="caption" data-di18n="styleCaption">Beschriftung</option>
+            </select>
+          </label>
+        </div>
+        <div class="tb-group tb-quill">
+          <span class="tb-label" data-di18n="tbType">Schrift</span>
+          <div id="quillToolbar">
+            <span class="ql-formats">
+              <select class="ql-font"></select>
+              <select class="ql-size"></select>
+            </span>
+            <span class="ql-formats">
+              <button class="ql-bold"></button>
+              <button class="ql-italic"></button>
+              <button class="ql-underline"></button>
+              <button class="ql-strike"></button>
+            </span>
+            <span class="ql-formats">
+              <select class="ql-color"></select>
+              <select class="ql-background"></select>
+            </span>
+            <span class="ql-formats">
+              <button class="ql-list" value="ordered"></button>
+              <button class="ql-list" value="bullet"></button>
+              <button class="ql-indent" value="-1"></button>
+              <button class="ql-indent" value="+1"></button>
+              <select class="ql-align"></select>
+            </span>
+            <span class="ql-formats">
+              <button class="ql-link"></button>
+              <button class="ql-blockquote"></button>
+              <button class="ql-clean"></button>
+            </span>
+          </div>
+        </div>
+        <div class="tb-group">
+          <span class="tb-label" data-di18n="tbInsert">Einfügen</span>
+          <div class="tb-actions tb-ico-row">
+            <div class="table-picker-wrap" id="tablePickerWrap">
+              <button type="button" class="cmd quiet tb-chip" id="insertTableBtn" aria-expanded="false" aria-controls="tablePicker" data-wp-ico="table">
+                <span class="wp-ico-label" data-di18n="table">Tabelle</span>
+              </button>
+              <div class="table-picker" id="tablePicker" hidden role="dialog" aria-label="Tabelle">
+                <div class="table-picker-grid" id="tablePickerGrid"></div>
+                <p class="table-picker-label" id="tablePickerLabel">3 × 3</p>
+              </div>
+            </div>
+            <input type="hidden" id="tableRows" value="3" />
+            <input type="hidden" id="tableCols" value="3" />
+            <button type="button" class="cmd quiet tb-chip" id="insertPageBreakBtn" data-wp-ico="pageBreak">
+              <span class="wp-ico-label" data-di18n="pageBreak">Umbruch</span>
+            </button>
+            <button type="button" class="cmd quiet tb-chip" id="insertHrBtn" data-wp-ico="hr">
+              <span class="wp-ico-label" data-di18n="hr">Linie</span>
+            </button>
+            <button type="button" class="cmd quiet tb-chip" id="insertSignBtn" data-wp-ico="signature">
+              <span class="wp-ico-label" data-di18n="snSign">Unterschrift</span>
+            </button>
+            <button type="button" class="cmd quiet tb-chip" id="insertImageBtn" data-wp-ico="image">
+              <span class="wp-ico-label" data-di18n="insertImage">Bild</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="docs-find" id="docsFind" hidden>
+        <label class="docs-find-field">
+          <span data-di18n="find">Suchen</span>
+          <input id="findInput" type="search" autocomplete="off" data-di18n="findPh" data-di18n-attr="placeholder" placeholder="Im Dokument suchen…" />
+        </label>
+        <label class="docs-find-field docs-find-replace" id="findReplaceField" hidden>
+          <span data-di18n="replaceWith">Ersetzen durch</span>
+          <input id="replaceInput" type="search" autocomplete="off" data-di18n="replacePh" data-di18n-attr="placeholder" placeholder="Ersatztext…" />
+        </label>
+        <span class="docs-find-count" id="findCount"></span>
+        <button type="button" class="cmd quiet tb-ico" id="findPrevBtn" data-wp-ico="searchPrev" aria-label="Previous"></button>
+        <button type="button" class="cmd quiet tb-ico" id="findNextBtn" data-wp-ico="searchNext" aria-label="Next"></button>
+        <button type="button" class="cmd quiet" id="replaceOneBtn" hidden data-di18n="replaceOne">Ersetzen</button>
+        <button type="button" class="cmd quiet" id="replaceAllBtn" hidden data-di18n="replaceAll">Alle</button>
+        <button type="button" class="cmd quiet tb-ico" id="findCloseBtn" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+      </div>
+
+      <div class="sel-bubble" id="selBubble" hidden role="toolbar" data-di18n="selBubble" data-di18n-attr="aria-label" aria-label="Schnellformat">
+        <button type="button" class="sel-bubble-btn" data-fmt="bold" data-wp-ico="bold" title="Bold"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="italic" data-wp-ico="italic" title="Italic"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="underline" data-wp-ico="underline" title="Underline"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="strike" data-wp-ico="strike" title="Strike"></button>
+        <span class="sel-bubble-sep"></span>
+        <button type="button" class="sel-bubble-btn" data-fmt="link" data-wp-ico="link" title="Link"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="blockquote" data-wp-ico="quote" title="Quote"></button>
+        <button type="button" class="sel-bubble-btn" data-action="comment" data-wp-ico="comment" title="Comment" id="bubbleCommentBtn"></button>
+        <span class="sel-bubble-sep"></span>
+        <button type="button" class="sel-bubble-btn" data-align="left" data-wp-ico="alignLeft" title="Left"></button>
+        <button type="button" class="sel-bubble-btn" data-align="center" data-wp-ico="alignCenter" title="Center"></button>
+        <button type="button" class="sel-bubble-btn" data-align="right" data-wp-ico="alignRight" title="Right"></button>
+      </div>
+
+      <div class="img-size-bar" id="imgSizeBar" hidden role="toolbar" data-di18n="imgSizeBar" data-di18n-attr="aria-label" aria-label="Bildgröße">
+        <span class="img-size-label" data-di18n="imgSize">Größe</span>
+        <button type="button" class="img-size-btn" data-img-size="sm">S</button>
+        <button type="button" class="img-size-btn" data-img-size="md">M</button>
+        <button type="button" class="img-size-btn" data-img-size="lg">L</button>
+        <button type="button" class="img-size-btn" data-img-size="full" data-di18n="imgFull">Voll</button>
+      </div>
+
+      <div class="diff-modal" id="diffModal" hidden>
+        <div class="diff-modal-backdrop" id="diffModalBackdrop"></div>
+        <div class="diff-modal-panel" role="dialog" aria-modal="true">
+          <div class="diff-modal-head">
+            <strong id="diffModalTitle" data-di18n="diffTitle">Versionsvergleich</strong>
+            <button type="button" class="cmd quiet tb-ico" id="diffModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <p class="diff-modal-meta" id="diffModalMeta"></p>
+          <div class="diff-modal-body diff-split" id="diffModalBody"></div>
+          <div class="diff-modal-actions">
+            <button type="button" class="cmd quiet" id="diffCopyBtn" data-di18n="diffSaveCopy">Als Kopie speichern</button>
+            <button type="button" class="cmd quiet" id="diffRestoreBtn" data-di18n="diffRestore">Diese Version wiederherstellen</button>
+            <button type="button" class="cmd primary" id="diffCloseBtn" data-di18n="close">Schließen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="cmd-palette" id="cmdPalette" hidden>
+        <div class="cmd-palette-backdrop" id="cmdPaletteBackdrop"></div>
+        <div class="cmd-palette-panel" role="dialog" aria-modal="true" data-di18n="cmdPalette" data-di18n-attr="aria-label" aria-label="Befehlspalette">
+          <div class="cmd-palette-head">
+            <span data-wp-ico="search"></span>
+            <input id="cmdPaletteInput" type="search" autocomplete="off" data-di18n="cmdPh" data-di18n-attr="placeholder" placeholder="Befehl suchen…" />
+            <kbd class="cmd-palette-kbd">Esc</kbd>
+          </div>
+          <ul class="cmd-palette-list" id="cmdPaletteList" role="listbox"></ul>
+          <p class="cmd-palette-hint" data-di18n="cmdHint">↑↓ wählen · Enter ausführen · Esc schließen</p>
+        </div>
+      </div>
+
+      <div class="stage" id="docsStage">
+        <div class="stage-top">
+          <div class="stage-caption" id="pageLabel">A4</div>
+          <button type="button" class="cmd quiet tb-chip stage-outline-toggle" id="outlineToggleBtn" data-wp-ico="listBullet" aria-expanded="false" aria-controls="docOutline">
+            <span class="wp-ico-label" data-di18n="outline">Gliederung</span>
+          </button>
+          <button type="button" class="cmd quiet tb-chip stage-outline-toggle" id="commentsToggleBtn" data-wp-ico="comment" aria-expanded="false" aria-controls="docComments">
+            <span class="wp-ico-label" data-di18n="commentsPanel">Kommentare</span>
+          </button>
+          <button type="button" class="cmd quiet tb-chip stage-outline-toggle" id="printPreviewBtn" data-wp-ico="print" data-di18n="printPreview" data-di18n-attr="aria-label" aria-label="Druckvorschau">
+            <span class="wp-ico-label" data-di18n="printPreview">Druckvorschau</span>
+          </button>
+        </div>
+        <div class="stage-body">
+          <aside class="doc-outline" id="docOutline" hidden>
+            <p class="doc-outline-title" data-di18n="outline">Gliederung</p>
+            <ul class="doc-outline-list" id="docOutlineList"></ul>
+            <p class="doc-outline-empty" id="docOutlineEmpty" data-di18n="outlineEmpty">Noch keine Überschriften</p>
+          </aside>
+          <div class="paper-fit" id="paperFit">
+            <div class="docs-ruler" id="docsRuler" aria-hidden="true"></div>
+            <div class="paper-stack" id="paperStack">
+              <div class="page-frames" id="pageFrames" aria-hidden="true"></div>
+              <div class="paper-watermark" id="paperWatermark" aria-hidden="true"></div>
+              <div class="docs-paper" id="docsPaper">
+                <div class="docs-hf docs-header-band" id="docHeader" contenteditable="true" data-di18n="headerPh" data-di18n-attr="data-placeholder" data-placeholder="Kopfzeile"></div>
+                <div id="quillEditor"></div>
+                <div class="docs-hf docs-footer-band" id="docFooter" contenteditable="true" data-di18n="footerPh" data-di18n-attr="data-placeholder" data-placeholder="Fußzeile"></div>
+              </div>
+            </div>
+          </div>
+          <aside class="doc-comments" id="docComments" hidden>
+            <p class="doc-comments-title" data-di18n="commentsPanel">Kommentare / Aufgaben</p>
+            <div class="doc-comments-filters" role="tablist">
+              <button type="button" class="chip active" data-cmt-filter="open" data-di18n="commentsOpen">Offen</button>
+              <button type="button" class="chip" data-cmt-filter="done" data-di18n="commentsDone">Erledigt</button>
+              <button type="button" class="chip" data-cmt-filter="all" data-di18n="commentsAll">Alle</button>
+            </div>
+            <ul class="doc-comments-list" id="docCommentsList"></ul>
+            <p class="doc-comments-empty" id="docCommentsEmpty" data-di18n="commentsEmpty">Noch keine Kommentare</p>
+          </aside>
+        </div>
+      </div>
+
+      <div class="print-preview-modal" id="printPreviewModal" hidden>
+        <div class="print-preview-backdrop" id="printPreviewBackdrop"></div>
+        <div class="print-preview-panel" role="dialog" aria-modal="true" aria-labelledby="printPreviewTitle">
+          <div class="print-preview-head">
+            <strong id="printPreviewTitle" data-di18n="printPreview">Druckvorschau</strong>
+            <span class="print-preview-meta" id="printPreviewMeta"></span>
+            <button type="button" class="cmd quiet tb-ico" id="printPreviewClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="print-preview-body" id="printPreviewBody"></div>
+          <div class="print-preview-actions">
+            <button type="button" class="cmd quiet" id="printPreviewDismiss" data-di18n="close">Schließen</button>
+            <button type="button" class="cmd quiet" id="printPreviewCheck" data-di18n="printPreviewCheck">Platzhalter zeigen</button>
+            <button type="button" class="cmd primary" id="printPreviewPrint" data-wp-ico="print" data-di18n="printClean">Sauber drucken</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="preflight-modal" id="preflightModal" hidden>
+        <div class="preflight-backdrop" id="preflightBackdrop"></div>
+        <div class="preflight-panel" role="dialog" aria-modal="true" aria-labelledby="preflightTitle">
+          <div class="preflight-head">
+            <strong id="preflightTitle" data-di18n="preflightTitle">Vor Freigabe prüfen</strong>
+            <button type="button" class="cmd quiet tb-ico" id="preflightClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <ul class="preflight-list" id="preflightList"></ul>
+          <div class="preflight-actions">
+            <button type="button" class="cmd quiet" id="preflightCancel" data-di18n="close">Schließen</button>
+            <button type="button" class="cmd primary" id="preflightContinue" data-di18n="preflightContinue">Trotzdem fortfahren</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="share-modal" id="shareModal" hidden>
+        <div class="share-backdrop" id="shareBackdrop"></div>
+        <div class="share-panel" role="dialog" aria-modal="true" aria-labelledby="shareModalTitle">
+          <div class="share-head">
+            <strong id="shareModalTitle" data-di18n="shareModalTitle">Freigabe-Link</strong>
+            <button type="button" class="cmd quiet tb-ico" id="shareModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="share-body">
+            <label class="field"><span data-di18n="shareTtl">Gültigkeit (Stunden)</span>
+              <select id="shareTtlSelect">
+                <option value="24">24</option>
+                <option value="72" selected>72</option>
+                <option value="168">168 (7 Tage)</option>
+                <option value="720">720 (30 Tage)</option>
+              </select>
+            </label>
+            <label class="field"><span data-di18n="sharePassword">Passwort (optional)</span>
+              <input type="password" id="sharePasswordInput" autocomplete="new-password" />
+            </label>
+            <label class="check">
+              <input type="checkbox" id="shareApprovedOnly" />
+              <span data-di18n="shareApprovedOnly">Nur wenn freigegeben</span>
+            </label>
+            <p class="status" id="shareModalStatus"></p>
+            <input type="text" id="shareUrlOutput" readonly class="share-url" hidden />
+          </div>
+          <div class="share-actions">
+            <button type="button" class="cmd quiet" id="shareRevokeAllBtn" data-di18n="shareRevokeAll">Alle widerrufen</button>
+            <button type="button" class="cmd primary" id="shareCreateBtn" data-di18n="shareCreate">Link erzeugen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="share-modal" id="emailModal" hidden>
+        <div class="share-backdrop" id="emailBackdrop"></div>
+        <div class="share-panel" role="dialog" aria-modal="true" aria-labelledby="emailModalTitle">
+          <div class="share-head">
+            <strong id="emailModalTitle" data-di18n="emailModalTitle">Dokument per E-Mail senden</strong>
+            <button type="button" class="cmd quiet tb-ico" id="emailModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="share-body">
+            <p class="rail-note" data-di18n="emailModalHint">PDF wird serverseitig erzeugt und als Anhang versendet.</p>
+            <label class="field"><span data-di18n="emailTo">An</span>
+              <input type="email" id="emailToInput" autocomplete="email" placeholder="name@firma.de" />
+            </label>
+            <label class="field"><span data-di18n="emailSubject">Betreff</span>
+              <input type="text" id="emailSubjectInput" />
+            </label>
+            <label class="field"><span data-di18n="emailMessage">Nachricht</span>
+              <textarea id="emailMessageInput" rows="4"></textarea>
+            </label>
+            <p class="status" id="emailModalStatus"></p>
+          </div>
+          <div class="share-actions">
+            <button type="button" class="cmd quiet" id="emailFallbackBtn" data-di18n="emailFallbackShare">Lokal teilen…</button>
+            <button type="button" class="cmd primary" id="emailSendBtn" data-di18n="emailSend">Senden</button>
+          </div>
+        </div>
+      </div>
+
+      <button type="button" class="focus-exit-chip" id="exitFocusBtn" hidden data-di18n="exitFocus">Fokus beenden</button>
+
+      <div class="share-modal" id="signModal" hidden>
+        <div class="share-backdrop" id="signBackdrop"></div>
+        <div class="share-panel sign-panel" role="dialog" aria-modal="true" aria-labelledby="signModalTitle">
+          <div class="share-head">
+            <strong id="signModalTitle" data-di18n="signModalTitle">Unterschrift</strong>
+            <button type="button" class="cmd quiet tb-ico" id="signModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="share-body">
+            <label class="field"><span data-di18n="signNamePrompt">Name des Unterzeichners</span>
+              <input type="text" id="signNameInput" autocomplete="name" />
+            </label>
+            <p class="rail-note" data-di18n="signDrawHint">Mit Maus oder Finger unterschreiben.</p>
+            <canvas id="signCanvas" class="sign-canvas" width="520" height="180" aria-label="Unterschrift"></canvas>
+            <label class="check">
+              <input type="checkbox" id="signStampCheck" checked />
+              <span data-di18n="signStampLabel">Stempel «Unterschrieben» setzen</span>
+            </label>
+            <p class="status" id="signModalStatus"></p>
+          </div>
+          <div class="share-actions">
+            <button type="button" class="cmd quiet" id="signClearBtn" data-di18n="signClear">Löschen</button>
+            <button type="button" class="cmd quiet" id="signLineOnlyBtn" data-di18n="signLineOnly">Nur Zeile</button>
+            <button type="button" class="cmd primary" id="signInsertBtn" data-di18n="signInsert">Einfügen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="share-modal" id="mergeModal" hidden>
+        <div class="share-backdrop" id="mergeBackdrop"></div>
+        <div class="share-panel merge-panel" role="dialog" aria-modal="true" aria-labelledby="mergeModalTitle">
+          <div class="share-head">
+            <strong id="mergeModalTitle" data-di18n="mergeModalTitle">Platzhalter füllen</strong>
+            <button type="button" class="cmd quiet tb-ico" id="mergeModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="share-body">
+            <label class="field"><span data-di18n="worker">Mitarbeiter</span>
+              <select id="mergeWorkerSelect"><option value="">—</option></select>
+            </label>
+            <p class="rail-note" data-di18n="mergeModalHint">Vorschau, welche Felder mit dem gewählten Mitarbeiter gefüllt werden.</p>
+            <div class="merge-preview">
+              <div>
+                <p class="tpl-topic-label" data-di18n="mergeWillFill">Wird gefüllt</p>
+                <ul class="merge-preview-list" id="mergeWillList"></ul>
+              </div>
+              <div>
+                <p class="tpl-topic-label" data-di18n="mergeStillOpen">Bleibt offen</p>
+                <ul class="merge-preview-list" id="mergeOpenList"></ul>
+              </div>
+            </div>
+            <p class="status" id="mergeModalStatus"></p>
+          </div>
+          <div class="share-actions">
+            <button type="button" class="cmd quiet" id="mergePreviewBtn" data-di18n="mergeRefresh">Vorschau</button>
+            <button type="button" class="cmd primary" id="mergeApplyBtn" data-di18n="mergeApply">Jetzt füllen</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="slash-menu" id="slashMenu" hidden role="listbox" data-di18n="slashMenu" data-di18n-attr="aria-label" aria-label="Blöcke einfügen"></div>
+      <div class="slash-menu merge-menu" id="mergeMenu" hidden role="listbox" data-di18n="mergeMenu" data-di18n-attr="aria-label" aria-label="Platzhalter"></div>
+
+      <div class="shortcuts-modal" id="shortcutsModal" hidden>
+        <div class="shortcuts-backdrop" id="shortcutsBackdrop"></div>
+        <div class="shortcuts-panel" role="dialog" aria-modal="true" aria-labelledby="shortcutsTitle">
+          <div class="shortcuts-head">
+            <strong id="shortcutsTitle" data-di18n="shortcuts">Tastaturkürzel</strong>
+            <button type="button" class="cmd quiet tb-ico" id="shortcutsClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+          </div>
+          <div class="shortcuts-body" id="shortcutsBody"></div>
+        </div>
+      </div>
+
+      <div class="offline-banner" id="offlineBanner" hidden>
+        <span id="offlineBannerText"></span>
+        <button type="button" class="cmd quiet" id="offlineRestoreBtn" data-di18n="offlineRestore">Wiederherstellen</button>
+        <button type="button" class="cmd quiet" id="offlineDiscardBtn" data-di18n="offlineDiscard">Verwerfen</button>
+      </div>
+
+      <input type="file" id="insertImageInput" accept="image/*" class="hidden" tabindex="-1" aria-hidden="true" />
+
+      <div class="footer-bar">
+        <label class="field inline">
+          <span data-di18n="pageSize">Format</span>
+          <select id="pageSizeSelect" aria-label="Format">
+            <option value="a4">A4</option>
+            <option value="a3">A3</option>
+            <option value="a1">A1</option>
+          </select>
+        </label>
+        <label class="field inline">
+          <span data-di18n="mode">Modus</span>
+          <select id="docMode">
+            <option value="general" data-di18n="modeGeneral">Allgemein</option>
+            <option value="contract" data-di18n="modeContract">Vertrag</option>
+            <option value="workforce" data-di18n="modeWorkforce">Mitarbeiter</option>
+          </select>
+        </label>
+        <span class="status-chip" id="pagePosLabel">1 / 1</span>
+        <span class="status-chip" id="wordCountLabel">0</span>
+        <span class="status-chip" id="readTimeLabel">—</span>
+        <label class="field inline spell-field">
+          <span data-di18n="spellLang">Rechtschreibung</span>
+          <select id="spellLangSelect" aria-label="Spellcheck">
+            <option value="de">DE</option>
+            <option value="en">EN</option>
+            <option value="ar">AR</option>
+            <option value="tr">TR</option>
+            <option value="fr">FR</option>
+            <option value="es">ES</option>
+            <option value="it">IT</option>
+            <option value="pl">PL</option>
+            <option value="off" data-di18n="spellOff">Aus</option>
+          </select>
+        </label>
+        <span class="meta-line"><strong id="docMeta">—</strong></span>
+        <span class="status" id="saveStatus"></span>
+        <div class="zoom-cluster">
+          <button type="button" class="cmd icon tb-ico" id="zoomOutBtn" data-wp-ico="zoomOut" data-di18n="zoomOut" data-di18n-attr="aria-label" aria-label="Verkleinern"></button>
+          <span id="zoomLabel">Auto</span>
+          <button type="button" class="cmd icon tb-ico" id="zoomInBtn" data-wp-ico="zoomIn" data-di18n="zoomIn" data-di18n-attr="aria-label" aria-label="Vergrößern"></button>
+          <button type="button" class="cmd quiet tb-chip" id="fitResetBtn" data-wp-ico="zoomFit">
+            <span class="wp-ico-label" data-di18n="zoomFit">Passend</span>
+          </button>
+          <button type="button" class="cmd quiet" id="zoom100Btn">100%</button>
+        </div>
+      </div>
+    </main>
+
+    <aside class="docs-rail" id="docsRail" data-di18n="railLabel" data-di18n-attr="aria-label" aria-label="Ausgabe und Zustellung">
+      <div class="rail-head">
+        <div>
+          <p class="rail-kicker" data-di18n="railKicker">Ausgabe</p>
+          <h2 class="rail-title" data-di18n="railTitle">Dokument fertigstellen</h2>
+        </div>
+        <button type="button" class="cmd icon rail-close tb-ico" id="railCloseBtn" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
+      </div>
+
+      <div class="rail-scroll">
+        <section class="rail-section" data-step="1">
+          <h3><span class="rail-step">1</span> <span data-di18n="brandTitle">Firma &amp; Briefkopf</span></h3>
+          <div class="brand-card" id="brandPreview" hidden>
+            <img id="brandLogo" alt="" />
+            <div>
+              <strong id="brandName">—</strong>
+              <span id="brandMeta"></span>
+            </div>
+          </div>
+          <p class="rail-note" id="brandHint" data-di18n="brandHint">Logo ist optional — Sie entscheiden.</p>
+          <label class="check-row">
+            <input type="checkbox" id="useLetterhead" />
+            <span data-di18n="useLetterhead">Firmenbriefkopf (Logo) auf dem Papier verwenden</span>
+          </label>
+          <div class="action-row">
+            <button type="button" class="cmd block" id="applyLetterheadBtn" data-di18n="setLetterhead">Setzen</button>
+            <button type="button" class="cmd quiet block" id="clearLetterheadBtn" data-di18n="clearLetterhead">Entfernen</button>
+          </div>
+        </section>
+
+        <section class="rail-section" data-step="2">
+          <h3><span class="rail-step">2</span> <span data-di18n="recipient">Empfänger</span></h3>
+          <label class="field">
+            <span data-di18n="worker">Mitarbeiter</span>
+            <select id="workerSelect"><option value="">— keiner —</option></select>
+          </label>
+          <p class="status" id="workersHint"></p>
+          <button type="button" class="cmd primary block" id="fillMergeBtn" data-di18n="fillMerge">Platzhalter füllen</button>
+          <button type="button" class="cmd quiet block" id="checkPlaceholdersBtn" data-di18n="checkPlaceholders">Platzhalter prüfen</button>
+          <ul class="placeholder-check-list" id="placeholderCheckList" hidden></ul>
+          <p class="status" id="placeholderCheckStatus" hidden></p>
+          <div class="chip-row">
+            <button type="button" class="chip" data-merge="{{company.name}}" data-di18n="chipCompany">Firma</button>
+            <button type="button" class="chip" data-merge="{{worker.name}}" data-di18n="chipName">Name</button>
+            <button type="button" class="chip" data-merge="{{worker.email}}" data-di18n="chipWorkerEmail">MA-E-Mail</button>
+            <button type="button" class="chip" data-merge="{{date.today}}" data-di18n="chipDate">Datum</button>
+            <button type="button" class="chip" data-merge="{{date.iso}}" data-di18n="chipDateIso">Datum ISO</button>
+            <button type="button" class="chip" data-merge="{{site.name}}" data-di18n="chipSite">Standort</button>
+            <button type="button" class="chip" data-merge="{{company.address}}" data-di18n="chipAddress">Adresse</button>
+            <button type="button" class="chip" data-merge="{{company.email}}" data-di18n="chipEmail">E-Mail</button>
+            <button type="button" class="chip" data-merge="{{manager.name}}" data-di18n="chipManager">Manager</button>
+          </div>
+        </section>
+
+        <section class="rail-section rail-actions" data-step="3">
+          <h3><span class="rail-step">3</span> <span data-di18n="deliver">Liefern</span></h3>
+          <p class="rail-note" data-di18n="deliverHint">Alles hängt am gespeicherten Dokument — PDF, Druck und Versand.</p>
+          <div class="action-stack">
+            <button type="button" class="cmd primary block" id="sharePdfBtn" data-di18n="pdf">PDF erzeugen</button>
+            <div class="action-row">
+              <button type="button" class="cmd block" id="sharePrintBtn" data-di18n="print">Drucken</button>
+              <button type="button" class="cmd block" id="shareEmailBtn" data-di18n="emailWithPdf">E-Mail + PDF</button>
+            </div>
+            <button type="button" class="cmd quiet block" id="shareLinkRailBtn" data-di18n="shareLink">Freigabe-Link (72h)</button>
+            <div class="action-divider"><span data-di18n="orWorker">oder an Mitarbeiter</span></div>
+            <div class="workflow-panel" id="workflowPanel">
+              <p class="workflow-label" data-di18n="workflowTitle">Freigabe</p>
+              <ol class="workflow-steps" id="workflowSteps" aria-label="Freigabe">
+                <li data-wf="draft"><button type="button" data-status-set="draft"><span>1</span><em data-di18n="statusDraft">Entwurf</em></button></li>
+                <li data-wf="in_review"><button type="button" data-status-set="in_review"><span>2</span><em data-di18n="statusReview">Prüfung</em></button></li>
+                <li data-wf="approved"><button type="button" data-status-set="approved"><span>3</span><em data-di18n="statusApproved">Freigegeben</em></button></li>
+              </ol>
+              <div class="workflow-actions">
+                <button type="button" class="cmd quiet block" id="workflowNextBtn" data-di18n="workflowNext">Zur Prüfung senden</button>
+                <button type="button" class="cmd accent block" id="workflowApproveBtn" hidden data-di18n="workflowApprove">Freigeben</button>
+                <button type="button" class="cmd quiet block" id="workflowUnlockBtn" hidden data-di18n="workflowUnlock">Weiter bearbeiten</button>
+              </div>
+              <p class="rail-note" id="workflowHint" data-di18n="workflowHintDraft">Noch Entwurf — nach Prüfung freigeben.</p>
+            </div>
+            <label class="field sr-only">
+              <span data-di18n="status">Status</span>
+              <select id="docStatus" tabindex="-1" aria-hidden="true">
+                <option value="draft" data-di18n="statusDraft">Entwurf</option>
+                <option value="in_review" data-di18n="statusReview">In Prüfung</option>
+                <option value="approved" data-di18n="statusApproved">Freigegeben</option>
+                <option value="archived" data-di18n="statusArchived">Archiviert</option>
+              </select>
+            </label>
+            <button type="button" class="cmd accent block" id="publishBtn" data-di18n="publish">An Mitarbeiter senden</button>
+          </div>
+        </section>
+
+        <section class="rail-section muted" data-step="4">
+          <details class="rail-more">
+            <summary><span class="rail-step">4</span> <span data-di18n="fineTune">Feinabstimmung</span></summary>
+            <div class="layout-grid">
+              <label><span data-di18n="marginTop">Oben</span><input type="number" id="marginTop" min="8" max="45" value="22" /></label>
+              <label><span data-di18n="marginBottom">Unten</span><input type="number" id="marginBottom" min="8" max="45" value="22" /></label>
+              <label><span data-di18n="marginLeft">Links</span><input type="number" id="marginLeft" min="8" max="45" value="25" /></label>
+              <label><span data-di18n="marginRight">Rechts</span><input type="number" id="marginRight" min="8" max="45" value="20" /></label>
+            </div>
+            <div class="action-row tight">
+              <button type="button" class="cmd quiet" id="toggleHeaderBtn" data-di18n="header">Kopf</button>
+              <button type="button" class="cmd quiet" id="toggleFooterBtn" data-di18n="footer">Fuß</button>
+              <button type="button" class="cmd quiet" id="marginResetBtn" data-di18n="reset">Reset</button>
+            </div>
+            <label class="field">
+              <span data-di18n="headerPreset">Kopfvorlage</span>
+              <select id="headerPreset">
+                <option value="">—</option>
+                <option value="company" data-di18n="hpCompany">Firma · Datum · Ort</option>
+                <option value="letter" data-di18n="hpLetter">Brief</option>
+                <option value="confidential" data-di18n="hpConfidential">Vertraulich</option>
+                <option value="clear" data-di18n="hpClear">Leeren</option>
+              </select>
+            </label>
+            <label class="field">
+              <span data-di18n="footerPreset">Fußvorlage</span>
+              <select id="footerPreset">
+                <option value="">—</option>
+                <option value="page" data-di18n="fpPage">Seite · Firma</option>
+                <option value="pageOnly" data-di18n="fpPageOnly">Nur Seite X / Y</option>
+                <option value="confidential" data-di18n="fpConfidential">Vertraulich</option>
+                <option value="clear" data-di18n="fpClear">Leeren</option>
+              </select>
+            </label>
+            <label class="field">
+              <span data-di18n="watermark">Wasserzeichen</span>
+              <select id="watermarkSelect">
+                <option value="" data-di18n="wmNone">Kein</option>
+                <option value="draft" data-di18n="wmDraft">ENTWURF</option>
+                <option value="confidential" data-di18n="wmConfidential">VERTRAULICH</option>
+                <option value="copy" data-di18n="wmCopy">KOPIE</option>
+              </select>
+            </label>
+            <label class="field">
+              <span data-di18n="lineSpacing">Zeilenabstand</span>
+              <select id="lineSpacingSelect">
+                <option value="1.15" selected>1,15</option>
+                <option value="1.35">1,35</option>
+                <option value="1.5">1,5</option>
+                <option value="1.65">1,65</option>
+                <option value="2">2,0</option>
+              </select>
+            </label>
+          </details>
+          <details class="rail-more">
+            <summary data-di18n="tableTools">Tabelle</summary>
+            <div class="action-row tight">
+              <button type="button" class="cmd quiet" id="tableAddRowBtn">Z+</button>
+              <button type="button" class="cmd quiet" id="tableDelRowBtn">Z−</button>
+              <button type="button" class="cmd quiet" id="tableAddColBtn">S+</button>
+              <button type="button" class="cmd quiet" id="tableDelColBtn">S−</button>
+              <button type="button" class="cmd quiet" id="tableHeaderRowBtn" data-di18n="header">Kopf</button>
+            </div>
+            <label class="field">
+              <span data-di18n="tableLines">Linien</span>
+              <select id="tableBorderSelect">
+                <option value="all" data-di18n="linesAll">Alle</option>
+                <option value="outer" data-di18n="linesOuter">Außen</option>
+                <option value="none" data-di18n="linesNone">Keine</option>
+              </select>
+            </label>
+            <p class="status" id="tableHint" data-di18n="tableIdle">Keine Tabelle aktiv.</p>
+          </details>
+          <details class="rail-more">
+            <summary data-di18n="ai">KI</summary>
+            <div class="ai-grid">
+              <button type="button" class="cmd quiet" data-ai="improve" data-di18n="aiImprove">Verbessern</button>
+              <button type="button" class="cmd quiet" data-ai="shorten" data-di18n="aiShorten">Kürzen</button>
+              <button type="button" class="cmd quiet" data-ai="formal" data-di18n="aiFormal">Formell</button>
+              <button type="button" class="cmd quiet" data-ai="translate_ui" data-di18n="translateUi">→ UI</button>
+              <button type="button" class="cmd quiet" data-ai="translate_de">DE</button>
+              <button type="button" class="cmd quiet" data-ai="translate_en">EN</button>
+              <button type="button" class="cmd quiet" data-ai="translate_ar">AR</button>
+              <button type="button" class="cmd quiet" data-ai="translate_tr">TR</button>
+              <button type="button" class="cmd quiet" data-ai="translate_fr">FR</button>
+              <button type="button" class="cmd quiet" data-ai="translate_es">ES</button>
+              <button type="button" class="cmd quiet" data-ai="translate_it">IT</button>
+              <button type="button" class="cmd quiet" data-ai="translate_pl">PL</button>
+            </div>
+          </details>
+          <details class="rail-more">
+            <summary data-di18n="versions">Versionen</summary>
+            <p class="status" id="versionsStatus">—</p>
+            <ul class="docs-list compact" id="versionsList"></ul>
+          </details>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div class="rail-backdrop" id="railBackdrop" hidden></div>
+
+  <div class="oo-overlay" id="ooOverlay" aria-hidden="true">
+    <div class="oo-bar">
+      <strong data-di18n="wordPro">Word Pro</strong>
+      <span class="status" id="ooStatus">…</span>
+      <button type="button" class="cmd" id="ooCloseBtn" data-di18n="close">Schließen</button>
+    </div>
+    <div class="oo-frame-host"><div id="onlyofficeEditor"></div></div>
+  </div>
+
+  <button type="button" id="printBtn" class="hidden" tabindex="-1" aria-hidden="true"></button>
+  <button type="button" id="printBrowserBtn" class="hidden" tabindex="-1" aria-hidden="true"></button>
+  <button type="button" id="exportPdfBtn" class="hidden" tabindex="-1" aria-hidden="true"></button>
+  <button type="button" id="insertTablePreset33" class="hidden" tabindex="-1" aria-hidden="true"></button>
+  <input type="file" id="importDocxInput" class="hidden" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" tabindex="-1" aria-hidden="true" />
+
+  <script src="/workpass-storage.js?v=20260624storage1"></script>
+  <script src="/control-pass-theme.js?v=20260619theme1"></script>
+  <script src="/tenant-brand-icon.js?v=20260630d"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <script src="/admin-v2/docs-icons.js?v=20260724docs49"></script>
+  <script src="/admin-v2/docs-i18n.js?v=20260725owner2"></script>
+  <script src="/admin-v2/docs-i18n-content.js?v=20260724docs49"></script>
+  <script src="/admin-v2/owner-unlock.js?v=20260725owner2"></script>
+  <script src="/ai-operator-fab.js?v=20260725p"></script>
+  <script src="/admin-v2/docs-app.js?v=20260725owner2"></script>
+</body>
+</html>

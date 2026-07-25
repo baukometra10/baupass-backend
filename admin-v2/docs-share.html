@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Dokument · Freigabe</title>
+  <style>
+    :root {
+      --bg: #eef2f7; --paper: #fff; --ink: #0f172a; --muted: #64748b;
+      --line: #e2e8f0; --accent: #0ea5e9;
+      --ui: "Segoe UI", system-ui, sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: var(--ui); color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(14, 165, 233, 0.12), transparent 55%),
+        linear-gradient(180deg, #f8fafc, var(--bg));
+    }
+    .bar {
+      display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+      padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.86); backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 2;
+    }
+    .brand { font: 750 0.95rem/1.2 var(--ui); }
+    .brand span { color: var(--accent); }
+    .meta { color: var(--muted); font: 500 0.78rem/1.3 var(--ui); }
+    button {
+      appearance: none; border: 1px solid var(--line); background: #fff; color: var(--ink);
+      border-radius: 8px; padding: 0.45rem 0.75rem; font: 600 0.82rem/1 var(--ui); cursor: pointer;
+    }
+    button.primary { background: var(--accent); border-color: transparent; color: #fff; }
+    .wrap { width: min(820px, calc(100% - 2rem)); margin: 1.5rem auto 3rem; }
+    .status {
+      padding: 1.5rem; border-radius: 12px; background: #fff; border: 1px solid var(--line);
+      color: var(--muted); text-align: center;
+    }
+    .status.err { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+    .paper {
+      background: var(--paper); border: 1px solid var(--line);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08); border-radius: 2px;
+      padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3.25rem); min-height: 60vh;
+    }
+    .paper h1.title { margin: 0 0 1.25rem; font: 700 1.65rem/1.25 var(--serif); }
+    .body { font: 400 1.05rem/1.7 var(--serif); }
+    .body h1, .body h2, .body h3 { font-family: var(--ui); line-height: 1.3; }
+    .body table { width: 100%; border-collapse: collapse; margin: 0.75rem 0; }
+    .body td, .body th { border: 1px solid #cbd5e1; padding: 0.35rem 0.5rem; }
+    .lock {
+      max-width: 360px; margin: 2rem auto; padding: 1.25rem; background: #fff;
+      border: 1px solid var(--line); border-radius: 12px; text-align: left;
+    }
+    .lock label { display: grid; gap: 0.35rem; font: 600 0.82rem/1.2 var(--ui); margin-bottom: 0.85rem; }
+    .lock input {
+      border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.65rem; font: 500 0.95rem/1.2 var(--ui);
+    }
+    .badge {
+      display: inline-flex; padding: 0.2rem 0.5rem; border-radius: 999px; background: #f1f5f9;
+      color: var(--muted); font: 650 0.7rem/1 var(--ui); letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    @media print {
+      body { background: #fff; }
+      .bar, .lock { display: none !important; }
+      .wrap { width: 100%; margin: 0; }
+      .paper { box-shadow: none; border: none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <div class="brand">Work<span>Pass</span> · Freigabe</div>
+      <div class="meta" id="meta">Nur Lesen</div>
+    </div>
+    <div>
+      <span class="badge">Read-only</span>
+      <button type="button" id="printBtn">Drucken</button>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="status" id="loading">Dokument wird geladen…</div>
+    <form class="lock" id="lockForm" hidden>
+      <p style="margin:0 0 0.75rem;color:var(--muted);font:500 0.9rem/1.4 var(--ui)">Dieses Dokument ist passwortgeschützt.</p>
+      <label>Passwort
+        <input type="password" id="pwdInput" autocomplete="current-password" required />
+      </label>
+      <button type="submit" class="primary">Öffnen</button>
+      <p class="meta" id="lockErr" style="color:#b91c1c;margin-top:0.65rem" hidden></p>
+    </form>
+    <article class="paper" id="paper" hidden>
+      <h1 class="title" id="title"></h1>
+      <div class="body" id="body"></div>
+    </article>
+  </main>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const token = (params.get("t") || params.get("token") || "").trim();
+      const loading = document.getElementById("loading");
+      const paper = document.getElementById("paper");
+      const lockForm = document.getElementById("lockForm");
+      const titleEl = document.getElementById("title");
+      const bodyEl = document.getElementById("body");
+      const meta = document.getElementById("meta");
+      document.getElementById("printBtn").addEventListener("click", () => window.print());
+
+      function fail(msg) {
+        loading.hidden = false;
+        loading.classList.add("err");
+        loading.textContent = msg;
+        paper.hidden = true;
+        lockForm.hidden = true;
+      }
+
+      function showDoc(data) {
+        loading.hidden = true;
+        lockForm.hidden = true;
+        paper.hidden = false;
+        const title = data.title || "Dokument";
+        document.title = title + " · Freigabe";
+        titleEl.textContent = title;
+        bodyEl.innerHTML = data.contentHtml || "<p></p>";
+        const when = data.updatedAt ? String(data.updatedAt).slice(0, 16).replace("T", " ") : "";
+        meta.textContent = when ? "Nur Lesen · Stand " + when : "Nur Lesen";
+      }
+
+      async function load(password) {
+        loading.hidden = false;
+        loading.classList.remove("err");
+        loading.textContent = "Dokument wird geladen…";
+        const q = new URLSearchParams({ t: token });
+        if (password) q.set("password", password);
+        const res = await fetch("/api/v2/docs/shared?" + q.toString());
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 401 || data.needsPassword) {
+          loading.hidden = true;
+          paper.hidden = true;
+          lockForm.hidden = false;
+          document.getElementById("pwdInput").focus();
+          if (password) {
+            const err = document.getElementById("lockErr");
+            err.hidden = false;
+            err.textContent = "Passwort falsch.";
+          }
+          return;
+        }
+        if (!res.ok) {
+          const map = {
+            invalid_or_expired: "Link abgelaufen oder ungültig.",
+            revoked: "Freigabe wurde widerrufen.",
+            not_approved: "Dokument ist noch nicht freigegeben.",
+            not_found: "Dokument nicht gefunden.",
+          };
+          throw new Error(map[data.error] || data.error || "Dokument nicht verfügbar.");
+        }
+        showDoc(data);
+      }
+
+      if (!token) {
+        fail("Freigabe-Link ungültig oder unvollständig.");
+        return;
+      }
+
+      lockForm.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const pwd = document.getElementById("pwdInput").value || "";
+        load(pwd).catch((err) => fail(err.message || "Laden fehlgeschlagen."));
+      });
+
+      load("").catch((err) => fail(err.message || "Laden fehlgeschlagen."));
+    })();
+  </script>
+</body>
+</html>

@@ -841,19 +841,247 @@ def _resolve_company_id_for_request(data: dict | None = None) -> str:
     return str((getattr(g, "current_user", None) or {}).get("company_id") or "").strip()
 
 
+def is_sensitive_role_blocked(user: dict | None) -> bool:
+    """Pförtner / turnstile must never access docs, contracts, or sensitive exports."""
+    role = str((user or {}).get("role") or "").strip().lower()
+    return role == "turnstile"
+
+
+def notify_owner_sensitive_attempt(
+    db,
+    company_id: str,
+    *,
+    actor: dict | None = None,
+    surface: str = "sensitive",
+    action: str = "access",
+    path: str = "",
+) -> dict[str, Any]:
+    """
+    Alert company owner when a blocked/sensitive attempt happens.
+    Best-effort: audit + system alert + email/SMS.
+    """
+    cid = str(company_id or "").strip()
+    actor = actor or getattr(g, "current_user", None) or {}
+    actor_name = str(
+        actor.get("name") or actor.get("username") or actor.get("email") or actor.get("id") or "unbekannt"
+    ).strip()
+    actor_role = str(actor.get("role") or "").strip() or "?"
+    surface = str(surface or "sensitive").strip()[:80]
+    action = str(action or "access").strip()[:80]
+    path = str(path or getattr(request, "path", "") or "").strip()[:200]
+    message = (
+        f"Sensibler Zugriff blockiert: {actor_name} ({actor_role}) "
+        f"versuchte „{action}“ auf {surface}."
+    )
+    details = {
+        "companyId": cid,
+        "actorId": str(actor.get("id") or ""),
+        "actorName": actor_name,
+        "actorRole": actor_role,
+        "surface": surface,
+        "action": action,
+        "path": path,
+    }
+    result: dict[str, Any] = {
+        "audit": False,
+        "alert": False,
+        "inbox": False,
+        "email": False,
+        "sms": False,
+    }
+
+    try:
+        from backend.server import log_audit
+
+        log_audit(
+            "security.sensitive_attempt",
+            message,
+            target_type=surface,
+            target_id=action,
+            company_id=cid,
+            actor=actor if actor.get("id") else None,
+            details=details,
+            reason="turnstile_or_locked_sensitive",
+        )
+        result["audit"] = True
+    except Exception as exc:
+        _log.warning("sensitive attempt audit failed: %s", exc)
+
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            code=f"sensitive_attempt_{cid}_{surface}"[:80],
+            severity="high",
+            message=message,
+            details=details,
+            dedup_minutes=15,
+        )
+        result["alert"] = True
+    except Exception as exc:
+        _log.warning("sensitive attempt alert failed: %s", exc)
+
+    # Operations inbox (company-admins) via security_alerts
+    try:
+        import json as _json
+        import secrets as _secrets
+
+        # Dedup: skip if open alert of same type for company in last 15 minutes
+        recent = None
+        try:
+            recent = db.execute(
+                """
+                SELECT id FROM security_alerts
+                WHERE company_id = ? AND alert_type = 'sensitive_attempt'
+                  AND status = 'open' AND created_at >= ?
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (cid, (_now() - timedelta(minutes=15)).strftime("%Y-%m-%dT%H:%M:%SZ")),
+            ).fetchone()
+        except Exception:
+            recent = None
+        if not recent:
+            aid = f"sec-sens-{_secrets.token_hex(6)}"
+            db.execute(
+                """
+                INSERT INTO security_alerts
+                    (id, company_id, worker_id, alert_type, severity, title, details_json, status, created_at)
+                VALUES (?, ?, NULL, 'sensitive_attempt', 'high', ?, ?, 'open', ?)
+                """,
+                (
+                    aid,
+                    cid,
+                    message[:240],
+                    _json.dumps(details, ensure_ascii=False),
+                    _now_iso(),
+                ),
+            )
+            db.commit()
+            result["inbox"] = True
+    except Exception as exc:
+        _log.warning("sensitive attempt inbox alert failed: %s", exc)
+
+    phone = company_owner_phone(db, cid)
+    email = company_owner_email(db, cid)
+    body = (
+        f"SUPPIX Sicherheit: {message}\n"
+        f"Pfad: {path or '—'}\n"
+        f"Firma: {cid}\n"
+        "Der Zugriff wurde verweigert. Bitte prüfen Sie die Audit-Logs."
+    )
+    if phone:
+        try:
+            from backend.app.platform.notifications.sms import send_sms, sms_configured
+
+            if sms_configured():
+                ok, _err = send_sms(to=phone, body=body[:300])
+                result["sms"] = bool(ok)
+        except Exception as exc:
+            _log.warning("sensitive attempt sms failed: %s", exc)
+    if email:
+        try:
+            from backend.app.platform.ai.mailer import send_ai_briefing_email
+
+            ok, _err = send_ai_briefing_email(
+                to=email,
+                subject="SUPPIX: Sensibler Zugriff blockiert",
+                body_text=body,
+            )
+            result["email"] = bool(ok)
+        except Exception as exc:
+            _log.warning("sensitive attempt email failed: %s", exc)
+
+    return result
+
+
+def deny_turnstile_sensitive_response(
+    db,
+    company_id: str,
+    *,
+    actor: dict | None = None,
+    surface: str = "sensitive",
+    action: str = "access",
+):
+    """Notify owner and return 403 JSON for turnstile/Pförtner."""
+    notify_owner_sensitive_attempt(
+        db,
+        company_id,
+        actor=actor,
+        surface=surface,
+        action=action,
+        path=str(getattr(request, "path", "") or ""),
+    )
+    return (
+        jsonify(
+            {
+                "error": "sensitive_forbidden",
+                "roleBlocked": True,
+                "ownerNotified": True,
+                "message": (
+                    "Dieser Bereich (Dokumente/Verträge/sensible Daten) ist für die "
+                    "Pförtner-/Zutrittspunkt-Rolle gesperrt. Der Firmeninhaber wurde informiert."
+                ),
+            }
+        ),
+        403,
+    )
+
+
+def deny_turnstile_sensitive(*, surface: str = "sensitive", action: str | None = None):
+    """Decorator: hard-deny turnstile and notify company owner."""
+
+    def decorator(handler):
+        @wraps(handler)
+        def wrapper(*args, **kwargs):
+            from backend.app.domains.shared import forbidden_company
+            from backend.server import get_db
+
+            user = getattr(g, "current_user", None) or {}
+            if not is_sensitive_role_blocked(user):
+                return handler(*args, **kwargs)
+            data = request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH", "DELETE"} else None
+            cid = _resolve_company_id_for_request(data if isinstance(data, dict) else {})
+            if not cid:
+                cid = str(user.get("company_id") or "").strip()
+            if not cid:
+                return forbidden_company()
+            act = action or (request.endpoint or request.method or "access")
+            return deny_turnstile_sensitive_response(
+                get_db(),
+                cid,
+                actor=user,
+                surface=surface,
+                action=str(act)[:80],
+            )
+
+        return wrapper
+
+    return decorator
+
+
 def require_contracts_unlocked(handler):
-    """Decorator: block salary/contract APIs when owner lock is active and session locked."""
+    """Decorator: block when owner lock active; also hard-deny turnstile with notify."""
 
     @wraps(handler)
     def wrapper(*args, **kwargs):
         from backend.app.domains.shared import forbidden_company
         from backend.server import get_db
 
+        user = getattr(g, "current_user", None) or {}
         data = request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH", "DELETE"} else None
         cid = _resolve_company_id_for_request(data if isinstance(data, dict) else {})
         if not cid:
             return forbidden_company()
         db = get_db()
+        if is_sensitive_role_blocked(user):
+            return deny_turnstile_sensitive_response(
+                db,
+                cid,
+                actor=user,
+                surface="owner_step_up",
+                action=str(request.endpoint or "access")[:80],
+            )
         if owner_setup_required(db, cid):
             return (
                 jsonify(
@@ -863,7 +1091,7 @@ def require_contracts_unlocked(handler):
                         "ownerSetupRequired": True,
                         "message": (
                             "Owner-Handynummer muss eingerichtet werden, "
-                            "bevor Verträge oder sensible Exporte nutzbar sind."
+                            "bevor Verträge, Dokumente oder sensible Exporte nutzbar sind."
                         ),
                     }
                 ),
@@ -876,7 +1104,7 @@ def require_contracts_unlocked(handler):
                         "error": "contracts_locked",
                         "stepUpRequired": True,
                         "message": (
-                            "Owner-Freischaltung nötig (Verträge / sensible Exporte). "
+                            "Owner-Freischaltung nötig (Verträge / Dokumente / sensible Exporte). "
                             "Bitte Code per SMS/E-Mail bestätigen."
                         ),
                     }
@@ -888,7 +1116,7 @@ def require_contracts_unlocked(handler):
     return wrapper
 
 
-# Shared owner step-up for contracts + sensitive exports / payroll.
+# Re-bind alias after redefinition
 require_owner_step_up = require_contracts_unlocked
 
 _SALARY_FORM_KEYS = frozenset(

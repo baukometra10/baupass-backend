@@ -31,6 +31,7 @@ DOMAIN_REGISTRARS: tuple[DomainRegistrar, ...] = (
     DomainRegistrar("workers", "backend.app.domains.workers.routes", "register_workers_blueprint", "tenant"),
     DomainRegistrar("onboarding", "backend.app.domains.onboarding.routes", "register_onboarding_blueprint", "tenant"),
     DomainRegistrar("contracts", "backend.app.domains.contracts.routes", "register_contracts_blueprint", "tenant"),
+    DomainRegistrar("docs", "backend.app.domains.docs.routes", "register_docs_blueprint", "tenant"),
     # Operations
     DomainRegistrar("access", "backend.app.domains.access.routes", "register_access_blueprint", "operations"),
     DomainRegistrar("devices", "backend.app.domains.devices.routes", "register_devices_blueprint", "operations"),

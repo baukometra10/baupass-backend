@@ -84,6 +84,31 @@ def _load_local_env_files():
 
 _load_local_env_files()
 
+
+def _apply_local_dev_defaults_if_needed():
+    """Quiet laptop defaults — not applied on Railway/Render or when BAUPASS_ENV=production."""
+    if (
+        os.getenv("RAILWAY_ENVIRONMENT")
+        or os.getenv("RENDER")
+        or os.getenv("RAILWAY_GIT_COMMIT_SHA")
+        or ""
+    ).strip():
+        return
+    env = (os.getenv("BAUPASS_ENV") or os.getenv("FLASK_ENV") or "").strip().lower()
+    if env in {"production", "prod", "staging"}:
+        return
+    os.environ.setdefault("BAUPASS_ENV", "development")
+    os.environ.setdefault("BAUPASS_ENABLE_BACKGROUND_JOBS", "0")
+    os.environ.setdefault("BAUPASS_ENABLE_IMAP_POLLER", "0")
+    os.environ.setdefault("BAUPASS_SKIP_IMAP_POLL", "1")
+    os.environ.setdefault("PORT", "8080")
+    port = (os.getenv("PORT") or "8080").strip() or "8080"
+    os.environ.setdefault("PUBLIC_BASE_URL", f"http://127.0.0.1:{port}")
+
+
+_apply_local_dev_defaults_if_needed()
+
+
 def _blueprint_retry_enabled() -> bool:
     raw = (os.getenv("BAUPASS_BLUEPRINT_RETRY") or "").strip().lower()
     if raw:
@@ -1948,16 +1973,17 @@ def apply_security_headers(response):
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=(self)"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+        "script-src 'self' https://cdn.jsdelivr.net http://127.0.0.1:8081 http://localhost:8081 'unsafe-inline'; "
         "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; "
-        "font-src 'self' https://fonts.gstatic.com data:; "
+        "font-src 'self' https://fonts.gstatic.com data: https://cdn.jsdelivr.net; "
         "img-src 'self' data: blob: https:; "
         "media-src 'self' blob:; "
         "manifest-src 'self' blob:; "
-        "connect-src 'self' https: "
+        "connect-src 'self' https: http://127.0.0.1:8081 http://localhost:8081 "
         "wss://localhost:49494 wss://127.0.0.1:49494 "
         "wss://signsocket.stepover.com:57357; "
-        "frame-src 'self' blob: https://www.google.com https://maps.google.com https://www.google.de; "
+        "frame-src 'self' blob: http://127.0.0.1:8081 http://localhost:8081 "
+        "https://www.google.com https://maps.google.com https://www.google.de; "
         "object-src 'self' blob:; "
         "base-uri 'self'; "
         f"frame-ancestors {frame_ancestors}"
@@ -11413,10 +11439,14 @@ def import_workers_csv():
     return jsonify(result["body"])
 
 
-from backend.app.platform.security.contracts_lock import require_owner_step_up
+from backend.app.platform.security.contracts_lock import (
+    deny_turnstile_sensitive,
+    require_owner_step_up,
+)
 
 
 @require_auth
+@deny_turnstile_sensitive(surface="exports", action="workers_csv")
 @require_roles("superadmin", "company-admin")
 @require_owner_step_up
 def export_workers_csv():
@@ -11430,7 +11460,8 @@ def export_workers_csv():
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="exports", action="workers_pdf")
+@require_roles("superadmin", "company-admin")
 @require_owner_step_up
 def export_workers_pdf():
     from backend.app.domains.workers.service import WorkersService
@@ -11447,6 +11478,7 @@ def export_workers_pdf():
 
 
 @require_auth
+@deny_turnstile_sensitive(surface="exports", action="workers_signatures_zip")
 @require_roles("superadmin", "company-admin")
 @require_owner_step_up
 def export_workers_signatures_zip():
@@ -11461,7 +11493,8 @@ def export_workers_signatures_zip():
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="exports", action="attendance_pdf")
+@require_roles("superadmin", "company-admin")
 @require_owner_step_up
 def export_attendance_pdf():
     """Anwesenheitsliste als PDF – alle Mitarbeiter mit offenem Check-in."""
@@ -19297,6 +19330,8 @@ def invoice_access_line_items():
 
 
 @require_auth
+@deny_turnstile_sensitive(surface="exports", action="access_export")
+@require_roles("superadmin", "company-admin")
 @require_owner_step_up
 def export_access_csv():
     auto_close_open_entries_after_midnight(get_db())
@@ -26887,7 +26922,8 @@ def trigger_imap_poll():
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="document_inbox", action="list")
+@require_roles("superadmin", "company-admin")
 def list_document_inbox():
     db = get_db()
     if g.current_user["role"] == "superadmin":
@@ -27215,7 +27251,8 @@ def reply_to_inbox_email(inbox_id):
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="document_inbox", action="assign")
+@require_roles("superadmin", "company-admin")
 def assign_attachment_to_worker(inbox_id, attachment_id):
     """Hängt einen E-Mail-Anhang an einen Mitarbeiter und speichert die Datei."""
     payload = request.get_json(silent=True) or {}
@@ -27346,7 +27383,8 @@ def assign_attachment_to_worker(inbox_id, attachment_id):
 # ── Mitarbeiter-Dokumente API ────────────────────────────────────
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="worker_docs", action="list")
+@require_roles("superadmin", "company-admin")
 def list_worker_documents(worker_id):
     from backend.app.domains.workers.service import WorkersService
 
@@ -27357,7 +27395,8 @@ def list_worker_documents(worker_id):
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="worker_docs", action="upload")
+@require_roles("superadmin", "company-admin")
 def upload_worker_document(worker_id):
     """Direkt-Upload eines Dokuments vom PC für einen Mitarbeiter."""
     from backend.app.domains.workers.service import WorkersService
@@ -27394,7 +27433,8 @@ def upload_worker_document(worker_id):
 
 
 @require_auth
-@require_roles("superadmin", "company-admin", "turnstile")
+@deny_turnstile_sensitive(surface="worker_docs", action="download")
+@require_roles("superadmin", "company-admin")
 def download_worker_document(worker_id, doc_id):
     from flask import send_file
 

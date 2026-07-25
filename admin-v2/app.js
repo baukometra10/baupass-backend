@@ -832,6 +832,12 @@ function showLogin() {
   if (window.BaupassAuth?.loadPublicTenantBranding) {
     void window.BaupassAuth.loadPublicTenantBranding();
   }
+  try {
+    window.dispatchEvent(new CustomEvent("baupass-ai-operator-hide"));
+    window.BaupassAiOperator?.hide?.();
+  } catch {
+    /* optional FAB */
+  }
 }
 
 function showDashboard() {
@@ -850,6 +856,12 @@ function showDashboard() {
   bindDeploymentMonthBarOnce();
   ensureEmbedQuickNav();
   bindLegacyDashboardLinks();
+  try {
+    window.dispatchEvent(new CustomEvent("baupass-ai-operator-ready"));
+    window.BaupassAiOperator?.show?.();
+  } catch {
+    /* optional FAB */
+  }
 }
 
 function setupCompanyPicker(user) {
@@ -1200,6 +1212,12 @@ const COMMAND_NAV = [
     groupKey: "nav.group.ops",
     searchTerms: "arbeitsvertrag vertrag contract ai pdf employment agreement",
   },
+  {
+    href: "/admin-v2/docs.html",
+    titleKey: "docs.title",
+    groupKey: "nav.group.ops",
+    searchTerms: "dokument editor word tip tap text rich docs brief schreiben",
+  },
   { tab: "tools", titleKey: "tab.tools", groupKey: "nav.group.ops" },
   { tab: "platform", titleKey: "tab.platform", groupKey: "nav.group.ops" },
   { tab: "enterprise", titleKey: "tab.enterprise", groupKey: "nav.group.enterprise" },
@@ -1275,6 +1293,59 @@ function switchToTab(tabId) {
   }
 }
 
+/** AI Operator FAB → navigate tabs / focus Einsatzplan without leaving admin-v2. */
+if (!window.__baupassAiNavigateBound) {
+  window.__baupassAiNavigateBound = true;
+  window.addEventListener("baupass-ai-navigate", (ev) => {
+    const detail = ev?.detail || {};
+    const tab = String(detail.tab || "").trim();
+    const goEinsatz =
+      Boolean(detail.einsatzplan)
+      || detail.focus === "deployment"
+      || /einsatzplan|deployment/i.test(String(detail.url || ""));
+    try {
+      if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
+        switchToTab(tab);
+        refreshActiveTab().catch(notifyTabError);
+      }
+      if (goEinsatz) {
+        pendingEinsatzplanFocus = true;
+        if (!tryFocusEinsatzplanFromParent()) {
+          switchToTab("workers");
+          refreshActiveTab()
+            .then(() => tryFocusEinsatzplanFromParent())
+            .catch(notifyTabError);
+        }
+      }
+    } catch (err) {
+      console.warn("baupass-ai-navigate", err);
+    }
+  });
+
+  // Allowlisted UI pilot: click real tab buttons when present.
+  window.addEventListener("baupass-ai-ui-pilot", (ev) => {
+    const detail = ev?.detail || {};
+    if (detail.clicked) return;
+    const tab = String(detail.tab || "").trim();
+    const selector = String(detail.selector || "").trim();
+    try {
+      if (selector) {
+        const el = document.querySelector(selector);
+        if (el && typeof el.click === "function") {
+          el.click();
+          return;
+        }
+      }
+      if (tab && document.querySelector(`.tab[data-tab="${tab}"]`)) {
+        switchToTab(tab);
+        refreshActiveTab().catch(notifyTabError);
+      }
+    } catch (err) {
+      console.warn("baupass-ai-ui-pilot", err);
+    }
+  });
+}
+
 function renderOverviewQuickBar() {
   const bar = $("overviewQuickBar");
   if (!bar) return;
@@ -1341,6 +1412,13 @@ function renderCommandPaletteList(query) {
       return false;
     }
     if (item.legacyView && !isSuperadminUser()) {
+      return false;
+    }
+    // Pförtner (turnstile): no docs/contracts navigation.
+    if (
+      String(getUser()?.role || "").toLowerCase() === "turnstile" &&
+      (String(item.href || "").includes("contracts.html") || String(item.href || "").includes("docs.html"))
+    ) {
       return false;
     }
     const title = t(item.titleKey).toLowerCase();
@@ -3053,16 +3131,28 @@ async function renderBetriebActionHub(companyId) {
     return;
   }
   const features = await loadLegacyFeatures(companyId);
+  const isTurnstile = String(getUser()?.role || "").toLowerCase() === "turnstile";
   host.innerHTML = [
-    renderBetriebActionCard({
-      href: `/admin-v2/contracts.html${q}`,
-      icon: "📄",
-      title: t("contracts.title"),
-      desc: t("contracts.desc"),
-      cta: t("contracts.open"),
-      locked: !legacyFeatureEnabled(features, "employment_contracts"),
-      upgradeLabel: t("contracts.upgrade"),
-    }),
+    !isTurnstile &&
+      renderBetriebActionCard({
+        href: `/admin-v2/contracts.html${q}`,
+        icon: "📄",
+        title: t("contracts.title"),
+        desc: t("contracts.desc"),
+        cta: t("contracts.open"),
+        locked: !legacyFeatureEnabled(features, "employment_contracts"),
+        upgradeLabel: t("contracts.upgrade"),
+      }),
+    !isTurnstile &&
+      renderBetriebActionCard({
+        href: `/admin-v2/docs.html${q}`,
+        icon: "✍️",
+        title: t("docs.title"),
+        desc: t("docs.desc"),
+        cta: t("docs.open"),
+        locked: false,
+        upgradeLabel: "",
+      }),
     renderBetriebActionCard({
       href: `/admin-v2/chat.html${q}`,
       icon: "💬",
@@ -3072,7 +3162,9 @@ async function renderBetriebActionHub(companyId) {
       locked: !legacyFeatureEnabled(features, "worker_chat"),
       upgradeLabel: t("chat.upgrade"),
     }),
-  ].join("");
+  ]
+    .filter(Boolean)
+    .join("");
 }
 
 let _opsOverviewCache = { cid: "", at: 0, data: null };
@@ -3510,15 +3602,29 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
   const cards = getOpsLayerOrder()
     .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
     .join("");
-  const contractsCard = renderBetriebActionCard({
-    href: `/admin-v2/contracts.html${q}`,
-    icon: "📄",
-    title: t("contracts.open"),
-    desc: t("contracts.desc"),
-    cta: t("contracts.open"),
-    locked: !legacyFeatureEnabled(features, "employment_contracts"),
-    upgradeLabel: t("contracts.upgrade"),
-  });
+  const isTurnstile = String(getUser()?.role || "").toLowerCase() === "turnstile";
+  const contractsCard = isTurnstile
+    ? ""
+    : renderBetriebActionCard({
+        href: `/admin-v2/contracts.html${q}`,
+        icon: "📄",
+        title: t("contracts.open"),
+        desc: t("contracts.desc"),
+        cta: t("contracts.open"),
+        locked: !legacyFeatureEnabled(features, "employment_contracts"),
+        upgradeLabel: t("contracts.upgrade"),
+      });
+  const docsCard = isTurnstile
+    ? ""
+    : renderBetriebActionCard({
+        href: `/admin-v2/docs.html${q}`,
+        icon: "✍️",
+        title: t("docs.open"),
+        desc: t("docs.desc"),
+        cta: t("docs.open"),
+        locked: false,
+        upgradeLabel: "",
+      });
   const chatCard = renderBetriebActionCard({
     href: `/admin-v2/chat.html${q}`,
     icon: "💬",
@@ -3560,21 +3666,306 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
         <div style="max-width:420px;">${contractsCard}</div>
       </div>
       <div class="panel-block">
+        <h3>${t("docs.title")}</h3>
+        <p class="muted small">${t("docs.desc")}</p>
+        <div style="max-width:420px;">${docsCard}</div>
+      </div>
+      <div class="panel-block">
         <h3>${t("chat.title")}</h3>
         <p class="muted small">${t("chat.inboxHint", { count: chatThreads.length })}</p>
         <div style="max-width:420px;">${chatCard}</div>
+      </div>
+      <div class="panel-block" id="aiOperatorSettingsPanel">
+        <h3>${t("aiOperator.title")}</h3>
+        <p class="muted small">${t("aiOperator.desc")}</p>
+        <label class="autopilot-toggle" style="display:flex;gap:0.6rem;align-items:center;margin:0.75rem 0">
+          <input type="checkbox" id="aiOperatorEnabledToggle" checked />
+          <span>${t("aiOperator.enabled")}</span>
+        </label>
+        <label class="autopilot-toggle" style="display:flex;gap:0.6rem;align-items:center;margin:0.5rem 0">
+          <input type="checkbox" id="aiOperatorVoiceToggle" checked />
+          <span>${t("aiOperator.voiceEnabled")}</span>
+        </label>
+        <label class="autopilot-toggle" style="display:flex;gap:0.6rem;align-items:center;margin:0.5rem 0">
+          <input type="checkbox" id="aiOperatorWelcomeToggle" checked />
+          <span>${t("aiOperator.welcomeEnabled")}</span>
+        </label>
+        <hr style="border:none;border-top:1px solid var(--border, #334155);margin:1rem 0" />
+        <label class="autopilot-toggle" style="display:flex;gap:0.6rem;align-items:center;margin:0.5rem 0">
+          <input type="checkbox" id="aiOperatorBriefingToggle" checked />
+          <span>${t("aiOperator.briefingEnabled")}</span>
+        </label>
+        <label class="muted small" style="display:block;margin:0.5rem 0 0.25rem">${t("aiOperator.briefingHours")}</label>
+        <input type="text" id="aiOperatorBriefingHours" placeholder="auto" style="max-width:220px;width:100%" />
+        <p class="muted small" id="aiOperatorBriefingHoursHint">${t("aiOperator.briefingHoursHint")}</p>
+        <label class="muted small" style="display:block;margin:0.5rem 0 0.25rem">${t("aiOperator.briefingTz")}</label>
+        <input type="text" id="aiOperatorBriefingTz" placeholder="auto" style="max-width:220px;width:100%" />
+        <label class="muted small" style="display:block;margin:0.5rem 0 0.25rem">${t("aiOperator.briefingEmail")}</label>
+        <input type="text" id="aiOperatorBriefingEmail" placeholder="auto" style="max-width:320px;width:100%" />
+        <p class="muted small" id="aiOperatorBriefingEmailHint">${t("aiOperator.briefingEmailHint")}</p>
+        <p class="muted small" id="aiOperatorSettingsHint">${t("aiOperator.hint")}</p>
+        <p class="muted small" id="aiOperatorLiveStatus" style="margin-top:0.75rem"></p>
+        <div class="autopilot-actions">
+          <button type="button" id="aiOperatorSaveBtn">${t("common.save")}</button>
+          <button type="button" id="aiOperatorPulsePreviewBtn" class="ghost">${t("aiOperator.pulsePreview")}</button>
+          <button type="button" id="aiOperatorStatusBtn" class="ghost">${t("aiOperator.statusCheck")}</button>
+        </div>
+        <hr style="border:none;border-top:1px solid var(--border, #334155);margin:1rem 0" />
+        <h4 style="margin:0 0 0.35rem;font-size:0.95rem">${t("aiOperator.auditTitle")}</h4>
+        <p class="muted small">${t("aiOperator.auditHint")}</p>
+        <div id="aiOperatorAuditList" class="muted small" style="max-height:220px;overflow:auto;margin-top:0.5rem"></div>
+        <button type="button" id="aiOperatorAuditRefreshBtn" class="ghost" style="margin-top:0.5rem">${t("aiOperator.auditRefresh")}</button>
       </div>
     `;
   window.__opsLayersCache = layers;
   initOpsCarousel($("opsCarousel"));
   initOpsLayerCards($("opsCarousel"));
   initOpsEmbedTabs(panel, cid);
+  void bindAiOperatorSettingsPanel(cid);
   if (pendingOpsEmbedPage) {
     const page = pendingOpsEmbedPage;
     pendingOpsEmbedPage = null;
     const embedBtn = panel.querySelector(`.ops-embed-tab[data-ops-page="${page}"]`);
     embedBtn?.click();
   }
+}
+
+async function bindAiOperatorSettingsPanel(cid) {
+  const host = $("aiOperatorSettingsPanel");
+  if (!host || !cid) return;
+  const toggle = host.querySelector("#aiOperatorEnabledToggle");
+  const voiceToggle = host.querySelector("#aiOperatorVoiceToggle");
+  const welcomeToggle = host.querySelector("#aiOperatorWelcomeToggle");
+  const briefingToggle = host.querySelector("#aiOperatorBriefingToggle");
+  const hoursInput = host.querySelector("#aiOperatorBriefingHours");
+  const hoursHint = host.querySelector("#aiOperatorBriefingHoursHint");
+  const tzInput = host.querySelector("#aiOperatorBriefingTz");
+  const emailInput = host.querySelector("#aiOperatorBriefingEmail");
+  const emailHint = host.querySelector("#aiOperatorBriefingEmailHint");
+  const saveBtn = host.querySelector("#aiOperatorSaveBtn");
+  const pulseBtn = host.querySelector("#aiOperatorPulsePreviewBtn");
+  const statusBtn = host.querySelector("#aiOperatorStatusBtn");
+  const auditBtn = host.querySelector("#aiOperatorAuditRefreshBtn");
+  const liveStatus = host.querySelector("#aiOperatorLiveStatus");
+  const auditList = host.querySelector("#aiOperatorAuditList");
+  const hint = host.querySelector("#aiOperatorSettingsHint");
+  let planAllowed = true;
+
+  async function loadAiOperatorStatus() {
+    if (!liveStatus || !planAllowed) return;
+    try {
+      const st = await api(`/api/ai/operator/status?company_id=${encodeURIComponent(cid)}`);
+      const tts = st?.tts || {};
+      const br = st?.briefing || {};
+      const bits = [
+        tts.configured
+          ? t("aiOperator.statusTtsOk", { provider: tts.provider || "?" })
+          : t("aiOperator.statusTtsMissing"),
+        br.cronEnabled ? t("aiOperator.statusCronOn") : t("aiOperator.statusCronOff"),
+        br.smtpConfigured ? t("aiOperator.statusSmtpOk") : t("aiOperator.statusSmtpMissing"),
+        br.emailResolved
+          ? t("aiOperator.statusEmail", { email: br.emailResolved })
+          : t("aiOperator.statusEmailMissing"),
+      ];
+      liveStatus.textContent = bits.join(" · ");
+    } catch {
+      liveStatus.textContent = t("aiOperator.statusError");
+    }
+  }
+
+  async function loadAiOperatorAudit() {
+    if (!auditList || !planAllowed) return;
+    auditList.textContent = t("common.loading") || "…";
+    try {
+      const data = await api(`/api/ai/operator/audit?company_id=${encodeURIComponent(cid)}&limit=20`);
+      const events = Array.isArray(data?.events) ? data.events : [];
+      if (!events.length) {
+        auditList.textContent = t("aiOperator.auditEmpty");
+        return;
+      }
+      auditList.innerHTML = events
+        .map((ev) => {
+          const when = String(ev.createdAt || "").replace("T", " ").slice(0, 16);
+          const actor = escapeHtml(String(ev.actor || "—"));
+          const msg = escapeHtml(String(ev.message || ev.eventType || ""));
+          const typ = escapeHtml(String(ev.eventType || "").replace("ai.action.", ""));
+          return `<div style="padding:0.35rem 0;border-bottom:1px solid var(--border,#33415533)"><strong>${typ}</strong> · ${when}<br>${msg}<br><span class="muted">${actor}</span></div>`;
+        })
+        .join("");
+    } catch {
+      auditList.textContent = t("aiOperator.auditError");
+    }
+  }
+  try {
+    const data = await api(`/api/ai/operator/settings?company_id=${encodeURIComponent(cid)}`);
+    planAllowed = data?.planAllowed !== false;
+    const settings = data?.settings || {};
+    const companyOn = data?.companyEnabled != null
+      ? Boolean(data.companyEnabled)
+      : settings.enabled !== false;
+    if (toggle) {
+      toggle.checked = companyOn && planAllowed;
+      toggle.disabled = !planAllowed;
+    }
+    if (voiceToggle) {
+      voiceToggle.checked = settings.voiceEnabled !== false;
+      voiceToggle.disabled = !planAllowed;
+    }
+    if (welcomeToggle) {
+      welcomeToggle.checked = settings.welcomeEnabled !== false;
+      welcomeToggle.disabled = !planAllowed;
+    }
+    if (briefingToggle) {
+      briefingToggle.checked = settings.briefingEnabled !== false;
+      briefingToggle.disabled = !planAllowed;
+    }
+    if (hoursInput) {
+      const mode = String(settings.briefingHoursMode || "auto").toLowerCase();
+      const hours = Array.isArray(settings.briefingHours) ? settings.briefingHours : [];
+      hoursInput.value = mode === "manual" && hours.length ? hours.join(",") : "auto";
+      hoursInput.disabled = !planAllowed;
+      const resolved = Array.isArray(settings.briefingHoursResolved)
+        ? settings.briefingHoursResolved
+        : [];
+      if (hoursHint) {
+        hoursHint.textContent = resolved.length
+          ? t("aiOperator.briefingHoursHintAuto", { hours: resolved.join(",") })
+          : t("aiOperator.briefingHoursHint");
+      }
+    }
+    if (tzInput) {
+      const tz = String(settings.briefingTz || "").trim();
+      tzInput.value = tz || "auto";
+      tzInput.placeholder = String(settings.briefingTzResolved || "Europe/Berlin");
+      tzInput.disabled = !planAllowed;
+    }
+    if (emailInput) {
+      const emailOverride = String(settings.briefingEmail || "").trim();
+      emailInput.value = emailOverride || "auto";
+      emailInput.disabled = !planAllowed;
+      const resolvedEmail = String(settings.briefingEmailResolved || "").trim();
+      if (emailHint) {
+        emailHint.textContent = resolvedEmail
+          ? t("aiOperator.briefingEmailHintAuto", { email: resolvedEmail })
+          : t("aiOperator.briefingEmailHint");
+      }
+    }
+    if (saveBtn) saveBtn.disabled = !planAllowed;
+    if (pulseBtn) pulseBtn.disabled = !planAllowed;
+    if (statusBtn) statusBtn.disabled = !planAllowed;
+    if (auditBtn) auditBtn.disabled = !planAllowed;
+    if (hint) {
+      hint.textContent = planAllowed
+        ? t("aiOperator.hint")
+        : t("aiOperator.planLocked");
+    }
+    if (planAllowed) {
+      void loadAiOperatorStatus();
+      void loadAiOperatorAudit();
+    }
+  } catch {
+    /* keep default checked */
+  }
+  statusBtn?.addEventListener("click", () => {
+    if (!planAllowed) return;
+    void loadAiOperatorStatus();
+  });
+  auditBtn?.addEventListener("click", () => {
+    if (!planAllowed) return;
+    void loadAiOperatorAudit();
+  });
+  pulseBtn?.addEventListener("click", async () => {
+    if (!planAllowed) return;
+    pulseBtn.disabled = true;
+    try {
+      const data = await api(`/api/ai/operator/pulse/dispatch`, {
+        method: "POST",
+        body: JSON.stringify({ company_id: cid, dry_run: true, include_llm: false }),
+      });
+      const body = String(data?.body || "").trim();
+      const urgency = data?.urgency ?? 0;
+      const preview = data?.preview || {};
+      const hours = Array.isArray(preview.hours) ? preview.hours.join(",") : "";
+      const site = preview.sectorTerms?.termSite || "";
+      const meta = [
+        preview.email ? `→ ${preview.email}` : "",
+        preview.lang ? `lang=${preview.lang}` : "",
+        hours ? `${hours}h` : "",
+        preview.tz || "",
+        site ? `sector=${site}` : "",
+      ].filter(Boolean).join(" · ");
+      showActionToast(
+        body
+          ? t("aiOperator.pulsePreviewOk", { urgency })
+          : t("aiOperator.pulsePreviewEmpty"),
+        false
+      );
+      if (hint) {
+        const snippet = body ? body.split("\n").slice(0, 4).join(" · ").slice(0, 160) : "";
+        hint.textContent = [meta, snippet].filter(Boolean).join(" | ").slice(0, 280)
+          || t("aiOperator.pulsePreviewEmpty");
+      }
+    } catch (err) {
+      showActionToast(err?.message || t("common.error"), true);
+    } finally {
+      pulseBtn.disabled = !planAllowed;
+    }
+  });
+  saveBtn?.addEventListener("click", async () => {
+    if (!toggle || !planAllowed) return;
+    saveBtn.disabled = true;
+    try {
+      const enabled = Boolean(toggle.checked);
+      const voiceEnabled = voiceToggle ? Boolean(voiceToggle.checked) : true;
+      const welcomeEnabled = welcomeToggle ? Boolean(welcomeToggle.checked) : true;
+      const briefingEnabled = briefingToggle ? Boolean(briefingToggle.checked) : true;
+      const hoursRaw = String(hoursInput?.value || "auto").trim();
+      const briefingHours = !hoursRaw || /^auto/i.test(hoursRaw) ? "auto" : hoursRaw;
+      const tzRaw = String(tzInput?.value || "").trim();
+      const briefingTz = !tzRaw || /^auto$/i.test(tzRaw) ? "" : tzRaw;
+      const emailRaw = String(emailInput?.value || "").trim();
+      const briefingEmail = !emailRaw || /^auto$/i.test(emailRaw) ? "" : emailRaw;
+      const data = await api(`/api/ai/operator/settings`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: cid,
+          enabled,
+          voiceEnabled,
+          welcomeEnabled,
+          briefingEnabled,
+          briefingHours,
+          briefingTz,
+          briefingEmail,
+        }),
+      });
+      const effective = data?.enabled !== false && enabled;
+      try {
+        localStorage.setItem(`baupass-aio-company-enabled:${cid}`, effective ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      try {
+        if (typeof BroadcastChannel !== "undefined") {
+          new BroadcastChannel("baupass-aio-visibility").postMessage({
+            enabled: effective,
+            companyId: cid,
+            voiceEnabled,
+            welcomeEnabled,
+          });
+        }
+      } catch {
+        /* ignore */
+      }
+      window.dispatchEvent(new CustomEvent(effective ? "baupass-ai-operator-ready" : "baupass-ai-operator-hide"));
+      if (window.BaupassAiOperator?.refresh) window.BaupassAiOperator.refresh();
+      if (hint) hint.textContent = effective ? t("aiOperator.savedOn") : t("aiOperator.savedOff");
+      showActionToast(effective ? t("aiOperator.savedOn") : t("aiOperator.savedOff"), false);
+    } catch (err) {
+      showActionToast(err?.message || t("common.error"), true);
+    } finally {
+      saveBtn.disabled = !planAllowed;
+    }
+  });
 }
 
 async function loadOperations() {
@@ -5718,6 +6109,7 @@ async function loadWorkers() {
           <div class="worker-action-group">
             <button type="button" class="worker-action-btn worker-action-btn-primary" data-deployment-plan="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("deployment.planBtn")}</button>
             <button type="button" class="worker-action-btn worker-action-btn-ghost" data-worker-contracts="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.contracts")}</button>
+            <button type="button" class="worker-action-btn worker-action-btn-ghost" data-worker-write="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.writeDoc")}</button>
             <button type="button" class="worker-action-btn worker-action-btn-ghost" data-join-app="${id}" data-worker-name="${name.replace(/"/g, "&quot;")}">${t("workers.joinQr")}</button>
           </div>
         </td>
@@ -5753,6 +6145,18 @@ async function loadWorkers() {
       const cid = (wpGet(COMPANY_KEY) || "").trim();
       if (cid) url.searchParams.set("company_id", cid);
       if (wid) url.searchParams.set("worker_id", wid);
+      location.href = `${url.pathname}${url.search}`;
+    });
+  });
+  container.querySelectorAll("[data-worker-write]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const wid = btn.getAttribute("data-worker-write");
+      const wname = btn.getAttribute("data-worker-name") || "";
+      const url = new URL("/admin-v2/docs.html", location.origin);
+      const cid = (wpGet(COMPANY_KEY) || "").trim();
+      if (cid) url.searchParams.set("company_id", cid);
+      if (wid) url.searchParams.set("worker_id", wid);
+      if (wname) url.searchParams.set("title", `Schreiben · ${wname}`);
       location.href = `${url.pathname}${url.search}`;
     });
   });
