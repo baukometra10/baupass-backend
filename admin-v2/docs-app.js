@@ -270,6 +270,11 @@
     return ownerUnlock;
   }
 
+  function isContractContext(doc = currentDoc) {
+    if (doc && (doc.contract_id || String(doc.mode || "").toLowerCase() === "contract")) return true;
+    return !!(qs().get("contract_id") || "").trim();
+  }
+
   async function api(path, options = {}) {
     const res = await fetch(path, {
       ...options,
@@ -280,11 +285,16 @@
       const err = new Error(data.message || data.error || `http_${res.status}`);
       err.status = res.status;
       err.body = data;
-      const unlock = getOwnerUnlock();
-      if (unlock) await unlock.handleApiError(err);
+      // Owner-OTP nur bei Arbeitsvertrag / contract-linked docs
+      if (isContractContext(data.document) || err.body?.error === "contracts_locked" || err.body?.ownerSetupRequired) {
+        if (isContractContext() || err.body?.error === "contracts_locked" || err.body?.ownerSetupRequired) {
+          const unlock = getOwnerUnlock();
+          if (unlock) await unlock.handleApiError(err);
+        }
+      }
       throw err;
     }
-    if (data.document && !data.document.bodyRedacted) {
+    if (data.document && isContractContext(data.document) && !data.document.bodyRedacted) {
       getOwnerUnlock()?.markUnlocked(true);
     }
     return data;
@@ -300,8 +310,10 @@
       const err = new Error(data.message || data.error || `http_${res.status}`);
       err.status = res.status;
       err.body = data;
-      const unlock = getOwnerUnlock();
-      if (unlock) await unlock.handleApiError(err);
+      if (isContractContext() || err.body?.error === "contracts_locked" || err.body?.ownerSetupRequired) {
+        const unlock = getOwnerUnlock();
+        if (unlock) await unlock.handleApiError(err);
+      }
       throw err;
     }
     return data;
@@ -5238,6 +5250,13 @@
         back.setAttribute("data-di18n", "backContracts");
       }
     }
+    if (hasContract) {
+      getOwnerUnlock()?.bind();
+      $("docsLockNowBtn")?.classList.remove("hidden");
+    } else {
+      $("docsLockNowBtn")?.classList.add("hidden");
+      $("docsLockOverlay")?.classList.add("hidden");
+    }
   }
 
   async function duplicateDoc() {
@@ -6422,8 +6441,12 @@
     };
 
     const unlock = getOwnerUnlock();
-    unlock?.bind();
+    // Owner-OTP-UI nur bei Vertrags-Kontext binden — normaler Editor ist frei.
+    if (isContractContext()) {
+      unlock?.bind();
+    }
     $("docsLockNowBtn")?.addEventListener("click", async () => {
+      if (!isContractContext()) return;
       try {
         await api("/api/contracts/lock", {
           method: "POST",
@@ -6432,26 +6455,25 @@
         unlock?.markUnlocked(false);
         $("docsLockNowBtn")?.classList.add("hidden");
         unlock?.show({ setup: false, enforced: true });
-        setStatus($("saveStatus"), dt("lockNowToast") || "Dokumentenbereich gesperrt.", "ok");
+        setStatus($("saveStatus"), dt("lockNowToast") || "Vertragsbereich gesperrt.", "ok");
       } catch (e) {
         setStatus($("saveStatus"), e.body?.message || e.message || dt("error"), "err");
       }
     });
 
-    if (currentUserRole() === "turnstile") {
-      setStatus($("saveStatus"), dt("lockTurnstileBlocked") || "Dokumente sind für die Pförtner-Rolle gesperrt.", "err");
+    if (currentUserRole() === "turnstile" && isContractContext()) {
+      setStatus($("saveStatus"), dt("lockTurnstileBlocked") || "Arbeitsverträge sind für die Pförtner-Rolle gesperrt.", "err");
+      unlock?.bind();
       unlock?.show({ setup: false });
       unlock?.setMsg(dt("lockRoleBlocked") || "Nur mit Freigabe des Firmeninhabers — Inhaber wurde informiert.", "warn");
       $("docsLockSendBtn")?.classList.add("hidden");
       $("docsLockVerifyBtn")?.classList.add("hidden");
       $("docsLockSkipBtn")?.classList.remove("hidden");
       if ($("docsLockSkipBtn")) $("docsLockSkipBtn").textContent = dt("lockBackOps") || "Zurück zum Betrieb";
-      // Notify owner on direct page open (hard deny probe).
-      api(`/api/v2/docs${companyQuery()}`).catch(() => {});
       $("docsLockSkipBtn")?.addEventListener(
         "click",
         () => {
-          location.href = "/admin-v2/index.html";
+          location.href = "/admin-v2/docs.html";
         },
         { once: true },
       );
@@ -6470,12 +6492,18 @@
       .then(async () => {
         try {
           const cid = activeCompanyId();
-          if (cid) {
+          if (cid && isContractContext()) {
             const st = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(cid)}`);
             if (st.lockRequired && st.unlocked) {
               unlock?.markUnlocked(true);
               $("docsLockNowBtn")?.classList.remove("hidden");
+            } else if (st.lockRequired && !st.unlocked) {
+              unlock?.bind();
+              unlock?.show({ setup: !!st.ownerSetupRequired, enforced: true });
             }
+          } else {
+            $("docsLockNowBtn")?.classList.add("hidden");
+            $("docsLockOverlay")?.classList.add("hidden");
           }
         } catch {
           /* ignore lock-status probe */

@@ -842,7 +842,10 @@ def _resolve_company_id_for_request(data: dict | None = None) -> str:
 
 
 def is_sensitive_role_blocked(user: dict | None) -> bool:
-    """Pförtner / turnstile must never access docs, contracts, or sensitive exports."""
+    """Pförtner / turnstile must never access contracts or other sensitive surfaces.
+
+    Ordinary Docs editor (non-contract) is intentionally open for turnstile.
+    """
     role = str((user or {}).get("role") or "").strip().lower()
     return role == "turnstile"
 

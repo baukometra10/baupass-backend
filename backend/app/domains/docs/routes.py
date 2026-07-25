@@ -40,6 +40,22 @@ def _resolve_company_id(data: dict | None = None, *, required: bool = True) -> s
     return company_id_from_user(allow_query=True)
 
 
+
+def _payload_is_contract(data: dict | None) -> bool:
+    data = data or {}
+    mode = str(data.get("mode") or "").strip().lower()
+    contract_id = str(data.get("contractId") or data.get("contract_id") or "").strip()
+    return mode == "contract" or bool(contract_id)
+
+
+def _doc_is_contract(doc: dict | None) -> bool:
+    if not doc:
+        return False
+    if str(doc.get("contract_id") or "").strip():
+        return True
+    return str(doc.get("mode") or "").strip().lower() == "contract"
+
+
 def _redact_doc_body(doc: dict | None) -> dict | None:
     """Hide document body when owner step-up is locked (list metadata stays)."""
     if not doc:
@@ -53,7 +69,10 @@ def _redact_doc_body(doc: dict | None) -> dict | None:
     return out
 
 
-def _docs_body_unlocked(db, company_id: str) -> bool:
+def _docs_body_unlocked(db, company_id: str, *, doc: dict | None = None) -> bool:
+    """General docs are always readable; contract-linked docs need owner unlock."""
+    if not _doc_is_contract(doc):
+        return True
     from backend.app.platform.security.contracts_lock import (
         contracts_lock_required,
         is_contracts_unlocked,
@@ -65,6 +84,64 @@ def _docs_body_unlocked(db, company_id: str) -> bool:
     if not contracts_lock_required(db, company_id):
         return True
     return is_contracts_unlocked(db, getattr(g, "token", ""), company_id)
+
+
+def _contract_docs_gate(
+    db,
+    company_id: str,
+    *,
+    doc: dict | None = None,
+    data: dict | None = None,
+    action: str = "contract_doc",
+):
+    """Owner/OTP lock + turnstile deny only for Arbeitsvertrag / contract docs."""
+    if not (_doc_is_contract(doc) or _payload_is_contract(data)):
+        return None
+    from backend.app.platform.security.contracts_lock import (
+        contracts_lock_required,
+        deny_turnstile_sensitive_response,
+        is_contracts_unlocked,
+        is_sensitive_role_blocked,
+        owner_setup_required,
+    )
+
+    user = getattr(g, "current_user", None) or {}
+    if is_sensitive_role_blocked(user):
+        return deny_turnstile_sensitive_response(
+            db, company_id, surface="docs", action=action
+        )
+    if owner_setup_required(db, company_id):
+        return (
+            jsonify(
+                {
+                    "error": "owner_setup_required",
+                    "stepUpRequired": True,
+                    "ownerSetupRequired": True,
+                    "message": (
+                        "Owner-Handynummer muss eingerichtet werden, "
+                        "bevor Arbeitsverträge nutzbar sind."
+                    ),
+                }
+            ),
+            403,
+        )
+    if contracts_lock_required(db, company_id) and not is_contracts_unlocked(
+        db, getattr(g, "token", ""), company_id
+    ):
+        return (
+            jsonify(
+                {
+                    "error": "contracts_locked",
+                    "stepUpRequired": True,
+                    "message": (
+                        "Owner-Freischaltung nötig für Arbeitsverträge. "
+                        "Bitte Code per SMS/E-Mail bestätigen."
+                    ),
+                }
+            ),
+            403,
+        )
+    return None
 
 
 def register_docs_blueprint(flask_app: Flask) -> None:
@@ -80,8 +157,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_docs():
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -92,14 +168,15 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="create")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def create_doc():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        gate = _contract_docs_gate(get_db(), cid, data=data, action="create")
+        if gate:
+            return gate
         doc = _service.create_doc(
             get_db(),
             company_id=cid,
@@ -110,8 +187,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/merge-context")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="merge_context")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def merge_context():
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -125,9 +201,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/fill-merge")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="fill_merge")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def fill_merge():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
@@ -272,9 +346,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/import-docx")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="import")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def import_docx():
         from . import onlyoffice as oo
 
@@ -311,8 +383,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/templates")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="templates_list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_editor_templates():
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -331,9 +402,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/templates")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="templates_create")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def create_editor_template():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
@@ -355,8 +424,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/templates/<template_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="templates_get")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def get_editor_template(template_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -365,7 +433,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         tpl = _service.repo.get_template(db, template_id, cid)
         if not tpl:
             return jsonify({"error": "not_found"}), 404
-        unlocked = _docs_body_unlocked(db, cid)
+        unlocked = _docs_body_unlocked(db, cid, doc=None)
         if not unlocked:
             tpl = dict(tpl)
             tpl["bodyRedacted"] = True
@@ -375,9 +443,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.delete("/docs/templates/<template_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="templates_delete")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def delete_editor_template(template_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -397,9 +463,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/suggest")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="suggest")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def suggest_docs():
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
@@ -416,8 +480,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="get")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def get_doc(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -426,21 +489,26 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         doc = _service.get_doc(db, doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
-        unlocked = _docs_body_unlocked(db, cid)
+        gate = _contract_docs_gate(db, cid, doc=doc, action="get")
+        if gate:
+            return gate
+        unlocked = _docs_body_unlocked(db, cid, doc=doc)
         if not unlocked:
             doc = _redact_doc_body(doc)
         return jsonify({"document": doc, "stepUpRequired": not unlocked})
 
     @docs_v2_bp.put("/docs/<doc_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="update")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def update_doc(doc_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=data, action="update")
+        if gate:
+            return gate
         save_version = str(data.get("saveVersion", data.get("save_version", "1"))).lower() not in {
             "0",
             "false",
@@ -460,13 +528,15 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.delete("/docs/<doc_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="delete")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def delete_doc(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, action="delete")
+        if gate:
+            return gate
         ok = _service.delete_doc(get_db(), doc_id, company_id=cid)
         if not ok:
             return jsonify({"error": "not_found"}), 404
@@ -474,8 +544,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/versions")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="versions_list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_versions(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -487,8 +556,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/versions/<version_id>")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="versions_get")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def get_version(doc_id: str, version_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -497,7 +565,12 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         version = _service.get_version(db, doc_id, version_id, company_id=cid)
         if not version:
             return jsonify({"error": "not_found"}), 404
-        unlocked = _docs_body_unlocked(db, cid)
+        unlocked = True  # version bodies follow parent doc gate via list/get
+        existing = _service.get_doc(db, doc_id, company_id=cid)
+        gate = _contract_docs_gate(db, cid, doc=existing, action="version")
+        if gate:
+            return gate
+        unlocked = _docs_body_unlocked(db, cid, doc=existing)
         if not unlocked:
             version = dict(version)
             version["bodyRedacted"] = True
@@ -509,14 +582,16 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/versions/<version_id>/restore")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="versions_restore")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def restore_version(doc_id: str, version_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=data, action="restore")
+        if gate:
+            return gate
         doc = _service.restore_version(
             get_db(),
             doc_id,
@@ -530,13 +605,15 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/export")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="export")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def export_doc(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="export")
+        if gate:
+            return gate
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
@@ -556,15 +633,17 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/email")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="email")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def email_doc(doc_id: str):
         """Send the document as a PDF attachment via configured SMTP/API mail."""
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="email")
+        if gate:
+            return gate
         to = str(data.get("to") or data.get("email") or "").strip()
         if not to or "@" not in to:
             return jsonify({"error": "email_required"}), 400
@@ -622,8 +701,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/onlyoffice/status")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="onlyoffice_status")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def onlyoffice_status():
         from . import onlyoffice as oo
 
@@ -640,9 +718,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/onlyoffice/config")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="onlyoffice_config")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def onlyoffice_config(doc_id: str):
         from . import onlyoffice as oo
 
@@ -651,6 +727,10 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="onlyoffice")
+        if gate:
+            return gate
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
@@ -736,9 +816,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/share")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="share")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def create_doc_share(doc_id: str):
         from datetime import datetime, timedelta, timezone
 
@@ -750,6 +828,10 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="share")
+        if gate:
+            return gate
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
@@ -793,22 +875,23 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/share/revoke")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="share_revoke")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def revoke_doc_share(doc_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="share_revoke")
+        if gate:
+            return gate
         token = str(data.get("token") or "").strip() or None
         n = _service.repo.revoke_share(get_db(), document_id=doc_id, company_id=cid, token=token)
         return jsonify({"ok": True, "revoked": n})
 
     @docs_v2_bp.get("/docs/<doc_id>/shares")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="shares_list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_doc_shares(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -818,8 +901,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/presence")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="presence")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def upsert_doc_presence(doc_id: str):
         import hashlib
 
@@ -881,8 +963,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/presence")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="presence_list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_doc_presence(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -893,9 +974,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/signatures")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="signature")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def create_doc_signature(doc_id: str):
         import hashlib
         import json as _json
@@ -906,6 +985,10 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="signature")
+        if gate:
+            return gate
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
@@ -977,16 +1060,13 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/signatures/qes/status")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="qes_status")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def qes_status():
         return jsonify({"ok": True, **_qes_config()})
 
     @docs_v2_bp.post("/docs/<doc_id>/signatures/qes/start")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="qes_start")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def qes_start(doc_id: str):
         import hashlib
         import json as _json
@@ -1004,6 +1084,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
+        gate = _contract_docs_gate(get_db(), cid, doc=doc, data=data, action="qes_start")
+        if gate:
+            return gate
         body = str(doc.get("content_html") or "")
         content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
         payload = {
@@ -1089,8 +1172,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.get("/docs/<doc_id>/signatures")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="signatures_list")
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def list_doc_signatures(doc_id: str):
         cid = _resolve_company_id(required=True)
         if not cid:
@@ -1100,14 +1182,16 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/status")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="status")
-    @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
+    @require_roles("superadmin", "company-admin", "turnstile")
     def set_doc_status(doc_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="status")
+        if gate:
+            return gate
         result = _service.set_status(
             get_db(),
             doc_id,
@@ -1123,14 +1207,16 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
     @docs_v2_bp.post("/docs/<doc_id>/publish")
     @require_auth
-    @deny_turnstile_sensitive(surface="docs", action="publish")
     @require_roles("superadmin", "company-admin")
-    @require_owner_step_up
     def publish_doc(doc_id: str):
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        existing = _service.get_doc(get_db(), doc_id, company_id=cid)
+        gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="publish")
+        if gate:
+            return gate
         result = _service.publish_to_worker(
             get_db(),
             doc_id,

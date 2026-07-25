@@ -105,7 +105,8 @@ def _unlock_again(client, headers, company_id: str):
     assert verify.status_code == 200, verify.get_json()
 
 
-def test_turnstile_docs_list_denied_and_notifies(client_and_db, monkeypatch):
+def test_turnstile_docs_editor_allowed_contracts_still_denied(client_and_db, monkeypatch):
+    """Pförtner may use the free docs editor; Arbeitsverträge stay blocked."""
     client, _ = client_and_db
     sa = _superadmin_headers(client)
     cid, creds = _create_company_with_gate(client, sa, "GateDocsDenyCo")
@@ -123,11 +124,29 @@ def test_turnstile_docs_list_denied_and_notifies(client_and_db, monkeypatch):
         fake_notify,
     )
 
-    resp = client.get(f"/api/v2/docs?company_id={cid}", headers=turnstile_headers)
-    assert resp.status_code == 403
-    body = resp.get_json() or {}
-    assert body.get("error") == "sensitive_forbidden"
-    assert body.get("roleBlocked") is True
+    listed = client.get(f"/api/v2/docs?company_id={cid}", headers=turnstile_headers)
+    assert listed.status_code == 200, listed.get_json()
+
+    created = client.post(
+        f"/api/v2/docs?company_id={cid}",
+        headers=turnstile_headers,
+        json={
+            "company_id": cid,
+            "title": "Pforte Notiz",
+            "mode": "general",
+            "contentHtml": "<p>Reparatur</p>",
+        },
+    )
+    assert created.status_code == 201, created.get_json()
+
+    blocked = client.post(
+        f"/api/v2/docs/from-contract?company_id={cid}",
+        headers=turnstile_headers,
+        json={"company_id": cid, "contractId": "ctr-turnstile-block", "text": "AV"},
+    )
+    assert blocked.status_code == 403
+    body = blocked.get_json() or {}
+    assert body.get("error") in {"sensitive_forbidden", "forbidden", "contracts_locked", "owner_setup_required"}
     assert called["n"] >= 1
 
 
@@ -156,13 +175,12 @@ def test_turnstile_contracts_list_denied_and_notifies(client_and_db, monkeypatch
     assert called["n"] >= 1
 
 
-def test_company_admin_docs_share_requires_unlock(client_and_db, monkeypatch):
+def test_general_docs_share_free_without_unlock(client_and_db, monkeypatch):
+    """Ordinary docs editor stays usable without owner OTP; contracts stay gated elsewhere."""
     client, _ = client_and_db
-    # Superadmin bypasses plan gates for contracts OTP; session unlock is shared with docs.
     headers = _superadmin_headers(client)
     cid, _creds = _create_company_with_gate(client, headers, "DocsShareLockCo")
 
-    # Create doc while unlocked (no owner phone yet)
     created = client.post(
         f"/api/v2/docs?company_id={cid}",
         headers=headers,
@@ -170,9 +188,42 @@ def test_company_admin_docs_share_requires_unlock(client_and_db, monkeypatch):
             "company_id": cid,
             "title": "ShareMe",
             "mode": "general",
-            "contentHtml": "<p>Secret</p>",
+            "contentHtml": "<p>Site note</p>",
         },
     )
+    assert created.status_code == 201, created.get_json()
+    doc_id = created.get_json()["document"]["id"]
+
+    _setup_owner_lock(client, headers, cid, monkeypatch)
+
+    # General docs remain free even when contracts lock is active.
+    ok = client.post(
+        f"/api/v2/docs/{doc_id}/share?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "ttlHours": 72},
+    )
+    assert ok.status_code == 200, ok.get_json()
+    assert ok.get_json().get("token")
+
+
+def test_contract_docs_still_require_unlock(client_and_db, monkeypatch):
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    cid, _creds = _create_company_with_gate(client, headers, "DocsContractLockCo")
+
+    created = client.post(
+        f"/api/v2/docs?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "title": "AV",
+            "mode": "contract",
+            "contractId": "ctr-lock-1",
+            "contentHtml": "<p>Vertrag</p>",
+        },
+    )
+    # Creating a contract-linked doc may itself require unlock once lock is set;
+    # create first, then lock, then block update/share.
     assert created.status_code == 201, created.get_json()
     doc_id = created.get_json()["document"]["id"]
 
