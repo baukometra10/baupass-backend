@@ -135,9 +135,13 @@ def register_physical_operations(flask_app) -> None:
             hit = _OVERVIEW_CACHE.get(cache_key)
             if hit and now - hit[0] < _OVERVIEW_TTL_SEC:
                 return jsonify(hit[1])
+        from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
+
+        daily = build_daily_ops_brief(db, cid)
         payload = {
             "physicalOperationsOS": True,
             "companyId": cid,
+            "dailyBrief": daily,
             "layers": {
                 "1_digital_twin": build_digital_twin(db, cid),
                 "2_ai_security": analyze_security(db, cid, persist=False),
@@ -152,6 +156,7 @@ def register_physical_operations(flask_app) -> None:
                 "10_workforce_graph": build_workforce_graph(db, cid),
                 "11_identity": build_identity_hub(db, cid),
                 "12_copilot": _copilot_layer_summary(),
+                "13_daily_brief": daily,
             },
         }
         _OVERVIEW_CACHE[cache_key] = (now, payload)
@@ -219,6 +224,17 @@ def register_physical_operations(flask_app) -> None:
             "configured": copilot_configured(),
             "endpoint": "POST /api/ops-os/copilot",
         }
+
+    @ops_os_bp.get("/ops-os/daily-brief")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_daily_brief():
+        from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_id_required"}), 400
+        return jsonify(build_daily_ops_brief(get_db(), cid))
 
     @ops_os_bp.get("/ops-os/digital-twin")
     @require_auth

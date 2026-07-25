@@ -38,6 +38,15 @@ export const INTEGRATION_WIZARD = {
       { key: "apiKey", label: "API Key", type: "password" },
     ],
   },
+  security_webhook: {
+    title: "Security-Webhook (Teams/Slack)",
+    fields: [
+      { key: "endpoint", label: "Incoming Webhook URL", type: "url", required: true },
+      { key: "apiKey", label: "HMAC Secret (optional)", type: "password" },
+    ],
+    hint: "Für Kamera-Wächter / Security-Inbox. Kein Auto-Polizei-Anruf. Einrichtung auch unter Kamera-Wächter → Einstellungen.",
+    cameraWatchDeepLink: true,
+  },
 };
 
 export function buildConnectPayload(provider, formData) {

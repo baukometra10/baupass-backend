@@ -64,21 +64,51 @@ def copilot_query(db, company_id: str, question: str, role: str = "company-admin
 
 def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
     q = question.lower()
-    if "inside" in q or "on site" in q or "موقع" in q or "داخل" in q:
+    if "inside" in q or "on site" in q or "vor ort" in q or "anwesend" in q or "موقع" in q or "داخل" in q:
         return {"answer": f"{ctx['workersOnSite']} workers currently on site.", "source": "live_access_logs"}
-    if "late" in q or "متأخر" in q:
+    if "late" in q or "spät" in q or "verspät" in q or "متأخر" in q:
         issues = ctx.get("operationalIssues") or ctx.get("siteIntelligence", {}).get("operationalIssues", [])
         return {"answer": issues or "No critical late-shift issues in rules.", "source": "site_intelligence"}
-    if "compliance" in q or "مخاطر" in q or "risk" in q:
+    if (
+        "camera" in q
+        or "kamera" in q
+        or "escalat" in q
+        or "wächter" in q
+        or "watch" in q
+    ):
+        cam = (ctx.get("commandCenter") or {}).get("openCameraEscalations")
+        if cam is None:
+            cam = (ctx.get("digitalTwinSummary") or {}).get("openCameraEscalations")
+        sec = ctx.get("security") or {}
+        n_sec = int(sec.get("openFindings") or len(sec.get("findings") or []) or 0)
+        return {
+            "answer": (
+                f"Camera/security snapshot: open camera escalations≈{cam if cam is not None else 'n/a'}, "
+                f"security findings={n_sec}. Assisted police only — no auto-dial. "
+                "Open /admin-v2/camera-watch.html for details."
+            ),
+            "source": "camera_watch",
+        }
+    if "compliance" in q or "مخاطر" in q or "risk" in q or "security" in q or "sicherheit" in q:
         sec = ctx.get("security", {})
         n = int(sec.get("openFindings") or len(sec.get("findings") or []))
         return {
             "answer": f"{n} security findings; check open alerts.",
             "source": "security_engine",
         }
-    if "emergency" in q or "طوارئ" in q:
+    if "emergency" in q or "notfall" in q or "طوارئ" in q:
         em = ctx.get("activeEmergency")
         if em:
             return {"answer": em.get("summary"), "source": "emergency"}
         return {"answer": "No active emergency.", "source": "emergency"}
+    if "lage" in q or "brief" in q or "übersicht" in q or "overview" in q:
+        sec = ctx.get("security") or {}
+        n = int(sec.get("openFindings") or len(sec.get("findings") or []) or 0)
+        return {
+            "answer": (
+                f"Lage heute: {ctx.get('workersOnSite', 0)} vor Ort, "
+                f"{n} Security-Findings. Details: Daily Brief / Kamera-Wächter / Inbox."
+            ),
+            "source": "ops_overview",
+        }
     return {"answer": None, "source": "needs_llm"}

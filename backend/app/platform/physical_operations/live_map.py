@@ -108,23 +108,91 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     except Exception:
         pass
 
+    cameras: list[dict[str, Any]] = []
+    open_esc_by_cam: dict[str, str] = {}
+    try:
+        from backend.app.platform.physical_operations.camera_escalation import list_escalations
+
+        for e in list_escalations(db, cid, limit=30, status="open") or []:
+            cam_id = str(e.get("cameraId") or "").strip()
+            if cam_id and cam_id not in open_esc_by_cam:
+                open_esc_by_cam[cam_id] = str(e.get("id") or "")
+    except Exception:
+        pass
+    try:
+        from backend.app.platform.physical_operations.camera_registry import list_cameras
+
+        for cam in list_cameras(db, cid) or []:
+            lat = cam.get("latitude")
+            lng = cam.get("longitude")
+            if lat is None or lng is None:
+                # Fall back to site/geofence coords so cameras still appear on the map.
+                coords = resolve_map_coordinates(
+                    db,
+                    cid,
+                    site=str(cam.get("zoneName") or cam.get("siteKey") or cam.get("name") or ""),
+                    seed=str(cam.get("id") or cam.get("name") or "cam"),
+                )
+                if not coords and geofences:
+                    anchor = geofences[0]
+                    coords = resolve_map_coordinates(
+                        db,
+                        cid,
+                        lat=anchor.get("latitude"),
+                        lng=anchor.get("longitude"),
+                        seed=str(cam.get("id") or "cam"),
+                    )
+                if not coords:
+                    continue
+                lat, lng = coords["lat"], coords["lng"]
+            cam_id = str(cam.get("id") or "")
+            esc_id = open_esc_by_cam.get(cam_id) or ""
+            cameras.append(
+                {
+                    "id": cam_id,
+                    "name": cam.get("name") or cam_id or "Kamera",
+                    "zone": cam.get("zoneName") or cam.get("siteKey") or "",
+                    "online": bool(cam.get("online")),
+                    "lat": float(lat),
+                    "lng": float(lng),
+                    "openEscalationId": esc_id or None,
+                    "alert": bool(esc_id),
+                    "href": (
+                        f"/admin-v2/camera-watch.html?company_id={cid}&escalation={esc_id}"
+                        if esc_id
+                        else f"/admin-v2/camera-watch.html?company_id={cid}"
+                    ),
+                }
+            )
+    except Exception:
+        cameras = []
+
     center = None
     if geofences:
         center = {"lat": float(geofences[0]["latitude"]), "lng": float(geofences[0]["longitude"])}
+    elif cameras:
+        center = {"lat": float(cameras[0]["lat"]), "lng": float(cameras[0]["lng"])}
+    elif workers:
+        center = {"lat": float(workers[0]["lat"]), "lng": float(workers[0]["lng"])}
 
     return {
         "companyId": cid,
         "date": today,
         "center": center,
-        "mapConfigured": bool(geofences),
+        "mapConfigured": bool(geofences) or bool(cameras),
         "geofences": geofences,
         "workersOnSite": workers,
         "gates": gates,
+        "cameras": cameras,
         "openSecurityAlerts": len(alerts),
+        "openCameraEscalations": len(open_esc_by_cam),
         "alerts": alerts,
+        "autoDial": False,
         "counts": {
             "zones": len(geofences),
             "onSite": len(workers),
             "gates": len(gates),
+            "cameras": len(cameras),
+            "cameraAlerts": sum(1 for c in cameras if c.get("alert")),
         },
     }

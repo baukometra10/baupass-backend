@@ -237,10 +237,18 @@
         </div>
 
         <details class="cw-acc" open>
-          <summary>Webhook-Onboarding (Teams / Slack)</summary>
-          <p class="muted" style="margin:0.35rem 0;font-size:0.78rem">
-            Incoming-Webhook-URL einfügen, optional Secret. Header <code>X-WorkPass-Signature</code>. Kein Auto-Notruf.
-          </p>
+          <summary>Webhook-Wizard (Teams / Slack / Wachdienst)</summary>
+          <ol class="muted" style="margin:0.35rem 0 0.55rem;padding-left:1.2rem;font-size:0.78rem;line-height:1.45">
+            <li>Incoming-Webhook in Teams/Slack erstellen (URL kopieren).</li>
+            <li>URL unten in „Security-Webhook (Firma)“ einfügen — optional Secret.</li>
+            <li>Firma speichern → „Test-Webhook“ — Payload enthält <code>autoDial:false</code>.</li>
+          </ol>
+          <div class="cw-actions" style="margin-bottom:0.45rem">
+            <button type="button" class="ghost" id="cwWebhookPresetTeams">Teams-Hinweis</button>
+            <button type="button" class="ghost" id="cwWebhookPresetSlack">Slack-Hinweis</button>
+            <button type="button" class="primary" id="cwTestWebhookInline">Test-Webhook</button>
+          </div>
+          <p id="cwWebhookWizardHint" class="muted" style="margin:0 0 0.45rem;font-size:0.75rem"></p>
           <pre id="cwWebhookCurl" class="muted" style="margin:0;font-size:0.68rem;white-space:pre-wrap;overflow:auto"></pre>
         </details>
 

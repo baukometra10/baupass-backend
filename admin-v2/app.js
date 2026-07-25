@@ -3219,7 +3219,7 @@ async function fetchBillingOverviewCached(cid) {
   return data;
 }
 
-function renderBillingSummaryHtml(overview) {
+function renderBillingSummaryHtml(overview, usage) {
   if (!overview) return "";
   const workers = overview.workers || {};
   const openInv = overview.openInvoices || {};
@@ -3229,6 +3229,17 @@ function renderBillingSummaryHtml(overview) {
   const subStatus = String(stripe.subscriptionStatus || overview.status || "").trim() || "—";
   const stripeOk = !!stripe.configured;
   const openCount = Number(openInv.count || 0);
+  const activeWorkers = Number(workers.active ?? workers.workerCount ?? 0);
+  const totalNet = Number(workers.totalNetEur);
+  const perWorker =
+    Number.isFinite(totalNet) && activeWorkers > 0 ? formatEur(totalNet / activeWorkers) : "—";
+  const usageBlock = usage
+    ? `<p class="muted small" style="margin:0.25rem 0 0.65rem">${t("billing.usageLine", {
+        activeUsers: usage.activeUsers ?? usage.active_users ?? 0,
+        checkIns: usage.attendanceCheckIns ?? usage.attendance ?? 0,
+        period: usage.period === "week" ? t("billing.usageWeek") : t("billing.usageDay"),
+      })} · <button type="button" class="btn-link" data-goto-tab="analytics">${t("billing.openUsage")}</button></p>`
+    : `<p class="muted small" style="margin:0.25rem 0 0.65rem"><button type="button" class="btn-link" data-goto-tab="analytics">${t("billing.openUsage")}</button></p>`;
   return `
     <div class="panel-block">
       <h3>${t("billing.title")}</h3>
@@ -3236,14 +3247,16 @@ function renderBillingSummaryHtml(overview) {
       <div class="billing-summary-grid">
         <div class="metric"><span>${t("billing.plan")}</span><strong>${escapeHtml(planLabel)}</strong></div>
         <div class="metric"><span>${t("billing.monthlyNet")}</span><strong>${formatEur(workers.totalNetEur)}</strong></div>
-        <div class="metric"><span>${t("billing.workers")}</span><strong>${workers.active ?? workers.workerCount ?? 0}</strong></div>
+        <div class="metric"><span>${t("billing.workers")}</span><strong>${activeWorkers}</strong></div>
+        <div class="metric"><span>${t("billing.perWorker")}</span><strong>${perWorker}</strong></div>
         <div class="metric"><span>${t("billing.openInvoices")}</span><strong style="color:${openCount > 0 ? "#fbbf24" : "inherit"}">${openCount} · ${formatEur(openInv.totalEur)}</strong></div>
       </div>
-      <p class="muted small" style="margin:0.35rem 0 0.75rem">
+      <p class="muted small" style="margin:0.35rem 0 0">
         ${t("billing.status")}: <strong>${escapeHtml(subStatus)}</strong>
         · Stripe: ${stripeOk ? `<span class="integration-status-pill is-ok">${t("billing.stripeOn")}</span>` : `<span class="integration-status-pill is-off">${t("billing.stripeOff")}</span>`}
         ${trial.isTrialing ? ` · <span class="integration-status-pill is-warn">${t("billing.trialing")}</span>` : ""}
       </p>
+      ${usageBlock}
       <div id="billingInvoicesTable" class="table-wrap billing-invoices-table"></div>
       <button type="button" class="ghost" data-goto-tab="billing">${t("billing.openInvoicesUi")}</button>
     </div>`;
@@ -3307,12 +3320,17 @@ async function loadBillingSummaryPanel(cid) {
   }
   panel.classList.remove("hidden");
   panel.innerHTML = `<div class="panel-block"><p class="muted small">${t("common.loading")}</p></div>`;
-  const overview = await fetchBillingOverviewCached(cid);
+  const qs = cid && getUser().role === "superadmin" ? `?company_id=${encodeURIComponent(cid)}` : "";
+  const usageQs = qs ? `${qs}&period=day` : "?period=day";
+  const [overview, usage] = await Promise.all([
+    fetchBillingOverviewCached(cid),
+    api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
+  ]);
   if (!overview) {
     panel.innerHTML = `<div class="panel-block">${emptyStateHtml(t("billing.title"), t("billing.loadError"))}</div>`;
     return;
   }
-  panel.innerHTML = renderBillingSummaryHtml(overview);
+  panel.innerHTML = renderBillingSummaryHtml(overview, usage);
   bindLegacyDashboardLinks(panel);
   panel.querySelectorAll("[data-goto-tab]").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -3320,7 +3338,6 @@ async function loadBillingSummaryPanel(cid) {
       await refreshActiveTab().catch(notifyTabError);
     });
   });
-  const qs = cid && getUser().role === "superadmin" ? `?company_id=${encodeURIComponent(cid)}` : "";
   const invoices = await api(`/api/invoices${qs}`).catch(() => []);
   const tableHost = panel.querySelector("#billingInvoicesTable");
   if (tableHost) {
@@ -3442,15 +3459,30 @@ async function loadBillingTab() {
     createPanel.classList.toggle("hidden", getUser().role !== "superadmin" || !cid);
   }
 
-    if (summaryHost) {
+  if (summaryHost) {
     summaryHost.innerHTML = `<p class="muted small">${t("common.loading")}</p>`;
-    const overview = await fetchBillingOverviewCached(cid).catch(() => null);
+    const usageQs =
+      cid && getUser().role === "superadmin"
+        ? `?company_id=${encodeURIComponent(cid)}&period=day`
+        : "?period=day";
+    const [overview, usage] = await Promise.all([
+      fetchBillingOverviewCached(cid).catch(() => null),
+      api(`/api/v2/admin/usage-stats${usageQs}`).catch(() => null),
+    ]);
     if (!overview) {
       summaryHost.innerHTML = emptyStateHtml(t("billing.title"), t("billing.loadError"));
     } else {
-      summaryHost.innerHTML = renderBillingSummaryHtml(overview);
+      summaryHost.innerHTML = renderBillingSummaryHtml(overview, usage);
       // Inside the billing tab, drop the nested "open invoices" CTA / legacy links.
-      summaryHost.querySelectorAll("[data-goto-tab], [data-legacy-dashboard], #billingInvoicesTable").forEach((el) => el.remove());
+      summaryHost
+        .querySelectorAll("[data-goto-tab='billing'], [data-legacy-dashboard], #billingInvoicesTable")
+        .forEach((el) => el.remove());
+      summaryHost.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          switchToTab(btn.getAttribute("data-goto-tab"));
+          await refreshActiveTab().catch(notifyTabError);
+        });
+      });
     }
   }
 
@@ -4113,6 +4145,7 @@ async function loadTools() {
       { id: "microsoft365", label: "Microsoft 365" },
       { id: "google_workspace", label: "Google Workspace" },
       { id: "payroll", label: "Payroll" },
+      { id: "security_webhook", label: t("tools.securityWebhook") || "Security-Webhook" },
     ];
     panel.innerHTML = `
       ${channelsBar}
@@ -4265,6 +4298,12 @@ async function loadTools() {
         pendingIntegrationProvider = btn.getAttribute("data-connect");
         const spec = INTEGRATION_WIZARD[pendingIntegrationProvider];
         if (!spec) return;
+        if (spec.cameraWatchDeepLink) {
+          const href = `/admin-v2/camera-watch.html${q}#settings`;
+          window.open(href, "_blank", "noopener");
+          showActionToast(t("tools.securityWebhookHint") || spec.hint || "");
+          return;
+        }
         $("integrationModalTitle").textContent = spec.title;
         renderWizardForm(pendingIntegrationProvider, $("integrationWizardForm"));
         $("integrationModal").classList.remove("hidden");
@@ -5631,6 +5670,9 @@ async function loadOverview() {
       : Promise.resolve(null),
     api(`/api/operations/snapshot${q}`).catch(() => null),
     api(`/api/integrations/cameras${q}`).catch(() => ({ cameras: [] })),
+    cid
+      ? api(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`).catch(() => null)
+      : Promise.resolve(null),
   ]);
   const overview = await overviewP;
   const wfEarly = overview.workforce || {};
@@ -5642,7 +5684,7 @@ async function loadOverview() {
       <span class="muted">${t("overview.inbox")}</span><strong>…</strong>
       <small class="muted">${t("overview.inboxHint")}</small>
     </button>`;
-  const [inbox, roleDash, opsBrief, opsSnap, cameras] = await secondaryP;
+  const [inbox, roleDash, opsBrief, opsSnap, cameras, dailyBrief] = await secondaryP;
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
   const dashWidgets = (roleDash?.widgets || []).filter((w) => w.id !== "on_site");
@@ -5769,12 +5811,18 @@ async function loadOverview() {
     const watchActive = !!watch.watchModeActive;
     const watchEnabled = watch.enabled !== false && watch.watchEnabled !== false;
     const camLayer = opsBrief?.layers?.["6_camera_ai"] || {};
-    const openEsc = Number(camLayer.openEscalations || 0);
-    const onSite = opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
-    const checkIns = opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
-    const securityOpen = (sec.openAlerts || []).length;
+    const att = dailyBrief?.attendance || {};
+    const secBrief = dailyBrief?.security || {};
+    const openEsc = Number(secBrief.openCameraEscalations ?? camLayer.openEscalations ?? 0);
+    const onSite = att.onSite ?? opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
+    const checkIns = att.checkInsToday ?? opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
+    const lateToday = Number(att.lateToday || 0);
+    const outsideToday = Number(att.outsideHoursAttemptsToday || 0);
+    const securityOpen = Number(
+      secBrief.totalOpen ?? (sec.openAlerts || []).length + openEsc,
+    );
     const aiPrompt = encodeURIComponent(
-      "Fasse die aktuelle Lage zusammen: Anwesenheit, Sicherheitsalerts, offene Aufgaben und Kameras.",
+      "Fasse die aktuelle Lage zusammen: Anwesenheit (Spät/außerhalb), Sicherheitsalerts, Kameras und offene Aufgaben.",
     );
     lage.classList.remove("hidden");
     const liveBadge = window.__adminRealtimeLive
@@ -5785,6 +5833,23 @@ async function loadOverview() {
       : watchEnabled
         ? `<span class="badge">${t("lage.watchStandby")}</span>`
         : `<span class="badge">${t("lage.watchOff")}</span>`;
+    const lateList = (att.lateWorkers || [])
+      .slice(0, 4)
+      .map(
+        (w) =>
+          `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong> · ${escapeHtml(w.time || "—")} · ${escapeHtml(w.gate || "—")}</li>`,
+      )
+      .join("");
+    const secItems = (secBrief.items || [])
+      .slice(0, 4)
+      .map((it) => {
+        const label = escapeHtml(it.title || it.id || "—");
+        const href = it.href
+          ? `<a href="${escapeAttr(it.href)}">${label}</a>`
+          : label;
+        return `<li>${href} <span class="muted">· ${escapeHtml(it.source || "")}</span></li>`;
+      })
+      .join("");
     const escHtml = (camLayer.latestEscalations || [])
       .slice(0, 2)
       .map((e) => {
@@ -5803,22 +5868,43 @@ async function loadOverview() {
       <div class="lage-grid">
         <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
         <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.lateToday")}</span><strong>${lateToday}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.outsideHours")}</span><strong>${outsideToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.watchMode")}</span><strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></div>
         <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
+        <strong>${t("lage.attendanceTitle")}</strong>
+        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.attendanceHint")}</p>
+        ${lateList ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${lateList}</ul>` : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.attendanceEmpty")}</p>`}
+        <p style="margin:0.45rem 0 0">
+          <button type="button" class="btn-link" data-goto-tab="access">${t("lage.openAccess")}</button>
+          · <button type="button" class="btn-link" data-goto-tab="inbox">${t("lage.openInboxSecurity")}</button>
+        </p>
+      </div>
+      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
+        <strong>${t("lage.securityTitle")}</strong>
+        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.securityHint")} · ${t("lage.watchNoAutodial")}</p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchEscalations")}: <strong>${openEsc}</strong>
+          · ${t("lage.securityEngineOpen")}: <strong>${Number(secBrief.openSecurityAlerts || 0)}</strong></p>
+        ${secItems ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${secItems}</ul>` : ""}
+        ${escHtml ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${escHtml}</ul>` : ""}
+        <p style="margin:0.45rem 0 0">
+          <a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>
+          · <button type="button" class="btn-link" data-goto-tab="inbox">${t("overview.inbox")}</button>
+        </p>
+      </div>
+      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
         <strong>${t("lage.watchTitle")}</strong>
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchEscalations")}: <strong>${openEsc}</strong> · ${t("lage.watchNoAutodial")}</p>
-        ${escHtml ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${escHtml}</ul>` : ""}
-        <p style="margin:0.45rem 0 0"><a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a></p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchMode")}: <strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></p>
       </div>
       <div class="lage-actions">
         <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
         <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("lage.openCommand")}</a>
         <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
+        <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
         <button type="button" class="ghost" data-goto-tab="access">${t("lage.openAccess")}</button>
         <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.inbox")}</button>
       </div>
@@ -5827,8 +5913,10 @@ async function loadOverview() {
       btn.addEventListener("click", async () => {
         const tab = btn.getAttribute("data-goto-tab");
         switchToTab(tab);
-        if (tab === "inbox") await loadInbox();
-        else if (tab === "access") await loadAccess();
+        if (tab === "inbox") {
+          inboxSourceFilter = "security";
+          await loadInbox();
+        } else if (tab === "access") await loadAccess();
       });
     });
     lage.querySelectorAll(".camera-esc-ack").forEach((btn) => {
@@ -6514,6 +6602,27 @@ async function loadCopilot() {
   const answerEl = $("copilotAnswer");
   if (!answerEl) return;
   answerEl.textContent = t("section.copilot.idle");
+  const host = $("copilotQuickActions");
+  if (!host) return;
+  const actions = [
+    { id: "lage", label: t("copilot.actionLage"), q: t("copilot.promptLage") },
+    { id: "late", label: t("copilot.actionLate"), q: t("copilot.promptLate") },
+    { id: "security", label: t("copilot.actionSecurity"), q: t("copilot.promptSecurity") },
+    { id: "camera", label: t("copilot.actionCamera"), q: t("copilot.promptCamera") },
+  ];
+  host.innerHTML = actions
+    .map(
+      (a) =>
+        `<button type="button" class="inbox-filter-chip" data-copilot-q="${escapeAttr(a.q)}">${escapeHtml(a.label)}</button>`,
+    )
+    .join("");
+  host.querySelectorAll("[data-copilot-q]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const ta = $("copilotQuestion");
+      if (ta) ta.value = btn.getAttribute("data-copilot-q") || "";
+      $("copilotForm")?.requestSubmit?.();
+    });
+  });
 }
 
 $("copilotForm")?.addEventListener("submit", async (e) => {

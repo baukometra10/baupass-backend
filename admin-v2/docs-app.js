@@ -5122,6 +5122,26 @@
       else if (st === "approved") hint.textContent = dt("workflowHintApproved");
       else if (st === "archived") hint.textContent = dt("workflowHintArchived");
     }
+    const nextHint = $("approvalNextHint");
+    if (nextHint) {
+      if (st === "draft") {
+        nextHint.hidden = false;
+        nextHint.textContent = dt("approvalNextDraft");
+      } else if (st === "in_review") {
+        nextHint.hidden = false;
+        nextHint.textContent = dt("approvalNextReview");
+      } else if (st === "approved") {
+        nextHint.hidden = false;
+        nextHint.textContent = dt("approvalNextApproved");
+      } else if (st === "archived") {
+        nextHint.hidden = false;
+        nextHint.textContent = dt("approvalNextArchived");
+      } else {
+        nextHint.hidden = true;
+        nextHint.textContent = "";
+      }
+    }
+    renderArchiveLinks(st);
     const locked = st === "approved" || st === "archived";
     document.body.classList.toggle("docs-workflow-locked", locked);
     if (quill) {
@@ -5133,6 +5153,43 @@
     }
     $("docHeader")?.setAttribute("contenteditable", locked ? "false" : "true");
     $("docFooter")?.setAttribute("contenteditable", locked ? "false" : "true");
+  }
+
+  function renderArchiveLinks(status) {
+    const host = $("archiveLinks");
+    if (!host) return;
+    const st = String(status || "").toLowerCase();
+    const cid = activeCompanyId() || "";
+    const wid =
+      selectedWorkerId ||
+      ($("workerSelect")?.value || "").trim() ||
+      currentDoc?.worker_id ||
+      "";
+    const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+    const links = [];
+    if (st === "approved" || st === "archived") {
+      links.push(
+        `<a href="/admin-v2/docs.html${q}${q ? "&" : "?"}status=archived">${escapeHtml(dt("archiveLinkDocs"))}</a>`,
+      );
+      if (wid) {
+        links.push(
+          `<a href="/admin-v2/index.html${q}${q ? "&" : "?"}tab=workers&worker_id=${encodeURIComponent(wid)}">${escapeHtml(dt("archiveLinkWorker"))}</a>`,
+        );
+      }
+      if (currentDoc?.contract_id || currentDoc?.contractId) {
+        const contractId = currentDoc.contract_id || currentDoc.contractId;
+        links.push(
+          `<a href="/admin-v2/contracts.html${q}${q ? "&" : "?"}id=${encodeURIComponent(contractId)}">${escapeHtml(dt("archiveLinkContract"))}</a>`,
+        );
+      }
+    }
+    if (!links.length) {
+      host.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
+    host.hidden = false;
+    host.innerHTML = `<strong>${escapeHtml(dt("archiveLinksTitle"))}</strong>${links.join("")}`;
   }
 
   async function setDocStatus(status) {
@@ -5206,6 +5263,12 @@
         dt("published", { id: String(data.workerDocumentId || "").slice(0, 10) }),
         "ok",
       );
+      renderArchiveLinks(currentDoc?.status || "archived");
+      const nextHint = $("approvalNextHint");
+      if (nextHint) {
+        nextHint.hidden = false;
+        nextHint.textContent = dt("approvalNextArchived");
+      }
       await refreshList(currentDoc?.id);
       await refreshVersions();
     } catch (e) {
@@ -6723,6 +6786,11 @@
     window.initDocsPageLangSync?.();
     renderTemplateGallery();
     selectedWorkerId = (qs().get("worker_id") || "").trim();
+    const statusFromUrl = (qs().get("status") || "").trim().toLowerCase();
+    if (["draft", "in_review", "approved", "archived"].includes(statusFromUrl)) {
+      statusFilter = statusFromUrl;
+      renderStatusFilters();
+    }
     loadMergeContext()
       .then(() => bootstrapFromQuery())
       .then(async () => {

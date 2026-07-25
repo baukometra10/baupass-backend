@@ -768,6 +768,8 @@
                 <button type="button" class="cmd quiet block" id="workflowUnlockBtn" hidden data-di18n="workflowUnlock">Weiter bearbeiten</button>
               </div>
               <p class="rail-note" id="workflowHint" data-di18n="workflowHintDraft">Noch Entwurf — nach Prüfung freigeben.</p>
+              <p class="rail-note" id="approvalNextHint" hidden></p>
+              <div id="archiveLinks" class="rail-note" hidden style="display:flex;flex-direction:column;gap:0.25rem"></div>
             </div>
             <label class="field sr-only">
               <span data-di18n="status">Status</span>
@@ -779,6 +781,7 @@
               </select>
             </label>
             <button type="button" class="cmd accent block" id="publishBtn" data-di18n="publish">An Mitarbeiter senden</button>
+            <p class="rail-note" id="publishArchiveHint" data-di18n="publishArchiveHint">Nach Freigabe → MA landet das PDF im Mitarbeiter-Archiv.</p>
           </div>
         </section>
 

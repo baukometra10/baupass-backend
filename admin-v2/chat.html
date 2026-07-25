@@ -5383,6 +5383,17 @@
       await loadThreads();
       startThreadListPolling();
 
+      // Deep-link: ?worker_id=… / ?thread_id=… (from Lagebild, push, Desktop)
+      const deepWorker = String(params.get("worker_id") || params.get("workerId") || "").trim();
+      const deepThread = String(params.get("thread_id") || params.get("threadId") || "").trim();
+      if (deepWorker) {
+        try {
+          await openThread(deepThread, deepWorker);
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+
       deferWork(async () => {
         await window.E2ECrypto?.ensureCryptoSessionReady?.();
         await ensureAdminE2EIdentity();

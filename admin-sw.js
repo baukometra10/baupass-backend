@@ -76,15 +76,32 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/admin-v2/chat.html";
+  const data = (event.notification && event.notification.data) || {};
+  const targetUrl = data.url || "/admin-v2/chat.html";
   const absoluteUrl = new URL(targetUrl, self.location.origin).href;
+  const isChatTarget = /\/admin-v2\/chat\.html/i.test(absoluteUrl);
+  const isCameraTarget = /\/admin-v2\/camera-watch\.html/i.test(absoluteUrl);
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (windowClients) => {
       for (const client of windowClients) {
-        if (client.url.includes("/admin-v2/")) {
+        const samePath =
+          (isChatTarget && /\/admin-v2\/chat\.html/i.test(client.url)) ||
+          (isCameraTarget && /\/admin-v2\/camera-watch\.html/i.test(client.url));
+        if (samePath || (!isChatTarget && !isCameraTarget && client.url.includes("/admin-v2/"))) {
           if ("focus" in client) await client.focus();
-          client.postMessage({ type: "NAVIGATE_ADMIN_CHAT", url: absoluteUrl });
-          return;
+          if (isChatTarget) {
+            client.postMessage({ type: "NAVIGATE_ADMIN_CHAT", url: absoluteUrl });
+          } else if (isCameraTarget) {
+            client.postMessage({ type: "NAVIGATE_ADMIN_CAMERA", url: absoluteUrl });
+            try {
+              if (typeof client.navigate === "function") await client.navigate(absoluteUrl);
+            } catch (_e) {
+              /* navigate may be unsupported — openWindow below */
+            }
+          } else {
+            client.postMessage({ type: "NAVIGATE_ADMIN", url: absoluteUrl });
+          }
+          if (samePath || isChatTarget) return;
         }
       }
       if (clients.openWindow) return clients.openWindow(absoluteUrl);

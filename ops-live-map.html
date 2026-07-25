@@ -64,6 +64,8 @@
       display: block;
     }
     .ops-map-pin-worker { color: #5eead4; }
+    .ops-map-pin-camera { color: #a78bfa; }
+    .ops-map-pin-camera-alert { color: #f87171; }
     .ops-map-pin-geofence { color: #38bdf8; }
     .ops-map-pin-gate { color: #fbbf24; }
     .ops-map-pin-label {
@@ -138,6 +140,7 @@
       <div class="legend-row"><span class="legend-pin ops-map-pin-worker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendOnSite">Auf Baustelle</span></div>
       <div class="legend-row"><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendGeofence">Geofence</span></div>
       <div class="legend-row"><span class="legend-pin ops-map-pin-gate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendGate">Gate (heute)</span></div>
+      <div class="legend-row"><span class="legend-pin ops-map-pin-camera"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendCamera">Kameras</span></div>
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
@@ -156,7 +159,7 @@
 
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
-    let map, layers = { zones: [], workers: [], gates: [] };
+    let map, layers = { zones: [], workers: [], gates: [], cameras: [] };
 
     async function api(path) {
       const headers = window.BaupassAuth
@@ -205,7 +208,8 @@
       const marker = L.marker([lat, lng], {
         icon: mapPinIcon(kind, label),
         title: label || "",
-        zIndexOffset: kind === "worker" ? 300 : kind === "gate" ? 200 : 100,
+        zIndexOffset:
+          kind === "camera-alert" ? 400 : kind === "worker" ? 300 : kind === "camera" ? 250 : kind === "gate" ? 200 : 100,
       }).addTo(map);
       if (popupHtml) marker.bindPopup(popupHtml);
       return marker;
@@ -222,7 +226,9 @@
       clearLayers("zones");
       clearLayers("workers");
       clearLayers("gates");
+      clearLayers("cameras");
       const bounds = [];
+      const cid = companyId || data.companyId || "";
       (data.geofences || []).forEach((z) => {
         if (z.latitude == null) return;
         const circle = L.circle([z.latitude, z.longitude], {
@@ -246,9 +252,13 @@
       });
       (data.workersOnSite || []).forEach((w) => {
         const label = w.name || "MA";
+        const chatHref = cid && w.id
+          ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(w.id)}`
+          : "";
         const popup =
           `<b>${escapeHtml(w.name)}</b><br>${escapeHtml(w.site || "")}` +
-          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>`;
+          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>` +
+          (chatHref ? `<br><a href="${chatHref}" target="_blank" rel="noopener">${escapeHtml(window.opsMapT("openChat"))}</a>` : "");
         const m = addPinMarker(w.lat, w.lng, "worker", label, popup);
         layers.workers.push(m);
         bounds.push([w.lat, w.lng]);
@@ -259,18 +269,51 @@
         layers.gates.push(m);
         bounds.push([g.lat, g.lng]);
       });
+      (data.cameras || []).forEach((cam) => {
+        const label = cam.name || "Kamera";
+        const kind = cam.alert ? "camera-alert" : "camera";
+        const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
+        const popup =
+          `<b>${escapeHtml(label)}</b><br>${escapeHtml(cam.zone || "")}` +
+          `<br>${cam.alert ? escapeHtml(window.opsMapT("cameraAlert")) : escapeHtml(window.opsMapT("cameraOk"))}` +
+          `<br><a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(window.opsMapT("openCameraWatch"))}</a>` +
+          `<br><small>${escapeHtml(window.opsMapT("noAutodial"))}</small>`;
+        const m = addPinMarker(cam.lat, cam.lng, kind, label, popup);
+        layers.cameras.push(m);
+        bounds.push([cam.lat, cam.lng]);
+      });
       if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
       document.getElementById("status").textContent =
         window.opsMapT("statusLine", {
           onSite: data.counts?.onSite ?? 0,
           zones: data.counts?.zones ?? 0,
           security: data.openSecurityAlerts ?? 0,
+          cameras: data.counts?.cameras ?? 0,
+          cameraAlerts: data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0,
         });
       const list = document.getElementById("workerList");
-      list.innerHTML = `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
-        (data.workersOnSite || []).map((w) =>
-          `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}"><strong>${w.name}</strong><br><span style="color:#94a3b8">${w.site||""} · ${w.gate||""}</span></div>`
-        ).join("") || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`;
+      const workerRows = (data.workersOnSite || []).map((w) => {
+        const chatHref = cid && w.id
+          ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(w.id)}`
+          : "";
+        return `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}">
+          <strong>${escapeHtml(w.name || "")}</strong><br>
+          <span style="color:#94a3b8">${escapeHtml(w.site || "")} · ${escapeHtml(w.gate || "")}</span>
+          ${chatHref ? `<br><a class="btn-link" href="${chatHref}" onclick="event.stopPropagation()">${escapeHtml(window.opsMapT("openChat"))}</a>` : ""}
+        </div>`;
+      }).join("");
+      const camRows = (data.cameras || []).map((cam) =>
+        `<div class="worker-row" data-lat="${cam.lat}" data-lng="${cam.lng}">
+          <strong>${escapeHtml(cam.name || "Kamera")}</strong>${cam.alert ? " · ⚠" : ""}<br>
+          <span style="color:#94a3b8">${escapeHtml(cam.zone || "")}</span>
+          <br><a class="btn-link" href="${escapeHtml(cam.href || "#")}" onclick="event.stopPropagation()">${escapeHtml(window.opsMapT("openCameraWatch"))}</a>
+        </div>`
+      ).join("");
+      list.innerHTML =
+        `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
+        (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
+        `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
+        (camRows || `<p style='padding:0.65rem;color:#94a3b8'>${window.opsMapT("noCameras")}</p>`);
       list.querySelectorAll(".worker-row").forEach((row) => {
         row.onclick = () => map.setView([+row.dataset.lat, +row.dataset.lng], 17);
       });

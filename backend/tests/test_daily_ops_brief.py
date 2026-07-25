@@ -1,0 +1,147 @@
+"""Daily ops brief + inbox camera escalations (Phase 1)."""
+from __future__ import annotations
+
+import json
+from datetime import date
+from pathlib import Path
+
+import sqlite3
+
+
+def _superadmin_headers(client):
+    resp = client.post(
+        "/api/login",
+        json={"username": "superadmin", "password": "1234", "loginScope": "server-admin"},
+    )
+    assert resp.status_code == 200
+    return {"Authorization": f"Bearer {resp.get_json()['token']}"}
+
+
+def _create_company(client, headers, name: str) -> str:
+    response = client.post(
+        "/api/companies",
+        json={
+            "name": name,
+            "contact": "x",
+            "adminPassword": "1234",
+            "turnstilePassword": "1234",
+            "turnstileCount": 0,
+        },
+        headers=headers,
+    )
+    assert response.status_code in (200, 201)
+    payload = response.get_json() or {}
+    company = payload.get("company") or {}
+    return str(company.get("id") or payload.get("id") or "")
+
+
+def _open_db(db_path: Path):
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def test_daily_brief_requires_auth(client_and_db):
+    client, _db_path = client_and_db
+    r = client.get("/api/ops-os/daily-brief")
+    assert r.status_code in (401, 403)
+
+
+def test_daily_brief_attendance_and_security(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "DailyBriefCo")
+    assert cid
+
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Anna",
+            "lastName": "Muster",
+            "insuranceNumber": "INS-BRIEF-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-BRIEF-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    body_w = created.get_json() or {}
+    wid = str(body_w.get("id") or (body_w.get("worker") or {}).get("id") or "")
+    assert wid
+
+    today = date.today().isoformat()
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            """
+            INSERT INTO access_logs (id, worker_id, direction, gate, note, timestamp, checked_in_late)
+            VALUES (?, ?, 'check-in', 'Tor A', '', ?, 1)
+            """,
+            ("al-brief-1", wid, f"{today}T08:45:00"),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert r.status_code == 200
+    body = r.get_json() or {}
+    assert body.get("ok") is True
+    assert body.get("autoDial") is False
+    att = body.get("attendance") or {}
+    assert int(att.get("lateToday") or 0) >= 1
+    names = [str(w.get("name") or "") for w in (att.get("lateWorkers") or [])]
+    assert any("Anna" in n for n in names)
+    sec = body.get("security") or {}
+    assert "openCameraEscalations" in sec
+    assert sec.get("autoDial") is False
+
+
+def test_overview_includes_daily_brief(client_and_db):
+    client, _db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "OverviewBriefCo")
+    r = client.get(f"/api/ops-os/overview?company_id={cid}&refresh=1", headers=headers)
+    assert r.status_code == 200
+    body = r.get_json() or {}
+    assert "dailyBrief" in body
+    assert body["layers"].get("13_daily_brief")
+
+
+def test_inbox_includes_camera_escalation_items(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "InboxCamEscCo")
+    eid = "esc-inbox-1"
+    details = json.dumps({"cameraName": "Hof Nord"}, ensure_ascii=False)
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            """
+            INSERT INTO camera_escalations (
+              id, company_id, event_id, camera_id, severity, status,
+              police_name, police_address, police_phone, police_country, police_city,
+              snapshot_b64, details_json, created_at
+            ) VALUES (?, ?, 'ev-1', 'cam-1', 'critical', 'open',
+                      '', '', '', '', '', '', ?, datetime('now'))
+            """,
+            (eid, cid, details),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.get(f"/api/inbox?company_id={cid}&source=security", headers=headers)
+    assert r.status_code == 200
+    items = (r.get_json() or {}).get("items") or []
+    cam_items = [it for it in items if str(it.get("id") or "").startswith("camesc:")]
+    assert cam_items, "expected camera escalation inbox items"
+    assert any("Kamera" in str(it.get("title") or "") for it in cam_items)

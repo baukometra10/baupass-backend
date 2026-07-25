@@ -766,7 +766,7 @@
       }
     });
 
-    $("cwTestWebhook")?.addEventListener("click", async () => {
+    async function runTestWebhook() {
       try {
         const payload = formToPayload($("cwCompanyForm"));
         if (!String(payload.securityWebhookUrl || "").startsWith("http")) {
@@ -795,6 +795,28 @@
       } catch (err) {
         setMsg("cwCompanyMsg", err.message || "Test-Webhook fehlgeschlagen", false);
       }
+    }
+    $("cwTestWebhook")?.addEventListener("click", () => {
+      void runTestWebhook();
+    });
+    $("cwTestWebhookInline")?.addEventListener("click", () => {
+      void runTestWebhook();
+    });
+    $("cwWebhookPresetTeams")?.addEventListener("click", () => {
+      const hint = $("cwWebhookWizardHint");
+      if (hint) {
+        hint.textContent =
+          "Teams: Kanal → … → Connectoren → Incoming Webhook → URL hier einfügen → Speichern → Test.";
+      }
+      $("cwCompanyForm")?.querySelector('[name="securityWebhookUrl"]')?.focus();
+    });
+    $("cwWebhookPresetSlack")?.addEventListener("click", () => {
+      const hint = $("cwWebhookWizardHint");
+      if (hint) {
+        hint.textContent =
+          "Slack: Apps → Incoming Webhooks → Add to Slack → URL hier einfügen → Speichern → Test.";
+      }
+      $("cwCompanyForm")?.querySelector('[name="securityWebhookUrl"]')?.focus();
     });
 
     $("cwAuditExport")?.addEventListener("click", async () => {
@@ -840,8 +862,27 @@
     });
   }
 
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event?.data?.type !== "NAVIGATE_ADMIN_CAMERA" || !event.data.url) return;
+      try {
+        const target = new URL(event.data.url, location.origin);
+        const esc = target.searchParams.get("escalation") || "";
+        if (esc) {
+          state.selectedEscId = esc;
+          switchTab("esc");
+          openEscalations?.();
+        }
+        refresh();
+      } catch (_e) {
+        /* ignore */
+      }
+    });
+  }
+
   bind();
   setupAutoRefresh();
   if (params.get("escalation")) switchTab("esc");
+  else if ((location.hash || "").replace("#", "") === "settings") switchTab("settings");
   refresh();
 })();

@@ -156,6 +156,63 @@ def build_operations_inbox(
     except Exception as exc:
         _inbox_soft_fail("security_alerts", exc)
 
+    # Open camera-watch escalations (same Security-Inbox filter)
+    if cid:
+        try:
+            from backend.app.platform.physical_operations.camera_escalation import list_escalations
+
+            open_esc = list(list_escalations(db, cid, limit=15, status="open") or [])
+            try:
+                pending = list(list_escalations(db, cid, limit=10, status="pending_second_ack") or [])
+                open_esc.extend(pending)
+            except Exception:
+                pass
+            seen_esc: set[str] = set()
+            for e in open_esc:
+                eid = str(e.get("id") or "").strip()
+                if not eid or eid in seen_esc:
+                    continue
+                seen_esc.add(eid)
+                cam = str(e.get("cameraName") or e.get("cameraId") or "Kamera").strip()
+                status = str(e.get("status") or "open")
+                href = f"/admin-v2/camera-watch.html?company_id={cid}&escalation={eid}"
+                items.append(
+                    {
+                        "id": f"camesc:{eid}",
+                        "source": "security",
+                        "severity": e.get("severity") or "critical",
+                        "code": "camera_escalation",
+                        "title": f"Kamera-Eskalation · {cam}",
+                        "message": (
+                            f"Status {status}"
+                            + (f" · {e.get('slaLabel')}" if e.get("slaLabel") else "")
+                            + " · kein Auto-Polizei-Anruf"
+                        ),
+                        "companyId": cid,
+                        "workerId": None,
+                        "createdAt": _coerce_iso_timestamp(e.get("createdAt") or e.get("created_at")),
+                        "status": "open",
+                        "actions": [
+                            {
+                                "type": "navigate",
+                                "url": href,
+                                "label": "Kamera-Wächter öffnen",
+                            },
+                            {
+                                "type": "prompt",
+                                "prompt": (
+                                    f"Analysiere Kamera-Eskalation {cam} (Status {status}). "
+                                    "Assistierte Polizei nur — kein Auto-Dial. Nächste Schritte für Security?"
+                                ),
+                                "label": "KI analysieren",
+                                "agent": "decision",
+                            },
+                        ],
+                    }
+                )
+        except Exception as exc:
+            _inbox_soft_fail("camera_escalations", exc)
+
     # System alerts — only when they belong to the selected company (or global view without company)
     try:
         cond = "" if include_resolved else "AND resolved_at IS NULL"

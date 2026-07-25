@@ -787,7 +787,40 @@
     async function loadTemplates() {
       const data = await api(`/api/contracts/templates?company_id=${encodeURIComponent(companyId)}`);
       const select = document.getElementById("templateId");
-      select.innerHTML = (data.templates || []).map((row) => `<option value="${row.id}">${row.name}</option>`).join("");
+      const templates = data.templates || [];
+      select.innerHTML = templates.map((row) => `<option value="${row.id}">${row.name}</option>`).join("");
+      renderTemplateQuickStart(templates);
+    }
+
+    function renderTemplateQuickStart(templates) {
+      const host = document.getElementById("templateQuickStart");
+      if (!host) return;
+      const preferred = ["unbefristet", "befristet", "teilzeit", "minijob", "aushilfe", "nachtrag", "amendment"];
+      const ranked = [...templates].sort((a, b) => {
+        const an = String(a.name || a.id || "").toLowerCase();
+        const bn = String(b.name || b.id || "").toLowerCase();
+        const ai = preferred.findIndex((p) => an.includes(p) || String(a.id || "").includes(p));
+        const bi = preferred.findIndex((p) => bn.includes(p) || String(b.id || "").includes(p));
+        return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+      });
+      const chips = ranked.slice(0, 6);
+      host.innerHTML = chips
+        .map(
+          (row) =>
+            `<button type="button" class="compact template-quick-chip" data-template-id="${escapeHtml(row.id)}">${escapeHtml(row.name || row.id)}</button>`,
+        )
+        .join("");
+      host.querySelectorAll("[data-template-id]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tid = btn.getAttribute("data-template-id");
+          const select = document.getElementById("templateId");
+          if (!select || !tid) return;
+          select.value = tid;
+          select.dispatchEvent(new Event("change"));
+          setStatus(window.contractPageT("templateQuickPicked", { name: btn.textContent || tid }), { active: true });
+          document.getElementById("workerPicker")?.focus();
+        });
+      });
     }
     async function loadContracts() {
       const data = await api(`/api/contracts?company_id=${encodeURIComponent(companyId)}`);
