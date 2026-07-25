@@ -431,6 +431,8 @@
   }
 
   function maybeAutoWatermark(status) {
+    // Only stamp saved drafts — template preview / empty start must stay clean.
+    if (!currentDoc?.id) return;
     const st = String(status || currentDoc?.status || "draft");
     if (st === "draft" && !String(layout.watermark || "").trim()) {
       layout.watermark = "draft";
@@ -568,6 +570,7 @@
     "wp-title",
     "wp-doc-title",
     "wp-page-break",
+    "wp-body-hint",
   ];
 
   function reinjectLtrSpans(sourceHtml) {
@@ -657,13 +660,25 @@
     while (walk.nextNode()) nodes.push(walk.currentNode);
     nodes.forEach((node) => {
       const raw = node.nodeValue || "";
-      if (!/\{\{\s*[a-zA-Z0-9_.-]+\s*\}\}/.test(raw)) return;
-      if (node.parentElement?.closest?.(".wp-ph-chip")) return;
+      if (node.parentElement?.closest?.(".wp-ph-chip, .wp-hint-chip")) return;
+      const hasMerge = /\{\{\s*[a-zA-Z0-9_.-]+\s*\}\}/.test(raw);
+      const hasHint = /\[[^\]\n]{3,120}\]/.test(raw);
+      if (!hasMerge && !hasHint) return;
       const wrap = document.createElement("span");
-      wrap.innerHTML = raw.replace(
-        /(\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\})/g,
-        '<span class="wp-ph-chip" data-wp-ph="$2">$1</span>',
-      );
+      let html = escapeHtml(raw);
+      if (hasMerge) {
+        html = html.replace(
+          /(\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\})/g,
+          '<span class="wp-ph-chip" data-wp-ph="$2">$1</span>',
+        );
+      }
+      if (hasHint) {
+        html = html.replace(
+          /\[([^\]\n]{3,120})\]/g,
+          '<span class="wp-hint-chip" data-wp-hint="1">$1</span>',
+        );
+      }
+      wrap.innerHTML = html;
       node.parentNode?.replaceChild(wrap, node);
       // unwrap helper span
       while (wrap.firstChild) wrap.parentNode?.insertBefore(wrap.firstChild, wrap);
@@ -820,19 +835,31 @@
     }
   }
 
-  function applyCustomTemplate(id) {
+  async function applyCustomTemplate(id) {
     const tpl = loadCustomTemplates().find((t) => t.id === id);
     if (!tpl) return;
     if (getText() && !confirm(dt("confirmTemplate"))) return;
     if (tpl.layout) Object.assign(layout, tpl.layout);
     applyLayoutToDom();
-    setHtml(tpl.html || "<p><br></p>");
-    lastTemplateKey = "";
+    const html = tpl.html || "<p><br></p>";
+    const title = tpl.title || dt("tplBlank");
+    if (!currentDoc?.id && activeCompanyId()) {
+      try {
+        await createBlank({ title, contentHtml: html, mode: "general" });
+      } catch (e) {
+        setStatus($("saveStatus"), e.message || dt("saveFail"), "err");
+        setHtml(html);
+      }
+    } else {
+      setHtml(html);
+    }
+    lastTemplateKey = `custom:${id}`;
     markDirty();
     if ($("docTitle") && (!$("docTitle").value || ["Unbenannt", dt("untitled"), dt("tplBlank")].includes($("docTitle").value))) {
-      $("docTitle").value = tpl.title || dt("tplBlank");
+      $("docTitle").value = title;
     }
-    setStatus($("saveStatus"), dt("templateReady", { name: tpl.title || dt("tplBlank") }), "ok");
+    setStatus($("saveStatus"), dt("templateReady", { name: title }), "ok");
+    syncEmptyState();
     schedulePaperSync({ force: true, fit: true });
   }
 
@@ -3864,7 +3891,7 @@
         const id = btn.getAttribute("data-template");
         pushRecentTemplate(id);
         if ($("templateSelect")) $("templateSelect").value = id;
-        applyTemplate(id);
+        applyTemplate(id).catch((e) => setStatus($("saveStatus"), e.message || dt("error"), "err"));
       });
     });
     host.querySelectorAll("[data-template-edit]").forEach((btn) => {
@@ -3873,15 +3900,16 @@
         const id = btn.getAttribute("data-template-edit");
         pushRecentTemplate(id);
         if ($("templateSelect")) $("templateSelect").value = id;
-        applyTemplate(id, { edit: true });
-        setStatus($("saveStatus"), dt("tplEditReady"), "ok");
+        applyTemplate(id, { edit: true })
+          .then(() => setStatus($("saveStatus"), dt("tplEditReady"), "ok"))
+          .catch((err) => setStatus($("saveStatus"), err.message || dt("error"), "err"));
       });
     });
     host.querySelectorAll("[data-custom-template]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.getAttribute("data-custom-template");
         pushRecentTemplate(id);
-        applyCustomTemplate(id);
+        applyCustomTemplate(id).catch((e) => setStatus($("saveStatus"), e.message || dt("error"), "err"));
       });
     });
     host.querySelectorAll("[data-custom-del]").forEach((btn) => {
@@ -3920,13 +3948,20 @@
       }
       if (lay && typeof lay === "object") Object.assign(layout, lay);
       applyLayoutToDom();
-      setHtml(tpl.content_html || "<p><br></p>");
-      if ($("docTitle") && (!$("docTitle").value || ["Unbenannt", dt("untitled"), dt("tplBlank")].includes($("docTitle").value))) {
-        $("docTitle").value = tpl.title || dt("tplBlank");
+      const html = tpl.content_html || "<p><br></p>";
+      const title = tpl.title || dt("tplBlank");
+      if (!currentDoc?.id && activeCompanyId()) {
+        await createBlank({ title, contentHtml: html, mode: "general" });
+        setHtml(html);
+      } else {
+        setHtml(html);
       }
+      if ($("docTitle")) $("docTitle").value = title;
+      lastTemplateKey = `team:${id}`;
       markDirty();
+      syncEmptyState();
       schedulePaperSync({ force: true, fit: true });
-      setStatus($("saveStatus"), dt("templateReady", { name: tpl.title || dt("tplBlank") }), "ok");
+      setStatus($("saveStatus"), dt("templateReady", { name: title }), "ok");
     } catch (e) {
       setStatus($("saveStatus"), e.message || dt("templateSaveFail"), "err");
     }
@@ -5078,6 +5113,8 @@
     refreshVersions().catch(() => {});
     maybeOfferOfflineDraft(doc);
     startPresenceLoop();
+    syncEmptyState();
+    maybeAutoWatermark(doc?.status);
   }
 
   async function refreshList(selectId) {
@@ -5215,10 +5252,14 @@
     if (!confirm(dt("confirmDelete"))) return;
     await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}${companyQuery()}`, { method: "DELETE" });
     currentDoc = null;
+    lastTemplateKey = "";
+    appliedLiveRev = 0;
+    liveRev = 0;
     setHtml("<p><br></p>");
-    $("docTitle").value = dt("tplBlank");
+    if ($("docTitle")) $("docTitle").value = "";
     setStatus($("saveStatus"), dt("deleted"), "ok");
     stopPresenceLoop();
+    hideTplEditBanner();
     syncEmptyState();
     await refreshList();
   }
@@ -5330,7 +5371,7 @@
     banner.classList.remove("is-on");
   }
 
-  function applyTemplate(forcedKey, opts = {}) {
+  async function applyTemplate(forcedKey, opts = {}) {
     const key = forcedKey || $("templateSelect")?.value || "";
     const pack = contentPack();
     if (!key || (key !== "blank" && !pack[key])) return;
@@ -5342,7 +5383,25 @@
     const prevTitle = ($("docTitle")?.value || "").trim();
     let html = compactHtml(getTemplateHtml(key));
     html = html.replaceAll("{{date.today}}", todayIso());
-    setHtml(html);
+    const nextTitle = titles[key] || dt("tplBlank");
+    // Ensure we leave the empty-start overlay: create a real doc when none is open.
+    if (!currentDoc?.id && activeCompanyId() && key !== "blank") {
+      try {
+        await createBlank({
+          title: nextTitle,
+          mode: key === "letter" ? "letter" : "general",
+          contentHtml: html,
+        });
+        // Re-apply local HTML so Quill chips/classes survive server round-trip.
+        setHtml(html);
+        if ($("docTitle")) $("docTitle").value = nextTitle;
+      } catch (e) {
+        setStatus($("saveStatus"), e.message || dt("saveFail"), "err");
+        setHtml(html);
+      }
+    } else {
+      setHtml(html);
+    }
     // Short on-site forms look cleaner without a heavy letterhead band.
     const skipLetterhead = new Set(["toolbox", "visitor", "site_rules", "damage", "material", "access", "blank"]);
     if ($("useLetterhead")?.checked && companyLetterhead && !skipLetterhead.has(key)) {
@@ -5370,11 +5429,12 @@
     }
     const untitledish = new Set(["Unbenannt", "Neues Dokument", dt("untitled"), dt("tplBlank"), "Untitled", "Blank", ""]);
     // Sync title when empty, default, or still named after another built-in template.
-    if ($("docTitle") && (untitledish.has(prevTitle) || knownTitles.has(prevTitle) || opts.edit || opts.forceTitle)) {
-      $("docTitle").value = titles[key] || dt("tplBlank");
+    if ($("docTitle") && (untitledish.has(prevTitle) || knownTitles.has(prevTitle) || opts.edit || opts.forceTitle || !prevTitle)) {
+      $("docTitle").value = nextTitle;
     }
     if ($("templateSelect")) $("templateSelect").value = key;
-    setStatus($("saveStatus"), dt("templateReady", { name: titles[key] || key }), "ok");
+    setStatus($("saveStatus"), dt("templateReady", { name: nextTitle || key }), "ok");
+    syncEmptyState();
     schedulePaperSync({ force: true, fit: true });
   }
 
@@ -5721,7 +5781,9 @@
     $("printBrowserBtn")?.addEventListener("click", () => openPrintPreviewPdf().catch(() => {}));
     $("fullscreenBtn")?.addEventListener("click", () => toggleFocusMode());
     $("exitFocusBtn")?.addEventListener("click", () => toggleFocusMode(false));
-    $("applyTemplateBtn")?.addEventListener("click", applyTemplate);
+    $("applyTemplateBtn")?.addEventListener("click", () => {
+      applyTemplate().catch((e) => setStatus($("saveStatus"), e.message || dt("error"), "err"));
+    });
     $("zoomInBtn")?.addEventListener("click", () => setZoom(zoom + 0.08));
     $("zoomOutBtn")?.addEventListener("click", () => setZoom(zoom - 0.08));
     $("fitResetBtn")?.addEventListener("click", resetAutoFit);
@@ -6436,13 +6498,16 @@
       // Re-apply active template body so paper text follows language switch literally.
       if (opts.reason === "lang" && lastTemplateKey) {
         skipTemplateConfirmOnce = true;
-        applyTemplate(lastTemplateKey, { silent: true });
+        applyTemplate(lastTemplateKey, { silent: true }).catch(() => {});
       }
     };
 
     const unlock = getOwnerUnlock();
     // Owner-OTP-UI nur bei Vertrags-Kontext binden — normaler Editor ist frei.
-    if (isContractContext()) {
+    if (!isContractContext()) {
+      $("docsLockOverlay")?.classList.add("hidden");
+      $("docsLockNowBtn")?.classList.add("hidden");
+    } else {
       unlock?.bind();
     }
     $("docsLockNowBtn")?.addEventListener("click", async () => {
@@ -6521,7 +6586,9 @@
     const empty = $("docsEmptyState");
     const paper = $("paperFit");
     if (!empty) return;
-    const show = !currentDoc?.id;
+    const text = (getText() || "").replace(/\s+/g, " ").trim();
+    const hasWork = !!currentDoc?.id || !!lastTemplateKey || text.length > 8;
+    const show = !hasWork;
     empty.hidden = !show;
     empty.classList.toggle("is-on", show);
     if (paper) paper.classList.toggle("is-dimmed", show);
@@ -6700,7 +6767,8 @@
     };
     latestPeerLive = peer;
     renderLiveTyping([peer]);
-    if (liveFollow || !dirty) applyPeerLive(peer);
+    // Never auto-overwrite the editor — only when user chose Live folgen.
+    if (liveFollow) applyPeerLive(peer);
   }
 
   function ensureDocsSocket() {
@@ -6738,10 +6806,10 @@
     if (!currentDoc?.id || !activeCompanyId()) return;
     try {
       const payload = { company_id: activeCompanyId() };
-      if (dirty || peerCount > 0) {
+      if (dirty) {
         payload.liveRev = liveRev;
         payload.liveTitle = String($("docTitle")?.value || "");
-        payload.liveHtml = dirty ? getHtml() : "";
+        payload.liveHtml = getHtml();
       }
       const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/presence${companyQuery()}`, {
         method: "POST",
@@ -6754,7 +6822,7 @@
       const bestLive = others
         .filter((p) => Number(p.live_rev || 0) > appliedLiveRev && String(p.live_html || "").trim())
         .sort((a, b) => Number(b.live_rev || 0) - Number(a.live_rev || 0))[0];
-      if (bestLive && (liveFollow || !dirty)) {
+      if (bestLive && liveFollow) {
         applyPeerLive(bestLive);
       }
       const remote = String(data.updatedAt || "");
