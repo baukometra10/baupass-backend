@@ -151,6 +151,53 @@ def init_socketio(flask_app) -> Any:
             except Exception as exc:
                 logger.error("Ping handler error: %s", exc)
 
+        @socketio.on("docs_subscribe")
+        def on_docs_subscribe(data):
+            try:
+                company_id, session_error = _session_company_id(data)
+                if session_error:
+                    emit("docs_subscribed", {"ok": False, "error": session_error})
+                    return
+                doc_id = str((data or {}).get("document_id") or (data or {}).get("documentId") or "").strip()
+                if not doc_id or len(doc_id) > 80:
+                    emit("docs_subscribed", {"ok": False, "error": "invalid_document_id"})
+                    return
+                cid = str(company_id or (data or {}).get("company_id") or "").strip()
+                if cid:
+                    join_room(f"company:{cid}")
+                join_room(f"doc:{doc_id}")
+                emit("docs_subscribed", {"ok": True, "document_id": doc_id, "company_id": cid})
+            except Exception as exc:
+                logger.error("docs_subscribe error: %s", exc)
+                emit("docs_subscribed", {"ok": False, "error": "internal_error"})
+
+        @socketio.on("docs_live")
+        def on_docs_live(data):
+            """Relay ephemeral live draft to other editors in the same doc room."""
+            try:
+                company_id, session_error = _session_company_id(data)
+                if session_error:
+                    emit("docs_live_ack", {"ok": False, "error": session_error})
+                    return
+                doc_id = str((data or {}).get("document_id") or (data or {}).get("documentId") or "").strip()
+                if not doc_id:
+                    emit("docs_live_ack", {"ok": False, "error": "invalid_document_id"})
+                    return
+                payload = {
+                    "documentId": doc_id,
+                    "companyId": company_id or (data or {}).get("company_id"),
+                    "userId": str((data or {}).get("user_id") or (data or {}).get("userId") or ""),
+                    "displayName": str((data or {}).get("display_name") or (data or {}).get("displayName") or ""),
+                    "liveRev": int((data or {}).get("liveRev") or (data or {}).get("live_rev") or 0),
+                    "liveTitle": str((data or {}).get("liveTitle") or (data or {}).get("live_title") or "")[:200],
+                    "liveHtml": str((data or {}).get("liveHtml") or (data or {}).get("live_html") or "")[:250_000],
+                }
+                emit("docs_live", payload, room=f"doc:{doc_id}", include_self=False)
+                emit("docs_live_ack", {"ok": True})
+            except Exception as exc:
+                logger.error("docs_live error: %s", exc)
+                emit("docs_live_ack", {"ok": False, "error": "internal_error"})
+
         flask_app.extensions["socketio"] = socketio
         _socketio_state.update(
             {

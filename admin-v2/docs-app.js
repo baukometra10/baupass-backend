@@ -489,11 +489,19 @@
     });
   }
 
+  let liveRev = 0;
+  let appliedLiveRev = 0;
+  let liveFollow = false;
+  let latestPeerLive = null;
+  let qesStatusCache = null;
+  let docsSocket = null;
+
   function markDirty() {
     if (!dirty) {
       dirty = true;
       setStatus($("saveStatus"), dt("unsaved"), "");
     }
+    liveRev += 1;
     scheduleOfflineDraft();
   }
 
@@ -784,19 +792,20 @@
     setSideTab("templates");
     renderTemplateGallery();
     setStatus($("saveStatus"), dt("templateSaved", { name }), "ok");
-    // Also persist team-wide when possible
-    api(`/api/v2/docs/templates${companyQuery()}`, {
-      method: "POST",
-      body: JSON.stringify({
-        company_id: activeCompanyId(),
-        title: name,
-        blurb: dt("teamTemplateBlurb"),
-        contentHtml: getBodyHtml(),
-        layout: { ...layout },
-      }),
-    })
-      .then(() => renderTemplateGallery())
-      .catch(() => {});
+    if (activeCompanyId() && confirm(dt("shareTeamTemplate"))) {
+      api(`/api/v2/docs/templates${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          title: name,
+          blurb: dt("teamTemplateBlurb"),
+          contentHtml: getBodyHtml(),
+          layout: { ...layout },
+        }),
+      })
+        .then(() => renderTemplateGallery())
+        .catch(() => {});
+    }
   }
 
   function applyCustomTemplate(id) {
@@ -2613,6 +2622,64 @@
     diffVersionId = "";
   }
 
+  let diffRowsCache = [];
+  let diffTextCache = { oldText: "", newText: "" };
+
+  function renderDiffBody() {
+    const body = $("diffModalBody");
+    if (!body) return;
+    const onlyChanges = !!$("diffOnlyChanges")?.checked;
+    const unified = !!$("diffUnifiedView")?.checked;
+    const rows = diffRowsCache || [];
+    let add = 0;
+    let del = 0;
+    let same = 0;
+    rows.forEach((r) => {
+      if (r.type === "add") add += 1;
+      else if (r.type === "del") del += 1;
+      else same += 1;
+    });
+    if ($("diffStats")) $("diffStats").textContent = dt("diffStats", { add, del, same });
+    body.classList.toggle("diff-unified-only", unified);
+    body.classList.toggle("diff-side-only", !unified);
+    const out = [];
+    let idx = 0;
+    let lineNo = 1;
+    while (idx < rows.length) {
+      const r = rows[idx];
+      if (onlyChanges && r.type === "same") {
+        let j = idx;
+        while (j < rows.length && rows[j].type === "same") j += 1;
+        const n = j - idx;
+        if (n > 4) {
+          out.push(
+            `<div class="diff-line is-collapsed" data-expand-from="${idx}"><span class="diff-mark">…</span><pre>${escapeHtml(dt("diffCollapsed", { n }))}</pre></div>`,
+          );
+          lineNo += n;
+          idx = j;
+          continue;
+        }
+      }
+      const cls = r.type === "add" ? "is-add" : r.type === "del" ? "is-del" : "is-same";
+      const mark = r.type === "add" ? "+" : r.type === "del" ? "−" : " ";
+      out.push(
+        `<div class="diff-line ${cls}"><span class="diff-ln">${lineNo}</span><span class="diff-mark">${mark}</span><pre>${escapeHtml(r.text || " ")}</pre></div>`,
+      );
+      idx += 1;
+      lineNo += 1;
+    }
+    body.innerHTML =
+      `<div class="diff-col"><h4>${escapeHtml(dt("diffOld"))}</h4><pre class="diff-plain">${escapeHtml(diffTextCache.oldText || " ")}</pre></div>` +
+      `<div class="diff-col"><h4>${escapeHtml(dt("diffNew"))}</h4><pre class="diff-plain">${escapeHtml(diffTextCache.newText || " ")}</pre></div>` +
+      `<div class="diff-unified">${out.join("")}</div>`;
+    body.querySelectorAll("[data-expand-from]").forEach((el) => {
+      el.addEventListener("click", () => {
+        if ($("diffOnlyChanges")) $("diffOnlyChanges").checked = false;
+        renderDiffBody();
+      });
+    });
+  }
+
   async function openVersionDiff(versionId) {
     if (!currentDoc?.id || !versionId) return;
     setStatus($("saveStatus"), dt("diffLoading"));
@@ -2626,21 +2693,9 @@
       diffVersionMeta = version;
       const oldText = String(version.contentText || version.content_text || "");
       const newText = getText();
-      const rows = computeLineDiff(oldText, newText);
-      const body = $("diffModalBody");
-      if (body) {
-        const unified = rows
-          .map((r) => {
-            const cls = r.type === "add" ? "is-add" : r.type === "del" ? "is-del" : "is-same";
-            const mark = r.type === "add" ? "+" : r.type === "del" ? "−" : " ";
-            return `<div class="diff-line ${cls}"><span class="diff-mark">${mark}</span><pre>${escapeHtml(r.text || " ")}</pre></div>`;
-          })
-          .join("");
-        body.innerHTML =
-          `<div class="diff-col"><h4>${escapeHtml(dt("diffOld"))}</h4><pre class="diff-plain">${escapeHtml(oldText || " ")}</pre></div>` +
-          `<div class="diff-col"><h4>${escapeHtml(dt("diffNew"))}</h4><pre class="diff-plain">${escapeHtml(newText || " ")}</pre></div>` +
-          `<div class="diff-unified">${unified}</div>`;
-      }
+      diffTextCache = { oldText, newText };
+      diffRowsCache = computeLineDiff(oldText, newText);
+      renderDiffBody();
       if ($("diffModalTitle")) $("diffModalTitle").textContent = dt("diffTitle");
       if ($("diffModalMeta")) {
         $("diffModalMeta").textContent = dt("diffMeta", {
@@ -2922,16 +2977,33 @@
   let signDrawing = false;
   let signHasInk = false;
 
+  function resizeSignCanvas() {
+    const canvas = $("signCanvas");
+    if (!canvas) return;
+    const cssW = canvas.clientWidth || 520;
+    const cssH = Math.max(140, Math.round(cssW * (180 / 520)));
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const w = Math.round(cssW * dpr);
+    const h = Math.round(cssH * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+    }
+    canvas.style.height = `${cssH}px`;
+  }
+
   function clearSignCanvas() {
     const canvas = $("signCanvas");
     if (!canvas) return;
+    resizeSignCanvas();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = "#0f172a";
-    ctx.lineWidth = 2.2;
+    ctx.lineWidth = Math.max(2.4, canvas.width / 220);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     signHasInk = false;
@@ -2941,33 +3013,48 @@
     const canvas = $("signCanvas");
     if (!canvas || canvas.dataset.bound) return;
     canvas.dataset.bound = "1";
+    resizeSignCanvas();
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    let last = null;
     const pos = (e) => {
       const rect = canvas.getBoundingClientRect();
       const src = e.touches ? e.touches[0] : e;
+      const force = typeof src.force === "number" && src.force > 0 ? src.force : 0.5;
       return {
-        x: ((src.clientX - rect.left) / rect.width) * canvas.width,
-        y: ((src.clientY - rect.top) / rect.height) * canvas.height,
+        x: ((src.clientX - rect.left) / Math.max(rect.width, 1)) * canvas.width,
+        y: ((src.clientY - rect.top) / Math.max(rect.height, 1)) * canvas.height,
+        force,
       };
     };
     const start = (e) => {
       signDrawing = true;
-      const p = pos(e);
+      last = pos(e);
       ctx.beginPath();
-      ctx.moveTo(p.x, p.y);
+      ctx.moveTo(last.x, last.y);
       e.preventDefault();
     };
     const move = (e) => {
       if (!signDrawing) return;
       const p = pos(e);
-      ctx.lineTo(p.x, p.y);
+      if (!last) {
+        last = p;
+        return;
+      }
+      const midX = (last.x + p.x) / 2;
+      const midY = (last.y + p.y) / 2;
+      ctx.lineWidth = Math.max(1.6, (canvas.width / 220) * (0.65 + p.force));
+      ctx.quadraticCurveTo(last.x, last.y, midX, midY);
       ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(midX, midY);
+      last = p;
       signHasInk = true;
       e.preventDefault();
     };
     const end = () => {
       signDrawing = false;
+      last = null;
     };
     canvas.addEventListener("mousedown", start);
     canvas.addEventListener("mousemove", move);
@@ -2975,6 +3062,61 @@
     canvas.addEventListener("touchstart", start, { passive: false });
     canvas.addEventListener("touchmove", move, { passive: false });
     canvas.addEventListener("touchend", end);
+    window.addEventListener("resize", () => {
+      if (!$("signModal") || $("signModal").hidden) return;
+      clearSignCanvas();
+    });
+  }
+
+  async function refreshQesStatus() {
+    const note = $("qesStatusNote");
+    const btn = $("signQesBtn");
+    if (note) note.textContent = dt("qesStatusLoading");
+    try {
+      const data = await api(`/api/v2/docs/signatures/qes/status${companyQuery()}`);
+      qesStatusCache = data;
+      if (btn) btn.disabled = !data.configured;
+      if (note) {
+        note.textContent = data.configured
+          ? dt("qesReady", { provider: data.provider || "TSP" })
+          : dt("qesNotConfigured");
+      }
+    } catch {
+      qesStatusCache = { configured: false };
+      if (btn) btn.disabled = true;
+      if (note) note.textContent = dt("qesNotConfigured");
+    }
+  }
+
+  async function startQesSignature() {
+    if (!currentDoc?.id) {
+      try {
+        await saveDoc();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!currentDoc?.id) {
+      setStatus($("signModalStatus"), dt("needSave"), "err");
+      return;
+    }
+    setStatus($("signModalStatus"), dt("qesStatusLoading"));
+    try {
+      const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/signatures/qes/start${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          signerName: String($("signNameInput")?.value || "").trim(),
+        }),
+      });
+      setStatus($("signModalStatus"), dt("qesStarted"), "ok");
+      refreshSignatures().catch(() => {});
+      if (data.sessionUrl && confirm(dt("qesOpenSession"))) {
+        window.open(data.sessionUrl, "_blank", "noopener");
+      }
+    } catch (e) {
+      setStatus($("signModalStatus"), e.body?.message || e.message || dt("qesNotConfigured"), "err");
+    }
   }
 
   function openSignModal() {
@@ -2992,6 +3134,7 @@
     bindSignCanvas();
     clearSignCanvas();
     setStatus($("signModalStatus"), "");
+    refreshQesStatus().catch(() => {});
     modal.hidden = false;
   }
 
@@ -3570,6 +3713,9 @@
           blurb: t.blurb || dt("teamTemplateBlurb"),
           previewHtml: t.content_html || t.contentHtml || "",
           team: true,
+          canDelete: t.canDelete !== false,
+          isMine: !!t.isMine,
+          createdBy: t.created_by_user_id || "",
         }));
       }
     } catch {
@@ -3621,12 +3767,14 @@
           ? `data-custom-template="${escapeHtml(t.id)}"`
           : `data-template="${escapeHtml(t.id)}"`;
       const sideBtn = t.team
-        ? `<button type="button" class="cmd quiet tpl-card-del" data-team-del="${escapeHtml(t.id)}" title="${escapeHtml(dt("delete"))}">×</button>`
+        ? t.canDelete
+          ? `<button type="button" class="cmd quiet tpl-card-del" data-team-del="${escapeHtml(t.id)}" title="${escapeHtml(dt("delete"))}">×</button>`
+          : ""
         : t.custom
           ? `<button type="button" class="cmd quiet tpl-card-del" data-custom-del="${escapeHtml(t.id)}" title="${escapeHtml(dt("delete"))}">×</button>`
           : `<button type="button" class="cmd quiet tpl-card-edit" data-template-edit="${escapeHtml(t.id)}" title="${escapeHtml(dt("tplEdit"))}">✎</button>`;
       const badge = t.team
-        ? `<em class="tpl-card-badge">${escapeHtml(dt("topicTeam"))}</em>`
+        ? `<em class="tpl-card-badge">${escapeHtml(t.isMine ? dt("topicTeam") + " · ✓" : dt("topicTeam"))}</em>`
         : t.custom
           ? `<em class="tpl-card-badge is-local">${escapeHtml(dt("topicCustom"))}</em>`
           : "";
@@ -5586,6 +5734,16 @@
       if (pendingRemoteHash) conflictIgnoredHash = pendingRemoteHash;
       hideCollabConflict();
     });
+    $("liveFollowBtn")?.addEventListener("click", () => {
+      liveFollow = !liveFollow;
+      if (liveFollow && latestPeerLive) applyPeerLive(latestPeerLive);
+      renderLiveTyping(latestPeerLive ? [latestPeerLive] : []);
+    });
+    $("signQesBtn")?.addEventListener("click", () => {
+      startQesSignature().catch(() => {});
+    });
+    $("diffOnlyChanges")?.addEventListener("change", () => renderDiffBody());
+    $("diffUnifiedView")?.addEventListener("change", () => renderDiffBody());
     $("checkPlaceholdersBtn")?.addEventListener("click", () => {
       renderPlaceholderCheck();
       const items = collectOpenPlaceholders();
@@ -6458,18 +6616,123 @@
     chip.title = others.map((p) => p.display_name || p.user_id).join(", ");
   }
 
+  function applyPeerLive(peer) {
+    if (!peer) return;
+    const html = String(peer.live_html || peer.liveHtml || "");
+    if (!html) return;
+    const rev = Number(peer.live_rev || peer.liveRev || 0);
+    if (rev && rev <= appliedLiveRev) return;
+    setHtml(html);
+    if (peer.live_title || peer.liveTitle) {
+      const title = String(peer.live_title || peer.liveTitle || "").trim();
+      if (title && $("docTitle")) $("docTitle").value = title;
+    }
+    dirty = false;
+    appliedLiveRev = rev;
+    liveRev = Math.max(liveRev, rev);
+    setStatus($("saveStatus"), dt("liveApplied"), "ok");
+    schedulePaperSync({ force: true });
+  }
+
+  function renderLiveTyping(peers) {
+    const chip = $("liveTypingChip");
+    const label = $("liveTypingLabel");
+    if (!chip || !label) return;
+    const meId = myActorId();
+    const typing = (peers || []).filter((p) => {
+      if (String(p.user_id || "") === meId) return false;
+      return Number(p.live_rev || 0) > 0 && String(p.live_html || "").trim();
+    });
+    if (!typing.length) {
+      chip.hidden = true;
+      latestPeerLive = null;
+      return;
+    }
+    typing.sort((a, b) => Number(b.live_rev || 0) - Number(a.live_rev || 0));
+    latestPeerLive = typing[0];
+    chip.hidden = false;
+    chip.classList.toggle("is-following", liveFollow);
+    label.textContent =
+      typing.length === 1
+        ? dt("liveTypingOne", { name: typing[0].display_name || typing[0].user_id || "?" })
+        : dt("liveTypingMany", { n: typing.length });
+    if ($("liveFollowBtn")) {
+      $("liveFollowBtn").textContent = liveFollow ? dt("liveFollowing") : dt("liveFollow");
+    }
+  }
+
+  function handlePeerLivePayload(peerLike) {
+    if (!peerLike) return;
+    const peer = {
+      user_id: peerLike.userId || peerLike.user_id,
+      display_name: peerLike.displayName || peerLike.display_name,
+      live_html: peerLike.liveHtml || peerLike.live_html,
+      live_title: peerLike.liveTitle || peerLike.live_title,
+      live_rev: peerLike.liveRev || peerLike.live_rev,
+    };
+    latestPeerLive = peer;
+    renderLiveTyping([peer]);
+    if (liveFollow || !dirty) applyPeerLive(peer);
+  }
+
+  function ensureDocsSocket() {
+    if (docsSocket || typeof window.io !== "function") return;
+    try {
+      docsSocket = window.io({
+        path: "/socket.io",
+        transports: ["websocket", "polling"],
+        withCredentials: true,
+      });
+      docsSocket.on("docs_live", (payload) => {
+        if (!currentDoc?.id) return;
+        if (String(payload?.documentId || "") !== String(currentDoc.id)) return;
+        if (String(payload?.userId || "") === myActorId()) return;
+        handlePeerLivePayload(payload);
+      });
+    } catch {
+      docsSocket = null;
+    }
+  }
+
+  function subscribeDocsSocket() {
+    ensureDocsSocket();
+    if (!docsSocket || !currentDoc?.id) return;
+    const token = wpGet(TOKEN_KEY) || "";
+    docsSocket.emit("subscribe", { company_id: activeCompanyId(), session_token: token });
+    docsSocket.emit("docs_subscribe", {
+      company_id: activeCompanyId(),
+      document_id: currentDoc.id,
+      session_token: token,
+    });
+  }
+
   async function heartbeatPresence() {
     if (!currentDoc?.id || !activeCompanyId()) return;
     try {
+      const payload = { company_id: activeCompanyId() };
+      if (dirty || peerCount > 0) {
+        payload.liveRev = liveRev;
+        payload.liveTitle = String($("docTitle")?.value || "");
+        payload.liveHtml = dirty ? getHtml() : "";
+      }
       const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/presence${companyQuery()}`, {
         method: "POST",
-        body: JSON.stringify({ company_id: activeCompanyId() }),
+        body: JSON.stringify(payload),
       });
       renderPresence(data.peers || []);
+      renderLiveTyping(data.peers || []);
+      const meId = myActorId();
+      const others = (data.peers || []).filter((p) => String(p.user_id || "") !== meId);
+      const bestLive = others
+        .filter((p) => Number(p.live_rev || 0) > appliedLiveRev && String(p.live_html || "").trim())
+        .sort((a, b) => Number(b.live_rev || 0) - Number(a.live_rev || 0))[0];
+      if (bestLive && (liveFollow || !dirty)) {
+        applyPeerLive(bestLive);
+      }
       const remote = String(data.updatedAt || "");
       const remoteHash = String(data.contentHash || "");
       if (remoteHash && lastKnownContentHash && remoteHash !== lastKnownContentHash) {
-        if (!dirty) {
+        if (!dirty && !liveFollow) {
           lastKnownContentHash = remoteHash;
           if (remote) lastKnownUpdatedAt = remote;
           await reloadFromServerQuiet();
@@ -6483,25 +6746,41 @@
         lastKnownContentHash = remoteHash;
       }
       if (remote) lastKnownUpdatedAt = remote;
+      if (docsSocket && dirty && peerCount > 0) {
+        docsSocket.emit("docs_live", {
+          company_id: activeCompanyId(),
+          document_id: currentDoc.id,
+          session_token: wpGet(TOKEN_KEY) || "",
+          user_id: meId,
+          display_name: myActorId(),
+          liveRev,
+          liveTitle: payload.liveTitle,
+          liveHtml: payload.liveHtml,
+        });
+      }
     } catch {
       /* ignore */
     }
   }
 
   function startPresenceLoop() {
+    subscribeDocsSocket();
     if (presenceTimer) {
       heartbeatPresence().catch(() => {});
       return;
     }
     heartbeatPresence().catch(() => {});
-    presenceTimer = window.setInterval(() => heartbeatPresence().catch(() => {}), peerCount > 0 ? 4000 : 8000);
+    presenceTimer = window.setInterval(() => heartbeatPresence().catch(() => {}), peerCount > 0 ? 2500 : 8000);
   }
 
   function stopPresenceLoop() {
     if (presenceTimer) window.clearInterval(presenceTimer);
     presenceTimer = 0;
     peerCount = 0;
+    liveFollow = false;
+    latestPeerLive = null;
     renderPresence([]);
+    renderLiveTyping([]);
     hideCollabConflict();
   }
 

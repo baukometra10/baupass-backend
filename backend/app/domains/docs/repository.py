@@ -611,10 +611,22 @@ class EditorDocsRepository:
                 user_id TEXT NOT NULL,
                 display_name TEXT NOT NULL DEFAULT '',
                 last_seen TEXT NOT NULL,
+                live_html TEXT NOT NULL DEFAULT '',
+                live_title TEXT NOT NULL DEFAULT '',
+                live_rev INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY (document_id, user_id)
             )
             """
         )
+        for stmt in (
+            "ALTER TABLE editor_doc_presence ADD COLUMN live_html TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE editor_doc_presence ADD COLUMN live_title TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE editor_doc_presence ADD COLUMN live_rev INTEGER NOT NULL DEFAULT 0",
+        ):
+            try:
+                db.execute(stmt)
+            except Exception:
+                pass
         try:
             db.commit()
         except Exception:
@@ -628,21 +640,48 @@ class EditorDocsRepository:
         company_id: str,
         user_id: str,
         display_name: str,
+        live_html: str | None = None,
+        live_title: str | None = None,
+        live_rev: int | None = None,
     ) -> list[dict[str, Any]]:
         self.ensure_presence_schema(db)
         now = _now()
+        name = (display_name or "").strip()[:80]
+        has_live = live_rev is not None
+        html = (live_html or "")[:250_000] if has_live else None
+        title = (live_title or "").strip()[:200] if has_live else None
+        rev = int(live_rev or 0) if has_live else None
         try:
-            db.execute(
-                """
-                INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(document_id, user_id) DO UPDATE SET
-                  display_name = excluded.display_name,
-                  last_seen = excluded.last_seen,
-                  company_id = excluded.company_id
-                """,
-                (document_id, company_id, user_id, (display_name or "").strip()[:80], now),
-            )
+            if has_live:
+                db.execute(
+                    """
+                    INSERT INTO editor_doc_presence (
+                        document_id, company_id, user_id, display_name, last_seen,
+                        live_html, live_title, live_rev
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(document_id, user_id) DO UPDATE SET
+                      display_name = excluded.display_name,
+                      last_seen = excluded.last_seen,
+                      company_id = excluded.company_id,
+                      live_html = excluded.live_html,
+                      live_title = excluded.live_title,
+                      live_rev = excluded.live_rev
+                    """,
+                    (document_id, company_id, user_id, name, now, html, title, rev),
+                )
+            else:
+                db.execute(
+                    """
+                    INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(document_id, user_id) DO UPDATE SET
+                      display_name = excluded.display_name,
+                      last_seen = excluded.last_seen,
+                      company_id = excluded.company_id
+                    """,
+                    (document_id, company_id, user_id, name, now),
+                )
         except Exception:
             db.execute(
                 "DELETE FROM editor_doc_presence WHERE document_id = ? AND user_id = ?",
@@ -650,10 +689,22 @@ class EditorDocsRepository:
             )
             db.execute(
                 """
-                INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO editor_doc_presence (
+                    document_id, company_id, user_id, display_name, last_seen,
+                    live_html, live_title, live_rev
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (document_id, company_id, user_id, (display_name or "").strip()[:80], now),
+                (
+                    document_id,
+                    company_id,
+                    user_id,
+                    name,
+                    now,
+                    html if has_live else "",
+                    title if has_live else "",
+                    rev if has_live else 0,
+                ),
             )
         db.commit()
         return self.list_presence(db, document_id=document_id, company_id=company_id)
@@ -662,7 +713,8 @@ class EditorDocsRepository:
         self.ensure_presence_schema(db)
         rows = db.execute(
             """
-            SELECT document_id, company_id, user_id, display_name, last_seen
+            SELECT document_id, company_id, user_id, display_name, last_seen,
+                   live_html, live_title, live_rev
             FROM editor_doc_presence
             WHERE document_id = ? AND company_id = ?
             ORDER BY last_seen DESC
@@ -682,6 +734,27 @@ class EditorDocsRepository:
             if ts >= cutoff:
                 fresh.append(it)
         return fresh
+
+    def delete_template_as(
+        self,
+        db,
+        template_id: str,
+        company_id: str,
+        *,
+        actor_user_id: str | None,
+        allow_any: bool = False,
+    ) -> tuple[bool, str | None]:
+        """Delete template if actor owns it (or allow_any for superadmin)."""
+        self.ensure_templates_schema(db)
+        row = self.get_template(db, template_id, company_id)
+        if not row:
+            return False, "not_found"
+        owner = str(row.get("created_by_user_id") or "")
+        actor = str(actor_user_id or "")
+        if not allow_any and owner and actor and owner != actor:
+            return False, "forbidden"
+        ok = self.delete_template(db, template_id, company_id)
+        return ok, None if ok else "not_found"
 
     def ensure_signatures_schema(self, db) -> None:
         self.ensure_schema(db)

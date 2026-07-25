@@ -19,6 +19,10 @@ def _actor_name() -> str:
     return str(g.current_user.get("name") or g.current_user.get("username") or "").strip()
 
 
+def _actor_role() -> str:
+    return str(g.current_user.get("role") or "").strip().lower()
+
+
 def _resolve_company_id(data: dict | None = None, *, required: bool = True) -> str | None:
     data = data or {}
     role = str(g.current_user.get("role") or "")
@@ -313,7 +317,16 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
-        items = _service.repo.list_templates(get_db(), cid)
+        actor = _actor_id()
+        is_sa = _actor_role() == "superadmin"
+        raw = _service.repo.list_templates(get_db(), cid)
+        items = []
+        for it in raw:
+            row = dict(it)
+            owner = str(row.get("created_by_user_id") or "")
+            row["isMine"] = bool(owner and owner == actor)
+            row["canDelete"] = bool(is_sa or not owner or owner == actor)
+            items.append(row)
         return jsonify({"ok": True, "items": items})
 
     @docs_v2_bp.post("/docs/templates")
@@ -369,7 +382,15 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
-        ok = _service.repo.delete_template(get_db(), template_id, cid)
+        ok, err = _service.repo.delete_template_as(
+            get_db(),
+            template_id,
+            cid,
+            actor_user_id=_actor_id(),
+            allow_any=_actor_role() == "superadmin",
+        )
+        if err == "forbidden":
+            return jsonify({"error": "forbidden", "message": "Nur eigene Team-Vorlagen löschen"}), 403
         if not ok:
             return jsonify({"error": "not_found"}), 404
         return jsonify({"ok": True})
@@ -809,15 +830,44 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         doc = _service.get_doc(get_db(), doc_id, company_id=cid)
         if not doc:
             return jsonify({"error": "not_found"}), 404
+        live_rev_raw = data.get("liveRev")
+        live_rev = None
+        if live_rev_raw is not None and str(live_rev_raw).strip() != "":
+            try:
+                live_rev = int(live_rev_raw)
+            except (TypeError, ValueError):
+                live_rev = 0
         peers = _service.repo.upsert_presence(
             get_db(),
             document_id=doc_id,
             company_id=cid,
             user_id=_actor_id() or "anon",
             display_name=_actor_name() or _actor_id() or "User",
+            live_html=str(data.get("liveHtml") or data.get("live_html") or "") if live_rev is not None else None,
+            live_title=str(data.get("liveTitle") or data.get("live_title") or "") if live_rev is not None else None,
+            live_rev=live_rev,
         )
         body = str(doc.get("content_html") or "")
         content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()[:24]
+        try:
+            from backend.app.platform.realtime.websocket import socketio as _sio
+
+            if _sio is not None and live_rev is not None:
+                _sio.emit(
+                    "docs_live",
+                    {
+                        "documentId": doc_id,
+                        "companyId": cid,
+                        "userId": _actor_id() or "anon",
+                        "displayName": _actor_name() or _actor_id() or "User",
+                        "liveRev": live_rev,
+                        "liveTitle": str(data.get("liveTitle") or "")[:200],
+                        "liveHtml": str(data.get("liveHtml") or "")[:250_000],
+                    },
+                    room=f"company:{cid}",
+                )
+        except Exception:
+            pass
         return jsonify(
             {
                 "ok": True,
@@ -906,6 +956,136 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             except Exception:
                 pass
         return jsonify({"ok": True, "signature": row, "level": level, "document": doc})
+
+    def _qes_config() -> dict:
+        import os
+
+        provider = (os.getenv("DOCS_QES_PROVIDER") or "").strip()
+        api_url = (os.getenv("DOCS_QES_API_URL") or "").strip()
+        api_key = (os.getenv("DOCS_QES_API_KEY") or "").strip()
+        configured = bool(api_url and api_key)
+        return {
+            "configured": configured,
+            "provider": provider or ("generic" if configured else ""),
+            "levelAvailable": "qes" if configured else "aes",
+            "hint": (
+                "QES via Trust Service Provider konfiguriert."
+                if configured
+                else "QES nicht konfiguriert. DOCS_QES_API_URL + DOCS_QES_API_KEY (+ optional DOCS_QES_PROVIDER) setzen."
+            ),
+        }
+
+    @docs_v2_bp.get("/docs/signatures/qes/status")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="qes_status")
+    @require_roles("superadmin", "company-admin")
+    def qes_status():
+        return jsonify({"ok": True, **_qes_config()})
+
+    @docs_v2_bp.post("/docs/<doc_id>/signatures/qes/start")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="qes_start")
+    @require_roles("superadmin", "company-admin")
+    @require_owner_step_up
+    def qes_start(doc_id: str):
+        import hashlib
+        import json as _json
+        import os
+        import urllib.error
+        import urllib.request
+
+        cfg = _qes_config()
+        if not cfg["configured"]:
+            return jsonify({"ok": False, "error": "qes_not_configured", "message": cfg["hint"], **cfg}), 503
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        if not doc:
+            return jsonify({"error": "not_found"}), 404
+        body = str(doc.get("content_html") or "")
+        content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
+        payload = {
+            "documentId": doc_id,
+            "companyId": cid,
+            "title": doc.get("title") or "",
+            "contentHashSha256": content_hash,
+            "signerName": str(data.get("signerName") or data.get("signer_name") or "").strip(),
+            "callbackUrl": str(data.get("callbackUrl") or os.getenv("DOCS_QES_CALLBACK_URL") or "").strip(),
+            "level": "qes",
+            "provider": cfg["provider"],
+        }
+        api_url = (os.getenv("DOCS_QES_API_URL") or "").rstrip("/")
+        api_key = os.getenv("DOCS_QES_API_KEY") or ""
+        req = urllib.request.Request(
+            api_url,
+            data=_json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+                "X-Docs-Qes-Provider": cfg["provider"],
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                try:
+                    remote = _json.loads(raw) if raw else {}
+                except Exception:
+                    remote = {"raw": raw}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")[:500]
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "qes_provider_http",
+                    "message": f"QES-Provider HTTP {exc.code}",
+                    "detail": detail,
+                }
+            ), 502
+        except Exception as exc:
+            return jsonify({"ok": False, "error": "qes_provider_unreachable", "message": str(exc)}), 502
+
+        session_url = (
+            remote.get("sessionUrl")
+            or remote.get("session_url")
+            or remote.get("url")
+            or remote.get("redirectUrl")
+            or ""
+        )
+        # Audit placeholder row (no PIN / not AES image) marking QES session start
+        _service.repo.add_signature(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            signer_name=str(payload["signerName"] or "QES"),
+            actor_user_id=_actor_id(),
+            stamped=False,
+            content_hash=content_hash,
+            signature_data=_json.dumps(
+                {
+                    "manifest": {
+                        "level": "qes_pending",
+                        "provider": cfg["provider"],
+                        "contentHashSha256": content_hash,
+                        "remote": {k: remote.get(k) for k in ("id", "sessionId", "status") if k in remote},
+                    }
+                },
+                ensure_ascii=False,
+            )[:120000],
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "level": "qes",
+                "provider": cfg["provider"],
+                "sessionUrl": session_url,
+                "remote": remote,
+                "contentHash": content_hash,
+            }
+        )
 
     @docs_v2_bp.get("/docs/<doc_id>/signatures")
     @require_auth
