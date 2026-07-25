@@ -33,6 +33,9 @@ def build_camera_incident_pdf(
     snapshot_b64: str | None = None,
     worker_id: str | None = None,
     lang: str = "de",
+    police_suggestion: dict[str, Any] | None = None,
+    history: list[dict[str, Any]] | None = None,
+    disclaimer: str | None = None,
 ) -> bytes:
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
@@ -75,6 +78,37 @@ def build_camera_incident_pdf(
             sev = str(alert.get("severity") or "info").upper()
             msg = str(alert.get("message") or alert.get("type") or "")
             line(f"  [{sev}] {msg}", size=9)
+
+    if police_suggestion:
+        line("Polizei-Empfehlung / Police suggestion", bold=True, size=11)
+        station = police_suggestion.get("station") or {}
+        if station:
+            if station.get("name"):
+                line(f"  {station.get('name')}", size=9)
+            addr_bits = [station.get("address"), station.get("city"), station.get("country"), station.get("phone")]
+            addr = " · ".join(str(x) for x in addr_bits if x)
+            if addr:
+                line(f"  {addr}", size=9)
+        emerg = police_suggestion.get("countryEmergency") or {}
+        if emerg.get("number"):
+            line(f"  Notruf: {emerg.get('number')} ({emerg.get('label') or emerg.get('country') or ''})", size=9)
+        line("  Kein automatischer Notruf / No auto dial", size=8)
+
+    if history:
+        line("Verlauf / History", bold=True, size=11)
+        for ev in history[:20]:
+            ts = str(ev.get("createdAt") or "")[:19]
+            et = str(ev.get("type") or ev.get("event_type") or "")
+            actor = str(ev.get("actorUserId") or ev.get("actor_user_id") or "")
+            note = str(ev.get("note") or "")
+            suffix = f" · {actor}" if actor else ""
+            if note:
+                suffix += f" — {note}"[:60]
+            line(f"  {ts} {et}{suffix}", size=8)
+
+    if disclaimer:
+        y -= 2 * mm
+        line(str(disclaimer)[:160], size=8)
 
     jpeg = _decode_jpeg(snapshot_b64)
     if jpeg:

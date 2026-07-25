@@ -8917,6 +8917,31 @@ def start_background_jobs():
     if str(os.getenv("BAUPASS_CAMERA_VISION_JOB", "1")).strip().lower() not in {"0", "false", "off", "no"}:
         threading.Thread(target=camera_vision_loop, name="baupass-camera-vision", daemon=True).start()  # baupass:allow-inline-thread
 
+    def run_camera_escalation_chain_job():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.camera_escalation_chain_job import (
+                    run_camera_escalation_chain,
+                )
+
+                return run_camera_escalation_chain(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: camera escalation chain job failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc), "autoDial": False}
+
+    def camera_escalation_chain_loop():
+        interval = max(30, int(os.getenv("BAUPASS_CAMERA_CHAIN_SECONDS", "60")))
+        while True:
+            run_camera_escalation_chain_job()
+            time.sleep(interval)
+
+    if str(os.getenv("BAUPASS_CAMERA_CHAIN_JOB", "1")).strip().lower() not in {"0", "false", "off", "no"}:
+        threading.Thread(
+            target=camera_escalation_chain_loop,
+            name="baupass-camera-escalation-chain",
+            daemon=True,
+        ).start()  # baupass:allow-inline-thread
+
     def run_platform_guardian_once():
         try:
             with app.app_context():

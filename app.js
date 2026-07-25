@@ -1086,6 +1086,8 @@ const UI_TRANSLATIONS = {
     camerasBulkSuccess: "{n} Kamera(s) importiert.",
     camerasBulkPartial: "{ok} importiert, {fail} fehlgeschlagen.",
     camerasBulkEmpty: "Bitte mindestens eine Zeile eintragen.",
+    camerasNeedCompanyPreview: "Bitte zuerst eine Firma wählen (Superadmin-Vorschau), dann Kameras importieren.",
+    camerasNeedCompany: "Firmen-Kontext fehlt. Bitte neu einloggen oder Firma wählen.",
     camerasBridgeLoading: "Bridge-Informationen werden geladen…",
     camerasBridgeRefreshBtn: "Setup aktualisieren",
     camerasBridgeTokenOk: "RTSP-Bridge-Token ist auf dem Server konfiguriert.",
@@ -21359,12 +21361,24 @@ function _cameraEventsUrl() {
 
 function _camerasApiUrl(suffix = "") {
   let url = `${API_BASE}/api/integrations/cameras${suffix}`;
-  const role = String(getCurrentUser()?.role || "");
-  if (role === "superadmin" && superadminUiPreviewCompanyId) {
+  const cid = String(getEffectiveUiCompanyId() || superadminUiPreviewCompanyId || "").trim();
+  if (cid) {
     const sep = url.includes("?") ? "&" : "?";
-    url += `${sep}company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    url += `${sep}company_id=${encodeURIComponent(cid)}`;
   }
   return url;
+}
+
+function _camerasCompanyGuardMessage() {
+  const role = String(getCurrentUser()?.role || "");
+  if (role === "superadmin" && !getEffectiveUiCompanyId()) {
+    return uiT("camerasNeedCompanyPreview")
+      || "Bitte zuerst eine Firma wählen (Superadmin-Vorschau / Firmenauswahl), dann Kameras importieren.";
+  }
+  if (!getEffectiveUiCompanyId()) {
+    return uiT("camerasNeedCompany") || "Firmen-Kontext fehlt (company_id). Bitte neu einloggen oder Firma wählen.";
+  }
+  return "";
 }
 
 async function loadSiteCameras() {
@@ -21816,12 +21830,19 @@ async function importCamerasBulk() {
     if (resultEl) resultEl.textContent = uiT("camerasBulkEmpty");
     return;
   }
+  const guard = _camerasCompanyGuardMessage();
+  if (guard) {
+    if (resultEl) resultEl.textContent = guard;
+    showToast(guard, "error");
+    return;
+  }
   const btn = document.getElementById("cameraBulkImportBtn");
   if (btn) btn.disabled = true;
   try {
+    const cid = getEffectiveUiCompanyId();
     const res = await apiRequest(_camerasApiUrl("/bulk"), {
       method: "POST",
-      body: { lines: text },
+      body: { lines: text, companyId: cid, company_id: cid },
     });
     const created = Number(res?.created || 0);
     const failed = Array.isArray(res?.failed) ? res.failed.length : 0;
@@ -21946,10 +21967,16 @@ if (camerasRefreshBtn) {
       const location = (document.getElementById("cameraLocation")?.value || "").trim();
       const rtspUrl = (document.getElementById("cameraRtspUrl")?.value || "").trim();
       if (!name) return;
+      const guard = _camerasCompanyGuardMessage();
+      if (guard) {
+        showToast(guard, "error");
+        return;
+      }
       try {
+        const cid = getEffectiveUiCompanyId();
         await apiRequest(_camerasApiUrl(), {
           method: "POST",
-          body: { name, location, rtspUrl },
+          body: { name, location, rtspUrl, companyId: cid, company_id: cid },
         });
         form.reset();
         await loadSiteCameras();

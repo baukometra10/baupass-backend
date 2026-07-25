@@ -1606,5 +1606,53 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="047",
+        name="camera_watch_ops",
+        up_sql="""
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS escalate_after_minutes INTEGER NOT NULL DEFAULT 15;
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS escalate_second_contact TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS require_dual_ack INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS notify_rules_json TEXT NOT NULL DEFAULT '{}';
+
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS escalate_after_minutes INTEGER NOT NULL DEFAULT 15;
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS escalate_second_contact TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS require_dual_ack INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE camera_watch_sites ADD COLUMN IF NOT EXISTS notify_rules_json TEXT NOT NULL DEFAULT '{}';
+
+            CREATE TABLE IF NOT EXISTS camera_watch_overrides (
+                company_id TEXT NOT NULL,
+                site_key TEXT NOT NULL DEFAULT '',
+                override_date TEXT NOT NULL,
+                kind TEXT NOT NULL DEFAULT 'holiday',
+                work_start TEXT NOT NULL DEFAULT '',
+                work_end TEXT NOT NULL DEFAULT '',
+                force_after_hours INTEGER NOT NULL DEFAULT 0,
+                note TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (company_id, site_key, override_date)
+            );
+            CREATE INDEX IF NOT EXISTS idx_camera_watch_overrides_date
+                ON camera_watch_overrides(company_id, override_date);
+
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS zone_name TEXT NOT NULL DEFAULT '';
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS zone_critical_only_after_hours INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS min_confidence REAL NOT NULL DEFAULT 0;
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS latitude REAL;
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS longitude REAL;
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS watch_meta_json TEXT NOT NULL DEFAULT '{}';
+
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS ack_count INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS ack_users_json TEXT NOT NULL DEFAULT '[]';
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS chain_stage INTEGER NOT NULL DEFAULT 0;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS chain_next_at TEXT;
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS dual_ack_required INTEGER NOT NULL DEFAULT 0;
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_camera_watch_overrides_date;
+            DROP TABLE IF EXISTS camera_watch_overrides;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

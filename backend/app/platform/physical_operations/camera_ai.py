@@ -105,7 +105,66 @@ def ingest_camera_event(db, company_id: Any, payload: dict[str, Any]) -> dict[st
         return {"id": None, "heartbeat": True, "camera_id": camera_id}
 
     after_hours = is_after_hours_for_site(db, company_id_str, site=site)
+
+    cam_meta = None
+    try:
+        cam_meta = db.execute(
+            "SELECT * FROM site_cameras WHERE company_id = ? AND id = ?",
+            (company_id_str, camera_id),
+        ).fetchone()
+    except Exception:
+        cam_meta = None
+
+    # Zone min-confidence gate — skip alerts when payload confidence is too low.
+    try:
+        min_conf = float(cam_meta["min_confidence"]) if cam_meta and "min_confidence" in cam_meta.keys() and cam_meta["min_confidence"] is not None else 0.0
+    except Exception:
+        min_conf = 0.0
+    conf_raw = payload.get("confidence")
+    try:
+        payload_conf = float(conf_raw) if conf_raw is not None and str(conf_raw).strip() != "" else None
+    except Exception:
+        payload_conf = None
+    if min_conf > 0 and payload_conf is not None and payload_conf < min_conf:
+        return {
+            "id": None,
+            "skipped": "below_min_confidence",
+            "camera_id": camera_id,
+            "minConfidence": min_conf,
+            "confidence": payload_conf,
+            "afterHours": after_hours,
+        }
+
     analysis = analyze_camera_event(company_id_str, payload, after_hours=after_hours)
+
+    # Zone: critical only after hours — downgrade daytime critical to high (skip create_critical path).
+    zone_crit_only = False
+    try:
+        zone_crit_only = bool(
+            int(cam_meta["zone_critical_only_after_hours"] if cam_meta and "zone_critical_only_after_hours" in cam_meta.keys() else 0)
+            or 0
+        )
+    except Exception:
+        zone_crit_only = False
+    if zone_crit_only and not after_hours and (
+        analysis.get("critical") or str(analysis.get("maxSeverity") or "").lower() == "critical"
+    ):
+        from .camera_watch import severity_rank
+
+        alerts = []
+        for a in analysis.get("alerts") or []:
+            item = dict(a)
+            if str(item.get("severity") or "").lower() == "critical":
+                item["severity"] = "high"
+            alerts.append(item)
+        analysis["alerts"] = alerts
+        max_sev = "info"
+        for a in alerts:
+            if severity_rank(a.get("severity")) > severity_rank(max_sev):
+                max_sev = str(a.get("severity") or "info")
+        analysis["maxSeverity"] = max_sev if max_sev != "info" else "high"
+        analysis["critical"] = False
+        analysis["criticalDowngraded"] = True
 
     # Critical alerts require evidence — fall back to last camera snapshot.
     if analysis.get("snapshotRequired") and not snapshot_b64:

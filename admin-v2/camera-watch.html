@@ -4,11 +4,12 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>SUPPIX — Kamera-Wächter</title>
-  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725watch1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725watch2" />
   <style>
-    .cw-wrap { max-width: 1100px; margin: 0 auto; padding: 1rem 1.1rem 2.5rem; }
-    .cw-grid { display: grid; gap: 1rem; grid-template-columns: 1.1fr 0.9fr; }
-    @media (max-width: 900px) { .cw-grid { grid-template-columns: 1fr; } }
+    .cw-wrap { max-width: 1180px; margin: 0 auto; padding: 1rem 1.1rem 2.5rem; }
+    .cw-grid { display: grid; gap: 1rem; grid-template-columns: 1.15fr 0.85fr; }
+    @media (max-width: 960px) { .cw-grid { grid-template-columns: 1fr; } }
     .cw-card { border: 1px solid var(--border); border-radius: 14px; padding: 0.9rem 1rem; background: var(--card, rgba(255,255,255,0.03)); }
     .cw-card h2 { margin: 0 0 0.55rem; font-size: 1.05rem; }
     .cw-fields { display: grid; gap: 0.55rem; grid-template-columns: 1fr 1fr; }
@@ -23,6 +24,7 @@
     .cw-badge { display: inline-block; padding: 0.12rem 0.4rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; background: rgba(245,158,11,.18); color: #fde68a; }
     .cw-history { font-size: 0.78rem; color: var(--muted, #94a3b8); }
     .cw-top { display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    #cwMap { height: 260px; border-radius: 12px; border: 1px solid var(--border); margin-top: 0.65rem; z-index: 1; }
     .muted { opacity: .8; }
     .err { color: #f87171; }
     .ok { color: #34d399; }
@@ -34,7 +36,7 @@
       <div>
         <a href="/admin-v2/index.html" id="cwBack">← Betrieb</a>
         <h1 style="margin:0.35rem 0 0.15rem">Kamera-Wächter</h1>
-        <p class="muted" style="margin:0" id="cwSubtitle">Nachtschicht, Standorte, Eskalationen — kein Auto-Notruf</p>
+        <p class="muted" style="margin:0" id="cwSubtitle">Nachtschicht, Kette, Export, Karte — kein Auto-Notruf</p>
       </div>
       <div>
         <span class="cw-badge" id="cwWatchBadge">…</span>
@@ -57,12 +59,47 @@
           <label><span>Stadt</span><input name="city" placeholder="Berlin" /></label>
           <label><span>Latitude</span><input name="latitude" placeholder="52.52" /></label>
           <label><span>Longitude</span><input name="longitude" placeholder="13.40" /></label>
-          <label class="full"><span>Security-Webhook (Firma, nicht Polizei)</span><input name="securityWebhookUrl" placeholder="https://…" /></label>
+          <label class="full"><span>Security-Webhook (Firma)</span><input name="securityWebhookUrl" placeholder="https://…" /></label>
+          <label><span>Eskalation nach (Min.)</span><input name="escalateAfterMinutes" type="number" min="1" max="1440" placeholder="15" /></label>
+          <label><span>Zweitkontakt (Tel/E-Mail)</span><input name="escalateSecondContact" placeholder="+49… oder mail@" /></label>
+          <label><span>Zwei-Augen-Ack</span>
+            <select name="requireDualAck"><option value="1">An</option><option value="0">Aus</option></select>
+          </label>
+          <label><span>SMS</span>
+            <select name="notifySms"><option value="critical">nur Critical</option><option value="high">High+</option><option value="off">Aus</option></select>
+          </label>
+          <label><span>Push</span>
+            <select name="notifyPush"><option value="high">High+</option><option value="critical">nur Critical</option><option value="off">Aus</option></select>
+          </label>
+          <label><span>E-Mail</span>
+            <select name="notifyEmail"><option value="immediate">Sofort</option><option value="digest">Digest</option><option value="off">Aus</option></select>
+          </label>
         </form>
         <div class="cw-actions">
           <button type="button" class="primary" id="cwSaveCompany">Firma speichern</button>
         </div>
         <p class="muted" id="cwCompanyMsg" style="margin:0.5rem 0 0;font-size:0.78rem"></p>
+
+        <h2 style="margin-top:1.1rem">Sonderzeiten / Feiertage</h2>
+        <form id="cwOverrideForm" class="cw-fields">
+          <label><span>Datum (YYYY-MM-DD)</span><input name="overrideDate" placeholder="2026-12-25" /></label>
+          <label><span>Art</span>
+            <select name="kind">
+              <option value="holiday">Feiertag (Watch an)</option>
+              <option value="force_watch">Force Watch</option>
+              <option value="force_open">Force offen (kein Watch)</option>
+              <option value="special_hours">Sonderzeiten</option>
+            </select>
+          </label>
+          <label><span>Site-Key (leer = Firma)</span><input name="siteKey" placeholder="" /></label>
+          <label><span>Notiz</span><input name="note" placeholder="Betriebsferien" /></label>
+          <label><span>Beginn (Sonderzeiten)</span><input name="workStart" placeholder="08:00" /></label>
+          <label><span>Ende (Sonderzeiten)</span><input name="workEnd" placeholder="14:00" /></label>
+        </form>
+        <div class="cw-actions">
+          <button type="button" class="primary" id="cwSaveOverride">Override speichern</button>
+        </div>
+        <ul class="cw-list" id="cwOverrideList" style="margin-top:0.55rem"></ul>
 
         <h2 style="margin-top:1.1rem">Standort / Site</h2>
         <form id="cwSiteForm" class="cw-fields">
@@ -84,6 +121,10 @@
           <button type="button" class="ghost" id="cwDeleteSite">Standort löschen</button>
         </div>
         <ul class="cw-list" id="cwSiteList" style="margin-top:0.7rem"></ul>
+
+        <h2 style="margin-top:1.1rem">Lagekarte</h2>
+        <p class="muted" style="margin:0;font-size:0.78rem">Kameras + offene Eskalationen (Koordinaten von Kamera/Site/Firma).</p>
+        <div id="cwMap"></div>
       </section>
 
       <section class="cw-card">
@@ -92,6 +133,7 @@
         <div id="cwDetail" hidden style="margin-top:0.85rem">
           <h2 id="cwDetailTitle">Detail</h2>
           <p class="muted" id="cwDetailMeta"></p>
+          <p class="muted" id="cwAckBadge" style="font-size:0.78rem"></p>
           <div class="cw-media" id="cwMedia"></div>
           <div class="cw-card" style="margin-top:0.65rem;padding:0.65rem">
             <strong>Polizei-Vorschlag</strong>
@@ -99,8 +141,10 @@
             <p class="muted" style="margin:0.35rem 0 0;font-size:0.72rem">Kein automatischer Notruf — menschliche Entscheidung erforderlich.</p>
           </div>
           <div class="cw-actions">
-            <button type="button" class="primary" id="cwAck">Als bearbeitet / Security informiert</button>
+            <button type="button" class="primary" id="cwAck">Bestätigen / Security informiert</button>
             <button type="button" class="ghost" id="cwFalse">Fehlalarm</button>
+            <a class="ghost" id="cwExportZip" href="#">Export ZIP</a>
+            <a class="ghost" id="cwExportPdf" href="#">Export PDF</a>
             <a class="ghost" id="cwCamLink" href="#">Kamera-Snapshot</a>
           </div>
           <div class="cw-history" id="cwHistory" style="margin-top:0.65rem"></div>
@@ -109,7 +153,8 @@
       </section>
     </div>
   </div>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/storage.js?v=20260619s1"></script>
-  <script src="/admin-v2/camera-watch-app.js?v=20260725watch1"></script>
+  <script src="/admin-v2/camera-watch-app.js?v=20260725watch2"></script>
 </body>
 </html>

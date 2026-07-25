@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ._common import now_iso
@@ -11,7 +12,6 @@ from .camera_watch import (
     record_false_positive_learning,
     resolve_watch_settings,
 )
-from .police_directory import suggest_nearest_police
 
 
 def _append_event(
@@ -45,6 +45,25 @@ def _append_event(
         pass
 
 
+def _row_has(row, key: str) -> bool:
+    try:
+        return key in row.keys()
+    except Exception:
+        return False
+
+
+def _parse_ack_users(raw: Any) -> list[str]:
+    if isinstance(raw, list):
+        return [str(x) for x in raw if str(x).strip()]
+    try:
+        data = json.loads(raw or "[]")
+        if isinstance(data, list):
+            return [str(x) for x in data if str(x).strip()]
+    except Exception:
+        pass
+    return []
+
+
 def _serialize_row(r) -> dict[str, Any]:
     details = {}
     try:
@@ -74,7 +93,13 @@ def _serialize_row(r) -> dict[str, Any]:
         "details": details,
         "acknowledgedBy": r["acknowledged_by"],
         "acknowledgedAt": r["acknowledged_at"],
+        "ackCount": int(r["ack_count"] if "ack_count" in keys and r["ack_count"] is not None else 0),
+        "ackUsers": _parse_ack_users(r["ack_users_json"] if "ack_users_json" in keys else "[]"),
+        "chainStage": int(r["chain_stage"] if "chain_stage" in keys and r["chain_stage"] is not None else 0),
+        "chainNextAt": str(r["chain_next_at"] if "chain_next_at" in keys else "") or None,
+        "dualAckRequired": bool(int(r["dual_ack_required"] if "dual_ack_required" in keys else 0) or 0),
         "createdAt": r["created_at"],
+        "autoDial": False,
     }
 
 
@@ -94,6 +119,8 @@ def create_critical_escalation(
 ) -> dict[str, Any]:
     site_key = normalize_site_key(site or location)
     cfg = resolve_watch_settings(db, company_id, site=site_key or location)
+    from .police_directory import suggest_nearest_police
+
     police = suggest_nearest_police(
         country=str(cfg.get("country") or ""),
         city=str(cfg.get("city") or ""),
@@ -118,14 +145,24 @@ def create_critical_escalation(
         "disclaimer": police.get("disclaimer"),
         "resolvedFrom": cfg.get("resolvedFrom"),
     }
+    dual_ack = bool(cfg.get("requireDualAck", True))
+    try:
+        escalate_mins = max(1, int(cfg.get("escalateAfterMinutes") or 15))
+    except Exception:
+        escalate_mins = 15
+    chain_next = (datetime.now(timezone.utc) + timedelta(minutes=escalate_mins)).strftime(
+        "%Y-%m-%dT%H:%M:%S.%fZ"
+    )
+    created_at = now_iso()
     try:
         db.execute(
             """
             INSERT INTO camera_escalations (
                 id, company_id, event_id, camera_id, severity, status,
                 police_name, police_address, police_phone, police_country, police_city,
-                snapshot_b64, details_json, created_at, clip_b64, site_key
-            ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                snapshot_b64, details_json, created_at, clip_b64, site_key,
+                ack_count, ack_users_json, chain_stage, chain_next_at, dual_ack_required
+            ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', 0, ?, ?)
             """,
             (
                 eid,
@@ -140,22 +177,24 @@ def create_critical_escalation(
                 str(station.get("city") or cfg.get("city") or ""),
                 str(snapshot_b64 or "")[:350000],
                 json.dumps(details, ensure_ascii=False),
-                now_iso(),
+                created_at,
                 str(clip_b64 or "")[:2_000_000],
                 site_key,
+                chain_next,
+                1 if dual_ack else 0,
             ),
         )
         db.commit()
     except Exception:
-        # Fallback without new columns (pre-046 DBs)
+        # Fallback without new columns (pre-046/047 DBs)
         try:
             db.execute(
                 """
                 INSERT INTO camera_escalations (
                     id, company_id, event_id, camera_id, severity, status,
                     police_name, police_address, police_phone, police_country, police_city,
-                    snapshot_b64, details_json, created_at
-                ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)
+                    snapshot_b64, details_json, created_at, clip_b64, site_key
+                ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     eid,
@@ -170,12 +209,41 @@ def create_critical_escalation(
                     str(station.get("city") or cfg.get("city") or ""),
                     str(snapshot_b64 or "")[:350000],
                     json.dumps(details, ensure_ascii=False),
-                    now_iso(),
+                    created_at,
+                    str(clip_b64 or "")[:2_000_000],
+                    site_key,
                 ),
             )
             db.commit()
-        except Exception as exc:
-            return {"ok": False, "error": str(exc), "police": police}
+        except Exception:
+            try:
+                db.execute(
+                    """
+                    INSERT INTO camera_escalations (
+                        id, company_id, event_id, camera_id, severity, status,
+                        police_name, police_address, police_phone, police_country, police_city,
+                        snapshot_b64, details_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        eid,
+                        str(company_id),
+                        str(event_id),
+                        str(camera_id),
+                        str(analysis.get("maxSeverity") or "critical"),
+                        str(station.get("name") or ""),
+                        str(station.get("address") or ""),
+                        str(station.get("phone") or (police.get("countryEmergency") or {}).get("number") or ""),
+                        str(station.get("country") or (police.get("countryEmergency") or {}).get("country") or ""),
+                        str(station.get("city") or cfg.get("city") or ""),
+                        str(snapshot_b64 or "")[:350000],
+                        json.dumps(details, ensure_ascii=False),
+                        created_at,
+                    ),
+                )
+                db.commit()
+            except Exception as exc:
+                return {"ok": False, "error": str(exc), "police": police, "autoDial": False}
 
     _append_event(db, escalation_id=eid, company_id=company_id, event_type="created", note=event_type)
 
@@ -218,6 +286,8 @@ def create_critical_escalation(
         "police": police,
         "securityWebhookSent": webhook_ok,
         "autoDial": False,
+        "dualAckRequired": dual_ack,
+        "chainNextAt": chain_next,
         "detailUrl": f"/admin-v2/camera-watch.html?escalation={eid}",
     }
 
@@ -304,23 +374,92 @@ def acknowledge_escalation(
     ).fetchone()
     if not row:
         return None
-    status = "security_notified" if mark_security_notified else "acknowledged"
+
+    actor = str(actor_user_id or "").strip()[:120]
+    dual_required = bool(int(row["dual_ack_required"] if _row_has(row, "dual_ack_required") else 0) or 0)
+    ack_count = int(row["ack_count"] if _row_has(row, "ack_count") and row["ack_count"] is not None else 0)
+    ack_users = _parse_ack_users(row["ack_users_json"] if _row_has(row, "ack_users_json") else "[]")
     ts = now_iso()
-    db.execute(
-        """
-        UPDATE camera_escalations
-        SET status = ?, acknowledged_by = ?, acknowledged_at = ?
-        WHERE company_id = ? AND id = ?
-        """,
-        (status, str(actor_user_id or "")[:120], ts, cid, eid),
-    )
-    db.commit()
+
+    if dual_required and actor and actor in ack_users:
+        raise ValueError("duplicate_ack")
+
+    if dual_required and ack_count < 1:
+        # First ack — wait for a second distinct user
+        new_users = list(ack_users)
+        if actor and actor not in new_users:
+            new_users.append(actor)
+        try:
+            db.execute(
+                """
+                UPDATE camera_escalations
+                SET status = 'pending_second_ack', ack_count = 1, ack_users_json = ?
+                WHERE company_id = ? AND id = ?
+                """,
+                (json.dumps(new_users, ensure_ascii=False), cid, eid),
+            )
+            db.commit()
+        except Exception:
+            db.execute(
+                """
+                UPDATE camera_escalations
+                SET status = 'pending_second_ack'
+                WHERE company_id = ? AND id = ?
+                """,
+                (cid, eid),
+            )
+            db.commit()
+        _append_event(
+            db,
+            escalation_id=eid,
+            company_id=cid,
+            event_type="ack_partial",
+            actor_user_id=actor,
+            note="First acknowledgment — second required",
+        )
+        return get_escalation(db, cid, eid, include_media=False)
+
+    # Full ack (no dual requirement, or second distinct user)
+    status = "security_notified" if mark_security_notified else "acknowledged"
+    new_users = list(ack_users)
+    if actor and actor not in new_users:
+        new_users.append(actor)
+    final_count = max(ack_count + (1 if actor and actor not in ack_users else 0), len(new_users), 1)
+    try:
+        db.execute(
+            """
+            UPDATE camera_escalations
+            SET status = ?, acknowledged_by = ?, acknowledged_at = ?,
+                ack_count = ?, ack_users_json = ?
+            WHERE company_id = ? AND id = ?
+            """,
+            (
+                status,
+                actor,
+                ts,
+                final_count,
+                json.dumps(new_users, ensure_ascii=False),
+                cid,
+                eid,
+            ),
+        )
+        db.commit()
+    except Exception:
+        db.execute(
+            """
+            UPDATE camera_escalations
+            SET status = ?, acknowledged_by = ?, acknowledged_at = ?
+            WHERE company_id = ? AND id = ?
+            """,
+            (status, actor, ts, cid, eid),
+        )
+        db.commit()
     _append_event(
         db,
         escalation_id=eid,
         company_id=cid,
         event_type=status,
-        actor_user_id=actor_user_id,
+        actor_user_id=actor,
     )
     try:
         from backend.server import log_audit

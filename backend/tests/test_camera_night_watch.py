@@ -6,9 +6,8 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from backend.app.database import MigrationRunner
 from backend.app.migrations import ALL_MIGRATIONS
@@ -20,6 +19,8 @@ from backend.app.platform.physical_operations.camera_escalation import (
     list_escalations,
     mark_false_positive,
 )
+from backend.app.platform.physical_operations.camera_escalation_chain_job import run_camera_escalation_chain
+from backend.app.platform.physical_operations.camera_export import build_escalation_export_zip
 from backend.app.platform.physical_operations.camera_registry import create_camera, touch_camera_heartbeat
 from backend.app.platform.physical_operations.camera_vision import (
     analyze_snapshot_b64,
@@ -33,9 +34,11 @@ from backend.app.platform.physical_operations.camera_watch import (
     is_alert_suppressed,
     resolve_watch_settings,
     upsert_site_watch_settings,
+    upsert_watch_override,
     upsert_watch_settings,
     watch_status,
 )
+from backend.app.platform.physical_operations.nvr_webhook import ingest_nvr_webhook, normalize_nvr_payload
 from backend.app.platform.physical_operations.police_directory import (
     _cache_get,
     _cache_put,
@@ -93,9 +96,9 @@ class CameraNightWatchTests(unittest.TestCase):
                 "workDays": "1,2,3,4,5",
             },
         )
-        sunday_night = datetime(2026, 7, 19, 22, 0, tzinfo=ZoneInfo("UTC"))  # Sunday
+        sunday_night = datetime(2026, 7, 19, 22, 0, tzinfo=timezone.utc)  # Sunday
         self.assertTrue(is_after_hours(db, "cmp-watch", at=sunday_night))
-        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=ZoneInfo("UTC"))  # Monday
+        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)  # Monday
         self.assertFalse(is_after_hours(db, "cmp-watch", at=monday_noon))
         db.close()
 
@@ -122,6 +125,7 @@ class CameraNightWatchTests(unittest.TestCase):
                 "city": "Berlin",
                 "latitude": 52.52,
                 "longitude": 13.40,
+                "requireDualAck": False,
             },
         )
         cam = create_camera(db, "cmp-watch", {"name": "Gate", "location": "Yard"})
@@ -251,7 +255,7 @@ class CameraNightWatchTests(unittest.TestCase):
         self.assertEqual(resolved.get("resolvedFrom"), "site")
         self.assertEqual(resolved.get("city"), "Hamburg")
         self.assertEqual(resolved.get("workStart"), "06:00")
-        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=ZoneInfo("UTC"))
+        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
         self.assertFalse(is_after_hours_for_site(db, "cmp-watch", site="yard-north", at=monday_noon))
         company_only = resolve_watch_settings(db, "cmp-watch", site="unknown-site")
         self.assertEqual(company_only.get("resolvedFrom"), "company")
@@ -307,6 +311,203 @@ class CameraNightWatchTests(unittest.TestCase):
         self.assertEqual(hit["station"]["name"], "Cached PD")
         sug = suggest_nearest_police(country="DE", city="Berlin", latitude=52.52, longitude=13.40, db=db)
         self.assertFalse(sug.get("autoDial"))
+        db.close()
+
+    def test_holiday_override_forces_after_hours(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "timezone": "UTC",
+                "workStart": "09:00",
+                "workEnd": "17:00",
+                "workDays": "1,2,3,4,5",
+            },
+        )
+        monday_noon = datetime(2026, 7, 20, 12, 0, tzinfo=timezone.utc)
+        self.assertFalse(is_after_hours(db, "cmp-watch", at=monday_noon))
+        upsert_watch_override(
+            db,
+            "cmp-watch",
+            {"overrideDate": "2026-07-20", "kind": "holiday", "note": "public holiday"},
+        )
+        self.assertTrue(is_after_hours(db, "cmp-watch", at=monday_noon))
+        db.close()
+
+    def test_dual_ack_requires_two_users(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {"enabled": True, "requireDualAck": True, "escalateAfterMinutes": 15, "country": "DE", "city": "Berlin"},
+        )
+        created = create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-dual-1",
+            camera_id="cam-dual",
+            camera_name="Gate",
+            location="Yard",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+        )
+        self.assertTrue(created.get("ok"))
+        self.assertTrue(created.get("dualAckRequired"))
+        eid = created["id"]
+        first = acknowledge_escalation(db, "cmp-watch", eid, actor_user_id="admin-1")
+        self.assertEqual(first["status"], "pending_second_ack")
+        self.assertEqual(first["ackCount"], 1)
+        with self.assertRaises(ValueError) as ctx:
+            acknowledge_escalation(db, "cmp-watch", eid, actor_user_id="admin-1")
+        self.assertEqual(str(ctx.exception), "duplicate_ack")
+        second = acknowledge_escalation(
+            db, "cmp-watch", eid, actor_user_id="admin-2", mark_security_notified=True
+        )
+        self.assertEqual(second["status"], "security_notified")
+        self.assertGreaterEqual(second["ackCount"], 2)
+        self.assertFalse(second.get("autoDial", True))
+        db.close()
+
+    def test_chain_stage_bump_with_past_next_at(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {
+                "enabled": True,
+                "requireDualAck": False,
+                "escalateAfterMinutes": 15,
+                "escalateSecondContact": "not-a-phone",
+                "securityWebhookUrl": "",
+            },
+        )
+        created = create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-chain-1",
+            camera_id="cam-chain",
+            camera_name="Yard",
+            location="Yard",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+        )
+        eid = created["id"]
+        db.execute(
+            "UPDATE camera_escalations SET chain_next_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00.000000Z", eid),
+        )
+        db.commit()
+        out = run_camera_escalation_chain(db)
+        self.assertTrue(out.get("ok"))
+        self.assertFalse(out.get("autoDial", True))
+        self.assertGreaterEqual(int(out.get("stage1") or 0), 1)
+        row = db.execute("SELECT chain_stage, chain_next_at FROM camera_escalations WHERE id = ?", (eid,)).fetchone()
+        self.assertEqual(int(row["chain_stage"]), 1)
+        self.assertTrue(row["chain_next_at"])
+        db.execute(
+            "UPDATE camera_escalations SET chain_next_at = ? WHERE id = ?",
+            ("2020-01-01T00:00:00.000000Z", eid),
+        )
+        db.commit()
+        out2 = run_camera_escalation_chain(db)
+        self.assertGreaterEqual(int(out2.get("stage2") or 0), 1)
+        row2 = db.execute("SELECT chain_stage FROM camera_escalations WHERE id = ?", (eid,)).fetchone()
+        self.assertEqual(int(row2["chain_stage"]), 2)
+        hist = get_escalation(db, "cmp-watch", eid)
+        types = {h.get("type") for h in (hist.get("history") or [])}
+        self.assertIn("chain_second_contact", types)
+        self.assertIn("chain_security_webhook", types)
+        db.close()
+
+    def test_zone_min_confidence_skips_alerts(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {"enabled": True, "timezone": "UTC", "workStart": "09:00", "workEnd": "10:00", "workDays": "1,2,3,4,5"},
+        )
+        cam = create_camera(
+            db,
+            "cmp-watch",
+            {"name": "Zone Cam", "location": "Yard", "minConfidence": 0.8, "zoneCriticalOnlyAfterHours": True},
+        )
+        self.assertEqual(cam.get("minConfidence"), 0.8)
+        self.assertTrue(cam.get("zoneCriticalOnlyAfterHours"))
+        low = ingest_camera_event(
+            db,
+            "cmp-watch",
+            {"camera_id": cam["id"], "event_type": "forced_entry", "confidence": 0.2},
+        )
+        self.assertEqual(low.get("skipped"), "below_min_confidence")
+        self.assertIsNone(low.get("id"))
+        db.close()
+
+    def test_nvr_stub_normalize_and_ingest(self):
+        db = self._conn()
+        upsert_watch_settings(db, "cmp-watch", {"enabled": True, "requireDualAck": False})
+        norm = normalize_nvr_payload(
+            "hikvision",
+            {"EventNotificationAlert": {"channelID": 3, "eventType": "intrusion", "channelName": "Gate"}},
+            {},
+        )
+        self.assertEqual(norm["vendor"], "hikvision")
+        self.assertEqual(norm["event_type"], "possible_intrusion")
+        self.assertIn("hik-ch-3", norm["camera_id"])
+        result = ingest_nvr_webhook(
+            db,
+            "cmp-watch",
+            "generic",
+            {"camera_id": "cam-nvr-1", "event_type": "motion", "confidence": 0.9, "location": "Yard"},
+            {},
+        )
+        self.assertTrue(result.get("ok"))
+        self.assertFalse(result.get("autoDial", True))
+        db.close()
+
+    def test_export_zip_non_empty(self):
+        db = self._conn()
+        upsert_watch_settings(
+            db,
+            "cmp-watch",
+            {"enabled": True, "requireDualAck": False, "country": "DE", "city": "Berlin", "latitude": 52.52, "longitude": 13.40},
+        )
+        snap = base64.b64encode(b"\xff\xd8\xff\xd9export").decode("ascii")
+        created = create_critical_escalation(
+            db,
+            company_id="cmp-watch",
+            event_id="ev-export-1",
+            camera_id="cam-export",
+            camera_name="Export Cam",
+            location="Yard",
+            event_type="forced_entry",
+            analysis={
+                "maxSeverity": "critical",
+                "alerts": [{"type": "forced_entry", "severity": "critical"}],
+                "afterHours": True,
+            },
+            snapshot_b64=snap,
+        )
+        zbytes = build_escalation_export_zip(db, "cmp-watch", created["id"])
+        self.assertIsInstance(zbytes, (bytes, bytearray))
+        self.assertGreater(len(zbytes), 100)
+        import zipfile
+        import io
+
+        with zipfile.ZipFile(io.BytesIO(zbytes)) as zf:
+            names = set(zf.namelist())
+            self.assertIn("incident.pdf", names)
+            self.assertIn("meta.json", names)
+            self.assertIn("snapshot.jpg", names)
         db.close()
 
 

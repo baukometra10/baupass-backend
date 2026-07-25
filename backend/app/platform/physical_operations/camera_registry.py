@@ -60,10 +60,35 @@ def _trim_snapshot_b64(value: str | None) -> str:
         return ""
 
 
+def _row_has(row, key: str) -> bool:
+    try:
+        return key in row.keys()
+    except Exception:
+        return False
+
+
 def serialize_camera(row) -> dict[str, Any]:
     last_seen = str(row["last_seen_at"] or "")
     online = camera_is_online(last_seen)
     has_snapshot = bool(str(row["last_snapshot_at"] or "").strip())
+    zone_name = str(row["zone_name"] if _row_has(row, "zone_name") else "") or ""
+    zone_crit = bool(int(row["zone_critical_only_after_hours"] if _row_has(row, "zone_critical_only_after_hours") else 0) or 0)
+    try:
+        min_conf = float(row["min_confidence"]) if _row_has(row, "min_confidence") and row["min_confidence"] is not None else 0.0
+    except Exception:
+        min_conf = 0.0
+    lat = None
+    lng = None
+    if _row_has(row, "latitude") and row["latitude"] is not None:
+        try:
+            lat = float(row["latitude"])
+        except Exception:
+            lat = None
+    if _row_has(row, "longitude") and row["longitude"] is not None:
+        try:
+            lng = float(row["longitude"])
+        except Exception:
+            lng = None
     return {
         "id": row["id"],
         "companyId": row["company_id"],
@@ -76,6 +101,11 @@ def serialize_camera(row) -> dict[str, Any]:
         "lastSnapshotAt": str(row["last_snapshot_at"] or "") or None,
         "hasSnapshot": has_snapshot,
         "healthError": str(row["health_error"] or ""),
+        "zoneName": zone_name,
+        "zoneCriticalOnlyAfterHours": zone_crit,
+        "minConfidence": min_conf,
+        "latitude": lat,
+        "longitude": lng,
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
     }
@@ -206,31 +236,86 @@ def bulk_create_cameras(db, company_id: str, items: list[dict[str, Any]]) -> dic
     }
 
 
+def _extract_zone_fields(payload: dict[str, Any], row=None) -> tuple[str, int, float, float | None, float | None]:
+    def _cur(key_snake: str, *alts: str, default: Any = None):
+        for k in (key_snake, *alts):
+            if k in payload:
+                return payload.get(k)
+        if row is not None and _row_has(row, key_snake):
+            return row[key_snake]
+        return default
+
+    zone_name = str(_cur("zone_name", "zoneName", default="") or "").strip()[:120]
+    zone_crit_raw = _cur("zone_critical_only_after_hours", "zoneCriticalOnlyAfterHours", default=0)
+    if isinstance(zone_crit_raw, str):
+        zone_crit = 1 if zone_crit_raw.strip().lower() in {"1", "true", "yes", "on"} else 0
+    else:
+        zone_crit = 1 if zone_crit_raw else 0
+    try:
+        min_conf = float(_cur("min_confidence", "minConfidence", default=0) or 0)
+    except Exception:
+        min_conf = 0.0
+    min_conf = max(0.0, min(1.0, min_conf))
+    lat = _cur("latitude", default=None)
+    lng = _cur("longitude", default=None)
+    try:
+        lat_f = float(lat) if lat is not None and str(lat).strip() != "" else None
+    except Exception:
+        lat_f = None
+    try:
+        lng_f = float(lng) if lng is not None and str(lng).strip() != "" else None
+    except Exception:
+        lng_f = None
+    return zone_name, zone_crit, min_conf, lat_f, lng_f
+
+
 def create_camera(db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     name = str(payload.get("name") or "").strip()
     if not name:
         raise ValueError("name_required")
     cam_id = str(payload.get("id") or f"cam-{uuid.uuid4().hex[:10]}").strip()
     ts = now_iso()
-    db.execute(
-        """
-        INSERT INTO site_cameras
-            (id, company_id, name, location, rtsp_url, status, last_seen_at,
-             last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
-             created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, 'unknown', NULL, NULL, '', '', NULL, ?, ?)
-        """,
-        (
-            cam_id,
-            str(company_id),
-            name,
-            str(payload.get("location") or "").strip(),
-            str(payload.get("rtspUrl") or payload.get("rtsp_url") or "").strip(),
-            ts,
-            ts,
-        ),
-    )
-    db.commit()
+    location = str(payload.get("location") or "").strip()
+    rtsp_url = str(payload.get("rtspUrl") or payload.get("rtsp_url") or "").strip()
+    zone_name, zone_crit, min_conf, lat_f, lng_f = _extract_zone_fields(payload)
+    try:
+        db.execute(
+            """
+            INSERT INTO site_cameras
+                (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                 last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
+                 zone_name, zone_critical_only_after_hours, min_confidence, latitude, longitude,
+                 created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'unknown', NULL, NULL, '', '', NULL, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                cam_id,
+                str(company_id),
+                name,
+                location,
+                rtsp_url,
+                zone_name,
+                zone_crit,
+                min_conf,
+                lat_f,
+                lng_f,
+                ts,
+                ts,
+            ),
+        )
+        db.commit()
+    except Exception:
+        db.execute(
+            """
+            INSERT INTO site_cameras
+                (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                 last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
+                 created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'unknown', NULL, NULL, '', '', NULL, ?, ?)
+            """,
+            (cam_id, str(company_id), name, location, rtsp_url, ts, ts),
+        )
+        db.commit()
     return get_camera(db, company_id, cam_id) or {"id": cam_id}
 
 
@@ -246,15 +331,41 @@ def update_camera(db, company_id: str, camera_id: str, payload: dict[str, Any]) 
     rtsp_url = str(
         payload.get("rtspUrl") if "rtspUrl" in payload else payload.get("rtsp_url", row["rtsp_url"] or "")
     ).strip()
-    db.execute(
-        """
-        UPDATE site_cameras
-        SET name = ?, location = ?, rtsp_url = ?, updated_at = ?
-        WHERE company_id = ? AND id = ?
-        """,
-        (name, location, rtsp_url, now_iso(), str(company_id), str(camera_id)),
-    )
-    db.commit()
+    zone_name, zone_crit, min_conf, lat_f, lng_f = _extract_zone_fields(payload, row)
+    try:
+        db.execute(
+            """
+            UPDATE site_cameras
+            SET name = ?, location = ?, rtsp_url = ?,
+                zone_name = ?, zone_critical_only_after_hours = ?, min_confidence = ?,
+                latitude = ?, longitude = ?, updated_at = ?
+            WHERE company_id = ? AND id = ?
+            """,
+            (
+                name,
+                location,
+                rtsp_url,
+                zone_name,
+                zone_crit,
+                min_conf,
+                lat_f,
+                lng_f,
+                now_iso(),
+                str(company_id),
+                str(camera_id),
+            ),
+        )
+        db.commit()
+    except Exception:
+        db.execute(
+            """
+            UPDATE site_cameras
+            SET name = ?, location = ?, rtsp_url = ?, updated_at = ?
+            WHERE company_id = ? AND id = ?
+            """,
+            (name, location, rtsp_url, now_iso(), str(company_id), str(camera_id)),
+        )
+        db.commit()
     return get_camera(db, company_id, camera_id)
 
 

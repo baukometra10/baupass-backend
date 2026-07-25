@@ -82,6 +82,52 @@ def _send_admin_emails(
     return sent
 
 
+def _notify_sms_push(
+    db,
+    company_id: str,
+    *,
+    title: str,
+    message: str,
+    escalation_id: str | None,
+    event_id: str = "",
+    send_sms_flag: bool = True,
+    send_push_flag: bool = True,
+) -> dict:
+    result = {"sms": False, "push": False}
+    if send_sms_flag:
+        try:
+            from backend.app.platform.security.contracts_lock import company_owner_phone
+            from backend.app.platform.notifications.sms import send_sms, sms_configured
+
+            phone = company_owner_phone(db, company_id)
+            if phone and sms_configured():
+                ok, _ = send_sms(to=phone, body=f"{title}\n{message}"[:300])
+                result["sms"] = bool(ok)
+        except Exception:
+            pass
+    if send_push_flag:
+        try:
+            from backend.app.platform.push.admin_delivery import deliver_admin_push
+
+            esc = escalation_id or event_id or "cam"
+            push = deliver_admin_push(
+                db,
+                str(company_id),
+                title[:80],
+                message[:160],
+                tag=f"camera-{esc}"[:64],
+                extra={
+                    "url": f"/admin-v2/camera-watch.html?company_id={company_id}"
+                    + (f"&escalation={escalation_id}" if escalation_id else ""),
+                    "kind": "camera_critical",
+                },
+            )
+            result["push"] = int(push.get("sent") or 0) > 0
+        except Exception:
+            pass
+    return result
+
+
 def _notify_critical_sms_push(
     db,
     company_id: str,
@@ -91,37 +137,16 @@ def _notify_critical_sms_push(
     escalation_id: str | None,
     event_id: str = "",
 ) -> dict:
-    result = {"sms": False, "push": False}
-    try:
-        from backend.app.platform.security.contracts_lock import company_owner_phone
-        from backend.app.platform.notifications.sms import send_sms, sms_configured
-
-        phone = company_owner_phone(db, company_id)
-        if phone and sms_configured():
-            ok, _ = send_sms(to=phone, body=f"{title}\n{message}"[:300])
-            result["sms"] = bool(ok)
-    except Exception:
-        pass
-    try:
-        from backend.app.platform.push.admin_delivery import deliver_admin_push
-
-        esc = escalation_id or event_id or "cam"
-        push = deliver_admin_push(
-            db,
-            str(company_id),
-            title[:80],
-            message[:160],
-            tag=f"camera-{esc}"[:64],
-            extra={
-                "url": f"/admin-v2/camera-watch.html?company_id={company_id}"
-                + (f"&escalation={escalation_id}" if escalation_id else ""),
-                "kind": "camera_critical",
-            },
-        )
-        result["push"] = int(push.get("sent") or 0) > 0
-    except Exception:
-        pass
-    return result
+    return _notify_sms_push(
+        db,
+        company_id,
+        title=title,
+        message=message,
+        escalation_id=escalation_id,
+        event_id=event_id,
+        send_sms_flag=True,
+        send_push_flag=True,
+    )
 
 
 def notify_camera_violation(
@@ -150,9 +175,21 @@ def notify_camera_violation(
     if len(alert_lines) > 1:
         summary = f"{summary} (+{len(alert_lines) - 1} weitere)"
 
+    from .camera_watch import resolve_watch_settings, severity_rank
+
     after_hours = bool(analysis.get("afterHours"))
-    critical = bool(analysis.get("critical") or str(analysis.get("maxSeverity") or "").lower() == "critical")
+    max_sev = str(analysis.get("maxSeverity") or "").lower() or "info"
+    critical = bool(analysis.get("critical") or max_sev == "critical")
     channels = {"sms": False, "push": False}
+    watch_cfg = resolve_watch_settings(db, str(company_id), site=location)
+    notify_rules = watch_cfg.get("notifyRules") if isinstance(watch_cfg.get("notifyRules"), dict) else {}
+    sms_min = str(notify_rules.get("sms") or "critical").lower()
+    push_min = str(notify_rules.get("push") or "high").lower()
+    email_mode = str(notify_rules.get("email") or "immediate").lower()
+    send_sms_flag = severity_rank(max_sev) >= severity_rank(sms_min)
+    send_push_flag = severity_rank(max_sev) >= severity_rank(push_min)
+    # Digest mode: skip immediate email unless critical
+    send_email_now = not (email_mode == "digest" and not critical)
     watch_tag = " [Außerhalb Arbeitszeit / Watch-Mode]" if after_hours else ""
     title = f"Kamera-Alarm{watch_tag}: {camera_name or camera_id}"
     message = (
@@ -211,70 +248,74 @@ def notify_camera_violation(
         except Exception:
             escalation = None
 
-    if critical:
-        channels = _notify_critical_sms_push(
+    if send_sms_flag or send_push_flag:
+        channels = _notify_sms_push(
             db,
             str(company_id),
             title=title,
             message=message,
             escalation_id=(escalation or {}).get("id") if isinstance(escalation, dict) else None,
             event_id=event_id,
+            send_sms_flag=send_sms_flag,
+            send_push_flag=send_push_flag,
         )
 
     pdf_bytes = None
-    try:
-        from backend.app.platform.reports.camera_pdf import build_camera_incident_pdf
+    emails_sent = 0
+    if send_email_now:
+        try:
+            from backend.app.platform.reports.camera_pdf import build_camera_incident_pdf
 
-        pdf_bytes = build_camera_incident_pdf(
-            company_name=company_name,
-            camera_id=camera_id,
-            camera_name=camera_name,
-            location=location,
-            event_type=event_type,
-            created_at=created_at,
-            alerts=alerts,
-            snapshot_b64=snapshot_b64,
-            worker_id=worker_id,
-        )
-    except Exception:
-        pdf_bytes = None
-
-    subject = f"SUPPIX Kamera-Alarm{watch_tag} — {camera_name or camera_id}"
-    police_lines = []
-    if escalation and isinstance(escalation, dict):
-        police = escalation.get("police") or {}
-        station = police.get("station") or {}
-        if station:
-            police_lines.append(
-                f"Empfohlene Polizeidienststelle: {station.get('name')} · {station.get('address')} · {station.get('phone')}"
+            pdf_bytes = build_camera_incident_pdf(
+                company_name=company_name,
+                camera_id=camera_id,
+                camera_name=camera_name,
+                location=location,
+                event_type=event_type,
+                created_at=created_at,
+                alerts=alerts,
+                snapshot_b64=snapshot_b64,
+                worker_id=worker_id,
             )
-        emerg = police.get("countryEmergency") or {}
-        if emerg.get("number"):
-            police_lines.append(f"Notruf ({emerg.get('country') or ''}): {emerg.get('number')} ({emerg.get('label')})")
-        police_lines.append("Kein automatischer Notruf — menschliche Freigabe erforderlich.")
-    text_body = (
-        f"{message}\n\n"
-        + "\n".join(f"- {line}" for line in alert_lines)
-        + ("\n\n" + "\n".join(police_lines) if police_lines else "")
-        + "\n\nBitte Live-Ansicht und Ereignisliste in WorkPass prüfen."
-    )
-    msg_safe = html.escape(message)
-    alerts_html = "".join(f"<li>{html.escape(line)}</li>" for line in alert_lines)
-    html_body = f"""<!DOCTYPE html><html><body style="font-family:sans-serif;">
+        except Exception:
+            pdf_bytes = None
+
+        subject = f"SUPPIX Kamera-Alarm{watch_tag} — {camera_name or camera_id}"
+        police_lines = []
+        if escalation and isinstance(escalation, dict):
+            police = escalation.get("police") or {}
+            station = police.get("station") or {}
+            if station:
+                police_lines.append(
+                    f"Empfohlene Polizeidienststelle: {station.get('name')} · {station.get('address')} · {station.get('phone')}"
+                )
+            emerg = police.get("countryEmergency") or {}
+            if emerg.get("number"):
+                police_lines.append(f"Notruf ({emerg.get('country') or ''}): {emerg.get('number')} ({emerg.get('label')})")
+            police_lines.append("Kein automatischer Notruf — menschliche Freigabe erforderlich.")
+        text_body = (
+            f"{message}\n\n"
+            + "\n".join(f"- {line}" for line in alert_lines)
+            + ("\n\n" + "\n".join(police_lines) if police_lines else "")
+            + "\n\nBitte Live-Ansicht und Ereignisliste in WorkPass prüfen."
+        )
+        msg_safe = html.escape(message)
+        alerts_html = "".join(f"<li>{html.escape(line)}</li>" for line in alert_lines)
+        html_body = f"""<!DOCTYPE html><html><body style="font-family:sans-serif;">
 <h2 style="color:#b45309;">{html.escape(title)}</h2>
 <p>{msg_safe}</p>
 <ul>{alerts_html}</ul>
 </body></html>"""
 
-    emails_sent = _send_admin_emails(
-        db,
-        str(company_id),
-        subject=subject,
-        text_body=text_body,
-        html_body=html_body,
-        pdf_bytes=pdf_bytes,
-        pdf_filename=f"camera-incident-{event_id}.pdf",
-    )
+        emails_sent = _send_admin_emails(
+            db,
+            str(company_id),
+            subject=subject,
+            text_body=text_body,
+            html_body=html_body,
+            pdf_bytes=pdf_bytes,
+            pdf_filename=f"camera-incident-{event_id}.pdf",
+        )
 
     try:
         from backend.server import log_audit
@@ -292,6 +333,7 @@ def notify_camera_violation(
     return {
         "ok": True,
         "emailsSent": emails_sent,
+        "emailSkippedDigest": not send_email_now,
         "eventId": event_id,
         "afterHours": after_hours,
         "critical": critical,
@@ -299,6 +341,8 @@ def notify_camera_violation(
         "police": (escalation or {}).get("police") if isinstance(escalation, dict) else None,
         "smsSent": channels.get("sms"),
         "pushSent": channels.get("push"),
+        "notifyRules": notify_rules,
+        "autoDial": False,
     }
 
 

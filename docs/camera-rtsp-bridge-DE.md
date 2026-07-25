@@ -181,5 +181,20 @@ WorkPass → **Geräte** → Panel «Kamera-KI & RTSP-Bridge»
 
 WorkPass → **Betrieb** → **Kamera-Wächter** (`/admin-v2/camera-watch.html`)
 
-- Firmen- und Standort-Arbeitszeiten
-- Offene Eskalationen mit Snapshot/Clip, Polizei-Vorschlag, Ack / Fehlalarm
+- Firmen- und Standort-Arbeitszeiten, Quiet-Rules, Zwei-Augen-Ack
+- Feiertage / Sonderzeiten (Overrides)
+- Eskalations-Kette (Zweitkontakt → Security-Webhook, kein Auto-Notruf)
+- Offene Eskalationen mit Snapshot/Clip, Export PDF/ZIP, Ack / Fehlalarm
+- Lagekarte (Kameras + offene Escalations)
+
+**Wichtig Superadmin:** Vor Massen-Import / Kamera-Anlage eine Firma in der Vorschau wählen — sonst `company_id_required`.
+
+### NVR-Webhooks
+
+```
+POST /api/integrations/cameras/nvr/hikvision
+POST /api/integrations/cameras/nvr/dahua
+POST /api/integrations/cameras/nvr/generic
+```
+
+Auth wie RTSP-Ingest (`X-WorkPass-Rtsp-Token` + `X-WorkPass-Company-Id`).
