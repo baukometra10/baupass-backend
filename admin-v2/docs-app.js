@@ -3018,6 +3018,11 @@
       `</div><p><br></p>`;
     insertHtmlAtCursor(html);
     setStatus($("saveStatus"), dt("signInserted"), "ok");
+    recordSignatureAudit({
+      signerName: signer,
+      stamped: stampOn,
+      signatureData: canvas && signHasInk ? canvas.toDataURL("image/png") : "",
+    }).catch(() => {});
     closeSignModal();
   }
 

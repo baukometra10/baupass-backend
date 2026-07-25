@@ -3049,6 +3049,86 @@ body.page-a1 @page { size: A1; }
   background: rgba(14, 165, 233, 0.08);
   margin-bottom: 0.45rem;
 }
+.docs-empty-state {
+  display: none;
+  place-items: center;
+  flex: 1 1 auto;
+  min-height: 60%;
+  padding: 1.5rem;
+}
+.docs-empty-state.is-on { display: grid; }
+.docs-empty-card {
+  width: min(420px, 92%);
+  padding: 1.4rem 1.35rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: linear-gradient(165deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.92));
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+  text-align: center;
+}
+.docs-empty-kicker {
+  margin: 0 0 0.35rem;
+  font: 750 0.68rem/1 var(--ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #38bdf8;
+}
+.docs-empty-card h2 {
+  margin: 0 0 0.45rem;
+  font: 700 1.35rem/1.2 var(--ui);
+  color: #f8fafc;
+}
+.docs-empty-card p {
+  margin: 0 0 1rem;
+  color: #94a3b8;
+  font: 500 0.9rem/1.45 var(--ui);
+}
+.docs-empty-card .action-row {
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.paper-fit.is-dimmed { opacity: 0.22; pointer-events: none; filter: grayscale(0.2); }
+.presence-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  margin-inline: 0.2rem 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: #a7f3d0;
+  font: 650 0.68rem/1 var(--ui);
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.presence-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.2);
+}
+.print-pdf-frame {
+  width: 100%;
+  min-height: min(72vh, 820px);
+  border: 0;
+  border-radius: 8px;
+  background: #525659;
+}
+.versions-panel summary {
+  color: #7dd3fc;
+}
+#quillEditor .ql-editor .wp-ph-chip {
+  cursor: pointer;
+}
+#quillEditor .ql-editor .wp-ph-chip:hover {
+  background: rgba(14, 165, 233, 0.22);
+  border-color: rgba(14, 165, 233, 0.5);
+}
 
 /* Print preview: clean paper, no ghost Kopfzeile */
 .print-preview-stack .docs-hf:empty,

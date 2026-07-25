@@ -113,7 +113,19 @@ flutter run --dart-define=BAUPASS_API_URL=http://192.168.1.50:8080
 
 | المشكلة | الحل |
 |---------|------|
-| `import json` فشل | لا تستخدم Python 3.14؛ شغّل `.\scripts\local-dev-start.ps1` |
+| Login `403` / CSRF | استخدم `http://127.0.0.1:8080` وأعد تشغيل السيرفر بعد آخر إصلاح Origin |
+| سيرفر صاخب / SMTP / IMAP أخطاء | شغّل `.\scripts\local-dev-start.ps1` أو `.\deploy\start-lokal.ps1` (يعطّل Background Jobs) |
+| منفذ غلط | دائماً **8080** — لا تستخدم 8000 للاختبار المحلي |
+| `import json` فشل | لا تستخدم Python 3.14؛ استخدم `.venv-ci` أو `.venv311` |
 | Admin v2 فارغ لـ superadmin | اختر شركة من القائمة |
 | Flutter لا يتصل | تأكد من `BAUPASS_API_URL` ومنفذ 8080 |
 | NFC لا يعمل | جهاز حقيقي + NFC مفعّل + `physicalCardId` معيّن |
+
+## تشغيل موصى به (هادئ)
+
+```powershell
+# أوقف أي server.py قديم (Ctrl+C)
+.\deploy\start-lokal.ps1
+```
+
+ثم افتح فقط: `http://127.0.0.1:8080/admin-v2/index.html`

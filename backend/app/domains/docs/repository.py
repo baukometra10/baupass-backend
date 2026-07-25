@@ -601,6 +601,169 @@ class EditorDocsRepository:
         db.commit()
         return int(getattr(cur, "rowcount", 0) or 0) > 0
 
+    def ensure_presence_schema(self, db) -> None:
+        self.ensure_schema(db)
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editor_doc_presence (
+                document_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                display_name TEXT NOT NULL DEFAULT '',
+                last_seen TEXT NOT NULL,
+                PRIMARY KEY (document_id, user_id)
+            )
+            """
+        )
+        try:
+            db.commit()
+        except Exception:
+            pass
+
+    def upsert_presence(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        user_id: str,
+        display_name: str,
+    ) -> list[dict[str, Any]]:
+        self.ensure_presence_schema(db)
+        now = _now()
+        try:
+            db.execute(
+                """
+                INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(document_id, user_id) DO UPDATE SET
+                  display_name = excluded.display_name,
+                  last_seen = excluded.last_seen,
+                  company_id = excluded.company_id
+                """,
+                (document_id, company_id, user_id, (display_name or "").strip()[:80], now),
+            )
+        except Exception:
+            db.execute(
+                "DELETE FROM editor_doc_presence WHERE document_id = ? AND user_id = ?",
+                (document_id, user_id),
+            )
+            db.execute(
+                """
+                INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (document_id, company_id, user_id, (display_name or "").strip()[:80], now),
+            )
+        db.commit()
+        return self.list_presence(db, document_id=document_id, company_id=company_id)
+
+    def list_presence(self, db, *, document_id: str, company_id: str) -> list[dict[str, Any]]:
+        self.ensure_presence_schema(db)
+        rows = db.execute(
+            """
+            SELECT document_id, company_id, user_id, display_name, last_seen
+            FROM editor_doc_presence
+            WHERE document_id = ? AND company_id = ?
+            ORDER BY last_seen DESC
+            LIMIT 20
+            """,
+            (document_id, company_id),
+        ).fetchall()
+        items = [_row_to_dict(r) for r in rows]
+        # Keep only recently seen (~2 min) using string compare on ISO timestamps.
+        cutoff = datetime.now(timezone.utc).timestamp() - 120
+        fresh = []
+        for it in items:
+            try:
+                ts = datetime.fromisoformat(str(it.get("last_seen") or "").replace("Z", "+00:00")).timestamp()
+            except Exception:
+                continue
+            if ts >= cutoff:
+                fresh.append(it)
+        return fresh
+
+    def ensure_signatures_schema(self, db) -> None:
+        self.ensure_schema(db)
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editor_doc_signatures (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                signer_name TEXT NOT NULL DEFAULT '',
+                actor_user_id TEXT,
+                stamped INTEGER NOT NULL DEFAULT 0,
+                content_hash TEXT NOT NULL DEFAULT '',
+                signature_data TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        try:
+            db.execute(
+                "CREATE INDEX IF NOT EXISTS idx_editor_doc_sigs ON editor_doc_signatures(document_id, created_at DESC)"
+            )
+        except Exception:
+            pass
+        try:
+            db.commit()
+        except Exception:
+            pass
+
+    def add_signature(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        signer_name: str,
+        actor_user_id: str | None,
+        stamped: bool,
+        content_hash: str,
+        signature_data: str = "",
+    ) -> dict[str, Any]:
+        self.ensure_signatures_schema(db)
+        sid = str(uuid.uuid4())
+        now = _now()
+        db.execute(
+            """
+            INSERT INTO editor_doc_signatures (
+                id, document_id, company_id, signer_name, actor_user_id,
+                stamped, content_hash, signature_data, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                sid,
+                document_id,
+                company_id,
+                (signer_name or "").strip()[:120],
+                actor_user_id,
+                1 if stamped else 0,
+                (content_hash or "")[:128],
+                (signature_data or "")[:120000],
+                now,
+            ),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM editor_doc_signatures WHERE id = ?", (sid,)).fetchone()
+        return _row_to_dict(row)
+
+    def list_signatures(self, db, *, document_id: str, company_id: str) -> list[dict[str, Any]]:
+        self.ensure_signatures_schema(db)
+        rows = db.execute(
+            """
+            SELECT id, document_id, company_id, signer_name, actor_user_id, stamped,
+                   content_hash, created_at
+            FROM editor_doc_signatures
+            WHERE document_id = ? AND company_id = ?
+            ORDER BY created_at DESC
+            LIMIT 50
+            """,
+            (document_id, company_id),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
 
 def dumps_json(value: Any) -> str:
     if value is None:

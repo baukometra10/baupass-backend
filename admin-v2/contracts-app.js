@@ -1082,7 +1082,7 @@
         applyRedactionUi(true);
         paintUnlockBadge({ lockRequired: true, unlocked: false, setupEnforced: true, smsConfigured: true });
         showLockOverlay({ setup: false, enforced: true });
-        setStatus(window.contractPageT("lockTitle") || "Vertragszugang gesperrt", { active: true });
+        setStatus(window.contractPageT("lockNowToast") || "Vertragsbereich gesperrt.", { active: true });
       } catch (e) {
         setStatus(mapApiError(e), { error: true });
       }

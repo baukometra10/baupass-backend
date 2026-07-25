@@ -4594,6 +4594,16 @@ async function loadInbox() {
                 .trim();
               return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeAttr(label)}</button>`;
             }
+            const tabTarget = String(a.tab || "").trim() || (() => {
+              try {
+                return new URL(url, window.location.origin).searchParams.get("tab") || "";
+              } catch (_e) {
+                return "";
+              }
+            })();
+            if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
+              return `<button type="button" class="btn-link inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeAttr(label)}</button>`;
+            }
             if (window.parent !== window && url.startsWith("/")) {
               return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeAttr(label)}</button>`;
             }
@@ -4870,7 +4880,7 @@ async function loadInbox() {
   }
   el.querySelectorAll(".inbox-row").forEach((tr) => {
     tr.addEventListener("click", (ev) => {
-      if (ev.target.closest("a, button, input, label, .inbox-pick, .inbox-resolve, .inbox-exec, .inbox-ai-analyze, .inbox-nav-deployment, .inbox-nav-parent")) {
+      if (ev.target.closest("a, button, input, label, .inbox-pick, .inbox-resolve, .inbox-exec, .inbox-ai-analyze, .inbox-nav-deployment, .inbox-nav-parent, .inbox-nav-tab")) {
         return;
       }
       ev.preventDefault();
@@ -4932,6 +4942,13 @@ async function loadInbox() {
       } catch (e) {
         showActionToast(e.message, true);
       }
+    });
+  });
+  el.querySelectorAll(".inbox-nav-tab").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const tab = String(btn.dataset.tab || "").trim();
+      if (!tab) return;
+      switchToTab(tab);
     });
   });
   el.querySelectorAll(".inbox-resolve").forEach((btn) => {

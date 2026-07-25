@@ -28,6 +28,7 @@ backend/.env.*.local
 
 # Generated local docs and temporary scripts
 backend/uploads/documents/
+backend/data/editor_docs/
 task.ps1
 backend/show_users.py
 backend/unlock_admin.py

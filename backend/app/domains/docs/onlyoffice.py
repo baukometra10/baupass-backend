@@ -200,9 +200,100 @@ def _mm_to_twips(mm_val: float) -> int:
 
 
 def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = None) -> bytes:
-    """OOXML .docx from HTML with headings/bold and page layout."""
-    blocks = html_to_rich_blocks(html)
+    """OOXML .docx from HTML with headings/bold, page layout, and embedded images/signatures."""
+    img_store: list[tuple[str, bytes]] = []
+
+    def _take_img(match: re.Match) -> str:
+        src = match.group(1)
+        m = re.match(r"data:(image/[a-zA-Z0-9.+-]+);base64,(.+)", src, re.I | re.S)
+        if not m:
+            return ""
+        mime = m.group(1).lower()
+        try:
+            raw = base64.b64decode(m.group(2), validate=False)
+        except Exception:
+            return ""
+        if not raw or len(raw) > 3_500_000:
+            return ""
+        ext = "png"
+        if "jpeg" in mime or "jpg" in mime:
+            ext = "jpg"
+        elif "gif" in mime:
+            ext = "gif"
+        elif "webp" in mime:
+            ext = "webp"
+        idx = len(img_store)
+        img_store.append((ext, raw))
+        return f"[[WPIMG:{idx}]]"
+
+    cleaned = re.sub(
+        r'<img[^>]+src=["\'](data:image/[^"\']+)["\'][^>]*/?>',
+        _take_img,
+        html or "",
+        flags=re.I,
+    )
+    blocks = html_to_rich_blocks(cleaned)
     body_parts: list[str] = []
+    media_files: list[tuple[str, bytes]] = []
+    rel_extra: list[str] = []
+    ctype_extra: set[str] = {
+        '<Default Extension="png" ContentType="image/png"/>',
+        '<Default Extension="jpg" ContentType="image/jpeg"/>',
+        '<Default Extension="jpeg" ContentType="image/jpeg"/>',
+    }
+    next_rid = 3
+
+    def _drawing_xml(rid: str, cx: int = 3048000, cy: int = 1143000) -> str:
+        return (
+            f'<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">'
+            f'<wp:extent cx="{cx}" cy="{cy}"/>'
+            f'<wp:docPr id="1" name="Picture"/>'
+            f'<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'
+            f'<pic:pic><pic:nvPicPr><pic:cNvPr id="0" name="img"/><pic:cNvPicPr/></pic:nvPicPr>'
+            f'<pic:blipFill><a:blip r:embed="{rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'
+            f'<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="{cx}" cy="{cy}"/></a:xfrm>'
+            f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'
+            f"</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>"
+        )
+
+    def _runs_to_xml(runs: list[dict[str, Any]]) -> str:
+        nonlocal next_rid
+        out: list[str] = []
+        for run in runs or []:
+            text_val = str(run.get("text") or "")
+            if not text_val:
+                continue
+            parts = re.split(r"(\[\[WPIMG:\d+\]\])", text_val)
+            for part in parts:
+                m = re.fullmatch(r"\[\[WPIMG:(\d+)\]\]", part)
+                if m:
+                    idx = int(m.group(1))
+                    if idx < 0 or idx >= len(img_store):
+                        continue
+                    ext, raw = img_store[idx]
+                    name = f"image{idx + 1}.{ext}"
+                    media_files.append((f"word/media/{name}", raw))
+                    rid = f"rId{next_rid}"
+                    next_rid += 1
+                    rel_extra.append(
+                        f'<Relationship Id="{rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/{name}"/>'
+                    )
+                    mime = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp"}.get(ext, "image/png")
+                    ctype_extra.add(f'<Default Extension="{ext}" ContentType="{mime}"/>')
+                    cx, cy = (3800000, 2200000) if len(raw) > 80000 else (3048000, 1143000)
+                    out.append(_drawing_xml(rid, cx, cy))
+                    continue
+                space_attr = ' xml:space="preserve"' if part.startswith(" ") or part.endswith(" ") else ""
+                rpr = "<w:rPr><w:b/></w:rPr>" if run.get("bold") else ""
+                chunks = part.split("\n")
+                for i, chunk in enumerate(chunks):
+                    if i:
+                        out.append("<w:r><w:br/></w:r>")
+                    if chunk:
+                        sa = ' xml:space="preserve"' if chunk.startswith(" ") or chunk.endswith(" ") else space_attr
+                        out.append(f"<w:r>{rpr}<w:t{sa}>{_xml_escape(chunk)}</w:t></w:r>")
+        return "".join(out)
+
     if title:
         body_parts.append(
             f'<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr>'
@@ -210,22 +301,7 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
         )
     for block in blocks:
         style = str(block.get("style") or "Normal")
-        runs_xml = []
-        for run in block.get("runs") or []:
-            text = str(run.get("text") or "")
-            if not text:
-                continue
-            # w:t must preserve spaces with xml:space when needed
-            space_attr = ' xml:space="preserve"' if text.startswith(" ") or text.endswith(" ") else ""
-            rpr = "<w:rPr><w:b/></w:rPr>" if run.get("bold") else ""
-            # split on newlines into multiple runs / breaks
-            chunks = text.split("\n")
-            for i, chunk in enumerate(chunks):
-                if i:
-                    runs_xml.append("<w:r><w:br/></w:r>")
-                if chunk:
-                    sa = ' xml:space="preserve"' if chunk.startswith(" ") or chunk.endswith(" ") else space_attr
-                    runs_xml.append(f"<w:r>{rpr}<w:t{sa}>{_xml_escape(chunk)}</w:t></w:r>")
+        runs_xml = _runs_to_xml(block.get("runs") or [])
         if not runs_xml:
             continue
         p_style = f'<w:pPr><w:pStyle w:val="{_xml_escape(style)}"/></w:pPr>' if style != "Normal" else "<w:pPr/>"
@@ -234,13 +310,12 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
                 '<w:pPr><w:pStyle w:val="ListParagraph"/>'
                 '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr>'
             )
-        body_parts.append(f"<w:p>{p_style}{''.join(runs_xml)}</w:p>")
+        body_parts.append(f"<w:p>{p_style}{runs_xml}</w:p>")
     if not body_parts:
         body_parts.append("<w:p><w:r><w:t></w:t></w:r></w:p>")
 
     lay = layout or {}
     page = str(lay.get("pageSize") or "a4").lower()
-    # twips: A4 11906×16838, A3 16838×23811, A1 33676×47622
     if page == "a3":
         pg_w, pg_h = 16838, 23811
     elif page == "a1":
@@ -257,7 +332,11 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
     mt, mr, mb, ml = _m("marginTopMm", 22), _m("marginRightMm", 20), _m("marginBottomMm", 22), _m("marginLeftMm", 25)
 
     document_xml = f"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+ xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+ xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"
+ xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+ xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
   <w:body>
     {''.join(body_parts)}
     <w:sectPr>
@@ -267,25 +346,37 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
   </w:body>
 </w:document>"""
 
-    content_types = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
-  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
-  <Default Extension="xml" ContentType="application/xml"/>
-  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
-  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
-  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
-</Types>"""
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">\n  '
+        + "\n  ".join(
+            sorted(
+                {
+                    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>',
+                    '<Default Extension="xml" ContentType="application/xml"/>',
+                    *ctype_extra,
+                }
+            )
+        )
+        + '\n  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+        + '\n  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>'
+        + '\n  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
+        + "\n</Types>"
+    )
 
     rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>"""
 
-    doc_rels = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
-</Relationships>"""
+    doc_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n'
+        '  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>\n'
+        '  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>\n'
+        + "".join(f"  {r}\n" for r in rel_extra)
+        + "</Relationships>"
+    )
 
     styles_xml = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -319,7 +410,10 @@ def build_docx_bytes(*, title: str, html: str, layout: dict[str, Any] | None = N
         zf.writestr("word/document.xml", document_xml)
         zf.writestr("word/styles.xml", styles_xml)
         zf.writestr("word/numbering.xml", numbering_xml)
+        for path, raw in media_files:
+            zf.writestr(path, raw)
     return buf.getvalue()
+
 
 
 def ensure_docx_file(doc: dict[str, Any], *, force: bool = False) -> Path:

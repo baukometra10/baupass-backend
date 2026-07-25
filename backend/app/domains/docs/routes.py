@@ -784,6 +784,85 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         items = _service.repo.list_shares(get_db(), doc_id, cid)
         return jsonify({"ok": True, "items": items})
 
+    @docs_v2_bp.post("/docs/<doc_id>/presence")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="presence")
+    @require_roles("superadmin", "company-admin")
+    def upsert_doc_presence(doc_id: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        if not doc:
+            return jsonify({"error": "not_found"}), 404
+        peers = _service.repo.upsert_presence(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            user_id=_actor_id() or "anon",
+            display_name=_actor_name() or _actor_id() or "User",
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "peers": peers,
+                "updatedAt": doc.get("updated_at"),
+            }
+        )
+
+    @docs_v2_bp.get("/docs/<doc_id>/presence")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="presence_list")
+    @require_roles("superadmin", "company-admin")
+    def list_doc_presence(doc_id: str):
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        peers = _service.repo.list_presence(get_db(), document_id=doc_id, company_id=cid)
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        return jsonify({"ok": True, "peers": peers, "updatedAt": (doc or {}).get("updated_at")})
+
+    @docs_v2_bp.post("/docs/<doc_id>/signatures")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="signature")
+    @require_roles("superadmin", "company-admin")
+    @require_owner_step_up
+    def create_doc_signature(doc_id: str):
+        import hashlib
+
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        if not doc:
+            return jsonify({"error": "not_found"}), 404
+        body = str(doc.get("content_html") or "")
+        content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
+        row = _service.repo.add_signature(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            signer_name=str(data.get("signerName") or data.get("signer_name") or "").strip(),
+            actor_user_id=_actor_id(),
+            stamped=bool(data.get("stamped")),
+            content_hash=content_hash,
+            signature_data=str(data.get("signatureData") or data.get("signature_data") or "")[:120000],
+        )
+        return jsonify({"ok": True, "signature": row})
+
+    @docs_v2_bp.get("/docs/<doc_id>/signatures")
+    @require_auth
+    @deny_turnstile_sensitive(surface="docs", action="signatures_list")
+    @require_roles("superadmin", "company-admin")
+    def list_doc_signatures(doc_id: str):
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        items = _service.repo.list_signatures(get_db(), document_id=doc_id, company_id=cid)
+        return jsonify({"ok": True, "items": items})
+
     @docs_v2_bp.post("/docs/<doc_id>/status")
     @require_auth
     @deny_turnstile_sensitive(surface="docs", action="status")

@@ -99,6 +99,17 @@ def build_operations_inbox(
             row_cid = str(r["company_id"] or "").strip()
             if cid and row_cid != cid:
                 continue
+            alert_type = str(r["alert_type"] or "").strip()
+            nav_action = (
+                {
+                    "type": "navigate",
+                    "url": "/admin-v2/index.html?tab=audit",
+                    "label": "Audit öffnen",
+                    "tab": "audit",
+                }
+                if alert_type == "sensitive_attempt"
+                else {"type": "navigate", "url": "/index.html", "label": "Admin Legacy"}
+            )
             items.append(
                 {
                     "id": f"sec:{r['id']}",
@@ -138,7 +149,7 @@ def build_operations_inbox(
                             "label": "KI analysieren",
                             "agent": "decision",
                         },
-                        {"type": "navigate", "url": "/index.html", "label": "Admin Legacy"},
+                        nav_action,
                     ],
                 }
             )
@@ -229,6 +240,18 @@ def build_operations_inbox(
                         }
                     ]
                     if code == "deployment_worker_declined"
+                    else []
+                ),
+                *(
+                    [
+                        {
+                            "type": "navigate",
+                            "url": "/admin-v2/index.html?tab=audit",
+                            "label": "Audit öffnen",
+                            "tab": "audit",
+                        }
+                    ]
+                    if code.startswith("sensitive_attempt")
                     else []
                 ),
             ]
