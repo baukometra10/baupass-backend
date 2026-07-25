@@ -58,8 +58,17 @@ def merge_pdf_branding_override(base: dict[str, Any], override: dict[str, Any] |
     return merged
 
 
-def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
-    """Logo + colors for deployment PDF header."""
+def resolve_company_pdf_branding(
+    db,
+    company_id: str,
+    *,
+    allow_platform_logo_fallback: bool = True,
+) -> dict[str, Any]:
+    """Logo + colors for deployment PDF header.
+
+    When ``allow_platform_logo_fallback`` is False (docs letterhead), never inject
+    the SUPPIX platform mark — only the tenant company / invoice logo.
+    """
     company = db.execute(
         """
         SELECT name, portal_display_name, branding_logo_data, branding_accent_color, branding_preset
@@ -83,7 +92,7 @@ def resolve_company_pdf_branding(db, company_id: str) -> dict[str, Any]:
         logo_data = str(company["branding_logo_data"]).strip()
     elif settings and str(settings["invoice_logo_data"] or "").strip():
         logo_data = str(settings["invoice_logo_data"]).strip()
-    if not logo_data:
+    if not logo_data and allow_platform_logo_fallback:
         logo_data = _default_logo_data_url()
 
     display_name = ""

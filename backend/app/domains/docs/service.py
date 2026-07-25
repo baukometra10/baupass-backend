@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime
+from html import escape as html_escape
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -208,7 +209,10 @@ class EditorDocsService:
         try:
             from backend.app.platform.workforce.deployment_branding import resolve_company_pdf_branding
 
-            brand = resolve_company_pdf_branding(db, company_id) or {}
+            # Docs paper = tenant identity only (no SUPPIX platform logo fallback).
+            brand = resolve_company_pdf_branding(
+                db, company_id, allow_platform_logo_fallback=False
+            ) or {}
         except Exception:
             brand = {}
 
@@ -232,6 +236,9 @@ class EditorDocsService:
         logo = str(brand.get("logoData") or "").strip()
         if not logo and company and "branding_logo_data" in company.keys():
             logo = str(company["branding_logo_data"] or "").strip()
+        # Guard: never paint platform mark onto customer letterhead.
+        if logo and re.search(r"suppix", logo, flags=re.I):
+            logo = ""
         accent = str(brand.get("accent") or "#0ea5e9").strip()
 
         site_name = ""
@@ -357,12 +364,20 @@ class EditorDocsService:
         email: str = "",
     ) -> dict[str, str]:
         """HTML for paper header (logo + name) and footer (address/contact)."""
-        name = (company_name or "Firma").strip() or "Firma"
+        name = html_escape((company_name or "Firma").strip() or "Firma", quote=True)
+        sector_safe = html_escape((sector or "").strip() or " ", quote=True)
         accent = accent if re.match(r"^#[0-9a-fA-F]{6}$", accent or "") else "#0ea5e9"
         logo_html = ""
-        if logo_data and str(logo_data).lower().startswith("data:image/"):
-            # Keep data-URL logos (tenant branding from admin)
-            safe_src = str(logo_data).replace('"', "")
+        raw_logo = str(logo_data or "").strip()
+        # Tenant data-image logos only (no platform mark / script schemes).
+        if (
+            raw_logo.lower().startswith("data:image/")
+            and "," in raw_logo
+            and "javascript:" not in raw_logo.lower()
+            and "suppix" not in raw_logo.lower()
+            and "<" not in raw_logo.split(",", 1)[0]
+        ):
+            safe_src = raw_logo.replace('"', "").replace("'", "")
             logo_html = (
                 f'<img class="wp-lh-logo" src="{safe_src}" alt="" '
                 f'style="max-height:48px;max-width:140px;object-fit:contain" />'
@@ -372,11 +387,15 @@ class EditorDocsService:
     {logo_html}
     <div>
       <div class="wp-hf-brand" style="font-weight:700;font-size:1rem;color:#0f172a">{name}</div>
-      <div class="wp-hf-meta" style="font-size:0.75rem;color:#64748b">{sector or " "}</div>
+      <div class="wp-hf-meta" style="font-size:0.75rem;color:#64748b">{sector_safe}</div>
     </div>
   </div>
 </div>"""
-        foot_bits = [p for p in (address, contact, email) if p and p != "—"]
+        foot_bits = [
+            html_escape(p, quote=True)
+            for p in (address, contact, email)
+            if p and p != "—"
+        ]
         footer = f"""<div class="wp-letterfoot" style="border-top:1px solid {accent};padding-top:8px;font-size:0.72rem;color:#64748b;line-height:1.45">
   <div style="font-weight:650;color:#334155">{name}</div>
   <div>{" · ".join(foot_bits) if foot_bits else " "}</div>
@@ -579,11 +598,37 @@ class EditorDocsService:
                     layout = parsed.get("layout") if isinstance(parsed.get("layout"), dict) else None
             except Exception:
                 pass
+            # Prefer body-only HTML so letterhead is not rendered twice
+            # (envelope header + branding band + body header).
+            body_only = html_body
+            main_m = re.search(
+                r'<main[^>]*class=["\']wp-doc-body["\'][^>]*>([\s\S]*?)</main>',
+                html_body,
+                flags=re.I,
+            )
+            if main_m:
+                body_only = main_m.group(1)
+                if not header_html:
+                    hm = re.search(
+                        r'<header[^>]*class=["\']wp-doc-header["\'][^>]*>([\s\S]*?)</header>',
+                        html_body,
+                        flags=re.I,
+                    )
+                    if hm:
+                        header_html = hm.group(1)
+                if not footer_html:
+                    fm = re.search(
+                        r'<footer[^>]*class=["\']wp-doc-footer["\'][^>]*>([\s\S]*?)</footer>',
+                        html_body,
+                        flags=re.I,
+                    )
+                    if fm:
+                        footer_html = fm.group(1)
             from backend.app.platform.reports.editor_pdf import build_editor_pdf_bytes
 
             pdf_bytes = build_editor_pdf_bytes(
                 title=title,
-                content_html=html_body,
+                content_html=body_only,
                 content_text=str(doc.get("content_text") or ""),
                 header_html=header_html,
                 footer_html=footer_html,
@@ -621,18 +666,20 @@ class EditorDocsService:
                     "content": docx,
                 }
             except Exception:
+                safe_title = html_escape(title, quote=True)
                 word_html = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>{title}</title></head>
+<html><head><meta charset="utf-8"><title>{safe_title}</title></head>
 <body>{html_body}</body></html>"""
                 return {
                     "filename": f"{safe_name}.doc",
                     "mimetype": "application/msword",
                     "content": word_html,
                 }
+        safe_title = html_escape(title, quote=True)
         full = f"""<!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8"><title>{title}</title>
+<html lang="de"><head><meta charset="utf-8"><title>{safe_title}</title>
 <style>body{{font-family:Segoe UI,Calibri,sans-serif;line-height:1.5;max-width:800px;margin:2rem auto;}}</style>
-</head><body><h1>{title}</h1>{html_body}</body></html>"""
+</head><body><h1>{safe_title}</h1>{html_body}</body></html>"""
         return {
             "filename": f"{safe_name}.html",
             "mimetype": "text/html; charset=utf-8",

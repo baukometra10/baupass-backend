@@ -381,6 +381,12 @@ a.back::before { content: "← "; opacity: 0.7; }
   background: var(--panel);
   border-bottom: 1px solid var(--rail-line);
   backdrop-filter: blur(8px);
+  /* Keep "Mehr"-dropdown above toolbar + paper stage (sibling paint order). */
+  position: relative;
+  z-index: 90;
+}
+.titlebar:has(.more-menu.open) {
+  z-index: 220;
 }
 .titlebar-row {
   display: flex;
@@ -2542,19 +2548,23 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
   border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
 }
 
-.more-wrap { position: relative; }
+.more-wrap { position: relative; z-index: 1; }
 .more-menu {
   display: none;
   position: absolute;
   right: 0;
   top: calc(100% + 6px);
-  min-width: 180px;
+  min-width: 210px;
+  max-height: min(70vh, 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.35rem;
   background: var(--panel);
   border: 1px solid var(--rail-line);
   border-radius: 10px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  z-index: 40;
+  z-index: 230;
   flex-direction: column;
   gap: 0.2rem;
 }

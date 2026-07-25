@@ -693,8 +693,16 @@
     const mainMatch = /<main[^>]*class="wp-doc-body"[^>]*>([\s\S]*?)<\/main>/i.exec(raw);
     const headerMatch = /<header[^>]*class="wp-doc-header"[^>]*>([\s\S]*?)<\/header>/i.exec(raw);
     const footerMatch = /<footer[^>]*class="wp-doc-footer"[^>]*>([\s\S]*?)<\/footer>/i.exec(raw);
-    if (headerMatch && $("docHeader")) $("docHeader").innerHTML = wrapMergePlaceholders(headerMatch[1]);
-    if (footerMatch && $("docFooter")) $("docFooter").innerHTML = wrapMergePlaceholders(footerMatch[1]);
+    const isEnvelope = !!(mainMatch || headerMatch || footerMatch);
+    if (isEnvelope) {
+      // Envelope replace must clear missing bands — do not keep previous doc chrome.
+      if ($("docHeader")) {
+        $("docHeader").innerHTML = headerMatch ? wrapMergePlaceholders(headerMatch[1]) : "";
+      }
+      if ($("docFooter")) {
+        $("docFooter").innerHTML = footerMatch ? wrapMergePlaceholders(footerMatch[1]) : "";
+      }
+    }
     // Collapse inter-tag whitespace — Quill otherwise inserts empty <p><br></p> gaps.
     const body = wrapMergePlaceholders(compactHtml(mainMatch ? mainMatch[1] : raw) || "<p><br></p>");
     quill.setContents([]);
@@ -3625,6 +3633,9 @@
       companyBranding = data.branding || null;
       companyLetterhead = data.letterhead || null;
       renderBrandPreview();
+      if ($("useLetterhead")) $("useLetterhead").checked = true;
+      // Replace empty headers or accidental SUPPIX+Firma dual branding.
+      if (currentDoc?.id) ensureCompanyLetterhead({ silent: true });
 
       const workers = data.workers || [];
       const sel = $("workerSelect");
@@ -3688,19 +3699,33 @@
     }
   }
 
-  function applyCompanyLetterhead() {
+  function headerHasPlatformBrand(html) {
+    return /suppix|workpass\s*ai|baupass\s*ai/i.test(String(html || ""));
+  }
+
+  function applyCompanyLetterhead(opts = {}) {
     if (!companyLetterhead) {
-      setStatus($("saveStatus"), dt("letterheadNeedBrand"), "err");
-      return;
+      if (!opts.silent) setStatus($("saveStatus"), dt("letterheadNeedBrand"), "err");
+      return false;
     }
+    const nextHeader = companyLetterhead.headerHtml || "";
+    const nextFooter = companyLetterhead.footerHtml || "";
+    // Compare normalized HTML — browsers rewrite whitespace/attrs after innerHTML set.
+    const beforeH = compactHtml($("docHeader")?.innerHTML || "");
+    const beforeF = compactHtml($("docFooter")?.innerHTML || "");
+    const needLayout = !layout.showHeader || !layout.showFooter;
     layout.showHeader = true;
     layout.showFooter = true;
-    if ($("docHeader")) $("docHeader").innerHTML = companyLetterhead.headerHtml || "";
-    if ($("docFooter")) $("docFooter").innerHTML = companyLetterhead.footerHtml || "";
+    if ($("docHeader")) $("docHeader").innerHTML = nextHeader;
+    if ($("docFooter")) $("docFooter").innerHTML = nextFooter;
     if ($("useLetterhead")) $("useLetterhead").checked = true;
     applyLayoutToDom();
-    markDirty();
-    setStatus($("saveStatus"), dt("letterheadSet"), "ok");
+    const afterH = compactHtml($("docHeader")?.innerHTML || "");
+    const afterF = compactHtml($("docFooter")?.innerHTML || "");
+    const changed = needLayout || beforeH !== afterH || beforeF !== afterF;
+    if (changed) markDirty();
+    if (!opts.silent) setStatus($("saveStatus"), dt("letterheadSet"), "ok");
+    return true;
   }
 
   function clearCompanyLetterhead() {
@@ -3716,6 +3741,19 @@
     const on = !!$("useLetterhead")?.checked;
     if (on) applyCompanyLetterhead();
     else clearCompanyLetterhead();
+  }
+
+  /** Put company letterhead on paper: always for new docs; replace empty/platform dual-brand headers. */
+  function ensureCompanyLetterhead(opts = {}) {
+    if (!companyLetterhead) return false;
+    if ($("useLetterhead") && !$("useLetterhead").checked && !opts.force) return false;
+    const hdr = $("docHeader")?.innerHTML || "";
+    const empty = !String(hdr).trim();
+    const platform = headerHasPlatformBrand(hdr);
+    if (opts.force || empty || platform || opts.replace) {
+      return applyCompanyLetterhead({ silent: !!opts.silent });
+    }
+    return false;
   }
 
   function insertSnippet(key) {
@@ -5064,6 +5102,11 @@
     }
   }
 
+  function clearPaperBands() {
+    if ($("docHeader")) $("docHeader").innerHTML = "";
+    if ($("docFooter")) $("docFooter").innerHTML = "";
+  }
+
   function loadIntoEditor(doc) {
     currentDoc = doc;
     $("docTitle").value = doc?.title || "Unbenannt";
@@ -5071,6 +5114,9 @@
     syncWorkerSelect(doc?.worker_id || qs().get("worker_id") || "");
     renderDocMeta(doc);
     syncContractChrome(doc);
+
+    // Always reset bands first — otherwise the previous doc's letterhead leaks.
+    clearPaperBands();
 
     let loaded = false;
     if (doc?.content_json) {
@@ -5080,13 +5126,13 @@
           if (parsed.layout) layout = { ...layout, ...parsed.layout };
           if (!PAPER_SIZES[layout.pageSize]) layout.pageSize = "a4";
           applyLayoutToDom();
+          if ($("docHeader")) $("docHeader").innerHTML = parsed.headerHtml || "";
+          if ($("docFooter")) $("docFooter").innerHTML = parsed.footerHtml || "";
           // Prefer HTML so Word-like classes (subtitle, caption, tables) round-trip.
           if (doc.content_html) {
             setHtml(doc.content_html);
             loaded = true;
           } else if (parsed.bodyDelta && parsed.bodyDelta.ops) {
-            if ($("docHeader")) $("docHeader").innerHTML = parsed.headerHtml || "";
-            if ($("docFooter")) $("docFooter").innerHTML = parsed.footerHtml || "";
             quill.setContents(parsed.bodyDelta);
             loaded = true;
           }
@@ -5115,6 +5161,9 @@
     startPresenceLoop();
     syncEmptyState();
     maybeAutoWatermark(doc?.status);
+    // Company letterhead on every paper; strip leftover platform dual-brand headers.
+    if ($("useLetterhead")) $("useLetterhead").checked = true;
+    ensureCompanyLetterhead({ silent: true });
   }
 
   async function refreshList(selectId) {
@@ -5173,7 +5222,7 @@
       body: JSON.stringify(body),
     });
     loadIntoEditor(data.document);
-    // Briefkopf nur wenn Nutzer ihn ausdrücklich wählt — nie automatisch erzwingen
+    ensureCompanyLetterhead({ force: true, silent: true });
     await refreshList(data.document?.id);
     syncEmptyState();
     startPresenceLoop();
@@ -5255,8 +5304,10 @@
     lastTemplateKey = "";
     appliedLiveRev = 0;
     liveRev = 0;
+    clearPaperBands();
     setHtml("<p><br></p>");
     if ($("docTitle")) $("docTitle").value = "";
+    dirty = false;
     setStatus($("saveStatus"), dt("deleted"), "ok");
     stopPresenceLoop();
     hideTplEditBanner();
@@ -5402,18 +5453,9 @@
     } else {
       setHtml(html);
     }
-    // Short on-site forms look cleaner without a heavy letterhead band.
-    const skipLetterhead = new Set(["toolbox", "visitor", "site_rules", "damage", "material", "access", "blank"]);
-    if ($("useLetterhead")?.checked && companyLetterhead && !skipLetterhead.has(key)) {
-      applyCompanyLetterhead();
-    } else if (skipLetterhead.has(key)) {
-      const hdr = $("docHeader")?.innerHTML || "";
-      if (/wp-hf-brand|letterhead|branding|SUPPIX|logo/i.test(hdr)) {
-        if ($("docHeader")) $("docHeader").innerHTML = "";
-        layout.showHeader = false;
-        applyLayoutToDom();
-      }
-    }
+    // Company branding on every paper (logo + name); never SUPPIX platform mark.
+    if ($("useLetterhead")) $("useLetterhead").checked = true;
+    ensureCompanyLetterhead({ force: true, silent: true });
     lastTemplateKey = key;
     markDirty();
     if (!silent) showTplEditBanner(key);

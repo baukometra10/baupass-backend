@@ -211,6 +211,11 @@ def test_docs_merge_fill_and_versions_export(client_and_db):
     assert merge_body.get("branding", {}).get("companyName")
     assert "headerHtml" in (merge_body.get("letterhead") or {})
     assert "company.address" in (merge_body.get("fields") or {})
+    # Docs letterhead must not fall back to the SUPPIX platform mark.
+    letter_html = str((merge_body.get("letterhead") or {}).get("headerHtml") or "")
+    logo_data = str((merge_body.get("branding") or {}).get("logoData") or "")
+    assert "suppix" not in letter_html.lower()
+    assert "suppix" not in logo_data.lower()
 
     export_doc = client.get(
         f"/api/v2/docs/{doc['id']}/export?company_id={cid}&format=doc",

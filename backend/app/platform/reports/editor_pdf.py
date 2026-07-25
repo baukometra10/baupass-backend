@@ -331,40 +331,70 @@ def build_editor_pdf_bytes(
     page_w, page_h = pagesize
     content_w = page_w - (left_mm + right_mm) * mm
 
-    try:
-        from backend.app.platform.workforce.deployment_branding import logo_image_flowable
+    # If the editor already stored a letterhead band, do not paint a second
+    # platform/company brand block on top (avoids double logos / dual branding).
+    has_doc_letterhead = bool(str(header_html or "").strip())
+    if not has_doc_letterhead:
+        try:
+            from backend.app.platform.workforce.deployment_branding import logo_image_flowable
 
-        logo_img = logo_image_flowable(str(brand.get("logoData") or ""), max_height_mm=16.0)
-        if logo_img or company_name:
-            name_para = Paragraph(
-                _escape(company_name or "Dokument"),
-                ParagraphStyle("BrandName", parent=meta, fontName=font, fontSize=11, leading=14, textColor="#0f172a"),
-            )
-            addr = " · ".join(
-                p
-                for p in (
-                    str(brand.get("address") or "").strip(),
-                    str(brand.get("email") or "").strip(),
+            logo_img = logo_image_flowable(str(brand.get("logoData") or ""), max_height_mm=16.0)
+            if logo_img or company_name:
+                name_para = Paragraph(
+                    _escape(company_name or "Dokument"),
+                    ParagraphStyle("BrandName", parent=meta, fontName=font, fontSize=11, leading=14, textColor="#0f172a"),
                 )
-                if p and p != "—"
-            )
-            addr_para = Paragraph(_escape(addr), meta) if addr else Spacer(1, 1)
-            if logo_img:
-                story.append(Table([[logo_img, [name_para, addr_para]]], colWidths=[32 * mm, max(40 * mm, content_w - 32 * mm)]))
-            else:
-                story.append(name_para)
-                if addr:
-                    story.append(addr_para)
-            story.append(Spacer(1, 4 * mm))
-    except Exception:
-        pass
+                addr = " · ".join(
+                    p
+                    for p in (
+                        str(brand.get("address") or "").strip(),
+                        str(brand.get("email") or "").strip(),
+                    )
+                    if p and p != "—"
+                )
+                addr_para = Paragraph(_escape(addr), meta) if addr else Spacer(1, 1)
+                if logo_img:
+                    story.append(Table([[logo_img, [name_para, addr_para]]], colWidths=[32 * mm, max(40 * mm, content_w - 32 * mm)]))
+                else:
+                    story.append(name_para)
+                    if addr:
+                        story.append(addr_para)
+                story.append(Spacer(1, 4 * mm))
+        except Exception:
+            pass
 
     if header_html:
-        header_text = " ".join(
-            str(it.get("text") or "") for it in html_to_flow_items(header_html) if it.get("type") == "text"
+        header_items = html_to_flow_items(header_html)
+        header_img = next(
+            (
+                _image_from_src(str(it.get("src") or ""), max_w=min(content_w, 45 * mm))
+                for it in header_items
+                if it.get("type") == "image"
+            ),
+            None,
         )
-        if header_text:
+        header_text = " ".join(
+            str(it.get("text") or "") for it in header_items if it.get("type") == "text"
+        ).strip()
+        if header_img and header_text:
+            story.append(
+                Table(
+                    [
+                        [
+                            header_img,
+                            Paragraph(header_text, meta),
+                        ]
+                    ],
+                    colWidths=[32 * mm, max(40 * mm, content_w - 32 * mm)],
+                )
+            )
+            story.append(Spacer(1, 3 * mm))
+        elif header_img:
+            story.append(header_img)
+            story.append(Spacer(1, 3 * mm))
+        elif header_text:
             story.append(Paragraph(header_text, meta))
+            story.append(Spacer(1, 2 * mm))
 
     items = html_to_flow_items(content_html) if str(content_html or "").strip() else []
     if not items and str(content_text or "").strip():
