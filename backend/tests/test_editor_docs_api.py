@@ -354,3 +354,95 @@ def test_docs_fill_letter_template_placeholders(client_and_db):
     assert "{{" not in html
     assert "DocsTplCo" in html
     assert filled.get_json().get("unresolved") in (None, [], ())
+
+
+def test_docs_signature_pin_and_aes_manifest(client_and_db):
+    import hashlib
+    import json
+
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "DocsSignPinCo")
+    body_html = "<p>Signatur-Inhalt</p>"
+    created = client.post(
+        f"/api/v2/docs?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "title": "Sign Doc",
+            "mode": "general",
+            "contentHtml": body_html,
+        },
+    )
+    assert created.status_code == 201, created.get_json()
+    doc_id = created.get_json()["document"]["id"]
+
+    missing_pin = client.post(
+        f"/api/v2/docs/{doc_id}/signatures?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "signerName": "Ada", "stamped": True, "pin": "12"},
+    )
+    assert missing_pin.status_code == 400
+    assert missing_pin.get_json().get("error") == "pin_required"
+
+    ok = client.post(
+        f"/api/v2/docs/{doc_id}/signatures?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "signerName": "Ada Lovelace",
+            "stamped": True,
+            "pin": "1357",
+            "lockAfter": True,
+            "signatureData": "data:image/png;base64,aaa",
+        },
+    )
+    assert ok.status_code == 200, ok.get_json()
+    payload = ok.get_json() or {}
+    assert payload.get("ok") is True
+    assert payload.get("level") == "aes"
+    assert (payload.get("document") or {}).get("status") == "approved"
+    sig = payload.get("signature") or {}
+    expected_hash = hashlib.sha256(body_html.encode("utf-8", errors="ignore")).hexdigest()
+    assert sig.get("content_hash") == expected_hash
+    packed = json.loads(sig.get("signature_data") or "{}")
+    manifest = packed.get("manifest") or {}
+    assert manifest.get("level") == "aes"
+    assert manifest.get("contentHashSha256") == expected_hash
+    assert manifest.get("signerName") == "Ada Lovelace"
+    assert str(manifest.get("pinHash") or "").startswith("pbkdf2:") or ":" in str(
+        manifest.get("pinHash") or ""
+    )
+
+
+def test_docs_presence_returns_content_hash(client_and_db):
+    import hashlib
+
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "DocsPresenceHashCo")
+    body_html = "<p>Presence hash body</p>"
+    created = client.post(
+        f"/api/v2/docs?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "title": "Presence Doc",
+            "mode": "general",
+            "contentHtml": body_html,
+        },
+    )
+    assert created.status_code == 201, created.get_json()
+    doc_id = created.get_json()["document"]["id"]
+
+    presence = client.post(
+        f"/api/v2/docs/{doc_id}/presence?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid},
+    )
+    assert presence.status_code == 200, presence.get_json()
+    body = presence.get_json() or {}
+    assert body.get("ok") is True
+    full = hashlib.sha256(body_html.encode("utf-8", errors="ignore")).hexdigest()
+    assert body.get("contentHash") == full[:24]
+    assert isinstance(body.get("peers"), list)
