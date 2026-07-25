@@ -471,10 +471,20 @@
     if (s.startsWith("{")) {
       try {
         const o = JSON.parse(s);
+        const replies = Array.isArray(o.replies)
+          ? o.replies
+              .map((r) => ({
+                text: String(r?.text || "").trim(),
+                author: String(r?.author || "").trim(),
+                at: String(r?.at || "").trim(),
+              }))
+              .filter((r) => r.text)
+          : [];
         return {
           text: String(o.text || o.note || ""),
           assignee: String(o.assignee || ""),
           done: !!o.done,
+          replies,
         };
       } catch {
         /* fall through */
@@ -492,14 +502,25 @@
       assignee = m[1].trim();
       text = text.slice(m[0].length);
     }
-    return { text, assignee, done };
+    return { text, assignee, done, replies: [] };
   }
 
   function serializeCommentMeta(meta) {
+    const replies = Array.isArray(meta.replies)
+      ? meta.replies
+          .map((r) => ({
+            text: String(r?.text || "").trim(),
+            author: String(r?.author || "").trim().slice(0, 80),
+            at: String(r?.at || "").trim(),
+          }))
+          .filter((r) => r.text)
+          .slice(0, 40)
+      : [];
     return JSON.stringify({
       text: String(meta.text || "").trim(),
       assignee: String(meta.assignee || "").trim(),
       done: !!meta.done,
+      replies,
     });
   }
 
@@ -510,13 +531,20 @@
   let qesStatusCache = null;
   let docsSocket = null;
 
+  let lastLocalEditAt = 0;
+
   function markDirty() {
     if (!dirty) {
       dirty = true;
       setStatus($("saveStatus"), dt("unsaved"), "");
     }
     liveRev += 1;
+    lastLocalEditAt = Date.now();
     scheduleOfflineDraft();
+  }
+
+  function isActivelyTyping(ms = 4000) {
+    return !!lastLocalEditAt && Date.now() - lastLocalEditAt < ms;
   }
 
   function getBodyHtml() {
@@ -807,40 +835,96 @@
     }
   }
 
+  async function publishTeamTemplate({ title, contentHtml, layout: lay }) {
+    if (!activeCompanyId()) return null;
+    const data = await api(`/api/v2/docs/templates${companyQuery()}`, {
+      method: "POST",
+      body: JSON.stringify({
+        company_id: activeCompanyId(),
+        title,
+        blurb: dt("teamTemplateBlurb"),
+        contentHtml: contentHtml || getHtml(),
+        layout: lay || { ...layout },
+      }),
+    });
+    return data?.template || data || null;
+  }
+
   function saveCurrentAsTemplate() {
     const title = window.prompt(dt("templateNamePrompt"), ($("docTitle")?.value || "").trim() || dt("tplBlank"));
     if (title === null) return;
     const name = String(title || "").trim() || dt("tplBlank");
+    const html = getHtml();
     const list = loadCustomTemplates();
     const id = `user_${Date.now().toString(36)}`;
     const entry = {
       id,
       title: name,
       blurb: dt("customTemplateBlurb"),
-      html: getHtml(),
+      html,
+      contentHtml: html,
       layout: { ...layout },
       createdAt: new Date().toISOString(),
     };
     list.unshift(entry);
     saveCustomTemplates(list);
+    // Prefer company-wide team templates when a company is selected (admin only).
+    const shareTeam =
+      !!activeCompanyId() && hasCap("canPublishTeamTemplate") && confirm(dt("shareTeamTemplateDefault"));
+    if (shareTeam) {
+      publishTeamTemplate({ title: name, contentHtml: html, layout: { ...layout } })
+        .then(() => {
+          activeTopicFilter = "team";
+          setSideTab("templates");
+          renderTemplateGallery();
+          setStatus($("saveStatus"), dt("teamTemplateSaved", { name }), "ok");
+        })
+        .catch((e) => {
+          activeTopicFilter = "custom";
+          setSideTab("templates");
+          renderTemplateGallery();
+          setStatus($("saveStatus"), e.message || dt("templateSaveFail"), "err");
+        });
+      return;
+    }
     activeTopicFilter = "custom";
     setSideTab("templates");
     renderTemplateGallery();
     setStatus($("saveStatus"), dt("templateSaved", { name }), "ok");
-    if (activeCompanyId() && confirm(dt("shareTeamTemplate"))) {
-      api(`/api/v2/docs/templates${companyQuery()}`, {
-        method: "POST",
-        body: JSON.stringify({
-          company_id: activeCompanyId(),
-          title: name,
-          blurb: dt("teamTemplateBlurb"),
-          contentHtml: getBodyHtml(),
-          layout: { ...layout },
-        }),
-      })
-        .then(() => renderTemplateGallery())
-        .catch(() => {});
+  }
+
+  async function migrateLocalTemplatesToTeam() {
+    if (!activeCompanyId()) {
+      setStatus($("saveStatus"), dt("needCompany"), "err");
+      return;
     }
+    if (!hasCap("canPublishTeamTemplate")) {
+      setStatus($("saveStatus"), dt("permDenied"), "err");
+      return;
+    }
+    const local = loadCustomTemplates();
+    if (!local.length) {
+      setStatus($("saveStatus"), dt("teamMigrateNone"), "err");
+      return;
+    }
+    if (!confirm(dt("teamMigrateConfirm", { n: local.length }))) return;
+    let ok = 0;
+    for (const t of local) {
+      try {
+        await publishTeamTemplate({
+          title: t.title || dt("tplBlank"),
+          contentHtml: t.contentHtml || t.html || "",
+          layout: t.layout || { ...layout },
+        });
+        ok += 1;
+      } catch {
+        /* continue */
+      }
+    }
+    activeTopicFilter = "team";
+    setSideTab("templates");
+    await renderTemplateGallery();
+    setStatus($("saveStatus"), dt("teamMigrateDone", { n: ok }), ok ? "ok" : "err");
   }
 
   async function applyCustomTemplate(id) {
@@ -2326,7 +2410,12 @@
         range.index,
         range.length,
         "wpComment",
-        serializeCommentMeta({ text: String(note).trim(), assignee: String(assignee).trim(), done: false }),
+        serializeCommentMeta({
+          text: String(note).trim(),
+          assignee: String(assignee).trim(),
+          done: false,
+          replies: typeof existing === "string" ? parseCommentMeta(existing).replies || [] : [],
+        }),
         "user",
       );
     }
@@ -2366,6 +2455,7 @@
             note: meta.text,
             assignee: meta.assignee,
             done: meta.done,
+            replies: meta.replies || [],
             raw: String(note),
             excerpt: text.slice(0, 120),
           });
@@ -2391,13 +2481,27 @@
         const idx = all.indexOf(c);
         const excerpt = String(c.excerpt || "").trim() || "…";
         const who = c.assignee ? `<em class="doc-comments-assignee">@${escapeHtml(c.assignee)}</em>` : "";
+        const replies = (c.replies || [])
+          .map(
+            (r) =>
+              `<li class="doc-comments-reply"><strong>${escapeHtml(r.author || "—")}</strong>` +
+              `<span>${escapeHtml(r.text)}</span></li>`,
+          )
+          .join("");
+        const thread =
+          `<ul class="doc-comments-thread">${replies}</ul>` +
+          (c.replies?.length
+            ? `<span class="doc-comments-reply-count">${escapeHtml(dt("commentReplies", { n: c.replies.length }))}</span>`
+            : "");
         return (
           `<li class="doc-comments-item${c.done ? " is-done" : ""}">` +
           `<button type="button" class="doc-comments-jump" data-cmt="${idx}">` +
           `<strong class="doc-comments-note">${escapeHtml(c.note)}</strong>${who}` +
           `<span class="doc-comments-excerpt">${escapeHtml(excerpt)}</span>` +
           `</button>` +
+          thread +
           `<div class="doc-comments-actions">` +
+          `<button type="button" class="cmd quiet" data-cmt-reply="${idx}">${escapeHtml(dt("commentReply"))}</button>` +
           `<button type="button" class="cmd quiet" data-cmt-assign="${idx}">${escapeHtml(dt("commentAssign"))}</button>` +
           `<button type="button" class="cmd quiet" data-cmt-edit="${idx}">${escapeHtml(dt("commentEdit"))}</button>` +
           `<button type="button" class="cmd quiet" data-cmt-resolve="${idx}">${escapeHtml(c.done ? dt("commentReopen") : dt("commentResolve"))}</button>` +
@@ -2450,7 +2554,12 @@
         item.index,
         item.length,
         "wpComment",
-        serializeCommentMeta({ text: String(note).trim(), assignee: item.assignee || "", done: !!item.done }),
+        serializeCommentMeta({
+          text: String(note).trim(),
+          assignee: item.assignee || "",
+          done: !!item.done,
+          replies: item.replies || [],
+        }),
         "user",
       );
     }
@@ -2469,7 +2578,12 @@
       item.index,
       item.length,
       "wpComment",
-      serializeCommentMeta({ text: item.note, assignee: String(who).trim(), done: !!item.done }),
+      serializeCommentMeta({
+        text: item.note,
+        assignee: String(who).trim(),
+        done: !!item.done,
+        replies: item.replies || [],
+      }),
       "user",
     );
     markDirty();
@@ -2477,27 +2591,52 @@
     renderCommentsPanel();
   }
 
+  function replyToCommentAt(index) {
+    const items = collectComments();
+    const item = items[index];
+    if (!item || !quill) return;
+    const text = window.prompt(dt("commentReplyPrompt"), "");
+    if (text === null || !String(text).trim()) return;
+    const replies = [...(item.replies || [])];
+    replies.push({
+      text: String(text).trim(),
+      author: myActorDisplayName(),
+      at: new Date().toISOString(),
+    });
+    quill.formatText(
+      item.index,
+      item.length,
+      "wpComment",
+      serializeCommentMeta({
+        text: item.note,
+        assignee: item.assignee || "",
+        done: !!item.done,
+        replies,
+      }),
+      "user",
+    );
+    markDirty();
+    scheduleAutosave();
+    renderCommentsPanel();
+    setStatus($("saveStatus"), dt("commentReplyAdded"), "ok");
+  }
+
   function resolveCommentAt(index) {
     const items = collectComments();
     const item = items[index];
     if (!item || !quill) return;
-    if (item.done) {
-      quill.formatText(
-        item.index,
-        item.length,
-        "wpComment",
-        serializeCommentMeta({ text: item.note, assignee: item.assignee || "", done: false }),
-        "user",
-      );
-    } else {
-      quill.formatText(
-        item.index,
-        item.length,
-        "wpComment",
-        serializeCommentMeta({ text: item.note, assignee: item.assignee || "", done: true }),
-        "user",
-      );
-    }
+    quill.formatText(
+      item.index,
+      item.length,
+      "wpComment",
+      serializeCommentMeta({
+        text: item.note,
+        assignee: item.assignee || "",
+        done: !item.done,
+        replies: item.replies || [],
+      }),
+      "user",
+    );
     markDirty();
     scheduleAutosave();
     renderCommentsPanel();
@@ -3182,11 +3321,13 @@
     try {
       const data = await api(`/api/v2/docs/signatures/qes/status${companyQuery()}`);
       qesStatusCache = data;
-      if (btn) btn.disabled = !data.configured;
+      const can = hasCap("canSign") && !!data.configured;
+      if (btn) btn.disabled = !can;
       if (note) {
-        note.textContent = data.configured
-          ? dt("qesReady", { provider: data.provider || "TSP" })
-          : dt("qesNotConfigured");
+        if (!hasCap("canSign")) note.textContent = dt("permDeniedSign");
+        else if (data.demo) note.textContent = dt("qesDemoReady");
+        else if (data.configured) note.textContent = dt("qesReady", { provider: data.provider || "TSP" });
+        else note.textContent = data.hint || dt("qesNotConfigured");
       }
     } catch {
       qesStatusCache = { configured: false };
@@ -3196,6 +3337,10 @@
   }
 
   async function startQesSignature() {
+    if (!hasCap("canSign")) {
+      setStatus($("signModalStatus"), dt("permDeniedSign"), "err");
+      return;
+    }
     if (!currentDoc?.id) {
       try {
         await saveDoc();
@@ -3216,7 +3361,11 @@
           signerName: String($("signNameInput")?.value || "").trim(),
         }),
       });
-      setStatus($("signModalStatus"), dt("qesStarted"), "ok");
+      setStatus(
+        $("signModalStatus"),
+        data.demo ? dt("qesDemoDone") : data.message || dt("qesStarted"),
+        "ok",
+      );
       refreshSignatures().catch(() => {});
       if (data.sessionUrl && confirm(dt("qesOpenSession"))) {
         window.open(data.sessionUrl, "_blank", "noopener");
@@ -3273,6 +3422,10 @@
   }
 
   async function insertSignatureFromModal() {
+    if (!hasCap("canSign")) {
+      setStatus($("signModalStatus"), dt("permDeniedSign"), "err");
+      return;
+    }
     const canvas = $("signCanvas");
     const signer = String($("signNameInput")?.value || "").trim();
     const pin = String($("signPinInput")?.value || "").trim();
@@ -3727,9 +3880,64 @@
     }
   }
 
+  let docsCaps = null;
+  let localCursor = { index: -1, length: 0 };
+  let peerCursorTimer = 0;
+  let lastPeers = [];
+
   function canEditCompanyLogo() {
+    if (docsCaps && typeof docsCaps.canManageLogo === "boolean") return !!docsCaps.canManageLogo;
     const role = currentUserRole();
     return role === "superadmin" || role === "company-admin";
+  }
+
+  function hasCap(name, fallbackAdminOnly = true) {
+    if (docsCaps && typeof docsCaps[name] === "boolean") return !!docsCaps[name];
+    const role = currentUserRole();
+    if (!fallbackAdminOnly) return role === "superadmin" || role === "company-admin" || role === "turnstile";
+    return role === "superadmin" || role === "company-admin";
+  }
+
+  async function loadDocsCapabilities() {
+    try {
+      const data = await api(`/api/v2/docs/capabilities${companyQuery()}`);
+      docsCaps = data.capabilities || data || {};
+    } catch {
+      docsCaps = {
+        role: currentUserRole(),
+        canEdit: true,
+        canShare: canEditCompanyLogo(),
+        canDelete: canEditCompanyLogo(),
+        canSign: canEditCompanyLogo(),
+        canPublishTeamTemplate: canEditCompanyLogo(),
+        canManageLogo: canEditCompanyLogo(),
+        canTestEmail: canEditCompanyLogo(),
+        canUseWordPro: true,
+        canEmail: true,
+      };
+    }
+    applyDocsCapabilitiesUi();
+  }
+
+  function applyDocsCapabilitiesUi() {
+    const setHidden = (id, hide) => {
+      const el = $(id);
+      if (el) el.hidden = !!hide;
+    };
+    const setDisabled = (id, off) => {
+      const el = $(id);
+      if (el) el.disabled = !!off;
+    };
+    setHidden("shareLinkBtn", !hasCap("canShare"));
+    setHidden("shareLinkRailBtn", !hasCap("canShare"));
+    setHidden("deleteBtn", !hasCap("canDelete"));
+    setDisabled("wordProBtn", !hasCap("canUseWordPro", false));
+    setHidden("emailTestBtn", !hasCap("canTestEmail"));
+    setDisabled("signInsertBtn", !hasCap("canSign"));
+    setDisabled("signQesBtn", !hasCap("canSign") || !qesStatusCache?.configured);
+    const signNote = $("signPermNote");
+    if (signNote) signNote.hidden = hasCap("canSign");
+    syncBrandLogoControls();
   }
 
   function syncBrandLogoControls() {
@@ -4066,8 +4274,16 @@
       cardsHtml = `<div class="tpl-card-list">${filtered.map(cardHtml).join("")}</div>`;
     }
 
+    const localCount = loadCustomTemplates().length;
+    const teamCount = teamItems.length;
     const saveBar = `<div class="tpl-save-bar">
       <button type="button" class="cmd quiet block" id="saveAsTemplateSideBtn" data-di18n="saveAsTemplate">${escapeHtml(dt("saveAsTemplate"))}</button>
+      ${
+        activeCompanyId() && localCount && hasCap("canPublishTeamTemplate")
+          ? `<button type="button" class="cmd quiet block" id="migrateTeamTplBtn">${escapeHtml(dt("teamMigrateBtn", { n: localCount }))}</button>`
+          : ""
+      }
+      <p class="rail-note">${escapeHtml(dt("teamTemplatesSummary", { team: teamCount, local: localCount }))}</p>
     </div>`;
     const searchBar = `<label class="field tpl-search-field">
       <span class="sr-only">${escapeHtml(dt("tplSearch"))}</span>
@@ -4141,6 +4357,7 @@
       });
     });
     $("saveAsTemplateSideBtn")?.addEventListener("click", () => saveCurrentAsTemplate());
+    $("migrateTeamTplBtn")?.addEventListener("click", () => migrateLocalTemplatesToTeam().catch(() => {}));
   }
 
   async function applyTeamTemplate(id) {
@@ -4257,8 +4474,50 @@
     }
     populateEmailWorkers();
     setStatus($("emailModalStatus"), "");
+    refreshEmailMailStatus().catch(() => {});
+    applyDocsCapabilitiesUi();
     modal.hidden = false;
     $("emailToInput")?.focus();
+  }
+
+  async function refreshEmailMailStatus() {
+    const el = $("emailSmtpStatus");
+    if (!el) return;
+    try {
+      const data = await api(`/api/v2/docs/email/status${companyQuery()}`);
+      el.textContent = data.configured
+        ? dt("emailSmtpReady", { provider: data.primary || (data.providers || []).join(", ") || "mail" })
+        : data.hint || dt("emailSmtpHint");
+      el.classList.toggle("is-ok", !!data.configured);
+      el.classList.toggle("is-err", !data.configured);
+    } catch {
+      el.textContent = dt("emailSmtpHint");
+      el.classList.remove("is-ok");
+    }
+  }
+
+  async function sendTestDocEmail() {
+    if (!hasCap("canTestEmail")) {
+      setStatus($("emailModalStatus"), dt("permDenied"), "err");
+      return;
+    }
+    const to = String($("emailToInput")?.value || "").trim();
+    if (!to || !to.includes("@")) {
+      setStatus($("emailModalStatus"), dt("emailNeedTo"), "err");
+      return;
+    }
+    setStatus($("emailModalStatus"), dt("emailTestSending"));
+    try {
+      await api(`/api/v2/docs/email/test${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({ company_id: activeCompanyId(), to }),
+      });
+      setStatus($("emailModalStatus"), dt("emailTestOk", { to }), "ok");
+    } catch (e) {
+      const base = e.body?.message || e.message || dt("emailPdfFail");
+      const hint = e.body?.hint || "";
+      setStatus($("emailModalStatus"), hint && !String(base).includes(hint) ? `${base} — ${hint}` : base, "err");
+    }
   }
 
   function closeEmailModal() {
@@ -4626,6 +4885,36 @@
       open.innerHTML = openItems.length
         ? openItems.map((it) => `<li><code>${escapeHtml(it.token)}</code></li>`).join("")
         : `<li class="is-ok">${escapeHtml(dt("placeholdersClear"))}</li>`;
+      const form = $("mergeManualForm");
+      const box = $("mergeManualBox");
+      if (form && box) {
+        if (!openItems.length) {
+          box.hidden = true;
+          form.innerHTML = "";
+        } else {
+          box.hidden = false;
+          const prev = {};
+          form.querySelectorAll("[data-merge-key]").forEach((inp) => {
+            prev[inp.getAttribute("data-merge-key")] = inp.value;
+          });
+          form.innerHTML = openItems
+            .map((it) => {
+              const key = String(it.token || "")
+                .replace(/^\{\{\s*/, "")
+                .replace(/\s*\}\}$/, "");
+              const label = key;
+              const val = prev[key] || "";
+              return (
+                `<label class="field compact merge-manual-field">` +
+                `<span><code>${escapeHtml(it.token)}</code></span>` +
+                `<input type="text" data-merge-key="${escapeHtml(key)}" data-merge-token="${escapeHtml(it.token)}" ` +
+                `value="${escapeHtml(val)}" placeholder="${escapeHtml(dt("mergeManualPh", { field: label }))}" autocomplete="off" />` +
+                `</label>`
+              );
+            })
+            .join("");
+        }
+      }
       setStatus(
         $("mergeModalStatus"),
         dt("mergePreviewStats", { n: willItems.length, open: openItems.length }),
@@ -4635,6 +4924,39 @@
       will.innerHTML = "";
       open.innerHTML = `<li>${escapeHtml(e.message || dt("fillFail"))}</li>`;
     }
+  }
+
+  function readManualMergeValues() {
+    const out = {};
+    $("mergeManualForm")
+      ?.querySelectorAll("[data-merge-key]")
+      ?.forEach((inp) => {
+        const key = inp.getAttribute("data-merge-key");
+        const token = inp.getAttribute("data-merge-token") || `{{${key}}}`;
+        const val = String(inp.value || "").trim();
+        if (key && val) out[token] = val;
+      });
+    return out;
+  }
+
+  function applyManualMergeMap(html, map) {
+    let out = String(html || "");
+    Object.entries(map || {}).forEach(([token, value]) => {
+      const key = String(token)
+        .replace(/^\{\{\s*/, "")
+        .replace(/\s*\}\}$/, "");
+      const re = new RegExp(`\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g");
+      out = out.replace(re, String(value));
+      // Also replace chip wrappers that still show the token text.
+      out = out.replace(
+        new RegExp(
+          `<span[^>]*class="[^"]*wp-ph-chip[^"]*"[^>]*>\\s*\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}\\s*</span>`,
+          "gi",
+        ),
+        String(value),
+      );
+    });
+    return out;
   }
 
   function openMergeFillModal() {
@@ -4670,14 +4992,27 @@
     setStatus($("saveStatus"), dt("filling"));
     setStatus($("mergeModalStatus"), dt("filling"));
     try {
+      const manual = readManualMergeValues();
+      let contentHtml = applyManualMergeMap(getHtml(), manual);
+      let headerHtml = applyManualMergeMap(getHeaderHtml(), manual);
+      let footerHtml = applyManualMergeMap(getFooterHtml(), manual);
+      // Apply manual values into the editor first so fill-merge sees fewer open tokens.
+      if (Object.keys(manual).length) {
+        setHtml(contentHtml);
+        if ($("docHeader")) $("docHeader").innerHTML = wrapMergePlaceholders(headerHtml);
+        if ($("docFooter")) $("docFooter").innerHTML = wrapMergePlaceholders(footerHtml);
+        contentHtml = getHtml();
+        headerHtml = getHeaderHtml();
+        footerHtml = getFooterHtml();
+      }
       const data = await api(`/api/v2/docs/fill-merge${companyQuery()}`, {
         method: "POST",
         body: JSON.stringify({
           company_id: cid,
           workerId,
-          contentHtml: getHtml(),
-          headerHtml: getHeaderHtml(),
-          footerHtml: getFooterHtml(),
+          contentHtml,
+          headerHtml,
+          footerHtml,
         }),
       });
       setHtml(data.contentHtml || getHtml());
@@ -5070,6 +5405,10 @@
   }
 
   async function openWordPro() {
+    if (!hasCap("canUseWordPro", false)) {
+      setStatus($("saveStatus"), dt("permDenied"), "err");
+      return;
+    }
     if (dirty) await saveDoc();
     if (!currentDoc?.id) {
       await saveDoc();
@@ -5082,8 +5421,9 @@
     setStatus($("saveStatus"), dt("wordPro"));
     try {
       const status = await api(`/api/v2/docs/onlyoffice/status${companyQuery()}`);
-      if (!status.enabled) {
+      if (!status.enabled || status.ready === false) {
         const msg = status.hint || dt("ooNeed");
+        setStatus($("ooStatus"), msg, "err");
         setStatus($("saveStatus"), msg, "err");
         window.alert(msg);
         return;
@@ -5118,6 +5458,29 @@
     }
   }
 
+  async function syncFromWordPro() {
+    if (!currentDoc?.id) return;
+    setStatus($("ooStatus"), dt("ooSyncing"));
+    try {
+      const data = await api(
+        `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/onlyoffice/sync${companyQuery()}`,
+        { method: "POST", body: JSON.stringify({ company_id: activeCompanyId() }) },
+      );
+      if (data.document) {
+        loadIntoEditor(data.document);
+        setStatus($("ooStatus"), dt("ooSynced"), "ok");
+        setStatus($("saveStatus"), dt("ooSynced"), "ok");
+      } else {
+        await openDoc(currentDoc.id);
+        setStatus($("ooStatus"), dt("ooSynced"), "ok");
+      }
+    } catch (e) {
+      const msg = e.body?.message || e.message || dt("ooFail");
+      setStatus($("ooStatus"), msg, "err");
+      setStatus($("saveStatus"), msg, "err");
+    }
+  }
+
   async function closeWordPro() {
     if (ooEditor?.destroyEditor) {
       try {
@@ -5133,10 +5496,17 @@
     if (host) host.innerHTML = "";
     if (currentDoc?.id) {
       try {
-        await openDoc(currentDoc.id);
+        // Prefer DOCX→HTML sync so Roundtrip keeps tables/images.
+        await syncFromWordPro();
+        if (!dirty) await openDoc(currentDoc.id);
         setStatus($("saveStatus"), dt("ooUpdated"), "ok");
       } catch (e) {
-        setStatus($("saveStatus"), e.message || dt("error"), "err");
+        try {
+          await openDoc(currentDoc.id);
+          setStatus($("saveStatus"), dt("ooUpdated"), "ok");
+        } catch (err) {
+          setStatus($("saveStatus"), err.message || e.message || dt("error"), "err");
+        }
       }
     }
   }
@@ -5954,10 +6324,14 @@
       selectionSyncRaf = requestAnimationFrame(() => {
         selectionSyncRaf = 0;
         if (range) {
+          localCursor = { index: Number(range.index) || 0, length: Number(range.length) || 0 };
           highlightActiveTable();
           syncStyleSelectFromSelection();
+        } else {
+          localCursor = { index: -1, length: 0 };
         }
         scheduleSelBubble();
+        schedulePeerCursorBroadcast();
       });
     });
     syncEditorWritingDirection({ focusStart: false });
@@ -6190,6 +6564,7 @@
     $("emailModalClose")?.addEventListener("click", () => closeEmailModal());
     $("emailBackdrop")?.addEventListener("click", () => closeEmailModal());
     $("emailSendBtn")?.addEventListener("click", () => sendDocEmail().catch(() => {}));
+    $("emailTestBtn")?.addEventListener("click", () => sendTestDocEmail().catch(() => {}));
     $("emailFallbackBtn")?.addEventListener("click", () => shareByEmailLocal().catch(() => {}));
     $("shareLinkBtn")?.addEventListener("click", () => createShareLink().catch(() => {}));
     $("shareLinkRailBtn")?.addEventListener("click", () => createShareLink().catch(() => {}));
@@ -6209,6 +6584,7 @@
     $("exportDocBtn")?.addEventListener("click", () => exportDoc("doc").catch(() => {}));
     $("wordProBtn")?.addEventListener("click", () => openWordPro().catch(() => {}));
     $("ooCloseBtn")?.addEventListener("click", () => closeWordPro().catch(() => {}));
+    $("ooSyncBtn")?.addEventListener("click", () => syncFromWordPro().catch(() => {}));
     $("publishBtn")?.addEventListener("click", () => publishToWorker().catch(() => {}));
     $("docStatus")?.addEventListener("change", () => {
       const status = $("docStatus")?.value || "draft";
@@ -6290,6 +6666,11 @@
       const edit = e.target?.closest?.("[data-cmt-edit]");
       if (edit) {
         editCommentAt(Number(edit.getAttribute("data-cmt-edit")));
+        return;
+      }
+      const reply = e.target?.closest?.("[data-cmt-reply]");
+      if (reply) {
+        replyToCommentAt(Number(reply.getAttribute("data-cmt-reply")));
         return;
       }
       const resolve = e.target?.closest?.("[data-cmt-resolve]");
@@ -6862,7 +7243,8 @@
       statusFilter = statusFromUrl;
       renderStatusFilters();
     }
-    loadMergeContext()
+    loadDocsCapabilities()
+      .then(() => loadMergeContext())
       .then(() => bootstrapFromQuery())
       .then(async () => {
         try {
@@ -6976,12 +7358,41 @@
     }
   }
 
+  function myActorDisplayName() {
+    try {
+      const u = JSON.parse(String(wpGet(USER_KEY) || "null"));
+      return String(u?.name || u?.displayName || u?.username || u?.id || "—").trim() || "—";
+    } catch {
+      return "—";
+    }
+  }
+
+  function peerInitials(name) {
+    const parts = String(name || "?")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    if (!parts.length) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+  }
+
+  function peerColor(id) {
+    const s = String(id || "x");
+    let h = 0;
+    for (let i = 0; i < s.length; i += 1) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    const hue = h % 360;
+    return `hsl(${hue} 58% 42%)`;
+  }
+
   function hideCollabConflict() {
     const el = $("collabConflictBanner");
     if (el) el.hidden = true;
   }
 
   function showCollabConflict() {
+    // Avoid noisy banners while the user is actively typing.
+    if (isActivelyTyping(4500)) return;
     const el = $("collabConflictBanner");
     if (el) el.hidden = false;
   }
@@ -7001,6 +7412,49 @@
     }
   }
 
+  function schedulePeerCursorBroadcast() {
+    if (peerCursorTimer) return;
+    peerCursorTimer = window.setTimeout(() => {
+      peerCursorTimer = 0;
+      heartbeatPresence().catch(() => {});
+    }, 450);
+  }
+
+  function renderPeerCursors(peers) {
+    const host = $("peerCursors");
+    if (!host || !quill) return;
+    const meId = myActorId();
+    const others = (peers || []).filter((p) => {
+      if (String(p.user_id || "") === meId) return false;
+      const idx = Number(p.cursor_index ?? p.cursorIndex);
+      return Number.isFinite(idx) && idx >= 0;
+    });
+    host.innerHTML = others
+      .map((p) => {
+        const idx = Number(p.cursor_index ?? p.cursorIndex);
+        const len = Math.max(0, Number(p.cursor_length ?? p.cursorLength ?? 0));
+        let bounds = null;
+        try {
+          bounds = quill.getBounds(idx, Math.max(len, 1));
+        } catch {
+          bounds = null;
+        }
+        if (!bounds) return "";
+        const name = p.display_name || p.displayName || p.user_id || "?";
+        const color = peerColor(p.user_id || name);
+        const top = Math.max(0, bounds.top);
+        const left = Math.max(0, bounds.left);
+        const height = Math.max(14, bounds.height || 18);
+        const width = len > 0 ? Math.max(2, bounds.width || 2) : 2;
+        return (
+          `<div class="peer-cursor" style="--peer:${color};top:${top}px;left:${left}px;height:${height}px;width:${width}px" title="${escapeHtml(name)}">` +
+          `<span class="peer-cursor-label">${escapeHtml(peerInitials(name))}</span>` +
+          `</div>`
+        );
+      })
+      .join("");
+  }
+
   function renderPresence(peers) {
     const chip = $("presenceChip");
     const label = $("presenceLabel");
@@ -7008,11 +7462,26 @@
     const meId = myActorId();
     const others = (peers || []).filter((p) => String(p.user_id || "") !== meId);
     peerCount = others.length;
+    renderPeerCursors(peers);
+    let avatars = chip.querySelector(".presence-avatars");
+    if (!avatars) {
+      avatars = document.createElement("span");
+      avatars.className = "presence-avatars";
+      chip.insertBefore(avatars, label);
+    }
     if (!others.length) {
       chip.hidden = true;
+      avatars.innerHTML = "";
       return;
     }
     chip.hidden = false;
+    const shown = others.slice(0, 4);
+    avatars.innerHTML = shown
+      .map((p) => {
+        const name = p.display_name || p.user_id || "?";
+        return `<span class="presence-avatar" style="--peer:${peerColor(p.user_id || name)}" title="${escapeHtml(name)}">${escapeHtml(peerInitials(name))}</span>`;
+      })
+      .join("");
     const names = others.map((p) => p.display_name || p.user_id || "?").slice(0, 3);
     label.textContent =
       names.length === 1
@@ -7074,11 +7543,20 @@
       live_html: peerLike.liveHtml || peerLike.live_html,
       live_title: peerLike.liveTitle || peerLike.live_title,
       live_rev: peerLike.liveRev || peerLike.live_rev,
+      cursor_index: peerLike.cursorIndex ?? peerLike.cursor_index,
+      cursor_length: peerLike.cursorLength ?? peerLike.cursor_length,
     };
     latestPeerLive = peer;
     renderLiveTyping([peer]);
+    if (Number(peer.cursor_index) >= 0) {
+      const uid = String(peer.user_id || "");
+      const merged = lastPeers.filter((p) => String(p.user_id || "") !== uid);
+      merged.push(peer);
+      lastPeers = merged;
+      renderPeerCursors(lastPeers);
+    }
     // Never auto-overwrite the editor — only when user chose Live folgen.
-    if (liveFollow) applyPeerLive(peer);
+    if (liveFollow && peer.live_html) applyPeerLive(peer);
   }
 
   function ensureDocsSocket() {
@@ -7115,7 +7593,11 @@
   async function heartbeatPresence() {
     if (!currentDoc?.id || !activeCompanyId()) return;
     try {
-      const payload = { company_id: activeCompanyId() };
+      const payload = {
+        company_id: activeCompanyId(),
+        cursorIndex: localCursor.index,
+        cursorLength: localCursor.length,
+      };
       if (dirty) {
         payload.liveRev = liveRev;
         payload.liveTitle = String($("docTitle")?.value || "");
@@ -7125,10 +7607,11 @@
         method: "POST",
         body: JSON.stringify(payload),
       });
-      renderPresence(data.peers || []);
-      renderLiveTyping(data.peers || []);
+      lastPeers = data.peers || [];
+      renderPresence(lastPeers);
+      renderLiveTyping(lastPeers);
       const meId = myActorId();
-      const others = (data.peers || []).filter((p) => String(p.user_id || "") !== meId);
+      const others = lastPeers.filter((p) => String(p.user_id || "") !== meId);
       const bestLive = others
         .filter((p) => Number(p.live_rev || 0) > appliedLiveRev && String(p.live_html || "").trim())
         .sort((a, b) => Number(b.live_rev || 0) - Number(a.live_rev || 0))[0];
@@ -7138,13 +7621,13 @@
       const remote = String(data.updatedAt || "");
       const remoteHash = String(data.contentHash || "");
       if (remoteHash && lastKnownContentHash && remoteHash !== lastKnownContentHash) {
-        if (!dirty && !liveFollow) {
+        if (!dirty && !liveFollow && !isActivelyTyping(2500)) {
           lastKnownContentHash = remoteHash;
           if (remote) lastKnownUpdatedAt = remote;
           await reloadFromServerQuiet();
           return;
         }
-        if (remoteHash !== conflictIgnoredHash) {
+        if (remoteHash !== conflictIgnoredHash && !isActivelyTyping(4500)) {
           pendingRemoteHash = remoteHash;
           showCollabConflict();
         }
@@ -7152,17 +7635,22 @@
         lastKnownContentHash = remoteHash;
       }
       if (remote) lastKnownUpdatedAt = remote;
-      if (docsSocket && dirty && peerCount > 0) {
-        docsSocket.emit("docs_live", {
+      if (docsSocket && peerCount > 0) {
+        const sockPayload = {
           company_id: activeCompanyId(),
           document_id: currentDoc.id,
           session_token: wpGet(TOKEN_KEY) || "",
           user_id: meId,
-          display_name: myActorId(),
-          liveRev,
-          liveTitle: payload.liveTitle,
-          liveHtml: payload.liveHtml,
-        });
+          display_name: myActorDisplayName(),
+          cursorIndex: localCursor.index,
+          cursorLength: localCursor.length,
+        };
+        if (dirty) {
+          sockPayload.liveRev = liveRev;
+          sockPayload.liveTitle = payload.liveTitle;
+          sockPayload.liveHtml = payload.liveHtml;
+        }
+        docsSocket.emit("docs_live", sockPayload);
       }
     } catch {
       /* ignore */

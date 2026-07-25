@@ -622,6 +622,8 @@ class EditorDocsRepository:
             "ALTER TABLE editor_doc_presence ADD COLUMN live_html TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE editor_doc_presence ADD COLUMN live_title TEXT NOT NULL DEFAULT ''",
             "ALTER TABLE editor_doc_presence ADD COLUMN live_rev INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE editor_doc_presence ADD COLUMN cursor_index INTEGER NOT NULL DEFAULT -1",
+            "ALTER TABLE editor_doc_presence ADD COLUMN cursor_length INTEGER NOT NULL DEFAULT 0",
         ):
             try:
                 db.execute(stmt)
@@ -643,45 +645,52 @@ class EditorDocsRepository:
         live_html: str | None = None,
         live_title: str | None = None,
         live_rev: int | None = None,
+        cursor_index: int | None = None,
+        cursor_length: int | None = None,
     ) -> list[dict[str, Any]]:
         self.ensure_presence_schema(db)
         now = _now()
         name = (display_name or "").strip()[:80]
         has_live = live_rev is not None
-        html = (live_html or "")[:250_000] if has_live else None
-        title = (live_title or "").strip()[:200] if has_live else None
-        rev = int(live_rev or 0) if has_live else None
+        html = (live_html or "")[:250_000] if has_live else ""
+        title = (live_title or "").strip()[:200] if has_live else ""
+        rev = int(live_rev or 0) if has_live else 0
+        c_idx = int(cursor_index) if cursor_index is not None else -1
+        c_len = max(0, int(cursor_length or 0)) if cursor_index is not None else 0
         try:
-            if has_live:
-                db.execute(
-                    """
-                    INSERT INTO editor_doc_presence (
-                        document_id, company_id, user_id, display_name, last_seen,
-                        live_html, live_title, live_rev
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(document_id, user_id) DO UPDATE SET
-                      display_name = excluded.display_name,
-                      last_seen = excluded.last_seen,
-                      company_id = excluded.company_id,
-                      live_html = excluded.live_html,
-                      live_title = excluded.live_title,
-                      live_rev = excluded.live_rev
-                    """,
-                    (document_id, company_id, user_id, name, now, html, title, rev),
+            db.execute(
+                """
+                INSERT INTO editor_doc_presence (
+                    document_id, company_id, user_id, display_name, last_seen,
+                    live_html, live_title, live_rev, cursor_index, cursor_length
                 )
-            else:
-                db.execute(
-                    """
-                    INSERT INTO editor_doc_presence (document_id, company_id, user_id, display_name, last_seen)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(document_id, user_id) DO UPDATE SET
-                      display_name = excluded.display_name,
-                      last_seen = excluded.last_seen,
-                      company_id = excluded.company_id
-                    """,
-                    (document_id, company_id, user_id, name, now),
-                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(document_id, user_id) DO UPDATE SET
+                  display_name = excluded.display_name,
+                  last_seen = excluded.last_seen,
+                  company_id = excluded.company_id,
+                  live_html = CASE WHEN ? THEN excluded.live_html ELSE editor_doc_presence.live_html END,
+                  live_title = CASE WHEN ? THEN excluded.live_title ELSE editor_doc_presence.live_title END,
+                  live_rev = CASE WHEN ? THEN excluded.live_rev ELSE editor_doc_presence.live_rev END,
+                  cursor_index = excluded.cursor_index,
+                  cursor_length = excluded.cursor_length
+                """,
+                (
+                    document_id,
+                    company_id,
+                    user_id,
+                    name,
+                    now,
+                    html,
+                    title,
+                    rev,
+                    c_idx,
+                    c_len,
+                    1 if has_live else 0,
+                    1 if has_live else 0,
+                    1 if has_live else 0,
+                ),
+            )
         except Exception:
             db.execute(
                 "DELETE FROM editor_doc_presence WHERE document_id = ? AND user_id = ?",
@@ -691,20 +700,11 @@ class EditorDocsRepository:
                 """
                 INSERT INTO editor_doc_presence (
                     document_id, company_id, user_id, display_name, last_seen,
-                    live_html, live_title, live_rev
+                    live_html, live_title, live_rev, cursor_index, cursor_length
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (
-                    document_id,
-                    company_id,
-                    user_id,
-                    name,
-                    now,
-                    html if has_live else "",
-                    title if has_live else "",
-                    rev if has_live else 0,
-                ),
+                (document_id, company_id, user_id, name, now, html, title, rev, c_idx, c_len),
             )
         db.commit()
         return self.list_presence(db, document_id=document_id, company_id=company_id)
@@ -714,7 +714,7 @@ class EditorDocsRepository:
         rows = db.execute(
             """
             SELECT document_id, company_id, user_id, display_name, last_seen,
-                   live_html, live_title, live_rev
+                   live_html, live_title, live_rev, cursor_index, cursor_length
             FROM editor_doc_presence
             WHERE document_id = ? AND company_id = ?
             ORDER BY last_seen DESC

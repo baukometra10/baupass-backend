@@ -34,6 +34,49 @@ def onlyoffice_browser_url() -> str:
     return (os.getenv("ONLYOFFICE_URL") or "http://127.0.0.1:8081").rstrip("/")
 
 
+def probe_document_server(timeout: float = 2.5) -> dict[str, Any]:
+    """Best-effort reachability check against the Document Server."""
+    base = onlyoffice_browser_url()
+    if not onlyoffice_enabled():
+        return {
+            "reachable": False,
+            "checkedUrl": "",
+            "error": "disabled",
+            "hint": "ONLYOFFICE_URL setzen und Document Server starten (deploy/start-onlyoffice.ps1).",
+        }
+    candidates = (
+        f"{base}/healthcheck",
+        f"{base}/web-apps/apps/api/documents/api.js",
+        f"{base}/",
+    )
+    last_err = ""
+    for url in candidates:
+        try:
+            req = Request(url, headers={"User-Agent": "WorkPass-OnlyOffice/1.0"})
+            with urlopen(req, timeout=timeout) as resp:  # noqa: S310 — operator-configured OnlyOffice URL
+                code = int(getattr(resp, "status", 200) or 200)
+                if 200 <= code < 500:
+                    return {
+                        "reachable": True,
+                        "checkedUrl": url,
+                        "statusCode": code,
+                        "hint": None,
+                    }
+                last_err = f"HTTP {code}"
+        except Exception as exc:
+            last_err = str(exc)[:180]
+            continue
+    return {
+        "reachable": False,
+        "checkedUrl": candidates[0],
+        "error": last_err or "unreachable",
+        "hint": (
+            f"Document Server unter {base} nicht erreichbar. "
+            "Docker starten (deploy/start-onlyoffice.ps1) und ONLYOFFICE_URL prüfen."
+        ),
+    }
+
+
 def onlyoffice_jwt_secret() -> str:
     return (os.getenv("ONLYOFFICE_JWT_SECRET") or "workpass-onlyoffice-dev-secret").strip()
 

@@ -75,6 +75,55 @@ def _smtp_config() -> Tuple[str, int, str, str, bool, str, str]:
     )
 
 
+def mail_delivery_status() -> dict:
+    """Non-secret summary of whether outbound mail can be attempted."""
+    host, port, user, _password, use_tls, sender, sender_name = _smtp_config()
+    resend = bool((os.getenv("RESEND_API_KEY") or "").strip())
+    brevo = bool((os.getenv("BREVO_API_KEY") or "").strip())
+    # DB settings may hold API keys even when env is empty.
+    if not resend or not brevo:
+        try:
+            from backend.server import get_db
+
+            row = get_db().execute(
+                "SELECT resend_api_key, brevo_api_key FROM settings WHERE id = 1"
+            ).fetchone()
+            if row:
+                keys = row.keys() if hasattr(row, "keys") else []
+                if "resend_api_key" in keys and str(row["resend_api_key"] or "").strip():
+                    resend = True
+                if "brevo_api_key" in keys and str(row["brevo_api_key"] or "").strip():
+                    brevo = True
+        except Exception:
+            pass
+    providers = []
+    if resend:
+        providers.append("resend")
+    if brevo:
+        providers.append("brevo")
+    if host:
+        providers.append("smtp")
+    configured = bool(providers)
+    primary = providers[0] if providers else ""
+    hint = (
+        f"Versand über {', '.join(providers)} bereit."
+        if configured
+        else "Kein E-Mail-Provider. SMTP_HOST / Resend / Brevo in den Einstellungen setzen."
+    )
+    return {
+        "configured": configured,
+        "providers": providers,
+        "primary": primary,
+        "smtpHostSet": bool(host),
+        "smtpPort": int(port or 587) if host else None,
+        "smtpTls": bool(use_tls) if host else None,
+        "smtpUserSet": bool(user) if host else False,
+        "sender": sender if configured else "",
+        "senderName": sender_name if configured else "",
+        "hint": hint,
+    }
+
+
 def _humanize_mail_error(err: str) -> str:
     text = str(err or "").strip()
     lower = text.lower()

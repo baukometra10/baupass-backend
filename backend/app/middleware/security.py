@@ -74,6 +74,7 @@ _CSRF_EXEMPT_PREFIXES = (
 _CSRF_EXEMPT_SUBSTRINGS = (
     "/onlyoffice/callback",
     "/onlyoffice/file",
+    "/signatures/qes/callback",
 )
 
 

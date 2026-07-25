@@ -504,20 +504,25 @@ def build_editor_pdf_bytes(
         canvas.saveState()
         canvas.setFont(font, 8)
         canvas.setFillColorRGB(0.4, 0.45, 0.5)
-        y = max(8 * mm, bottom_mm * mm * 0.45)
+        y = max(10 * mm, bottom_mm * mm * 0.42)
+        page_no = int(canvas.getPageNumber() or 1)
+        page_label = f"Seite {page_no}"
         if footer_text:
-            canvas.drawString(left_mm * mm, y, str(footer_text)[:90])
-        canvas.drawRightString(page_w - right_mm * mm, y, str(canvas.getPageNumber()))
+            canvas.drawString(left_mm * mm, y, str(footer_text)[:78])
+        canvas.drawRightString(page_w - right_mm * mm, y, page_label)
         canvas.restoreState()
 
     buf = io.BytesIO()
+    # Extra bottom margin so footer + page number never collide with body.
+    safe_bottom = max(float(bottom_mm or 18), 18.0)
+    safe_top = max(float(top_mm or 18), 16.0)
     doc = SimpleDocTemplate(
         buf,
         pagesize=pagesize,
         leftMargin=left_mm * mm,
         rightMargin=right_mm * mm,
-        topMargin=top_mm * mm,
-        bottomMargin=max(bottom_mm, 14) * mm,
+        topMargin=safe_top * mm,
+        bottomMargin=safe_bottom * mm,
         title=str(title or "Dokument")[:120],
     )
     doc.build(story, onFirstPage=_draw_page, onLaterPages=_draw_page)

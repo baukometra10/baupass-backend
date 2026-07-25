@@ -23,6 +23,43 @@ def _actor_role() -> str:
     return str(g.current_user.get("role") or "").strip().lower()
 
 
+def _docs_capabilities() -> dict:
+    """Fine-grained Docs permissions (Turnstile vs Admin)."""
+    role = _actor_role()
+    is_admin = role in {"superadmin", "company-admin"}
+    is_editor = role in {"superadmin", "company-admin", "turnstile"}
+    return {
+        "role": role,
+        "canEdit": is_editor,
+        "canShare": is_admin,
+        "canDelete": is_admin,
+        "canSign": is_admin,
+        "canPublishTeamTemplate": is_admin,
+        "canManageLogo": is_admin,
+        "canTestEmail": is_admin,
+        "canUseWordPro": is_editor,
+        "canEmail": is_editor,
+    }
+
+
+def _deny_cap(cap: str):
+    caps = _docs_capabilities()
+    if caps.get(cap):
+        return None
+    return (
+        jsonify(
+            {
+                "ok": False,
+                "error": "forbidden",
+                "message": "Keine Berechtigung für diese Aktion (Turnstile vs Admin).",
+                "capability": cap,
+                "capabilities": caps,
+            }
+        ),
+        403,
+    )
+
+
 def _resolve_company_id(data: dict | None = None, *, required: bool = True) -> str | None:
     data = data or {}
     role = str(g.current_user.get("role") or "")
@@ -217,6 +254,80 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             status = 404 if result.get("error") == "company_not_found" else 400
             return jsonify(result), status
         return jsonify(result)
+
+    @docs_v2_bp.get("/docs/capabilities")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def docs_capabilities():
+        return jsonify({"ok": True, "capabilities": _docs_capabilities()})
+
+    @docs_v2_bp.get("/docs/email/status")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def docs_email_status():
+        from backend.app.platform.reports.email_delivery import mail_delivery_status
+
+        return jsonify({"ok": True, **mail_delivery_status()})
+
+    @docs_v2_bp.post("/docs/email/test")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def docs_email_test():
+        """Send a tiny test mail (admin only) to verify SMTP/API config."""
+        denied = _deny_cap("canTestEmail")
+        if denied:
+            return denied
+        data = request.get_json(silent=True) or {}
+        to = str(data.get("to") or data.get("email") or "").strip()
+        if not to or "@" not in to:
+            return jsonify({"ok": False, "error": "email_required", "message": "Empfänger-E-Mail fehlt."}), 400
+        from backend.app.platform.reports.email_delivery import mail_delivery_status, send_attachments_email
+
+        status = mail_delivery_status()
+        if not status.get("configured"):
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "mail_not_configured",
+                        "message": status.get("hint") or "Mail nicht konfiguriert",
+                        **status,
+                    }
+                ),
+                503,
+            )
+        ok, err = send_attachments_email(
+            to=to,
+            subject=str(data.get("subject") or "SUPPIX Docs — Testsendung").strip()[:200],
+            body_text=(
+                str(data.get("message") or "").strip()
+                or "Dies ist eine Testsendung aus SUPPIX Docs. SMTP/API funktioniert."
+            ),
+            attachments=[
+                {
+                    "filename": "suppix-docs-test.txt",
+                    "data": b"SUPPIX Docs mail test\n",
+                    "maintype": "text",
+                    "subtype": "plain",
+                }
+            ],
+            report_meta={"kind": "docs_mail_test", "company_id": _resolve_company_id(data, required=False) or ""},
+            branded=False,
+        )
+        if not ok:
+            return (
+                jsonify(
+                    {
+                        "ok": False,
+                        "error": "send_failed",
+                        "message": err or "send_failed",
+                        "hint": status.get("hint"),
+                        **status,
+                    }
+                ),
+                502,
+            )
+        return jsonify({"ok": True, "to": to, **status})
 
     @docs_v2_bp.post("/docs/fill-merge")
     @require_auth
@@ -423,6 +534,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
     def create_editor_template():
+        denied = _deny_cap("canPublishTeamTemplate")
+        if denied:
+            return denied
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
@@ -549,6 +663,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
     def delete_doc(doc_id: str):
+        denied = _deny_cap("canDelete")
+        if denied:
+            return denied
         cid = _resolve_company_id(required=True)
         if not cid:
             return forbidden_company()
@@ -704,7 +821,10 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             report_meta={"kind": "editor_doc", "document_id": doc_id, "company_id": cid},
         )
         if not ok:
-            hint = (
+            from backend.app.platform.reports.email_delivery import mail_delivery_status
+
+            status = mail_delivery_status()
+            hint = status.get("hint") or (
                 "SMTP/API-Mail ist nicht konfiguriert oder fehlgeschlagen. "
                 "Einstellungen → E-Mail (SMTP_HOST / Resend / Brevo) prüfen."
             )
@@ -714,6 +834,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                     "error": "send_failed",
                     "message": err or "send_failed",
                     "hint": hint,
+                    "mail": status,
                 }
             ), 502
         return jsonify({"ok": True, "to": to, "filename": payload.get("filename")})
@@ -724,14 +845,26 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     def onlyoffice_status():
         from . import onlyoffice as oo
 
+        enabled = oo.onlyoffice_enabled()
+        probe = oo.probe_document_server() if enabled else {
+            "reachable": False,
+            "hint": "ONLYOFFICE_URL setzen und Document Server starten (deploy/start-onlyoffice.ps1).",
+        }
+        ready = bool(enabled and probe.get("reachable"))
+        hint = None
+        if not enabled:
+            hint = probe.get("hint") or "ONLYOFFICE_URL setzen und Document Server starten (deploy/start-onlyoffice.ps1)."
+        elif not probe.get("reachable"):
+            hint = probe.get("hint") or "Document Server nicht erreichbar."
         return jsonify(
             {
                 "ok": True,
-                "enabled": oo.onlyoffice_enabled(),
-                "documentServerUrl": oo.onlyoffice_browser_url() if oo.onlyoffice_enabled() else "",
-                "hint": None
-                if oo.onlyoffice_enabled()
-                else "ONLYOFFICE_URL setzen und Document Server starten (deploy/start-onlyoffice.ps1).",
+                "enabled": enabled,
+                "reachable": bool(probe.get("reachable")),
+                "ready": ready,
+                "documentServerUrl": oo.onlyoffice_browser_url() if enabled else "",
+                "checkedUrl": probe.get("checkedUrl") or "",
+                "hint": hint,
             }
         )
 
@@ -809,6 +942,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 content = oo.download_bytes(str(body["url"]))
                 path = oo.docx_path_for(doc_id)
                 oo.apply_saved_docx(path, content)
+                html = oo.docx_bytes_to_html(content)
                 plain = oo.docx_to_plain_preview(path)
                 cid = str(request.args.get("company_id") or "").strip() or None
                 db = get_db()
@@ -819,11 +953,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                     actor_user_id="onlyoffice",
                     data={
                         "contentText": plain,
-                        "contentHtml": "".join(
-                            f"<p>{line}</p>" if line.strip() else "<p><br></p>"
-                            for line in plain.splitlines()
-                        )
-                        or "<p><br></p>",
+                        "contentHtml": html or "<p><br></p>",
                         "versionNote": "onlyoffice-save",
                     },
                     save_version=True,
@@ -833,10 +963,52 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": 1}), 500
         return jsonify({"error": 0})
 
+    @docs_v2_bp.post("/docs/<doc_id>/onlyoffice/sync")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def onlyoffice_sync(doc_id: str):
+        """Re-import the last Word Pro DOCX into the Quill document (roundtrip safety)."""
+        from . import onlyoffice as oo
+
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        if not doc:
+            return jsonify({"error": "not_found"}), 404
+        gate = _contract_docs_gate(get_db(), cid, doc=doc, action="onlyoffice_sync")
+        if gate:
+            return gate
+        path = oo.docx_path_for(doc_id)
+        if not path.exists():
+            return jsonify({"ok": False, "error": "no_docx", "message": "Noch keine Word-Pro-Datei vorhanden."}), 404
+        try:
+            content = path.read_bytes()
+            html = oo.docx_bytes_to_html(content)
+            plain = oo.docx_to_plain_preview(path)
+            updated = _service.update_doc(
+                get_db(),
+                doc_id,
+                company_id=cid,
+                actor_user_id=_actor_id(),
+                data={
+                    "contentText": plain,
+                    "contentHtml": html or "<p><br></p>",
+                    "versionNote": "onlyoffice-sync",
+                },
+                save_version=True,
+            )
+            return jsonify({"ok": True, "document": updated})
+        except Exception as exc:
+            return jsonify({"ok": False, "error": "sync_failed", "message": str(exc)[:220]}), 500
+
     @docs_v2_bp.post("/docs/<doc_id>/share")
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
     def create_doc_share(doc_id: str):
+        denied = _deny_cap("canShare")
+        if denied:
+            return denied
         from datetime import datetime, timedelta, timezone
 
         from werkzeug.security import generate_password_hash
@@ -896,6 +1068,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
     def revoke_doc_share(doc_id: str):
+        denied = _deny_cap("canShare")
+        if denied:
+            return denied
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
@@ -938,6 +1113,17 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 live_rev = int(live_rev_raw)
             except (TypeError, ValueError):
                 live_rev = 0
+        cursor_index = None
+        cursor_length = 0
+        if "cursorIndex" in data or "cursor_index" in data:
+            try:
+                cursor_index = int(data.get("cursorIndex", data.get("cursor_index")))
+            except (TypeError, ValueError):
+                cursor_index = -1
+            try:
+                cursor_length = int(data.get("cursorLength", data.get("cursor_length") or 0))
+            except (TypeError, ValueError):
+                cursor_length = 0
         peers = _service.repo.upsert_presence(
             get_db(),
             document_id=doc_id,
@@ -947,26 +1133,32 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             live_html=str(data.get("liveHtml") or data.get("live_html") or "") if live_rev is not None else None,
             live_title=str(data.get("liveTitle") or data.get("live_title") or "") if live_rev is not None else None,
             live_rev=live_rev,
+            cursor_index=cursor_index,
+            cursor_length=cursor_length,
         )
         body = str(doc.get("content_html") or "")
         content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()[:24]
         try:
             from backend.app.platform.realtime.websocket import socketio as _sio
 
-            if _sio is not None and live_rev is not None:
-                _sio.emit(
-                    "docs_live",
-                    {
-                        "documentId": doc_id,
-                        "companyId": cid,
-                        "userId": _actor_id() or "anon",
-                        "displayName": _actor_name() or _actor_id() or "User",
-                        "liveRev": live_rev,
-                        "liveTitle": str(data.get("liveTitle") or "")[:200],
-                        "liveHtml": str(data.get("liveHtml") or "")[:250_000],
-                    },
-                    room=f"company:{cid}",
-                )
+            if _sio is not None:
+                payload = {
+                    "documentId": doc_id,
+                    "companyId": cid,
+                    "userId": _actor_id() or "anon",
+                    "displayName": _actor_name() or _actor_id() or "User",
+                    "cursorIndex": cursor_index if cursor_index is not None else -1,
+                    "cursorLength": cursor_length,
+                }
+                if live_rev is not None:
+                    payload.update(
+                        {
+                            "liveRev": live_rev,
+                            "liveTitle": str(data.get("liveTitle") or "")[:200],
+                            "liveHtml": str(data.get("liveHtml") or "")[:250_000],
+                        }
+                    )
+                _sio.emit("docs_live", payload, room=f"company:{cid}")
         except Exception:
             pass
         return jsonify(
@@ -1000,6 +1192,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
 
         from werkzeug.security import generate_password_hash
 
+        denied = _deny_cap("canSign")
+        if denied:
+            return denied
         data = request.get_json(silent=True) or {}
         cid = _resolve_company_id(data, required=True)
         if not cid:
@@ -1065,16 +1260,36 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         provider = (os.getenv("DOCS_QES_PROVIDER") or "").strip()
         api_url = (os.getenv("DOCS_QES_API_URL") or "").strip()
         api_key = (os.getenv("DOCS_QES_API_KEY") or "").strip()
-        configured = bool(api_url and api_key)
+        demo = str(os.getenv("DOCS_QES_DEMO") or "").strip().lower() in {"1", "true", "yes", "on"}
+        live = bool(api_url and api_key)
+        configured = live or demo
+        if live:
+            hint = "QES via Trust Service Provider konfiguriert."
+            mode = "live"
+        elif demo:
+            hint = "QES-Demo aktiv (DOCS_QES_DEMO=1) — kein echter eIDAS-TSP."
+            mode = "demo"
+            provider = provider or "demo"
+        else:
+            hint = (
+                "QES nicht konfiguriert. DOCS_QES_API_URL + DOCS_QES_API_KEY "
+                "(+ optional DOCS_QES_PROVIDER) setzen — oder DOCS_QES_DEMO=1 für Test."
+            )
+            mode = "off"
         return {
             "configured": configured,
-            "provider": provider or ("generic" if configured else ""),
+            "demo": demo and not live,
+            "mode": mode,
+            "provider": provider or ("generic" if live else ""),
             "levelAvailable": "qes" if configured else "aes",
-            "hint": (
-                "QES via Trust Service Provider konfiguriert."
-                if configured
-                else "QES nicht konfiguriert. DOCS_QES_API_URL + DOCS_QES_API_KEY (+ optional DOCS_QES_PROVIDER) setzen."
-            ),
+            "env": {
+                "DOCS_QES_API_URL": bool(api_url),
+                "DOCS_QES_API_KEY": bool(api_key),
+                "DOCS_QES_PROVIDER": bool(provider),
+                "DOCS_QES_CALLBACK_URL": bool((os.getenv("DOCS_QES_CALLBACK_URL") or "").strip()),
+                "DOCS_QES_DEMO": demo,
+            },
+            "hint": hint,
         }
 
     @docs_v2_bp.get("/docs/signatures/qes/status")
@@ -1082,6 +1297,55 @@ def register_docs_blueprint(flask_app: Flask) -> None:
     @require_roles("superadmin", "company-admin", "turnstile")
     def qes_status():
         return jsonify({"ok": True, **_qes_config()})
+
+    @docs_v2_bp.post("/docs/signatures/qes/callback")
+    def qes_callback():
+        """TSP completion webhook (Bearer DOCS_QES_CALLBACK_SECRET or API key)."""
+        import hashlib
+        import json as _json
+        import os
+
+        secret = (os.getenv("DOCS_QES_CALLBACK_SECRET") or os.getenv("DOCS_QES_API_KEY") or "").strip()
+        auth = str(request.headers.get("Authorization") or "")
+        token = ""
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+        token = token or str(request.args.get("token") or "").strip()
+        if secret and token != secret:
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        data = request.get_json(silent=True) or {}
+        doc_id = str(data.get("documentId") or data.get("document_id") or "").strip()
+        cid = str(data.get("companyId") or data.get("company_id") or "").strip()
+        if not doc_id or not cid:
+            return jsonify({"ok": False, "error": "document_required"}), 400
+        doc = _service.get_doc(get_db(), doc_id, company_id=cid)
+        if not doc:
+            return jsonify({"error": "not_found"}), 404
+        body = str(doc.get("content_html") or "")
+        content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
+        status = str(data.get("status") or "completed").strip().lower()
+        level = "qes" if status in {"completed", "signed", "success", "ok"} else f"qes_{status}"
+        row = _service.repo.add_signature(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            signer_name=str(data.get("signerName") or data.get("signer_name") or "QES").strip() or "QES",
+            actor_user_id=str(data.get("actorUserId") or "qes-tsp"),
+            stamped=status in {"completed", "signed", "success", "ok"},
+            content_hash=content_hash,
+            signature_data=_json.dumps(
+                {
+                    "manifest": {
+                        "level": level,
+                        "provider": str(data.get("provider") or _qes_config().get("provider") or ""),
+                        "contentHashSha256": content_hash,
+                        "remote": data,
+                    }
+                },
+                ensure_ascii=False,
+            )[:120000],
+        )
+        return jsonify({"ok": True, "signature": row, "level": level})
 
     @docs_v2_bp.post("/docs/<doc_id>/signatures/qes/start")
     @require_auth
@@ -1093,6 +1357,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         import urllib.error
         import urllib.request
 
+        denied = _deny_cap("canSign")
+        if denied:
+            return denied
         cfg = _qes_config()
         if not cfg["configured"]:
             return jsonify({"ok": False, "error": "qes_not_configured", "message": cfg["hint"], **cfg}), 503
@@ -1108,16 +1375,60 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             return gate
         body = str(doc.get("content_html") or "")
         content_hash = hashlib.sha256(body.encode("utf-8", errors="ignore")).hexdigest()
+        signer_name = str(data.get("signerName") or data.get("signer_name") or "").strip()
+        callback_url = str(data.get("callbackUrl") or os.getenv("DOCS_QES_CALLBACK_URL") or "").strip()
+        if not callback_url:
+            # Default webhook endpoint on this API for TSPs that need a callback.
+            base = (os.getenv("PUBLIC_BASE_URL") or request.host_url or "").rstrip("/")
+            callback_url = f"{base}/api/v2/docs/signatures/qes/callback"
         payload = {
             "documentId": doc_id,
             "companyId": cid,
             "title": doc.get("title") or "",
             "contentHashSha256": content_hash,
-            "signerName": str(data.get("signerName") or data.get("signer_name") or "").strip(),
-            "callbackUrl": str(data.get("callbackUrl") or os.getenv("DOCS_QES_CALLBACK_URL") or "").strip(),
+            "signerName": signer_name,
+            "callbackUrl": callback_url,
             "level": "qes",
             "provider": cfg["provider"],
         }
+
+        # Demo path: no external TSP — seal a demo QES audit row immediately.
+        if cfg.get("demo"):
+            remote = {"id": f"demo-{content_hash[:12]}", "status": "completed", "mode": "demo"}
+            _service.repo.add_signature(
+                get_db(),
+                document_id=doc_id,
+                company_id=cid,
+                signer_name=signer_name or "QES Demo",
+                actor_user_id=_actor_id(),
+                stamped=True,
+                content_hash=content_hash,
+                signature_data=_json.dumps(
+                    {
+                        "manifest": {
+                            "level": "qes_demo",
+                            "provider": "demo",
+                            "contentHashSha256": content_hash,
+                            "remote": remote,
+                            "note": "Demo only — not a qualified eIDAS signature.",
+                        }
+                    },
+                    ensure_ascii=False,
+                )[:120000],
+            )
+            return jsonify(
+                {
+                    "ok": True,
+                    "level": "qes_demo",
+                    "provider": "demo",
+                    "demo": True,
+                    "sessionUrl": "",
+                    "remote": remote,
+                    "contentHash": content_hash,
+                    "message": cfg["hint"],
+                }
+            )
+
         api_url = (os.getenv("DOCS_QES_API_URL") or "").rstrip("/")
         api_key = os.getenv("DOCS_QES_API_KEY") or ""
         req = urllib.request.Request(
@@ -1172,6 +1483,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                         "level": "qes_pending",
                         "provider": cfg["provider"],
                         "contentHashSha256": content_hash,
+                        "callbackUrl": callback_url,
                         "remote": {k: remote.get(k) for k in ("id", "sessionId", "status") if k in remote},
                     }
                 },
@@ -1186,6 +1498,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 "sessionUrl": session_url,
                 "remote": remote,
                 "contentHash": content_hash,
+                "callbackUrl": callback_url,
             }
         )
 
