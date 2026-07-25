@@ -248,6 +248,9 @@
       },
       getCompanyId: () => activeCompanyId(),
       onStatus: (text, kind) => setStatus($("saveStatus"), text, kind || ""),
+      onVerified: async () => {
+        $("docsLockNowBtn")?.classList.remove("hidden");
+      },
       api: async (path, options = {}) => {
         const res = await fetch(path, {
           ...options,
@@ -258,6 +261,7 @@
           const err = new Error(data.message || data.error || `http_${res.status}`);
           err.status = res.status;
           err.body = data;
+          err.data = data;
           throw err;
         }
         return data;
@@ -2515,6 +2519,11 @@
   }
 
   function closePrintPreview() {
+    const body = $("printPreviewBody");
+    if (body?._pdfUrl) {
+      try { URL.revokeObjectURL(body._pdfUrl); } catch { /* ignore */ }
+      body._pdfUrl = null;
+    }
     const modal = $("printPreviewModal");
     if (modal) modal.hidden = true;
     const body = $("printPreviewBody");
@@ -3381,7 +3390,7 @@
           workers
             .map((w) => {
               const extra = [w.badgeId, w.role].filter(Boolean).join(" · ");
-              return `<option value="${escapeHtml(w.id)}">${escapeHtml(w.name || w.id)}${
+              return `<option value="${escapeHtml(w.id)}" data-email="${escapeHtml(String(w.email || ""))}">${escapeHtml(w.name || w.id)}${
                 extra ? ` (${escapeHtml(extra)})` : ""
               }</option>`;
             })
@@ -3779,6 +3788,7 @@
         .join("\n")
         .trim();
     }
+    populateEmailWorkers();
     setStatus($("emailModalStatus"), "");
     modal.hidden = false;
     $("emailToInput")?.focus();
@@ -4899,6 +4909,8 @@
     loadIntoEditor(data.document);
     // Briefkopf nur wenn Nutzer ihn ausdrücklich wählt — nie automatisch erzwingen
     await refreshList(data.document?.id);
+    syncEmptyState();
+    startPresenceLoop();
     return data.document;
   }
 
@@ -4973,6 +4985,8 @@
     setHtml("<p><br></p>");
     $("docTitle").value = dt("tplBlank");
     setStatus($("saveStatus"), dt("deleted"), "ok");
+    stopPresenceLoop();
+    syncEmptyState();
     await refreshList();
   }
 
@@ -5137,6 +5151,10 @@
   }
 
   async function bootstrapFromQuery() {
+    const orphan = scanOfflineDrafts();
+    if (orphan) showOfflineBanner(orphan);
+    syncEmptyState();
+
     const contractId = (qs().get("contract_id") || "").trim();
     const docId = (qs().get("id") || "").trim();
     const seedText = sessionStorage.getItem("workpass-docs-seed-text") || "";
@@ -5507,6 +5525,40 @@
     $("sharePdfBtn")?.addEventListener("click", () => exportDoc("pdf").catch(() => {}));
     $("sharePrintBtn")?.addEventListener("click", () => openPrintPreview({ showMarks: false }));
     $("shareEmailBtn")?.addEventListener("click", () => shareByEmail().catch(() => {}));
+
+    $("emptyTplBtn")?.addEventListener("click", () => {
+      setSideTab("templates");
+      document.body.classList.add("side-open");
+    });
+    $("emptyBlankBtn")?.addEventListener("click", () => createBlank().catch((e) => setStatus($("saveStatus"), e.message, "err")));
+    $("emptyImportBtn")?.addEventListener("click", () => pickImportDocx());
+    $("printPreviewPdfBtn")?.addEventListener("click", () => openPrintPreviewPdf().catch(() => {}));
+    $("signSaveMineBtn")?.addEventListener("click", () => saveMySignatureFromModal());
+    $("signLoadMineBtn")?.addEventListener("click", () => loadMySignatureIntoModal());
+    $("emailWorkerSelect")?.addEventListener("change", () => {
+      const opt = $("emailWorkerSelect")?.selectedOptions?.[0];
+      const mail = opt?.dataset?.email || "";
+      const m = /([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/.exec(opt?.textContent || "");
+      if ($("emailToInput")) $("emailToInput").value = mail || (m ? m[1] : $("emailToInput").value);
+    });
+    quill?.root?.addEventListener("click", (e) => {
+      const chip = e.target?.closest?.(".wp-ph-chip");
+      if (!chip) return;
+      const key = chip.getAttribute("data-wp-ph");
+      const token = key ? `{{${key}}}` : chip.textContent;
+      if (token) jumpToPlaceholder(token);
+      openMergeFillModal();
+    });
+    window.setInterval(() => tickSaveStatus(), 15000);
+    window.addEventListener("online", () => {
+      if (dirty) scheduleAutosave();
+      const draft = scanOfflineDrafts();
+      if (draft && !pendingOfflineDraft) showOfflineBanner(draft);
+    });
+    window.addEventListener("beforeunload", () => {
+      if (dirty) persistOfflineDraft();
+    });
+
     $("emailModalClose")?.addEventListener("click", () => closeEmailModal());
     $("emailBackdrop")?.addEventListener("click", () => closeEmailModal());
     $("emailSendBtn")?.addEventListener("click", () => sendDocEmail().catch(() => {}));
@@ -6127,6 +6179,20 @@
 
     const unlock = getOwnerUnlock();
     unlock?.bind();
+    $("docsLockNowBtn")?.addEventListener("click", async () => {
+      try {
+        await api("/api/contracts/lock", {
+          method: "POST",
+          body: JSON.stringify({ company_id: activeCompanyId() }),
+        });
+        unlock?.markUnlocked(false);
+        $("docsLockNowBtn")?.classList.add("hidden");
+        unlock?.show({ setup: false, enforced: true });
+        setStatus($("saveStatus"), dt("lockNowToast") || "Dokumentenbereich gesperrt.", "ok");
+      } catch (e) {
+        setStatus($("saveStatus"), e.body?.message || e.message || dt("error"), "err");
+      }
+    });
 
     if (currentUserRole() === "turnstile") {
       setStatus($("saveStatus"), dt("lockTurnstileBlocked") || "Dokumente sind für die Pförtner-Rolle gesperrt.", "err");
@@ -6157,12 +6223,265 @@
     selectedWorkerId = (qs().get("worker_id") || "").trim();
     loadMergeContext()
       .then(() => bootstrapFromQuery())
-      .then(() => scheduleFit())
+      .then(async () => {
+        try {
+          const cid = activeCompanyId();
+          if (cid) {
+            const st = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(cid)}`);
+            if (st.lockRequired && st.unlocked) {
+              unlock?.markUnlocked(true);
+              $("docsLockNowBtn")?.classList.remove("hidden");
+            }
+          }
+        } catch {
+          /* ignore lock-status probe */
+        }
+        scheduleFit();
+      })
       .catch((e) => {
         setStatus($("saveStatus"), e.message || dt("startFail"), "err");
         setStatus($("listStatus"), e.message || dt("error"), "err");
       });
   }
+
+
+  function syncEmptyState() {
+    const empty = $("docsEmptyState");
+    const paper = $("paperFit");
+    if (!empty) return;
+    const show = !currentDoc?.id;
+    empty.hidden = !show;
+    empty.classList.toggle("is-on", show);
+    if (paper) paper.classList.toggle("is-dimmed", show);
+  }
+
+  function tickSaveStatus() {
+    if (!lastSavedAt || dirty) return;
+    const el = $("saveStatus");
+    if (!el || el.classList.contains("is-err")) return;
+    setStatus(el, dt("autosaved", { when: formatRelativeWhen(new Date(lastSavedAt).toISOString()) }), "ok");
+  }
+
+  const MY_SIGN_KEY = "baupass-docs-my-signature";
+  function readMySignature() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(MY_SIGN_KEY) || "null");
+      if (!raw?.dataUrl) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  }
+  function writeMySignature(dataUrl, name) {
+    try {
+      localStorage.setItem(MY_SIGN_KEY, JSON.stringify({ dataUrl, name: name || "", ts: Date.now() }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  function saveMySignatureFromModal() {
+    const canvas = $("signCanvas");
+    if (!canvas || !signHasInk) {
+      setStatus($("signModalStatus"), dt("signNeedInk"), "err");
+      return;
+    }
+    const ok = writeMySignature(canvas.toDataURL("image/png"), String($("signNameInput")?.value || "").trim());
+    setStatus($("signModalStatus"), ok ? dt("signSavedMine") : dt("signSaveFail"), ok ? "ok" : "err");
+  }
+  function loadMySignatureIntoModal() {
+    const mine = readMySignature();
+    if (!mine) {
+      setStatus($("signModalStatus"), dt("signNoneMine"), "err");
+      return;
+    }
+    bindSignCanvas();
+    clearSignCanvas();
+    const canvas = $("signCanvas");
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !ctx) return;
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      signHasInk = true;
+      if ($("signNameInput") && mine.name) $("signNameInput").value = mine.name;
+      setStatus($("signModalStatus"), dt("signLoadedMine"), "ok");
+    };
+    img.src = mine.dataUrl;
+  }
+
+  let presenceTimer = 0;
+  let lastKnownUpdatedAt = "";
+  function renderPresence(peers) {
+    const chip = $("presenceChip");
+    const label = $("presenceLabel");
+    if (!chip || !label) return;
+    const me = String(wpGet(USER_KEY) || "");
+    let meId = "";
+    try {
+      const u = JSON.parse(me || "null");
+      meId = String(u?.id || u?.username || "");
+    } catch {
+      meId = "";
+    }
+    const others = (peers || []).filter((p) => String(p.user_id || "") !== meId);
+    if (!others.length) {
+      chip.hidden = true;
+      return;
+    }
+    chip.hidden = false;
+    const names = others.map((p) => p.display_name || p.user_id || "?").slice(0, 3);
+    label.textContent =
+      names.length === 1
+        ? dt("presenceOne", { name: names[0] })
+        : dt("presenceMany", { n: others.length, names: names.join(", ") });
+    chip.title = others.map((p) => p.display_name || p.user_id).join(", ");
+  }
+  async function heartbeatPresence() {
+    if (!currentDoc?.id || !activeCompanyId()) return;
+    try {
+      const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/presence${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({ company_id: activeCompanyId() }),
+      });
+      renderPresence(data.peers || []);
+      const remote = String(data.updatedAt || "");
+      if (lastKnownUpdatedAt && remote && remote !== lastKnownUpdatedAt && !dirty) {
+        setStatus($("saveStatus"), dt("presenceUpdated"), "");
+      }
+      if (remote) lastKnownUpdatedAt = remote;
+    } catch {
+      /* ignore */
+    }
+  }
+  function startPresenceLoop() {
+    if (presenceTimer) return;
+    heartbeatPresence().catch(() => {});
+    presenceTimer = window.setInterval(() => heartbeatPresence().catch(() => {}), 8000);
+  }
+  function stopPresenceLoop() {
+    if (presenceTimer) window.clearInterval(presenceTimer);
+    presenceTimer = 0;
+    renderPresence([]);
+  }
+
+  async function refreshSignatures() {
+    const list = $("signaturesList");
+    const status = $("signaturesStatus");
+    if (!list || !status) return;
+    if (!currentDoc?.id) {
+      list.innerHTML = `<li><p class="empty-list">${escapeHtml(dt("signAuditNone"))}</p></li>`;
+      setStatus(status, "—");
+      return;
+    }
+    try {
+      const data = await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/signatures${companyQuery()}`);
+      const items = data.items || [];
+      setStatus(status, items.length ? dt("signAuditCount", { n: items.length }) : "—");
+      list.innerHTML = items.length
+        ? items
+            .map(
+              (s) => `<li class="version-row">
+              <span class="doc-title">${escapeHtml(s.signer_name || "—")}</span>
+              <span class="doc-badge ${Number(s.stamped) ? "status-approved" : ""}">${escapeHtml(Number(s.stamped) ? dt("signStamp") : dt("snSign"))}</span>
+              <span class="doc-sub">${escapeHtml(formatWhen(s.created_at))} · ${escapeHtml(String(s.content_hash || "").slice(0, 10))}</span>
+            </li>`,
+            )
+            .join("")
+        : `<li><p class="empty-list">${escapeHtml(dt("signAuditEmpty"))}</p></li>`;
+    } catch (e) {
+      setStatus(status, e.message || "—", "err");
+    }
+  }
+
+  async function recordSignatureAudit({ signerName, stamped, signatureData }) {
+    if (!currentDoc?.id) {
+      try {
+        await saveDoc();
+      } catch {
+        /* ignore */
+      }
+    }
+    if (!currentDoc?.id) return;
+    try {
+      await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/signatures${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          signerName: signerName || "",
+          stamped: !!stamped,
+          signatureData: signatureData || "",
+        }),
+      });
+      refreshSignatures().catch(() => {});
+    } catch {
+      /* non-blocking */
+    }
+  }
+
+  function populateEmailWorkers() {
+    const sel = $("emailWorkerSelect");
+    const src = $("workerSelect");
+    if (!sel || !src) return;
+    const keep = sel.value;
+    sel.innerHTML = `<option value="">${escapeHtml(dt("emailToManual"))}</option>`;
+    [...src.options].forEach((o) => {
+      if (!o.value) return;
+      const opt = document.createElement("option");
+      opt.value = o.value;
+      opt.textContent = o.textContent;
+      opt.dataset.email = o.dataset.email || "";
+      const m = /([\w.+-]+@[\w.-]+\.[A-Za-z]{2,})/.exec(o.textContent || "");
+      if (m) opt.dataset.email = opt.dataset.email || m[1];
+      sel.appendChild(opt);
+    });
+    if (keep) sel.value = keep;
+  }
+
+  async function openPrintPreviewPdf() {
+    const modal = $("printPreviewModal");
+    const body = $("printPreviewBody");
+    if (!modal || !body) return;
+    hideAiOperatorForPrint(true);
+    if (body._pdfUrl) {
+      try {
+        URL.revokeObjectURL(body._pdfUrl);
+      } catch {
+        /* ignore */
+      }
+      body._pdfUrl = null;
+    }
+    body.innerHTML = `<p class="rail-note">${escapeHtml(dt("emailPreparingPdf"))}</p>`;
+    modal.hidden = false;
+    try {
+      const { blob, filename } = await exportPdfBlob();
+      const url = URL.createObjectURL(blob);
+      body.innerHTML = `<iframe class="print-pdf-frame" title="${escapeHtml(filename)}" src="${url}"></iframe>`;
+      if ($("printPreviewMeta")) $("printPreviewMeta").textContent = filename;
+      body._pdfUrl = url;
+    } catch (e) {
+      body.innerHTML = `<p class="status is-err">${escapeHtml(e.message || dt("emailPdfFail"))}</p>`;
+    }
+  }
+
+  function scanOfflineDrafts() {
+    const cid = activeCompanyId() || "none";
+    const prefix = `${OFFLINE_PREFIX}${cid}:`;
+    let best = null;
+    try {
+      for (let i = 0; i < localStorage.length; i += 1) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith(prefix)) continue;
+        const draft = JSON.parse(localStorage.getItem(key) || "null");
+        if (!draft?.html || !draft?.ts) continue;
+        if (!best || draft.ts > best.ts) best = draft;
+      }
+    } catch {
+      /* ignore */
+    }
+    return best;
+  }
+
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", main);
   else main();

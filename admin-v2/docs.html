@@ -53,11 +53,13 @@
       </div>
       <div id="docsLockEmailBlock">
         <label><span id="docsLockEmailLabel">Backup-E-Mail</span><input id="docsLockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+        <p id="docsLockDeliveryHint" class="muted" style="font-size:0.72rem;margin:0.25rem 0 0;"></p>
       </div>
       <div id="docsLockCodeBlock" class="hidden">
         <label>Sicherheitscode<input id="docsLockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
       </div>
       <p id="docsLockMsg" class="docs-lock-msg"></p>
+      <p id="docsLockRateHint" class="muted hidden" style="font-size:0.72rem;margin:0.2rem 0 0;"></p>
       <div class="docs-lock-actions">
         <button type="button" class="primary" id="docsLockSendBtn">Code senden</button>
         <button type="button" class="primary hidden" id="docsLockVerifyBtn">Freischalten</button>
@@ -164,6 +166,10 @@
         </div>
         <div class="titlebar-row">
           <input id="docTitle" class="title-input" data-di18n="titlePh" data-di18n-attr="placeholder" placeholder="Dokumenttitel" />
+          <div class="presence-chip" id="presenceChip" hidden title="">
+            <span class="presence-dot"></span>
+            <span id="presenceLabel"></span>
+          </div>
           <div class="workflow-badge" id="workflowBadge" data-status="draft">
             <span class="workflow-badge-dot"></span>
             <span id="workflowBadgeLabel" data-di18n="statusDraft">Entwurf</span>
@@ -171,6 +177,9 @@
           <div class="title-actions">
             <button type="button" class="cmd primary tb-chip" id="saveBtn" data-wp-ico="save">
               <span class="wp-ico-label" data-di18n="save">Speichern</span>
+            </button>
+            <button type="button" class="cmd quiet tb-chip hidden" id="docsLockNowBtn" data-di18n="lockNow">
+              Sperren
             </button>
             <div class="more-wrap">
               <button type="button" class="cmd quiet tb-ico" id="moreBtn" aria-expanded="false" aria-controls="moreMenu" data-wp-ico="more" data-di18n="more" data-di18n-attr="aria-label" aria-label="Mehr"></button>
@@ -372,6 +381,18 @@
             <ul class="doc-outline-list" id="docOutlineList"></ul>
             <p class="doc-outline-empty" id="docOutlineEmpty" data-di18n="outlineEmpty">Noch keine Überschriften</p>
           </aside>
+          <div class="docs-empty-state" id="docsEmptyState" hidden>
+            <div class="docs-empty-card">
+              <p class="docs-empty-kicker" data-di18n="emptyKicker">SUPPIX Docs</p>
+              <h2 data-di18n="emptyTitle">Dokument starten</h2>
+              <p data-di18n="emptyHint">Vorlage wählen, leere Seite öffnen oder Word importieren.</p>
+              <div class="action-row">
+                <button type="button" class="cmd primary" id="emptyTplBtn" data-di18n="emptyPickTpl">Vorlage wählen</button>
+                <button type="button" class="cmd" id="emptyBlankBtn" data-di18n="emptyBlank">Leere Seite</button>
+                <button type="button" class="cmd quiet" id="emptyImportBtn" data-di18n="importDocx">Word importieren…</button>
+              </div>
+            </div>
+          </div>
           <div class="paper-fit" id="paperFit">
             <div class="docs-ruler" id="docsRuler" aria-hidden="true"></div>
             <div class="paper-stack" id="paperStack">
@@ -409,6 +430,7 @@
           <div class="print-preview-actions">
             <button type="button" class="cmd quiet" id="printPreviewDismiss" data-di18n="close">Schließen</button>
             <button type="button" class="cmd quiet" id="printPreviewCheck" data-di18n="printPreviewCheck">Platzhalter zeigen</button>
+            <button type="button" class="cmd quiet" id="printPreviewPdfBtn" data-di18n="printAsPdf">Als PDF</button>
             <button type="button" class="cmd primary" id="printPreviewPrint" data-wp-ico="print" data-di18n="printClean">Sauber drucken</button>
           </div>
         </div>
@@ -472,6 +494,11 @@
           <div class="share-body">
             <p class="rail-note" data-di18n="emailModalHint">PDF wird serverseitig erzeugt und als Anhang versendet.</p>
             <label class="field"><span data-di18n="emailTo">An</span>
+              <select id="emailWorkerSelect">
+                <option value="" data-di18n="emailToManual">Manuell / anderer Empfänger</option>
+              </select>
+            </label>
+            <label class="field"><span data-di18n="emailToAddress">E-Mail-Adresse</span>
               <input type="email" id="emailToInput" autocomplete="email" placeholder="name@firma.de" />
             </label>
             <label class="field"><span data-di18n="emailSubject">Betreff</span>
@@ -508,6 +535,10 @@
               <input type="checkbox" id="signStampCheck" checked />
               <span data-di18n="signStampLabel">Stempel «Unterschrieben» setzen</span>
             </label>
+            <div class="action-row">
+              <button type="button" class="cmd quiet" id="signSaveMineBtn" data-di18n="signSaveMine">Als meine speichern</button>
+              <button type="button" class="cmd quiet" id="signLoadMineBtn" data-di18n="signLoadMine">Meine laden</button>
+            </div>
             <p class="status" id="signModalStatus"></p>
           </div>
           <div class="share-actions">
@@ -801,10 +832,15 @@
               <button type="button" class="cmd quiet" data-ai="translate_pl">PL</button>
             </div>
           </details>
-          <details class="rail-more">
+          <details class="rail-more versions-panel" open>
             <summary data-di18n="versions">Versionen</summary>
             <p class="status" id="versionsStatus">—</p>
             <ul class="docs-list compact" id="versionsList"></ul>
+          </details>
+          <details class="rail-more" open>
+            <summary data-di18n="signAuditTitle">Signaturen (Audit)</summary>
+            <p class="status" id="signaturesStatus">—</p>
+            <ul class="docs-list compact" id="signaturesList"></ul>
           </details>
         </section>
       </div>
@@ -833,10 +869,10 @@
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script src="/admin-v2/docs-icons.js?v=20260724docs49"></script>
-  <script src="/admin-v2/docs-i18n.js?v=20260725owner2"></script>
+  <script src="/admin-v2/docs-i18n.js?v=20260725owner3"></script>
   <script src="/admin-v2/docs-i18n-content.js?v=20260724docs49"></script>
-  <script src="/admin-v2/owner-unlock.js?v=20260725owner2"></script>
+  <script src="/admin-v2/owner-unlock.js?v=20260725owner3"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
-  <script src="/admin-v2/docs-app.js?v=20260725owner2"></script>
+  <script src="/admin-v2/docs-app.js?v=20260725owner3"></script>
 </body>
 </html>

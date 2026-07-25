@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="de" dir="ltr">
 <head>
   <meta charset="UTF-8" />
@@ -10,6 +10,7 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" />
   <link rel="stylesheet" href="/e2e-security.css?v=20260707e2e1" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
   <style>
@@ -207,10 +208,35 @@
       color:var(--accent);
     }
     #contractEditor {
-      flex:1; min-height:0; width:100%; border:0; border-radius:0;
-      padding:0.65rem 0.75rem; resize:none; font-size:0.82rem; line-height:1.45;
-      background:var(--input-bg); color:var(--text);
+      position:absolute; width:1px; height:1px; opacity:0; pointer-events:none;
+      left:-9999px;
     }
+    #contractQuillHost {
+      flex:1; min-height:0; width:100%; display:flex; flex-direction:column;
+      background: var(--input-bg); color: var(--text);
+    }
+    #contractQuillHost .ql-toolbar.ql-snow {
+      border:0; border-bottom:1px solid var(--border);
+      background: var(--panel); flex:0 0 auto;
+    }
+    #contractQuillHost .ql-container.ql-snow {
+      border:0; flex:1; min-height:0; font-size:0.92rem;
+      background: var(--input-bg);
+    }
+    #contractQuillHost .ql-editor {
+      min-height:100%;
+      font-family: Georgia, "Times New Roman", serif;
+      line-height:1.55;
+      color: var(--text);
+      overflow-wrap:anywhere;
+      word-break:break-word;
+      padding: 0.85rem 1rem;
+    }
+    body.theme-black #contractQuillHost .ql-stroke { stroke: #cbd5e1; }
+    body.theme-black #contractQuillHost .ql-fill { fill: #cbd5e1; }
+    body.theme-black #contractQuillHost .ql-picker { color: var(--text); }
+    body.theme-white #contractQuillHost .ql-stroke { stroke: #334155; }
+    body.theme-white #contractQuillHost .ql-fill { fill: #334155; }
     .workspace-footer {
       flex:0 0 auto; border-top:1px solid var(--border);
       padding:0.35rem 0.65rem; display:flex; gap:0.65rem; align-items:center;
@@ -315,6 +341,7 @@
         <label><span>Sicherheitscode</span><input id="lockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
       </div>
       <p id="lockMsg" class="contracts-lock-msg"></p>
+      <p id="lockRateHint" class="muted hidden" style="font-size:0.72rem;margin:0.2rem 0 0;"></p>
       <div class="contracts-lock-actions">
         <button type="button" class="primary" id="lockSendBtn">Code senden</button>
         <button type="button" class="primary hidden" id="lockVerifyBtn">Freischalten</button>
@@ -335,6 +362,7 @@
     <div class="toolbar">
       <button type="button" class="primary compact" id="generateBtn" data-cpi18n="toolbarGen">KI-Entwurf</button>
       <button type="button" class="compact" id="saveBtn" data-cpi18n="save">Speichern</button>
+      <button type="button" class="compact" id="richEditorBtn" data-cpi18n="toolbarRichEditor">Rich-Editor</button>
       <button type="button" class="compact" id="pdfBtn" data-cpi18n="toolbarPdf">PDF</button>
       <button type="button" class="compact" id="printBtn" data-cpi18n="toolbarPrint">Druck</button>
       <button type="button" class="compact" id="signLinkEmployeeBtn" data-cpi18n="toolbarLinkEmp">Link MA</button>
@@ -481,7 +509,27 @@
           </div>
           <p class="legal-disclaimer" data-cpi18n="legalDisclaimer">KI-Vorlagen ersetzen keine anwaltliche Prüfung.</p>
           <div id="diffPanel" class="hidden" style="max-height:100px;overflow:auto;font-size:0.72rem;padding:0.35rem 0.65rem;border-bottom:1px solid var(--border);background:#0f1419;color:var(--muted);"></div>
-          <textarea id="contractEditor" data-cpi18n="editorPh" data-cpi18n-attr="placeholder" placeholder="Vertragstext…"></textarea>
+          <textarea id="contractEditor" data-cpi18n="editorPh" data-cpi18n-attr="placeholder" placeholder="Vertragstext…" aria-hidden="true" tabindex="-1"></textarea>
+          <div id="contractQuillHost">
+            <div id="contractQuillToolbar">
+              <span class="ql-formats">
+                <button class="ql-bold"></button>
+                <button class="ql-italic"></button>
+                <button class="ql-underline"></button>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-list" value="ordered"></button>
+                <button class="ql-list" value="bullet"></button>
+              </span>
+              <span class="ql-formats">
+                <select class="ql-align"></select>
+              </span>
+              <span class="ql-formats">
+                <button class="ql-clean"></button>
+              </span>
+            </div>
+            <div id="contractQuillEditor"></div>
+          </div>
           <iframe id="adminPdfPreview" title="PDF Vorschau"></iframe>
           <div class="workspace-footer">
             <div class="signing-hint" id="signingHint" title=""></div>
@@ -513,7 +561,10 @@
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
-  <script src="/ai-voice-ui.js?v=20260601voice22"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260724lock1"></script>
+  <script src="/admin-v2/owner-unlock.js?v=20260725owner3"></script>
+  <script src="/ai-voice-ui.js?v=20260725voice12"></script>
+  <script src="/ai-operator-fab.js?v=20260725p"></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260725owner3"></script>
 </body>
 </html>

@@ -16,6 +16,71 @@
     let contractsSessionUnlocked = false;
     const SENSITIVE_FIELD_IDS = ["salaryType", "salaryMonthly", "salaryHourly", "currency", "contractEditor"];
     const TOOLBAR_BTN_IDS = ["generateBtn", "saveBtn", "pdfBtn", "printBtn", "signLinkEmployeeBtn", "signLinkEmployerBtn", "signEmailEmployeeBtn", "signEmailEmployerBtn", "signSmsEmployeeBtn", "deleteBtn"];
+    let contractQuill = null;
+
+    function plainToQuillHtml(text) {
+      const lines = String(text || "").split(/\r?\n/);
+      if (!lines.length) return "<p><br></p>";
+      return lines
+        .map((line) => {
+          const esc = String(line)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;");
+          return esc ? `<p>${esc}</p>` : "<p><br></p>";
+        })
+        .join("");
+    }
+
+    function installContractRichEditor() {
+      const ta = document.getElementById("contractEditor");
+      const host = document.getElementById("contractQuillHost");
+      if (!ta || !host || !window.Quill || contractQuill) return;
+      const nativeValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+      let syncing = false;
+      contractQuill = new window.Quill("#contractQuillEditor", {
+        theme: "snow",
+        modules: { toolbar: "#contractQuillToolbar", history: { delay: 400, maxStack: 120 } },
+        placeholder: ta.getAttribute("placeholder") || "Vertragstext…",
+      });
+      const initial = nativeValue.get.call(ta) || "";
+      if (initial) contractQuill.clipboard.dangerouslyPasteHTML(plainToQuillHtml(initial));
+      contractQuill.on("text-change", () => {
+        if (syncing) return;
+        syncing = true;
+        try {
+          const plain = String(contractQuill.getText() || "").replace(/\n$/, "");
+          nativeValue.set.call(ta, plain);
+        } finally {
+          syncing = false;
+        }
+      });
+      try {
+        Object.defineProperty(ta, "value", {
+          configurable: true,
+          get() {
+            if (contractQuill) return String(contractQuill.getText() || "").replace(/\n$/, "");
+            return nativeValue.get.call(this);
+          },
+          set(v) {
+            const plain = String(v ?? "");
+            nativeValue.set.call(this, plain);
+            if (!contractQuill || syncing) return;
+            syncing = true;
+            try {
+              const cur = String(contractQuill.getText() || "").replace(/\n$/, "");
+              if (cur === plain) return;
+              contractQuill.setContents([]);
+              contractQuill.clipboard.dangerouslyPasteHTML(plainToQuillHtml(plain));
+            } finally {
+              syncing = false;
+            }
+          },
+        });
+      } catch (_) {
+        /* keep native textarea if property override fails */
+      }
+    }
 
     function setStatus(text, { active = false, error = false } = {}) {
       const el = document.getElementById("statusLine");
@@ -445,7 +510,9 @@
       const pdf = mode === "pdf";
       document.getElementById("tabEditorText").classList.toggle("active", !pdf);
       document.getElementById("tabEditorPdf").classList.toggle("active", pdf);
-      document.getElementById("contractEditor").style.display = pdf ? "none" : "";
+      const host = document.getElementById("contractQuillHost");
+      if (host) host.style.display = pdf ? "none" : "flex";
+      document.getElementById("contractEditor").style.display = "none";
       const frame = document.getElementById("adminPdfPreview");
       frame.style.display = pdf ? "block" : "none";
       if (!pdf) return;
@@ -824,52 +891,53 @@
       return ensureContractsUnlocked();
     }
 
-    let lockSetupMode = false;
-    let lockAwaitingCode = false;
+    const ownerUnlock = window.BaupassOwnerUnlock?.create({
+      ids: {
+        overlay: "contractsLockOverlay",
+        title: "lockTitle",
+        desc: "lockDesc",
+        setupBlock: "lockSetupBlock",
+        emailLabel: "lockEmailLabel",
+        deliveryHint: "lockDeliveryHint",
+        rateHint: "lockRateHint",
+        phone: "lockOwnerPhone",
+        email: "lockOwnerEmail",
+        codeBlock: "lockCodeBlock",
+        code: "lockOtpCode",
+        msg: "lockMsg",
+        sendBtn: "lockSendBtn",
+        verifyBtn: "lockVerifyBtn",
+        skipBtn: "lockSkipSetupBtn",
+        mainRoot: "mainRoot",
+      },
+      t: (key, fallback) => window.contractPageT(key) || fallback || key,
+      getCompanyId: () => companyId,
+      mapError: (e) => mapApiError(e),
+      skipResolvesTrue: true,
+      onStatus: (text) => setStatus(text, { active: true }),
+      onVerified: async (res) => {
+        salaryFieldsRedacted = true;
+        paintUnlockBadge({ ...res, lockRequired: true, unlocked: true });
+        setStatus(window.contractPageT("lockUnlockedToast") || "Vertragsbereich freigeschaltet.", { active: true });
+        await clearRedactionAndReload();
+        if (typeof window.__contractsUnlockResolve === "function") {
+          window.__contractsUnlockResolve(true);
+          window.__contractsUnlockResolve = null;
+        }
+      },
+      api: async (path, options = {}) => api(path, options),
+    });
 
-    function setLockMsg(text, { error = false, ok = false } = {}) {
-      const el = document.getElementById("lockMsg");
-      if (!el) return;
-      el.textContent = text || "";
-      el.classList.toggle("is-error", error);
-      el.classList.toggle("is-ok", ok);
-    }
-
-    function showLockOverlay({ setup = false, enforced = false, smsConfigured = true } = {}) {
-      lockSetupMode = setup;
-      lockAwaitingCode = false;
-      const overlay = document.getElementById("contractsLockOverlay");
-      overlay?.classList.remove("hidden");
-      document.getElementById("mainRoot")?.classList.add("hidden");
-      document.getElementById("lockSetupBlock")?.classList.toggle("hidden", !setup);
-      document.getElementById("lockCodeBlock")?.classList.add("hidden");
-      document.getElementById("lockVerifyBtn")?.classList.add("hidden");
-      document.getElementById("lockSendBtn")?.classList.remove("hidden");
-      // Skip only when setup is optional (not enforced).
-      document.getElementById("lockSkipSetupBtn")?.classList.toggle("hidden", !setup || enforced);
-      document.getElementById("lockTitle").textContent = setup
-        ? (window.contractPageT("lockSetupTitle") || "Owner-Zugang einrichten")
-        : (window.contractPageT("lockTitle") || "Vertragszugang");
-      document.getElementById("lockDesc").textContent = setup
-        ? (enforced
-            ? (window.contractPageT("lockSetupRequiredDesc") || "Pflicht: Owner-Handynummer einrichten, sonst bleiben Verträge und sensible Exporte gesperrt.")
-            : (window.contractPageT("lockSetupDesc") || "Hinterlegen Sie die Handynummer des Firmeninhabers. Der Code kommt per SMS (E-Mail als Backup)."))
-        : (window.contractPageT("lockDesc") || "Gehalt und Verträge sind geschützt. Bitte Code bestätigen.");
-      const emailLabel = document.getElementById("lockEmailLabel");
-      const hint = document.getElementById("lockDeliveryHint");
-      if (!smsConfigured) {
-        if (emailLabel) emailLabel.textContent = window.contractPageT("lockEmailRequired") || "E-Mail (erforderlich — SMS nicht konfiguriert)";
-        if (hint) hint.textContent = window.contractPageT("lockNoSmsHint") || "Twilio-SMS fehlt. Code geht per E-Mail (SMTP/Resend/Brevo) oder als Debug-Code in der Entwicklung.";
-      } else {
-        if (emailLabel) emailLabel.textContent = window.contractPageT("lockEmailLabel") || "Backup-E-Mail (optional)";
-        if (hint) hint.textContent = window.contractPageT("lockSmsOkHint") || "SMS aktiv. E-Mail als Backup empfohlen.";
-      }
-      setLockMsg("");
+    function showLockOverlay(opts) {
+      ownerUnlock?.show(opts || {});
     }
 
     function hideLockOverlay() {
-      document.getElementById("contractsLockOverlay")?.classList.add("hidden");
-      document.getElementById("mainRoot")?.classList.remove("hidden");
+      ownerUnlock?.hide();
+    }
+
+    function setLockMsg(text, { error = false, ok = false } = {}) {
+      ownerUnlock?.setMsg(text, error ? "err" : ok ? "ok" : "");
     }
 
     function paintUnlockBadge(status) {
@@ -990,96 +1058,9 @@
       });
     }
 
-    async function sendLockOtp() {
-      const sendBtn = document.getElementById("lockSendBtn");
-      if (sendBtn?.disabled) return;
-      setLockMsg("");
-      const phone = document.getElementById("lockOwnerPhone")?.value.trim() || "";
-      const email = document.getElementById("lockOwnerEmail")?.value.trim() || "";
-      const body = { company_id: companyId, setup: lockSetupMode };
-      if (lockSetupMode) {
-        body.phone = phone;
-      }
-      if (email) body.email = email;
-      if (sendBtn) sendBtn.disabled = true;
-      try {
-        const res = await api("/api/contracts/lock/request-otp", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        lockAwaitingCode = true;
-        document.getElementById("lockCodeBlock")?.classList.remove("hidden");
-        document.getElementById("lockVerifyBtn")?.classList.remove("hidden");
-        const via = (res.channels || []).join(" + ") || "SMS/E-Mail";
-        const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
-        const emailBit = res.emailMasked ? ` · ${res.emailMasked}` : "";
-        if (res.debugFallback || res.debugCode) {
-          const debugHint = res.debugCode
-            ? ` Debug-Code: ${res.debugCode}`
-            : "";
-          setLockMsg(
-            (res.message || (window.contractPageT("lockDebugFallback") || "Debug-Code (kein SMS/E-Mail-Versand)."))
-              + debugHint,
-            { ok: true },
-          );
-        } else {
-          setLockMsg(
-            res.message
-              || (window.contractPageT("lockCodeSent", { via, phone: phoneBit + emailBit })
-                || `Code an Provider übergeben (${via})${phoneBit}${emailBit}. Spam + Brevo-Logs prüfen.`),
-            { ok: true },
-          );
-        }
-        // Never auto-fill OTP into the input — avoids accidental unlock via Enter.
-        document.getElementById("lockOtpCode").value = "";
-        document.getElementById("lockOtpCode")?.focus();
-        // Cool-down between sends (default 45s).
-        const wait = Math.max(15, Number(res.otpRequestMinSeconds || 45));
-        setTimeout(() => { if (sendBtn) sendBtn.disabled = false; }, wait * 1000);
-      } catch (e) {
-        const retry = Number(e?.data?.retryInSeconds || 45);
-        setLockMsg(mapApiError(e), { error: true });
-        setTimeout(() => { if (sendBtn) sendBtn.disabled = false; }, Math.max(5, retry) * 1000);
-      }
-    }
-
-    async function verifyLockOtp() {
-      const code = document.getElementById("lockOtpCode")?.value.trim() || "";
-      if (!code) {
-        setLockMsg(window.contractPageT("lockCodeRequired") || "Bitte Code eingeben.", { error: true });
-        return;
-      }
-      const phone = document.getElementById("lockOwnerPhone")?.value.trim() || "";
-      const email = document.getElementById("lockOwnerEmail")?.value.trim() || "";
-      const body = { company_id: companyId, code, setup: lockSetupMode };
-      if (lockSetupMode) {
-        body.phone = phone;
-        if (email) body.email = email;
-      }
-      try {
-        const res = await api("/api/contracts/lock/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        salaryFieldsRedacted = true; // force reload of unredacted payload
-        paintUnlockBadge({ ...res, lockRequired: true, unlocked: true });
-        setStatus(window.contractPageT("lockUnlockedToast") || "Vertragsbereich freigeschaltet.", { active: true });
-        await clearRedactionAndReload();
-        if (typeof window.__contractsUnlockResolve === "function") {
-          window.__contractsUnlockResolve(true);
-          window.__contractsUnlockResolve = null;
-        }
-      } catch (e) {
-        setLockMsg(mapApiError(e), { error: true });
-      }
-    }
-
-    document.getElementById("lockSendBtn")?.addEventListener("click", () => { sendLockOtp().catch(() => {}); });
-    document.getElementById("lockVerifyBtn")?.addEventListener("click", () => { verifyLockOtp().catch(() => {}); });
+    ownerUnlock?.bind();
+    // Skip should resolve unlock waiters for contracts soft-continue.
     document.getElementById("lockSkipSetupBtn")?.addEventListener("click", () => {
-      hideLockOverlay();
       if (typeof window.__contractsUnlockResolve === "function") {
         window.__contractsUnlockResolve(true);
         window.__contractsUnlockResolve = null;
@@ -1097,6 +1078,7 @@
         });
         salaryFieldsRedacted = true;
         contractsSessionUnlocked = false;
+        ownerUnlock?.markUnlocked(false);
         applyRedactionUi(true);
         paintUnlockBadge({ lockRequired: true, unlocked: false, setupEnforced: true, smsConfigured: true });
         showLockOverlay({ setup: false, enforced: true });
@@ -1104,9 +1086,6 @@
       } catch (e) {
         setStatus(mapApiError(e), { error: true });
       }
-    });
-    document.getElementById("lockOtpCode")?.addEventListener("keydown", (ev) => {
-      if (ev.key === "Enter") verifyLockOtp().catch(() => {});
     });
 
     document.getElementById("contractForm").addEventListener("submit", (ev) => ev.preventDefault());
@@ -1124,6 +1103,30 @@
         await persistContract();
         setStatus(window.contractPageT("statusSaved"), { active: true });
         await loadContracts();
+      }).catch(() => {});
+    });
+    document.getElementById("richEditorBtn")?.addEventListener("click", () => {
+      if (!requireContract("richEditorBtn")) return;
+      withToolbarAction("richEditorBtn", window.contractPageT("statusWorking"), async () => {
+        await persistContract();
+        const text = document.getElementById("contractEditor").value || "";
+        sessionStorage.setItem("workpass-docs-seed-text", text);
+        sessionStorage.setItem(
+          "workpass-docs-return",
+          `/admin-v2/contracts.html?company_id=${encodeURIComponent(companyId || "")}&id=${encodeURIComponent(currentContractId || "")}`,
+        );
+        const title = document.getElementById("title")?.value || "Vertrag";
+        const url = new URL("/admin-v2/docs.html", location.origin);
+        if (companyId) url.searchParams.set("company_id", companyId);
+        url.searchParams.set("contract_id", currentContractId);
+        url.searchParams.set("title", title);
+        url.searchParams.set("mode", "contract");
+        const lang =
+          localStorage.getItem("baupass-admin-v2-lang") ||
+          localStorage.getItem("baupass-ui-lang") ||
+          "";
+        if (lang) url.searchParams.set("lang", String(lang).slice(0, 2));
+        location.href = `${url.pathname}${url.search}`;
       }).catch(() => {});
     });
     document.getElementById("pdfBtn").addEventListener("click", () => {
@@ -1212,6 +1215,7 @@
     window.initContractPageLangSync?.();
     syncLocaleFromJurisdiction(false);
     bindNotesComposer();
+    installContractRichEditor();
     if (window.BaupassAuth?.resolveTenantBranding) {
       void window.BaupassAuth.resolveTenantBranding({ companyId: companyId || undefined });
     }

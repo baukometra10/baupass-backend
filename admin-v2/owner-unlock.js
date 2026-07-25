@@ -12,6 +12,8 @@
         desc: "docsLockDesc",
         setupBlock: "docsLockSetupBlock",
         emailLabel: "docsLockEmailLabel",
+        deliveryHint: "docsLockDeliveryHint",
+        rateHint: "docsLockRateHint",
         phone: "docsLockOwnerPhone",
         email: "docsLockOwnerEmail",
         codeBlock: "docsLockCodeBlock",
@@ -29,25 +31,64 @@
     const api = cfg.api;
     const getCompanyId = cfg.getCompanyId || (() => "");
     const onStatus = typeof cfg.onStatus === "function" ? cfg.onStatus : () => {};
+    const onVerified = typeof cfg.onVerified === "function" ? cfg.onVerified : null;
+    const mapError = typeof cfg.mapError === "function" ? cfg.mapError : (e) => e?.body?.message || e?.data?.message || e?.message || String(e);
+    const skipResolvesTrue = cfg.skipResolvesTrue === true;
 
     let setupMode = false;
     let unlocked = false;
+    let cooldownUntil = 0;
     const waiters = [];
 
     function $(id) {
-      return document.getElementById(id);
+      return id ? document.getElementById(id) : null;
     }
 
     function setMsg(text, kind) {
       const el = $(ids.msg);
       if (!el) return;
       el.textContent = text || "";
-      el.classList.toggle("is-error", kind === "err");
+      el.classList.toggle("is-error", kind === "err" || kind === "error");
       el.classList.toggle("is-ok", kind === "ok");
       el.classList.toggle("is-warn", kind === "warn");
     }
 
-    function show({ setup = false } = {}) {
+    function setRateHint(seconds) {
+      const el = $(ids.rateHint);
+      if (!el) return;
+      const n = Math.max(0, Number(seconds) || 0);
+      if (n <= 0) {
+        el.textContent = "";
+        el.classList.add("hidden");
+        return;
+      }
+      el.classList.remove("hidden");
+      el.textContent = t(
+        "lockRateLimitHint",
+        "Bitte {n}s warten, bevor Sie erneut einen Code anfordern.",
+      ).replace("{n}", String(n));
+    }
+
+    function startCooldown(seconds) {
+      const wait = Math.max(5, Number(seconds) || 45);
+      cooldownUntil = Date.now() + wait * 1000;
+      const sendBtn = $(ids.sendBtn);
+      if (sendBtn) sendBtn.disabled = true;
+      setRateHint(wait);
+      const tick = () => {
+        const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+        if (left <= 0) {
+          if (sendBtn) sendBtn.disabled = false;
+          setRateHint(0);
+          return;
+        }
+        setRateHint(left);
+        setTimeout(tick, 1000);
+      };
+      setTimeout(tick, 1000);
+    }
+
+    function show({ setup = false, enforced = false, smsConfigured = true } = {}) {
       setupMode = !!setup;
       $(ids.overlay)?.classList.remove("hidden");
       $(ids.mainRoot)?.classList.add("hidden");
@@ -55,24 +96,57 @@
       $(ids.codeBlock)?.classList.add("hidden");
       $(ids.verifyBtn)?.classList.add("hidden");
       $(ids.sendBtn)?.classList.remove("hidden");
-      $(ids.skipBtn)?.classList.toggle("hidden", !setup);
+      // Skip only when setup is optional (not enforced).
+      $(ids.skipBtn)?.classList.toggle("hidden", !setup || enforced);
       if ($(ids.title)) {
         $(ids.title).textContent = setup
           ? t("lockSetupTitle", "Owner-Zugang einrichten")
           : t("lockTitle", "Owner-Freigabe");
       }
       if ($(ids.desc)) {
-        $(ids.desc).textContent = setup
-          ? t(
-              "lockSetupDesc",
-              "Bitte Owner-Handynummer einrichten, bevor Dokumente und Freigabe-Links nutzbar sind.",
-            )
-          : t(
-              "lockDesc",
-              "Nur mit Freigabe des Firmeninhabers. Code per SMS/E-Mail bestätigen.",
-            );
+        if (setup && enforced) {
+          $(ids.desc).textContent = t(
+            "lockSetupRequiredDesc",
+            "Pflicht: Owner-Handynummer einrichten, sonst bleiben Verträge/Dokumente gesperrt.",
+          );
+        } else if (setup) {
+          $(ids.desc).textContent = t(
+            "lockSetupDesc",
+            "Bitte Owner-Handynummer einrichten. Der Code kommt per SMS (E-Mail als Backup).",
+          );
+        } else {
+          $(ids.desc).textContent = t(
+            "lockDesc",
+            "Nur mit Freigabe des Firmeninhabers. Code per SMS/E-Mail bestätigen.",
+          );
+        }
+      }
+      const emailLabel = $(ids.emailLabel);
+      const hint = $(ids.deliveryHint);
+      if (!smsConfigured) {
+        if (emailLabel) {
+          emailLabel.textContent = t("lockEmailRequired", "E-Mail (erforderlich — SMS nicht konfiguriert)");
+        }
+        if (hint) {
+          hint.textContent = t(
+            "lockNoSmsHint",
+            "Twilio-SMS fehlt. Code geht per E-Mail oder als Debug-Code in der Entwicklung.",
+          );
+        }
+      } else {
+        if (emailLabel) {
+          emailLabel.textContent = t("lockEmailLabel", "Backup-E-Mail (optional)");
+        }
+        if (hint) {
+          hint.textContent = t("lockSmsOkHint", "SMS aktiv. E-Mail als Backup empfohlen.");
+        }
       }
       setMsg("");
+      if (Date.now() < cooldownUntil) {
+        setRateHint(Math.ceil((cooldownUntil - Date.now()) / 1000));
+      } else {
+        setRateHint(0);
+      }
     }
 
     function hide() {
@@ -100,6 +174,12 @@
     async function sendOtp() {
       const sendBtn = $(ids.sendBtn);
       if (sendBtn?.disabled) return;
+      if (Date.now() < cooldownUntil) {
+        const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+        setMsg(t("lockRateLimitHint", "Bitte {n}s warten.").replace("{n}", String(left)), "warn");
+        setRateHint(left);
+        return;
+      }
       setMsg("");
       const phone = $(ids.phone)?.value.trim() || "";
       const email = $(ids.email)?.value.trim() || "";
@@ -110,32 +190,35 @@
       try {
         const res = await api("/api/contracts/lock/request-otp", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         $(ids.codeBlock)?.classList.remove("hidden");
         $(ids.verifyBtn)?.classList.remove("hidden");
         const via = (res.channels || []).join(" + ") || "SMS/E-Mail";
-        setMsg(
-          res.debugCode
-            ? t("lockCodeSentDebug", "Code gesendet ({via}). Debug: {code}", {
-                via,
-                code: res.debugCode,
-              }).replace("{via}", via).replace("{code}", res.debugCode)
-            : t("lockCodeSent", "Code gesendet ({via}).").replace("{via}", via),
-          "ok",
-        );
+        const phoneBit = res.phoneMasked ? ` · ${res.phoneMasked}` : "";
+        const emailBit = res.emailMasked ? ` · ${res.emailMasked}` : "";
+        if (res.debugFallback || res.debugCode) {
+          const debugHint = res.debugCode ? ` Debug-Code: ${res.debugCode}` : "";
+          setMsg(
+            (res.message || t("lockDebugFallback", "Debug-Code (kein SMS/E-Mail-Versand).")) + debugHint,
+            "ok",
+          );
+        } else {
+          setMsg(
+            res.message ||
+              t("lockCodeSent", "Code gesendet ({via}).")
+                .replace("{via}", via) + phoneBit + emailBit,
+            "ok",
+          );
+        }
         if ($(ids.code)) $(ids.code).value = "";
         $(ids.code)?.focus();
-        const wait = Math.max(15, Number(res.otpRequestMinSeconds || 45));
-        setTimeout(() => {
-          if (sendBtn) sendBtn.disabled = false;
-        }, wait * 1000);
+        startCooldown(res.otpRequestMinSeconds || 45);
       } catch (e) {
-        setMsg(e.body?.message || e.message || t("lockSendFail", "Code senden fehlgeschlagen"), "err");
-        const retry = Number(e?.body?.retryInSeconds || 45);
-        setTimeout(() => {
-          if (sendBtn) sendBtn.disabled = false;
-        }, Math.max(5, retry) * 1000);
+        const retry = Number(e?.body?.retryInSeconds || e?.data?.retryInSeconds || 45);
+        setMsg(mapError(e) || t("lockSendFail", "Code senden fehlgeschlagen"), "err");
+        startCooldown(retry);
       }
     }
 
@@ -153,16 +236,20 @@
         if (email) body.email = email;
       }
       try {
-        await api("/api/contracts/lock/verify", {
+        const res = await api("/api/contracts/lock/verify", {
           method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
         unlocked = true;
         hide();
-        onStatus(t("lockUnlockedToast", "Dokumente freigeschaltet."), "ok");
+        onStatus(t("lockUnlockedToast", "Bereich freigeschaltet."), "ok");
+        if (onVerified) {
+          await onVerified(res);
+        }
         resolveWaiters(true);
       } catch (e) {
-        setMsg(e.body?.message || e.message || t("lockVerifyFail", "Code ungültig"), "err");
+        setMsg(mapError(e) || t("lockVerifyFail", "Code ungültig"), "err");
       }
     }
 
@@ -175,7 +262,7 @@
       });
       $(ids.skipBtn)?.addEventListener("click", () => {
         hide();
-        resolveWaiters(false);
+        resolveWaiters(skipResolvesTrue);
       });
       $(ids.code)?.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") verifyOtp().catch(() => {});
@@ -183,7 +270,7 @@
     }
 
     async function handleApiError(err) {
-      const data = err?.body || {};
+      const data = err?.body || err?.data || {};
       if (data.roleBlocked || data.error === "sensitive_forbidden") {
         const msg =
           data.message ||
@@ -202,7 +289,7 @@
       ) {
         unlocked = false;
         if (data.ownerSetupRequired || data.error === "owner_setup_required") {
-          show({ setup: true });
+          show({ setup: true, enforced: true });
         } else {
           const ok = await ensureUnlocked();
           return !ok;
@@ -225,12 +312,14 @@
       show,
       hide,
       setMsg,
+      setRateHint,
       ensureUnlocked,
       handleApiError,
       markUnlocked,
       isUnlocked,
       sendOtp,
       verifyOtp,
+      resolveWaiters,
     };
   }
 
