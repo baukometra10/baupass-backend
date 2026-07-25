@@ -1,16 +1,24 @@
-# Call sounds
+# Call sounds (WhatsApp-like)
 
-Distinct tones (WhatsApp / Messenger style) — never reuse the same clip for both directions.
+Directions must never share the same clip.
 
-| File | Role | Character |
+| File | When | Character |
 |------|------|-----------|
-| `phone-call-ring.mp3` | **Incoming** | Dual chirp 440+480 Hz (two short pulses) + silence (~3.2s loop) |
-| `phone-call-ringback.mp3` | **Outgoing** | European ringback 425 Hz (~1s on / long pause, 6s loop) |
-| `phone-call-ring-cycle.mp3` | Alias of ringback | Kept for older cache URLs |
+| `phone-call-ring.mp3` | **Incoming** (someone calls you) | Short melodic messenger motif + silence (~2.45s) |
+| `phone-call-ringback.mp3` | **Outgoing** (you call someone) | Classic dual-tone ringback 440+480 “tring-tring” + ~4s pause (~5s) |
+| `phone-call-ring-cycle.mp3` | Alias of ringback | Older cache URLs |
 
-Mobile copies:
+Mobile:
 
-- `mobile/assets/sounds/incoming_ring.mp3` ← incoming
-- `mobile/assets/sounds/outgoing_ringback.mp3` ← outgoing
+- `mobile/assets/sounds/incoming_ring.mp3` ← incoming motif  
+- `mobile/assets/sounds/outgoing_ringback.mp3` ← ringback  
 
-Generated with ffmpeg (clean sine tones).
+Regenerate:
+
+```bash
+python sounds/_gen_wa_rings.py
+ffmpeg -y -i sounds/_incoming_wa.wav -codec:a libmp3lame -qscale:a 4 sounds/phone-call-ring.mp3
+ffmpeg -y -i sounds/_outgoing_wa.wav -codec:a libmp3lame -qscale:a 4 sounds/phone-call-ringback.mp3
+```
+
+Original motifs (not WhatsApp copyrighted audio).

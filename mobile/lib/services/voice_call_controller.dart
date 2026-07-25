@@ -357,10 +357,10 @@ class VoiceCallController extends ChangeNotifier {
 
   void _startRingFeedback() {
     _stopRingFeedback();
-    // Incoming: stronger WhatsApp-like pulse; outgoing: lighter wait-tone cadence.
+    // Incoming motif ~2.45s; outgoing ringback ~5s (WhatsApp-like cadence).
     final hapticEvery = _isOutgoing
-        ? const Duration(milliseconds: 2800)
-        : const Duration(milliseconds: 1600);
+        ? const Duration(milliseconds: 5000)
+        : const Duration(milliseconds: 2450);
     _ringTimer = Timer.periodic(hapticEvery, (_) {
       if (_isOutgoing) {
         HapticFeedback.selectionClick();
@@ -380,21 +380,19 @@ class VoiceCallController extends ChangeNotifier {
     try {
       final player = AudioPlayer();
       _ringPlayer = player;
-      // Distinct assets: dual-chirp incoming vs 425 Hz ringback outgoing.
+      // Incoming = melodic motif; outgoing = classic tring-tring ringback.
       final asset = _isOutgoing
           ? 'assets/sounds/outgoing_ringback.mp3'
           : 'assets/sounds/incoming_ring.mp3';
       await player.setAsset(asset);
-      // Both assets include silence; loop the full cadence.
       await player.setLoopMode(LoopMode.one);
-      await player.setVolume(_isOutgoing ? 0.78 : 1.0);
+      await player.setVolume(_isOutgoing ? 0.86 : 1.0);
       await player.play();
     } catch (_) {
-      // Fallback when asset/player unavailable.
       SystemSound.play(SystemSoundType.alert);
       _ringTimer?.cancel();
       _ringTimer = Timer.periodic(
-        Duration(milliseconds: _isOutgoing ? 2800 : 1600),
+        Duration(milliseconds: _isOutgoing ? 5000 : 2450),
         (_) {
           if (_isOutgoing) {
             HapticFeedback.selectionClick();

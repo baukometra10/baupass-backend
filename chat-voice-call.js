@@ -31,9 +31,9 @@
   }
 
   /**
-   * Distinct call tones (WhatsApp / Messenger style):
-   * - incoming: dual-chirp ringtone (440+480) with silence baked into the asset
-   * - outgoing: European-style 425 Hz ringback (waiting tone) — clearly different
+   * WhatsApp-like call tones (distinct directions):
+   * - incoming: short melodic messenger motif + pause (device ringtone feel)
+   * - outgoing: classic dual-tone ringback 440+480 (caller hears "it is ringing")
    * mode: "incoming" | "outgoing"
    */
   function createRingtone(options = {}) {
@@ -46,10 +46,10 @@
         : "/sounds/phone-call-ringback.mp3";
     const src =
       String(options.src || global.SUPPIX_CALL_RINGTONE_URL || defaultSrc).trim() || defaultSrc;
-    // Assets already include silence; keep only a short gap between loops.
+    // Silence is baked into the MP3; tiny gap only between loops.
     const pauseMs = Math.max(
-      80,
-      Number(options.pauseMs) || (mode === "incoming" ? 220 : 180),
+      60,
+      Number(options.pauseMs) || (mode === "incoming" ? 120 : 80),
     );
     let audio = null;
     let stopped = false;
@@ -118,55 +118,83 @@
       try {
         const ctx = new (global.AudioContext || global.webkitAudioContext)();
         fallbackCtx = ctx;
-        // Incoming: WhatsApp dual chirp. Outgoing: single 425 Hz ringback (PSTN-EU feel).
+        // Incoming: melodic motif. Outgoing: classic dual-tone ringback.
         const master = ctx.createGain();
         fallbackMaster = master;
-        master.gain.value = outputEnabled ? 0.75 : 0.0001;
+        master.gain.value = outputEnabled ? 0.78 : 0.0001;
         master.connect(ctx.destination);
+
+        function playNote(hz, start, dur, peak = 0.18) {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = "sine";
+          osc.frequency.value = hz;
+          const o2 = ctx.createOscillator();
+          const g2 = ctx.createGain();
+          o2.type = "sine";
+          o2.frequency.value = hz * 2;
+          g.gain.setValueAtTime(0.0001, start);
+          g.gain.exponentialRampToValueAtTime(peak, start + 0.015);
+          g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          g2.gain.setValueAtTime(0.0001, start);
+          g2.gain.exponentialRampToValueAtTime(peak * 0.28, start + 0.015);
+          g2.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+          osc.connect(g);
+          o2.connect(g2);
+          g.connect(master);
+          g2.connect(master);
+          osc.start(start);
+          o2.start(start);
+          osc.stop(start + dur + 0.02);
+          o2.stop(start + dur + 0.02);
+        }
+
+        function playDualPulse(start, dur = 0.4, peak = 0.16) {
+          [440, 480].forEach((hz) => {
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = "sine";
+            osc.frequency.value = hz;
+            g.gain.setValueAtTime(0.0001, start);
+            g.gain.exponentialRampToValueAtTime(peak, start + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+            osc.connect(g);
+            g.connect(master);
+            osc.start(start);
+            osc.stop(start + dur + 0.02);
+          });
+        }
+
         const ringBurst = () => {
           if (stopped || !fallbackCtx) return;
           const t0 = ctx.currentTime + 0.02;
           if (whatsappStyle) {
-            const tones = [440, 480];
-            const pulseMs = 0.4;
-            const gap = 0.15;
-            for (let p = 0; p < 2; p++) {
-              const base = t0 + p * (pulseMs + gap);
-              tones.forEach((hz) => {
-                const osc = ctx.createOscillator();
-                const g = ctx.createGain();
-                osc.type = "sine";
-                osc.frequency.value = hz;
-                g.gain.setValueAtTime(0.0001, base);
-                g.gain.exponentialRampToValueAtTime(0.2, base + 0.03);
-                g.gain.exponentialRampToValueAtTime(0.0001, base + pulseMs);
-                osc.connect(g);
-                g.connect(master);
-                osc.start(base);
-                osc.stop(base + pulseMs + 0.02);
-              });
-            }
+            const motif = [
+              [523.25, 0.11],
+              [783.99, 0.11],
+              [1046.5, 0.16],
+              [0, 0.07],
+              [659.25, 0.1],
+              [783.99, 0.1],
+              [1046.5, 0.2],
+            ];
+            let cursor = t0;
+            motif.forEach(([hz, dur]) => {
+              if (hz > 0) playNote(hz, cursor, dur, 0.2);
+              cursor += dur;
+            });
             return;
           }
-          // Outgoing ringback: one solid 425 Hz second, then long silence via timer.
-          const osc = ctx.createOscillator();
-          const g = ctx.createGain();
-          osc.type = "sine";
-          osc.frequency.value = 425;
-          g.gain.setValueAtTime(0.0001, t0);
-          g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.04);
-          g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.0);
-          osc.connect(g);
-          g.connect(master);
-          osc.start(t0);
-          osc.stop(t0 + 1.05);
+          // Outgoing WhatsApp-like ringback: tring-tring … long pause
+          playDualPulse(t0, 0.4, 0.17);
+          playDualPulse(t0 + 0.6, 0.4, 0.17);
         };
         if (ctx.state === "suspended") void ctx.resume();
         const burst = () => {
           if (stopped || !fallbackCtx) return;
           ringBurst();
-          // Incoming ~3.2s cadence; outgoing ~1s tone + ~5s wait (Messenger-like wait tone).
-          const nextMs = whatsappStyle ? 3200 : 6000;
+          // Match asset cadence: ~2.45s incoming, ~5s outgoing
+          const nextMs = whatsappStyle ? 2450 : 5000;
           fallbackTimer = global.setTimeout(burst, nextMs);
         };
         burst();
@@ -184,7 +212,7 @@
           audio.loop = false; // full cycle must finish; we restart after a pause
           audio.playsInline = true;
           audio.setAttribute("playsinline", "true");
-          audio.src = src.includes("?") ? src : `${src}?v=20260726rings`;
+          audio.src = src.includes("?") ? src : `${src}?v=20260726wa3`;
           applyOutput();
           audio.addEventListener("ended", () => {
             if (!stopped) scheduleNextCycle();

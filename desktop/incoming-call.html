@@ -192,9 +192,9 @@
 
       // Soft ring cue in the floating window.
       try {
-        const audio = new Audio("../sounds/phone-call-ring.mp3?v=20260726rings");
-        audio.loop = true; // asset includes silence between WhatsApp-style chirps
-        audio.volume = 0.95;
+        const audio = new Audio("../sounds/phone-call-ring.mp3?v=20260726wa3");
+        audio.loop = true; // melodic motif + silence (WhatsApp-like incoming)
+        audio.volume = 1;
         void audio.play().catch(() => {});
         window.addEventListener("beforeunload", () => {
           try { audio.pause(); } catch (_) {}
