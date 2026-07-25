@@ -194,6 +194,12 @@ def build_operations_inbox(
                         "status": "open",
                         "actions": [
                             {
+                                "type": "resolve",
+                                "action": "ack_camera_escalation",
+                                "params": {"escalation_id": eid},
+                                "label": "Ack / Security informiert",
+                            },
+                            {
                                 "type": "navigate",
                                 "url": href,
                                 "label": "Kamera-Wächter öffnen",
@@ -581,6 +587,37 @@ def resolve_inbox_item(
 
         notify_inbox_changed(company_id, source="security_resolve")
         return {"ok": True, "id": item_id, "status": "resolved"}
+
+    if item_id.startswith("camesc:"):
+        escalation_id = item_id[7:]
+        if not company_id or not escalation_id:
+            return {"ok": False, "error": "company_required"}
+        try:
+            from backend.app.platform.physical_operations.camera_escalation import acknowledge_escalation
+
+            result = acknowledge_escalation(
+                db,
+                str(company_id),
+                escalation_id,
+                actor_user_id=str(user_id or ""),
+                mark_security_notified=True,
+            )
+        except ValueError as exc:
+            return {"ok": False, "error": str(exc) or "ack_failed"}
+        except Exception as exc:
+            return {"ok": False, "error": "ack_failed", "hint": str(exc)}
+        if not result:
+            return {"ok": False, "error": "not_found"}
+        from .events import notify_inbox_changed
+
+        notify_inbox_changed(company_id, source="camera_escalation_ack")
+        return {
+            "ok": True,
+            "id": item_id,
+            "status": str(result.get("status") or "acknowledged"),
+            "autoDial": False,
+            "escalation": result,
+        }
 
     if item_id.startswith("sys:"):
         alert_id = item_id[4:]

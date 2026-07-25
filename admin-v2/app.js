@@ -4617,7 +4617,7 @@ async function loadInbox() {
       const acts = (it.actions || [])
         .map((a) => {
           if (a.type === "resolve" || a.type === "ack")
-            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${t("inbox.done")}</button>`;
+            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${escapeHtml(a.label || t("inbox.done"))}</button>`;
           if (a.type === "execute" && a.action)
             return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
           if (a.type === "navigate") {
@@ -5818,11 +5818,13 @@ async function loadOverview() {
     const checkIns = att.checkInsToday ?? opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
     const lateToday = Number(att.lateToday || 0);
     const outsideToday = Number(att.outsideHoursAttemptsToday || 0);
+    const missingToday = Number(att.missingExpected || 0);
+    const expectedToday = Number(att.expectedToday || 0);
     const securityOpen = Number(
       secBrief.totalOpen ?? (sec.openAlerts || []).length + openEsc,
     );
     const aiPrompt = encodeURIComponent(
-      "Fasse die aktuelle Lage zusammen: Anwesenheit (Spät/außerhalb), Sicherheitsalerts, Kameras und offene Aufgaben.",
+      "Fasse die aktuelle Lage zusammen: Anwesenheit (fehlt/spät/außerhalb), Sicherheitsalerts, Kameras und offene Aufgaben.",
     );
     lage.classList.remove("hidden");
     const liveBadge = window.__adminRealtimeLive
@@ -5839,6 +5841,19 @@ async function loadOverview() {
         (w) =>
           `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong> · ${escapeHtml(w.time || "—")} · ${escapeHtml(w.gate || "—")}</li>`,
       )
+      .join("");
+    const missingList = (att.missingWorkers || [])
+      .slice(0, 5)
+      .map((w) => {
+        const shift =
+          w.shiftStart && w.shiftEnd ? ` · ${escapeHtml(w.shiftStart)}–${escapeHtml(w.shiftEnd)}` : "";
+        const loc = w.location ? ` · ${escapeHtml(w.location)}` : "";
+        const chat =
+          w.workerId && q
+            ? ` · <a href="/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(w.workerId)}" target="_blank" rel="noopener">${t("lage.openChat")}</a>`
+            : "";
+        return `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong>${loc}${shift}${chat}</li>`;
+      })
       .join("");
     const secItems = (secBrief.items || [])
       .slice(0, 4)
@@ -5868,6 +5883,8 @@ async function loadOverview() {
       <div class="lage-grid">
         <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
         <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.expectedToday")}</span><strong>${expectedToday}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.missingToday")}</span><strong style="color:${missingToday > 0 ? "#fbbf24" : "inherit"}">${missingToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.lateToday")}</span><strong>${lateToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.outsideHours")}</span><strong>${outsideToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
@@ -5877,7 +5894,12 @@ async function loadOverview() {
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
         <strong>${t("lage.attendanceTitle")}</strong>
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.attendanceHint")}</p>
-        ${lateList ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${lateList}</ul>` : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.attendanceEmpty")}</p>`}
+        ${
+          missingList
+            ? `<p class="muted small" style="margin:0.35rem 0 0"><strong>${t("lage.missingListTitle")}</strong></p><ul class="muted small" style="margin:0.2rem 0 0;padding-left:1.1rem">${missingList}</ul>`
+            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.missingEmpty")}</p>`
+        }
+        ${lateList ? `<p class="muted small" style="margin:0.45rem 0 0"><strong>${t("lage.lateListTitle")}</strong></p><ul class="muted small" style="margin:0.2rem 0 0;padding-left:1.1rem">${lateList}</ul>` : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.attendanceEmpty")}</p>`}
         <p style="margin:0.45rem 0 0">
           <button type="button" class="btn-link" data-goto-tab="access">${t("lage.openAccess")}</button>
           · <button type="button" class="btn-link" data-goto-tab="inbox">${t("lage.openInboxSecurity")}</button>

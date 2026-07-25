@@ -9,6 +9,137 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def _checked_in_worker_ids(db, company_id: str, today: str) -> set[str]:
+    try:
+        rows = db.execute(
+            """
+            SELECT DISTINCT a.worker_id
+            FROM access_logs a
+            JOIN workers w ON w.id = a.worker_id
+            WHERE w.company_id = ?
+              AND COALESCE(w.deleted_at, '') = ''
+              AND a.direction = 'check-in'
+              AND a.timestamp >= ? AND a.timestamp < date(?, '+1 day')
+            """,
+            (company_id, today, today),
+        ).fetchall()
+        return {str(r["worker_id"]) for r in rows if r["worker_id"]}
+    except Exception:
+        return set()
+
+
+def _on_leave_ids(db, company_id: str, today: str) -> set[str]:
+    try:
+        rows = db.execute(
+            """
+            SELECT lr.worker_id
+            FROM leave_requests lr
+            JOIN workers w ON w.id = lr.worker_id
+            WHERE w.company_id = ?
+              AND lr.status = 'genehmigt'
+              AND lr.start_date <= ? AND lr.end_date >= ?
+            """,
+            (company_id, today, today),
+        ).fetchall()
+        return {str(r["worker_id"]) for r in rows if r["worker_id"]}
+    except Exception:
+        return set()
+
+
+def _expected_workers_today(db, company_id: str, today: str) -> list[dict[str, Any]]:
+    """Workers expected on site today (deployment plan or Mo–Fr fallback)."""
+    cid = str(company_id)
+    day = date.fromisoformat(today)
+    leave = _on_leave_ids(db, cid, today)
+    expected: list[dict[str, Any]] = []
+
+    plan_active = False
+    try:
+        from backend.app.platform.workforce.attendance_eligibility import (
+            company_deployment_plan_active,
+            is_real_deployment_location,
+        )
+
+        plan_active = bool(company_deployment_plan_active(db, cid, day.year, day.month))
+    except Exception:
+        plan_active = False
+        is_real_deployment_location = None  # type: ignore
+
+    if plan_active:
+        try:
+            rows = db.execute(
+                """
+                SELECT d.worker_id, d.location_label, d.shift_start, d.shift_end,
+                       TRIM(COALESCE(w.first_name, '') || ' ' || COALESCE(w.last_name, '')) AS worker_name
+                FROM worker_deployment_days d
+                JOIN workers w ON w.id = d.worker_id
+                WHERE d.company_id = ?
+                  AND d.work_date = ?
+                  AND w.company_id = ?
+                  AND COALESCE(w.deleted_at, '') = ''
+                  AND COALESCE(w.worker_type, 'worker') = 'worker'
+                  AND COALESCE(w.status, 'aktiv') NOT IN ('gesperrt', 'locked', 'inaktiv', 'inactive')
+                """,
+                (cid, today, cid),
+            ).fetchall()
+            for r in rows:
+                wid = str(r["worker_id"] or "")
+                if not wid or wid in leave:
+                    continue
+                loc = str(r["location_label"] or "")
+                if is_real_deployment_location and not is_real_deployment_location(loc):
+                    continue
+                expected.append(
+                    {
+                        "workerId": wid,
+                        "name": str(r["worker_name"] or "").strip() or wid,
+                        "location": loc,
+                        "shiftStart": str(r["shift_start"] or "")[:5],
+                        "shiftEnd": str(r["shift_end"] or "")[:5],
+                        "reason": "scheduled",
+                    }
+                )
+            return expected
+        except Exception:
+            pass
+
+    # Fallback: active workers on company workdays (Mon–Fri)
+    if day.weekday() >= 5:
+        return []
+    try:
+        rows = db.execute(
+            """
+            SELECT id,
+                   TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS worker_name
+            FROM workers
+            WHERE company_id = ?
+              AND COALESCE(deleted_at, '') = ''
+              AND COALESCE(worker_type, 'worker') = 'worker'
+              AND COALESCE(status, 'aktiv') NOT IN ('gesperrt', 'locked', 'inaktiv', 'inactive')
+            ORDER BY last_name, first_name
+            LIMIT 400
+            """,
+            (cid,),
+        ).fetchall()
+        for r in rows:
+            wid = str(r["id"] or "")
+            if not wid or wid in leave:
+                continue
+            expected.append(
+                {
+                    "workerId": wid,
+                    "name": str(r["worker_name"] or "").strip() or wid,
+                    "location": "",
+                    "shiftStart": "",
+                    "shiftEnd": "",
+                    "reason": "workday",
+                }
+            )
+    except Exception:
+        return []
+    return expected
+
+
 def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
     """Who checked in late / on site / check-ins today for one company."""
     cid = str(company_id or "").strip()
@@ -21,6 +152,9 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
             "lateToday": 0,
             "lateWorkers": [],
             "outsideHoursAttemptsToday": 0,
+            "expectedToday": 0,
+            "missingExpected": 0,
+            "missingWorkers": [],
         }
 
     on_site = 0
@@ -132,6 +266,10 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         except Exception:
             outside = 0
 
+    expected = _expected_workers_today(db, cid, today)
+    checked = _checked_in_worker_ids(db, cid, today)
+    missing_workers = [w for w in expected if w["workerId"] not in checked]
+
     return {
         "date": today,
         "onSite": on_site,
@@ -139,6 +277,9 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         "lateToday": len(late_workers),
         "lateWorkers": late_workers[:12],
         "outsideHoursAttemptsToday": outside,
+        "expectedToday": len(expected),
+        "missingExpected": len(missing_workers),
+        "missingWorkers": missing_workers[:12],
     }
 
 

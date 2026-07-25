@@ -100,9 +100,53 @@ def test_daily_brief_attendance_and_security(client_and_db):
     assert int(att.get("lateToday") or 0) >= 1
     names = [str(w.get("name") or "") for w in (att.get("lateWorkers") or [])]
     assert any("Anna" in n for n in names)
+    assert "missingExpected" in att
+    assert "expectedToday" in att
+    # Anna checked in → she must not appear as missing on a workday
+    missing_ids = {str(w.get("workerId") or "") for w in (att.get("missingWorkers") or [])}
+    assert wid not in missing_ids
     sec = body.get("security") or {}
     assert "openCameraEscalations" in sec
     assert sec.get("autoDial") is False
+
+
+def test_daily_brief_missing_expected_worker(client_and_db):
+    client, _db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "MissingBriefCo")
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Ben",
+            "lastName": "Fehlt",
+            "insuranceNumber": "INS-MISS-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-MISS-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    wid = str((created.get_json() or {}).get("id") or "")
+    assert wid
+
+    r = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert r.status_code == 200
+    att = (r.get_json() or {}).get("attendance") or {}
+    # On weekends expectedToday may be 0 — still assert fields exist
+    assert "missingExpected" in att
+    if date.today().weekday() < 5:
+        assert int(att.get("expectedToday") or 0) >= 1
+        assert int(att.get("missingExpected") or 0) >= 1
+        names = [str(w.get("name") or "") for w in (att.get("missingWorkers") or [])]
+        assert any("Ben" in n for n in names)
 
 
 def test_overview_includes_daily_brief(client_and_db):
@@ -145,3 +189,21 @@ def test_inbox_includes_camera_escalation_items(client_and_db):
     cam_items = [it for it in items if str(it.get("id") or "").startswith("camesc:")]
     assert cam_items, "expected camera escalation inbox items"
     assert any("Kamera" in str(it.get("title") or "") for it in cam_items)
+    assert any(
+        any(a.get("type") == "resolve" for a in (it.get("actions") or [])) for it in cam_items
+    )
+
+    ack = client.post(
+        f"/api/inbox/camesc:{eid}/resolve?company_id={cid}",
+        headers=headers,
+        json={},
+    )
+    assert ack.status_code == 200, ack.get_json()
+    body = ack.get_json() or {}
+    assert body.get("ok") is True
+    assert body.get("autoDial") is False
+
+    r2 = client.get(f"/api/inbox?company_id={cid}&source=security", headers=headers)
+    items2 = (r2.get_json() or {}).get("items") or []
+    still_open = [it for it in items2 if str(it.get("id") or "") == f"camesc:{eid}"]
+    assert not still_open, "acked escalation should leave open inbox list"
