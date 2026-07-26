@@ -552,8 +552,104 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             content_html=str(data.get("contentHtml") or data.get("content_html") or ""),
             layout_json=dumps_json(layout),
             actor_user_id=_actor_id(),
+            category=str(data.get("category") or data.get("topic") or "sonstiges"),
         )
         return jsonify({"ok": True, "template": tpl}), 201
+
+    @docs_v2_bp.post("/docs/templates/starter-kit")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def apply_template_starter_kit():
+        """Seed a small set of company team templates (idempotent by title prefix)."""
+        denied = _deny_cap("canPublishTeamTemplate")
+        if denied:
+            return denied
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        from .repository import dumps_json
+
+        kits = [
+            {
+                "title": "Kit: Firmenbrief",
+                "category": "correspondence",
+                "blurb": "Starter-Kit Brief",
+                "html": (
+                    "<p>{{company.name}}</p><p>{{company.address}}</p>"
+                    "<p>{{worker.name}}</p><p>{{date.today}}</p>"
+                    "<p><strong>Betreff:</strong> …</p>"
+                    "<p>Sehr geehrte Damen und Herren,</p><p>…</p>"
+                    "<p>Mit freundlichen Grüßen<br>{{manager.name}}</p>"
+                ),
+            },
+            {
+                "title": "Kit: Abmahnung",
+                "category": "hr",
+                "blurb": "Starter-Kit HR",
+                "html": (
+                    "<h1>Abmahnung</h1><p>{{worker.name}} · {{date.today}}</p>"
+                    "<p>Hiermit sprechen wir Ihnen eine Abmahnung aus wegen:</p><p>…</p>"
+                    "<p>{{company.name}}</p>"
+                ),
+            },
+            {
+                "title": "Kit: Arbeitsbescheinigung",
+                "category": "hr",
+                "blurb": "Starter-Kit HR",
+                "html": (
+                    "<h1>Bescheinigung</h1>"
+                    "<p>Hiermit bestätigen wir, dass {{worker.name}} bei {{company.name}} beschäftigt ist.</p>"
+                    "<p>Datum: {{date.today}}</p>"
+                ),
+            },
+            {
+                "title": "Kit: Sicherheitsunterweisung",
+                "category": "safety",
+                "blurb": "Starter-Kit Sicherheit",
+                "html": (
+                    "<h1>Sicherheitsunterweisung</h1>"
+                    "<p>Teilnehmer: {{worker.name}}</p><p>Datum: {{date.today}}</p>"
+                    "<ul><li>PSA</li><li>Notfallwege</li><li>Meldepflicht</li></ul>"
+                    "<p>Unterschrift: ________________</p>"
+                ),
+            },
+            {
+                "title": "Kit: Betriebsanweisung",
+                "category": "safety",
+                "blurb": "Starter-Kit Sicherheit",
+                "html": (
+                    "<h1>Betriebsanweisung</h1><p>{{company.name}} · {{date.today}}</p>"
+                    "<h2>Geltungsbereich</h2><p>…</p><h2>Maßnahmen</h2><p>…</p>"
+                ),
+            },
+            {
+                "title": "Kit: Protokoll",
+                "category": "meetings",
+                "blurb": "Starter-Kit Meeting",
+                "html": (
+                    "<h1>Protokoll</h1><p>Datum: {{date.today}}</p>"
+                    "<p>Teilnehmer: …</p><h2>Beschlüsse</h2><ol><li>…</li></ol>"
+                ),
+            },
+        ]
+        existing = {str(t.get("title") or "") for t in _service.repo.list_templates(get_db(), cid, limit=200)}
+        created = []
+        for kit in kits:
+            if kit["title"] in existing:
+                continue
+            tpl = _service.repo.create_template(
+                get_db(),
+                company_id=cid,
+                title=kit["title"],
+                blurb=kit["blurb"],
+                content_html=kit["html"],
+                layout_json=dumps_json({"showHeader": True, "showFooter": True}),
+                actor_user_id=_actor_id(),
+                category=kit["category"],
+            )
+            created.append(tpl)
+        return jsonify({"ok": True, "created": len(created), "items": created})
 
     @docs_v2_bp.get("/docs/templates/<template_id>")
     @require_auth
@@ -1557,10 +1653,25 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             worker_id=str(data.get("workerId") or data.get("worker_id") or "").strip() or None,
             notify=str(data.get("notify", "1")).lower() not in {"0", "false", "no"},
             doc_type=str(data.get("docType") or data.get("doc_type") or "sonstiges"),
+            expiry_date=str(data.get("expiryDate") or data.get("expiry_date") or "").strip() or None,
         )
         if result.get("error"):
             return jsonify({"error": result["error"]}), int(result.get("status") or 400)
         return jsonify(result)
+
+    @docs_v2_bp.get("/docs/expiring-worker-docs")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def expiring_worker_docs():
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        try:
+            days = int(request.args.get("days") or 14)
+        except (TypeError, ValueError):
+            days = 14
+        items = _service.list_expiring_worker_docs(get_db(), company_id=cid, horizon_days=days)
+        return jsonify({"ok": True, "items": items, "days": days})
 
     @docs_v2_bp.post("/docs/from-contract")
     @require_auth

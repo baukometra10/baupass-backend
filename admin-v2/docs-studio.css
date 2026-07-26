@@ -3359,6 +3359,20 @@ body.page-a1 @page { size: A1; }
 }
 .email-smtp-hint.is-ok { color: #6ee7b7; }
 .email-smtp-hint.is-err { color: #fca5a5; }
+.preflight-publish-opts {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.65rem 0 0.35rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.22);
+}
+.contract-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
 .collab-conflict {
   display: inline-flex;
   align-items: center;

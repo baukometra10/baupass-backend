@@ -701,6 +701,32 @@
       renderSignSessions(data.sign_sessions || []);
       loadEvents();
       updateSigningHint();
+      syncDocsEditorChip(input);
+    }
+
+    function syncDocsEditorChip(input) {
+      const chip = document.getElementById("docsEditorLinkChip");
+      const link = document.getElementById("docsEditorLink");
+      const synced = document.getElementById("docsEditorSyncedAt");
+      const editorId = String(input?.editor_document_id || "").trim();
+      if (!chip || !link) return;
+      if (!editorId || !companyId) {
+        chip.hidden = true;
+        return;
+      }
+      chip.hidden = false;
+      const url = new URL("/admin-v2/docs.html", location.origin);
+      url.searchParams.set("company_id", companyId);
+      url.searchParams.set("id", editorId);
+      url.searchParams.set("contract_id", currentContractId || "");
+      url.searchParams.set("mode", "contract");
+      link.href = `${url.pathname}${url.search}`;
+      if (synced) {
+        const when = input?.editor_synced_at || "";
+        synced.textContent = when
+          ? `${window.contractPageT?.("docsSyncedAt") || "Übernommen"}: ${String(when).slice(0, 16).replace("T", " ")}`
+          : "";
+      }
     }
     async function loadWorkers() {
       if (!companyId) return;

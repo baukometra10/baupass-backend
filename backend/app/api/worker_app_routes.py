@@ -37,6 +37,7 @@ WORKER_APP_ROUTES: tuple[tuple[str, str, list[str]], ...] = (
     ("/my-timesheets", "worker_app_my_timesheets", ["GET"]),
     ("/my-documents", "worker_app_my_documents", ["GET"]),
     ("/my-documents/<doc_id>/download", "worker_app_my_document_download", ["GET"]),
+    ("/my-documents/<doc_id>/acknowledge", "worker_app_my_document_acknowledge", ["POST"]),
     ("/deployment-plan", "worker_app_deployment_plan", ["GET"]),
     ("/deployment-plan/pdf", "worker_app_deployment_plan_pdf", ["GET"]),
     ("/deployment-plan/day-response", "worker_app_deployment_plan_day_response", ["POST"]),

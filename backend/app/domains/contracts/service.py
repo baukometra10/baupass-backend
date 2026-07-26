@@ -241,6 +241,14 @@ class ContractsService:
                 input_data["form"] = merged_form
             if "notes" in payload:
                 input_data["notes"] = str(payload.get("notes") or "").strip()
+            editor_doc_id = str(
+                payload.get("editor_document_id") or payload.get("editorDocumentId") or ""
+            ).strip()
+            if editor_doc_id:
+                from datetime import datetime, timezone
+
+                input_data["editor_document_id"] = editor_doc_id
+                input_data["editor_synced_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             if payload.get("worker_id") is not None:
                 worker_id = str(payload.get("worker_id") or "").strip() or None
             if payload.get("title"):

@@ -57,7 +57,7 @@
     { id: "blank", titleKey: "tplBlank", blurbKey: "tplBlankBlurb", topic: "blank" },
   ];
 
-  const TOPIC_ORDER = ["team", "custom", "correspondence", "hr", "ops", "safety", "meetings", "blank"];
+  const TOPIC_ORDER = ["team", "custom", "correspondence", "hr", "ops", "safety", "meetings", "sonstiges", "blank"];
   const TOPIC_LABEL_KEYS = {
     team: "topicTeam",
     custom: "topicCustom",
@@ -66,6 +66,7 @@
     ops: "topicOps",
     safety: "topicSafety",
     meetings: "topicMeetings",
+    sonstiges: "topicSonstiges",
     blank: "topicBlank",
   };
 
@@ -835,7 +836,7 @@
     }
   }
 
-  async function publishTeamTemplate({ title, contentHtml, layout: lay }) {
+  async function publishTeamTemplate({ title, contentHtml, layout: lay, category }) {
     if (!activeCompanyId()) return null;
     const data = await api(`/api/v2/docs/templates${companyQuery()}`, {
       method: "POST",
@@ -845,15 +846,38 @@
         blurb: dt("teamTemplateBlurb"),
         contentHtml: contentHtml || getHtml(),
         layout: lay || { ...layout },
+        category: category || "sonstiges",
       }),
     });
     return data?.template || data || null;
+  }
+
+  async function applyStarterKit() {
+    if (!activeCompanyId() || !hasCap("canPublishTeamTemplate")) {
+      setStatus($("saveStatus"), dt("permDenied"), "err");
+      return;
+    }
+    if (!confirm(dt("starterKitConfirm"))) return;
+    try {
+      const data = await api(`/api/v2/docs/templates/starter-kit${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({ company_id: activeCompanyId() }),
+      });
+      activeTopicFilter = "team";
+      setSideTab("templates");
+      await renderTemplateGallery();
+      setStatus($("saveStatus"), dt("starterKitDone", { n: data.created || 0 }), "ok");
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
   }
 
   function saveCurrentAsTemplate() {
     const title = window.prompt(dt("templateNamePrompt"), ($("docTitle")?.value || "").trim() || dt("tplBlank"));
     if (title === null) return;
     const name = String(title || "").trim() || dt("tplBlank");
+    const category =
+      window.prompt(dt("templateCategoryPrompt"), "sonstiges") || "sonstiges";
     const html = getHtml();
     const list = loadCustomTemplates();
     const id = `user_${Date.now().toString(36)}`;
@@ -864,6 +888,7 @@
       html,
       contentHtml: html,
       layout: { ...layout },
+      category: String(category).trim().toLowerCase() || "sonstiges",
       createdAt: new Date().toISOString(),
     };
     list.unshift(entry);
@@ -872,7 +897,12 @@
     const shareTeam =
       !!activeCompanyId() && hasCap("canPublishTeamTemplate") && confirm(dt("shareTeamTemplateDefault"));
     if (shareTeam) {
-      publishTeamTemplate({ title: name, contentHtml: html, layout: { ...layout } })
+      publishTeamTemplate({
+        title: name,
+        contentHtml: html,
+        layout: { ...layout },
+        category: entry.category,
+      })
         .then(() => {
           activeTopicFilter = "team";
           setSideTab("templates");
@@ -915,6 +945,7 @@
           title: t.title || dt("tplBlank"),
           contentHtml: t.contentHtml || t.html || "",
           layout: t.layout || { ...layout },
+          category: t.category || t.topic || "sonstiges",
         });
         ok += 1;
       } catch {
@@ -1028,7 +1059,14 @@
           `</li>`,
       )
       .join("");
-    if (allOk) {
+    const pubOpts = $("preflightPublishOpts");
+    if (pubOpts) pubOpts.hidden = action !== "publish";
+    if ($("preflightContinue")) {
+      $("preflightContinue").textContent =
+        action === "publish" ? dt("publishConfirm") : allOk ? dt("preflightContinueOk") : dt("preflightContinue");
+    }
+    // Publish always shows options (doc type / expiry); other actions auto-continue when green.
+    if (allOk && action !== "publish") {
       closePreflight();
       runPreflightAction(action);
       return;
@@ -1040,6 +1078,8 @@
   function closePreflight() {
     const modal = $("preflightModal");
     if (modal) modal.hidden = true;
+    const pubOpts = $("preflightPublishOpts");
+    if (pubOpts) pubOpts.hidden = true;
   }
 
   function runPreflightAction(action) {
@@ -4153,6 +4193,7 @@
     const custom = loadCustomTemplates().map((t) => ({
       id: t.id,
       topic: "custom",
+      category: t.category || t.topic || "sonstiges",
       title: t.title,
       blurb: t.blurb || dt("customTemplateBlurb"),
       previewHtml: t.contentHtml || "",
@@ -4165,8 +4206,9 @@
         team = (data.items || []).map((t) => ({
           id: t.id,
           topic: "team",
+          category: t.category || "sonstiges",
           title: t.title,
-          blurb: t.blurb || dt("teamTemplateBlurb"),
+          blurb: `${t.blurb || dt("teamTemplateBlurb")}${t.category ? ` · ${t.category}` : ""}`,
           previewHtml: t.content_html || t.contentHtml || "",
           team: true,
           canDelete: t.canDelete !== false,
@@ -4192,7 +4234,13 @@
               .includes(q),
         )
       : list;
-    const topics = TOPIC_ORDER.filter((t) => searched.some((x) => x.topic === t));
+    const topicMatch = (x, topic) => {
+      if (!topic || topic === "all") return true;
+      if (x.topic === topic) return true;
+      const cat = String(x.category || "").trim().toLowerCase();
+      return !!cat && cat === topic;
+    };
+    const topics = TOPIC_ORDER.filter((t) => searched.some((x) => topicMatch(x, t)));
     const chips = [
       `<button type="button" class="tpl-topic${activeTopicFilter === "all" ? " active" : ""}" data-topic="all">${escapeHtml(dt("topicAll"))}</button>`,
       ...topics.map(
@@ -4202,7 +4250,7 @@
     ].join("");
 
     const filtered =
-      activeTopicFilter === "all" ? searched : searched.filter((t) => t.topic === activeTopicFilter);
+      activeTopicFilter === "all" ? searched : searched.filter((t) => topicMatch(t, activeTopicFilter));
 
     const byId = new Map(list.map((t) => [String(t.id), t]));
     const recentIds = loadRecentTemplates().filter((id) => byId.has(id));
@@ -4278,6 +4326,11 @@
     const teamCount = teamItems.length;
     const saveBar = `<div class="tpl-save-bar">
       <button type="button" class="cmd quiet block" id="saveAsTemplateSideBtn" data-di18n="saveAsTemplate">${escapeHtml(dt("saveAsTemplate"))}</button>
+      ${
+        activeCompanyId() && hasCap("canPublishTeamTemplate")
+          ? `<button type="button" class="cmd quiet block" id="starterKitBtn">${escapeHtml(dt("starterKitBtn"))}</button>`
+          : ""
+      }
       ${
         activeCompanyId() && localCount && hasCap("canPublishTeamTemplate")
           ? `<button type="button" class="cmd quiet block" id="migrateTeamTplBtn">${escapeHtml(dt("teamMigrateBtn", { n: localCount }))}</button>`
@@ -4358,6 +4411,39 @@
     });
     $("saveAsTemplateSideBtn")?.addEventListener("click", () => saveCurrentAsTemplate());
     $("migrateTeamTplBtn")?.addEventListener("click", () => migrateLocalTemplatesToTeam().catch(() => {}));
+    $("starterKitBtn")?.addEventListener("click", () => applyStarterKit().catch(() => {}));
+  }
+
+  async function refreshExpiringDocs() {
+    const list = $("expiringDocsList");
+    const status = $("expiringDocsStatus");
+    if (!list || !status) return;
+    if (!activeCompanyId()) {
+      list.innerHTML = "";
+      setStatus(status, "—");
+      return;
+    }
+    try {
+      const data = await api(`/api/v2/docs/expiring-worker-docs${companyQuery({ days: 14 })}`);
+      const items = data.items || [];
+      setStatus(status, items.length ? dt("expiringDocsCount", { n: items.length }) : dt("expiringDocsNone"));
+      list.innerHTML = items.length
+        ? items
+            .map((it) => {
+              const editor = it.editorDocumentId
+                ? `<a href="/admin-v2/docs.html?company_id=${encodeURIComponent(activeCompanyId() || "")}&id=${encodeURIComponent(it.editorDocumentId)}">${escapeHtml(dt("expiringOpenEditor"))}</a>`
+                : `<span class="doc-sub">${escapeHtml(dt("expiringSourceUpload"))}</span>`;
+              return `<li class="version-row">
+                <span class="doc-title">${escapeHtml(it.workerName || it.workerId || "—")}</span>
+                <span class="doc-sub">${escapeHtml(it.filename || it.docType || "")} · ${escapeHtml(it.expiryDate || "")}</span>
+                ${editor}
+              </li>`;
+            })
+            .join("")
+        : "";
+    } catch (e) {
+      setStatus(status, e.message || "—", "err");
+    }
   }
 
   async function applyTeamTemplate(id) {
@@ -5679,6 +5765,9 @@
       setStatus($("saveStatus"), dt("needWorker"), "err");
       return;
     }
+    const docType = String($("publishDocType")?.value || "sonstiges").trim() || "sonstiges";
+    const expiryDate = String($("publishExpiryDate")?.value || "").trim();
+    const notify = $("publishNotifyCheck") ? !!$("publishNotifyCheck").checked : true;
     if (!confirm(dt("confirmPublish"))) {
       return;
     }
@@ -5689,8 +5778,9 @@
         body: JSON.stringify({
           company_id: activeCompanyId(),
           workerId,
-          notify: true,
-          docType: "sonstiges",
+          notify,
+          docType,
+          expiryDate: expiryDate || undefined,
         }),
       });
       currentDoc = data.document;
@@ -5702,7 +5792,17 @@
         dt("published", { id: String(data.workerDocumentId || "").slice(0, 10) }),
         "ok",
       );
+      const receipt = $("publishReceipt");
+      if (receipt) {
+        receipt.hidden = false;
+        const wid = String(data.workerId || workerId);
+        receipt.innerHTML =
+          `${escapeHtml(dt("publishReceiptLine", { file: data.filename || "—", type: data.docType || docType }))}` +
+          (data.expiryDate ? ` · ${escapeHtml(dt("publishExpiryShort", { d: data.expiryDate }))}` : "") +
+          ` · <a href="/admin-v2/index.html?company_id=${encodeURIComponent(activeCompanyId() || "")}&tab=workers&worker_id=${encodeURIComponent(wid)}">${escapeHtml(dt("archiveLinkWorker"))}</a>`;
+      }
       renderArchiveLinks(currentDoc?.status || "archived");
+      refreshExpiringDocs().catch(() => {});
       const nextHint = $("approvalNextHint");
       if (nextHint) {
         nextHint.hidden = false;
@@ -5990,6 +6090,8 @@
     if (copy) setStatus($("saveStatus"), dt("duplicated"), "ok");
   }
 
+  let contractSyncedAt = 0;
+
   async function applyToContract({ andReturn = false } = {}) {
     const contractId = currentDoc?.contract_id || qs().get("contract_id");
     if (!contractId) return;
@@ -6000,8 +6102,10 @@
         company_id: activeCompanyId(),
         final_text: getText(),
         draft_text: getText(),
+        editor_document_id: currentDoc?.id || "",
       }),
     });
+    contractSyncedAt = Date.now();
     setStatus($("saveStatus"), dt("appliedContract"), "ok");
     if (andReturn) {
       const ret = contractReturnUrl();
@@ -6426,6 +6530,14 @@
     $("applyContractBtn")?.addEventListener("click", () =>
       applyToContract().catch((e) => setStatus($("saveStatus"), e.message, "err")),
     );
+    $("contractBannerApplyBtn")?.addEventListener("click", () =>
+      applyToContract().catch((e) => setStatus($("saveStatus"), e.message, "err")),
+    );
+    window.addEventListener("beforeunload", (e) => {
+      if (!isContractContext() || !dirty) return;
+      e.preventDefault();
+      e.returnValue = dt("contractLeaveWarn");
+    });
     $("applyReturnContractBtn")?.addEventListener("click", () =>
       applyToContract({ andReturn: true }).catch((e) => setStatus($("saveStatus"), e.message, "err")),
     );
@@ -7246,6 +7358,7 @@
     loadDocsCapabilities()
       .then(() => loadMergeContext())
       .then(() => bootstrapFromQuery())
+      .then(() => refreshExpiringDocs().catch(() => {}))
       .then(async () => {
         try {
           const cid = activeCompanyId();

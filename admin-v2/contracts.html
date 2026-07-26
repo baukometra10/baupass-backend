@@ -198,6 +198,13 @@
     }
     .notes-composer-hint { font-size:0.68rem; margin:0.2rem 0 0; color:var(--muted); min-height:1em; }
     .notes-composer-hint.is-listening { color:var(--accent); }
+    .docs-link-chip {
+      display: inline-flex; align-items: center; gap: 0.4rem; margin-inline-start: 0.35rem;
+      padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid rgba(56, 189, 248, 0.35);
+      background: rgba(14, 165, 233, 0.12); font-size: 0.72rem;
+    }
+    .docs-link-chip a { color: #7dd3fc; text-decoration: none; font-weight: 650; }
+    .docs-link-chip em { color: var(--muted); font-style: normal; font-size: 0.65rem; }
 
     .editor-column {
       min-height:0; display:flex; flex-direction:column; background:var(--panel);
@@ -363,6 +370,10 @@
       <button type="button" class="primary compact" id="generateBtn" data-cpi18n="toolbarGen">KI-Entwurf</button>
       <button type="button" class="compact" id="saveBtn" data-cpi18n="save">Speichern</button>
       <button type="button" class="compact" id="richEditorBtn" data-cpi18n="toolbarRichEditor">Rich-Editor</button>
+      <span class="docs-link-chip" id="docsEditorLinkChip" hidden>
+        <a href="#" id="docsEditorLink" data-cpi18n="toolbarOpenLinkedDocs">Im Rich-Editor öffnen</a>
+        <em id="docsEditorSyncedAt"></em>
+      </span>
       <button type="button" class="compact" id="pdfBtn" data-cpi18n="toolbarPdf">PDF</button>
       <button type="button" class="compact" id="printBtn" data-cpi18n="toolbarPrint">Druck</button>
       <button type="button" class="compact" id="signLinkEmployeeBtn" data-cpi18n="toolbarLinkEmp">Link MA</button>

@@ -801,10 +801,12 @@ class EditorDocsService:
         actor_user_id: str | None,
         status: str,
     ) -> dict[str, Any] | None:
+        import json as _json
+
         status = str(status or "").strip().lower()
         if status not in self._ALLOWED_STATUSES:
             return {"error": "invalid_status"}
-        return self.update_doc(
+        updated = self.update_doc(
             db,
             doc_id,
             company_id=company_id,
@@ -812,6 +814,38 @@ class EditorDocsService:
             data={"status": status, "versionNote": f"status:{status}"},
             save_version=False,
         )
+        if updated and status == "in_review" and company_id:
+            title = str(updated.get("title") or "Dokument").strip() or "Dokument"
+            try:
+                from backend.server import create_system_alert
+                from backend.app.platform.inbox.events import notify_inbox_changed
+
+                create_system_alert(
+                    db,
+                    "docs.review",
+                    "info",
+                    f"Dokument zur Prüfung: {title}",
+                    details=_json.dumps(
+                        {
+                            "documentId": doc_id,
+                            "companyId": company_id,
+                            "actorUserId": actor_user_id or "",
+                            "title": title,
+                        },
+                        ensure_ascii=False,
+                    ),
+                    dedup_minutes=5,
+                )
+                notify_inbox_changed(
+                    company_id,
+                    source="docs_review",
+                    alert_title=f"Dokument zur Prüfung: {title}",
+                    alert_message="Bitte im Docs-Editor prüfen und freigeben.",
+                    severity="info",
+                )
+            except Exception:
+                pass
+        return updated
 
     def publish_to_worker(
         self,
@@ -823,9 +857,13 @@ class EditorDocsService:
         worker_id: str | None = None,
         notify: bool = True,
         doc_type: str = "sonstiges",
+        expiry_date: str | None = None,
     ) -> dict[str, Any]:
-        """Approve document, archive HTML copy into worker_documents, notify worker."""
+        """Approve document, archive PDF into worker_documents, notify worker."""
+        import json as _json
         import secrets
+
+        from backend.app.platform.worker_documents import normalize_doc_type
 
         doc = self.repo.get_document(db, doc_id, company_id=company_id)
         if not doc:
@@ -865,6 +903,8 @@ class EditorDocsService:
 
         title = str(doc.get("title") or "Dokument").strip() or "Dokument"
         html_body = str(doc.get("content_html") or "")
+        plain = re.sub(r"<[^>]+>", " ", html_body)
+        plain = re.sub(r"\s+", " ", plain).strip()
         safe_title = re.sub(r"[^a-zA-Z0-9_\-äöüÄÖÜß]+", "_", title)[:60] or "dokument"
 
         # Prefer PDF archive; fall back to HTML
@@ -893,14 +933,39 @@ class EditorDocsService:
         worker_doc_dir.mkdir(parents=True, exist_ok=True)
         ts = utc_now().strftime("%Y%m%d_%H%M%S")
         safe_name = _sanitize_attachment_filename(filename)
-        dtype = str(doc_type or "sonstiges").strip().lower() or "sonstiges"
+        dtype = normalize_doc_type(doc_type or "sonstiges") or "sonstiges"
+        if dtype not in {
+            "mindestlohnnachweis",
+            "personalausweis",
+            "sozialversicherungsnachweis",
+            "arbeitserlaubnis",
+            "aufenthaltserlaubnis",
+            "gesundheitszeugnis",
+            "geburtsurkunde",
+            "meldebescheinigung",
+            "lohnabrechnung",
+            "gehaltsabrechnung",
+            "sonstiges",
+            "einsatzplan",
+        }:
+            dtype = "sonstiges"
         path = (worker_doc_dir / f"{dtype}_{ts}_{safe_name}").resolve()
         path.write_bytes(file_data)
         stored_path = _stored_file_path(path)
 
         archive_id = f"doc-{secrets.token_hex(8)}"
         created_at = now_iso()
-        notes = f"Aus Dokumenteneditor freigegeben ({doc_id[:8]}…)"
+        exp = str(expiry_date or "").strip()[:10] or None
+        if exp and not re.match(r"^\d{4}-\d{2}-\d{2}$", exp):
+            exp = None
+        meta = {
+            "source": "editor",
+            "editorDocumentId": doc_id,
+            "title": title,
+            "acknowledgedAt": None,
+            "acknowledgedBy": None,
+        }
+        notes = f"editor:{doc_id}|Aus Dokumenteneditor freigegeben"
         from backend.app.domains.workers.repository import WorkersRepository
 
         WorkersRepository().insert_worker_document(
@@ -915,7 +980,8 @@ class EditorDocsService:
             uploaded_by_user_id=str(actor_user_id or ""),
             created_at=created_at,
             notes=notes,
-            expiry_date=None,
+            expiry_date=exp,
+            e2e_meta=_json.dumps(meta, ensure_ascii=False),
             verification_status="accepted",
             verification_score=1.0,
             verification_json="{}",
@@ -955,5 +1021,63 @@ class EditorDocsService:
             "workerDocumentId": archive_id,
             "filename": safe_name,
             "workerId": wid,
+            "docType": dtype,
+            "expiryDate": exp,
+            "editorDocumentId": doc_id,
             "notify": notify_result,
         }
+
+    def list_expiring_worker_docs(
+        self, db, *, company_id: str, horizon_days: int = 14, limit: int = 20
+    ) -> list[dict[str, Any]]:
+        """Worker documents with expiry within horizon (for Docs rail)."""
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+
+        today = datetime.now(timezone.utc).date()
+        end = today + timedelta(days=max(1, min(int(horizon_days or 14), 90)))
+        lim = max(1, min(int(limit or 20), 50))
+        try:
+            rows = db.execute(
+                """
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.filename, wd.expiry_date, wd.notes, wd.e2e_meta,
+                       wd.created_at, w.first_name, w.last_name
+                FROM worker_documents wd
+                LEFT JOIN workers w ON w.id = wd.worker_id
+                WHERE wd.company_id = ?
+                  AND wd.expiry_date IS NOT NULL AND wd.expiry_date != ''
+                  AND wd.expiry_date <= ?
+                ORDER BY wd.expiry_date ASC
+                LIMIT ?
+                """,
+                (company_id, end.isoformat(), lim),
+            ).fetchall()
+        except Exception:
+            return []
+        out = []
+        for r in rows:
+            editor_id = ""
+            try:
+                meta = _json.loads(str(r["e2e_meta"] or "") or "{}")
+                if isinstance(meta, dict):
+                    editor_id = str(meta.get("editorDocumentId") or "")
+            except Exception:
+                meta = {}
+            notes = str(r["notes"] or "")
+            if not editor_id and notes.startswith("editor:"):
+                editor_id = notes.split("|", 1)[0].replace("editor:", "", 1).strip()
+            name = f"{r['first_name'] or ''} {r['last_name'] or ''}".strip()
+            out.append(
+                {
+                    "id": r["id"],
+                    "workerId": r["worker_id"],
+                    "workerName": name,
+                    "docType": r["doc_type"],
+                    "filename": r["filename"],
+                    "expiryDate": r["expiry_date"],
+                    "editorDocumentId": editor_id,
+                    "source": "editor" if editor_id else "upload",
+                    "createdAt": r["created_at"],
+                }
+            )
+        return out

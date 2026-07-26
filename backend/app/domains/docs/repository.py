@@ -515,6 +515,7 @@ class EditorDocsRepository:
                 blurb TEXT NOT NULL DEFAULT '',
                 content_html TEXT NOT NULL DEFAULT '',
                 layout_json TEXT NOT NULL DEFAULT '',
+                category TEXT NOT NULL DEFAULT 'sonstiges',
                 created_by_user_id TEXT,
                 updated_at TEXT NOT NULL,
                 created_at TEXT NOT NULL
@@ -528,6 +529,10 @@ class EditorDocsRepository:
         except Exception:
             pass
         try:
+            db.execute("ALTER TABLE editor_templates ADD COLUMN category TEXT NOT NULL DEFAULT 'sonstiges'")
+        except Exception:
+            pass
+        try:
             db.commit()
         except Exception:
             pass
@@ -535,18 +540,35 @@ class EditorDocsRepository:
     def list_templates(self, db, company_id: str, limit: int = 80) -> list[dict[str, Any]]:
         self.ensure_templates_schema(db)
         limit = max(1, min(int(limit or 80), 200))
-        rows = db.execute(
-            """
-            SELECT id, company_id, title, blurb, created_by_user_id, updated_at, created_at,
-                   LENGTH(content_html) AS html_len
-            FROM editor_templates
-            WHERE company_id = ?
-            ORDER BY updated_at DESC
-            LIMIT ?
-            """,
-            (company_id, limit),
-        ).fetchall()
-        return [_row_to_dict(r) for r in rows]
+        try:
+            rows = db.execute(
+                """
+                SELECT id, company_id, title, blurb, category, created_by_user_id, updated_at, created_at,
+                       LENGTH(content_html) AS html_len
+                FROM editor_templates
+                WHERE company_id = ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (company_id, limit),
+            ).fetchall()
+        except Exception:
+            rows = db.execute(
+                """
+                SELECT id, company_id, title, blurb, created_by_user_id, updated_at, created_at,
+                       LENGTH(content_html) AS html_len
+                FROM editor_templates
+                WHERE company_id = ?
+                ORDER BY updated_at DESC
+                LIMIT ?
+                """,
+                (company_id, limit),
+            ).fetchall()
+        items = [_row_to_dict(r) for r in rows]
+        for it in items:
+            if not it.get("category"):
+                it["category"] = "sonstiges"
+        return items
 
     def get_template(self, db, template_id: str, company_id: str) -> dict[str, Any] | None:
         self.ensure_templates_schema(db)
@@ -566,31 +588,55 @@ class EditorDocsRepository:
         content_html: str,
         layout_json: str,
         actor_user_id: str | None,
+        category: str = "sonstiges",
     ) -> dict[str, Any]:
         self.ensure_templates_schema(db)
         tid = str(uuid.uuid4())
         now = _now()
-        db.execute(
-            """
-            INSERT INTO editor_templates (
-                id, company_id, title, blurb, content_html, layout_json,
-                created_by_user_id, updated_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                tid,
-                company_id,
-                (title or "Vorlage").strip() or "Vorlage",
-                blurb or "",
-                content_html or "",
-                layout_json or "",
-                actor_user_id,
-                now,
-                now,
-            ),
-        )
+        cat = (category or "sonstiges").strip().lower()[:40] or "sonstiges"
+        try:
+            db.execute(
+                """
+                INSERT INTO editor_templates (
+                    id, company_id, title, blurb, content_html, layout_json, category,
+                    created_by_user_id, updated_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tid,
+                    company_id,
+                    (title or "Vorlage").strip() or "Vorlage",
+                    blurb or "",
+                    content_html or "",
+                    layout_json or "",
+                    cat,
+                    actor_user_id,
+                    now,
+                    now,
+                ),
+            )
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO editor_templates (
+                    id, company_id, title, blurb, content_html, layout_json,
+                    created_by_user_id, updated_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    tid,
+                    company_id,
+                    (title or "Vorlage").strip() or "Vorlage",
+                    blurb or "",
+                    content_html or "",
+                    layout_json or "",
+                    actor_user_id,
+                    now,
+                    now,
+                ),
+            )
         db.commit()
-        return self.get_template(db, tid, company_id) or {"id": tid}
+        return self.get_template(db, tid, company_id) or {"id": tid, "category": cat}
 
     def delete_template(self, db, template_id: str, company_id: str) -> bool:
         self.ensure_templates_schema(db)

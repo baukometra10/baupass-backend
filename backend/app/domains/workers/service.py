@@ -871,11 +871,32 @@ class WorkersService:
     def list_worker_documents(
         self, db, user: dict[str, Any], worker_id: str
     ) -> dict[str, Any]:
+        import json as _json
+
         loaded = self._load_worker_for_documents(db, user, worker_id)
         if "error" in loaded:
             return loaded
         docs = self.repo.list_worker_documents(db, worker_id)
-        return {"body": docs}
+        enriched = []
+        for doc in docs:
+            item = dict(doc)
+            editor_id = ""
+            try:
+                meta = _json.loads(str(item.get("e2e_meta") or "") or "{}")
+                if isinstance(meta, dict):
+                    editor_id = str(meta.get("editorDocumentId") or "").strip()
+                    item["acknowledgedAt"] = meta.get("acknowledgedAt")
+                    item["source"] = meta.get("source") or ("editor" if editor_id else "upload")
+            except Exception:
+                item["source"] = "upload"
+            notes = str(item.get("notes") or "")
+            if not editor_id and notes.startswith("editor:"):
+                editor_id = notes.split("|", 1)[0].replace("editor:", "", 1).strip()
+                item["source"] = "editor"
+            item["editorDocumentId"] = editor_id
+            item["fromEditor"] = bool(editor_id)
+            enriched.append(item)
+        return {"body": enriched}
 
     def upload_worker_document(
         self,

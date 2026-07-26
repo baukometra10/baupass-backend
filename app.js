@@ -1177,6 +1177,9 @@ const UI_TRANSLATIONS = {
     docTypeSonstiges: "Sonstiges",
     workerDocsHeading: "Gespeicherte Dokumente",
     workerDocsEmpty: "Keine Dokumente hinterlegt.",
+    docSourceEditor: "Quelle: Docs-Editor",
+    docOpenInEditor: "Im Editor öffnen",
+    docAckRead: "Gelesen",
     workerAkteLabel: "Mitarbeiter-Akte",
     complianceSignatureEyebrow: "Mitarbeiterakte",
     complianceSignatureHeading: "Unterschrift bei Ausweisübergabe",
@@ -2309,6 +2312,9 @@ const UI_TRANSLATIONS = {
     docTypeSonstiges: "Other",
     workerDocsHeading: "Stored Documents",
     workerDocsEmpty: "No documents on file.",
+    docSourceEditor: "Source: Docs editor",
+    docOpenInEditor: "Open in editor",
+    docAckRead: "Acknowledged",
     workerAkteLabel: "Worker File",
     complianceSignatureEyebrow: "Employee file",
     complianceSignatureHeading: "Signature on ID handover",
@@ -28052,7 +28058,7 @@ function showWorkerDetailOverlay(worker) {
     if (docsContainer) {
       loadWorkerDocuments(worker.id).then(async (docs) => {
         const prepared = await prepareWorkerDocumentsForDisplay(docs, worker.id);
-        await renderWorkerDocuments(prepared, worker.id, docsContainer);
+        await renderWorkerDocuments(prepared, worker.id, docsContainer, worker.company_id || worker.companyId || "");
       });
     }
   }
@@ -29085,10 +29091,14 @@ async function loadWorkerDocuments(workerId) {
   }
 }
 
-function renderWorkerDocuments(docs, workerId, container) {
+function renderWorkerDocuments(docs, workerId, container, companyId = "") {
   const role = getCurrentUser()?.role || "";
   const canDelete = ["superadmin", "company-admin"].includes(role);
   const canUpload = ["superadmin", "company-admin", "turnstile"].includes(role);
+  const cid =
+    String(companyId || "").trim() ||
+    String(getCurrentUser()?.company_id || "").trim() ||
+    String(new URLSearchParams(location.search).get("company_id") || "").trim();
   const ALL_DOC_TYPES = [
     "mindestlohnnachweis", "personalausweis", "sozialversicherungsnachweis",
     "arbeitserlaubnis", "gesundheitszeugnis", "lohnabrechnung", "gehaltsabrechnung", "sonstiges",
@@ -29106,7 +29116,27 @@ function renderWorkerDocuments(docs, workerId, container) {
       const typeLabel = docTypeLabel(doc.doc_type || "");
       const date = (doc.created_at || "").slice(0, 10);
       const expiry = doc.expiry_date ? ` · ${escapeHtml(uiT("docExpiryLabel"))}: ${escapeHtml(doc.expiry_date)}` : "";
-      const notes = doc.notes ? ` · ${escapeHtml(doc.notes)}` : "";
+      const rawNotes = String(doc.notes || "");
+      const notes = rawNotes && !rawNotes.startsWith("editor:")
+        ? ` · ${escapeHtml(rawNotes)}`
+        : "";
+      const editorId = String(doc.editorDocumentId || "").trim();
+      const fromEditor = !!doc.fromEditor || !!editorId || rawNotes.startsWith("editor:");
+      const sourceBadge = fromEditor
+        ? ` · <span style="color:#0ea5e9;">${escapeHtml(uiT("docSourceEditor") || "Docs-Editor")}</span>`
+        : "";
+      const ackBadge = doc.acknowledgedAt
+        ? ` · ${escapeHtml(uiT("docAckRead") || "Gelesen")}`
+        : "";
+      const editorHref = editorId
+        ? `/admin-v2/docs.html?${new URLSearchParams({
+            ...(cid ? { company_id: cid } : {}),
+            id: editorId,
+          }).toString()}`
+        : "";
+      const editorLink = editorHref
+        ? ` <a href="${escapeAttr(editorHref)}" style="color:#0284c7;font-weight:600;">${escapeHtml(uiT("docOpenInEditor") || "Im Editor öffnen")}</a>`
+        : "";
       const deleteBtn = canDelete
         ? `<button type="button" class="ghost-button small-button" data-delete-doc="${escapeHtml(doc.id)}" style="color:#e53e3e;font-size:0.8em;">${escapeHtml(uiT("btnDeleteDoc"))}</button>`
         : "";
@@ -29114,7 +29144,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f0f0;font-size:0.85em;">
           <div style="min-width:0;flex:1;">
             <strong>${escapeHtml(typeLabel)}</strong>
-            <span class="muted"> · ${escapeHtml(doc.filename)}${expiry}${notes} · ${escapeHtml(date)}</span>
+            <span class="muted"> · ${escapeHtml(doc.filename)}${expiry}${notes}${sourceBadge}${ackBadge} · ${escapeHtml(date)}</span>${editorLink}
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;">
             <button type="button" class="ghost-button small-button" data-download-doc="${escapeHtml(doc.id)}" data-doc-filename="${escapeHtml(doc.filename)}" data-doc-e2e-meta="${escapeAttr(String(doc.e2e_meta || ""))}" style="font-size:0.8em;">${escapeHtml(uiT("btnDownloadDoc"))}</button>
@@ -29193,7 +29223,7 @@ function renderWorkerDocuments(docs, workerId, container) {
           try {
             const updatedDocs = await loadWorkerDocuments(workerId);
             const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
-            await renderWorkerDocuments(prepared, workerId, container);
+            await renderWorkerDocuments(prepared, workerId, container, cid);
           } catch {
             // ignore refresh errors and keep current UI state
           }
@@ -29217,7 +29247,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         );
         const updatedDocs = await loadWorkerDocuments(workerId);
         const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
-        await renderWorkerDocuments(prepared, workerId, container);
+        await renderWorkerDocuments(prepared, workerId, container, cid);
       } catch (err) {
         showToast(runtimeText("docDeleteFailed").replace("{error}", err.message), "error", 3600);
         btn.disabled = false;
@@ -29289,7 +29319,7 @@ function renderWorkerDocuments(docs, workerId, container) {
         showToast(uiT("docUploadSuccess"), "success");
         const updatedDocs = await loadWorkerDocuments(workerId);
         const prepared = await prepareWorkerDocumentsForDisplay(updatedDocs, workerId);
-        await renderWorkerDocuments(prepared, workerId, container);
+        await renderWorkerDocuments(prepared, workerId, container, cid);
       } catch (err) {
         showToast(`Upload fehlgeschlagen: ${err.message}`, "error", 3600);
         if (submitBtn) submitBtn.disabled = false;

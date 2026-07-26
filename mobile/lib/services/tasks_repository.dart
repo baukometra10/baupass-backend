@@ -51,6 +51,23 @@ class TasksRepository {
     );
   }
 
+  Future<Uint8List> downloadDocument(WorkerSession session, String docId) {
+    return _api.getBytes(
+      '/api/worker-app/my-documents/${Uri.encodeComponent(docId)}/download',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+  }
+
+  Future<Map<String, dynamic>> acknowledgeDocument(WorkerSession session, String docId) {
+    return _api.postJson(
+      '/api/worker-app/my-documents/${Uri.encodeComponent(docId)}/acknowledge',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{},
+    );
+  }
+
   Future<List<Map<String, dynamic>>> listEmploymentContracts(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/worker-app/employment-contracts',

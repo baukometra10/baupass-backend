@@ -29429,6 +29429,34 @@ def _notify_company_repeated_late_async(ctx):
 
 # ── Mitarbeiter-App: eigene Dokumente ──────────────────────────────────────
 
+def _worker_doc_meta_payload(row) -> dict:
+    """Parse editor source / acknowledgement from e2e_meta or notes."""
+    meta = {}
+    try:
+        if hasattr(row, "keys"):
+            raw = row["e2e_meta"] if "e2e_meta" in row.keys() else ""
+            notes = str(row["notes"] or "") if "notes" in row.keys() else ""
+        else:
+            raw = (row or {}).get("e2e_meta") or ""
+            notes = str((row or {}).get("notes") or "")
+        parsed = json.loads(str(raw or "") or "{}")
+        if isinstance(parsed, dict):
+            meta = parsed
+    except Exception:
+        notes = ""
+        meta = {}
+    editor_id = str(meta.get("editorDocumentId") or "").strip()
+    if not editor_id and notes.startswith("editor:"):
+        editor_id = notes.split("|", 1)[0].replace("editor:", "", 1).strip()
+    return {
+        "source": str(meta.get("source") or ("editor" if editor_id else "upload")),
+        "editorDocumentId": editor_id,
+        "acknowledgedAt": meta.get("acknowledgedAt") or None,
+        "acknowledgedBy": meta.get("acknowledgedBy") or None,
+        "acknowledged": bool(meta.get("acknowledgedAt")),
+    }
+
+
 @require_worker_session
 def worker_app_my_documents():
     db = get_db()
@@ -29455,6 +29483,7 @@ def worker_app_my_documents():
         item["category"] = doc_category(item["doc_type"])
         item["isPayroll"] = is_payroll_doc_type(item["doc_type"])
         item["canDownload"] = True
+        item.update(_worker_doc_meta_payload(row))
         payload.append(item)
     payload.sort(key=lambda x: (0 if x.get("isPayroll") else 1, x.get("created_at") or ""), reverse=True)
     return jsonify(payload)
@@ -29483,6 +29512,46 @@ def worker_app_my_document_download(doc_id):
         as_attachment=True,
         download_name=doc["filename"] or "dokument.pdf",
     )
+
+
+@require_worker_session
+def worker_app_my_document_acknowledge(doc_id):
+    """Mark a worker document as read/confirmed (Gelesen)."""
+    db = get_db()
+    worker = g.worker
+    plan_value = get_company_plan(db, worker["company_id"])
+    if not company_has_feature(plan_value, "document_upload"):
+        return feature_not_available_response("document_upload", plan_value)
+    doc = db.execute(
+        "SELECT * FROM worker_documents WHERE id = ? AND worker_id = ?",
+        (doc_id, worker["id"]),
+    ).fetchone()
+    if not doc:
+        return jsonify({"error": "document_not_found"}), 404
+    meta = {}
+    try:
+        raw = doc["e2e_meta"] if "e2e_meta" in doc.keys() else ""
+        parsed = json.loads(str(raw or "") or "{}")
+        if isinstance(parsed, dict):
+            meta = parsed
+    except Exception:
+        meta = {}
+    if not meta.get("source") and str(doc["notes"] or "").startswith("editor:"):
+        meta["source"] = "editor"
+        meta["editorDocumentId"] = str(doc["notes"]).split("|", 1)[0].replace("editor:", "", 1).strip()
+    meta["acknowledgedAt"] = now_iso()
+    meta["acknowledgedBy"] = str(worker["id"])
+    try:
+        db.execute(
+            "UPDATE worker_documents SET e2e_meta = ? WHERE id = ? AND worker_id = ?",
+            (json.dumps(meta, ensure_ascii=False), doc_id, worker["id"]),
+        )
+        db.commit()
+    except Exception as exc:
+        return jsonify({"ok": False, "error": "update_failed", "message": str(exc)[:180]}), 500
+    return jsonify({"ok": True, "id": doc_id, "acknowledgedAt": meta["acknowledgedAt"], **_worker_doc_meta_payload(
+        {"notes": doc["notes"], "e2e_meta": json.dumps(meta)}
+    )})
 
 
 @require_worker_session
