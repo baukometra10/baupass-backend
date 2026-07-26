@@ -485,3 +485,83 @@ def test_inbox_missed_voice_call_ack(client_and_db):
     brief2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
     chat2 = (brief2.get_json() or {}).get("chat") or {}
     assert int(chat2.get("totalOpen") or 0) == 0
+
+
+def test_daily_brief_hr_leave_and_docs(client_and_db):
+    """HR brief surfaces pending leave and documents expiring within 14 days."""
+    from datetime import timedelta
+
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "HrBriefCo")
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Hanna",
+            "lastName": "Hr",
+            "insuranceNumber": "INS-HR-BRIEF-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-HR-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    wid = str((created.get_json() or {}).get("id") or "")
+    assert wid
+
+    today = date.today()
+    expiry = (today + timedelta(days=7)).isoformat()
+    leave_id = f"lv-hr-{cid[:8]}"
+    doc_id = f"doc-hr-{cid[:8]}"
+    db = _open_db(db_path)
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(worker_documents)").fetchall()}
+        if "expiry_date" not in cols:
+            db.execute("ALTER TABLE worker_documents ADD COLUMN expiry_date TEXT")
+        db.execute(
+            """
+            INSERT INTO leave_requests
+            (id, worker_id, company_id, type, start_date, end_date, days_count, note, status, created_at)
+            VALUES (?, ?, ?, 'urlaub', ?, ?, 5, '', 'ausstehend', datetime('now'))
+            """,
+            (leave_id, wid, cid, today.isoformat(), (today + timedelta(days=4)).isoformat()),
+        )
+        db.execute(
+            """
+            INSERT INTO worker_documents
+            (id, worker_id, company_id, doc_type, filename, file_path, file_size, created_at, expiry_date)
+            VALUES (?, ?, ?, 'Führerschein', 'fs.pdf', 'x/fs.pdf', 12, datetime('now'), ?)
+            """,
+            (doc_id, wid, cid, expiry),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    brief = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert brief.status_code == 200, brief.get_json()
+    hr = (brief.get_json() or {}).get("hr") or {}
+    assert int(hr.get("pendingLeave") or 0) >= 1
+    assert int(hr.get("expiringDocuments") or 0) >= 1
+    assert int(hr.get("totalOpen") or 0) >= 2
+    kinds = {str(it.get("kind") or "") for it in (hr.get("items") or [])}
+    assert "leave" in kinds
+    assert "document_expiry" in kinds
+
+    leave_inbox = client.get(f"/api/inbox?company_id={cid}&source=leave", headers=headers)
+    assert leave_inbox.status_code == 200
+    leave_items = (leave_inbox.get_json() or {}).get("items") or []
+    assert any(str(it.get("id") or "") == f"leave:{leave_id}" for it in leave_items)
+
+    doc_inbox = client.get(f"/api/inbox?company_id={cid}&source=document", headers=headers)
+    assert doc_inbox.status_code == 200
+    doc_items = (doc_inbox.get_json() or {}).get("items") or []
+    assert any(str(it.get("id") or "") == f"doc:{doc_id}" for it in doc_items)

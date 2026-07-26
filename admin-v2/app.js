@@ -105,6 +105,10 @@ function applyStartupTab() {
 async function applyStartupTabAfterLoad() {
   applyStartupTab();
   const params = new URLSearchParams(location.search);
+  const source = String(params.get("source") || "").trim().toLowerCase();
+  if (source && ["security", "attendance", "chat", "leave", "document", "system"].includes(source)) {
+    inboxSourceFilter = source;
+  }
   if (params.get("einsatzplan") === "1" || params.get("focus") === "deployment") {
     try {
       await refreshActiveTab();
@@ -5859,10 +5863,14 @@ async function loadOverview() {
     const att = dailyBrief?.attendance || {};
     const secBrief = dailyBrief?.security || {};
     const chatBrief = dailyBrief?.chat || {};
+    const hrBrief = dailyBrief?.hr || {};
     const openEsc = Number(secBrief.openCameraEscalations ?? camLayer.openEscalations ?? 0);
     const chatOpen = Number(chatBrief.totalOpen || 0);
     const missedCallsOpen = Number(chatBrief.missedCallsOpen || 0);
     const callbackOpen = Number(chatBrief.callbackRequestsOpen || 0);
+    const hrOpen = Number(hrBrief.totalOpen || 0);
+    const pendingLeave = Number(hrBrief.pendingLeave || 0);
+    const expiringDocs = Number(hrBrief.expiringDocuments || 0);
     const onSite = att.onSite ?? opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
     const checkIns = att.checkInsToday ?? opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
     const lateToday = Number(att.lateToday || 0);
@@ -5877,7 +5885,7 @@ async function loadOverview() {
       secBrief.totalOpen ?? (sec.openAlerts || []).length + openEsc,
     );
     const aiPrompt = encodeURIComponent(
-      "Fasse die aktuelle Lage zusammen: Anwesenheit (fehlt/spät/außerhalb), Sicherheitsalerts, Kameras und offene Aufgaben.",
+      "Fasse die aktuelle Lage zusammen: Anwesenheit (fehlt/spät/außerhalb), Security, Chat/Anrufe, Urlaub, ablaufende Dokumente und offene Aufgaben.",
     );
     lage.classList.remove("hidden");
     const liveBadge = window.__adminRealtimeLive
@@ -5935,6 +5943,22 @@ async function loadOverview() {
         return `<li><strong>${escapeHtml(kind)}</strong> · ${label}</li>`;
       })
       .join("");
+    const hrItems = (hrBrief.items || [])
+      .slice(0, 5)
+      .map((it) => {
+        const who = escapeHtml(it.workerName || it.workerId || "—");
+        if (it.kind === "leave") {
+          const range = [it.startDate, it.endDate].filter(Boolean).join("–") || "—";
+          return `<li><strong>${escapeHtml(t("lage.hrLeave"))}</strong> · ${who} · ${escapeHtml(range)}</li>`;
+        }
+        const doc = escapeHtml(it.docType || "—");
+        const exp = escapeHtml(it.expiryDate || "—");
+        const link = it.href
+          ? `<a href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${doc}</a>`
+          : doc;
+        return `<li><strong>${escapeHtml(t("lage.hrDoc"))}</strong> · ${who} · ${link} · ${exp}</li>`;
+      })
+      .join("");
     const escHtml = (camLayer.latestEscalations || [])
       .slice(0, 2)
       .map((e) => {
@@ -5960,6 +5984,7 @@ async function loadOverview() {
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
         <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.chatOpen")}</span><strong style="color:${chatOpen > 0 ? "#fbbf24" : "inherit"}">${chatOpen}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.hrOpen")}</span><strong style="color:${hrOpen > 0 ? "#fbbf24" : "inherit"}">${hrOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
@@ -6003,6 +6028,22 @@ async function loadOverview() {
         <p style="margin:0.45rem 0 0">
           <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
           · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="chat">${t("lage.openInboxChat")}</button>
+        </p>
+      </div>
+      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
+        <strong>${t("lage.hrTitle")}</strong>
+        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.hrHint")}</p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong>
+          · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong></p>
+        ${
+          hrItems
+            ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${hrItems}</ul>`
+            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.hrEmpty")}</p>`
+        }
+        <p style="margin:0.45rem 0 0">
+          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="leave">${t("lage.openInboxLeave")}</button>
+          · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="document">${t("lage.openInboxDocs")}</button>
+          · <a href="/admin-v2/docs.html${q}" target="_blank" rel="noopener">${t("lage.openDocs")}</a>
         </p>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">

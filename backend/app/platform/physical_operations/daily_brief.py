@@ -549,15 +549,118 @@ def build_chat_brief(db, company_id: str, *, lookback_days: int = 7) -> dict[str
     }
 
 
+def build_hr_brief(db, company_id: str, *, expiry_days: int = 14) -> dict[str, Any]:
+    """Pending leave + documents expiring soon for Lagebild (same sources as inbox)."""
+    cid = str(company_id or "").strip()
+    horizon_days = max(1, min(int(expiry_days or 14), 60))
+    leave_items: list[dict[str, Any]] = []
+    doc_items: list[dict[str, Any]] = []
+
+    if cid:
+        try:
+            rows = db.execute(
+                """
+                SELECT lr.id, lr.worker_id, lr.type, lr.start_date, lr.end_date,
+                       lr.status, lr.created_at,
+                       TRIM(COALESCE(w.first_name, '') || ' ' || COALESCE(w.last_name, '')) AS worker_name
+                FROM leave_requests lr
+                JOIN workers w ON w.id = lr.worker_id
+                WHERE (w.company_id = ? OR lr.company_id = ?)
+                  AND lr.status IN ('pending', 'ausstehend')
+                  AND COALESCE(w.deleted_at, '') = ''
+                ORDER BY datetime(lr.created_at) DESC
+                LIMIT 30
+                """,
+                (cid, cid),
+            ).fetchall()
+            for r in rows:
+                lid = str(r["id"] or "").strip()
+                wid = str(r["worker_id"] or "").strip()
+                name = str(r["worker_name"] or "").strip() or wid
+                leave_items.append(
+                    {
+                        "id": lid,
+                        "kind": "leave",
+                        "title": "Urlaubsantrag offen",
+                        "workerId": wid,
+                        "workerName": name,
+                        "leaveType": str(r["type"] or ""),
+                        "startDate": str(r["start_date"] or "")[:10],
+                        "endDate": str(r["end_date"] or "")[:10],
+                        "createdAt": str(r["created_at"] or ""),
+                        "href": f"/admin-v2/index.html?company_id={cid}&tab=inbox&source=leave",
+                        "source": "leave",
+                    }
+                )
+        except Exception:
+            leave_items = []
+
+        try:
+            from backend.app.platform.physical_operations._common import calendar_day_offset, today_prefix
+
+            horizon = calendar_day_offset(horizon_days)
+            today = today_prefix()
+            rows = db.execute(
+                """
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.expiry_date, wd.created_at,
+                       TRIM(COALESCE(w.first_name, '') || ' ' || COALESCE(w.last_name, '')) AS worker_name
+                FROM worker_documents wd
+                JOIN workers w ON w.id = wd.worker_id
+                WHERE w.company_id = ?
+                  AND COALESCE(w.deleted_at, '') = ''
+                  AND wd.expiry_date IS NOT NULL
+                  AND wd.expiry_date <= ?
+                  AND wd.expiry_date >= ?
+                ORDER BY wd.expiry_date ASC
+                LIMIT 40
+                """,
+                (cid, horizon, today),
+            ).fetchall()
+            for r in rows:
+                did = str(r["id"] or "").strip()
+                wid = str(r["worker_id"] or "").strip()
+                name = str(r["worker_name"] or "").strip() or wid
+                doc_type = str(r["doc_type"] or "Dokument")
+                expiry = str(r["expiry_date"] or "")[:10]
+                doc_items.append(
+                    {
+                        "id": did,
+                        "kind": "document_expiry",
+                        "title": "Dokument läuft ab",
+                        "workerId": wid,
+                        "workerName": name,
+                        "docType": doc_type,
+                        "expiryDate": expiry,
+                        "createdAt": str(r["created_at"] or ""),
+                        "href": f"/admin-v2/docs.html?company_id={cid}",
+                        "source": "document",
+                    }
+                )
+        except Exception:
+            doc_items = []
+
+    items = (leave_items[:8] + doc_items[:8])[:16]
+    return {
+        "pendingLeave": len(leave_items),
+        "expiringDocuments": len(doc_items),
+        "expiryDays": horizon_days,
+        "totalOpen": len(leave_items) + len(doc_items),
+        "items": items,
+        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+    }
+
+
 def build_daily_ops_brief(db, company_id: str) -> dict[str, Any]:
     attendance = build_attendance_brief(db, company_id)
     security = build_security_brief(db, company_id)
     chat = build_chat_brief(db, company_id)
+    hr = build_hr_brief(db, company_id)
     return {
         "ok": True,
         "companyId": str(company_id),
         "attendance": attendance,
         "security": security,
         "chat": chat,
+        "hr": hr,
         "autoDial": False,
     }

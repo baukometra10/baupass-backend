@@ -58,4 +58,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 3. Lagebild: KPI + Block „Chat & Anrufe“ mit Deep-Link; Filter-Chip Chat ✅
 4. Inbox-Refresh bei Missed/Callback (`notify_inbox_changed`) ✅
 
+## Follow-up — HR Mini-Loop (Urlaub + Docs) — erledigt
+
+1. Daily Brief `hr`: `pendingLeave` + `expiringDocuments` (14 Tage) ✅
+2. Lagebild: KPI + Block „HR · Urlaub & Dokumente“ mit Inbox-Deep-Links ✅
+3. Startup `?tab=inbox&source=leave|document` setzt Inbox-Filter ✅
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · Zeiten entscheidet jede Firma selbst.
