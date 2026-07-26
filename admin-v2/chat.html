@@ -1720,7 +1720,7 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
-  <script src="/chat-voice-call.js?v=20260726video3"></script>
+  <script src="/chat-voice-call.js?v=20260726video4"></script>
   <script src="/chat-conference.js?v=20260726video3"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260726video3"></script>
   <script src="/e2e-crypto.js?v=20260719e2e5"></script>
@@ -4515,7 +4515,13 @@
       directCallRemoteOn = Boolean(hasVideo && stream);
       if (remoteEl) {
         if (directCallRemoteOn) {
-          if (remoteEl.srcObject !== stream) remoteEl.srcObject = stream;
+          // Always re-bind: late video tracks can join an existing MediaStream object.
+          if (remoteEl.srcObject !== stream) {
+            remoteEl.srcObject = stream;
+          } else {
+            remoteEl.srcObject = null;
+            remoteEl.srcObject = stream;
+          }
           remoteEl.muted = true; // remote audio plays via hidden audio element
           remoteEl.classList.remove("is-placeholder");
           remoteEl.style.transform = "";

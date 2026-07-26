@@ -76,6 +76,20 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
     });
   }
 
+  MediaStream? _boundRemoteStream;
+  int _boundRemoteVideoCount = -1;
+  MediaStream? _boundLocalStream;
+
+  Future<void> _bindRenderer(RTCVideoRenderer renderer, MediaStream? stream) async {
+    // Re-bind when track set changes — srcObject identity alone is not enough
+    // after late video tracks are added to an existing MediaStream.
+    if (identical(renderer.srcObject, stream) && stream != null) {
+      // Force refresh by toggling when video track count changed.
+    }
+    renderer.srcObject = null;
+    renderer.srcObject = stream;
+  }
+
   Future<void> _syncRenderers() async {
     final remote = widget.controller.rtcSession?.remoteStream;
     final previewing = widget.controller.cameraPreviewing;
@@ -83,7 +97,8 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
         ? widget.controller.rtcSession?.previewStream
         : widget.controller.rtcSession?.localStream;
     final localLive = widget.controller.cameraOn || previewing;
-    final remoteHasVideo = remote?.getVideoTracks().isNotEmpty == true;
+    final remoteVideoCount = remote?.getVideoTracks().length ?? 0;
+    final remoteHasVideo = remoteVideoCount > 0 || widget.controller.remoteHasVideo;
 
     _remoteRenderer ??= RTCVideoRenderer();
     if (!_remoteRendererReady) {
@@ -91,12 +106,23 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
       _remoteRendererReady = true;
     }
     if (remote != null && remoteHasVideo && !previewing) {
-      _remoteRenderer!.srcObject = remote;
+      final changed = !identical(_boundRemoteStream, remote) || _boundRemoteVideoCount != remoteVideoCount;
+      if (changed) {
+        await _bindRenderer(_remoteRenderer!, remote);
+        _boundRemoteStream = remote;
+        _boundRemoteVideoCount = remoteVideoCount;
+      }
     } else if (local != null && localLive) {
       // Self-preview full-bleed until peer video arrives / during cam preview
-      _remoteRenderer!.srcObject = local;
-    } else {
+      if (!identical(_boundRemoteStream, local) || _boundRemoteVideoCount != -2) {
+        await _bindRenderer(_remoteRenderer!, local);
+        _boundRemoteStream = local;
+        _boundRemoteVideoCount = -2;
+      }
+    } else if (_remoteRenderer!.srcObject != null) {
       _remoteRenderer!.srcObject = null;
+      _boundRemoteStream = null;
+      _boundRemoteVideoCount = -1;
     }
 
     if (local != null && localLive && remoteHasVideo && !previewing) {
@@ -105,9 +131,13 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
         await _localRenderer!.initialize();
         _localRendererReady = true;
       }
-      _localRenderer!.srcObject = local;
+      if (!identical(_boundLocalStream, local)) {
+        await _bindRenderer(_localRenderer!, local);
+        _boundLocalStream = local;
+      }
     } else if (_localRenderer != null) {
       _localRenderer!.srcObject = null;
+      _boundLocalStream = null;
     }
 
     if (mounted) setState(() {});

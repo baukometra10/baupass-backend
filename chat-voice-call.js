@@ -1057,6 +1057,12 @@
 
     async _renegotiate() {
       if (!this.pc || this.ended) return;
+      // Wait briefly if a previous offer/answer is still in flight (glare).
+      for (let i = 0; i < 8 && this.pc.signalingState !== "stable"; i += 1) {
+        await sleep(120);
+        if (this.ended || !this.pc) return;
+      }
+      if (this.pc.signalingState !== "stable") return;
       this._makingOffer = true;
       try {
         const offer = await this.pc.createOffer(OFFER_OPTS);
@@ -1208,9 +1214,23 @@
       stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
       this._startAudioMeters();
       this.pc.ontrack = (event) => {
-        const remoteStream = event.streams[0] || (event.track ? new MediaStream([event.track]) : null);
-        if (!remoteStream) return;
-        this.remoteStream = remoteStream;
+        const incoming = event.streams?.[0];
+        const track = event.track;
+        if (!track && !incoming) return;
+        if (!this.remoteStream) {
+          this.remoteStream = incoming || new MediaStream(track ? [track] : []);
+        } else {
+          const add = (t) => {
+            if (!t) return;
+            const exists = this.remoteStream.getTracks().some((x) => x.id === t.id);
+            if (!exists) {
+              try { this.remoteStream.addTrack(t); } catch (_) { /* ignore */ }
+            }
+          };
+          add(track);
+          (incoming?.getTracks?.() || []).forEach(add);
+        }
+        const remoteStream = this.remoteStream;
         const audio = this._ensureRemoteAudio();
         audio.srcObject = remoteStream;
         this._applySpeakerToRemoteAudio();
@@ -1223,8 +1243,15 @@
         } catch (_) {
           /* ignore */
         }
-        if (event.track) {
-          event.track.onended = () => {
+        if (track) {
+          track.onunmute = () => {
+            const live = (this.remoteStream?.getVideoTracks?.() || []).some(
+              (t) => t.readyState === "live" && t.enabled !== false,
+            );
+            this.remoteHasVideo = live;
+            try { this.onRemoteVideo(this.remoteStream, live); } catch (_) { /* ignore */ }
+          };
+          track.onended = () => {
             const still = (this.remoteStream?.getVideoTracks?.() || []).some(
               (t) => t.readyState === "live" && t.enabled !== false,
             );

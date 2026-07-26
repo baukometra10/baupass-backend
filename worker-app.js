@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260726video3";
+const WORKER_BUILD_TAG = "20260726video4";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {

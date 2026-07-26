@@ -277,6 +277,46 @@ class WorkerVoiceCallSession {
     _remoteHasVideo = tracks.any((t) => t.enabled);
   }
 
+  Future<void> _ingestRemoteTrack(RTCTrackEvent event) async {
+    if (_ended) return;
+    final track = event.track;
+    try {
+      if (_remoteStream == null) {
+        if (event.streams.isNotEmpty) {
+          _remoteStream = event.streams.first;
+        } else {
+          _remoteStream = await createLocalMediaStream('remote-$callId');
+          await _remoteStream!.addTrack(track);
+        }
+      } else {
+        final already = _remoteStream!.getTracks().any((t) => t.id == track.id);
+        if (!already) {
+          await _remoteStream!.addTrack(track);
+        }
+        // Some platforms deliver later tracks on a different stream — merge video in.
+        for (final stream in event.streams) {
+          for (final t in stream.getTracks()) {
+            final exists = _remoteStream!.getTracks().any((x) => x.id == t.id);
+            if (!exists) {
+              await _remoteStream!.addTrack(t);
+            }
+          }
+        }
+      }
+      track.onEnded = () {
+        _refreshRemoteHasVideo();
+        if (_remoteStream != null) onRemoteStream?.call(_remoteStream!);
+      };
+    } catch (_) {
+      /* keep call alive even if track merge fails */
+    }
+    _refreshRemoteHasVideo();
+    if (_remoteStream != null) {
+      onRemoteStream?.call(_remoteStream!);
+    }
+    onState('connected');
+  }
+
   Future<void> _setupPeerConnection() async {
     _pc = await createPeerConnection(repo.peerConfig(call));
     _localStream = await navigator.mediaDevices.getUserMedia(VoiceCallRepository.hdAudioConstraints);
@@ -285,12 +325,7 @@ class WorkerVoiceCallSession {
     }
     _emitLocal(preview: false);
     _pc!.onTrack = (event) {
-      if (event.streams.isNotEmpty) {
-        _remoteStream = event.streams.first;
-        _refreshRemoteHasVideo();
-        onRemoteStream?.call(_remoteStream!);
-        onState('connected');
-      }
+      unawaited(_ingestRemoteTrack(event));
     };
     _pc!.onIceCandidate = (candidate) {
       if (candidate.candidate == null || candidate.candidate!.isEmpty) return;
@@ -349,6 +384,12 @@ class WorkerVoiceCallSession {
   Future<void> _renegotiate() async {
     final pc = _pc;
     if (pc == null || _ended) return;
+    for (var i = 0; i < 8; i++) {
+      if (pc.signalingState == RTCSignalingState.RTCSignalingStateStable) break;
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      if (_ended || _pc == null) return;
+    }
+    if (pc.signalingState != RTCSignalingState.RTCSignalingStateStable) return;
     _makingOffer = true;
     try {
       final offer = await pc.createOffer(VoiceCallRepository.offerOptions);
@@ -1034,11 +1075,23 @@ class WorkerVoiceCallSession {
     final pc = _pc;
     if (pc == null) return;
     if (type == 'offer') {
-      // Worker is the polite peer — always accept remote offers (incl. renegotiation).
-      if (_makingOffer) {
-        /* glare: still accept as polite */
+      // Worker is the polite peer — rollback local offer on glare, then accept.
+      final colliding = _makingOffer ||
+          pc.signalingState == RTCSignalingState.RTCSignalingStateHaveLocalOffer;
+      if (colliding) {
+        _makingOffer = false;
+        try {
+          await pc.setLocalDescription(RTCSessionDescription('', 'rollback'));
+        } catch (_) {
+          /* rollback unsupported on some builds — continue best-effort */
+        }
       }
-      await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'offer'));
+      await pc.setRemoteDescription(
+        RTCSessionDescription(
+          payload['sdp']?.toString() ?? '',
+          payload['type']?.toString() ?? 'offer',
+        ),
+      );
       await _flushPendingIce(pc);
       final answer = await pc.createAnswer(VoiceCallRepository.offerOptions);
       await pc.setLocalDescription(answer);
@@ -1050,7 +1103,15 @@ class WorkerVoiceCallSession {
       );
       onState('connecting');
     } else if (type == 'answer') {
-      await pc.setRemoteDescription(RTCSessionDescription(payload['sdp']?.toString() ?? '', payload['type']?.toString() ?? 'answer'));
+      if (pc.signalingState == RTCSignalingState.RTCSignalingStateStable) {
+        return; // stale answer after glare rollback
+      }
+      await pc.setRemoteDescription(
+        RTCSessionDescription(
+          payload['sdp']?.toString() ?? '',
+          payload['type']?.toString() ?? 'answer',
+        ),
+      );
       await _flushPendingIce(pc);
       onState('connecting');
     } else if (type == 'ice-candidate') {
