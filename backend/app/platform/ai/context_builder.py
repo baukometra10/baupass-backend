@@ -109,6 +109,7 @@ def build_compact_context(db, company_id: str, role: str = "company-admin", *, l
         "identity": identity,
         "intelligence": operational_insights(db, company_id),
         "pendingLeave": pending_leave,
+        "dailyBrief": full.get("dailyBrief") or {},
     }
     try:
         from .operator_memory import get_memory, memory_context_lines
@@ -291,6 +292,10 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
     site = str(terms.get("termSite") or ("site" if lang.startswith("en") else "موقع" if lang.startswith("ar") else "Standort")).strip()
     workers = str(terms.get("termWorkers") or ("workers" if lang.startswith("en") else "عمال" if lang.startswith("ar") else "Mitarbeiter")).strip()
 
+    brief = ctx.get("dailyBrief") or {}
+    att = brief.get("attendance") or {}
+    chat = brief.get("chat") or {}
+    hr = brief.get("hr") or {}
     if lang.startswith("en"):
         lines = [
             f"**Operations briefing ({ctx.get('date', '')})**",
@@ -299,6 +304,23 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
             f"- Security findings: **{sec_n}**",
             f"- Workforce risk level: **{risk.get('level', 'low')}** (score {risk.get('risk_score', 0)})",
         ]
+        if att:
+            lines.append(
+                f"- Attendance brief: missing **{int(att.get('missingExpected') or 0)}**, "
+                f"late **{int(att.get('lateToday') or 0)}**, "
+                f"outside hours **{int(att.get('outsideHoursAttemptsToday') or 0)}**"
+            )
+        if chat:
+            lines.append(
+                f"- Chat/calls open: **{int(chat.get('totalOpen') or 0)}** "
+                f"(missed {int(chat.get('missedCallsOpen') or 0)}, "
+                f"callback {int(chat.get('callbackRequestsOpen') or 0)}) — no auto-dial"
+            )
+        if hr or ctx.get("pendingLeave"):
+            lines.append(
+                f"- HR open: leave **{int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}**, "
+                f"expiring docs **{int(hr.get('expiringDocuments') or 0)}**"
+            )
         if em.get("active"):
             lines.append(f"- **Active emergency:** {em.get('summary', 'yes')}")
         if issues:
@@ -327,6 +349,23 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
         f"- Sicherheitsbefunde: **{sec_n}**",
         f"- Workforce-Risiko: **{risk.get('level', 'low')}** (Score {risk.get('risk_score', 0)})",
     ]
+    if att:
+        lines.append(
+            f"- Anwesenheit Brief: fehlt **{int(att.get('missingExpected') or 0)}** · "
+            f"spät **{int(att.get('lateToday') or 0)}** · "
+            f"außerhalb **{int(att.get('outsideHoursAttemptsToday') or 0)}**"
+        )
+    if chat:
+        lines.append(
+            f"- Chat/Anrufe offen: **{int(chat.get('totalOpen') or 0)}** "
+            f"(verpasst {int(chat.get('missedCallsOpen') or 0)}, "
+            f"Rückruf {int(chat.get('callbackRequestsOpen') or 0)}) — kein Auto-Dial"
+        )
+    if hr or ctx.get("pendingLeave"):
+        lines.append(
+            f"- HR offen: Urlaub **{int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}** · "
+            f"Docs ablaufend **{int(hr.get('expiringDocuments') or 0)}**"
+        )
     if em.get("active"):
         lines.append(f"- **Aktiver Notfall:** {em.get('summary', 'ja')}")
     if issues:

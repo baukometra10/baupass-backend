@@ -64,4 +64,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Lagebild: KPI + Block „HR · Urlaub & Dokumente“ mit Inbox-Deep-Links ✅
 3. Startup `?tab=inbox&source=leave|document` setzt Inbox-Filter ✅
 
+## Follow-up — Copilot ↔ Daily Brief — erledigt
+
+1. Copilot-Kontext enthält Slim-`dailyBrief` (Anwesenheit/Security/Chat/HR) ✅
+2. Deterministische Antworten für Lage, Spät/fehlt, Chat/Anrufe, Urlaub/Docs ✅
+3. Quick-Actions Chat/Anrufe + Urlaub & Docs; Tagesbriefing nutzt Brief-KPIs ✅
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · Zeiten entscheidet jede Firma selbst.

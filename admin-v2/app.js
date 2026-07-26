@@ -6760,6 +6760,8 @@ async function loadCopilot() {
     { id: "late", label: t("copilot.actionLate"), q: t("copilot.promptLate") },
     { id: "security", label: t("copilot.actionSecurity"), q: t("copilot.promptSecurity") },
     { id: "camera", label: t("copilot.actionCamera"), q: t("copilot.promptCamera") },
+    { id: "chat", label: t("copilot.actionChat"), q: t("copilot.promptChat") },
+    { id: "hr", label: t("copilot.actionHr"), q: t("copilot.promptHr") },
   ];
   host.innerHTML = actions
     .map(

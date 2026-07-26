@@ -1352,12 +1352,32 @@ def _task_daily_briefing(db, company_id: str, *, lang: str) -> dict[str, Any]:
     insights = tool_operational_insights(db, company_id, {})
     security = tool_security_summary(db, company_id, {})
     inbox = tool_browse_inbox(db, company_id, {"limit": 8})
+    att: dict[str, Any] = {}
+    chat: dict[str, Any] = {}
+    hr: dict[str, Any] = {}
+    sec_brief: dict[str, Any] = {}
+    try:
+        from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
 
-    on_site = int(presence.get("onSiteCount") or 0)
+        daily = build_daily_ops_brief(db, company_id) or {}
+        att = daily.get("attendance") or {}
+        chat = daily.get("chat") or {}
+        hr = daily.get("hr") or {}
+        sec_brief = daily.get("security") or {}
+    except Exception:
+        pass
+
+    on_site = int(att.get("onSite") or presence.get("onSiteCount") or 0)
     by_site = presence.get("bySite") or []
     site_line = ", ".join(f"{s.get('site')}: {s.get('count')}" for s in by_site[:4])
-    open_alerts = len(security.get("openAlerts") or [])
+    open_alerts = int(sec_brief.get("totalOpen") or len(security.get("openAlerts") or []))
     inbox_n = int(inbox.get("count") or len(inbox.get("items") or []))
+    missing_n = int(att.get("missingExpected") or 0)
+    late_n = int(att.get("lateToday") or 0)
+    chat_n = int(chat.get("totalOpen") or 0)
+    hr_n = int(hr.get("totalOpen") or 0)
+    leave_n = int(hr.get("pendingLeave") or 0)
+    docs_n = int(hr.get("expiringDocuments") or 0)
     issues = insights.get("topIssues") or insights.get("issues") or insights.get("priorities") or []
     if isinstance(issues, dict):
         issues = list(issues.values())
@@ -1369,20 +1389,30 @@ def _task_daily_briefing(db, company_id: str, *, lang: str) -> dict[str, Any]:
             else:
                 issue_lines.append(f"• {it}")
 
+    brief_extra_de = (
+        f"• Fehlt/spät: **{missing_n}** / **{late_n}**\n"
+        f"• Chat/Anrufe: **{chat_n}** · HR: **{hr_n}** (Urlaub {leave_n}, Docs {docs_n})\n"
+    )
+    brief_extra_en = (
+        f"• Missing/late: **{missing_n}** / **{late_n}**\n"
+        f"• Chat/calls: **{chat_n}** · HR: **{hr_n}** (leave {leave_n}, docs {docs_n})\n"
+    )
     tail_de = (("Schwerpunkte:\n" + "\n".join(issue_lines)) if issue_lines else "Keine kritischen Schwerpunkte gemeldet.")
     tail_en = (("Priorities:\n" + "\n".join(issue_lines)) if issue_lines else "No critical priorities reported.")
     sites = f" ({site_line})" if site_line else ""
     answer = _lang_text(
         lang,
-        f"**Tageslage**\n• Vor Ort: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Security-Alerts offen: **{open_alerts}**\n{tail_de}",
-        f"**Daily briefing**\n• On site: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Open security alerts: **{open_alerts}**\n{tail_en}",
+        f"**Tageslage**\n• Vor Ort: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Security offen: **{open_alerts}**\n{brief_extra_de}{tail_de}",
+        f"**Daily briefing**\n• On site: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Open security: **{open_alerts}**\n{brief_extra_en}{tail_en}",
         f"**ملخص اليوم**\n• في الموقع: **{on_site}**{sites}\n• الوارد: **{inbox_n}** · تنبيهات أمن مفتوحة: **{open_alerts}**\n"
+        + f"• غائب/متأخر: **{missing_n}** / **{late_n}**\n"
+        + f"• دردشة/مكالمات: **{chat_n}** · موارد بشرية: **{hr_n}**\n"
         + (("أولويات:\n" + "\n".join(issue_lines)) if issue_lines else "لا أولويات حرجة."),
-        tr=f"**Günlük özet**\n• Sahada: **{on_site}**{sites}\n• Gelen kutusu: **{inbox_n}** · Açık güvenlik: **{open_alerts}**\n{tail_en}",
-        fr=f"**Briefing du jour**\n• Sur site: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Alertes sécurité: **{open_alerts}**\n{tail_en}",
-        es=f"**Resumen del día**\n• En obra: **{on_site}**{sites}\n• Bandeja: **{inbox_n}** · Alertas de seguridad: **{open_alerts}**\n{tail_en}",
-        it=f"**Briefing odierno**\n• In cantiere: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Avvisi sicurezza: **{open_alerts}**\n{tail_en}",
-        pl=f"**Podsumowanie dnia**\n• Na budowie: **{on_site}**{sites}\n• Skrzynka: **{inbox_n}** · Alerty bezpieczeństwa: **{open_alerts}**\n{tail_en}",
+        tr=f"**Günlük özet**\n• Sahada: **{on_site}**{sites}\n• Gelen kutusu: **{inbox_n}** · Açık güvenlik: **{open_alerts}**\n{brief_extra_en}{tail_en}",
+        fr=f"**Briefing du jour**\n• Sur site: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Alertes sécurité: **{open_alerts}**\n{brief_extra_en}{tail_en}",
+        es=f"**Resumen del día**\n• En obra: **{on_site}**{sites}\n• Bandeja: **{inbox_n}** · Alertas de seguridad: **{open_alerts}**\n{brief_extra_en}{tail_en}",
+        it=f"**Briefing odierno**\n• In cantiere: **{on_site}**{sites}\n• Inbox: **{inbox_n}** · Avvisi sicurezza: **{open_alerts}**\n{brief_extra_en}{tail_en}",
+        pl=f"**Podsumowanie dnia**\n• Na budowie: **{on_site}**{sites}\n• Skrzynka: **{inbox_n}** · Alerty bezpieczeństwa: **{open_alerts}**\n{brief_extra_en}{tail_en}",
     )
     actions = [
         {
@@ -1423,12 +1453,14 @@ def _task_daily_briefing(db, company_id: str, *, lang: str) -> dict[str, Any]:
             "get_operational_insights",
             "get_security_summary",
             "browse_inbox",
+            "daily_ops_brief",
         ],
         "toolsUsed": [
             "get_presence_summary",
             "get_operational_insights",
             "get_security_summary",
             "browse_inbox",
+            "daily_ops_brief",
         ],
         "actions": actions,
         "suggestedActions": actions,

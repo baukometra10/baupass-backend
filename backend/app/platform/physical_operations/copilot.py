@@ -13,6 +13,50 @@ from .site_intelligence import build_site_intelligence
 from ._common import count_on_site, list_on_site_workers, today_prefix
 
 
+def _daily_brief_for_copilot(db, company_id: str) -> dict[str, Any]:
+    """Slim daily-brief KPIs for Copilot (attendance / security / chat / hr)."""
+    try:
+        from .daily_brief import build_daily_ops_brief
+
+        brief = build_daily_ops_brief(db, company_id) or {}
+    except Exception:
+        return {}
+    att = brief.get("attendance") or {}
+    sec = brief.get("security") or {}
+    chat = brief.get("chat") or {}
+    hr = brief.get("hr") or {}
+    return {
+        "attendance": {
+            "onSite": int(att.get("onSite") or 0),
+            "checkInsToday": int(att.get("checkInsToday") or 0),
+            "lateToday": int(att.get("lateToday") or 0),
+            "outsideHoursAttemptsToday": int(att.get("outsideHoursAttemptsToday") or 0),
+            "expectedToday": int(att.get("expectedToday") or 0),
+            "missingExpected": int(att.get("missingExpected") or 0),
+            "lateWorkers": list(att.get("lateWorkers") or [])[:6],
+            "missingWorkers": list(att.get("missingWorkers") or [])[:6],
+            "workWindow": att.get("workWindow") or {},
+        },
+        "security": {
+            "openCameraEscalations": int(sec.get("openCameraEscalations") or 0),
+            "openSecurityAlerts": int(sec.get("openSecurityAlerts") or 0),
+            "totalOpen": int(sec.get("totalOpen") or 0),
+        },
+        "chat": {
+            "missedCallsOpen": int(chat.get("missedCallsOpen") or 0),
+            "callbackRequestsOpen": int(chat.get("callbackRequestsOpen") or 0),
+            "totalOpen": int(chat.get("totalOpen") or 0),
+            "items": list(chat.get("items") or [])[:6],
+        },
+        "hr": {
+            "pendingLeave": int(hr.get("pendingLeave") or 0),
+            "expiringDocuments": int(hr.get("expiringDocuments") or 0),
+            "totalOpen": int(hr.get("totalOpen") or 0),
+            "items": list(hr.get("items") or [])[:6],
+        },
+    }
+
+
 def build_copilot_context(db, company_id: str, role: str = "company-admin") -> dict[str, Any]:
     today = today_prefix()
     active_emergency = None
@@ -36,6 +80,7 @@ def build_copilot_context(db, company_id: str, role: str = "company-admin") -> d
         "activeEmergency": active_emergency,
         "identity": build_identity_hub(db, company_id),
         "commandCenter": build_command_center(db, company_id=company_id, role=role),
+        "dailyBrief": _daily_brief_for_copilot(db, company_id),
     }
 
 
@@ -62,13 +107,123 @@ def copilot_query(db, company_id: str, question: str, role: str = "company-admin
     return result
 
 
+def _brief(ctx: dict) -> dict[str, Any]:
+    return ctx.get("dailyBrief") or {}
+
+
 def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
     q = question.lower()
+    brief = _brief(ctx)
+    att = brief.get("attendance") or {}
+    sec_b = brief.get("security") or {}
+    chat = brief.get("chat") or {}
+    hr = brief.get("hr") or {}
+
     if "inside" in q or "on site" in q or "vor ort" in q or "anwesend" in q or "موقع" in q or "داخل" in q:
-        return {"answer": f"{ctx['workersOnSite']} workers currently on site.", "source": "live_access_logs"}
-    if "late" in q or "spät" in q or "verspät" in q or "متأخر" in q:
+        on_site = att.get("onSite")
+        if on_site is None:
+            on_site = ctx.get("workersOnSite", 0)
+        return {"answer": f"{on_site} workers currently on site.", "source": "live_access_logs"}
+
+    if (
+        "fehlt" in q
+        or "missing" in q
+        or "nicht eingecheckt" in q
+        or "absenz" in q
+        or ("erwart" in q and ("fehlt" in q or "check" in q))
+    ):
+        missing_n = int(att.get("missingExpected") or 0)
+        names = [
+            str(w.get("name") or w.get("workerId") or "").strip()
+            for w in (att.get("missingWorkers") or [])[:5]
+            if str(w.get("name") or w.get("workerId") or "").strip()
+        ]
+        name_bit = f" ({', '.join(names)})" if names else ""
+        return {
+            "answer": (
+                f"Erwartet heute: {int(att.get('expectedToday') or 0)}, "
+                f"fehlt / kein Check-in: {missing_n}{name_bit}. "
+                "Inbox-Filter Anwesenheit · kein Auto-Check-in."
+            ),
+            "source": "daily_brief.attendance",
+        }
+
+    if "late" in q or "spät" in q or "verspät" in q or "متأخر" in q or "außerhalb" in q or "outside" in q:
+        late_n = int(att.get("lateToday") or 0)
+        outside_n = int(att.get("outsideHoursAttemptsToday") or 0)
+        names = [
+            str(w.get("name") or w.get("workerId") or "").strip()
+            for w in (att.get("lateWorkers") or [])[:5]
+            if str(w.get("name") or w.get("workerId") or "").strip()
+        ]
+        if late_n or outside_n or names:
+            name_bit = f" Spät u. a.: {', '.join(names)}." if names else ""
+            return {
+                "answer": (
+                    f"Anwesenheit heute: {late_n} spät, {outside_n} außerhalb Firmenzeiten."
+                    f"{name_bit} Firmenzeiten flexibel — Details im Lagebild."
+                ),
+                "source": "daily_brief.attendance",
+            }
         issues = ctx.get("operationalIssues") or ctx.get("siteIntelligence", {}).get("operationalIssues", [])
-        return {"answer": issues or "No critical late-shift issues in rules.", "source": "site_intelligence"}
+        return {"answer": issues or "Keine Verspätungen / Außerhalb-Versuche in den heutigen Brief-Daten.", "source": "site_intelligence"}
+
+    if (
+        "rückruf" in q
+        or "callback" in q
+        or "verpasst" in q
+        or "missed call" in q
+        or "anruf" in q
+        or ("chat" in q and ("offen" in q or "call" in q or "anruf" in q))
+        or "voice" in q
+    ):
+        missed = int(chat.get("missedCallsOpen") or 0)
+        callbacks = int(chat.get("callbackRequestsOpen") or 0)
+        items = chat.get("items") or []
+        bits = []
+        for it in items[:4]:
+            who = str(it.get("workerName") or it.get("workerId") or "").strip()
+            kind = "Rückruf" if it.get("kind") == "callback_requested" else "Verpasst"
+            if who:
+                bits.append(f"{kind}: {who}")
+        detail = (" · " + "; ".join(bits)) if bits else ""
+        return {
+            "answer": (
+                f"Chat/Anrufe offen: {int(chat.get('totalOpen') or 0)} "
+                f"(verpasst {missed}, Rückruf {callbacks}).{detail} "
+                "Kein Auto-Dial — Inbox Chat oder /admin-v2/chat.html."
+            ),
+            "source": "daily_brief.chat",
+        }
+
+    if (
+        "urlaub" in q
+        or "leave" in q
+        or "dokument" in q
+        or "document" in q
+        or ("hr" in q and ("offen" in q or "pending" in q or "ablauf" in q or "expir" in q))
+        or "ablauf" in q
+        or "expir" in q
+    ):
+        leave_n = int(hr.get("pendingLeave") or ctx.get("pendingLeave") or 0)
+        docs_n = int(hr.get("expiringDocuments") or 0)
+        bits = []
+        for it in (hr.get("items") or [])[:4]:
+            who = str(it.get("workerName") or it.get("workerId") or "").strip()
+            if it.get("kind") == "leave":
+                bits.append(f"Urlaub: {who or '—'}")
+            else:
+                bits.append(f"Doc: {who or '—'} ({it.get('docType') or 'Dokument'} bis {it.get('expiryDate') or '—'})")
+        detail = (" · " + "; ".join(bits)) if bits else ""
+        return {
+            "answer": (
+                f"HR offen: {int(hr.get('totalOpen') or (leave_n + docs_n))} "
+                f"(Urlaub {leave_n}, Docs ablaufend {docs_n}).{detail} "
+                "Inbox Urlaub/Dokumente oder /admin-v2/docs.html."
+            ),
+            "source": "daily_brief.hr",
+        }
+
     if (
         "camera" in q
         or "kamera" in q
@@ -76,7 +231,9 @@ def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
         or "wächter" in q
         or "watch" in q
     ):
-        cam = (ctx.get("commandCenter") or {}).get("openCameraEscalations")
+        cam = sec_b.get("openCameraEscalations")
+        if cam is None:
+            cam = (ctx.get("commandCenter") or {}).get("openCameraEscalations")
         if cam is None:
             cam = (ctx.get("digitalTwinSummary") or {}).get("openCameraEscalations")
         sec = ctx.get("security") or {}
@@ -92,23 +249,38 @@ def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
     if "compliance" in q or "مخاطر" in q or "risk" in q or "security" in q or "sicherheit" in q:
         sec = ctx.get("security", {})
         n = int(sec.get("openFindings") or len(sec.get("findings") or []))
+        open_sec = int(sec_b.get("totalOpen") or 0)
         return {
-            "answer": f"{n} security findings; check open alerts.",
+            "answer": (
+                f"{n} security findings; brief open security items={open_sec}. "
+                "Check Security-Inbox / Kamera-Wächter."
+            ),
             "source": "security_engine",
         }
     if "emergency" in q or "notfall" in q or "طوارئ" in q:
-        em = ctx.get("activeEmergency")
-        if em:
-            return {"answer": em.get("summary"), "source": "emergency"}
+        em = ctx.get("activeEmergency") or ctx.get("emergency")
+        if isinstance(em, dict) and (em.get("active") or em.get("summary")):
+            return {"answer": em.get("summary") or "Active emergency.", "source": "emergency"}
+        if em and not isinstance(em, dict):
+            return {"answer": str(em), "source": "emergency"}
         return {"answer": "No active emergency.", "source": "emergency"}
-    if "lage" in q or "brief" in q or "übersicht" in q or "overview" in q:
+    if "lage" in q or "brief" in q or "übersicht" in q or "overview" in q or "zusammenfass" in q:
+        on_site = att.get("onSite")
+        if on_site is None:
+            on_site = ctx.get("workersOnSite", 0)
         sec = ctx.get("security") or {}
         n = int(sec.get("openFindings") or len(sec.get("findings") or []) or 0)
         return {
             "answer": (
-                f"Lage heute: {ctx.get('workersOnSite', 0)} vor Ort, "
-                f"{n} Security-Findings. Details: Daily Brief / Kamera-Wächter / Inbox."
+                f"Lage heute: {on_site} vor Ort · "
+                f"fehlt {int(att.get('missingExpected') or 0)} · spät {int(att.get('lateToday') or 0)} · "
+                f"Security offen {int(sec_b.get('totalOpen') or n)} · "
+                f"Chat/Anrufe {int(chat.get('totalOpen') or 0)} · "
+                f"HR {int(hr.get('totalOpen') or 0)} "
+                f"(Urlaub {int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}, "
+                f"Docs {int(hr.get('expiringDocuments') or 0)}). "
+                "Kein Auto-Dial. Details: Lagebild / Inbox."
             ),
-            "source": "ops_overview",
+            "source": "daily_brief",
         }
     return {"answer": None, "source": "needs_llm"}
