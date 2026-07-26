@@ -101,7 +101,11 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _voiceCall = VoiceCallController(repo: widget.chat.voiceCalls);
-    _voiceCall.bind(widget.session);
+    // Defer CallKit/bind so first frame (Ausweis) can paint after QR login.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _voiceCall.bind(widget.session);
+    });
     _conferenceRepo = ConferenceRepository(widget.chat.apiClient);
     _conferencePollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       unawaited(_pollConferenceInvite());
@@ -348,56 +352,66 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     }
   }
 
+  Widget _pageFor(int index) {
+    switch (index) {
+      case 1:
+        return AttendanceScreen(
+          session: widget.session,
+          auth: widget.auth,
+          attendance: widget.attendance,
+          nfc: widget.nfc,
+          location: widget.location,
+          offlineStore: widget.offlineStore,
+          offlineSync: widget.offlineSync,
+          workerCache: widget.workerCache,
+          embedded: true,
+        );
+      case 2:
+        return TasksScreen(
+          key: ValueKey('tasks-$_tasksSubTab-$_shiftsInnerTab'),
+          session: widget.session,
+          tasks: widget.tasks,
+          auth: widget.auth,
+          workerCache: widget.workerCache,
+          initialTab: _tasksSubTab,
+          shiftsInnerTab: _shiftsInnerTab,
+        );
+      case 3:
+        return ChatScreen(session: widget.session, chat: widget.chat, voiceCall: _voiceCall);
+      case 4:
+        return ProfileScreen(
+          session: widget.session,
+          auth: widget.auth,
+          workerCache: widget.workerCache,
+          push: widget.push,
+          onLogout: widget.onLogout,
+        );
+      case 0:
+      default:
+        return HomeScreen(
+          session: widget.session,
+          auth: widget.auth,
+          digitalCard: widget.digitalCard,
+          chat: widget.chat,
+          workerCache: widget.workerCache,
+          ai: widget.ai,
+          tasks: widget.tasks,
+          onOpenAttendance: () => setState(() => _index = 1),
+          onOpenTasks: () => setState(() => _index = 2),
+          onOpenDeploymentPlan: () => setState(() {
+            _index = 2;
+            _tasksSubTab = 0;
+          }),
+          onOpenChat: () => setState(() => _index = 3),
+          voiceCall: _voiceCall,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final pages = <Widget>[
-      HomeScreen(
-        session: widget.session,
-        auth: widget.auth,
-        digitalCard: widget.digitalCard,
-        chat: widget.chat,
-        workerCache: widget.workerCache,
-        ai: widget.ai,
-        tasks: widget.tasks,
-        onOpenAttendance: () => setState(() => _index = 1),
-        onOpenTasks: () => setState(() => _index = 2),
-        onOpenDeploymentPlan: () => setState(() {
-          _index = 2;
-          _tasksSubTab = 0;
-        }),
-        onOpenChat: () => setState(() => _index = 3),
-        voiceCall: _voiceCall,
-      ),
-      AttendanceScreen(
-        session: widget.session,
-        auth: widget.auth,
-        attendance: widget.attendance,
-        nfc: widget.nfc,
-        location: widget.location,
-        offlineStore: widget.offlineStore,
-        offlineSync: widget.offlineSync,
-        workerCache: widget.workerCache,
-        embedded: true,
-      ),
-      TasksScreen(
-        key: ValueKey('tasks-$_tasksSubTab-$_shiftsInnerTab'),
-        session: widget.session,
-        tasks: widget.tasks,
-        auth: widget.auth,
-        workerCache: widget.workerCache,
-        initialTab: _tasksSubTab,
-        shiftsInnerTab: _shiftsInnerTab,
-      ),
-      ChatScreen(session: widget.session, chat: widget.chat, voiceCall: _voiceCall),
-      ProfileScreen(
-        session: widget.session,
-        auth: widget.auth,
-        workerCache: widget.workerCache,
-        push: widget.push,
-        onLogout: widget.onLogout,
-      ),
-    ];
-
+    // Build only the active tab. IndexedStack mounted Chat/Tasks/etc. at login
+    // and a crash in any of them blanked the whole shell after QR join.
     return TenantBrandingScope(
       branding: _branding,
       child: Theme(
@@ -406,94 +420,97 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           builder: (context) {
             final scheme = Theme.of(context).colorScheme;
             return Scaffold(
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              IndexedStack(index: _index, children: pages),
-              ListenableBuilder(
-                listenable: _voiceCall,
-                builder: (context, _) {
-                  if (_voiceCall.phase == VoiceCallUiPhase.idle) {
-                    return const SizedBox.shrink();
-                  }
-                  return Positioned.fill(
-                    child: Material(
-                      type: MaterialType.transparency,
-                      child: VoiceCallOverlay(
-                        controller: _voiceCall,
-                        branding: _branding,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-          bottomNavigationBar: Material(
-            elevation: 14,
-            color: scheme.surface,
-            child: SafeArea(
-              top: false,
-              child: BottomNavigationBar(
-                type: BottomNavigationBarType.fixed,
-                currentIndex: _index,
-                backgroundColor: scheme.surface,
-                selectedItemColor: scheme.primary,
-                unselectedItemColor: scheme.onSurface.withValues(alpha: 0.72),
-                selectedFontSize: 12,
-                unselectedFontSize: 11,
-                selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
-                showUnselectedLabels: true,
-                showSelectedLabels: true,
-                elevation: 0,
-                onTap: (i) {
-                  setState(() => _index = i);
-                  if (i == 1) _refreshBadges();
-                  widget.usage.trackTab(
-                    tabIndex: i,
-                    bearerToken: widget.session.bearer,
-                    deviceId: widget.session.deviceId,
-                  );
-                },
-                items: [
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.badge_outlined),
-                    activeIcon: const Icon(Icons.badge),
-                    label: t('navPass', 'Ausweis'),
+              body: Stack(
+                fit: StackFit.expand,
+                children: [
+                  KeyedSubtree(
+                    key: ValueKey('shell-page-$_index'),
+                    child: _pageFor(_index),
                   ),
-                  BottomNavigationBarItem(
-                    icon: Badge(
-                      isLabelVisible: _offlinePending > 0,
-                      label: Text('$_offlinePending'),
-                      child: const Icon(Icons.nfc_outlined),
-                    ),
-                    activeIcon: Badge(
-                      isLabelVisible: _offlinePending > 0,
-                      label: Text('$_offlinePending'),
-                      child: const Icon(Icons.nfc),
-                    ),
-                    label: t('navCheckin', 'Check-in'),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.task_alt_outlined),
-                    activeIcon: const Icon(Icons.task_alt),
-                    label: t('navTasks', 'Aufgaben'),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.chat_bubble_outline),
-                    activeIcon: const Icon(Icons.chat_bubble),
-                    label: t('navChat', 'Chat'),
-                  ),
-                  BottomNavigationBarItem(
-                    icon: const Icon(Icons.person_outline),
-                    activeIcon: const Icon(Icons.person),
-                    label: t('navProfile', 'Profil'),
+                  ListenableBuilder(
+                    listenable: _voiceCall,
+                    builder: (context, _) {
+                      if (_voiceCall.phase == VoiceCallUiPhase.idle) {
+                        return const SizedBox.shrink();
+                      }
+                      return Positioned.fill(
+                        child: Material(
+                          type: MaterialType.transparency,
+                          child: VoiceCallOverlay(
+                            controller: _voiceCall,
+                            branding: _branding,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),
-            ),
-          ),
+              bottomNavigationBar: Material(
+                elevation: 14,
+                color: scheme.surface,
+                child: SafeArea(
+                  top: false,
+                  child: BottomNavigationBar(
+                    type: BottomNavigationBarType.fixed,
+                    currentIndex: _index,
+                    backgroundColor: scheme.surface,
+                    selectedItemColor: scheme.primary,
+                    unselectedItemColor: scheme.onSurface.withValues(alpha: 0.72),
+                    selectedFontSize: 12,
+                    unselectedFontSize: 11,
+                    selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+                    unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+                    showUnselectedLabels: true,
+                    showSelectedLabels: true,
+                    elevation: 0,
+                    onTap: (i) {
+                      setState(() => _index = i);
+                      if (i == 1) _refreshBadges();
+                      widget.usage.trackTab(
+                        tabIndex: i,
+                        bearerToken: widget.session.bearer,
+                        deviceId: widget.session.deviceId,
+                      );
+                    },
+                    items: [
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.badge_outlined),
+                        activeIcon: const Icon(Icons.badge),
+                        label: t('navPass', 'Ausweis'),
+                      ),
+                      BottomNavigationBarItem(
+                        icon: Badge(
+                          isLabelVisible: _offlinePending > 0,
+                          label: Text('$_offlinePending'),
+                          child: const Icon(Icons.nfc_outlined),
+                        ),
+                        activeIcon: Badge(
+                          isLabelVisible: _offlinePending > 0,
+                          label: Text('$_offlinePending'),
+                          child: const Icon(Icons.nfc),
+                        ),
+                        label: t('navCheckin', 'Check-in'),
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.task_alt_outlined),
+                        activeIcon: const Icon(Icons.task_alt),
+                        label: t('navTasks', 'Aufgaben'),
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.chat_bubble_outline),
+                        activeIcon: const Icon(Icons.chat_bubble),
+                        label: t('navChat', 'Chat'),
+                      ),
+                      BottomNavigationBarItem(
+                        icon: const Icon(Icons.person_outline),
+                        activeIcon: const Icon(Icons.person),
+                        label: t('navProfile', 'Profil'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             );
           },
         ),

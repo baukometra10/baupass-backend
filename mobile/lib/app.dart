@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/api_client.dart';
+import 'core/app_error_recovery.dart';
 import 'core/auth_repository.dart';
 import 'core/branding_store.dart';
 import 'core/locale_controller.dart';
@@ -56,7 +57,7 @@ class _WorkerAppState extends State<WorkerApp> {
   WorkerSession? _session;
   bool _bootstrapping = true;
   String? _joinError;
-  final _shellKey = GlobalKey<WorkerShellState>();
+  GlobalKey<WorkerShellState> _shellKey = GlobalKey<WorkerShellState>();
   final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   final _brandingApplier = BrandingApplier();
   TenantBranding _appBranding = TenantBranding.fallback;
@@ -67,6 +68,7 @@ class _WorkerAppState extends State<WorkerApp> {
   @override
   void initState() {
     super.initState();
+    AppErrorRecovery.onReset = _recoverFromWidgetError;
     LocaleController.instance.addListener(_onLocaleChanged);
     BrandingStore.instance.addListener(_onBrandingChanged);
     _api = ApiClient(onSessionExpired: _onSessionExpired);
@@ -177,6 +179,16 @@ class _WorkerAppState extends State<WorkerApp> {
   void _onLocaleChanged() {
     if (!mounted) return;
     setState(() {});
+  }
+
+  void _recoverFromWidgetError() {
+    if (!mounted) return;
+    // Remount the post-login shell so a stuck ErrorWidget does not persist.
+    _shellKey = GlobalKey<WorkerShellState>();
+    setState(() {
+      _bootstrapping = false;
+      _joinError = null;
+    });
   }
 
   Future<void> _boot() async {
@@ -305,6 +317,9 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   void dispose() {
+    if (identical(AppErrorRecovery.onReset, _recoverFromWidgetError)) {
+      AppErrorRecovery.onReset = null;
+    }
     LocaleController.instance.removeListener(_onLocaleChanged);
     BrandingStore.instance.removeListener(_onBrandingChanged);
     _geofence.stop();

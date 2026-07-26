@@ -331,18 +331,31 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             if (worker != null) ...[
-              DigitalPassCard(
-                firstName: worker['firstName'] as String? ?? '',
-                lastName: worker['lastName'] as String? ?? '',
-                role: worker['role'] as String? ?? '',
-                badgeId: worker['badgeId'] as String? ?? '-',
-                companyName: brandLabel,
-                subcompany: subcompany?['name'] as String?,
-                validUntil: worker['validUntil'] as String? ?? '-',
-                status: status,
-                photoData: (worker['photoData'] ?? worker['photo_data'] ?? worker['photo'])?.toString(),
-                dynamicQr: _dynamicQr,
-                branding: branding,
+              Builder(
+                builder: (context) {
+                  try {
+                    return DigitalPassCard(
+                      firstName: worker['firstName'] as String? ?? '',
+                      lastName: worker['lastName'] as String? ?? '',
+                      role: worker['role'] as String? ?? '',
+                      badgeId: worker['badgeId'] as String? ?? '-',
+                      companyName: brandLabel,
+                      subcompany: subcompany?['name'] as String?,
+                      validUntil: worker['validUntil'] as String? ?? '-',
+                      status: status,
+                      photoData: (worker['photoData'] ?? worker['photo_data'] ?? worker['photo'])?.toString(),
+                      dynamicQr: _dynamicQr,
+                      branding: branding,
+                    );
+                  } catch (e) {
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text('Ausweis-Fehler: $e'),
+                      ),
+                    );
+                  }
+                },
               ),
               const SizedBox(height: 10),
               Text(

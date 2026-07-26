@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/tenant_branding.dart';
 import '../services/digital_card_repository.dart';
+import 'safe_qr_code.dart';
 import 'tenant_brand_mark.dart';
 
 /// Wallet pass card — mirrors PWA `.wallet-card` layout (emp-app / worker.css).
@@ -45,6 +44,19 @@ class DigitalPassCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    try {
+      return _buildCard(context);
+    } catch (e) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text('Ausweis konnte nicht angezeigt werden.\n$e'),
+        ),
+      );
+    }
+  }
+
+  Widget _buildCard(BuildContext context) {
     final tenant = branding ?? TenantBrandingScope.of(context);
     final brandLabel = tenant.displayName.isNotEmpty ? tenant.displayName : companyName;
     final name = '$firstName $lastName'.trim();
@@ -56,8 +68,11 @@ class DigitalPassCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 430.0;
+        if (maxW < 48) {
+          return const SizedBox(height: 48, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
         // ID-1 proportions, displayed larger on phone (use nearly full width).
-        final cardW = math.min(maxW, 480.0);
+        final cardW = math.min(maxW, 480.0).clamp(200.0, 480.0);
         final cardH = cardW / _cardAspect;
 
         return Center(
@@ -139,19 +154,10 @@ class DigitalPassCard extends StatelessWidget {
                 SizedBox(
                   width: side,
                   height: side,
-                  child: qrValue.trim().isEmpty
-                      ? const ColoredBox(
-                          color: Colors.white,
-                          child: Center(child: Icon(Icons.qr_code_2, size: 64)),
-                        )
-                      : QrImageView(
-                          data: qrValue,
-                          backgroundColor: Colors.white,
-                          padding: const EdgeInsets.all(8),
-                          errorStateBuilder: (_, __) => const Center(
-                            child: Icon(Icons.qr_code_2, size: 64),
-                          ),
-                        ),
+                  child: SafeQrCode(
+                    data: qrValue,
+                    padding: const EdgeInsets.all(8),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
@@ -468,21 +474,7 @@ class _MiddleRow extends StatelessWidget {
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(3),
-                                child: qrValue.trim().isEmpty
-                                    ? const ColoredBox(
-                                        color: Colors.white,
-                                        child: Center(
-                                          child: Icon(Icons.qr_code_2, color: Colors.black54),
-                                        ),
-                                      )
-                                    : QrImageView(
-                                        data: qrValue,
-                                        backgroundColor: Colors.white,
-                                        padding: EdgeInsets.zero,
-                                        errorStateBuilder: (_, __) => const Center(
-                                          child: Icon(Icons.qr_code_2, color: Colors.black54),
-                                        ),
-                                      ),
+                                child: SafeQrCode(data: qrValue),
                               ),
                             ),
                           ),
@@ -727,7 +719,6 @@ class _BottomSection extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         fontSize: labelSize,
                         letterSpacing: 1.0,
-                        fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
                   ],
