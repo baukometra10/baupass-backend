@@ -37,9 +37,11 @@ class TenantBranding {
   String get aiAssistantTitle => '$displayName Assistent';
 
   static int argb32(Color color) {
-    // Compatible across Flutter stable versions (value deprecated in 3.27+, toARGB32 not on older SDKs).
-    // ignore: deprecated_member_use
-    return color.value;
+    final a = (color.a * 255.0).round().clamp(0, 255);
+    final r = (color.r * 255.0).round().clamp(0, 255);
+    final g = (color.g * 255.0).round().clamp(0, 255);
+    final b = (color.b * 255.0).round().clamp(0, 255);
+    return (a << 24) | (r << 16) | (g << 8) | b;
   }
 
   Map<String, dynamic> toCacheJson() => {
@@ -160,12 +162,29 @@ class TenantBranding {
     final cleaned = name.trim().replaceAll(RegExp(r'\s+'), ' ');
     if (cleaned.isEmpty) return 'MI';
     final parts = cleaned.split(RegExp(r'[\s\-–—]+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return 'MI';
+    String initial(String part) {
+      final runes = part.runes;
+      if (runes.isEmpty) return '';
+      return String.fromCharCode(runes.first).toUpperCase();
+    }
+
     if (parts.length >= 2) {
-      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+      final a = initial(parts[0]);
+      final b = initial(parts[1]);
+      final joined = '$a$b';
+      return joined.isEmpty ? 'MI' : joined;
     }
     final word = parts.first;
-    if (word.length >= 2) return word.substring(0, 2).toUpperCase();
-    return word[0].toUpperCase();
+    if (word.runes.length >= 2) {
+      final it = word.runes.iterator;
+      it.moveNext();
+      final c1 = it.current;
+      it.moveNext();
+      return String.fromCharCodes([c1, it.current]).toUpperCase();
+    }
+    final one = initial(word);
+    return one.isEmpty ? 'MI' : one;
   }
 
   static String _firstNonEmpty(List<dynamic> values) {

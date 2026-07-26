@@ -182,12 +182,22 @@ class _WorkerAppState extends State<WorkerApp> {
   }
 
   void _recoverFromWidgetError() {
-    if (!mounted) return;
-    // Remount the post-login shell so a stuck ErrorWidget does not persist.
-    _shellKey = GlobalKey<WorkerShellState>();
-    setState(() {
-      _bootstrapping = false;
-      _joinError = null;
+    // Must leave the crashed tree — remounting the same shell just crashes again.
+    final detail = (AppErrorRecovery.lastError ?? '').trim();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        await _auth.clearToken();
+      } catch (_) {}
+      if (!mounted) return;
+      _shellKey = GlobalKey<WorkerShellState>();
+      _offlineSync.bindSession(null);
+      setState(() {
+        _session = null;
+        _bootstrapping = false;
+        _joinError = detail.isEmpty
+            ? 'Anzeige-Fehler — bitte QR erneut scannen.'
+            : 'Anzeige-Fehler: $detail\nBitte QR erneut scannen.';
+      });
     });
   }
 

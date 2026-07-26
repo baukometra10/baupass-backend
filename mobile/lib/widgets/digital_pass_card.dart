@@ -231,29 +231,29 @@ class _WalletPalette {
       );
     }
     final primary = accent;
-    final primaryDark = _shade(primary, -35);
-    final primaryLight = _shade(primary, 40);
+    final primaryDark = _shade(primary, -0.35);
+    final primaryLight = _shade(primary, 0.40);
     return _WalletPalette(
-      backgroundStart: Color.lerp(primaryDark, Colors.black, 0.55)!,
-      backgroundMid: Color.lerp(primary, Colors.black, 0.35)!,
-      backgroundEnd: Color.lerp(primaryDark, Colors.black, 0.6)!,
+      backgroundStart: Color.lerp(primaryDark, Colors.black, 0.55) ?? primaryDark,
+      backgroundMid: Color.lerp(primary, Colors.black, 0.35) ?? primary,
+      backgroundEnd: Color.lerp(primaryDark, Colors.black, 0.6) ?? primaryDark,
       stripeStart: primary,
       stripeMid: primaryLight,
       stripeEnd: primary,
       markStart: primaryDark,
       markEnd: primary,
       qrFrameColors: [primaryDark, primary, primaryLight, primary, primaryDark],
-      badgeGold: Color.lerp(primaryLight, const Color(0xFFFFE9A6), 0.55)!,
-      borderGlow: Color.lerp(primary, Colors.white, 0.25)!,
+      badgeGold: Color.lerp(primaryLight, const Color(0xFFFFE9A6), 0.55) ?? primaryLight,
+      borderGlow: Color.lerp(primary, Colors.white, 0.25) ?? primary,
     );
   }
 
-  static Color _shade(Color color, int amount) {
-    return Color.fromARGB(
-      color.alpha,
-      (color.red + amount).clamp(0, 255),
-      (color.green + amount).clamp(0, 255),
-      (color.blue + amount).clamp(0, 255),
+  static Color _shade(Color color, double amount) {
+    // Prefer withValues / .r.g.b — avoid deprecated .red/.green/.blue bangs.
+    return color.withValues(
+      red: (color.r + amount).clamp(0.0, 1.0),
+      green: (color.g + amount).clamp(0.0, 1.0),
+      blue: (color.b + amount).clamp(0.0, 1.0),
     );
   }
 }

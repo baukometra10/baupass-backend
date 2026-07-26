@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr/qr.dart';
 
-/// QR that never throws into ErrorWidget (empty / invalid / zero-size safe).
+/// Minimal QR painter — no qr_flutter QrImageView/QrPainter (those null-crashed in release).
 class SafeQrCode extends StatelessWidget {
   const SafeQrCode({
     super.key,
@@ -32,36 +32,18 @@ class SafeQrCode extends StatelessWidget {
               constraints.maxHeight.isFinite ? constraints.maxHeight : 0.0,
             );
             if (raw.isEmpty || side < 16) {
-              return Center(
-                child: Icon(
-                  Icons.qr_code_2,
-                  color: foregroundColor.withValues(alpha: 0.45),
-                  size: side > 0 ? side * 0.45 : 28,
-                ),
-              );
+              return _fallback(side);
             }
-
             try {
-              final validation = QrValidator.validate(
+              final qrCode = QrCode.fromData(
                 data: raw,
-                version: QrVersions.auto,
-                errorCorrectionLevel: QrErrorCorrectLevel.M,
+                errorCorrectLevel: QrErrorCorrectLevel.M,
               );
-              final code = validation.qrCode;
-              if (validation.status != QrValidationStatus.valid || code == null) {
-                return _fallback(side);
-              }
+              final qrImage = QrImage(qrCode);
+              if (qrImage.moduleCount <= 0) return _fallback(side);
               return CustomPaint(
                 size: Size.square(side),
-                painter: QrPainter.withQr(
-                  qr: code,
-                  gapless: true,
-                  eyeStyle: QrEyeStyle(eyeShape: QrEyeShape.square, color: foregroundColor),
-                  dataModuleStyle: QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.square,
-                    color: foregroundColor,
-                  ),
-                ),
+                painter: _QrModulePainter(qrImage, foregroundColor),
               );
             } catch (_) {
               return _fallback(side);
@@ -77,8 +59,35 @@ class SafeQrCode extends StatelessWidget {
       child: Icon(
         Icons.qr_code_2,
         color: foregroundColor.withValues(alpha: 0.45),
-        size: side * 0.45,
+        size: side > 0 ? side * 0.45 : 28,
       ),
     );
+  }
+}
+
+class _QrModulePainter extends CustomPainter {
+  _QrModulePainter(this.image, this.color);
+
+  final QrImage image;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final count = image.moduleCount;
+    if (count <= 0 || size.shortestSide <= 0) return;
+    final cell = size.shortestSide / count;
+    final paint = Paint()..color = color..style = PaintingStyle.fill;
+    for (var x = 0; x < count; x++) {
+      for (var y = 0; y < count; y++) {
+        if (image.isDark(y, x)) {
+          canvas.drawRect(Rect.fromLTWH(x * cell, y * cell, cell + 0.5, cell + 0.5), paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _QrModulePainter oldDelegate) {
+    return oldDelegate.image != image || oldDelegate.color != color;
   }
 }

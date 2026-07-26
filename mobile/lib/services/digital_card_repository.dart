@@ -14,11 +14,17 @@ class DynamicQrPayload {
   final String badgeId;
 
   factory DynamicQrPayload.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic v, int fallback) {
+      if (v is int) return v;
+      if (v is num) return v.toInt();
+      return int.tryParse('$v') ?? fallback;
+    }
+
     return DynamicQrPayload(
-      qrToken: json['qrToken'] as String? ?? '',
-      remainingSec: json['remainingSec'] as int? ?? 60,
-      windowSec: json['windowSec'] as int? ?? 60,
-      badgeId: json['badgeId'] as String? ?? '',
+      qrToken: (json['qrToken'] ?? json['qr_token'] ?? '').toString(),
+      remainingSec: asInt(json['remainingSec'] ?? json['remaining_sec'], 60),
+      windowSec: asInt(json['windowSec'] ?? json['window_sec'], 60),
+      badgeId: (json['badgeId'] ?? json['badge_id'] ?? '').toString(),
     );
   }
 }

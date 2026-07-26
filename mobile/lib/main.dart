@@ -11,7 +11,6 @@ import 'services/push_background_handler.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Release builds otherwise show a blank white screen on widget errors.
   ErrorWidget.builder = (FlutterErrorDetails details) {
     final msg = details.exceptionAsString();
     AppErrorRecovery.lastError = msg;
@@ -43,8 +42,13 @@ Future<void> main() async {
                 ),
                 const SizedBox(height: 20),
                 FilledButton(
-                  onPressed: AppErrorRecovery.reset,
-                  child: const Text('App neu laden'),
+                  onPressed: () {
+                    // Schedule after the tap frame so the crushed tree can be replaced.
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      AppErrorRecovery.reset();
+                    });
+                  },
+                  child: const Text('Zum Login zurück'),
                 ),
               ],
             ),

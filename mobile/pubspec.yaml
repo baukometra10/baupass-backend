@@ -15,6 +15,7 @@ dependencies:
   geolocator: ^13.0.2
   http: ^1.2.2
   http_parser: ^4.0.2
+  qr: 3.0.2
   qr_flutter: ^4.1.0
   mobile_scanner: ^6.0.2
   path_provider: ^2.1.4

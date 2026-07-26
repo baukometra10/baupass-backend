@@ -91,56 +91,69 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   }
 
   Future<void> _syncRenderers() async {
-    final remote = widget.controller.rtcSession?.remoteStream;
-    final previewing = widget.controller.cameraPreviewing;
-    final local = previewing
-        ? widget.controller.rtcSession?.previewStream
-        : widget.controller.rtcSession?.localStream;
-    final localLive = widget.controller.cameraOn || previewing;
-    final remoteVideoCount = remote?.getVideoTracks().length ?? 0;
-    final remoteHasVideo = remoteVideoCount > 0 || widget.controller.remoteHasVideo;
+    try {
+      final remote = widget.controller.rtcSession?.remoteStream;
+      final previewing = widget.controller.cameraPreviewing;
+      final local = previewing
+          ? widget.controller.rtcSession?.previewStream
+          : widget.controller.rtcSession?.localStream;
+      final localLive = widget.controller.cameraOn || previewing;
+      final remoteVideoCount = remote?.getVideoTracks().length ?? 0;
+      final remoteHasVideo = remoteVideoCount > 0 || widget.controller.remoteHasVideo;
 
-    _remoteRenderer ??= RTCVideoRenderer();
-    if (!_remoteRendererReady) {
-      await _remoteRenderer!.initialize();
-      _remoteRendererReady = true;
-    }
-    if (remote != null && remoteHasVideo && !previewing) {
-      final changed = !identical(_boundRemoteStream, remote) || _boundRemoteVideoCount != remoteVideoCount;
-      if (changed) {
-        await _bindRenderer(_remoteRenderer!, remote);
-        _boundRemoteStream = remote;
-        _boundRemoteVideoCount = remoteVideoCount;
+      _remoteRenderer ??= RTCVideoRenderer();
+      final remoteRenderer = _remoteRenderer;
+      if (remoteRenderer == null) return;
+      if (!_remoteRendererReady) {
+        await remoteRenderer.initialize();
+        if (!mounted || !identical(_remoteRenderer, remoteRenderer)) return;
+        _remoteRendererReady = true;
       }
-    } else if (local != null && localLive) {
-      // Self-preview full-bleed until peer video arrives / during cam preview
-      if (!identical(_boundRemoteStream, local) || _boundRemoteVideoCount != -2) {
-        await _bindRenderer(_remoteRenderer!, local);
-        _boundRemoteStream = local;
-        _boundRemoteVideoCount = -2;
+      if (remote != null && remoteHasVideo && !previewing) {
+        final changed = !identical(_boundRemoteStream, remote) || _boundRemoteVideoCount != remoteVideoCount;
+        if (changed) {
+          await _bindRenderer(remoteRenderer, remote);
+          _boundRemoteStream = remote;
+          _boundRemoteVideoCount = remoteVideoCount;
+        }
+      } else if (local != null && localLive) {
+        // Self-preview full-bleed until peer video arrives / during cam preview
+        if (!identical(_boundRemoteStream, local) || _boundRemoteVideoCount != -2) {
+          await _bindRenderer(remoteRenderer, local);
+          _boundRemoteStream = local;
+          _boundRemoteVideoCount = -2;
+        }
+      } else if (remoteRenderer.srcObject != null) {
+        remoteRenderer.srcObject = null;
+        _boundRemoteStream = null;
+        _boundRemoteVideoCount = -1;
       }
-    } else if (_remoteRenderer!.srcObject != null) {
-      _remoteRenderer!.srcObject = null;
-      _boundRemoteStream = null;
-      _boundRemoteVideoCount = -1;
-    }
 
-    if (local != null && localLive && remoteHasVideo && !previewing) {
-      _localRenderer ??= RTCVideoRenderer();
-      if (!_localRendererReady) {
-        await _localRenderer!.initialize();
-        _localRendererReady = true;
+      if (local != null && localLive && remoteHasVideo && !previewing) {
+        _localRenderer ??= RTCVideoRenderer();
+        final localRenderer = _localRenderer;
+        if (localRenderer == null) return;
+        if (!_localRendererReady) {
+          await localRenderer.initialize();
+          if (!mounted || !identical(_localRenderer, localRenderer)) return;
+          _localRendererReady = true;
+        }
+        if (!identical(_boundLocalStream, local)) {
+          await _bindRenderer(localRenderer, local);
+          _boundLocalStream = local;
+        }
+      } else {
+        final localRenderer = _localRenderer;
+        if (localRenderer != null) {
+          localRenderer.srcObject = null;
+          _boundLocalStream = null;
+        }
       }
-      if (!identical(_boundLocalStream, local)) {
-        await _bindRenderer(_localRenderer!, local);
-        _boundLocalStream = local;
-      }
-    } else if (_localRenderer != null) {
-      _localRenderer!.srcObject = null;
-      _boundLocalStream = null;
-    }
 
-    if (mounted) setState(() {});
+      if (mounted) setState(() {});
+    } catch (_) {
+      /* keep overlay alive without video */
+    }
   }
 
   Future<void> _disposeRenderers() async {
