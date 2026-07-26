@@ -365,6 +365,9 @@
     showFooter: true,
     lineSpacing: 1.15,
     watermark: "",
+    packId: "",
+    locale: "de",
+    required_placeholders: [],
   };
 
   const PAPER_SIZES = {
@@ -874,6 +877,26 @@
     }
   }
 
+  async function applyPolicyPack() {
+    if (!activeCompanyId() || !hasCap("canPublishTeamTemplate")) {
+      setStatus($("saveStatus"), dt("permDenied"), "err");
+      return;
+    }
+    if (!confirm(dt("policyPackConfirm"))) return;
+    try {
+      const data = await api(`/api/v2/docs/templates/policy-pack${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({ company_id: activeCompanyId() }),
+      });
+      activeTopicFilter = "team";
+      setSideTab("templates");
+      await renderTemplateGallery();
+      setStatus($("saveStatus"), dt("policyPackDone", { n: data.created || 0 }), "ok");
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
+  }
+
   function saveCurrentAsTemplate() {
     const title = window.prompt(dt("templateNamePrompt"), ($("docTitle")?.value || "").trim() || dt("tplBlank"));
     if (title === null) return;
@@ -1040,6 +1063,28 @@
         label: dt("preflightMergeOk"),
         fail: dt("preflightMergeFail", { n: placeholders.length }),
       });
+      const required = Array.isArray(layout.required_placeholders) ? layout.required_placeholders : [];
+      const html = `${getHtml()}${$("docHeader")?.innerHTML || ""}${$("docFooter")?.innerHTML || ""}`;
+      const missingRequired = required.filter((key) => {
+        const token = `{{${key}}}`;
+        return !html.includes(token) && !html.includes(`{{ ${key} }}`);
+      });
+      if (required.length) {
+        items.push({
+          id: "requiredPlaceholders",
+          ok: missingRequired.length === 0,
+          label: dt("preflightRequiredOk", { n: required.length }),
+          fail: dt("preflightRequiredFail", { list: missingRequired.slice(0, 4).join(", ") }),
+        });
+      }
+      if (layout.packId) {
+        items.push({
+          id: "pack",
+          ok: true,
+          label: dt("preflightPackOk", { pack: layout.packId, lang: layout.locale || "de" }),
+          fail: "",
+        });
+      }
     }
     return { items, allOk: items.every((i) => i.ok) };
   }
@@ -2097,11 +2142,20 @@
     { token: "{{company.address}}", labelKey: "chipAddress" },
     { token: "{{company.email}}", labelKey: "chipEmail" },
     { token: "{{company.contact}}", labelKey: "chipContact" },
+    { token: "{{company.sector}}", labelKey: "chipSector" },
     { token: "{{worker.name}}", labelKey: "chipName" },
     { token: "{{worker.badge}}", labelKey: "chipBadge" },
+    { token: "{{worker.role}}", labelKey: "chipWorkerRole" },
+    { token: "{{worker.site}}", labelKey: "chipWorkerSite" },
+    { token: "{{worker.email}}", labelKey: "chipWorkerEmail" },
+    { token: "{{worker.phone}}", labelKey: "chipWorkerPhone" },
     { token: "{{site.name}}", labelKey: "chipSite" },
+    { token: "{{site.address}}", labelKey: "chipSiteAddress" },
+    { token: "{{shift.slot}}", labelKey: "chipShiftSlot" },
+    { token: "{{shift.site}}", labelKey: "chipShiftSite" },
     { token: "{{manager.name}}", labelKey: "chipManager" },
     { token: "{{date.today}}", labelKey: "chipDate" },
+    { token: "{{date.iso}}", labelKey: "chipDateIso" },
   ];
 
   let mergeItems = [];
@@ -4203,6 +4257,7 @@
 
   let companyBranding = null;
   let companyLetterhead = null;
+  let mergeContextCache = null;
 
   async function loadMergeContext() {
     const cid = activeCompanyId();
@@ -4211,6 +4266,7 @@
       const data = await api(
         `/api/v2/docs/merge-context${companyQuery({ worker_id: selectedWorkerId || undefined })}`,
       );
+      mergeContextCache = data || null;
       companyBranding = data.branding || null;
       companyLetterhead = data.letterhead || null;
       renderBrandPreview();
@@ -4660,7 +4716,8 @@
       <button type="button" class="cmd quiet block" id="saveAsTemplateSideBtn" data-di18n="saveAsTemplate">${escapeHtml(dt("saveAsTemplate"))}</button>
       ${
         activeCompanyId() && hasCap("canPublishTeamTemplate")
-          ? `<button type="button" class="cmd quiet block" id="starterKitBtn">${escapeHtml(dt("starterKitBtn"))}</button>`
+          ? `<button type="button" class="cmd quiet block" id="starterKitBtn">${escapeHtml(dt("starterKitBtn"))}</button>
+             <button type="button" class="cmd quiet block" id="policyPackBtn">${escapeHtml(dt("policyPackBtn"))}</button>`
           : ""
       }
       ${
@@ -4744,6 +4801,7 @@
     $("saveAsTemplateSideBtn")?.addEventListener("click", () => saveCurrentAsTemplate());
     $("migrateTeamTplBtn")?.addEventListener("click", () => migrateLocalTemplatesToTeam().catch(() => {}));
     $("starterKitBtn")?.addEventListener("click", () => applyStarterKit().catch(() => {}));
+    $("policyPackBtn")?.addEventListener("click", () => applyPolicyPack().catch(() => {}));
   }
 
   async function refreshExpiringDocs() {
@@ -6201,6 +6259,7 @@
           docType,
           expiryDate: expiryDate || undefined,
           complianceRequired,
+          locale: String(layout.locale || mergeContextCache?.workerLang || "de").slice(0, 2),
         }),
       });
       currentDoc = data.document;

@@ -249,10 +249,12 @@ class EditorDocsService:
         accent = str(brand.get("accent") or "#0ea5e9").strip()
 
         site_name = ""
+        site_address = ""
         try:
             site = db.execute(
                 """
-                SELECT name FROM geofences
+                SELECT name, address, street, city
+                FROM geofences
                 WHERE company_id = ? AND COALESCE(active, 1) = 1
                 ORDER BY name COLLATE NOCASE
                 LIMIT 1
@@ -261,8 +263,33 @@ class EditorDocsService:
             ).fetchone()
             if site:
                 site_name = str(site["name"] or "")
+                site_address = str(
+                    (site["address"] if "address" in site.keys() else "")
+                    or " ".join(
+                        p
+                        for p in (
+                            (site["street"] if "street" in site.keys() else "") or "",
+                            (site["city"] if "city" in site.keys() else "") or "",
+                        )
+                        if p
+                    )
+                    or ""
+                ).strip()
         except Exception:
-            site_name = ""
+            try:
+                site = db.execute(
+                    """
+                    SELECT name FROM geofences
+                    WHERE company_id = ? AND COALESCE(active, 1) = 1
+                    ORDER BY name COLLATE NOCASE
+                    LIMIT 1
+                    """,
+                    (company_id,),
+                ).fetchone()
+                if site:
+                    site_name = str(site["name"] or "")
+            except Exception:
+                site_name = ""
 
         worker_name = ""
         worker_badge = ""
@@ -270,12 +297,18 @@ class EditorDocsService:
         worker_last = ""
         worker_email = ""
         worker_phone = ""
+        worker_role = ""
+        worker_site = ""
+        worker_lang = "de"
+        shift_site = ""
+        shift_start = ""
+        shift_end = ""
         if worker_id:
             worker = None
             try:
                 worker = db.execute(
                     """
-                    SELECT id, first_name, last_name, badge_id, email, phone
+                    SELECT id, first_name, last_name, badge_id, email, phone, role, site
                     FROM workers
                     WHERE id = ? AND company_id = ? AND deleted_at IS NULL
                     """,
@@ -303,12 +336,55 @@ class EditorDocsService:
                     worker_phone = str(worker["phone"] or "").strip()
                 except Exception:
                     worker_phone = ""
+                try:
+                    worker_role = str(worker["role"] or "").strip()
+                except Exception:
+                    worker_role = ""
+                try:
+                    worker_site = str(worker["site"] or "").strip()
+                except Exception:
+                    worker_site = ""
+                if worker_site and not site_name:
+                    site_name = worker_site
+                for lang_key in ("preferred_lang", "app_lang", "locale", "lang"):
+                    try:
+                        if lang_key in worker.keys() and worker[lang_key]:
+                            worker_lang = str(worker[lang_key] or "de").strip().lower()[:2] or "de"
+                            break
+                    except Exception:
+                        continue
+            # Next/current shift slot (no salary fields).
+            try:
+                from datetime import timezone as _tz
+
+                now_iso = datetime.now(_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                shift = db.execute(
+                    """
+                    SELECT site, start_time, end_time
+                    FROM shift_assignments
+                    WHERE company_id = ? AND worker_id = ?
+                      AND status IN ('assigned', 'active', 'confirmed', 'open', '')
+                      AND (end_time IS NULL OR end_time = '' OR end_time >= ?)
+                    ORDER BY start_time ASC
+                    LIMIT 1
+                    """,
+                    (company_id, worker_id, now_iso),
+                ).fetchone()
+                if shift:
+                    shift_site = str(shift["site"] or "").strip()
+                    shift_start = str(shift["start_time"] or "")[:16].replace("T", " ")
+                    shift_end = str(shift["end_time"] or "")[:16].replace("T", " ")
+                    if shift_site and not site_name:
+                        site_name = shift_site
+            except Exception:
+                pass
 
         try:
             date_iso = datetime.now(ZoneInfo("Europe/Berlin")).strftime("%Y-%m-%d")
         except Exception:
             date_iso = datetime.now().strftime("%Y-%m-%d")
 
+        sector = str(brand.get("sectorLabel") or "").strip()
         fields = {
             "company.name": company_name or "—",
             "company.contact": contact or "—",
@@ -317,13 +393,26 @@ class EditorDocsService:
             "company.street": street or "—",
             "company.zipCity": zip_city or "—",
             "company.phone": contact or "—",
+            "company.sector": sector or "—",
             "worker.name": worker_name or "—",
             "worker.firstName": worker_first or "—",
             "worker.lastName": worker_last or "—",
             "worker.badge": worker_badge or "—",
             "worker.email": worker_email or "—",
             "worker.phone": worker_phone or "—",
+            "worker.role": worker_role or "—",
+            "worker.site": worker_site or site_name or "—",
+            "worker.lang": worker_lang or "de",
             "site.name": site_name or "—",
+            "site.address": site_address or "—",
+            "shift.site": shift_site or site_name or "—",
+            "shift.start": shift_start or "—",
+            "shift.end": shift_end or "—",
+            "shift.slot": (
+                f"{shift_start} – {shift_end}".strip(" –")
+                if shift_start or shift_end
+                else "—"
+            ),
             "date.today": _today_de(),
             "date.iso": date_iso,
             "manager.name": (actor_name or "").strip() or "—",
@@ -344,6 +433,7 @@ class EditorDocsService:
             "fields": fields,
             "companyId": company_id,
             "workerId": worker_id or "",
+            "workerLang": worker_lang if worker_id else "de",
             "placeholders": [f"{{{{{k}}}}}" for k in fields.keys()],
             "branding": {
                 "companyName": company_name,
@@ -357,6 +447,59 @@ class EditorDocsService:
                 "email": email,
             },
             "letterhead": letterhead,
+        }
+
+    def resolve_pack_variant_html(
+        self,
+        db,
+        *,
+        company_id: str,
+        pack_id: str,
+        locale: str,
+        fallback_html: str = "",
+    ) -> dict[str, Any]:
+        """Find team template in the same policy pack for the requested locale."""
+        import json as _json
+
+        pack = str(pack_id or "").strip()
+        loc = str(locale or "de").strip().lower()[:2] or "de"
+        if not pack:
+            return {"html": fallback_html, "locale": loc, "matched": False}
+        templates = self.repo.list_templates(db, company_id, limit=200)
+        best = None
+        de_fallback = None
+        for tpl in templates:
+            lay_raw = tpl.get("layout_json") or ""
+            try:
+                lay = _json.loads(lay_raw) if isinstance(lay_raw, str) and lay_raw.strip() else {}
+            except Exception:
+                lay = {}
+            if not isinstance(lay, dict):
+                continue
+            if str(lay.get("packId") or "") != pack:
+                continue
+            tpl_loc = str(lay.get("locale") or "de").strip().lower()[:2] or "de"
+            if tpl_loc == loc:
+                best = tpl
+                break
+            if tpl_loc == "de" and de_fallback is None:
+                de_fallback = tpl
+        chosen = best or de_fallback
+        if not chosen:
+            return {"html": fallback_html, "locale": loc, "matched": False}
+        chosen_loc = loc
+        try:
+            clay = _json.loads(str(chosen.get("layout_json") or "") or "{}")
+            if isinstance(clay, dict) and clay.get("locale"):
+                chosen_loc = str(clay.get("locale")).strip().lower()[:2] or loc
+        except Exception:
+            chosen_loc = "de" if de_fallback and chosen is de_fallback else loc
+        return {
+            "html": str(chosen.get("content_html") or chosen.get("contentHtml") or fallback_html),
+            "locale": chosen_loc,
+            "matched": True,
+            "templateId": chosen.get("id"),
+            "title": chosen.get("title"),
         }
 
     def build_letterhead_html(
@@ -866,6 +1009,7 @@ class EditorDocsService:
         doc_type: str = "sonstiges",
         expiry_date: str | None = None,
         compliance_required: bool = False,
+        locale: str | None = None,
     ) -> dict[str, Any]:
         """Approve document, archive PDF into worker_documents, notify worker."""
         import json as _json
@@ -906,11 +1050,51 @@ class EditorDocsService:
             },
             save_version=True,
         )
-        if not updated:
-            return {"error": "update_failed", "status": 500}
+        if not updated or (isinstance(updated, dict) and updated.get("error")):
+            return {"error": (updated or {}).get("error") if isinstance(updated, dict) else "update_failed", "status": 500}
 
         title = str(doc.get("title") or "Dokument").strip() or "Dokument"
         html_body = str(doc.get("content_html") or "")
+        pack_id = ""
+        pack_locale_used = "de"
+        try:
+            envelope = _json.loads(str(doc.get("content_json") or "") or "{}")
+            lay = envelope.get("layout") if isinstance(envelope, dict) else {}
+            if isinstance(lay, dict):
+                pack_id = str(lay.get("packId") or "").strip()
+        except Exception:
+            pack_id = ""
+        merge_ctx = self.build_merge_context(
+            db, company_id=company_id, worker_id=wid, actor_name=None
+        )
+        target_locale = (
+            str(locale or "").strip().lower()[:2]
+            or str(merge_ctx.get("workerLang") or "de")[:2]
+            or "de"
+        )
+        if pack_id:
+            variant = self.resolve_pack_variant_html(
+                db,
+                company_id=company_id,
+                pack_id=pack_id,
+                locale=target_locale,
+                fallback_html=html_body,
+            )
+            if variant.get("matched") and variant.get("html"):
+                html_body = str(variant["html"])
+                pack_locale_used = str(variant.get("locale") or target_locale)
+                # Fill merge fields for the worker locale variant before PDF export.
+                filled = self.fill_merge_fields(
+                    db,
+                    company_id=company_id,
+                    worker_id=wid,
+                    content_html=html_body,
+                    header_html="",
+                    footer_html="",
+                )
+                if isinstance(filled, dict) and filled.get("contentHtml"):
+                    html_body = str(filled["contentHtml"])
+                doc = {**doc, "content_html": html_body}
         plain = re.sub(r"<[^>]+>", " ", html_body)
         plain = re.sub(r"\s+", " ", plain).strip()
         safe_title = re.sub(r"[^a-zA-Z0-9_\-äöüÄÖÜß]+", "_", title)[:60] or "dokument"
@@ -919,17 +1103,13 @@ class EditorDocsService:
         file_data: bytes
         filename: str
         try:
-            brand = None
-            try:
-                brand = self.build_merge_context(db, company_id=company_id).get("branding")
-            except Exception:
-                brand = None
+            brand = merge_ctx.get("branding")
             payload = self.export_payload(doc, fmt="pdf", branding=brand)
             file_data = payload["content"] if isinstance(payload["content"], (bytes, bytearray)) else bytes(payload["content"])
             filename = str(payload.get("filename") or f"{safe_title}.pdf")
         except Exception:
             full_html = f"""<!DOCTYPE html>
-<html lang="de"><head><meta charset="utf-8"><title>{title}</title>
+<html lang="{html_escape(pack_locale_used or target_locale, quote=True)}"><head><meta charset="utf-8"><title>{title}</title>
 <style>body{{font-family:Segoe UI,Calibri,sans-serif;line-height:1.55;max-width:800px;margin:2rem auto;padding:0 1rem;color:#0f172a}}</style>
 </head><body><h1>{title}</h1>{html_body}</body></html>"""
             file_data = full_html.encode("utf-8")
@@ -981,10 +1161,14 @@ class EditorDocsService:
             "acknowledgedAt": None,
             "acknowledgedBy": None,
             "complianceRequired": compliance_flag,
+            "packId": pack_id or None,
+            "locale": pack_locale_used if pack_id else target_locale,
         }
         notes = f"editor:{doc_id}|Aus Dokumenteneditor freigegeben"
         if compliance_flag:
             notes += "|compliance_required"
+        if pack_id:
+            notes += f"|pack:{pack_id}|lang:{pack_locale_used}"
         from backend.app.domains.workers.repository import WorkersRepository
 
         WorkersRepository().insert_worker_document(
@@ -1086,6 +1270,8 @@ class EditorDocsService:
             "complianceRequired": compliance_flag,
             "acknowledged": False,
             "acknowledgedAt": None,
+            "packId": pack_id or None,
+            "locale": pack_locale_used if pack_id else target_locale,
             "notify": notify_result,
         }
 

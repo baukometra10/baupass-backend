@@ -654,6 +654,174 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             created.append(tpl)
         return jsonify({"ok": True, "created": len(created), "items": created})
 
+    @docs_v2_bp.post("/docs/templates/policy-pack")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def apply_policy_pack():
+        """Seed DE+TR/AR/PL linked policy templates (idempotent by title)."""
+        denied = _deny_cap("canPublishTeamTemplate")
+        if denied:
+            return denied
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        from .repository import dumps_json
+
+        packs = [
+            {
+                "packId": "safety-toolbox",
+                "category": "safety",
+                "required": ["worker.name", "date.today", "site.name"],
+                "locales": {
+                    "de": (
+                        "Pack: Toolbox-Talk (DE)",
+                        "<h1>Toolbox-Talk / Kurzunterweisung</h1>"
+                        "<p>Teilnehmer: {{worker.name}} · Badge {{worker.badge}}</p>"
+                        "<p>Baustelle: {{site.name}} · {{date.today}}</p>"
+                        "<p>Schicht: {{shift.slot}}</p>"
+                        "<ul><li>PSA prüfen</li><li>Notfallwege</li><li>Meldepflicht bei Gefahr</li></ul>"
+                        "<p>Leitung: {{manager.name}}</p><p>Unterschrift: ____________</p>",
+                    ),
+                    "tr": (
+                        "Pack: Toolbox-Talk (TR)",
+                        "<h1>Toolbox / Kısa İş Güvenliği</h1>"
+                        "<p>Katılımcı: {{worker.name}} · Kart {{worker.badge}}</p>"
+                        "<p>Şantiye: {{site.name}} · {{date.today}}</p>"
+                        "<p>Vardiya: {{shift.slot}}</p>"
+                        "<ul><li>KKD kontrol</li><li>Acil çıkışlar</li><li>Tehlike bildirimi</li></ul>"
+                        "<p>Sorumlu: {{manager.name}}</p><p>İmza: ____________</p>",
+                    ),
+                    "ar": (
+                        "Pack: Toolbox-Talk (AR)",
+                        "<h1>إحاطة سلامة قصيرة</h1>"
+                        "<p>المشارك: {{worker.name}} · البطاقة {{worker.badge}}</p>"
+                        "<p>الموقع: {{site.name}} · {{date.today}}</p>"
+                        "<p>الوردية: {{shift.slot}}</p>"
+                        "<ul><li>فحص معدات الوقاية</li><li>مخارج الطوارئ</li><li>الإبلاغ عن الخطر</li></ul>"
+                        "<p>المسؤول: {{manager.name}}</p><p>التوقيع: ____________</p>",
+                    ),
+                    "pl": (
+                        "Pack: Toolbox-Talk (PL)",
+                        "<h1>Toolbox / krótkie szkolenie BHP</h1>"
+                        "<p>Uczestnik: {{worker.name}} · Identyfikator {{worker.badge}}</p>"
+                        "<p>Budowa: {{site.name}} · {{date.today}}</p>"
+                        "<p>Zmiana: {{shift.slot}}</p>"
+                        "<ul><li>Kontrola ŚOI</li><li>Drogi ewakuacyjne</li><li>Obowiązek zgłoszenia zagrożenia</li></ul>"
+                        "<p>Kierownik: {{manager.name}}</p><p>Podpis: ____________</p>",
+                    ),
+                },
+            },
+            {
+                "packId": "site-rules",
+                "category": "safety",
+                "required": ["company.name", "site.name", "date.today"],
+                "locales": {
+                    "de": (
+                        "Pack: Baustellenordnung (DE)",
+                        "<h1>Baustellenordnung</h1>"
+                        "<p>{{company.name}} · {{site.name}}</p>"
+                        "<p>Gültig ab {{date.today}}</p>"
+                        "<ol><li>Zutritt nur mit Ausweis</li><li>PSA Pflicht</li><li>Alkoholverbot</li></ol>"
+                        "<p>Ansprechpartner: {{manager.name}}</p>",
+                    ),
+                    "tr": (
+                        "Pack: Baustellenordnung (TR)",
+                        "<h1>Şantiye Kuralları</h1>"
+                        "<p>{{company.name}} · {{site.name}}</p>"
+                        "<p>Geçerlilik: {{date.today}}</p>"
+                        "<ol><li>Kimliksiz giriş yok</li><li>KKD zorunlu</li><li>Alkol yasağı</li></ol>"
+                        "<p>İrtibat: {{manager.name}}</p>",
+                    ),
+                    "ar": (
+                        "Pack: Baustellenordnung (AR)",
+                        "<h1>نظام الموقع</h1>"
+                        "<p>{{company.name}} · {{site.name}}</p>"
+                        "<p>اعتباراً من {{date.today}}</p>"
+                        "<ol><li>الدخول بالبطاقة فقط</li><li>معدات الوقاية إلزامية</li><li>ممنوع الكحول</li></ol>"
+                        "<p>جهة الاتصال: {{manager.name}}</p>",
+                    ),
+                    "pl": (
+                        "Pack: Baustellenordnung (PL)",
+                        "<h1>Regulamin budowy</h1>"
+                        "<p>{{company.name}} · {{site.name}}</p>"
+                        "<p>Obowiązuje od {{date.today}}</p>"
+                        "<ol><li>Wejście tylko z identyfikatorem</li><li>Obowiązek ŚOI</li><li>Zakaz alkoholu</li></ol>"
+                        "<p>Kontakt: {{manager.name}}</p>",
+                    ),
+                },
+            },
+            {
+                "packId": "hr-warning",
+                "category": "hr",
+                "required": ["worker.name", "company.name", "date.today"],
+                "locales": {
+                    "de": (
+                        "Pack: Abmahnung (DE)",
+                        "<h1>Abmahnung</h1>"
+                        "<p>{{company.name}}</p>"
+                        "<p>An: {{worker.name}} ({{worker.role}})</p>"
+                        "<p>Datum: {{date.today}}</p>"
+                        "<p>Sachverhalt: …</p>"
+                        "<p>{{manager.name}}</p>",
+                    ),
+                    "tr": (
+                        "Pack: Abmahnung (TR)",
+                        "<h1>Uyarı yazısı</h1>"
+                        "<p>{{company.name}}</p>"
+                        "<p>Sayın: {{worker.name}} ({{worker.role}})</p>"
+                        "<p>Tarih: {{date.today}}</p>"
+                        "<p>Konu: …</p>"
+                        "<p>{{manager.name}}</p>",
+                    ),
+                    "ar": (
+                        "Pack: Abmahnung (AR)",
+                        "<h1>إنذار كتابي</h1>"
+                        "<p>{{company.name}}</p>"
+                        "<p>إلى: {{worker.name}} ({{worker.role}})</p>"
+                        "<p>التاريخ: {{date.today}}</p>"
+                        "<p>السبب: …</p>"
+                        "<p>{{manager.name}}</p>",
+                    ),
+                    "pl": (
+                        "Pack: Abmahnung (PL)",
+                        "<h1>Upomnienie</h1>"
+                        "<p>{{company.name}}</p>"
+                        "<p>Do: {{worker.name}} ({{worker.role}})</p>"
+                        "<p>Data: {{date.today}}</p>"
+                        "<p>Zdarzenie: …</p>"
+                        "<p>{{manager.name}}</p>",
+                    ),
+                },
+            },
+        ]
+        existing = {str(t.get("title") or "") for t in _service.repo.list_templates(get_db(), cid, limit=300)}
+        created = []
+        for pack in packs:
+            for loc, (title, html) in pack["locales"].items():
+                if title in existing:
+                    continue
+                layout = {
+                    "showHeader": True,
+                    "showFooter": True,
+                    "packId": pack["packId"],
+                    "locale": loc,
+                    "required_placeholders": pack["required"],
+                    "packMaster": loc == "de",
+                }
+                tpl = _service.repo.create_template(
+                    get_db(),
+                    company_id=cid,
+                    title=title,
+                    blurb=f"Policy-Pack {pack['packId']} · {loc.upper()}",
+                    content_html=html,
+                    layout_json=dumps_json(layout),
+                    actor_user_id=_actor_id(),
+                    category=pack["category"],
+                )
+                created.append(tpl)
+        return jsonify({"ok": True, "created": len(created), "items": created, "packs": len(packs)})
+
     @docs_v2_bp.get("/docs/templates/<template_id>")
     @require_auth
     @require_roles("superadmin", "company-admin", "turnstile")
@@ -1789,6 +1957,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 data.get("complianceRequired") if data.get("complianceRequired") is not None else data.get("compliance_required") or ""
             ).lower()
             in {"1", "true", "yes", "on"},
+            locale=str(data.get("locale") or data.get("lang") or "").strip()[:2] or None,
         )
         if result.get("error"):
             return jsonify({"error": result["error"]}), int(result.get("status") or 400)
