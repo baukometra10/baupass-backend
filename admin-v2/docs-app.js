@@ -2404,14 +2404,29 @@
     const discard = $("offlineDiscardBtn");
     const sync = $("offlineSyncBtn");
     const reload = $("offlineReloadBtn");
-    if (restore) restore.hidden = mode === "pending";
-    if (sync) sync.hidden = mode === "conflict";
-    if (reload) reload.hidden = mode !== "conflict";
-    if (discard) discard.hidden = false;
+    const reviewLocked = String(currentDoc?.status || $("docStatus")?.value || "") === "in_review";
+    // Flex layout can override bare [hidden] on .cmd — toggle both.
+    const setBtn = (el, show) => {
+      if (!el) return;
+      el.hidden = !show;
+      el.classList.toggle("hidden", !show);
+    };
+    setBtn(sync, mode === "pending" || mode === "restore");
+    setBtn(reload, mode === "conflict");
+    setBtn(restore, mode !== "pending" && !(mode === "conflict" && reviewLocked));
+    setBtn(discard, true);
     if (restore && mode === "conflict") {
       restore.textContent = dt("offlineKeepLocal");
     } else if (restore) {
       restore.textContent = dt("offlineRestore");
+    }
+    if (mode === "conflict" && reviewLocked) {
+      const text = $("offlineBannerText");
+      if (text) {
+        text.textContent = dt("offlineConflictReview", {
+          when: formatRelativeWhen(new Date((pendingOfflineDraft || {}).ts || Date.now()).toISOString()),
+        });
+      }
     }
   }
 
@@ -2469,11 +2484,18 @@
     hideOfflineBanner();
     const draft = await readOfflineDraft(doc?.id || "new");
     if (!draft) return;
+    const serverHtml = compactHtml(String(doc?.content_html || ""));
+    const draftHtml = compactHtml(draft.html);
+    // Already viewing server body and draft matches → drop stale local copy.
+    if (draftHtml === serverHtml || draftHtml === compactHtml(getHtml())) {
+      await clearOfflineDraft(doc?.id || "new");
+      return;
+    }
     const serverTs = Date.parse(String(doc?.updated_at || "")) || 0;
     const baseTs = Date.parse(String(draft.baseUpdatedAt || "")) || 0;
     // Server-wins: server moved past the draft base → conflict, do not auto-apply.
     if (serverTs && baseTs && serverTs > baseTs + 500) {
-      if (compactHtml(draft.html) !== compactHtml(String(doc?.content_html || ""))) {
+      if (draftHtml !== serverHtml) {
         const q = OfflineQ();
         if (q) await q.markConflict(activeCompanyId() || "none", doc?.id || "new", doc?.updated_at || "");
         showOfflineBanner({ ...draft, conflict: true, serverUpdatedAt: doc?.updated_at || "" }, "conflict");

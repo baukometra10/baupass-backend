@@ -2248,6 +2248,10 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
 }
 .offline-banner[hidden] { display: none !important; }
+.offline-banner .cmd[hidden],
+.offline-banner .cmd.hidden {
+  display: none !important;
+}
 .offline-banner #offlineBannerText {
   flex: 1 1 220px;
   font: 550 0.82rem/1.35 var(--ui);
