@@ -9,6 +9,35 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def company_work_window(db, company_id: str) -> dict[str, Any]:
+    """Per-company flexible work window (empty = no fixed punctuality hours)."""
+    cid = str(company_id or "").strip()
+    start = ""
+    end = ""
+    if cid:
+        try:
+            row = db.execute(
+                "SELECT work_start_time, work_end_time FROM companies WHERE id = ?",
+                (cid,),
+            ).fetchone()
+            if row:
+                start = str(row["work_start_time"] or "").strip()[:5]
+                end = str(row["work_end_time"] or "").strip()[:5]
+        except Exception:
+            pass
+    if start and len(start) >= 4 and ":" not in start[2:3]:
+        start = ""
+    if end and len(end) >= 4 and ":" not in end[2:3]:
+        end = ""
+    return {
+        "start": start,
+        "end": end,
+        "configured": bool(start or end),
+        "flexible": not bool(start or end),
+        "source": "company" if (start or end) else "unset",
+    }
+
+
 def _checked_in_worker_ids(db, company_id: str, today: str) -> set[str]:
     try:
         rows = db.execute(
@@ -268,6 +297,13 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
 
     expected = _expected_workers_today(db, cid, today)
     checked = _checked_in_worker_ids(db, cid, today)
+    window = company_work_window(db, cid)
+    # Soft-fill company window onto expected rows without overwriting Einsatzplan times.
+    for w in expected:
+        if not w.get("shiftStart") and window.get("start"):
+            w["companyStart"] = window["start"]
+        if not w.get("shiftEnd") and window.get("end"):
+            w["companyEnd"] = window["end"]
     missing_workers = [w for w in expected if w["workerId"] not in checked]
 
     return {
@@ -280,6 +316,7 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         "expectedToday": len(expected),
         "missingExpected": len(missing_workers),
         "missingWorkers": missing_workers[:12],
+        "workWindow": window,
     }
 
 

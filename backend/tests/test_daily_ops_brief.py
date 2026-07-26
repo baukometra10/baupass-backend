@@ -209,6 +209,98 @@ def test_inbox_includes_camera_escalation_items(client_and_db):
     assert not still_open, "acked escalation should leave open inbox list"
 
 
+def test_daily_brief_work_window_flexible(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "FlexHoursCo")
+    r = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert r.status_code == 200
+    win = ((r.get_json() or {}).get("attendance") or {}).get("workWindow") or {}
+    assert win.get("flexible") is True or win.get("configured") is False
+
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            "UPDATE companies SET work_start_time = ?, work_end_time = ? WHERE id = ?",
+            ("07:15", "16:45", cid),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    r2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    win2 = ((r2.get_json() or {}).get("attendance") or {}).get("workWindow") or {}
+    assert win2.get("configured") is True
+    assert win2.get("start") == "07:15"
+    assert win2.get("end") == "16:45"
+    assert win2.get("flexible") is False
+
+
+def test_apply_company_hours_to_deployment(client_and_db):
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "ApplyHoursCo")
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Dana",
+            "lastName": "Plan",
+            "insuranceNumber": "INS-APPLY-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-APPLY-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    wid = str((created.get_json() or {}).get("id") or "")
+    today = date.today()
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            "UPDATE companies SET work_start_time = ?, work_end_time = ? WHERE id = ?",
+            ("06:30", "15:00", cid),
+        )
+        db.execute(
+            """
+            INSERT INTO worker_deployment_days
+              (id, company_id, worker_id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at)
+            VALUES (?, ?, ?, ?, 'Baustelle A', '', '', '', '', 'manual', datetime('now'))
+            """,
+            ("wdd-apply-1", cid, wid, today.isoformat()),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    r = client.post(
+        f"/api/workforce/deployment-plan/apply-company-hours?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "workerId": wid, "year": today.year, "month": today.month, "onlyEmpty": True},
+    )
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json() or {}
+    assert body.get("ok") is True
+    assert int(body.get("appliedDays") or body.get("saved") or 0) >= 1
+
+    plan = client.get(
+        f"/api/workforce/deployment-plan?company_id={cid}&worker_id={wid}&year={today.year}&month={today.month}",
+        headers=headers,
+    )
+    assert plan.status_code == 200
+    days = (plan.get_json() or {}).get("days") or (plan.get_json() or {}).get("calendar") or []
+    hit = [d for d in days if str(d.get("date") or "") == today.isoformat()]
+    assert hit, "expected deployment day in response"
+    assert "06:30" in str(hit[0].get("shiftStart") or hit[0].get("shift_start") or "")
+
+
 def test_inbox_missing_checkin_ack(client_and_db, monkeypatch):
     """Missing expected workers appear under attendance and resolve clears them."""
     monkeypatch.setattr(

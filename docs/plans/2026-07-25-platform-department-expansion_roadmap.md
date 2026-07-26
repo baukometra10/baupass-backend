@@ -44,4 +44,11 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Inbox: `camesc:*` Resolve → Kamera-Eskalation ack (Security informiert) ✅
 3. **Erweiterung:** Fehlende MA als Inbox-Items `miss:{date}:{workerId}` (Quelle `attendance`) + Resolve = „Kenntnis genommen“
 
-Unverändert: **kein Auto-Polizei-Notruf**.
+## Follow-up — Schichten / Firmenzeiten (flexibel) — erledigt
+
+1. Firmen-Arbeitsbeginn/-ende wieder editierbar (Tools) — leer = flexibel, keine festen Schichten ✅
+2. Absenz-Grace nutzt Einsatzplan-Zeit → Firmenzeit → sonst kein Mo–Fr-Spam ✅
+3. Daily Brief `workWindow` + Lagebild-Anzeige ✅
+4. Einsatzplan: „Firmenzeiten“ auf leere Tage + Rotation optional mit Firmenzeiten ✅
+
+Unverändert: **kein Auto-Polizei-Notruf**. · Zeiten entscheidet jede Firma selbst.

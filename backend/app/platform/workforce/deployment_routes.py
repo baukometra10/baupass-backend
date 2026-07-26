@@ -141,6 +141,11 @@ def register_workforce_blueprint(flask_app) -> None:
         month = int(body.get("month") or datetime.utcnow().month)
         locations = body.get("locations") or []
         skip_weekends = bool(body.get("skipWeekends"))
+        use_company_hours = bool(
+            body.get("useCompanyHours")
+            if "useCompanyHours" in body
+            else body.get("use_company_hours")
+        )
         if not cid or not worker_id:
             return jsonify({"error": "company_id_and_worker_id_required"}), 400
         return jsonify(
@@ -152,8 +157,40 @@ def register_workforce_blueprint(flask_app) -> None:
                 month=month,
                 locations=locations,
                 skip_weekends=skip_weekends,
+                use_company_hours=use_company_hours,
             )
         )
+
+    @workforce_bp.post("/workforce/deployment-plan/apply-company-hours")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("scheduling")
+    def deployment_apply_company_hours():
+        from .deployment_store import apply_company_work_window_to_month
+
+        cid = _company_id()
+        body = request.get_json(silent=True) or {}
+        worker_id = str(body.get("workerId") or body.get("worker_id") or "").strip()
+        year = int(body.get("year") or datetime.utcnow().year)
+        month = int(body.get("month") or datetime.utcnow().month)
+        only_empty = str(body.get("onlyEmpty", body.get("only_empty", "1"))).lower() not in {
+            "0",
+            "false",
+            "no",
+        }
+        if not cid or not worker_id:
+            return jsonify({"error": "company_id_and_worker_id_required"}), 400
+        result = apply_company_work_window_to_month(
+            get_db(),
+            company_id=cid,
+            worker_id=worker_id,
+            year=year,
+            month=month,
+            only_empty=only_empty,
+        )
+        if result.get("error") == "company_work_window_unset":
+            return jsonify(result), 400
+        return jsonify(result)
 
     @workforce_bp.post("/workforce/deployment-plan/pdf")
     @require_auth

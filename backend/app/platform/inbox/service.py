@@ -25,18 +25,42 @@ def _now_local() -> datetime:
         return datetime.now()
 
 
+def _parse_hhmm(value: str) -> tuple[int, int] | None:
+    raw = str(value or "").strip()
+    if len(raw) >= 16 and "T" in raw:
+        raw = raw[11:16]
+    raw = raw[:5]
+    if len(raw) < 4 or ":" not in raw:
+        return None
+    try:
+        hh, mm = int(raw[:2]), int(raw[3:5])
+        if 0 <= hh <= 23 and 0 <= mm <= 59:
+            return hh, mm
+    except Exception:
+        return None
+    return None
+
+
 def _missing_past_grace(worker: dict[str, Any], now_local: datetime) -> bool:
-    """Avoid early-morning spam; respect shift start when known."""
-    shift = str((worker or {}).get("shiftStart") or "").strip()
-    if shift and len(shift) >= 4:
-        try:
-            hh, mm = int(shift[:2]), int(shift[3:5])
+    """Grace after day/shift start — company-flexible, no hard-coded industry shifts.
+
+    Priority: Einsatzplan shiftStart → Firmen-Arbeitsbeginn → only scheduled days
+    without any configured hours (soft noon). Pure Mo–Fr fallback without company
+    hours does not create inbox noise (firm runs flexible times).
+    """
+    w = worker or {}
+    for key in ("shiftStart", "companyStart"):
+        parsed = _parse_hhmm(str(w.get(key) or ""))
+        if parsed:
+            hh, mm = parsed
             grace = now_local.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(minutes=20)
             return now_local >= grace
-        except Exception:
-            pass
-    # Default: after 08:30 local
-    return (now_local.hour, now_local.minute) >= (8, 30)
+    reason = str(w.get("reason") or "")
+    if reason == "scheduled":
+        # Planned day but no times set by the company → gentle afternoon nudge.
+        return (now_local.hour, now_local.minute) >= (12, 0)
+    # Flexible company (no work_start_time): skip time-based missing inbox.
+    return False
 
 
 def _acked_missing_worker_ids(db, company_id: str, work_date: str) -> set[str]:

@@ -1617,8 +1617,8 @@ function bindWorkTimesPanelOnce(host) {
       const saved = await api(`/api/companies/${encodeURIComponent(companyId)}/work-times`, {
         method: "PUT",
         body: JSON.stringify({
-          workStartTime: "",
-          workEndTime: "",
+          workStartTime: String(fd.get("workStartTime") || "").trim().slice(0, 5),
+          workEndTime: String(fd.get("workEndTime") || "").trim().slice(0, 5),
           accessMode,
           siteGeofenceRadiusMeters: Number(fd.get("siteGeofenceRadiusMeters") || cfg.siteGeofenceRadiusMeters || 80),
           siteAutoCheckin: siteApp ? fd.get("siteAutoCheckin") === "on" : cfg.siteAutoCheckin !== false,
@@ -1667,11 +1667,23 @@ async function loadCompanyWorkTimesForm(companyId) {
     const accessMode = String(cfg.accessMode || "gate").toLowerCase() === "site_app" ? "site_app" : "gate";
     const siteRadius = Number(cfg.siteGeofenceRadiusMeters || 80);
     const siteFieldsHidden = accessMode !== "site_app";
+    const startVal = String(cfg.workStartTime || "").trim().slice(0, 5);
+    const endVal = String(cfg.workEndTime || "").trim().slice(0, 5);
     host.innerHTML = `
       <h3>${t("workTimes.title")}</h3>
       <p class="muted small">${t("workTimes.hint")}</p>
       <p id="workTimesFeedback" class="work-times-feedback hidden" role="status"></p>
       <form id="workTimesForm" class="tool-form access-settings-form">
+        <fieldset class="access-settings-fieldset">
+          <legend>${t("workTimes.hoursLegend")}</legend>
+          <p class="muted small">${t("workTimes.hoursHint")}</p>
+          <label>${t("workTimes.start")}
+            <input name="workStartTime" type="time" value="${escapeAttr(startVal)}" />
+          </label>
+          <label>${t("workTimes.end")}
+            <input name="workEndTime" type="time" value="${escapeAttr(endVal)}" />
+          </label>
+        </fieldset>
         <label>${t("workTimes.accessMode")}
           <select name="accessMode" id="workTimesAccessMode">
             <option value="gate"${accessMode === "gate" ? " selected" : ""}>${t("workTimes.accessGate")}</option>
@@ -2186,6 +2198,54 @@ function bindDeploymentModalOnce() {
     await reloadDeploymentPlan();
     showActionToast(t("deployment.fromShifts") + " ✓", false);
   });
+  $("deploymentCompanyHours")?.addEventListener("click", async () => {
+    const q = companyQuery();
+    const { year, month } = deploymentMonthParts();
+    try {
+      const res = await api(`/api/workforce/deployment-plan/apply-company-hours${q}`, {
+        method: "POST",
+        body: JSON.stringify({
+          workerId: deploymentModalWorkerId,
+          year,
+          month,
+          onlyEmpty: true,
+        }),
+      });
+      await reloadDeploymentPlan();
+      const n = Number(res.appliedDays ?? res.saved ?? 0);
+      showActionToast(t("deployment.companyHoursOk", { n }), false);
+    } catch (e) {
+      const msg = String(e.message || "");
+      showActionToast(
+        msg.includes("company_work_window_unset") ? t("deployment.companyHoursUnset") : msg || t("common.error"),
+        true,
+      );
+    }
+  });
+  $("deploymentRotation")?.addEventListener("click", async () => {
+    const raw = prompt(
+      "Orte (kommagetrennt), z.B.\nBerlin Mitte, Alexanderplatz, Potsdam",
+      "Berlin Mitte, Alexanderplatz, Potsdam",
+    );
+    if (!raw) return;
+    const locations = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    const useHours = confirm(t("deployment.rotationUseHours"));
+    const q = companyQuery();
+    const { year, month } = deploymentMonthParts();
+    await api(`/api/workforce/deployment-plan/rotation${q}`, {
+      method: "POST",
+      body: JSON.stringify({
+        workerId: deploymentModalWorkerId,
+        year,
+        month,
+        locations,
+        skipWeekends: true,
+        useCompanyHours: useHours,
+      }),
+    });
+    await reloadDeploymentPlan();
+    showActionToast(t("deployment.rotation") + " ✓", false);
+  });
   $("deploymentBulkWeekdays")?.addEventListener("click", () => {
     readDeploymentDaysFromForm();
     const loc = $("deploymentBulkLocation")?.value.trim() || "";
@@ -2210,22 +2270,6 @@ function bindDeploymentModalOnce() {
       d.notes = "";
     });
     renderDeploymentDaysList();
-  });
-  $("deploymentRotation")?.addEventListener("click", async () => {
-    const raw = prompt(
-      "Orte (kommagetrennt), z.B.\nBerlin Mitte, Alexanderplatz, Potsdam",
-      "Berlin Mitte, Alexanderplatz, Potsdam",
-    );
-    if (!raw) return;
-    const locations = raw.split(",").map((s) => s.trim()).filter(Boolean);
-    const q = companyQuery();
-    const { year, month } = deploymentMonthParts();
-    await api(`/api/workforce/deployment-plan/rotation${q}`, {
-      method: "POST",
-      body: JSON.stringify({ workerId: deploymentModalWorkerId, year, month, locations, skipWeekends: true }),
-    });
-    await reloadDeploymentPlan();
-    showActionToast(t("deployment.rotation") + " ✓", false);
   });
 }
 
@@ -2424,7 +2468,6 @@ async function loadPlatform() {
           : ""
       }
       ${cid && billingOv ? renderBillingSummaryHtml(billingOv) : ""}
-      <div class="panel-block" id="workTimesPanel"></div>
       ${
         cid
           ? `<div class="panel-block autopilot-panel" id="autopilotPanel">
@@ -5821,6 +5864,10 @@ async function loadOverview() {
     const outsideToday = Number(att.outsideHoursAttemptsToday || 0);
     const missingToday = Number(att.missingExpected || 0);
     const expectedToday = Number(att.expectedToday || 0);
+    const workWin = att.workWindow || {};
+    const workWinLabel = workWin.configured
+      ? `${workWin.start || "—"}–${workWin.end || "—"}`
+      : t("lage.workWindowFlexible");
     const securityOpen = Number(
       secBrief.totalOpen ?? (sec.openAlerts || []).length + openEsc,
     );
@@ -5895,6 +5942,8 @@ async function loadOverview() {
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
         <strong>${t("lage.attendanceTitle")}</strong>
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.attendanceHint")}</p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.workWindow")}: <strong>${escapeHtml(workWinLabel)}</strong>
+          · <button type="button" class="btn-link" data-goto-tab="tools">${t("lage.openWorkTimes")}</button></p>
         ${
           missingList
             ? `<p class="muted small" style="margin:0.35rem 0 0"><strong>${t("lage.missingListTitle")}</strong></p><ul class="muted small" style="margin:0.2rem 0 0;padding-left:1.1rem">${missingList}</ul>`

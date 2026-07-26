@@ -329,6 +329,7 @@
         </div>
         <div id="tab-tools" class="tab-panel hidden">
           <p class="muted small" data-i18n="section.tools.hint">Tools hint</p>
+          <div id="workTimesPanel" class="panel-block"></div>
           <div id="toolsPanel" class="stack-panel"></div>
         </div>
         <div id="tab-platform" class="tab-panel hidden">
@@ -414,6 +415,7 @@
             <input type="month" id="deploymentMonth" />
           </label>
           <button type="button" id="deploymentFromShifts" class="ghost" data-i18n="deployment.fromShifts">Aus Schichten</button>
+          <button type="button" id="deploymentCompanyHours" class="ghost" data-i18n="deployment.companyHours">Firmenzeiten</button>
           <button type="button" id="deploymentRotation" class="ghost" data-i18n="deployment.rotation">Rotation</button>
         </div>
         <details class="deployment-quick-details">
@@ -555,7 +557,7 @@
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
-  <script src="app.js?v=20260726miss1" type="module"></script>
+  <script src="app.js?v=20260726shift1" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

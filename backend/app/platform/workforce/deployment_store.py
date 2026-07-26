@@ -192,11 +192,24 @@ def fill_rotation_template(
     month: int,
     locations: list[str],
     skip_weekends: bool = False,
+    use_company_hours: bool = False,
 ) -> dict[str, Any]:
     """Cycle locations across weekdays in month (optional weekend skip)."""
     locs = [str(x).strip() for x in locations if str(x).strip()]
     if not locs:
         return {"ok": False, "error": "locations_required"}
+    company_start = ""
+    company_end = ""
+    if use_company_hours:
+        try:
+            from backend.app.platform.physical_operations.daily_brief import company_work_window
+
+            win = company_work_window(db, company_id)
+            company_start = str(win.get("start") or "")
+            company_end = str(win.get("end") or "")
+        except Exception:
+            company_start = ""
+            company_end = ""
     start_d = date(year, month, 1)
     last = calendar.monthrange(year, month)[1]
     days: list[dict] = []
@@ -205,13 +218,16 @@ def fill_rotation_template(
         d = date(year, month, day_num)
         if skip_weekends and d.weekday() >= 5:
             continue
-        days.append(
-            {
-                "date": d.isoformat(),
-                "location": locs[idx % len(locs)],
-                "notes": "",
-            }
-        )
+        row = {
+            "date": d.isoformat(),
+            "location": locs[idx % len(locs)],
+            "notes": "",
+        }
+        if company_start:
+            row["shiftStart"] = company_start
+        if company_end:
+            row["shiftEnd"] = company_end
+        days.append(row)
         idx += 1
     result = upsert_deployment_days(
         db,
@@ -221,6 +237,57 @@ def fill_rotation_template(
         source="rotation_template",
     )
     result["templateDays"] = len(days)
+    result["usedCompanyHours"] = bool(company_start or company_end)
+    return result
+
+
+def apply_company_work_window_to_month(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    year: int,
+    month: int,
+    only_empty: bool = True,
+) -> dict[str, Any]:
+    """Fill Einsatzplan day times from company work window (flexible per firm)."""
+    from backend.app.platform.physical_operations.daily_brief import company_work_window
+
+    win = company_work_window(db, company_id)
+    start = str(win.get("start") or "")
+    end = str(win.get("end") or "")
+    if not start and not end:
+        return {"ok": False, "error": "company_work_window_unset", "flexible": True}
+    stored = list_deployment_days(db, company_id=company_id, worker_id=worker_id, year=year, month=month)
+    days: list[dict] = []
+    for r in stored:
+        loc = str(r.get("location_label") or "")
+        if not _is_real_location(loc):
+            continue
+        has_times = bool(str(r.get("shift_start") or "").strip() or str(r.get("shift_end") or "").strip())
+        if only_empty and has_times:
+            continue
+        days.append(
+            {
+                "date": str(r["work_date"]),
+                "location": loc,
+                "shiftStart": start or str(r.get("shift_start") or "")[:5],
+                "shiftEnd": end or str(r.get("shift_end") or "")[:5],
+                "notes": str(r.get("notes") or ""),
+                "dayColor": str(r.get("day_color") or ""),
+            }
+        )
+    if not days:
+        return {"ok": True, "saved": 0, "message": "nothing_to_update", "workWindow": win}
+    result = upsert_deployment_days(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        days=days,
+        source="company_hours",
+    )
+    result["workWindow"] = win
+    result["appliedDays"] = len(days)
     return result
 
 
