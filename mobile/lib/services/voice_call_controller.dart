@@ -467,6 +467,7 @@ class VoiceCallController extends ChangeNotifier {
       displayName: 'Mitarbeiter',
       onState: _onRtcState,
       onRemoteStream: (_) {
+        // Force UI rebuild so late admin video replaces self-preview on worker.
         notifyListeners();
       },
       onLocalStream: (_, cameraOn, {preview = false}) {
