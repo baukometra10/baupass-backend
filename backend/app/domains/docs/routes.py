@@ -928,7 +928,14 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         if not doc:
             return jsonify({"error": "not_found"}), 404
         if isinstance(doc, dict) and doc.get("error"):
-            return jsonify({"error": doc["error"]}), int(doc.get("status") or 400)
+            body = {"error": doc["error"]}
+            if doc.get("document") is not None:
+                body["document"] = doc["document"]
+            if doc.get("serverUpdatedAt"):
+                body["serverUpdatedAt"] = doc["serverUpdatedAt"]
+            if doc.get("expectedUpdatedAt"):
+                body["expectedUpdatedAt"] = doc["expectedUpdatedAt"]
+            return jsonify(body), int(doc.get("status") or 400)
         return jsonify({"ok": True, "document": doc})
 
     @docs_v2_bp.delete("/docs/<doc_id>")

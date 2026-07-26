@@ -506,3 +506,57 @@ def test_docs_presence_returns_content_hash(client_and_db):
     full = hashlib.sha256(body_html.encode("utf-8", errors="ignore")).hexdigest()
     assert body.get("contentHash") == full[:24]
     assert isinstance(body.get("peers"), list)
+
+
+def test_docs_update_conflict_expected_updated_at(client_and_db):
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "DocsConflictCo")
+    created = client.post(
+        f"/api/v2/docs?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "title": "Offline",
+            "mode": "general",
+            "contentHtml": "<p>v1</p>",
+        },
+    )
+    assert created.status_code == 201, created.get_json()
+    doc = created.get_json()["document"]
+    doc_id = doc["id"]
+
+    ok = client.put(
+        f"/api/v2/docs/{doc_id}?company_id={cid}",
+        headers=headers,
+        json={"company_id": cid, "contentHtml": "<p>v2 server</p>"},
+    )
+    assert ok.status_code == 200, ok.get_json()
+
+    conflict = client.put(
+        f"/api/v2/docs/{doc_id}?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "contentHtml": "<p>v2 offline</p>",
+            # Stale client base — must not overwrite server (server-wins).
+            "expectedUpdatedAt": "2000-01-01T00:00:00+00:00",
+        },
+    )
+    assert conflict.status_code == 409
+    body = conflict.get_json() or {}
+    assert body.get("error") == "conflict"
+    assert "v2 server" in str((body.get("document") or {}).get("content_html") or "")
+
+    forced = client.put(
+        f"/api/v2/docs/{doc_id}?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "contentHtml": "<p>v2 forced</p>",
+            "expectedUpdatedAt": "2000-01-01T00:00:00+00:00",
+            "force": True,
+        },
+    )
+    assert forced.status_code == 200, forced.get_json()
+    assert "v2 forced" in str(forced.get_json()["document"].get("content_html") or "")

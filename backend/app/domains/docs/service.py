@@ -119,6 +119,28 @@ class EditorDocsService:
             note = str(data.get("versionNote") or data.get("version_note") or version_note or "")
             if content_touch and not note.startswith("suggestion-accept"):
                 return {"error": "review_locked", "status": 409}
+        # Optimistic concurrency for offline sync — server-wins unless force=true.
+        force = str(data.get("force") or "").strip().lower() in {"1", "true", "yes", "on"}
+        expected = str(
+            data.get("expectedUpdatedAt")
+            or data.get("expected_updated_at")
+            or data.get("baseUpdatedAt")
+            or data.get("base_updated_at")
+            or ""
+        ).strip()
+        if before and expected and not force:
+            server_ts = str(before.get("updated_at") or "").strip()
+            content_touch = (
+                content_html is not None or content_text is not None or content_json is not None
+            )
+            if content_touch and server_ts and server_ts != expected:
+                return {
+                    "error": "conflict",
+                    "status": 409,
+                    "document": before,
+                    "serverUpdatedAt": server_ts,
+                    "expectedUpdatedAt": expected,
+                }
         doc = self.repo.update_document(
             db,
             doc_id,

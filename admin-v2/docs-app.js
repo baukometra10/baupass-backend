@@ -2313,8 +2313,12 @@
   }
 
   const OFFLINE_PREFIX = "baupass-docs-offline:";
+  const OfflineQ = () => (typeof window !== "undefined" ? window.DocsOfflineQueue : null);
   let offlineTimer = 0;
   let pendingOfflineDraft = null;
+  let offlineBannerMode = "restore"; // restore | conflict | pending
+  let offlineFlushRunning = false;
+  let forceNextSave = false;
 
   function offlineDraftStorageKey(docId) {
     const cid = activeCompanyId() || "none";
@@ -2322,23 +2326,35 @@
     return `${OFFLINE_PREFIX}${cid}:${id}`;
   }
 
-  function persistOfflineDraft() {
+  function buildOfflinePayload({ pendingSync = true } = {}) {
+    return {
+      ts: Date.now(),
+      docId: currentDoc?.id || "",
+      companyId: activeCompanyId() || "",
+      baseUpdatedAt: String(lastKnownUpdatedAt || currentDoc?.updated_at || ""),
+      title: ($("docTitle")?.value || "").trim(),
+      mode: $("docMode")?.value || "general",
+      html: getHtml(),
+      headerHtml: getHeaderHtml(),
+      footerHtml: getFooterHtml(),
+      layout: { ...layout },
+      pendingSync,
+      syncStatus: pendingSync ? "pending" : "idle",
+      conflict: false,
+      clientId: `c-${Date.now().toString(36)}`,
+    };
+  }
+
+  async function persistOfflineDraft(opts = {}) {
+    const payload = buildOfflinePayload(opts);
+    const q = OfflineQ();
     try {
-      const payload = {
-        ts: Date.now(),
-        docId: currentDoc?.id || "",
-        companyId: activeCompanyId() || "",
-        title: ($("docTitle")?.value || "").trim(),
-        mode: $("docMode")?.value || "general",
-        html: getHtml(),
-        headerHtml: getHeaderHtml(),
-        footerHtml: getFooterHtml(),
-        layout: { ...layout },
-      };
-      localStorage.setItem(offlineDraftStorageKey(payload.docId || "new"), JSON.stringify(payload));
-      if (payload.docId) {
-        localStorage.setItem(offlineDraftStorageKey("new"), JSON.stringify(payload));
+      if (q) {
+        await q.putDraft(payload);
+      } else {
+        localStorage.setItem(offlineDraftStorageKey(payload.docId || "new"), JSON.stringify(payload));
       }
+      requestDocsOfflineBackgroundSync();
     } catch {
       /* quota / private mode */
     }
@@ -2348,22 +2364,32 @@
     if (offlineTimer) return;
     offlineTimer = window.setTimeout(() => {
       offlineTimer = 0;
-      if (dirty) persistOfflineDraft();
+      if (dirty) persistOfflineDraft().catch(() => {});
     }, 900);
   }
 
-  function clearOfflineDraft(docId) {
+  async function clearOfflineDraft(docId) {
+    const q = OfflineQ();
+    const cid = activeCompanyId() || "none";
+    const id = docId || currentDoc?.id || "new";
     try {
-      localStorage.removeItem(offlineDraftStorageKey(docId || currentDoc?.id || "new"));
-      if (docId) localStorage.removeItem(offlineDraftStorageKey("new"));
+      if (q) await q.deleteDraft(cid, id);
+      else {
+        localStorage.removeItem(offlineDraftStorageKey(id));
+        if (id && id !== "new") localStorage.removeItem(offlineDraftStorageKey("new"));
+      }
     } catch {
       /* ignore */
     }
   }
 
-  function readOfflineDraft(docId) {
+  async function readOfflineDraft(docId) {
+    const q = OfflineQ();
+    const cid = activeCompanyId() || "none";
+    const id = docId || currentDoc?.id || "new";
     try {
-      const raw = localStorage.getItem(offlineDraftStorageKey(docId || currentDoc?.id || "new"));
+      if (q) return await q.getDraft(cid, id);
+      const raw = localStorage.getItem(offlineDraftStorageKey(id));
       if (!raw) return null;
       const data = JSON.parse(raw);
       if (!data?.html || !data?.ts) return null;
@@ -2373,20 +2399,49 @@
     }
   }
 
+  function setOfflineBannerButtons(mode) {
+    const restore = $("offlineRestoreBtn");
+    const discard = $("offlineDiscardBtn");
+    const sync = $("offlineSyncBtn");
+    const reload = $("offlineReloadBtn");
+    if (restore) restore.hidden = mode === "pending";
+    if (sync) sync.hidden = mode === "conflict";
+    if (reload) reload.hidden = mode !== "conflict";
+    if (discard) discard.hidden = false;
+    if (restore && mode === "conflict") {
+      restore.textContent = dt("offlineKeepLocal");
+    } else if (restore) {
+      restore.textContent = dt("offlineRestore");
+    }
+  }
+
   function hideOfflineBanner() {
     const banner = $("offlineBanner");
     if (banner) banner.hidden = true;
     pendingOfflineDraft = null;
+    offlineBannerMode = "restore";
   }
 
-  function showOfflineBanner(draft) {
+  function showOfflineBanner(draft, mode = "restore") {
     pendingOfflineDraft = draft;
+    offlineBannerMode = mode;
     const banner = $("offlineBanner");
     const text = $("offlineBannerText");
     if (!banner || !text || !draft) return;
-    text.textContent = dt("offlineFound", {
-      when: formatRelativeWhen(new Date(draft.ts).toISOString()),
-    });
+    if (mode === "conflict") {
+      text.textContent = dt("offlineConflict", {
+        when: formatRelativeWhen(new Date(draft.ts).toISOString()),
+      });
+    } else if (mode === "pending") {
+      text.textContent = dt("offlinePending", {
+        when: formatRelativeWhen(new Date(draft.ts).toISOString()),
+      });
+    } else {
+      text.textContent = dt("offlineFound", {
+        when: formatRelativeWhen(new Date(draft.ts).toISOString()),
+      });
+    }
+    setOfflineBannerButtons(mode);
     banner.hidden = false;
   }
 
@@ -2401,26 +2456,194 @@
     setHtml(draft.html || "<p><br></p>");
     hideOfflineBanner();
     dirty = true;
+    if (draft.conflict || offlineBannerMode === "conflict") {
+      forceNextSave = true;
+      showCollabConflict();
+    }
     setStatus($("saveStatus"), dt("offlineRestored"), "ok");
     schedulePaperSync({ force: true, fit: true });
     scheduleOutline();
   }
 
-  function maybeOfferOfflineDraft(doc) {
+  async function maybeOfferOfflineDraft(doc) {
     hideOfflineBanner();
-    const draft = readOfflineDraft(doc?.id || "new");
+    const draft = await readOfflineDraft(doc?.id || "new");
     if (!draft) return;
     const serverTs = Date.parse(String(doc?.updated_at || "")) || 0;
-    if (serverTs && draft.ts <= serverTs + 2000) {
-      clearOfflineDraft(doc?.id || "new");
+    const baseTs = Date.parse(String(draft.baseUpdatedAt || "")) || 0;
+    // Server-wins: server moved past the draft base → conflict, do not auto-apply.
+    if (serverTs && baseTs && serverTs > baseTs + 500) {
+      if (compactHtml(draft.html) !== compactHtml(String(doc?.content_html || ""))) {
+        const q = OfflineQ();
+        if (q) await q.markConflict(activeCompanyId() || "none", doc?.id || "new", doc?.updated_at || "");
+        showOfflineBanner({ ...draft, conflict: true, serverUpdatedAt: doc?.updated_at || "" }, "conflict");
+      } else {
+        await clearOfflineDraft(doc?.id || "new");
+      }
       return;
     }
-    // Same content → ignore
+    if (serverTs && draft.ts <= serverTs + 2000 && !draft.pendingSync) {
+      await clearOfflineDraft(doc?.id || "new");
+      return;
+    }
     if (compactHtml(draft.html) === compactHtml(getHtml())) {
-      clearOfflineDraft(doc?.id || "new");
+      if (!draft.pendingSync) await clearOfflineDraft(doc?.id || "new");
       return;
     }
-    showOfflineBanner(draft);
+    showOfflineBanner(draft, draft.conflict ? "conflict" : draft.pendingSync ? "pending" : "restore");
+  }
+
+  function requestDocsOfflineBackgroundSync() {
+    try {
+      if (!navigator.serviceWorker?.ready) return;
+      navigator.serviceWorker.ready
+        .then((reg) => {
+          if (reg.sync && typeof reg.sync.register === "function") {
+            return reg.sync.register("docs-offline-flush");
+          }
+          reg.active?.postMessage({ type: "DOCS_OFFLINE_FLUSH_REQUEST" });
+          return null;
+        })
+        .catch(() => {});
+    } catch {
+      /* no SW */
+    }
+  }
+
+  async function flushOfflineDraftQueue({ interactive = false } = {}) {
+    if (offlineFlushRunning) return { ok: false, reason: "busy" };
+    if (navigator.onLine === false) {
+      if (interactive) setStatus($("saveStatus"), dt("offlineNoNetwork"), "err");
+      return { ok: false, reason: "offline" };
+    }
+    const cid = activeCompanyId();
+    if (!cid) return { ok: false, reason: "company" };
+    const q = OfflineQ();
+    offlineFlushRunning = true;
+    let synced = 0;
+    let conflicts = 0;
+    try {
+      if (q) await q.migrateFromLocalStorage();
+      const pending = q
+        ? await q.listPending(cid)
+        : [await readOfflineDraft(currentDoc?.id || "new")].filter(Boolean);
+      // Deduplicate by docId (prefer newest)
+      const byDoc = new Map();
+      for (const d of pending) {
+        if (!d || d.companyId !== cid) continue;
+        const key = d.docId || "new";
+        const prev = byDoc.get(key);
+        if (!prev || d.ts > prev.ts) byDoc.set(key, d);
+      }
+      for (const draft of byDoc.values()) {
+        if (draft.conflict) {
+          conflicts += 1;
+          if (interactive || !pendingOfflineDraft) showOfflineBanner(draft, "conflict");
+          continue;
+        }
+        try {
+          if (draft.docId) {
+            // Fetch server for server-wins check before PUT
+            let serverDoc = null;
+            try {
+              const got = await api(`/api/v2/docs/${encodeURIComponent(draft.docId)}${companyQuery()}`);
+              serverDoc = got.document || null;
+            } catch (e) {
+              if (String(e.message || "").includes("404")) {
+                // Recreate as new if deleted remotely
+                draft.docId = "";
+              } else {
+                throw e;
+              }
+            }
+            if (serverDoc) {
+              const serverTs = String(serverDoc.updated_at || "");
+              const base = String(draft.baseUpdatedAt || "");
+              const sameHtml =
+                compactHtml(draft.html) === compactHtml(String(serverDoc.content_html || ""));
+              if (base && serverTs && serverTs !== base && !sameHtml) {
+                if (q) await q.markConflict(cid, draft.docId, serverTs);
+                conflicts += 1;
+                if (
+                  currentDoc?.id === draft.docId ||
+                  interactive ||
+                  !pendingOfflineDraft
+                ) {
+                  showOfflineBanner({ ...draft, conflict: true, serverUpdatedAt: serverTs }, "conflict");
+                }
+                continue;
+              }
+              const putBody = {
+                company_id: cid,
+                title: draft.title || dt("untitled"),
+                mode: draft.mode || "general",
+                contentHtml: draft.html,
+                contentText: "",
+                expectedUpdatedAt: base || serverTs || undefined,
+                force: false,
+              };
+              try {
+                await api(`/api/v2/docs/${encodeURIComponent(draft.docId)}${companyQuery()}`, {
+                  method: "PUT",
+                  body: JSON.stringify(putBody),
+                });
+              } catch (err) {
+                const msg = String(err.message || err.error || "");
+                if (msg.includes("conflict") || err.status === 409) {
+                  if (q) await q.markConflict(cid, draft.docId, serverTs);
+                  conflicts += 1;
+                  showOfflineBanner({ ...draft, conflict: true }, "conflict");
+                  continue;
+                }
+                throw err;
+              }
+              if (q) await q.markSynced(cid, draft.docId);
+              else await clearOfflineDraft(draft.docId);
+              synced += 1;
+              if (currentDoc?.id === draft.docId && !dirty) {
+                await reloadFromServerQuiet();
+              }
+            }
+          }
+          if (!draft.docId) {
+            const created = await api(`/api/v2/docs${companyQuery()}`, {
+              method: "POST",
+              body: JSON.stringify({
+                company_id: cid,
+                title: draft.title || dt("untitled"),
+                mode: draft.mode || "general",
+                contentHtml: draft.html,
+                contentText: "",
+              }),
+            });
+            const newId = created.document?.id || "";
+            if (q) await q.markSynced(cid, "new", { newDocId: newId });
+            else await clearOfflineDraft("new");
+            synced += 1;
+            // Avoid duplicate: if editor still empty/new, load created doc once.
+            if (!currentDoc?.id && newId) {
+              loadIntoEditor(created.document);
+              dirty = false;
+              await refreshList(newId);
+            }
+          }
+        } catch {
+          if (interactive) showOfflineBanner(draft, "pending");
+        }
+      }
+      if (synced && !conflicts) {
+        hideOfflineBanner();
+        setStatus($("saveStatus"), dt("offlineSynced", { n: synced }), "ok");
+        await refreshList(currentDoc?.id);
+      } else if (conflicts) {
+        setStatus($("saveStatus"), dt("offlineConflictStatus", { n: conflicts }), "err");
+      } else if (interactive && !synced) {
+        setStatus($("saveStatus"), dt("offlineNothingPending"), "");
+      }
+      return { ok: true, synced, conflicts };
+    } finally {
+      offlineFlushRunning = false;
+    }
   }
 
   function openImagePicker() {
@@ -6365,7 +6588,7 @@
     setStatus($("saveStatus"), dt("loaded"), "ok");
     updatePageLabel();
     refreshVersions().catch(() => {});
-    maybeOfferOfflineDraft(doc);
+    maybeOfferOfflineDraft(doc).catch(() => {});
     startPresenceLoop();
     syncEmptyState();
     maybeAutoWatermark(doc?.status);
@@ -6444,6 +6667,10 @@
       return;
     }
     const payload = payloadFromEditor();
+    if (currentDoc?.id) {
+      payload.expectedUpdatedAt = String(lastKnownUpdatedAt || currentDoc?.updated_at || "") || undefined;
+      if (forceNextSave) payload.force = true;
+    }
     setStatus($("saveStatus"), dt("saving"));
     try {
       let data;
@@ -6460,11 +6687,12 @@
       }
       currentDoc = data.document;
       dirty = false;
+      forceNextSave = false;
       lastSavedAt = Date.now();
       lastKnownUpdatedAt = String(currentDoc?.updated_at || lastKnownUpdatedAt || "");
       lastKnownContentHash = "";
       hideCollabConflict();
-      clearOfflineDraft(currentDoc?.id || "new");
+      await clearOfflineDraft(currentDoc?.id || "new");
       hideOfflineBanner();
       renderDocMeta(currentDoc);
       syncWorkerSelect(currentDoc?.worker_id || selectedWorkerId);
@@ -6482,7 +6710,28 @@
       await refreshList(currentDoc?.id);
       await refreshVersions();
     } catch (e) {
-      persistOfflineDraft();
+      if (e.status === 409 && (e.body?.error === "conflict" || String(e.message || "") === "conflict")) {
+        const serverDoc = e.body?.document;
+        await persistOfflineDraft({ pendingSync: false });
+        const q = OfflineQ();
+        if (q && currentDoc?.id) {
+          await q.markConflict(cid, currentDoc.id, e.body?.serverUpdatedAt || serverDoc?.updated_at || "");
+        }
+        showOfflineBanner(
+          {
+            ...(await readOfflineDraft(currentDoc?.id || "new")),
+            ts: Date.now(),
+            html: getHtml(),
+            conflict: true,
+            serverUpdatedAt: e.body?.serverUpdatedAt || serverDoc?.updated_at || "",
+          },
+          "conflict",
+        );
+        showCollabConflict();
+        setStatus($("saveStatus"), dt("offlineConflictStatus", { n: 1 }), "err");
+        return;
+      }
+      await persistOfflineDraft({ pendingSync: true });
       setStatus($("saveStatus"), `${e.message || dt("saveFail")} · ${dt("offlineKept")}`, "err");
     }
   }
@@ -6705,8 +6954,17 @@
   }
 
   async function bootstrapFromQuery() {
-    const orphan = scanOfflineDrafts();
-    if (orphan) showOfflineBanner(orphan);
+    try {
+      const q = OfflineQ();
+      if (q) await q.migrateFromLocalStorage();
+    } catch {
+      /* ignore */
+    }
+    const orphan = await scanOfflineDrafts();
+    if (orphan) showOfflineBanner(orphan, orphan.conflict ? "conflict" : orphan.pendingSync ? "pending" : "restore");
+    if (navigator.onLine !== false) {
+      flushOfflineDraftQueue({ interactive: false }).catch(() => {});
+    }
     syncEmptyState();
 
     const contractId = (qs().get("contract_id") || "").trim();
@@ -7072,13 +7330,17 @@
     });
     $("collabReloadBtn")?.addEventListener("click", () => {
       dirty = false;
+      forceNextSave = false;
       conflictIgnoredHash = "";
       pendingRemoteHash = "";
       hideCollabConflict();
+      hideOfflineBanner();
+      clearOfflineDraft(currentDoc?.id || "new").catch(() => {});
       reloadFromServerQuiet().catch(() => {});
     });
     $("collabKeepBtn")?.addEventListener("click", () => {
       if (pendingRemoteHash) conflictIgnoredHash = pendingRemoteHash;
+      forceNextSave = true;
       hideCollabConflict();
     });
     $("liveFollowBtn")?.addEventListener("click", () => {
@@ -7161,12 +7423,28 @@
     window.setInterval(() => tickSaveStatus(), 15000);
     window.addEventListener("online", () => {
       if (dirty) scheduleAutosave();
-      const draft = scanOfflineDrafts();
-      if (draft && !pendingOfflineDraft) showOfflineBanner(draft);
+      flushOfflineDraftQueue({ interactive: false })
+        .then(async () => {
+          const draft = await scanOfflineDrafts();
+          if (draft && !pendingOfflineDraft) {
+            showOfflineBanner(
+              draft,
+              draft.conflict ? "conflict" : draft.pendingSync ? "pending" : "restore",
+            );
+          }
+        })
+        .catch(() => {});
     });
     window.addEventListener("beforeunload", () => {
-      if (dirty) persistOfflineDraft();
+      if (dirty) persistOfflineDraft({ pendingSync: true });
     });
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.addEventListener("message", (event) => {
+        if (event.data?.type === "DOCS_OFFLINE_FLUSH" || event.data?.type === "SW_FLUSH_OFFLINE_QUEUE") {
+          flushOfflineDraftQueue({ interactive: false }).catch(() => {});
+        }
+      });
+    }
 
     $("emailModalClose")?.addEventListener("click", () => closeEmailModal());
     $("emailBackdrop")?.addEventListener("click", () => closeEmailModal());
@@ -7393,10 +7671,26 @@
     $("shortcutsBtn")?.addEventListener("click", () => openShortcutsModal());
     $("shortcutsClose")?.addEventListener("click", () => closeShortcutsModal());
     $("shortcutsBackdrop")?.addEventListener("click", () => closeShortcutsModal());
-    $("offlineRestoreBtn")?.addEventListener("click", () => applyOfflineDraft(pendingOfflineDraft));
+    $("offlineRestoreBtn")?.addEventListener("click", () => {
+      if (offlineBannerMode === "conflict") forceNextSave = true;
+      applyOfflineDraft(pendingOfflineDraft);
+    });
     $("offlineDiscardBtn")?.addEventListener("click", () => {
-      clearOfflineDraft(pendingOfflineDraft?.docId || currentDoc?.id || "new");
+      clearOfflineDraft(pendingOfflineDraft?.docId || currentDoc?.id || "new").catch(() => {});
       hideOfflineBanner();
+      hideCollabConflict();
+    });
+    $("offlineSyncBtn")?.addEventListener("click", () => {
+      flushOfflineDraftQueue({ interactive: true }).catch(() => {});
+    });
+    $("offlineReloadBtn")?.addEventListener("click", () => {
+      dirty = false;
+      forceNextSave = false;
+      hideOfflineBanner();
+      hideCollabConflict();
+      clearOfflineDraft(currentDoc?.id || pendingOfflineDraft?.docId || "new").catch(() => {});
+      if (currentDoc?.id) reloadFromServerQuiet().catch(() => {});
+      else setStatus($("saveStatus"), dt("presenceReloaded"), "ok");
     });
     // Drag & drop images onto the paper
     quill.root.addEventListener("dragover", (e) => {
@@ -8397,8 +8691,17 @@
     }
   }
 
-  function scanOfflineDrafts() {
+  async function scanOfflineDrafts() {
     const cid = activeCompanyId() || "none";
+    const q = OfflineQ();
+    if (q) {
+      try {
+        const rows = await q.listDrafts(cid);
+        return rows[0] || null;
+      } catch {
+        /* fall through */
+      }
+    }
     const prefix = `${OFFLINE_PREFIX}${cid}:`;
     let best = null;
     try {

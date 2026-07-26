@@ -1,5 +1,5 @@
 /* SUPPIX admin service worker — web push for employer chat. */
-const ADMIN_SW_BUILD = "20260726video3";
+const ADMIN_SW_BUILD = "20260726docs68";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(self.skipWaiting());
@@ -120,4 +120,25 @@ self.addEventListener("sync", (event) => {
       }),
     );
   }
+  if (event.tag === "docs-offline-flush") {
+    event.waitUntil(
+      clients.matchAll({ type: "window", includeUncontrolled: true }).then((allClients) => {
+        allClients.forEach((client) =>
+          client.postMessage({ type: "DOCS_OFFLINE_FLUSH", source: "admin-sw-sync" }),
+        );
+      }),
+    );
+  }
+});
+
+self.addEventListener("message", (event) => {
+  const data = event.data || {};
+  if (data.type !== "DOCS_OFFLINE_FLUSH_REQUEST") return;
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((allClients) => {
+      allClients.forEach((client) =>
+        client.postMessage({ type: "DOCS_OFFLINE_FLUSH", source: "admin-sw-message" }),
+      );
+    }),
+  );
 });
