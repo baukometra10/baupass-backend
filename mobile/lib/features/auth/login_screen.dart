@@ -14,6 +14,7 @@ import '../../services/push_notification_service.dart';
 import '../../services/public_legal_loader.dart';
 import '../../services/tenant_branding_loader.dart';
 import '../../widgets/language_picker.dart';
+import '../../widgets/simple_text_field.dart';
 import '../../widgets/tenant_brand_mark.dart';
 import '../legal/public_legal_screen.dart';
 import 'qr_scan_panel.dart';
@@ -293,20 +294,42 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             const LanguagePickerTile(dense: true),
             const SizedBox(height: 16),
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment<bool>(value: true, label: Text('Manuell'), icon: Icon(Icons.keyboard)),
-                ButtonSegment<bool>(value: false, label: Text('QR'), icon: Icon(Icons.qr_code_scanner)),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _loading
+                        ? null
+                        : () => setState(() {
+                              _manualMode = true;
+                              _error = null;
+                            }),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _manualMode ? const Color(0xFF0F766E) : const Color(0xFFE2E8F0),
+                      foregroundColor: _manualMode ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    icon: const Icon(Icons.keyboard, size: 18),
+                    label: const Text('Manuell'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _loading
+                        ? null
+                        : () => setState(() {
+                              _manualMode = false;
+                              _error = null;
+                            }),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: !_manualMode ? const Color(0xFF0F766E) : const Color(0xFFE2E8F0),
+                      foregroundColor: !_manualMode ? Colors.white : const Color(0xFF0F172A),
+                    ),
+                    icon: const Icon(Icons.qr_code_scanner, size: 18),
+                    label: const Text('QR'),
+                  ),
+                ),
               ],
-              selected: {_manualMode},
-              onSelectionChanged: _loading
-                  ? null
-                  : (next) {
-                      setState(() {
-                        _manualMode = next.contains(true);
-                        _error = null;
-                      });
-                    },
             ),
             const SizedBox(height: 16),
             if (_badApiBuild)
@@ -402,57 +425,60 @@ class _LoginScreenState extends State<LoginScreen> {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 12),
-        TextField(
+        SimpleTextField(
           controller: _badgeIdController,
-          decoration: const InputDecoration(
-            labelText: 'Badge-ID',
-            border: OutlineInputBorder(),
-          ),
+          hint: 'Badge-ID',
           textCapitalization: TextCapitalization.characters,
           enabled: !_loading,
         ),
         const SizedBox(height: 12),
-        TextField(
+        SimpleTextField(
           controller: _pinController,
-          decoration: const InputDecoration(
-            labelText: 'PIN',
-            border: OutlineInputBorder(),
-          ),
+          hint: 'PIN',
           obscureText: true,
           keyboardType: TextInputType.number,
           enabled: !_loading,
         ),
         const SizedBox(height: 12),
-        TextField(
+        SimpleTextField(
           controller: _tokenController,
-          decoration: const InputDecoration(
-            labelText: 'Einmal-Aktivierungslink (optional)',
-            border: OutlineInputBorder(),
-          ),
+          hint: 'Einmal-Aktivierungslink (optional)',
           enabled: !_loading,
+          minLines: 1,
+          maxLines: 3,
         ),
         const SizedBox(height: 16),
-        FilledButton(
-          onPressed: _loading
-              ? null
-              : () async {
-                  final raw = _tokenController.text.trim();
-                  if (raw.isNotEmpty) {
-                    final parsed = QrActivationParser.parse(raw);
-                    final token = (parsed?.accessToken ?? '').trim().isNotEmpty
-                        ? parsed!.accessToken!.trim()
-                        : raw;
-                    final preview = await widget.auth.previewJoin(token);
-                    await _applyCompanyBranding(preview);
-                    await _loginToken(token);
-                  } else {
-                    await _loginBadge(qrLaunch: _qrBadgeLaunch);
-                    _qrBadgeLaunch = false;
-                  }
-                },
-          child: _loading
-              ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-              : const Text('Anmelden'),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton(
+            onPressed: _loading
+                ? null
+                : () async {
+                    final raw = _tokenController.text.trim();
+                    if (raw.isNotEmpty) {
+                      final parsed = QrActivationParser.parse(raw);
+                      final access = (parsed?.accessToken ?? '').trim();
+                      final token = access.isNotEmpty ? access : raw;
+                      final preview = await widget.auth.previewJoin(token);
+                      await _applyCompanyBranding(preview);
+                      await _loginToken(token);
+                    } else {
+                      await _loginBadge(qrLaunch: _qrBadgeLaunch);
+                      _qrBadgeLaunch = false;
+                    }
+                  },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0F766E),
+              foregroundColor: Colors.white,
+            ),
+            child: _loading
+                ? const SizedBox(
+                    height: 22,
+                    width: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Anmelden'),
+          ),
         ),
       ],
     );

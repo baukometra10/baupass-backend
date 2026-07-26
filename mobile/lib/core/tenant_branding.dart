@@ -133,6 +133,16 @@ class TenantBranding {
       elevation: 8,
       showUnselectedLabels: true,
     );
+    const inputTheme = InputDecorationTheme(
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+      errorBorder: InputBorder.none,
+      focusedErrorBorder: InputBorder.none,
+      floatingLabelBehavior: FloatingLabelBehavior.never,
+      isDense: true,
+    );
     if (base == null) {
       return ThemeData(
         colorScheme: scheme,
@@ -140,6 +150,7 @@ class TenantBranding {
         scaffoldBackgroundColor: scheme.surface,
         canvasColor: scheme.surface,
         bottomNavigationBarTheme: nav,
+        inputDecorationTheme: inputTheme,
       );
     }
     return base.copyWith(
@@ -147,6 +158,7 @@ class TenantBranding {
       scaffoldBackgroundColor: scheme.surface,
       canvasColor: scheme.surface,
       bottomNavigationBarTheme: nav,
+      inputDecorationTheme: inputTheme,
     );
   }
 

@@ -357,15 +357,16 @@ class _WorkerAppState extends State<WorkerApp> {
   @override
   Widget build(BuildContext context) {
     final rtl = LocaleController.instance.isRtl;
-    // IMPORTANT: Do NOT set MaterialApp.locale to tr/ar/pl/… without
-    // flutter_localizations — Material widgets then null-crash (Anzeige-Fehler)
-    // before login. App strings use LocaleController + t() separately.
+    // DefaultMaterialLocalizations only supports `en` unless flutter_localizations
+    // is wired up. Any other MaterialApp.locale (incl. `de`) makes TextField crash
+    // with "Null check operator used on a null value". UI copy stays German via t().
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
       title: _session != null ? _appBranding.displayName : 'SUPPIX',
       theme: _appBranding.themeData(),
-      locale: const Locale('de'),
-      supportedLocales: const [Locale('de'), Locale('en')],
+      locale: const Locale('en'),
+      supportedLocales: const [Locale('en')],
+      localeResolutionCallback: (_, __) => const Locale('en'),
       builder: (context, child) {
         final content = child ??
             const Scaffold(
