@@ -119,45 +119,40 @@ class TenantBranding {
   }
 
   ThemeData themeData({ThemeData? base}) {
-    final scheme = ColorScheme.fromSeed(seedColor: effectiveSeed);
-    final navBg = scheme.surface;
-    final navFg = scheme.onSurface;
-    final navSelected = scheme.primary;
-    final navTheme = NavigationBarThemeData(
-      backgroundColor: navBg,
-      elevation: 8,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      surfaceTintColor: Colors.transparent,
-      indicatorColor: navSelected.withValues(alpha: 0.16),
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      iconTheme: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return IconThemeData(
-          size: 24,
-          color: selected ? navSelected : navFg.withValues(alpha: 0.72),
-        );
-      }),
-      labelTextStyle: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return TextStyle(
-          fontSize: 12,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? navSelected : navFg.withValues(alpha: 0.78),
-        );
-      }),
+    final scheme = ColorScheme.fromSeed(
+      seedColor: effectiveSeed,
+      brightness: Brightness.light,
     );
+    // Keep theme simple — complex NavigationBarTheme/WidgetState wiring
+    // contributed to blank screens on some release builds.
     if (base == null) {
       return ThemeData(
         colorScheme: scheme,
         useMaterial3: true,
-        navigationBarTheme: navTheme,
         scaffoldBackgroundColor: scheme.surface,
+        canvasColor: scheme.surface,
+        bottomNavigationBarTheme: BottomNavigationBarThemeData(
+          backgroundColor: scheme.surface,
+          selectedItemColor: scheme.primary,
+          unselectedItemColor: scheme.onSurface.withValues(alpha: 0.7),
+          type: BottomNavigationBarType.fixed,
+          elevation: 8,
+          showUnselectedLabels: true,
+        ),
       );
     }
     return base.copyWith(
       colorScheme: scheme,
-      navigationBarTheme: navTheme,
       scaffoldBackgroundColor: scheme.surface,
+      canvasColor: scheme.surface,
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: scheme.surface,
+        selectedItemColor: scheme.primary,
+        unselectedItemColor: scheme.onSurface.withValues(alpha: 0.7),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+        showUnselectedLabels: true,
+      ),
     );
   }
 

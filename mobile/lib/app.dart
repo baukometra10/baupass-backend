@@ -67,6 +67,7 @@ class _WorkerAppState extends State<WorkerApp> {
   @override
   void initState() {
     super.initState();
+    LocaleController.instance.addListener(_onLocaleChanged);
     BrandingStore.instance.addListener(_onBrandingChanged);
     _api = ApiClient(onSessionExpired: _onSessionExpired);
     _auth = AuthRepository(_api);
@@ -173,34 +174,51 @@ class _WorkerAppState extends State<WorkerApp> {
     setState(() => _appBranding = BrandingStore.instance.value);
   }
 
+  void _onLocaleChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Future<void> _boot() async {
-    final existing = await _auth.loadSession();
-    if (existing != null) {
-      try {
-        await _auth.validateSession(existing);
-        _bindSession(existing);
-        _finishBoot(existing);
-      } on ApiException catch (e) {
-        await _auth.clearToken();
-        _finishBoot(null, error: formatWorkerAuthError(e));
+    try {
+      final existing = await _auth.loadSession();
+      if (existing != null) {
+        try {
+          await _auth.validateSession(existing).timeout(const Duration(seconds: 12));
+          _bindSession(existing);
+          _finishBoot(existing);
+        } on ApiException catch (e) {
+          await _auth.clearToken();
+          _finishBoot(null, error: formatWorkerAuthError(e));
+        } on TimeoutException {
+          // Offline / slow network: keep cached session so the app opens.
+          _bindSession(existing);
+          _finishBoot(existing);
+        } catch (e) {
+          await _auth.clearToken();
+          _finishBoot(null, error: e.toString());
+        }
+        _listenDeepLinks();
+        return;
+      }
+      final initialUri = await _deepLinks.getInitialUri();
+      final access = DeepLinkService.accessTokenFromUri(initialUri);
+      if (access != null) {
+        await _loginWithJoinToken(access);
+      } else {
+        _finishBoot(null);
+        final route = DeepLinkService.appRouteFromUri(initialUri);
+        if (route != null && _session != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _shellKey.currentState?.navigateTo(route);
+          });
+        }
       }
       _listenDeepLinks();
-      return;
+    } catch (e) {
+      _finishBoot(null, error: 'App-Start fehlgeschlagen: $e');
+      _listenDeepLinks();
     }
-    final initialUri = await _deepLinks.getInitialUri();
-    final access = DeepLinkService.accessTokenFromUri(initialUri);
-    if (access != null) {
-      await _loginWithJoinToken(access);
-    } else {
-      _finishBoot(null);
-      final route = DeepLinkService.appRouteFromUri(initialUri);
-      if (route != null && _session != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _shellKey.currentState?.navigateTo(route);
-        });
-      }
-    }
-    _listenDeepLinks();
   }
 
   void _bindSession(WorkerSession session) {
@@ -287,6 +305,7 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   void dispose() {
+    LocaleController.instance.removeListener(_onLocaleChanged);
     BrandingStore.instance.removeListener(_onBrandingChanged);
     _geofence.stop();
     _deepLinks.dispose();
@@ -312,53 +331,59 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: LocaleController.instance,
-      builder: (context, _) {
-        final locale = LocaleController.instance;
-        return MaterialApp(
-          scaffoldMessengerKey: _messengerKey,
-          title: _session != null ? _appBranding.displayName : 'SUPPIX',
-          theme: _appBranding.themeData(),
-          locale: Locale(locale.lang),
-          supportedLocales: LocaleController.supported.map(Locale.new).toList(),
-          builder: (context, child) {
-            return Directionality(
-              textDirection: locale.textDirection,
-              child: child ?? const SizedBox.shrink(),
-            );
-          },
-          home: _bootstrapping
-              ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-              : _session != null
-                  ? WorkerShell(
-                      key: _shellKey,
-                      session: _session!,
-                      auth: _auth,
-                      attendance: _attendance,
-                      digitalCard: _digitalCard,
-                      chat: _chat,
-                      nfc: _nfc,
-                      location: _location,
-                      geofence: _geofence,
-                      offlineStore: _offlineStore,
-                      offlineSync: _offlineSync,
-                      workerCache: _workerCache,
-                      tasks: _tasks,
-                      usage: _usage,
-                      push: _push,
-                      ai: _ai,
-                      onLogout: _onLogout,
-                    )
-                  : LoginScreen(
-                      auth: _auth,
-                      location: _location,
-                      push: _push,
-                      onLoggedIn: _onLoggedIn,
-                      initialError: _joinError,
-                    ),
+    final lang = LocaleController.instance.lang;
+    final rtl = LocaleController.instance.isRtl;
+    return MaterialApp(
+      scaffoldMessengerKey: _messengerKey,
+      title: _session != null ? _appBranding.displayName : 'SUPPIX',
+      theme: _appBranding.themeData(),
+      locale: Locale(lang),
+      supportedLocales: LocaleController.supported.map((c) => Locale(c)).toList(),
+      // Keep Navigator/Overlay intact; never replace with an empty box.
+      builder: (context, child) {
+        if (child == null) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF8FAFC),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        return Directionality(
+          textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
+          child: child,
         );
       },
+      home: _bootstrapping
+          ? const Scaffold(
+              backgroundColor: Color(0xFFF8FAFC),
+              body: Center(child: CircularProgressIndicator()),
+            )
+          : _session != null
+              ? WorkerShell(
+                  key: _shellKey,
+                  session: _session!,
+                  auth: _auth,
+                  attendance: _attendance,
+                  digitalCard: _digitalCard,
+                  chat: _chat,
+                  nfc: _nfc,
+                  location: _location,
+                  geofence: _geofence,
+                  offlineStore: _offlineStore,
+                  offlineSync: _offlineSync,
+                  workerCache: _workerCache,
+                  tasks: _tasks,
+                  usage: _usage,
+                  push: _push,
+                  ai: _ai,
+                  onLogout: _onLogout,
+                )
+              : LoginScreen(
+                  auth: _auth,
+                  location: _location,
+                  push: _push,
+                  onLoggedIn: _onLoggedIn,
+                  initialError: _joinError,
+                ),
     );
   }
 }

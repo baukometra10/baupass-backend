@@ -139,11 +139,19 @@ class DigitalPassCard extends StatelessWidget {
                 SizedBox(
                   width: side,
                   height: side,
-                  child: QrImageView(
-                    data: qrValue,
-                    backgroundColor: Colors.white,
-                    padding: const EdgeInsets.all(8),
-                  ),
+                  child: qrValue.trim().isEmpty
+                      ? const ColoredBox(
+                          color: Colors.white,
+                          child: Center(child: Icon(Icons.qr_code_2, size: 64)),
+                        )
+                      : QrImageView(
+                          data: qrValue,
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.all(8),
+                          errorStateBuilder: (_, __) => const Center(
+                            child: Icon(Icons.qr_code_2, size: 64),
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
@@ -460,11 +468,21 @@ class _MiddleRow extends StatelessWidget {
                               ),
                               child: Padding(
                                 padding: const EdgeInsets.all(3),
-                                child: QrImageView(
-                                  data: qrValue,
-                                  backgroundColor: Colors.white,
-                                  padding: EdgeInsets.zero,
-                                ),
+                                child: qrValue.trim().isEmpty
+                                    ? const ColoredBox(
+                                        color: Colors.white,
+                                        child: Center(
+                                          child: Icon(Icons.qr_code_2, color: Colors.black54),
+                                        ),
+                                      )
+                                    : QrImageView(
+                                        data: qrValue,
+                                        backgroundColor: Colors.white,
+                                        padding: EdgeInsets.zero,
+                                        errorStateBuilder: (_, __) => const Center(
+                                          child: Icon(Icons.qr_code_2, color: Colors.black54),
+                                        ),
+                                      ),
                               ),
                             ),
                           ),
