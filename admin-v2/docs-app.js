@@ -6624,12 +6624,24 @@
     if (dirty && currentDoc?.id && currentDoc.id !== id) {
       if (!confirm(dt("confirmSwitch"))) return;
     }
-    const data = await api(`/api/v2/docs/${encodeURIComponent(id)}${companyQuery()}`);
-    loadIntoEditor(data.document);
-    syncDocUrl(id);
-    maybeAutoWatermark(data.document?.status);
-    await refreshList(id);
-    setSideTab("docs");
+    try {
+      const data = await api(`/api/v2/docs/${encodeURIComponent(id)}${companyQuery()}`);
+      loadIntoEditor(data.document);
+      syncDocUrl(id);
+      maybeAutoWatermark(data.document?.status);
+      await refreshList(id);
+      setSideTab("docs");
+    } catch (e) {
+      if (e.status === 404 || String(e.message || "") === "not_found") {
+        stopPresenceLoop();
+        currentDoc = null;
+        setStatus($("saveStatus"), dt("docNotFound"), "err");
+        syncDocUrl("");
+        await refreshList();
+        return;
+      }
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
   }
 
   async function createBlank(opts = {}) {
@@ -8467,13 +8479,43 @@
     if (liveFollow && peer.live_html) applyPeerLive(peer);
   }
 
-  function ensureDocsSocket() {
-    if (docsSocket || typeof window.io !== "function") return;
+  let docsSocketDisabled = false;
+  let docsSocketioOk = null; // null = unknown, true/false after probe
+
+  async function probeDocsSocketioAvailable() {
+    if (docsSocketioOk !== null) return docsSocketioOk;
+    try {
+      const res = await fetch("/api/v1/realtime/capabilities", {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      docsSocketioOk = Boolean(data && data.socketio);
+    } catch {
+      // Railway/Waitress: Socket.IO is off — never hammer wss upgrades.
+      docsSocketioOk = false;
+    }
+    return docsSocketioOk;
+  }
+
+  async function ensureDocsSocket() {
+    if (docsSocket || docsSocketDisabled || typeof window.io !== "function") return docsSocket;
+    const available = await probeDocsSocketioAvailable();
+    if (!available) {
+      docsSocketDisabled = true;
+      return null;
+    }
     try {
       docsSocket = window.io({
         path: "/socket.io",
-        transports: ["websocket", "polling"],
+        // Prefer polling; Waitress cannot upgrade to WebSocket (400 spam).
+        transports: ["polling", "websocket"],
+        upgrade: false,
         withCredentials: true,
+        reconnection: true,
+        reconnectionAttempts: 2,
+        reconnectionDelay: 2000,
+        timeout: 8000,
       });
       docsSocket.on("docs_live", (payload) => {
         if (!currentDoc?.id) return;
@@ -8481,21 +8523,38 @@
         if (String(payload?.userId || "") === myActorId()) return;
         handlePeerLivePayload(payload);
       });
+      const killSocket = () => {
+        docsSocketDisabled = true;
+        try {
+          docsSocket?.disconnect();
+        } catch {
+          /* ignore */
+        }
+        docsSocket = null;
+      };
+      docsSocket.on("connect_error", killSocket);
+      docsSocket.on("reconnect_failed", killSocket);
     } catch {
       docsSocket = null;
+      docsSocketDisabled = true;
     }
+    return docsSocket;
   }
 
   function subscribeDocsSocket() {
-    ensureDocsSocket();
-    if (!docsSocket || !currentDoc?.id) return;
-    const token = wpGet(TOKEN_KEY) || "";
-    docsSocket.emit("subscribe", { company_id: activeCompanyId(), session_token: token });
-    docsSocket.emit("docs_subscribe", {
-      company_id: activeCompanyId(),
-      document_id: currentDoc.id,
-      session_token: token,
-    });
+    if (!currentDoc?.id || docsSocketDisabled) return;
+    ensureDocsSocket()
+      .then((sock) => {
+        if (!sock || !currentDoc?.id) return;
+        const token = wpGet(TOKEN_KEY) || "";
+        sock.emit("subscribe", { company_id: activeCompanyId(), session_token: token });
+        sock.emit("docs_subscribe", {
+          company_id: activeCompanyId(),
+          document_id: currentDoc.id,
+          session_token: token,
+        });
+      })
+      .catch(() => {});
   }
 
   async function heartbeatPresence() {

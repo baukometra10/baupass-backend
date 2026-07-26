@@ -279,6 +279,14 @@
 
   async function start({ companyId, feedEl, onMode, onEvent, getHeaders }) {
     try {
+      // Cheap public probe first — avoids Waitress WebSocket 400 reconnect storms.
+      const caps = await fetch("/api/v1/realtime/capabilities", {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      }).then((r) => (r.ok ? r.json() : null));
+      if (caps && caps.socketio === false) {
+        return startPolling({ companyId, feedEl, onMode, onEvent, getHeaders });
+      }
       const st = await fetch("/api/v1/realtime/status", {
         credentials: "include",
         headers: {

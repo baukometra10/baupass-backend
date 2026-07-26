@@ -83,7 +83,7 @@ def register_realtime_blueprint(flask_app: Flask) -> None:
 
     @realtime_bp.get("/v1/realtime/status")
     @require_auth
-    @require_roles("superadmin", "company-admin")
+    @require_roles("superadmin", "company-admin", "turnstile")
     def realtime_status():
         from backend.app.platform.realtime.websocket import websocket_status
 
@@ -93,6 +93,22 @@ def register_realtime_blueprint(flask_app: Flask) -> None:
                 "websocket": ws,
                 "polling": {"enabled": True, "path": "/api/v1/events/recent"},
                 "recommended": "polling" if not ws.get("supported") else "websocket",
+            }
+        )
+
+    @realtime_bp.get("/v1/realtime/capabilities")
+    def realtime_capabilities():
+        """Unauthenticated probe so clients skip Socket.IO when Waitress has no WS."""
+        from backend.app.platform.realtime.websocket import websocket_status
+
+        ws = websocket_status()
+        enabled = bool(ws.get("enabled"))
+        supported = bool(ws.get("supported"))
+        return jsonify(
+            {
+                "websocket": {"enabled": enabled, "supported": supported, "reason": ws.get("reason")},
+                "socketio": enabled and supported,
+                "recommended": "websocket" if enabled and supported else "http_polling",
             }
         )
 
