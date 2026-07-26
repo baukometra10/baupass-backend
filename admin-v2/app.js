@@ -4401,6 +4401,7 @@ function renderInboxFilters(bySource = {}) {
   const chips = [
     { id: "", label: t("inbox.filterAll") },
     { id: "security", label: `${t("inbox.filterSecurity")} (${bySource.security ?? 0})` },
+    { id: "attendance", label: `${t("inbox.filterAttendance")} (${bySource.attendance ?? 0})` },
     { id: "leave", label: `${t("inbox.filterLeave")} (${bySource.leave ?? 0})` },
     { id: "document", label: `${t("inbox.filterDocument")} (${bySource.document ?? 0})` },
     { id: "system", label: `${t("inbox.filterSystem")} (${bySource.system ?? 0})` },

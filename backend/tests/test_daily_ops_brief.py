@@ -207,3 +207,63 @@ def test_inbox_includes_camera_escalation_items(client_and_db):
     items2 = (r2.get_json() or {}).get("items") or []
     still_open = [it for it in items2 if str(it.get("id") or "") == f"camesc:{eid}"]
     assert not still_open, "acked escalation should leave open inbox list"
+
+
+def test_inbox_missing_checkin_ack(client_and_db, monkeypatch):
+    """Missing expected workers appear under attendance and resolve clears them."""
+    monkeypatch.setattr(
+        "backend.app.platform.inbox.service._missing_past_grace",
+        lambda _w, _now: True,
+    )
+    client, _db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "MissInboxCo")
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Clara",
+            "lastName": "Fehlt",
+            "insuranceNumber": "INS-MISS-INBOX-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-MISS-INB-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    wid = str((created.get_json() or {}).get("id") or "")
+    assert wid
+
+    if date.today().weekday() >= 5:
+        # Weekend: no expected workers in Mo–Fr fallback — still ensure API is stable.
+        r = client.get(f"/api/inbox?company_id={cid}&source=attendance", headers=headers)
+        assert r.status_code == 200
+        return
+
+    r = client.get(f"/api/inbox?company_id={cid}&source=attendance", headers=headers)
+    assert r.status_code == 200
+    items = (r.get_json() or {}).get("items") or []
+    miss = [it for it in items if str(it.get("id") or "").startswith("miss:") and wid in str(it.get("id"))]
+    assert miss, "expected missing-checkin inbox item"
+    assert miss[0].get("source") == "attendance"
+    mid = miss[0]["id"]
+
+    ack = client.post(
+        f"/api/inbox/{mid}/resolve?company_id={cid}",
+        headers=headers,
+        json={},
+    )
+    assert ack.status_code == 200, ack.get_json()
+    assert (ack.get_json() or {}).get("ok") is True
+
+    r2 = client.get(f"/api/inbox?company_id={cid}&source=attendance", headers=headers)
+    items2 = (r2.get_json() or {}).get("items") or []
+    still = [it for it in items2 if str(it.get("id") or "") == mid]
+    assert not still, "acked missing check-in should leave attendance inbox"

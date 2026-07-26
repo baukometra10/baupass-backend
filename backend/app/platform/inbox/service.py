@@ -16,6 +16,61 @@ def _now_iso() -> str:
     return datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _now_local() -> datetime:
+    try:
+        from zoneinfo import ZoneInfo
+
+        return datetime.now(ZoneInfo("Europe/Berlin"))
+    except Exception:
+        return datetime.now()
+
+
+def _missing_past_grace(worker: dict[str, Any], now_local: datetime) -> bool:
+    """Avoid early-morning spam; respect shift start when known."""
+    shift = str((worker or {}).get("shiftStart") or "").strip()
+    if shift and len(shift) >= 4:
+        try:
+            hh, mm = int(shift[:2]), int(shift[3:5])
+            grace = now_local.replace(hour=hh, minute=mm, second=0, microsecond=0) + timedelta(minutes=20)
+            return now_local >= grace
+        except Exception:
+            pass
+    # Default: after 08:30 local
+    return (now_local.hour, now_local.minute) >= (8, 30)
+
+
+def _acked_missing_worker_ids(db, company_id: str, work_date: str) -> set[str]:
+    """Workers already acknowledged missing for this work day."""
+    out: set[str] = set()
+    try:
+        rows = db.execute(
+            """
+            SELECT details FROM system_alerts
+            WHERE code = 'missing_checkin_noted'
+              AND (details LIKE ? OR details LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT 200
+            """,
+            (f'%"{company_id}"%', f"%company_id={company_id}%"),
+        ).fetchall()
+        for r in rows:
+            raw = r["details"] or ""
+            try:
+                details = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except Exception:
+                details = {}
+            if not isinstance(details, dict):
+                continue
+            if str(details.get("workDate") or details.get("work_date") or "")[:10] != str(work_date)[:10]:
+                continue
+            wid = str(details.get("workerId") or details.get("worker_id") or "").strip()
+            if wid:
+                out.add(wid)
+    except Exception:
+        return set()
+    return out
+
+
 def _coerce_iso_timestamp(value: Any) -> str:
     """Normalize DB timestamps (TEXT or datetime) for parsing and sorting."""
     if value is None:
@@ -543,6 +598,80 @@ def build_operations_inbox(
         except Exception as exc:
             _inbox_soft_fail("leave_requests", exc)
 
+        # Missing expected check-ins (after morning / shift grace) — Absenz-Welle
+        try:
+            from backend.app.platform.physical_operations.daily_brief import build_attendance_brief
+
+            att = build_attendance_brief(db, cid) or {}
+            today = str(att.get("date") or "")
+            missing = list(att.get("missingWorkers") or [])
+            if today and missing:
+                acked = _acked_missing_worker_ids(db, cid, today)
+                now_local = _now_local()
+                for w in missing[:25]:
+                    wid = str(w.get("workerId") or "").strip()
+                    if not wid or wid in acked:
+                        continue
+                    if not _missing_past_grace(w, now_local):
+                        continue
+                    name = str(w.get("name") or wid).strip()
+                    loc = str(w.get("location") or "").strip()
+                    shift_s = str(w.get("shiftStart") or "").strip()
+                    shift_e = str(w.get("shiftEnd") or "").strip()
+                    reason = str(w.get("reason") or "workday")
+                    shift_bit = f" · Schicht {shift_s}–{shift_e}" if shift_s and shift_e else ""
+                    loc_bit = f" · {loc}" if loc else ""
+                    sev = "high" if reason == "scheduled" and shift_s else "medium"
+                    items.append(
+                        {
+                            "id": f"miss:{today}:{wid}",
+                            "source": "attendance",
+                            "severity": sev,
+                            "code": "missing_checkin",
+                            "title": f"Fehlt heute · {name}",
+                            "message": (
+                                f"Erwartet, noch kein Check-in{loc_bit}{shift_bit}. "
+                                "Kenntnisnahme in der Inbox — kein Auto-Check-in."
+                            ),
+                            "companyId": cid,
+                            "workerId": wid,
+                            "createdAt": f"{today}T08:00:00Z",
+                            "status": "open",
+                            "actions": [
+                                {
+                                    "type": "resolve",
+                                    "action": "ack_missing_checkin",
+                                    "params": {"worker_id": wid, "work_date": today},
+                                    "label": "Kenntnis genommen",
+                                },
+                                {
+                                    "type": "navigate",
+                                    "url": f"/admin-v2/chat.html?company_id={cid}&worker_id={wid}",
+                                    "label": "Chat öffnen",
+                                },
+                                {
+                                    "type": "navigate",
+                                    "url": f"/admin-v2/index.html?company_id={cid}&tab=access",
+                                    "label": "Anwesenheit",
+                                    "tab": "access",
+                                },
+                                {
+                                    "type": "execute",
+                                    "action": "notify_worker",
+                                    "params": {
+                                        "worker_id": wid,
+                                        "title": "SUPPIX Anwesenheit",
+                                        "body": "Bitte einchecken bzw. Abwesenheit melden.",
+                                        "tag": "missing-checkin",
+                                    },
+                                    "label": "Push an MA",
+                                },
+                            ],
+                        }
+                    )
+        except Exception as exc:
+            _inbox_soft_fail("missing_checkins", exc)
+
     items = [_item_with_sla(it) for it in items]
     items.sort(
         key=lambda x: (
@@ -696,5 +825,72 @@ def resolve_inbox_item(
 
             notify_inbox_changed(company_id, source="leave_resolve")
         return result
+
+    if item_id.startswith("miss:"):
+        # miss:{YYYY-MM-DD}:{workerId}
+        parts = item_id.split(":", 2)
+        if len(parts) != 3 or not company_id:
+            return {"ok": False, "error": "invalid_missing_id"}
+        work_date = parts[1].strip()
+        worker_id = parts[2].strip()
+        if not work_date or not worker_id:
+            return {"ok": False, "error": "invalid_missing_id"}
+        # Tenant check
+        row = db.execute(
+            "SELECT id FROM workers WHERE id = ? AND company_id = ? AND COALESCE(deleted_at, '') = ''",
+            (worker_id, company_id),
+        ).fetchone()
+        if not row:
+            return {"ok": False, "error": "not_found"}
+        if worker_id in _acked_missing_worker_ids(db, str(company_id), work_date):
+            return {"ok": True, "id": item_id, "status": "acknowledged", "alreadyResolved": True}
+        alert_id = f"missnote-{work_date}-{worker_id}"[:80]
+        details = {
+            "companyId": str(company_id),
+            "workerId": worker_id,
+            "workDate": work_date,
+            "acknowledgedAt": _now_iso(),
+            "acknowledgedBy": str(user_id or ""),
+            "note": "missing_checkin_noted",
+        }
+        try:
+            db.execute(
+                """
+                INSERT INTO system_alerts (id, code, severity, message, details, created_at, resolved_at)
+                VALUES (?, 'missing_checkin_noted', 'info', ?, ?, ?, ?)
+                """,
+                (
+                    alert_id,
+                    f"Fehlende Anwesenheit zur Kenntnis genommen ({worker_id})",
+                    json.dumps(details, ensure_ascii=False),
+                    _now_iso(),
+                    _now_iso(),
+                ),
+            )
+        except Exception:
+            # id collision / schema variance — update if exists
+            try:
+                db.execute(
+                    """
+                    UPDATE system_alerts
+                    SET resolved_at = ?, details = ?, message = ?
+                    WHERE id = ? OR (code = 'missing_checkin_noted' AND details LIKE ? AND details LIKE ?)
+                    """,
+                    (
+                        _now_iso(),
+                        json.dumps(details, ensure_ascii=False),
+                        f"Fehlende Anwesenheit zur Kenntnis genommen ({worker_id})",
+                        alert_id,
+                        f'%"{worker_id}"%',
+                        f'%"{work_date}"%',
+                    ),
+                )
+            except Exception as exc:
+                return {"ok": False, "error": "ack_failed", "hint": str(exc)}
+        db.commit()
+        from .events import notify_inbox_changed
+
+        notify_inbox_changed(company_id, source="missing_checkin_ack")
+        return {"ok": True, "id": item_id, "status": "acknowledged", "autoDial": False}
 
     return {"ok": False, "error": "action_not_supported", "hint": "Use linked admin screens for documents and leave."}

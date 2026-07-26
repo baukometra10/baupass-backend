@@ -38,9 +38,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Copilot: Quick-Actions (Lage/Spät/Security/Kamera) + deterministische DE-Antworten
 3. Integrationen: Security-Webhook → Kamera-Wächter-Wizard; Teams/Slack-Schritte + Inline-Test
 
-## Follow-up — Absenz + Inbox-Ack
+## Follow-up — Absenz + Inbox-Ack — erledigt
 
-1. Daily Brief: `expectedToday` / `missingExpected` / `missingWorkers` (Einsatzplan oder Mo–Fr)
-2. Inbox: `camesc:*` Resolve → Kamera-Eskalation ack (Security informiert)
+1. Daily Brief: `expectedToday` / `missingExpected` / `missingWorkers` (Einsatzplan oder Mo–Fr) ✅
+2. Inbox: `camesc:*` Resolve → Kamera-Eskalation ack (Security informiert) ✅
+3. **Erweiterung:** Fehlende MA als Inbox-Items `miss:{date}:{workerId}` (Quelle `attendance`) + Resolve = „Kenntnis genommen“
 
 Unverändert: **kein Auto-Polizei-Notruf**.
