@@ -5857,7 +5857,18 @@
       setStatus($("saveStatus"), dt("needCompanyShort"), "err");
       return;
     }
-    if (!getText()) {
+    const grounded = new Set(["from_expiry", "from_attendance", "draft_warning", "grounded_improve"]);
+    const workerId =
+      selectedWorkerId ||
+      currentDoc?.worker_id ||
+      $("mergeWorkerSelect")?.value ||
+      $("workerSelect")?.value ||
+      "";
+    if (["from_expiry", "from_attendance", "draft_warning"].includes(action) && !workerId) {
+      setStatus($("saveStatus"), dt("needWorker"), "err");
+      return;
+    }
+    if (!getText() && !grounded.has(action)) {
       setStatus($("saveStatus"), dt("noAiText"), "err");
       return;
     }
@@ -5869,6 +5880,7 @@
           company_id: cid,
           contentHtml: getHtml(),
           action,
+          workerId: workerId || undefined,
           lang: typeof window.getDocsPageLang === "function" ? window.getDocsPageLang() : "de",
         }),
       });

@@ -724,6 +724,216 @@ class EditorDocsService:
             save_version=True,
         )
 
+    _SALARY_RE = re.compile(
+        r"(?i)\b(gehalt|salary|lohn|brutto|netto|stundenlohn|hourly[_ ]?rate|vergütung|entgelt)\b"
+    )
+
+    def _scrub_salary_text(self, value: str) -> str:
+        text = str(value or "")
+        if not text:
+            return ""
+        return self._SALARY_RE.sub("[redacted]", text)
+
+    def build_docs_grounding(
+        self,
+        db,
+        *,
+        company_id: str,
+        worker_id: str | None = None,
+        query: str = "",
+    ) -> dict[str, Any]:
+        """Ops context for Docs AI — never includes salary/contract pay fields."""
+        grounding: dict[str, Any] = {
+            "mode": "docs_editor_grounded",
+            "companyId": company_id,
+            "workerId": worker_id or "",
+            "expiringDocuments": [],
+            "unreadEditorDocs": 0,
+            "attendance": [],
+            "knowledge": [],
+            "worker": {},
+            "guards": {"salaryExcluded": True},
+        }
+        try:
+            exp = self.list_expiring_worker_docs(db, company_id=company_id, horizon_days=14, limit=8)
+            if worker_id:
+                exp = [x for x in exp if str(x.get("workerId") or "") == str(worker_id)]
+            grounding["expiringDocuments"] = [
+                {
+                    "workerName": self._scrub_salary_text(x.get("workerName") or ""),
+                    "docType": x.get("docType"),
+                    "filename": self._scrub_salary_text(x.get("filename") or ""),
+                    "expiryDate": x.get("expiryDate"),
+                }
+                for x in exp
+            ]
+        except Exception:
+            pass
+        try:
+            unread = self.list_unread_editor_docs(db, company_id=company_id, limit=20)
+            if worker_id:
+                unread = [x for x in unread if str(x.get("workerId") or "") == str(worker_id)]
+            grounding["unreadEditorDocs"] = len(unread)
+        except Exception:
+            pass
+        if worker_id:
+            try:
+                ctx = self.build_merge_context(db, company_id=company_id, worker_id=worker_id)
+                fields = ctx.get("fields") or {}
+                # Explicit allow-list — never pass salary-ish keys even if added later.
+                allow = {
+                    "worker.name",
+                    "worker.firstName",
+                    "worker.lastName",
+                    "worker.badge",
+                    "worker.role",
+                    "worker.site",
+                    "worker.email",
+                    "worker.phone",
+                    "site.name",
+                    "shift.slot",
+                    "shift.site",
+                    "company.name",
+                    "date.today",
+                }
+                grounding["worker"] = {
+                    k: self._scrub_salary_text(fields.get(k) or "")
+                    for k in allow
+                    if fields.get(k) and fields.get(k) != "—"
+                }
+            except Exception:
+                pass
+            try:
+                from backend.app.platform.workforce.late_streak import (
+                    list_late_checkin_evidence,
+                    summarize_late_evidence,
+                )
+
+                evidence = list_late_checkin_evidence(db, str(worker_id), limit=6)
+                grounding["attendance"] = [
+                    {
+                        "at": self._scrub_salary_text(str(e.get("at") or "")),
+                        "day": e.get("day") or "",
+                        "time": e.get("time") or "",
+                        "gate": self._scrub_salary_text(str(e.get("gate") or "")),
+                        "reason": self._scrub_salary_text(str(e.get("note") or "late_checkin")),
+                    }
+                    for e in (evidence or [])
+                    if isinstance(e, dict)
+                ]
+                grounding["attendanceSummary"] = self._scrub_salary_text(
+                    summarize_late_evidence(evidence or [])
+                )
+            except Exception:
+                grounding["attendance"] = []
+        try:
+            from backend.app.platform.ai.rag import search_knowledge
+
+            q = (query or "ablauf dokument verspätung unterweisung").strip()
+            chunks = search_knowledge(db, company_id, q, limit=6)
+            grounding["knowledge"] = [
+                {
+                    "source": c.get("source"),
+                    "text": self._scrub_salary_text(str(c.get("text") or "")[:280]),
+                }
+                for c in chunks
+                if not self._SALARY_RE.search(str(c.get("text") or ""))
+            ]
+        except Exception:
+            pass
+        return grounding
+
+    def _local_grounded_draft(
+        self,
+        db,
+        *,
+        company_id: str,
+        worker_id: str | None,
+        action: str,
+        grounding: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Deterministic drafts when OpenAI is unavailable."""
+        worker = grounding.get("worker") or {}
+        name = worker.get("worker.name") or "Mitarbeiter/in"
+        company = worker.get("company.name") or "Firma"
+        today = worker.get("date.today") or _today_de()
+        if action == "from_expiry":
+            items = grounding.get("expiringDocuments") or []
+            if not items:
+                return {
+                    "ok": True,
+                    "action": action,
+                    "provider": "local",
+                    "contentHtml": (
+                        f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                        f"<p>bitte prüfen Sie Ihre hinterlegten Nachweise. Aktuell sind keine "
+                        f"ablaufenden Dokumente in den nächsten 14 Tagen gemeldet.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    ),
+                    "contentText": f"Keine ablaufenden Dokumente für {name}.",
+                    "grounding": grounding,
+                    "hint": "Lokal ohne OpenAI — Hinweis aus Expiry-Liste.",
+                }
+            lines = "".join(
+                f"<li>{html_escape(str(it.get('docType') or 'Dokument'))}: "
+                f"{html_escape(str(it.get('filename') or ''))} "
+                f"(Ablauf {html_escape(str(it.get('expiryDate') or '—'))})</li>"
+                for it in items[:5]
+            )
+            html = (
+                f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                f"<p>folgende Nachweise laufen in Kürze ab bzw. sind abgelaufen:</p>"
+                f"<ul>{lines}</ul>"
+                f"<p>Bitte reichen Sie rechtzeitig gültige Kopien nach.</p>"
+                f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+            )
+            return {
+                "ok": True,
+                "action": action,
+                "provider": "local",
+                "contentHtml": html,
+                "contentText": html_to_text(html),
+                "grounding": grounding,
+                "hint": "Lokal ohne OpenAI — Entwurf aus Ablaufdaten.",
+            }
+        if action in {"from_attendance", "draft_warning"}:
+            summary = grounding.get("attendanceSummary") or ""
+            events = grounding.get("attendance") or []
+            if not events and not summary:
+                html = (
+                    f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                    f"<p>wir möchten Sie auf die Einhaltung der Arbeitszeiten hinweisen.</p>"
+                    f"<p>Bitte erscheinen Sie pünktlich und melden Sie Verzögerungen frühzeitig.</p>"
+                    f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                )
+            else:
+                bullets = "".join(
+                    f"<li>{html_escape(str(e.get('day') or e.get('at') or '—'))}"
+                    f"{(' um ' + html_escape(str(e.get('time')))) if e.get('time') else ''}"
+                    f"{(' · Tor ' + html_escape(str(e.get('gate')))) if e.get('gate') else ''}"
+                    f"{(' — ' + html_escape(str(e.get('reason')))) if e.get('reason') and e.get('reason') != 'late_checkin' else ''}</li>"
+                    for e in events[:5]
+                )
+                html = (
+                    f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                    f"<p>hiermit sprechen wir eine schriftliche Ermahnung wegen wiederholter "
+                    f"Unpünktlichkeit aus.</p>"
+                    f"{('<p>' + html_escape(str(summary)) + '</p>') if summary else ''}"
+                    f"{('<ul>' + bullets + '</ul>') if bullets else ''}"
+                    f"<p>Wir fordern Sie auf, künftig pünktlich zu erscheinen.</p>"
+                    f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                )
+            return {
+                "ok": True,
+                "action": action,
+                "provider": "local",
+                "contentHtml": html,
+                "contentText": html_to_text(html),
+                "grounding": grounding,
+                "hint": "Lokal ohne OpenAI — Entwurf aus Anwesenheitsdaten.",
+            }
+        return None
+
     def suggest(
         self,
         db,
@@ -732,15 +942,40 @@ class EditorDocsService:
         content_html: str,
         action: str = "improve",
         lang: str = "de",
+        worker_id: str | None = None,
+        actor_user_id: str | None = None,
     ) -> dict[str, Any]:
         text = html_to_text(content_html or "")
         action = (action or "improve").strip().lower()
         lang = (lang or "de")[:2]
+        grounded_actions = {"from_expiry", "from_attendance", "draft_warning", "grounded_improve"}
+        grounding = self.build_docs_grounding(
+            db,
+            company_id=company_id,
+            worker_id=worker_id,
+            query=text[:200] or action,
+        )
 
         prompts = {
             "improve": "Improve the following text for clarity and style. Keep the meaning. Reply with the improved text only.",
             "shorten": "Shorten the following text clearly while keeping the key points. Reply with the shortened text only.",
             "formal": "Rewrite the following text in a more formal business tone. Reply with the text only.",
+            "grounded_improve": (
+                "Improve the document using ONLY the provided ops grounding context. "
+                "Do not invent salary, wages, or contract pay. Reply with the improved document text only."
+            ),
+            "from_expiry": (
+                "Draft a short German HR letter reminding the worker about expiring compliance documents. "
+                "Use ONLY grounding.expiringDocuments and worker fields. No salary. Reply with letter text only."
+            ),
+            "from_attendance": (
+                "Draft a short German reminder about late attendance using grounding.attendance. "
+                "No salary. Reply with letter text only."
+            ),
+            "draft_warning": (
+                "Draft a formal German Abmahnung/Ermahnung about punctuality using grounding.attendance. "
+                "No salary or legal overclaim. Reply with letter text only."
+            ),
             "translate_de": "Übersetze den folgenden Text ins Deutsche. Antworte nur mit der Übersetzung.",
             "translate_en": "Translate the following text to English. Reply with the translation only.",
             "translate_ar": "ترجم النص التالي إلى العربية فقط بدون شرح.",
@@ -757,32 +992,102 @@ class EditorDocsService:
         instruction = prompts.get(action) or prompts["improve"]
         if action.startswith("translate_"):
             lang = action.split("_", 1)[-1] or lang
-        question = f"{instruction}\n\n---\n{text[:6000]}"
+
+        # Grounded drafts can run without an existing editor body.
+        if action not in grounded_actions and not text.strip():
+            return {"ok": False, "error": "empty_content", "action": action}
 
         openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-        if openai_key and text.strip():
+        use_grounding = action in grounded_actions or bool(worker_id)
+        if openai_key and (text.strip() or action in grounded_actions):
             try:
                 from backend.app.platform.ai.assistant import natural_language_query
 
-                result = natural_language_query(company_id, question, {"mode": "docs_editor"}, lang=lang)
-                answer = str(result.get("answer") or "").strip()
+                question = (
+                    f"{instruction}\n\n---DOCUMENT---\n{text[:5000]}\n\n---GROUNDING---\n"
+                    f"{str(grounding)[:3500]}"
+                    if use_grounding
+                    else f"{instruction}\n\n---\n{text[:6000]}"
+                )
+                result = natural_language_query(
+                    company_id,
+                    question,
+                    {
+                        "mode": "docs_editor",
+                        "docsGrounding": grounding if use_grounding else {},
+                        "salaryExcluded": True,
+                    },
+                    lang=lang,
+                )
+                answer = self._scrub_salary_text(str(result.get("answer") or "").strip())
                 if answer:
-                    html = "".join(f"<p>{line}</p>" if line.strip() else "<p><br></p>" for line in answer.splitlines())
-                    return {
+                    html = "".join(
+                        f"<p>{html_escape(line)}</p>" if line.strip() else "<p><br></p>"
+                        for line in answer.splitlines()
+                    )
+                    out = {
                         "ok": True,
                         "action": action,
                         "provider": "openai",
                         "contentHtml": html,
                         "contentText": answer,
+                        "grounding": grounding if use_grounding else None,
                     }
+                    try:
+                        from backend.server import log_audit
+
+                        log_audit(
+                            "docs.ai_suggest",
+                            f"Docs AI suggest: {action}",
+                            target_type="company",
+                            target_id=company_id,
+                            company_id=company_id,
+                            actor={"id": actor_user_id} if actor_user_id else None,
+                            details={
+                                "action": action,
+                                "workerId": worker_id or "",
+                                "provider": "openai",
+                                "grounded": use_grounding,
+                            },
+                        )
+                    except Exception:
+                        pass
+                    return out
             except Exception as exc:
-                return {
-                    "ok": False,
-                    "action": action,
-                    "provider": "openai",
-                    "error": str(exc),
-                    "fallbackHtml": content_html,
-                }
+                # Fall through to local grounded/local rewrite.
+                if action not in grounded_actions:
+                    return {
+                        "ok": False,
+                        "action": action,
+                        "provider": "openai",
+                        "error": str(exc),
+                        "fallbackHtml": content_html,
+                    }
+
+        if action in grounded_actions:
+            local = self._local_grounded_draft(
+                db,
+                company_id=company_id,
+                worker_id=worker_id,
+                action=action,
+                grounding=grounding,
+            )
+            if local:
+                try:
+                    from backend.server import log_audit
+
+                    log_audit(
+                        "docs.ai_suggest",
+                        f"Docs AI suggest (local): {action}",
+                        target_type="company",
+                        target_id=company_id,
+                        company_id=company_id,
+                        actor={"id": actor_user_id} if actor_user_id else None,
+                        details={"action": action, "workerId": worker_id or "", "provider": "local"},
+                    )
+                except Exception:
+                    pass
+                return local
 
         # Deterministic offline fallback
         if action == "shorten" and text:
@@ -790,11 +1095,15 @@ class EditorDocsService:
             short = ". ".join(parts[: max(1, len(parts) // 2)])
             if short and not short.endswith("."):
                 short += "."
-            html = f"<p>{short}</p>"
+            html = f"<p>{html_escape(short)}</p>"
             return {"ok": True, "action": action, "provider": "local", "contentHtml": html, "contentText": short}
         if action == "formal" and text:
-            formal = text.replace("Hallo", "Sehr geehrte Damen und Herren").replace("hiermit teilen wir", "hiermit teilen wir Ihnen förmlich")
-            html = "".join(f"<p>{line}</p>" if line.strip() else "<p><br></p>" for line in formal.splitlines())
+            formal = text.replace("Hallo", "Sehr geehrte Damen und Herren").replace(
+                "hiermit teilen wir", "hiermit teilen wir Ihnen förmlich"
+            )
+            html = "".join(
+                f"<p>{html_escape(line)}</p>" if line.strip() else "<p><br></p>" for line in formal.splitlines()
+            )
             return {"ok": True, "action": action, "provider": "local", "contentHtml": html, "contentText": formal}
 
         return {
@@ -803,6 +1112,7 @@ class EditorDocsService:
             "provider": "local",
             "contentHtml": content_html,
             "contentText": text,
+            "grounding": grounding if use_grounding else None,
             "hint": "OPENAI_API_KEY nicht gesetzt — lokal nur begrenzte Vorschläge.",
         }
 

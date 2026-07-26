@@ -869,12 +869,15 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         cid = _resolve_company_id(data, required=True)
         if not cid:
             return forbidden_company()
+        worker_id = str(data.get("workerId") or data.get("worker_id") or "").strip() or None
         result = _service.suggest(
             get_db(),
             company_id=cid,
             content_html=str(data.get("contentHtml") or data.get("content_html") or ""),
             action=str(data.get("action") or "improve"),
             lang=str(data.get("lang") or "de"),
+            worker_id=worker_id,
+            actor_user_id=_actor_id(),
         )
         return jsonify(result)
 

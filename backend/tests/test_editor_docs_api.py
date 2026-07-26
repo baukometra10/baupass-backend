@@ -194,6 +194,25 @@ def test_docs_merge_fill_and_versions_export(client_and_db):
     assert suggest.status_code == 200
     assert suggest.get_json().get("ok") is True
 
+    grounded = client.post(
+        f"/api/v2/docs/suggest?company_id={cid}",
+        headers=headers,
+        json={
+            "company_id": cid,
+            "action": "from_expiry",
+            "contentHtml": "",
+            "workerId": "w-docs-merge-1",
+        },
+    )
+    assert grounded.status_code == 200
+    gbody = grounded.get_json()
+    assert gbody.get("ok") is True
+    assert gbody.get("action") == "from_expiry"
+    assert gbody.get("provider") in {"local", "openai"}
+    assert "gehalt" not in (gbody.get("contentText") or "").lower()
+    assert "salary" not in (gbody.get("contentText") or "").lower()
+    assert "Ali" in (gbody.get("contentHtml") or "") or "Mitarbeiter" in (gbody.get("contentHtml") or "")
+
     export_html = client.get(
         f"/api/v2/docs/{doc['id']}/export?company_id={cid}&format=html",
         headers=headers,
