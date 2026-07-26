@@ -120,10 +120,45 @@ class TenantBranding {
 
   ThemeData themeData({ThemeData? base}) {
     final scheme = ColorScheme.fromSeed(seedColor: effectiveSeed);
+    final navBg = scheme.surface;
+    final navFg = scheme.onSurface;
+    final navSelected = scheme.primary;
+    final navTheme = NavigationBarThemeData(
+      backgroundColor: navBg,
+      elevation: 8,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: navSelected.withValues(alpha: 0.16),
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          size: 24,
+          color: selected ? navSelected : navFg.withValues(alpha: 0.72),
+        );
+      }),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+          color: selected ? navSelected : navFg.withValues(alpha: 0.78),
+        );
+      }),
+    );
     if (base == null) {
-      return ThemeData(colorScheme: scheme, useMaterial3: true);
+      return ThemeData(
+        colorScheme: scheme,
+        useMaterial3: true,
+        navigationBarTheme: navTheme,
+        scaffoldBackgroundColor: scheme.surface,
+      );
     }
-    return base.copyWith(colorScheme: scheme);
+    return base.copyWith(
+      colorScheme: scheme,
+      navigationBarTheme: navTheme,
+      scaffoldBackgroundColor: scheme.surface,
+    );
   }
 
   static String deriveInitials(String name) {

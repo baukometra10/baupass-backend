@@ -402,7 +402,10 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       branding: _branding,
       child: Theme(
         data: _branding.themeData(base: Theme.of(context)),
-        child: Scaffold(
+        child: Builder(
+          builder: (context) {
+            final scheme = Theme.of(context).colorScheme;
+            return Scaffold(
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -426,53 +429,73 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
               ),
             ],
           ),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) {
-              setState(() => _index = i);
-              if (i == 1) _refreshBadges();
-              widget.usage.trackTab(
-                tabIndex: i,
-                bearerToken: widget.session.bearer,
-                deviceId: widget.session.deviceId,
-              );
-            },
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.badge_outlined),
-                selectedIcon: const Icon(Icons.badge),
-                label: t('navPass', 'Ausweis'),
+          bottomNavigationBar: Material(
+            elevation: 14,
+            color: scheme.surface,
+            child: SafeArea(
+              top: false,
+              child: BottomNavigationBar(
+                type: BottomNavigationBarType.fixed,
+                currentIndex: _index,
+                backgroundColor: scheme.surface,
+                selectedItemColor: scheme.primary,
+                unselectedItemColor: scheme.onSurface.withValues(alpha: 0.72),
+                selectedFontSize: 12,
+                unselectedFontSize: 11,
+                selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500),
+                showUnselectedLabels: true,
+                showSelectedLabels: true,
+                elevation: 0,
+                onTap: (i) {
+                  setState(() => _index = i);
+                  if (i == 1) _refreshBadges();
+                  widget.usage.trackTab(
+                    tabIndex: i,
+                    bearerToken: widget.session.bearer,
+                    deviceId: widget.session.deviceId,
+                  );
+                },
+                items: [
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.badge_outlined),
+                    activeIcon: const Icon(Icons.badge),
+                    label: t('navPass', 'Ausweis'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Badge(
+                      isLabelVisible: _offlinePending > 0,
+                      label: Text('$_offlinePending'),
+                      child: const Icon(Icons.nfc_outlined),
+                    ),
+                    activeIcon: Badge(
+                      isLabelVisible: _offlinePending > 0,
+                      label: Text('$_offlinePending'),
+                      child: const Icon(Icons.nfc),
+                    ),
+                    label: t('navCheckin', 'Check-in'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.task_alt_outlined),
+                    activeIcon: const Icon(Icons.task_alt),
+                    label: t('navTasks', 'Aufgaben'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    activeIcon: const Icon(Icons.chat_bubble),
+                    label: t('navChat', 'Chat'),
+                  ),
+                  BottomNavigationBarItem(
+                    icon: const Icon(Icons.person_outline),
+                    activeIcon: const Icon(Icons.person),
+                    label: t('navProfile', 'Profil'),
+                  ),
+                ],
               ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: _offlinePending > 0,
-                  label: Text('$_offlinePending'),
-                  child: const Icon(Icons.nfc_outlined),
-                ),
-                selectedIcon: Badge(
-                  isLabelVisible: _offlinePending > 0,
-                  label: Text('$_offlinePending'),
-                  child: const Icon(Icons.nfc),
-                ),
-                label: t('navCheckin', 'Check-in'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.task_alt_outlined),
-                selectedIcon: const Icon(Icons.task_alt),
-                label: t('navTasks', 'Aufgaben'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.chat_bubble_outline),
-                selectedIcon: const Icon(Icons.chat_bubble),
-                label: t('navChat', 'Chat'),
-              ),
-              NavigationDestination(
-                icon: const Icon(Icons.person_outline),
-                selectedIcon: const Icon(Icons.person),
-                label: t('navProfile', 'Profil'),
-              ),
-            ],
+            ),
           ),
+            );
+          },
         ),
       ),
     );

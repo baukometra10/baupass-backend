@@ -56,8 +56,8 @@ class DigitalPassCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 430.0;
-        // Keep ID-1 landscape proportions; fit within available width.
-        final cardW = math.min(maxW, 420.0);
+        // ID-1 proportions, displayed larger on phone (use nearly full width).
+        final cardW = math.min(maxW, 480.0);
         final cardH = cardW / _cardAspect;
 
         return Center(
@@ -67,12 +67,12 @@ class DigitalPassCard extends StatelessWidget {
             child: _WalletCardShell(
               palette: palette,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(cardW * 0.045, cardH * 0.07, cardW * 0.045, cardH * 0.06),
+                padding: EdgeInsets.fromLTRB(cardW * 0.04, cardH * 0.055, cardW * 0.04, cardH * 0.05),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _TopRow(brandLabel: brandLabel, tenant: tenant, palette: palette, cardW: cardW),
-                    SizedBox(height: cardH * 0.03),
+                    SizedBox(height: cardH * 0.02),
                     Expanded(
                       child: _MiddleRow(
                         qrValue: qrValue,
@@ -80,10 +80,11 @@ class DigitalPassCard extends StatelessWidget {
                         photoData: photoData,
                         palette: palette,
                         cardW: cardW,
+                        cardH: cardH,
                         onQrTap: () => _showFullscreenQr(context, qrValue, remaining),
                       ),
                     ),
-                    SizedBox(height: cardH * 0.02),
+                    SizedBox(height: cardH * 0.015),
                     _BottomSection(
                       name: name,
                       role: role,
@@ -114,11 +115,13 @@ class DigitalPassCard extends StatelessWidget {
   static void _showFullscreenQr(BuildContext context, String qrValue, int remaining) {
     showDialog<void>(
       context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
       builder: (ctx) {
-        final side = MediaQuery.sizeOf(ctx).shortestSide * 0.78;
+        final side = MediaQuery.sizeOf(ctx).shortestSide * 0.82;
         return Dialog(
           backgroundColor: Colors.white,
-          insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
             child: Column(
@@ -139,7 +142,7 @@ class DigitalPassCard extends StatelessWidget {
                   child: QrImageView(
                     data: qrValue,
                     backgroundColor: Colors.white,
-                    padding: EdgeInsets.zero,
+                    padding: const EdgeInsets.all(8),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -392,6 +395,7 @@ class _MiddleRow extends StatelessWidget {
     required this.photoData,
     required this.palette,
     required this.cardW,
+    required this.cardH,
     this.onQrTap,
   });
 
@@ -400,136 +404,167 @@ class _MiddleRow extends StatelessWidget {
   final String? photoData;
   final _WalletPalette palette;
   final double cardW;
+  final double cardH;
   final VoidCallback? onQrTap;
 
   @override
   Widget build(BuildContext context) {
-    final qrSize = (cardW * 0.52).clamp(140.0, 200.0);
-    final photoSize = (cardW * 0.24).clamp(72.0, 100.0);
+    // Match PWA: compact QR (~28%), portrait photo more prominent.
+    final qrSize = (cardW * 0.28).clamp(78.0, 118.0);
+    final photoH = (cardH * 0.42).clamp(88.0, 132.0);
+    final photoW = photoH * 0.78;
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        _PhotoTile(width: photoW, height: photoH, photoData: photoData),
+        const Spacer(),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GestureDetector(
-              onTap: onQrTap,
-              child: SizedBox(
-                width: qrSize,
-                height: qrSize,
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          gradient: LinearGradient(
-                            colors: palette.qrFrameColors,
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onQrTap,
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: qrSize,
+                  height: qrSize,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Positioned.fill(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            gradient: LinearGradient(
+                              colors: palette.qrFrameColors,
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: palette.qrFrameColors[1].withValues(alpha: 0.32),
+                                blurRadius: 10,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
                           ),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: palette.qrFrameColors[1].withValues(alpha: 0.38),
-                              blurRadius: 14,
-                              offset: const Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(7),
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(5),
-                              child: QrImageView(
-                                data: qrValue,
-                                backgroundColor: Colors.white,
-                                padding: EdgeInsets.zero,
+                          child: Padding(
+                            padding: const EdgeInsets.all(5),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(9),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(3),
+                                child: QrImageView(
+                                  data: qrValue,
+                                  backgroundColor: Colors.white,
+                                  padding: EdgeInsets.zero,
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    if (remaining > 0)
-                      Positioned(
-                        right: -6,
-                        top: -6,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.55),
-                            borderRadius: BorderRadius.circular(999),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                          ),
-                          child: Text(
-                            '${remaining}s',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                      if (remaining > 0)
+                        Positioned(
+                          right: -6,
+                          top: -6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.55),
+                              borderRadius: BorderRadius.circular(999),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                            ),
+                            child: Text(
+                              '${remaining}s',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             Text(
-              'Zum Vergrößern tippen',
+              'Tippen → groß',
               style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.55),
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 9.5,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
         ),
-        _PhotoTile(size: photoSize, photoData: photoData),
       ],
     );
   }
 }
 
 class _PhotoTile extends StatelessWidget {
-  const _PhotoTile({required this.size, required this.photoData});
+  const _PhotoTile({
+    required this.width,
+    required this.height,
+    required this.photoData,
+  });
 
-  final double size;
+  final double width;
+  final double height;
   final String? photoData;
 
   @override
   Widget build(BuildContext context) {
     Widget image;
     if (photoData == null || photoData!.isEmpty) {
-      image = Icon(Icons.person, color: Colors.white.withValues(alpha: 0.45), size: size * 0.45);
+      image = ColoredBox(
+        color: Colors.white.withValues(alpha: 0.06),
+        child: Center(
+          child: Icon(Icons.person, color: Colors.white.withValues(alpha: 0.5), size: height * 0.42),
+        ),
+      );
     } else {
       try {
         final bytes = base64Decode(photoData!.split(',').last);
-        image = Image.memory(bytes, fit: BoxFit.cover, width: size, height: size);
+        image = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: width,
+          height: height,
+          alignment: const Alignment(0, -0.15),
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => ColoredBox(
+            color: Colors.white.withValues(alpha: 0.06),
+            child: Icon(Icons.person, color: Colors.white.withValues(alpha: 0.5), size: height * 0.42),
+          ),
+        );
       } catch (_) {
-        image = Icon(Icons.person, color: Colors.white.withValues(alpha: 0.45), size: size * 0.45);
+        image = ColoredBox(
+          color: Colors.white.withValues(alpha: 0.06),
+          child: Icon(Icons.person, color: Colors.white.withValues(alpha: 0.5), size: height * 0.42),
+        );
       }
     }
     return Container(
-      width: size,
-      height: size,
+      width: width,
+      height: height,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.22), width: 2),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35), width: 2.2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.34),
-            blurRadius: 15,
-            offset: const Offset(0, 8),
+            color: Colors.black.withValues(alpha: 0.4),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
-        color: Colors.black.withValues(alpha: 0.15),
+        color: Colors.black.withValues(alpha: 0.2),
       ),
       clipBehavior: Clip.antiAlias,
       child: image,

@@ -317,7 +317,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
           children: [
             if (_loadError != null)
               Card(
@@ -340,7 +340,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 subcompany: subcompany?['name'] as String?,
                 validUntil: worker['validUntil'] as String? ?? '-',
                 status: status,
-                photoData: worker['photoData'] as String?,
+                photoData: (worker['photoData'] ?? worker['photo_data'] ?? worker['photo'])?.toString(),
                 dynamicQr: _dynamicQr,
                 branding: branding,
               ),
