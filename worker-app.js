@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260726wa3";
+const WORKER_BUILD_TAG = "20260726video3";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -2769,6 +2769,11 @@ function bindWorkerChatClearActions() {
     callBtn.dataset.bound = "1";
     callBtn.addEventListener("click", () => startWorkerCallToEmployer());
   }
+  const videoCallBtn = document.getElementById("workerChatVideoCallBtn");
+  if (videoCallBtn && !videoCallBtn.dataset.bound) {
+    videoCallBtn.dataset.bound = "1";
+    videoCallBtn.addEventListener("click", () => startWorkerCallToEmployer({ preferVideo: true }));
+  }
   if (ownBtn && !ownBtn.dataset.bound) {
     ownBtn.dataset.bound = "1";
     ownBtn.addEventListener("click", () => {
@@ -3329,6 +3334,7 @@ function ensureWorkerChatDom() {
           <div id="workerChatHeadActions" class="chat-head-actions hidden">
             <button type="button" id="workerChatGalleryBtn" class="chat-voice-call-btn" title="Medien" aria-label="Medien">🖼</button>
             <button type="button" id="workerChatCallBtn" class="chat-voice-call-btn" data-i18n="voiceCallCallEmployer" data-i18n-attr="title,aria-label" title="Arbeitgeber anrufen" aria-label="Arbeitgeber anrufen">📞</button>
+            <button type="button" id="workerChatVideoCallBtn" class="chat-voice-call-btn" data-i18n="voiceCallVideoCall" data-i18n-attr="title,aria-label" title="Videoanruf" aria-label="Videoanruf">Video</button>
             <button type="button" id="workerChatClearOwnBtn" data-i18n="chatClearOwn">Meine Nachrichten löschen</button>
             <button type="button" id="workerChatClearAllBtn" data-i18n="chatClearAll">Chat leeren</button>
           </div>
@@ -13604,19 +13610,20 @@ function workerVoiceCallApi(path, options = {}) {
   });
 }
 
-function startWorkerCallToEmployer() {
-  if (!workerToken || !workerPlanAllowsFeature("worker_chat")) {
-    showWorkerNotice(planFeatureBlockedMessage("worker_chat"));
+function startWorkerCallToEmployer(opts = {}) {
+  if (!workerChatThreadId) {
+    showWorkerNotice(t("workerChatUnavailable") || "Chat nicht verfügbar.");
     return;
   }
   if (!window.SUPPIXWorkerVoiceCall?.startOutgoingCall) {
     showWorkerNotice(t("voiceCallUnsupported") || "Sprachanruf nicht unterstützt.");
     return;
   }
-  void window.SUPPIXWorkerVoiceCall.startOutgoingCall(workerVoiceCallApi)
-    .catch((error) => {
-      showWorkerNotice(formatWorkerApiError(error) || t("voiceCallFailed") || "Anruf fehlgeschlagen");
-    });
+  void window.SUPPIXWorkerVoiceCall.startOutgoingCall(workerVoiceCallApi, {
+    preferVideo: Boolean(opts.preferVideo),
+  }).catch((error) => {
+    showWorkerNotice(formatWorkerApiError(error) || t("voiceCallFailed") || "Anruf fehlgeschlagen");
+  });
 }
 
 function startWorkerVoiceCallPolling() {

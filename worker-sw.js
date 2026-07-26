@@ -1,4 +1,4 @@
-const WORKER_BUILD = "20260726wa3";
+const WORKER_BUILD = "20260726video3";
 const CACHE_NAME = `baupass-worker-${WORKER_BUILD}`;
 const SHELL_NETWORK_FIRST = new Set([
   "/worker-app.js",
@@ -87,7 +87,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(fetch(event.request));
     return;
   }
-  // Launcher + app shell: network-only — installed PWA must never stick on old emp-app.html.
+  // Launcher + app shell: network-only â€” installed PWA must never stick on old emp-app.html.
   if (requestUrl.pathname === "/worker-install.html" || requestUrl.pathname === "/worker-build.json" || requestUrl.pathname === "/emp-app.html" || requestUrl.pathname === "/worker.html" || requestUrl.pathname === "/") {
     event.respondWith(
       fetch(event.request, { cache: "no-store" })
@@ -115,7 +115,7 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Statische Kern-Dateien: Stale-while-revalidate – Cache sofort, Update im Hintergrund.
+  // Statische Kern-Dateien: Stale-while-revalidate â€“ Cache sofort, Update im Hintergrund.
   if (STATIC_PATHS.has(requestUrl.pathname)) {
     event.respondWith(
       caches.open(CACHE_NAME).then((cache) => {
@@ -152,7 +152,7 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
-// ── Push-Benachrichtigungen ───────────────────────────────────────────
+// â”€â”€ Push-Benachrichtigungen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PUSH_TAG_URLS = {
   "deployment-plan": "/emp-app.html#einsatzplan",
   "payroll-document": "/emp-app.html#documents",
@@ -309,7 +309,7 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// ── Background Sync – Offline-Queue senden ────────────────────────────
+// â”€â”€ Background Sync â€“ Offline-Queue senden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 self.addEventListener("sync", (event) => {
   if (event.tag === "baupass-offline-queue") {
     event.waitUntil(flushOfflineQueueFromSW());
@@ -324,7 +324,7 @@ async function flushOfflineQueueFromSW() {
   }
 }
 
-// ── Checkout-Reminder (lokale Benachrichtigung, kein Server noetig) ──
+// â”€â”€ Checkout-Reminder (lokale Benachrichtigung, kein Server noetig) â”€â”€
 self.addEventListener("message", (event) => {
   if (!event.data) return;
   if (event.data.type === "SCHEDULE_CHECKOUT_REMINDER") {
@@ -332,7 +332,7 @@ self.addEventListener("message", (event) => {
     if (!delayMs || delayMs < 0) return;
     setTimeout(() => {
       self.registration.showNotification("Vergessen auszustempeln?", {
-        body: `${workerName || "Hallo"} – deine Schicht endet gleich. Bitte auschecken!`,
+        body: `${workerName || "Hallo"} â€“ deine Schicht endet gleich. Bitte auschecken!`,
         tag: `checkout-reminder-${Date.now()}`,
         icon: "/branding/suppix-icon-192.png",
         badge: "/branding/suppix-icon-192.png",
@@ -344,7 +344,7 @@ self.addEventListener("message", (event) => {
     }, delayMs);
   }
   if (event.data.type === "CANCEL_CHECKOUT_REMINDER") {
-    // Nichts zu tun – der setTimeout kann nicht abgebrochen werden,
+    // Nichts zu tun â€“ der setTimeout kann nicht abgebrochen werden,
     // aber der Worker kann die Notification schliessen wenn er online bleibt
   }
 });

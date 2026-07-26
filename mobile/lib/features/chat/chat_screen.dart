@@ -1081,6 +1081,16 @@ class _ChatScreenState extends State<ChatScreen> {
                       unawaited(widget.voiceCall!.startOutgoingCall());
                     },
             ),
+          if (widget.voiceCall != null)
+            IconButton(
+              icon: const Icon(Icons.videocam_rounded),
+              tooltip: 'Videoanruf',
+              onPressed: widget.voiceCall!.isActive
+                  ? null
+                  : () {
+                      unawaited(widget.voiceCall!.startOutgoingCall(preferVideo: true));
+                    },
+            ),
           IconButton(
             icon: const Icon(Icons.photo_library_outlined),
             tooltip: 'Medien',

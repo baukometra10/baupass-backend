@@ -71,6 +71,11 @@ class VoiceCallController extends ChangeNotifier {
   bool get muted => _muted;
   bool get speakerOn => _speakerOn;
   bool get cameraOn => _cameraOn;
+  bool get cameraPreviewing => _sessionRtc?.cameraPreviewing == true;
+  bool get blurEnabled => _sessionRtc?.blurEnabled == true;
+  bool get screenSharing => _sessionRtc?.screenSharing == true;
+  bool get isRecording => _sessionRtc?.isRecording == true;
+  bool get remoteHasVideo => _sessionRtc?.remoteHasVideo == true;
   double get localLevel => _localLevel;
   double get remoteLevel => _remoteLevel;
   String get connectionDiag => _connectionDiag;
@@ -331,13 +336,16 @@ class VoiceCallController extends ChangeNotifier {
     _ringStartedAt = null;
   }
 
-  Future<void> startOutgoingCall() async {
+  bool _preferVideo = false;
+
+  Future<void> startOutgoingCall({bool preferVideo = false}) async {
     final session = _session;
     if (session == null || isActive) return;
     _isOutgoing = true;
+    _preferVideo = preferVideo;
     _call = {'callerName': 'Arbeitgeber', 'companyName': subtitleLabel};
     _phase = VoiceCallUiPhase.outgoing;
-    _statusNote = 'Wählt…';
+    _statusNote = preferVideo ? 'Videoanruf…' : 'Wählt…';
     notifyListeners();
     try {
       final call = await repo.startWorkerCall(session);
@@ -448,9 +456,11 @@ class VoiceCallController extends ChangeNotifier {
       call: call,
       displayName: 'Mitarbeiter',
       onState: _onRtcState,
-      onRemoteStream: (_) => notifyListeners(),
-      onLocalStream: (_, cameraOn) {
-        _cameraOn = cameraOn;
+      onRemoteStream: (_) {
+        notifyListeners();
+      },
+      onLocalStream: (_, cameraOn, {preview = false}) {
+        _cameraOn = cameraOn && !preview;
         notifyListeners();
       },
       onAudioLevels: (local, remote) {
@@ -583,6 +593,26 @@ class VoiceCallController extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _cameraErrorNote(Object error) {
+    final msg = error.toString();
+    if (msg.contains('NotAllowed') || msg.contains('permission') || msg.contains('camera_permission')) {
+      return 'Kamerazugriff verweigert — erneut versuchen';
+    }
+    if (msg.contains('NotFound') || msg.contains('camera_not_found')) {
+      return 'Keine Kamera gefunden';
+    }
+    if (msg.contains('NotReadable') || msg.contains('in use') || msg.contains('camera_in_use')) {
+      return 'Kamera ist belegt — erneut versuchen';
+    }
+    if (msg.contains('screen_share')) {
+      return 'Bildschirmfreigabe fehlgeschlagen';
+    }
+    if (msg.contains('recording')) {
+      return 'Aufnahme fehlgeschlagen';
+    }
+    return 'Kamera konnte nicht aktiviert werden';
+  }
+
   Future<void> toggleCamera() async {
     final session = _sessionRtc;
     if (session == null || _phase != VoiceCallUiPhase.connected) {
@@ -591,17 +621,134 @@ class VoiceCallController extends ChangeNotifier {
       return;
     }
     try {
-      if (!_cameraOn) {
-        _statusNote = 'Kamera-Anfrage wird gesendet…';
+      if (_cameraOn || session.cameraPreviewing) {
+        await session.setCameraEnabled(false);
+        _cameraOn = false;
+        _statusNote = 'Kamera aus';
         notifyListeners();
+        return;
       }
-      final on = await session.setCameraEnabled(!_cameraOn);
+      await session.startCameraPreview();
+      _statusNote = 'Kamera-Vorschau — bitte freigeben';
+      notifyListeners();
+    } catch (error) {
+      _cameraOn = false;
+      _statusNote = _cameraErrorNote(error);
+      notifyListeners();
+    }
+  }
+
+  Future<void> startCameraPreview() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) return;
+    try {
+      await session.startCameraPreview();
+      _statusNote = 'Kamera-Vorschau — bitte freigeben';
+      notifyListeners();
+    } catch (error) {
+      _statusNote = _cameraErrorNote(error);
+      notifyListeners();
+    }
+  }
+
+  Future<void> confirmCameraPreview() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) return;
+    try {
+      _statusNote = 'Kamera-Anfrage wird gesendet…';
+      notifyListeners();
+      final on = await session.confirmCameraPreview();
       _cameraOn = on;
       _statusNote = on ? 'Kamera an' : 'Kamera aus';
       notifyListeners();
-    } catch (_) {
+    } catch (error) {
       _cameraOn = false;
-      _statusNote = 'Kamera konnte nicht aktiviert werden';
+      _statusNote = _cameraErrorNote(error);
+      notifyListeners();
+    }
+  }
+
+  Future<void> cancelCameraPreview() async {
+    final session = _sessionRtc;
+    if (session == null) return;
+    await session.cancelCameraPreview();
+    _cameraOn = false;
+    _statusNote = 'Kamera-Vorschau abgebrochen';
+    notifyListeners();
+  }
+
+  Future<void> flipCamera() async {
+    final session = _sessionRtc;
+    if (session == null ||
+        (!session.cameraOn && !session.cameraPreviewing) ||
+        _phase != VoiceCallUiPhase.connected) {
+      _statusNote = 'Kamera ist aus';
+      notifyListeners();
+      return;
+    }
+    try {
+      await session.switchCamera();
+      _statusNote = 'Kamera gewechselt';
+      notifyListeners();
+    } catch (_) {
+      _statusNote = 'Kamera konnte nicht gewechselt werden';
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleBlur() async {
+    final session = _sessionRtc;
+    if (session == null || (!_cameraOn && !session.cameraPreviewing)) {
+      _statusNote = 'Kamera ist aus';
+      notifyListeners();
+      return;
+    }
+    try {
+      final on = await session.setBlurEnabled(!session.blurEnabled);
+      _statusNote = on ? 'Blur an' : 'Blur aus';
+      notifyListeners();
+    } catch (_) {
+      _statusNote = 'Blur nicht verfügbar';
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleScreenShare() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) {
+      _statusNote = 'Anruf noch nicht verbunden';
+      notifyListeners();
+      return;
+    }
+    try {
+      final on = await session.setScreenShareEnabled(!session.screenSharing);
+      _cameraOn = session.cameraOn;
+      _statusNote = on ? 'Bildschirm wird geteilt' : 'Bildschirmfreigabe beendet';
+      notifyListeners();
+    } catch (error) {
+      _statusNote = _cameraErrorNote(error);
+      notifyListeners();
+    }
+  }
+
+  Future<void> toggleRecording() async {
+    final session = _sessionRtc;
+    if (session == null || _phase != VoiceCallUiPhase.connected) {
+      _statusNote = 'Anruf noch nicht verbunden';
+      notifyListeners();
+      return;
+    }
+    try {
+      if (session.isRecording) {
+        await session.stopRecording();
+        _statusNote = 'Aufnahme gespeichert';
+      } else {
+        await session.startRecording();
+        _statusNote = 'Aufnahme läuft';
+      }
+      notifyListeners();
+    } catch (error) {
+      _statusNote = _cameraErrorNote(error);
       notifyListeners();
     }
   }
@@ -651,6 +798,14 @@ class VoiceCallController extends ChangeNotifier {
       _connectedAt = DateTime.now();
       _startDurationTimer();
       _stopRingFeedback();
+      if (_preferVideo && !_cameraOn && !cameraPreviewing) {
+        _preferVideo = false;
+        Future<void>.delayed(const Duration(milliseconds: 350), () {
+          if (_phase == VoiceCallUiPhase.connected && !_cameraOn) {
+            unawaited(startCameraPreview());
+          }
+        });
+      }
     } else if (state == 'accepted' || state == 'connecting') {
       _clearRingTimeout();
       _stopRingFeedback();

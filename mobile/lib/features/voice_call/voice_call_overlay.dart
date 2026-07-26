@@ -30,6 +30,9 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   RTCVideoRenderer? _localRenderer;
   bool _remoteRendererReady = false;
   bool _localRendererReady = false;
+  bool _chromeVisible = true;
+  Timer? _chromeHideTimer;
+  Offset? _pipOffset;
 
   @override
   void initState() {
@@ -45,6 +48,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   @override
   void dispose() {
     widget.controller.removeListener(_onControllerChanged);
+    _chromeHideTimer?.cancel();
     _pulseController.dispose();
     _waveController.dispose();
     _disposeRenderers();
@@ -53,27 +57,49 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
 
   void _onControllerChanged() {
     _syncRenderers();
+    if (_showVideoStage) {
+      _bumpChrome();
+    } else {
+      _pipOffset = null;
+    }
     if (mounted) setState(() {});
+  }
+
+  void _bumpChrome() {
+    _chromeHideTimer?.cancel();
+    if (!_chromeVisible && mounted) setState(() => _chromeVisible = true);
+    else _chromeVisible = true;
+    if (!_showVideoStage || widget.controller.cameraPreviewing) return;
+    _chromeHideTimer = Timer(const Duration(milliseconds: 3200), () {
+      if (!mounted || !_showVideoStage || widget.controller.cameraPreviewing) return;
+      setState(() => _chromeVisible = false);
+    });
   }
 
   Future<void> _syncRenderers() async {
     final remote = widget.controller.rtcSession?.remoteStream;
-    final local = widget.controller.rtcSession?.localStream;
-    final cameraOn = widget.controller.cameraOn;
+    final previewing = widget.controller.cameraPreviewing;
+    final local = previewing
+        ? widget.controller.rtcSession?.previewStream
+        : widget.controller.rtcSession?.localStream;
+    final localLive = widget.controller.cameraOn || previewing;
     final remoteHasVideo = remote?.getVideoTracks().isNotEmpty == true;
 
-    if (remote != null && remoteHasVideo) {
-      _remoteRenderer ??= RTCVideoRenderer();
-      if (!_remoteRendererReady) {
-        await _remoteRenderer!.initialize();
-        _remoteRendererReady = true;
-      }
+    _remoteRenderer ??= RTCVideoRenderer();
+    if (!_remoteRendererReady) {
+      await _remoteRenderer!.initialize();
+      _remoteRendererReady = true;
+    }
+    if (remote != null && remoteHasVideo && !previewing) {
       _remoteRenderer!.srcObject = remote;
-    } else if (_remoteRenderer != null) {
+    } else if (local != null && localLive) {
+      // Self-preview full-bleed until peer video arrives / during cam preview
+      _remoteRenderer!.srcObject = local;
+    } else {
       _remoteRenderer!.srcObject = null;
     }
 
-    if (local != null && cameraOn) {
+    if (local != null && localLive && remoteHasVideo && !previewing) {
       _localRenderer ??= RTCVideoRenderer();
       if (!_localRendererReady) {
         await _localRenderer!.initialize();
@@ -100,7 +126,15 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
 
   bool get _showVideoStage {
     final remoteHasVideo = widget.controller.rtcSession?.remoteStream?.getVideoTracks().isNotEmpty == true;
-    return widget.controller.cameraOn || remoteHasVideo;
+    return widget.controller.cameraOn ||
+        widget.controller.cameraPreviewing ||
+        remoteHasVideo ||
+        widget.controller.remoteHasVideo;
+  }
+
+  bool get _remoteHasVideo {
+    return widget.controller.rtcSession?.remoteStream?.getVideoTracks().isNotEmpty == true ||
+        widget.controller.remoteHasVideo;
   }
 
   Color get _accent => widget.branding.accentColor ?? const Color(0xFF06B6D4);
@@ -142,175 +176,373 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
     final peerBanner = widget.controller.peerCameraBanner;
     final incomingImage = widget.controller.incomingImageDataUrl;
 
+    final showVideo = _showVideoStage && isConnected;
+    final previewing = widget.controller.cameraPreviewing;
+    final mirrorMain = showVideo &&
+        (previewing || (!_remoteHasVideo && (widget.controller.cameraOn || previewing)));
+    final blurLocal = widget.controller.blurEnabled;
+
     return SizedBox.expand(
       child: Material(
         color: Colors.transparent,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _AmbientBackground(accent: _accent, pulse: _pulseController),
-            if (_showVideoStage && _remoteRenderer != null && _remoteRendererReady)
-              Positioned.fill(
-                child: RTCVideoView(
-                  _remoteRenderer!,
-                  objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                  mirror: false,
-                ),
-              ),
-            if (_showVideoStage)
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.black.withValues(alpha: 0.35),
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.72),
-                      ],
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: showVideo ? _bumpChrome : null,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (!showVideo) _AmbientBackground(accent: _accent, pulse: _pulseController),
+              if (showVideo && _remoteRenderer != null && _remoteRendererReady)
+                Positioned.fill(
+                  child: _maybeBlurVideo(
+                    enabled: blurLocal && (previewing || !_remoteHasVideo),
+                    child: RTCVideoView(
+                      _remoteRenderer!,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                      mirror: mirrorMain,
+                    ),
+                  ),
+                )
+              else if (showVideo)
+                const ColoredBox(color: Color(0xFF0B141A)),
+              if (showVideo)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withValues(alpha: _chromeVisible ? 0.45 : 0.15),
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: _chromeVisible ? 0.78 : 0.25),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-            if (widget.controller.cameraOn && _localRenderer != null && _localRendererReady)
-              Positioned(
-                right: 18,
-                top: 88,
-                width: 108,
-                height: 148,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: RTCVideoView(
-                    _localRenderer!,
-                    mirror: true,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-                  ),
-                ),
-              ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  children: [
-                    _SecureBadge(accent: _accent),
-                    if (peerBanner.isNotEmpty) ...[
-                      const SizedBox(height: 12),
-                      _PeerCameraBanner(message: peerBanner, accent: _accent),
-                    ],
-                    const Spacer(flex: 2),
-                    if (!_showVideoStage)
-                      _CallerAvatar(
-                        label: widget.controller.callerLabel,
-                        accent: _accent,
-                        pulse: _pulseController,
-                        ringing: showRingAnim,
-                      ),
-                    if (!_showVideoStage) const SizedBox(height: 22),
-                    Text(
-                      widget.controller.isOutgoing ? 'Arbeitgeber' : widget.controller.callerLabel,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      statusLine,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.78),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      widget.controller.subtitleLabel,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: 13,
-                      ),
-                    ),
-                    if (isConnected) ...[
-                      const SizedBox(height: 22),
-                      _CallLevelMeters(
-                        local: widget.controller.localLevel,
-                        remote: widget.controller.remoteLevel,
-                        accent: _accent,
-                      ),
-                      if (widget.controller.connectionDiag.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        Text(
-                          widget.controller.connectionDiag,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.5),
-                            fontSize: 11,
-                            fontFamily: 'monospace',
+              if (showVideo &&
+                  widget.controller.cameraOn &&
+                  _remoteHasVideo &&
+                  _localRenderer != null &&
+                  _localRendererReady)
+                Builder(
+                  builder: (context) {
+                    final size = MediaQuery.sizeOf(context);
+                    const pipW = 112.0;
+                    const pipH = 152.0;
+                    final defaultLeft = size.width - pipW - 16;
+                    final defaultTop = size.height - pipH - 150;
+                    final left = (_pipOffset?.dx ?? defaultLeft).clamp(8.0, size.width - pipW - 8);
+                    final top = (_pipOffset?.dy ?? defaultTop).clamp(8.0, size.height - pipH - 8);
+                    return Positioned(
+                      left: left,
+                      top: top,
+                      width: pipW,
+                      height: pipH,
+                      child: GestureDetector(
+                        onPanUpdate: (details) {
+                          setState(() {
+                            final next = (_pipOffset ?? Offset(defaultLeft, defaultTop)) + details.delta;
+                            _pipOffset = Offset(
+                              next.dx.clamp(8.0, size.width - pipW - 8),
+                              next.dy.clamp(8.0, size.height - pipH - 8),
+                            );
+                          });
+                        },
+                        onPanEnd: (_) {
+                          setState(() {
+                            final cur = _pipOffset ?? Offset(defaultLeft, defaultTop);
+                            final toLeft = cur.dx + pipW / 2 < size.width / 2;
+                            final toTop = cur.dy + pipH / 2 < size.height / 2;
+                            _pipOffset = Offset(
+                              toLeft ? 8.0 : size.width - pipW - 8,
+                              toTop ? 8.0 : size.height - pipH - 8,
+                            );
+                          });
+                        },
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 2),
+                            boxShadow: const [
+                              BoxShadow(color: Colors.black54, blurRadius: 18, offset: Offset(0, 8)),
+                            ],
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _maybeBlurVideo(
+                              enabled: blurLocal,
+                              child: RTCVideoView(
+                                _localRenderer!,
+                                mirror: true,
+                                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                              ),
+                            ),
                           ),
                         ),
-                      ],
-                      if (!_showVideoStage) ...[
-                        const SizedBox(height: 18),
-                        _WaveBars(controller: _waveController, accent: _accent),
-                      ],
-                    ] else if (showRingAnim) ...[
-                      const SizedBox(height: 28),
-                      _WaveBars(controller: _waveController, accent: _accent),
-                    ],
-                    const Spacer(flex: 3),
-                    if (isRinging && !widget.controller.isOutgoing)
-                      _IncomingActions(
-                        accent: _accent,
-                        onDecline: widget.controller.decline,
-                        onAccept: widget.controller.accept,
-                      )
-                    else if (isConnected)
-                      _ActiveControls(
-                        accent: _accent,
-                        muted: widget.controller.muted,
-                        speakerOn: widget.controller.speakerOn,
-                        cameraOn: widget.controller.cameraOn,
-                        onToggleMute: widget.controller.toggleMute,
-                        onToggleSpeaker: widget.controller.toggleSpeaker,
-                        onToggleCamera: widget.controller.toggleCamera,
-                        onShareImage: widget.controller.shareImage,
-                        onHangup: widget.controller.hangup,
-                      )
-                    else if (isConnecting)
-                      _ConnectingActions(
-                        accent: _accent,
-                        note: widget.controller.statusNote,
-                        onHangup: widget.controller.hangup,
-                      )
-                    else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
-                      _OutgoingActions(
-                        onCancel: widget.controller.decline,
-                      )
-                    else if (isEnded)
-                      _EndedHint(note: widget.controller.statusNote)
-                    else
-                      const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
-                        child: CircularProgressIndicator(color: Colors.white70),
                       ),
-                  ],
+                    );
+                  },
                 ),
+              if (previewing && isConnected)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 28,
+                  child: SafeArea(
+                    child: _CameraPreviewBar(
+                      accent: _accent,
+                      note: widget.controller.statusNote,
+                      onConfirm: widget.controller.confirmCameraPreview,
+                      onCancel: widget.controller.cancelCameraPreview,
+                      onRetry: widget.controller.startCameraPreview,
+                      onFlip: widget.controller.flipCamera,
+                      onHangup: widget.controller.hangup,
+                    ),
+                  ),
+                ),
+              SafeArea(
+                child: AnimatedOpacity(
+                  opacity: !showVideo || _chromeVisible ? 1 : 0,
+                  duration: const Duration(milliseconds: 220),
+                  child: IgnorePointer(
+                    ignoring: showVideo && !_chromeVisible,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      child: Column(
+                        children: [
+                          _SecureBadge(accent: _accent),
+                          if (peerBanner.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            _PeerCameraBanner(message: peerBanner, accent: _accent),
+                          ],
+                          if (!showVideo) ...[
+                            const Spacer(flex: 2),
+                            _CallerAvatar(
+                              label: widget.controller.callerLabel,
+                              accent: _accent,
+                              pulse: _pulseController,
+                              ringing: showRingAnim,
+                            ),
+                            const SizedBox(height: 22),
+                          ] else
+                            const Spacer(flex: 2),
+                          Text(
+                            widget.controller.isOutgoing ? 'Arbeitgeber' : widget.controller.callerLabel,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: showVideo ? 20 : 28,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.3,
+                              shadows: const [Shadow(blurRadius: 12, color: Colors.black54)],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            statusLine,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.85),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              shadows: const [Shadow(blurRadius: 10, color: Colors.black54)],
+                            ),
+                          ),
+                          if (!showVideo) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              widget.controller.subtitleLabel,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.55),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                          if (isConnected && !showVideo) ...[
+                            const SizedBox(height: 22),
+                            _CallLevelMeters(
+                              local: widget.controller.localLevel,
+                              remote: widget.controller.remoteLevel,
+                              accent: _accent,
+                            ),
+                            if (widget.controller.connectionDiag.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Text(
+                                widget.controller.connectionDiag,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.5),
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 18),
+                            _WaveBars(controller: _waveController, accent: _accent),
+                          ] else if (showRingAnim && !showVideo) ...[
+                            const SizedBox(height: 28),
+                            _WaveBars(controller: _waveController, accent: _accent),
+                          ],
+                          const Spacer(flex: 3),
+                          if (isRinging && !widget.controller.isOutgoing)
+                            _IncomingActions(
+                              accent: _accent,
+                              onDecline: widget.controller.decline,
+                              onAccept: widget.controller.accept,
+                            )
+                          else if (isConnected && !previewing)
+                            _ActiveControls(
+                              accent: _accent,
+                              muted: widget.controller.muted,
+                              speakerOn: widget.controller.speakerOn,
+                              cameraOn: widget.controller.cameraOn,
+                              blurEnabled: widget.controller.blurEnabled,
+                              screenSharing: widget.controller.screenSharing,
+                              recording: widget.controller.isRecording,
+                              onToggleMute: widget.controller.toggleMute,
+                              onToggleSpeaker: widget.controller.toggleSpeaker,
+                              onToggleCamera: widget.controller.toggleCamera,
+                              onFlipCamera: widget.controller.flipCamera,
+                              onToggleBlur: widget.controller.toggleBlur,
+                              onToggleScreenShare: widget.controller.toggleScreenShare,
+                              onToggleRecording: widget.controller.toggleRecording,
+                              onShareImage: widget.controller.shareImage,
+                              onHangup: widget.controller.hangup,
+                            )
+                          else if (isConnected && previewing)
+                            const SizedBox(height: 120)
+                          else if (isConnecting)
+                            _ConnectingActions(
+                              accent: _accent,
+                              note: widget.controller.statusNote,
+                              onHangup: widget.controller.hangup,
+                            )
+                          else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
+                            _OutgoingActions(
+                              onCancel: widget.controller.decline,
+                            )
+                          else if (isEnded)
+                            _EndedHint(note: widget.controller.statusNote)
+                          else
+                            const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: CircularProgressIndicator(color: Colors.white70),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (incomingImage != null && incomingImage.isNotEmpty)
+                Positioned.fill(
+                  child: _IncomingImageSheet(
+                    dataUrl: incomingImage,
+                    fromName: widget.controller.incomingImageFrom,
+                    onClose: widget.controller.clearIncomingImage,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _maybeBlurVideo({required bool enabled, required Widget child}) {
+    if (!enabled) return child;
+    return ImageFiltered(
+      imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+      child: child,
+    );
+  }
+}
+
+class _CameraPreviewBar extends StatelessWidget {
+  const _CameraPreviewBar({
+    required this.accent,
+    required this.note,
+    required this.onConfirm,
+    required this.onCancel,
+    required this.onRetry,
+    required this.onFlip,
+    required this.onHangup,
+  });
+
+  final Color accent;
+  final String note;
+  final Future<void> Function() onConfirm;
+  final Future<void> Function() onCancel;
+  final Future<void> Function() onRetry;
+  final Future<void> Function() onFlip;
+  final Future<void> Function() onHangup;
+
+  @override
+  Widget build(BuildContext context) {
+    final retry = note.contains('verweigert') ||
+        note.contains('belegt') ||
+        note.contains('gefunden') ||
+        note.contains('nicht aktiviert');
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              retry ? note : 'Kamera-Vorschau — nur du siehst dieses Bild',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.92),
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
               ),
             ),
-            if (incomingImage != null && incomingImage.isNotEmpty)
-              Positioned.fill(
-                child: _IncomingImageSheet(
-                  dataUrl: incomingImage,
-                  fromName: widget.controller.incomingImageFrom,
-                  onClose: widget.controller.clearIncomingImage,
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                if (retry)
+                  FilledButton.tonal(
+                    onPressed: () => unawaited(onRetry()),
+                    child: const Text('Erneut versuchen'),
+                  )
+                else ...[
+                  OutlinedButton(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: Colors.white.withValues(alpha: 0.35)),
+                    ),
+                    onPressed: () => unawaited(onCancel()),
+                    child: const Text('Abbrechen'),
+                  ),
+                  FilledButton(
+                    style: FilledButton.styleFrom(backgroundColor: accent),
+                    onPressed: () => unawaited(onConfirm()),
+                    child: const Text('Freigeben'),
+                  ),
+                  IconButton.filledTonal(
+                    onPressed: () => unawaited(onFlip()),
+                    icon: const Icon(Icons.cameraswitch_rounded),
+                    tooltip: 'Kamera drehen',
+                  ),
+                ],
+                IconButton(
+                  onPressed: () => unawaited(onHangup()),
+                  icon: const Icon(Icons.call_end_rounded, color: Color(0xFFE53935)),
+                  tooltip: 'Auflegen',
                 ),
-              ),
+              ],
+            ),
           ],
         ),
       ),
@@ -750,9 +982,16 @@ class _ActiveControls extends StatelessWidget {
     required this.muted,
     required this.speakerOn,
     required this.cameraOn,
+    required this.blurEnabled,
+    required this.screenSharing,
+    required this.recording,
     required this.onToggleMute,
     required this.onToggleSpeaker,
     required this.onToggleCamera,
+    required this.onFlipCamera,
+    required this.onToggleBlur,
+    required this.onToggleScreenShare,
+    required this.onToggleRecording,
     required this.onShareImage,
     required this.onHangup,
   });
@@ -761,9 +1000,16 @@ class _ActiveControls extends StatelessWidget {
   final bool muted;
   final bool speakerOn;
   final bool cameraOn;
+  final bool blurEnabled;
+  final bool screenSharing;
+  final bool recording;
   final Future<void> Function() onToggleMute;
   final Future<void> Function() onToggleSpeaker;
   final Future<void> Function() onToggleCamera;
+  final Future<void> Function() onFlipCamera;
+  final Future<void> Function() onToggleBlur;
+  final Future<void> Function() onToggleScreenShare;
+  final Future<void> Function() onToggleRecording;
   final Future<void> Function() onShareImage;
   final Future<void> Function() onHangup;
 
@@ -771,37 +1017,70 @@ class _ActiveControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _MiniControl(
-              icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-              label: muted ? 'Stumm' : 'Mikro',
-              active: muted,
-              onTap: onToggleMute,
-            ),
-            const SizedBox(width: 18),
-            _MiniControl(
-              icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-              label: cameraOn ? 'Cam aus' : 'Kamera',
-              active: cameraOn,
-              onTap: onToggleCamera,
-            ),
-            const SizedBox(width: 18),
-            _MiniControl(
-              icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-              label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
-              active: speakerOn,
-              onTap: onToggleSpeaker,
-            ),
-            const SizedBox(width: 18),
-            _MiniControl(
-              icon: Icons.image_rounded,
-              label: 'Bild',
-              active: false,
-              onTap: onShareImage,
-            ),
-          ],
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _MiniControl(
+                icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+                label: muted ? 'Stumm' : 'Mikro',
+                active: muted,
+                onTap: onToggleMute,
+              ),
+              const SizedBox(width: 14),
+              _MiniControl(
+                icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+                label: cameraOn ? 'Cam aus' : 'Kamera',
+                active: cameraOn,
+                onTap: onToggleCamera,
+              ),
+              if (cameraOn) ...[
+                const SizedBox(width: 14),
+                _MiniControl(
+                  icon: Icons.cameraswitch_rounded,
+                  label: 'Drehen',
+                  active: false,
+                  onTap: onFlipCamera,
+                ),
+                const SizedBox(width: 14),
+                _MiniControl(
+                  icon: Icons.blur_on_rounded,
+                  label: 'Blur',
+                  active: blurEnabled,
+                  onTap: onToggleBlur,
+                ),
+              ],
+              const SizedBox(width: 14),
+              _MiniControl(
+                icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+                label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
+                active: speakerOn,
+                onTap: onToggleSpeaker,
+              ),
+              const SizedBox(width: 14),
+              _MiniControl(
+                icon: Icons.screen_share_rounded,
+                label: 'Screen',
+                active: screenSharing,
+                onTap: onToggleScreenShare,
+              ),
+              const SizedBox(width: 14),
+              _MiniControl(
+                icon: recording ? Icons.stop_circle_rounded : Icons.fiber_manual_record,
+                label: recording ? 'Stop' : 'REC',
+                active: recording,
+                onTap: onToggleRecording,
+              ),
+              const SizedBox(width: 14),
+              _MiniControl(
+                icon: Icons.image_rounded,
+                label: 'Bild',
+                active: false,
+                onTap: onShareImage,
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 28),
         _RoundActionButton(

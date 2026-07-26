@@ -111,6 +111,18 @@
     });
   }
 
+  function syncConferenceStageMode() {
+    const overlay = document.getElementById("voiceCallOverlay");
+    const grid = ensureVideoGrid();
+    if (!overlay || !grid) return;
+    const tiles = grid.querySelectorAll(".voice-call-video-tile");
+    const stagey = tiles.length > 0 && tiles.length <= 2;
+    overlay.classList.toggle("is-conf-stage", stagey);
+    tiles.forEach((tile, idx) => {
+      tile.classList.toggle("is-featured", stagey && idx === 0);
+    });
+  }
+
   function attachTrack(track, identity, isLocal) {
     const grid = ensureVideoGrid();
     if (!grid || !track) return;
@@ -135,13 +147,18 @@
       tile.className = "voice-call-video-tile";
       tile.dataset.identity = identity;
       tile.innerHTML = `<video autoplay playsinline ${isLocal ? "muted" : ""}></video><span class="tile-label"></span>`;
-      grid.appendChild(tile);
+      if (isLocal) grid.prepend(tile);
+      else grid.appendChild(tile);
     }
     const video = tile.querySelector("video");
     const label = tile.querySelector(".tile-label");
     if (label) label.textContent = isLocal ? youLabel() : identity;
     track.attach(video);
-    if (isLocal) localVideoEl = video;
+    if (isLocal) {
+      localVideoEl = video;
+      video.style.transform = "scaleX(-1)";
+    }
+    syncConferenceStageMode();
   }
 
   function renderParticipantRail(participants) {
@@ -184,7 +201,20 @@
     });
     room.on(LK.RoomEvent.TrackUnsubscribed, (track) => {
       track.detach().forEach((el) => el.remove());
+      syncConferenceStageMode();
     });
+    if (LK.RoomEvent.ActiveSpeakersChanged) {
+      room.on(LK.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        const grid = ensureVideoGrid();
+        if (!grid) return;
+        const top = speakers?.[0]?.identity;
+        grid.querySelectorAll(".voice-call-video-tile").forEach((tile) => {
+          tile.classList.toggle("is-speaking", Boolean(top) && tile.dataset.identity === top);
+          if (top && tile.dataset.identity === top) grid.prepend(tile);
+        });
+        syncConferenceStageMode();
+      });
+    }
     room.on(LK.RoomEvent.Disconnected, () => {
       // Only notify after a successful connect — failed connect must not auto-hangup the UI.
       if (didConnect) onDisconnect?.();
@@ -243,7 +273,25 @@
     room.localParticipant.videoTrackPublications?.forEach?.((pub) => {
       if (pub.track) attachTrack(pub.track, "local", true);
     });
+    syncConferenceStageMode();
     return cameraOn;
+  }
+
+  async function setScreenShareEnabled(enabled) {
+    if (!room?.localParticipant) return false;
+    const next = Boolean(enabled);
+    if (typeof room.localParticipant.setScreenShareEnabled === "function") {
+      await room.localParticipant.setScreenShareEnabled(next);
+    } else {
+      throw new Error("screen_share_unsupported");
+    }
+    room.localParticipant.trackPublications?.forEach?.((pub) => {
+      if (pub.track && (pub.source === "screen_share" || pub.trackName?.includes?.("screen"))) {
+        attachTrack(pub.track, "local-screen", true);
+      }
+    });
+    syncConferenceStageMode();
+    return next;
   }
 
   async function setMicrophoneEnabled(enabled) {
@@ -284,7 +332,7 @@
     document.querySelectorAll("audio[data-identity]").forEach((el) => el.remove());
     const grid = ensureVideoGrid();
     if (grid) grid.innerHTML = "";
-    document.getElementById("voiceCallOverlay")?.classList.remove("is-conference");
+    document.getElementById("voiceCallOverlay")?.classList.remove("is-conference", "is-conf-stage");
     const chip = document.getElementById("voiceCallModeChip");
     if (chip) {
       chip.classList.remove("is-conference");
@@ -298,6 +346,7 @@
     connect,
     disconnect,
     setCameraEnabled,
+    setScreenShareEnabled,
     setMicrophoneEnabled,
     toggleMute,
     setSpeakerEnabled,

@@ -660,12 +660,134 @@
       max-height: 42vh;
       overflow: auto;
     }
-    .voice-call-overlay.is-conference .voice-call-video-grid,
-    .voice-call-overlay.is-video .voice-call-video-grid { display: grid; }
-    .voice-call-overlay.is-conference .voice-call-avatar,
-    .voice-call-overlay.is-video .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
-    .voice-call-overlay.is-conference .voice-call-rings,
-    .voice-call-overlay.is-video .voice-call-rings { opacity: 0.35; }
+    .voice-call-overlay.is-conference .voice-call-video-grid { display: grid; }
+    .voice-call-overlay.is-conference .voice-call-avatar { width: 120px; height: 120px; font-size: 2.2rem; margin-bottom: 0.85rem; }
+    .voice-call-overlay.is-conference .voice-call-rings { opacity: 0.35; }
+    /* 1:1 FaceTime-style video stage */
+    .voice-call-video-stage {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: #0b141a;
+      overflow: hidden;
+    }
+    .voice-call-overlay.is-video .voice-call-video-stage { display: block; }
+    .voice-call-overlay.is-video {
+      grid-template-rows: 1fr;
+    }
+    .voice-call-overlay.is-video .voice-call-topbar,
+    .voice-call-overlay.is-video .voice-call-footer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      z-index: 4;
+      transition: opacity 0.28s ease, transform 0.28s ease;
+    }
+    .voice-call-overlay.is-video .voice-call-topbar {
+      top: 0;
+      border-bottom: none;
+      background: linear-gradient(180deg, rgba(0,0,0,0.55), transparent);
+    }
+    .voice-call-overlay.is-video .voice-call-footer {
+      bottom: 0;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+      background: linear-gradient(0deg, rgba(0,0,0,0.72), transparent);
+      border-top: none;
+    }
+    .voice-call-overlay.is-video.chrome-hidden .voice-call-topbar,
+    .voice-call-overlay.is-video.chrome-hidden .voice-call-footer {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(6px);
+    }
+    .voice-call-overlay.is-video.chrome-hidden .voice-call-topbar {
+      transform: translateY(-6px);
+    }
+    .voice-call-overlay.is-video .voice-call-stage {
+      position: relative;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .voice-call-overlay.is-video .voice-call-avatar,
+    .voice-call-overlay.is-video .voice-call-rings,
+    .voice-call-overlay.is-video .voice-call-meters,
+    .voice-call-overlay.is-video .voice-call-live-wave,
+    .voice-call-overlay.is-video .voice-call-wave,
+    .voice-call-overlay.is-video .voice-call-volume-row,
+    .voice-call-overlay.is-video #voiceCallVideoGrid {
+      display: none !important;
+    }
+    .voice-call-overlay.is-video .voice-call-stage h4,
+    .voice-call-overlay.is-video #voiceCallSubtitle,
+    .voice-call-overlay.is-video #voiceCallStatus,
+    .voice-call-overlay.is-video #voiceCallQuality,
+    .voice-call-overlay.is-video #voiceCallCamHint,
+    .voice-call-overlay.is-video #voiceCallDiag {
+      text-shadow: 0 1px 8px rgba(0,0,0,0.75);
+    }
+    .voice-call-overlay.is-video #voiceCallPeerCamBanner,
+    .voice-call-overlay.is-video #voiceCallTimer {
+      position: relative;
+      z-index: 3;
+      pointer-events: auto;
+    }
+    #voiceCallRemoteVideo {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #0b141a;
+    }
+    #voiceCallRemoteVideo.is-placeholder {
+      object-fit: contain;
+      background: radial-gradient(ellipse at center, #152028, #0b141a 70%);
+    }
+    .voice-call-local-pip {
+      position: absolute;
+      right: max(12px, env(safe-area-inset-right, 0px));
+      bottom: max(120px, calc(7.5rem + env(safe-area-inset-bottom, 0px)));
+      width: min(132px, 28vw);
+      aspect-ratio: 3 / 4;
+      border-radius: 14px;
+      object-fit: cover;
+      background: #111b21;
+      border: 2px solid rgba(255,255,255,0.35);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.45);
+      transform: scaleX(-1);
+      z-index: 3;
+      touch-action: none;
+      cursor: grab;
+      user-select: none;
+    }
+    .voice-call-local-pip.hidden { display: none; }
+    .chat-voice-call-btn.video { background: rgba(14,165,233,0.18); border-color: rgba(56,189,248,0.45); }
+    .voice-call-cam-preview-bar {
+      margin: 0.65rem auto 0; max-width: 28rem; padding: 0.7rem 0.9rem; border-radius: 14px;
+      background: rgba(15,23,42,0.72); border: 1px solid rgba(148,163,184,0.35); color: #e2e8f0;
+      display: grid; gap: 0.55rem; pointer-events: auto; z-index: 5; position: relative;
+    }
+    .voice-call-cam-preview-bar.hidden { display: none; }
+    .voice-call-cam-preview-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; justify-content: center; }
+    .voice-call-cam-error { margin: 0; color: #fecaca; font-size: 0.8rem; }
+    .voice-call-cam-error.hidden { display: none; }
+    .voice-call-overlay.is-conference .voice-call-video-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem; width: min(1100px, 96vw); max-height: none; margin: 0.5rem auto 0;
+    }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-grid {
+      position: absolute; inset: 0; z-index: 1; margin: 0; width: 100%; max-width: none;
+      grid-template-columns: 1fr; padding: 0; background: #0b141a;
+    }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-tile { border-radius: 0; min-height: 100%; }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-tile video { object-fit: cover; width: 100%; height: 100%; }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-avatar,
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-rings,
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-meters,
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-live-wave { display: none !important; }
+    .voice-call-pill-btn.is-active { background: #f8fafc; color: #b91c1c; }
+
+    .voice-call-overlay.is-video #voiceCallFlipBtn { display: inline-grid; }
+    #voiceCallFlipBtn { display: none; }
     .voice-call-peer-banner {
       margin: 0.55rem auto 0;
       max-width: 28rem;
@@ -1360,6 +1482,7 @@
               <button type="button" id="chatMediaGalleryBtn" class="chat-voice-history-btn" data-aci18n="chatGalleryTitle" data-aci18n-attr="title,aria-label" title="Medien" aria-label="Medien"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="2"/><circle cx="8.5" cy="10" r="1.6" fill="currentColor"/><path d="M7 16l3.5-3.5L14 15l2-2 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
               <button type="button" id="chatConferenceBtn" class="chat-voice-call-btn conference" data-aci18n="conferenceStart" data-aci18n-attr="title,aria-label" title="Konferenz" aria-label="Konferenz"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="2"/><circle cx="17" cy="9" r="2.4" stroke="currentColor" stroke-width="2"/><path d="M3.5 18.5c.8-2.8 3-4.5 5.5-4.5s4.7 1.7 5.5 4.5M14 14.2c1.5-.4 3.1.1 4.3 1.4.7.8 1.2 1.8 1.4 2.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
               <button type="button" id="chatVoiceCallBtn" class="chat-voice-call-btn" data-aci18n="voiceCallTitle" data-aci18n-attr="title,aria-label" title="Anrufen" aria-label="Anrufen"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></button>
+              <button type="button" id="chatVideoCallBtn" class="chat-voice-call-btn video" data-aci18n="voiceCallVideoCall" data-aci18n-attr="title,aria-label" title="Videoanruf" aria-label="Videoanruf"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2" stroke="currentColor" stroke-width="2"/><path d="M16 10l5-3v10l-5-3z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg></button>
               <div class="chat-more-wrap">
                 <button type="button" id="chatMoreBtn" class="chat-voice-history-btn" data-aci18n="chatMoreMenu" data-aci18n-attr="title,aria-label" title="Mehr" aria-label="Mehr" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg></button>
                 <div id="chatMoreMenu" class="chat-more-menu hidden" role="menu">
@@ -1461,6 +1584,10 @@
     </div>
   </div>
   <div id="voiceCallOverlay" class="voice-call-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="voiceCallTitle">
+    <div id="voiceCallVideoStage" class="voice-call-video-stage" aria-hidden="true">
+      <video id="voiceCallRemoteVideo" playsinline autoplay></video>
+      <video id="voiceCallLocalPip" class="voice-call-local-pip hidden" playsinline autoplay muted></video>
+    </div>
     <div class="voice-call-topbar">
       <div class="voice-call-topbar-left">
         <span id="voiceCallModeChip" class="voice-call-mode-chip" data-aci18n="voiceCallModeDirect">1:1 Anruf</span>
@@ -1479,6 +1606,15 @@
       <p id="voiceCallQuality" class="voice-call-quality hidden" aria-live="polite"></p>
       <p id="voiceCallCamHint" class="voice-call-cam-hint hidden" aria-live="polite">Kamera ist aus — einschalten, damit der Mitarbeiter Sie sieht.</p>
       <p id="voiceCallPeerCamBanner" class="voice-call-peer-banner hidden" role="status" aria-live="assertive"></p>
+      <div id="voiceCallCamPreviewBar" class="voice-call-cam-preview-bar hidden" role="region" aria-label="Kamera-Vorschau">
+        <span data-aci18n="voiceCallCamPreviewHint">Kamera-Vorschau — noch nicht gesendet</span>
+        <div class="voice-call-cam-preview-actions">
+          <button type="button" id="voiceCallCamPreviewCancel" class="voice-call-pill-btn" data-aci18n="voiceCallCamPreviewCancel">Abbrechen</button>
+          <button type="button" id="voiceCallCamPreviewConfirm" class="voice-call-pill-btn primary" data-aci18n="voiceCallCamPreviewConfirm">Freigeben</button>
+          <button type="button" id="voiceCallCamRetryBtn" class="voice-call-pill-btn primary hidden" data-aci18n="voiceCallCameraRetry">Erneut versuchen</button>
+        </div>
+        <p id="voiceCallCamError" class="voice-call-cam-error hidden" role="alert"></p>
+      </div>
       <p id="voiceCallTimer" class="voice-call-timer hidden" aria-live="polite">00:00</p>
       <p id="voiceCallDiag" class="voice-call-diag hidden" aria-live="polite"></p>
       <div id="voiceCallWave" class="voice-call-wave hidden" aria-hidden="true">
@@ -1520,6 +1656,10 @@
           <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallCamera">Kamera</span>
         </button>
+        <button type="button" id="voiceCallFlipBtn" class="voice-call-round-btn" data-aci18n="voiceCallFlipCamera" data-aci18n-attr="aria-label,title" aria-label="Kamera wechseln" title="Kamera wechseln">
+          <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h4v4"/><path d="M20 4l-5.5 5.5"/><path d="M8 20H4v-4"/><path d="M4 20l5.5-5.5"/><rect x="7" y="8" width="10" height="8" rx="1.5"/></svg></span>
+          <span class="voice-call-btn-label" data-aci18n="voiceCallFlipCamera">Drehen</span>
+        </button>
         <button type="button" id="voiceCallSpeakerBtn" class="voice-call-round-btn" data-aci18n="voiceCallSpeaker" data-aci18n-attr="aria-label,title" aria-label="Lautsprecher" title="Lautsprecher">
           <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallSpeaker">Lautsprecher</span>
@@ -1532,6 +1672,9 @@
       <div class="voice-call-toolbar-extra">
         <button type="button" id="voiceCallRetryBtn" class="voice-call-pill-btn primary hidden" data-aci18n="conferenceRetry" data-aci18n-attr="title" title="Erneut verbinden">Erneut verbinden</button>
         <button type="button" id="voiceCallShareImgBtn" class="voice-call-pill-btn" data-aci18n="voiceCallShareImage" data-aci18n-attr="title" title="Bild senden">Bild</button>
+        <button type="button" id="voiceCallBlurBtn" class="voice-call-pill-btn" data-aci18n="voiceCallBlur" data-aci18n-attr="title" title="Hintergrund weichzeichnen">Blur</button>
+        <button type="button" id="voiceCallScreenBtn" class="voice-call-pill-btn" data-aci18n="voiceCallScreenShare" data-aci18n-attr="title" title="Bildschirm teilen">Screen</button>
+        <button type="button" id="voiceCallRecordBtn" class="voice-call-pill-btn" data-aci18n="voiceCallRecord" data-aci18n-attr="title" title="Aufzeichnen">REC</button>
         <button type="button" id="voiceCallInviteBtn" class="voice-call-pill-btn primary" data-aci18n="conferenceInvite" data-aci18n-attr="title" disabled title="Einladen">+ Einladen</button>
         <button type="button" id="voiceCallNoteBtn" class="voice-call-pill-btn" data-aci18n="conferenceNote" data-aci18n-attr="title" title="Notiz">Notiz</button>
       </div>
@@ -1577,9 +1720,9 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
-  <script src="/chat-voice-call.js?v=20260726wa3"></script>
-  <script src="/chat-conference.js?v=20260725confCam2"></script>
-  <script src="/admin-v2/chat-i18n.js?v=20260719chat44"></script>
+  <script src="/chat-voice-call.js?v=20260726video3"></script>
+  <script src="/chat-conference.js?v=20260726video3"></script>
+  <script src="/admin-v2/chat-i18n.js?v=20260726video3"></script>
   <script src="/e2e-crypto.js?v=20260719e2e5"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
@@ -2619,6 +2762,8 @@
       if (fileInput) fileInput.disabled = !active;
       if (photoInput) photoInput.disabled = !active;
       if (callBtn) callBtn.disabled = !active;
+      const videoBtn = document.getElementById("chatVideoCallBtn");
+      if (videoBtn) videoBtn.disabled = !active;
       if (conferenceBtn) conferenceBtn.disabled = !active;
       if (historyBtn) historyBtn.disabled = !active;
       if (attachBtn) attachBtn.disabled = !active;
@@ -4287,37 +4432,124 @@
       el.classList.add("hidden");
       el.textContent = "";
     }
-    function upsertDirectCallVideoTile(id, stream, label, muted = false) {
-      const grid = document.getElementById("voiceCallVideoGrid");
+    let voiceCallChromeTimer = null;
+    let directCallLocalOn = false;
+    let directCallRemoteOn = false;
+    function bumpVoiceCallChrome() {
       const overlay = document.getElementById("voiceCallOverlay");
-      if (!grid || !stream) return;
-      let tile = grid.querySelector(`[data-direct-tile="${CSS.escape(id)}"]`);
-      if (!tile) {
-        tile = document.createElement("div");
-        tile.className = "voice-call-video-tile";
-        tile.dataset.directTile = id;
-        tile.innerHTML = `<video playsinline autoplay></video><span class="tile-label"></span>`;
-        grid.appendChild(tile);
+      if (!overlay?.classList.contains("is-video")) return;
+      overlay.classList.remove("chrome-hidden");
+      if (voiceCallChromeTimer) clearTimeout(voiceCallChromeTimer);
+      voiceCallChromeTimer = setTimeout(() => {
+        if (document.getElementById("voiceCallOverlay")?.classList.contains("is-video")) {
+          document.getElementById("voiceCallOverlay")?.classList.add("chrome-hidden");
+        }
+      }, 3200);
+    }
+    function syncDirectCallVideoStage() {
+      const overlay = document.getElementById("voiceCallOverlay");
+      const stage = document.getElementById("voiceCallVideoStage");
+      const remoteEl = document.getElementById("voiceCallRemoteVideo");
+      const pip = document.getElementById("voiceCallLocalPip");
+      const conference = Boolean(window.SUPPIXConference?.isActive?.());
+      const videoActive = !conference && (directCallLocalOn || directCallRemoteOn);
+      overlay?.classList.toggle("is-video", videoActive);
+      if (stage) stage.setAttribute("aria-hidden", videoActive ? "false" : "true");
+      if (!videoActive) {
+        if (voiceCallChromeTimer) clearTimeout(voiceCallChromeTimer);
+        overlay?.classList.remove("chrome-hidden");
+        if (remoteEl) {
+          remoteEl.srcObject = null;
+          remoteEl.classList.add("is-placeholder");
+        }
+        if (pip) {
+          pip.srcObject = null;
+          pip.classList.add("hidden");
+          window.SUPPIXVoiceCall?.resetDraggablePip?.(pip);
+        }
+        return;
       }
-      const video = tile.querySelector("video");
-      const labelEl = tile.querySelector(".tile-label");
-      if (video && video.srcObject !== stream) {
-        video.srcObject = stream;
-        video.muted = Boolean(muted);
-        video.play?.().catch?.(() => {});
+      bumpVoiceCallChrome();
+    }
+    function revealLocalPip(stream) {
+      const pip = document.getElementById("voiceCallLocalPip");
+      if (!pip || !stream) return;
+      if (pip.srcObject !== stream) pip.srcObject = stream;
+      pip.muted = true;
+      pip.play?.().catch?.(() => {});
+      pip.classList.remove("hidden");
+      window.SUPPIXVoiceCall?.bindDraggablePip?.(pip);
+    }
+    function setDirectCallLocalVideo(stream, enabled) {
+      const pip = document.getElementById("voiceCallLocalPip");
+      const remoteEl = document.getElementById("voiceCallRemoteVideo");
+      directCallLocalOn = Boolean(enabled && stream);
+      if (directCallLocalOn) {
+        if (!directCallRemoteOn && remoteEl) {
+          // Self-preview full-bleed until peer video arrives
+          if (remoteEl.srcObject !== stream) remoteEl.srcObject = stream;
+          remoteEl.muted = true;
+          remoteEl.classList.remove("is-placeholder");
+          remoteEl.style.transform = "scaleX(-1)";
+          remoteEl.play?.().catch?.(() => {});
+          pip?.classList.add("hidden");
+        } else {
+          revealLocalPip(stream);
+          if (remoteEl) remoteEl.style.transform = "";
+        }
+      } else if (pip) {
+        pip.srcObject = null;
+        pip.classList.add("hidden");
+        window.SUPPIXVoiceCall?.resetDraggablePip?.(pip);
+        if (remoteEl && !directCallRemoteOn) {
+          remoteEl.srcObject = null;
+          remoteEl.classList.add("is-placeholder");
+          remoteEl.style.transform = "";
+        }
       }
-      if (labelEl) labelEl.textContent = label || id;
-      overlay?.classList.add("is-video");
-      grid.setAttribute("aria-hidden", "false");
+      syncDirectCallVideoStage();
+    }
+    function setDirectCallRemoteVideo(stream, hasVideo) {
+      const remoteEl = document.getElementById("voiceCallRemoteVideo");
+      const pip = document.getElementById("voiceCallLocalPip");
+      directCallRemoteOn = Boolean(hasVideo && stream);
+      if (remoteEl) {
+        if (directCallRemoteOn) {
+          if (remoteEl.srcObject !== stream) remoteEl.srcObject = stream;
+          remoteEl.muted = true; // remote audio plays via hidden audio element
+          remoteEl.classList.remove("is-placeholder");
+          remoteEl.style.transform = "";
+          remoteEl.play?.().catch?.(() => {});
+          // Move local preview to PiP once peer video is live
+          const localStream = activeVoiceCallSession?.getLocalStream?.();
+          if (directCallLocalOn && localStream) revealLocalPip(localStream);
+        } else if (directCallLocalOn) {
+          const localStream = activeVoiceCallSession?.getLocalStream?.();
+          if (localStream) {
+            remoteEl.srcObject = localStream;
+            remoteEl.muted = true;
+            remoteEl.style.transform = "scaleX(-1)";
+            remoteEl.classList.remove("is-placeholder");
+            remoteEl.play?.().catch?.(() => {});
+          }
+          pip?.classList.add("hidden");
+        } else {
+          remoteEl.srcObject = null;
+          remoteEl.classList.add("is-placeholder");
+          remoteEl.style.transform = "";
+        }
+      }
+      syncDirectCallVideoStage();
     }
     function clearDirectCallVideoTiles() {
+      directCallLocalOn = false;
+      directCallRemoteOn = false;
+      syncDirectCallVideoStage();
       const grid = document.getElementById("voiceCallVideoGrid");
-      const overlay = document.getElementById("voiceCallOverlay");
       if (grid) {
         grid.querySelectorAll("[data-direct-tile]").forEach((el) => el.remove());
-        if (!grid.children.length) grid.setAttribute("aria-hidden", "true");
+        grid.setAttribute("aria-hidden", "true");
       }
-      if (!window.SUPPIXConference?.isActive?.()) overlay?.classList.remove("is-video");
     }
     function showVoiceCallImageToast(dataUrl, fromName) {
       const toast = document.getElementById("voiceCallImageToast");
@@ -4553,12 +4785,41 @@
     let adminIncomingPollTimer = null;
     let dismissedAdminCallId = "";
     let pendingIncomingCall = null;
-    function buildAdminVoiceCallSession() {
+    function cameraErrorMessage(error) {
+      const code = String(error?.code || error?.message || "");
+      const map = {
+        camera_permission_denied: window.adminChatT("voiceCallCameraDenied") || "Kamerazugriff verweigert",
+        camera_not_found: window.adminChatT("voiceCallCameraMissing") || "Keine Kamera gefunden",
+        camera_in_use: window.adminChatT("voiceCallCameraBusy") || "Kamera ist belegt",
+        camera_constraints: window.adminChatT("voiceCallCameraConstraints") || "Kamera-Einstellungen nicht unterstützt",
+        camera_timeout: window.adminChatT("voiceCallCameraTimeout") || "Kamera-Timeout",
+        screen_share_denied: window.adminChatT("voiceCallScreenDenied") || "Bildschirmfreigabe abgebrochen",
+        screen_share_unsupported: window.adminChatT("voiceCallScreenUnsupported") || "Bildschirm teilen nicht unterstützt",
+      };
+      return map[code] || String(error?.message || error || window.adminChatT("voiceCallCameraFailed") || "Kamera fehlgeschlagen");
+    }
+    function setCamPreviewUi(visible, { error = "" } = {}) {
+      const bar = document.getElementById("voiceCallCamPreviewBar");
+      const err = document.getElementById("voiceCallCamError");
+      const retry = document.getElementById("voiceCallCamRetryBtn");
+      const confirm = document.getElementById("voiceCallCamPreviewConfirm");
+      const cancel = document.getElementById("voiceCallCamPreviewCancel");
+      bar?.classList.toggle("hidden", !visible && !error);
+      if (err) {
+        err.textContent = error || "";
+        err.classList.toggle("hidden", !error);
+      }
+      retry?.classList.toggle("hidden", !error);
+      confirm?.classList.toggle("hidden", Boolean(error));
+      cancel?.classList.toggle("hidden", Boolean(error) && !activeVoiceCallSession?.isCameraPreviewing?.());
+    }
+    function buildAdminVoiceCallSession(opts = {}) {
       const adminName = String(window.__ADMIN_DISPLAY_NAME || "Arbeitgeber").trim() || "Arbeitgeber";
       return window.SUPPIXVoiceCall.createSession({
         api: voiceCallApi,
         role: "admin",
         displayName: adminName,
+        preferVideo: Boolean(opts.preferVideo),
         onAudioLevels: ({ local, remote }) => {
           const micFill = document.getElementById("voiceCallMicFill");
           const remoteFill = document.getElementById("voiceCallRemoteFill");
@@ -4597,26 +4858,27 @@
           if (!dataUrl) return;
           showVoiceCallImageToast(dataUrl, payload?.fromName || window.adminChatT("workerDefault") || "Mitarbeiter");
         },
-        onLocalVideo: (stream, enabled) => {
-          if (enabled && stream) {
-            upsertDirectCallVideoTile("local", stream, window.adminChatT("voiceCallMicLabel") || "Sie", true);
-          } else {
-            document.querySelector('#voiceCallVideoGrid [data-direct-tile="local"]')?.remove();
-            if (!document.querySelector("#voiceCallVideoGrid [data-direct-tile]")) {
-              document.getElementById("voiceCallOverlay")?.classList.remove("is-video");
-            }
-          }
+        onLocalVideo: (stream, enabled, meta) => {
+          setDirectCallLocalVideo(stream, enabled || Boolean(meta?.preview));
+          if (meta?.preview) setCamPreviewUi(true);
+          else if (!activeVoiceCallSession?.isCameraPreviewing?.()) setCamPreviewUi(false);
+        },
+        onCameraPreview: (active) => {
+          setCamPreviewUi(Boolean(active));
+          callControlState.camOn = Boolean(active) || Boolean(activeVoiceCallSession?.isCameraOn?.());
+          updateVoiceCallCamBtn(callControlState.camOn);
         },
         onRemoteVideo: (stream, hasVideo) => {
-          if (hasVideo && stream) {
-            upsertDirectCallVideoTile(
-              "remote",
-              stream,
-              window.adminChatT("voiceCallRemoteLabel") || "Mitarbeiter",
-              false,
-            );
+          setDirectCallRemoteVideo(stream, hasVideo);
+        },
+        onVideoQuality: (tier) => {
+          const quality = document.getElementById("voiceCallQuality");
+          if (!quality) return;
+          quality.classList.remove("hidden");
+          if (String(tier) === "sd") {
+            quality.textContent = window.adminChatT("voiceCallVideoQualitySd") || "Video: 480p (Netz)";
           } else {
-            document.querySelector('#voiceCallVideoGrid [data-direct-tile="remote"]')?.remove();
+            quality.textContent = window.adminChatT("voiceCallVideoQualityHd") || "Video: 720p";
           }
         },
         onState: (state, reason) => {
@@ -4784,7 +5046,7 @@
           .catch(() => {});
       }, 900);
     }
-    async function startVoiceCallToCurrentWorker() {
+    async function startVoiceCallToCurrentWorker(opts = {}) {
       if (!currentWorkerId) {
         setThreadMeta(window.adminChatT("pickWorkerHint") || "Bitte zuerst einen Mitarbeiter auswählen.", { dynamic: true });
         return;
@@ -4797,13 +5059,14 @@
         await activeVoiceCallSession.end("busy");
         activeVoiceCallSession = null;
       }
+      const preferVideo = Boolean(opts.preferVideo);
       const row = threads.find((item) => String(item.worker_id) === String(currentWorkerId));
       const name = row ? threadDisplayName(row) : currentWorkerId;
       document.getElementById("voiceCallTitle").textContent = name;
       document.getElementById("voiceCallAvatar").textContent = voiceCallInitials(name);
       resetVoiceCallControls();
       setVoiceCallOverlay(true, voiceCallStatusLabel("dialing"), "dialing", "active");
-      activeVoiceCallSession = buildAdminVoiceCallSession();
+      activeVoiceCallSession = buildAdminVoiceCallSession({ preferVideo });
       try {
         await activeVoiceCallSession.startOutgoing({ workerId: currentWorkerId, companyId });
         syncRingtoneOutput();
@@ -4831,6 +5094,73 @@
         return;
       }
       void startVoiceCallToCurrentWorker();
+    });
+    document.getElementById("chatVideoCallBtn")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const btn = event.currentTarget;
+      if (btn?.disabled) {
+        setThreadMeta(window.adminChatT("pickWorkerHint") || "Bitte zuerst einen Mitarbeiter auswählen.", { dynamic: true });
+        return;
+      }
+      void startVoiceCallToCurrentWorker({ preferVideo: true });
+    });
+    document.getElementById("voiceCallCamPreviewConfirm")?.addEventListener("click", async () => {
+      try {
+        await activeVoiceCallSession?.confirmCameraPreview?.();
+        callControlState.camOn = true;
+        updateVoiceCallCamBtn(true);
+        setCamPreviewUi(false);
+        flashCallControlFeedback(window.adminChatT("voiceCallCamera") || "Kamera");
+      } catch (error) {
+        setCamPreviewUi(true, { error: cameraErrorMessage(error) });
+      }
+    });
+    document.getElementById("voiceCallCamPreviewCancel")?.addEventListener("click", async () => {
+      await activeVoiceCallSession?.cancelCameraPreview?.();
+      callControlState.camOn = false;
+      updateVoiceCallCamBtn(false);
+      setCamPreviewUi(false);
+    });
+    document.getElementById("voiceCallCamRetryBtn")?.addEventListener("click", async () => {
+      setCamPreviewUi(false);
+      await applyCallCamera(true);
+    });
+    document.getElementById("voiceCallBlurBtn")?.addEventListener("click", async () => {
+      if (!activeVoiceCallSession?.setBlurEnabled) return;
+      try {
+        const on = await activeVoiceCallSession.setBlurEnabled(!activeVoiceCallSession.isBlurEnabled?.());
+        document.getElementById("voiceCallBlurBtn")?.classList.toggle("is-active", Boolean(on));
+        flashCallControlFeedback(on ? (window.adminChatT("voiceCallBlurOn") || "Blur an") : (window.adminChatT("voiceCallBlurOff") || "Blur aus"));
+      } catch (error) {
+        flashCallControlFeedback(cameraErrorMessage(error));
+      }
+    });
+    document.getElementById("voiceCallScreenBtn")?.addEventListener("click", async () => {
+      if (!activeVoiceCallSession?.setScreenShareEnabled) return;
+      try {
+        const on = await activeVoiceCallSession.setScreenShareEnabled(!activeVoiceCallSession.isScreenSharing?.());
+        document.getElementById("voiceCallScreenBtn")?.classList.toggle("is-active", Boolean(on));
+        flashCallControlFeedback(on ? (window.adminChatT("voiceCallScreenOn") || "Screen an") : (window.adminChatT("voiceCallScreenOff") || "Screen aus"));
+      } catch (error) {
+        flashCallControlFeedback(cameraErrorMessage(error));
+      }
+    });
+    document.getElementById("voiceCallRecordBtn")?.addEventListener("click", async () => {
+      if (!activeVoiceCallSession) return;
+      try {
+        if (activeVoiceCallSession.isRecording?.()) {
+          activeVoiceCallSession.stopRecording?.();
+          document.getElementById("voiceCallRecordBtn")?.classList.remove("is-active");
+          flashCallControlFeedback(window.adminChatT("voiceCallRecordOff") || "Aufnahme gestoppt");
+        } else {
+          await activeVoiceCallSession.startRecording?.();
+          document.getElementById("voiceCallRecordBtn")?.classList.add("is-active");
+          flashCallControlFeedback(window.adminChatT("voiceCallRecordOn") || "Aufnahme läuft");
+        }
+      } catch (error) {
+        flashCallControlFeedback(cameraErrorMessage(error));
+      }
     });
     let activeConferenceRoomId = "";
     let conferenceCamOn = false;
@@ -4943,14 +5273,17 @@
       }
       if (activeVoiceCallSession?.setCameraEnabled) {
         try {
-          if (wantOn) {
-            flashCallControlFeedback(
-              window.adminChatT("voiceCallCameraRequesting") || "Kamera-Anfrage wird gesendet…"
-            );
-          }
           const result = await activeVoiceCallSession.setCameraEnabled(wantOn);
+          if (result === "preview" || activeVoiceCallSession.isCameraPreviewing?.()) {
+            callControlState.camOn = true;
+            updateVoiceCallCamBtn(true);
+            setCamPreviewUi(true);
+            flashCallControlFeedback(window.adminChatT("voiceCallCamPreviewHint") || "Kamera-Vorschau");
+            return "preview";
+          }
           callControlState.camOn = Boolean(result);
           updateVoiceCallCamBtn(callControlState.camOn);
+          setCamPreviewUi(false);
           flashCallControlFeedback(
             callControlState.camOn
               ? (window.adminChatT("voiceCallCamera") || "Kamera")
@@ -4960,7 +5293,8 @@
         } catch (error) {
           callControlState.camOn = false;
           updateVoiceCallCamBtn(false);
-          flashCallControlFeedback(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")));
+          setCamPreviewUi(true, { error: cameraErrorMessage(error) });
+          flashCallControlFeedback(cameraErrorMessage(error));
           return false;
         }
       }
@@ -5226,8 +5560,32 @@
     document.getElementById("voiceCallCamBtn")?.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
+      bumpVoiceCallChrome();
       await applyCallCamera(!callControlState.camOn);
     });
+    document.getElementById("voiceCallFlipBtn")?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      bumpVoiceCallChrome();
+      if (!activeVoiceCallSession?.switchCamera || !callControlState.camOn) {
+        flashCallControlFeedback(window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.");
+        return;
+      }
+      try {
+        await activeVoiceCallSession.switchCamera();
+        flashCallControlFeedback(window.adminChatT("voiceCallFlipCamera") || "Kamera gewechselt");
+      } catch (error) {
+        flashCallControlFeedback(String(error?.message || error || window.adminChatT("voiceCallCameraFailed")));
+      }
+    });
+    document.getElementById("voiceCallVideoStage")?.addEventListener("click", () => {
+      bumpVoiceCallChrome();
+    });
+    document.getElementById("voiceCallOverlay")?.addEventListener("pointerdown", () => {
+      if (document.getElementById("voiceCallOverlay")?.classList.contains("is-video")) {
+        bumpVoiceCallChrome();
+      }
+    }, true);
     document.getElementById("voiceCallShareImgBtn")?.addEventListener("click", () => {
       if (!activeVoiceCallSession?.sendCallImage && !window.SUPPIXConference?.isActive?.()) {
         flashCallControlFeedback(window.adminChatT("voiceCallControlsWait") || "Anruf noch nicht verbunden — kurz warten.");

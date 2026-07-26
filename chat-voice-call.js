@@ -15,15 +15,149 @@
     },
     video: false,
   };
-  const VIDEO_CONSTRAINTS = {
-    video: {
-      facingMode: "user",
-      width: { ideal: 640 },
-      height: { ideal: 480 },
-      frameRate: { ideal: 24, max: 30 },
-    },
-    audio: false,
-  };
+  function videoConstraints(facingMode = "user", tier = "hd") {
+    const sd = String(tier || "").toLowerCase() === "sd";
+    return {
+      video: {
+        facingMode: { ideal: facingMode },
+        width: sd ? { ideal: 640, max: 854 } : { ideal: 1280, min: 640 },
+        height: sd ? { ideal: 480, max: 480 } : { ideal: 720, min: 480 },
+        frameRate: sd ? { ideal: 24, max: 30 } : { ideal: 30, max: 30 },
+      },
+      audio: false,
+    };
+  }
+
+  /** Make a local PiP <video> draggable within its offsetParent. */
+  function bindDraggablePip(el) {
+    if (!el || el.dataset.dragBound === "1") return el;
+    el.dataset.dragBound = "1";
+    el.style.touchAction = "none";
+    el.style.cursor = "grab";
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let origLeft = 0;
+    let origTop = 0;
+
+    function clamp(n, min, max) {
+      return Math.max(min, Math.min(max, n));
+    }
+
+    function onPointerDown(event) {
+      if (el.classList.contains("hidden")) return;
+      const pt = event.touches ? event.touches[0] : event;
+      if (!pt) return;
+      const parent = el.offsetParent || el.parentElement || document.body;
+      const parentRect = parent.getBoundingClientRect();
+      const rect = el.getBoundingClientRect();
+      el.style.left = `${rect.left - parentRect.left}px`;
+      el.style.top = `${rect.top - parentRect.top}px`;
+      el.style.right = "auto";
+      el.style.bottom = "auto";
+      startX = pt.clientX;
+      startY = pt.clientY;
+      origLeft = parseFloat(el.style.left) || 0;
+      origTop = parseFloat(el.style.top) || 0;
+      dragging = true;
+      el.style.cursor = "grabbing";
+      try {
+        el.setPointerCapture?.(event.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+
+    function onPointerMove(event) {
+      if (!dragging) return;
+      const pt = event.touches ? event.touches[0] : event;
+      if (!pt) return;
+      const parent = el.offsetParent || el.parentElement || document.body;
+      const parentRect = parent.getBoundingClientRect();
+      const w = el.offsetWidth || 120;
+      const h = el.offsetHeight || 160;
+      const nextLeft = clamp(origLeft + (pt.clientX - startX), 8, Math.max(8, parentRect.width - w - 8));
+      const nextTop = clamp(origTop + (pt.clientY - startY), 8, Math.max(8, parentRect.height - h - 8));
+      el.style.left = `${nextLeft}px`;
+      el.style.top = `${nextTop}px`;
+      event.preventDefault?.();
+      event.stopPropagation?.();
+    }
+
+    function snapToCorner() {
+      const parent = el.offsetParent || el.parentElement || document.body;
+      const parentRect = parent.getBoundingClientRect();
+      const w = el.offsetWidth || 120;
+      const h = el.offsetHeight || 160;
+      const left = parseFloat(el.style.left) || 0;
+      const top = parseFloat(el.style.top) || 0;
+      const midX = left + w / 2;
+      const midY = top + h / 2;
+      const toLeft = midX < parentRect.width / 2;
+      const toTop = midY < parentRect.height / 2;
+      const nextLeft = toLeft ? 8 : Math.max(8, parentRect.width - w - 8);
+      const nextTop = toTop ? 8 : Math.max(8, parentRect.height - h - 8);
+      el.style.transition = "left 0.18s ease, top 0.18s ease";
+      el.style.left = `${nextLeft}px`;
+      el.style.top = `${nextTop}px`;
+      global.setTimeout(() => {
+        el.style.transition = "";
+      }, 220);
+    }
+
+    function onPointerUp(event) {
+      if (!dragging) return;
+      dragging = false;
+      el.style.cursor = "grab";
+      try {
+        el.releasePointerCapture?.(event.pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      snapToCorner();
+      event.stopPropagation?.();
+    }
+
+    el.addEventListener("pointerdown", onPointerDown);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onPointerUp);
+    el.addEventListener("pointercancel", onPointerUp);
+    return el;
+  }
+
+  function resetDraggablePip(el) {
+    if (!el) return;
+    el.style.left = "";
+    el.style.top = "";
+    el.style.right = "";
+    el.style.bottom = "";
+    el.style.transition = "";
+  }
+
+  function mapCameraError(error) {
+    const name = String(error?.name || "");
+    const msg = String(error?.message || error || "");
+    if (name === "NotAllowedError" || /permission|denied|NotAllowed/i.test(msg)) {
+      return Object.assign(new Error("camera_permission_denied"), { code: "camera_permission_denied" });
+    }
+    if (name === "NotFoundError" || /NotFound|device not found/i.test(msg)) {
+      return Object.assign(new Error("camera_not_found"), { code: "camera_not_found" });
+    }
+    if (name === "NotReadableError" || /NotReadable|track.*progress|Could not start/i.test(msg)) {
+      return Object.assign(new Error("camera_in_use"), { code: "camera_in_use" });
+    }
+    if (name === "OverconstrainedError" || /Overconstrained/i.test(msg)) {
+      return Object.assign(new Error("camera_constraints"), { code: "camera_constraints" });
+    }
+    if (name === "AbortError" || /timeout/i.test(msg)) {
+      return Object.assign(new Error("camera_timeout"), { code: "camera_timeout" });
+    }
+    return Object.assign(error instanceof Error ? error : new Error(msg || "camera_failed"), {
+      code: "camera_failed",
+    });
+  }
   const OFFER_OPTS = { offerToReceiveAudio: true, offerToReceiveVideo: true };
 
   function sleep(ms) {
@@ -275,7 +409,12 @@
       onCallImage,
       onLocalVideo,
       onRemoteVideo,
+      onVideoQuality,
+      onCameraPreview,
+      onScreenShare,
+      onRecording,
       displayName,
+      preferVideo,
     }) {
       this.api = api;
       this.role = role;
@@ -287,7 +426,12 @@
       this.onCallImage = onCallImage || (() => {});
       this.onLocalVideo = onLocalVideo || (() => {});
       this.onRemoteVideo = onRemoteVideo || (() => {});
+      this.onVideoQuality = onVideoQuality || (() => {});
+      this.onCameraPreview = onCameraPreview || (() => {});
+      this.onScreenShare = onScreenShare || (() => {});
+      this.onRecording = onRecording || (() => {});
       this.displayName = String(displayName || "").trim();
+      this.preferVideo = Boolean(preferVideo);
       this.callId = "";
       this.workerId = "";
       this.iceServers = [];
@@ -303,6 +447,23 @@
       this.muted = false;
       this.speakerOn = true;
       this.cameraOn = false;
+      this.cameraPreviewing = false;
+      this.previewStream = null;
+      this.facingMode = "user";
+      this.remoteHasVideo = false;
+      this.videoQuality = "hd";
+      this.screenSharing = false;
+      this.blurEnabled = false;
+      this._blurRawTrack = null;
+      this._blurCanvas = null;
+      this._blurRaf = 0;
+      this._screenTrack = null;
+      this._cameraTrackBeforeShare = null;
+      this._recorder = null;
+      this._recordChunks = [];
+      this._qualityBadStreak = 0;
+      this._qualityGoodStreak = 0;
+      this._qualityTimer = null;
       this.outputVolume = 1;
       this.companyId = "";
       this.ringTimeoutTimer = null;
@@ -397,6 +558,123 @@
       return Boolean(this.cameraOn);
     }
 
+    getLocalStream() {
+      return this.localStream;
+    }
+
+    getRemoteStream() {
+      return this.remoteStream;
+    }
+
+    hasRemoteVideo() {
+      return Boolean(this.remoteHasVideo);
+    }
+
+    getFacingMode() {
+      return this.facingMode === "environment" ? "environment" : "user";
+    }
+
+    getVideoQuality() {
+      return this.videoQuality || "hd";
+    }
+
+    _stopQualityMonitor() {
+      if (this._qualityTimer) {
+        global.clearInterval(this._qualityTimer);
+        this._qualityTimer = null;
+      }
+      this._qualityBadStreak = 0;
+      this._qualityGoodStreak = 0;
+    }
+
+    _startQualityMonitor() {
+      this._stopQualityMonitor();
+      if (!this.cameraOn) return;
+      this._qualityTimer = global.setInterval(() => {
+        void this._adaptVideoQuality();
+      }, 3000);
+    }
+
+    async _applyVideoTier(tier) {
+      const next = String(tier || "hd").toLowerCase() === "sd" ? "sd" : "hd";
+      if (next === this.videoQuality) return;
+      const track = this.localStream?.getVideoTracks?.()?.[0];
+      if (!track || track.readyState === "ended") return;
+      const constraints = videoConstraints(this.facingMode || "user", next).video;
+      try {
+        await track.applyConstraints(constraints);
+      } catch (_) {
+        try {
+          await track.applyConstraints({
+            width: next === "sd" ? 640 : 1280,
+            height: next === "sd" ? 480 : 720,
+            frameRate: next === "sd" ? 24 : 30,
+          });
+        } catch (_) {
+          return;
+        }
+      }
+      this.videoQuality = next;
+      try {
+        this.onVideoQuality(next);
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    async _adaptVideoQuality() {
+      if (this.ended || !this.cameraOn || !this.pc) return;
+      let rttMs = 0;
+      let lossRatio = 0;
+      let bitrate = 0;
+      try {
+        const stats = await this.pc.getStats();
+        let packetsLost = 0;
+        let packetsSent = 0;
+        let bytesSent = 0;
+        let timestamp = 0;
+        stats.forEach((report) => {
+          if (report.type === "candidate-pair" && (report.state === "succeeded" || report.nominated)) {
+            const rtt = Number(report.currentRoundTripTime || 0);
+            if (rtt > 0) rttMs = Math.max(rttMs, rtt * 1000);
+          }
+          if (report.type === "outbound-rtp" && (report.kind === "video" || report.mediaType === "video")) {
+            packetsLost += Number(report.packetsLost || 0);
+            packetsSent += Number(report.packetsSent || 0);
+            bytesSent = Number(report.bytesSent || bytesSent);
+            timestamp = Number(report.timestamp || timestamp);
+          }
+        });
+        const total = packetsLost + packetsSent;
+        if (total > 20) lossRatio = packetsLost / total;
+        if (this._lastQualityBytes != null && this._lastQualityTs && timestamp > this._lastQualityTs) {
+          const dt = (timestamp - this._lastQualityTs) / 1000;
+          if (dt > 0) bitrate = ((bytesSent - this._lastQualityBytes) * 8) / dt;
+        }
+        this._lastQualityBytes = bytesSent;
+        this._lastQualityTs = timestamp;
+      } catch (_) {
+        return;
+      }
+      const bad = rttMs > 420 || lossRatio > 0.05 || (bitrate > 0 && bitrate < 180000);
+      const good = rttMs > 0 && rttMs < 220 && lossRatio < 0.015 && (bitrate === 0 || bitrate > 450000);
+      if (bad) {
+        this._qualityBadStreak += 1;
+        this._qualityGoodStreak = 0;
+      } else if (good) {
+        this._qualityGoodStreak += 1;
+        this._qualityBadStreak = 0;
+      } else {
+        this._qualityBadStreak = Math.max(0, this._qualityBadStreak - 1);
+        this._qualityGoodStreak = Math.max(0, this._qualityGoodStreak - 1);
+      }
+      if (this.videoQuality !== "sd" && this._qualityBadStreak >= 2) {
+        await this._applyVideoTier("sd");
+      } else if (this.videoQuality === "sd" && this._qualityGoodStreak >= 3) {
+        await this._applyVideoTier("hd");
+      }
+    }
+
     async sendCameraIntent(enabled = true) {
       if (!this.callId || this.ended) return false;
       await this._sendSignal("camera_intent", {
@@ -419,69 +697,362 @@
       return true;
     }
 
-    async setCameraEnabled(enabled) {
-      const next = Boolean(enabled);
+    isCameraPreviewing() {
+      return Boolean(this.cameraPreviewing);
+    }
+
+    async startCameraPreview() {
       if (this.ended) return false;
-      if (!this.pc || !this.callId) {
-        throw new Error("call_not_connected");
+      if (this.cameraOn) return true;
+      if (this.cameraPreviewing && this.previewStream) {
+        try {
+          this.onLocalVideo(this.previewStream, true, { preview: true });
+          this.onCameraPreview(true);
+        } catch (_) { /* ignore */ }
+        return "preview";
       }
-      if (next === this.cameraOn) return this.cameraOn;
-      if (next) {
-        await this.sendCameraIntent(true);
-        await sleep(320);
-        let videoTrack = this.localStream?.getVideoTracks?.()?.[0] || null;
-        if (!videoTrack || videoTrack.readyState === "ended") {
-          const camStream = await navigator.mediaDevices.getUserMedia(VIDEO_CONSTRAINTS);
-          videoTrack = camStream.getVideoTracks()[0];
-          if (!this.localStream) this.localStream = camStream;
-          else this.localStream.addTrack(videoTrack);
-          this.pc.addTrack(videoTrack, this.localStream);
-        } else {
-          videoTrack.enabled = true;
-        }
-        await this._renegotiate();
-        this.cameraOn = true;
-      } else {
+      let camStream;
+      try {
+        camStream = await navigator.mediaDevices.getUserMedia(
+          videoConstraints(this.facingMode || "user", this.videoQuality || "hd"),
+        );
+      } catch (error) {
+        throw mapCameraError(error);
+      }
+      this.previewStream = camStream;
+      this.cameraPreviewing = true;
+      try {
+        this.onLocalVideo(camStream, true, { preview: true });
+        this.onCameraPreview(true);
+      } catch (_) { /* ignore */ }
+      return "preview";
+    }
+
+    async cancelCameraPreview() {
+      this.cameraPreviewing = false;
+      if (this.previewStream) {
+        this.previewStream.getTracks().forEach((t) => { try { t.stop(); } catch (_) { /* ignore */ } });
+        this.previewStream = null;
+      }
+      try {
+        this.onCameraPreview(false);
+        this.onLocalVideo(this.localStream, this.cameraOn, { preview: false });
+      } catch (_) { /* ignore */ }
+      return false;
+    }
+
+    async confirmCameraPreview() {
+      if (this.ended) return false;
+      if (!this.pc || !this.callId) throw new Error("call_not_connected");
+      if (this.cameraOn) return true;
+      if (!this.previewStream) await this.startCameraPreview();
+      const camStream = this.previewStream;
+      const videoTrack = camStream?.getVideoTracks?.()?.[0];
+      if (!videoTrack) throw mapCameraError(new Error("camera_failed"));
+      await this.sendCameraIntent(true);
+      await sleep(320);
+      if (!this.localStream) this.localStream = camStream;
+      else if (!this.localStream.getVideoTracks().includes(videoTrack)) this.localStream.addTrack(videoTrack);
+      const hasSender = (this.pc.getSenders?.() || []).some((s) => s.track?.kind === "video");
+      if (!hasSender) this.pc.addTrack(videoTrack, this.localStream);
+      await this._renegotiate();
+      this.cameraPreviewing = false;
+      this.previewStream = null;
+      this.cameraOn = true;
+      this._startQualityMonitor();
+      try { await this._sendSignal("camera_state", { enabled: true, fromName: this.displayName || "" }); } catch (_) { /* ignore */ }
+      try {
+        this.onCameraPreview(false);
+        this.onLocalVideo(this.localStream, true, { preview: false });
+      } catch (_) { /* ignore */ }
+      return true;
+    }
+
+    async setCameraEnabled(enabled, opts = {}) {
+      const next = Boolean(enabled);
+      const skipPreview = Boolean(opts.skipPreview || opts.publish);
+      if (this.ended) return false;
+      if (!this.pc || !this.callId) throw new Error("call_not_connected");
+      if (!next) {
+        if (this.cameraPreviewing) return this.cancelCameraPreview();
+        if (!this.cameraOn) return false;
+        try { await this.setBlurEnabled(false); } catch (_) { /* ignore */ }
+        if (this.screenSharing) { try { await this.setScreenShareEnabled(false); } catch (_) { /* ignore */ } }
         const senders = this.pc.getSenders?.() || [];
         for (const sender of senders) {
           if (sender.track?.kind === "video") {
-            try {
-              sender.track.stop();
-            } catch (_) {
-              /* ignore */
-            }
-            try {
-              this.pc.removeTrack(sender);
-            } catch (_) {
-              /* ignore */
-            }
+            try { sender.track.stop(); } catch (_) { /* ignore */ }
+            try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
           }
         }
         (this.localStream?.getVideoTracks?.() || []).forEach((track) => {
-          try {
-            track.stop();
-            this.localStream.removeTrack(track);
-          } catch (_) {
-            /* ignore */
-          }
+          try { track.stop(); this.localStream.removeTrack(track); } catch (_) { /* ignore */ }
         });
         await this._renegotiate();
         this.cameraOn = false;
+        this._stopQualityMonitor();
+        this.videoQuality = "hd";
+        this._lastQualityBytes = null;
+        this._lastQualityTs = 0;
+        try { await this._sendSignal("camera_state", { enabled: false, fromName: this.displayName || "" }); } catch (_) { /* ignore */ }
+        try { this.onLocalVideo(this.localStream, false, { preview: false }); } catch (_) { /* ignore */ }
+        return false;
       }
+      if (this.cameraOn) return true;
+      if (!skipPreview) return this.startCameraPreview();
       try {
-        await this._sendSignal("camera_state", {
-          enabled: this.cameraOn,
-          fromName: this.displayName || "",
-        });
+        return await this.confirmCameraPreview();
+      } catch (error) {
+        await this.cancelCameraPreview();
+        throw mapCameraError(error);
+      }
+    }
+
+    async _replaceOutgoingVideoTrack(newTrack, { stopOld = true } = {}) {
+      if (!this.pc || !newTrack) return;
+      const sender = (this.pc.getSenders?.() || []).find((s) => s.track?.kind === "video");
+      const oldTrack = sender?.track || this.localStream?.getVideoTracks?.()?.[0] || null;
+      if (sender && typeof sender.replaceTrack === "function") {
+        await sender.replaceTrack(newTrack);
+      } else if (sender) {
+        try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
+        if (!this.localStream) this.localStream = new MediaStream([newTrack]);
+        this.pc.addTrack(newTrack, this.localStream);
+        await this._renegotiate();
+      } else {
+        if (!this.localStream) this.localStream = new MediaStream([newTrack]);
+        else this.localStream.addTrack(newTrack);
+        this.pc.addTrack(newTrack, this.localStream);
+        await this._renegotiate();
+      }
+      if (this.localStream && !this.localStream.getVideoTracks().includes(newTrack)) this.localStream.addTrack(newTrack);
+      if (stopOld && oldTrack && oldTrack !== newTrack) {
+        try { oldTrack.stop(); this.localStream?.removeTrack?.(oldTrack); } catch (_) { /* ignore */ }
+      }
+    }
+
+    async setBlurEnabled(enabled) {
+      const next = Boolean(enabled);
+      if (!this.cameraOn || this.screenSharing) { this.blurEnabled = false; return false; }
+      if (next === this.blurEnabled) return this.blurEnabled;
+      if (!next) {
+        this._stopBlurPipeline();
+        if (this._blurRawTrack) {
+          await this._replaceOutgoingVideoTrack(this._blurRawTrack, { stopOld: true });
+          this._blurRawTrack = null;
+        }
+        this.blurEnabled = false;
+        try { this.onLocalVideo(this.localStream, true, { preview: false }); } catch (_) { /* ignore */ }
+        return false;
+      }
+      const current = this.localStream?.getVideoTracks?.()?.[0];
+      if (!current) return false;
+      this._blurRawTrack = current;
+      const processed = await this._startBlurPipeline(current);
+      if (!processed) { this._blurRawTrack = null; return false; }
+      await this._replaceOutgoingVideoTrack(processed, { stopOld: false });
+      this.blurEnabled = true;
+      try { this.onLocalVideo(this.localStream, true, { preview: false, blur: true }); } catch (_) { /* ignore */ }
+      return true;
+    }
+
+    _stopBlurPipeline() {
+      if (this._blurRaf) { global.cancelAnimationFrame(this._blurRaf); this._blurRaf = 0; }
+      if (this._blurCanvas) {
+        try { this._blurCanvas.getTracks?.().forEach((t) => t.stop()); } catch (_) { /* ignore */ }
+        this._blurCanvas = null;
+      }
+    }
+
+    async _startBlurPipeline(sourceTrack) {
+      try {
+        const video = document.createElement("video");
+        video.playsInline = true;
+        video.muted = true;
+        video.srcObject = new MediaStream([sourceTrack]);
+        await video.play();
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d", { alpha: false });
+        canvas.width = sourceTrack.getSettings?.().width || 640;
+        canvas.height = sourceTrack.getSettings?.().height || 480;
+        const out = canvas.captureStream(24);
+        const draw = () => {
+          if (!this.blurEnabled && !this._blurRaf) return;
+          try {
+            ctx.filter = "blur(10px)";
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.filter = "none";
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(canvas.width * 0.5, canvas.height * 0.45, canvas.width * 0.28, canvas.height * 0.38, 0, 0, Math.PI * 2);
+            ctx.clip();
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            ctx.restore();
+          } catch (_) { /* ignore */ }
+          this._blurRaf = global.requestAnimationFrame(draw);
+        };
+        this.blurEnabled = true;
+        this._blurCanvas = out;
+        this._blurRaf = global.requestAnimationFrame(draw);
+        return out.getVideoTracks()[0] || null;
+      } catch (_) { return null; }
+    }
+
+    async setScreenShareEnabled(enabled) {
+      const next = Boolean(enabled);
+      if (this.ended || !this.pc) return false;
+      if (next === this.screenSharing) return this.screenSharing;
+      if (!next) {
+        const restore = this._cameraTrackBeforeShare;
+        this._cameraTrackBeforeShare = null;
+        if (this._screenTrack) { try { this._screenTrack.stop(); } catch (_) { /* ignore */ } this._screenTrack = null; }
+        this.screenSharing = false;
+        if (restore && restore.readyState !== "ended") {
+          await this._replaceOutgoingVideoTrack(restore, { stopOld: false });
+          this.cameraOn = true;
+        } else if (this.cameraOn) {
+          await this.setCameraEnabled(false);
+          await this.setCameraEnabled(true, { skipPreview: true });
+        }
+        try { this.onScreenShare(false); this.onLocalVideo(this.localStream, this.cameraOn, { preview: false }); } catch (_) { /* ignore */ }
+        return false;
+      }
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        throw Object.assign(new Error("screen_share_unsupported"), { code: "screen_share_unsupported" });
+      }
+      let display;
+      try {
+        display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: false });
+      } catch (error) {
+        throw Object.assign(new Error("screen_share_denied"), { code: "screen_share_denied", cause: error });
+      }
+      const screenTrack = display.getVideoTracks()[0];
+      if (!screenTrack) throw Object.assign(new Error("screen_share_failed"), { code: "screen_share_failed" });
+      if (this.blurEnabled) await this.setBlurEnabled(false);
+      this._cameraTrackBeforeShare = this.localStream?.getVideoTracks?.()?.[0] || null;
+      this._screenTrack = screenTrack;
+      if (!this.cameraOn && !this._cameraTrackBeforeShare) {
+        await this.sendCameraIntent(true);
+        await sleep(200);
+        if (!this.localStream) this.localStream = new MediaStream([screenTrack]);
+        else this.localStream.addTrack(screenTrack);
+        this.pc.addTrack(screenTrack, this.localStream);
+        await this._renegotiate();
+        this.cameraOn = true;
+      } else {
+        await this._replaceOutgoingVideoTrack(screenTrack, { stopOld: false });
+      }
+      this.screenSharing = true;
+      screenTrack.addEventListener("ended", () => { void this.setScreenShareEnabled(false); });
+      try { this.onScreenShare(true); this.onLocalVideo(this.localStream, true, { preview: false, screen: true }); } catch (_) { /* ignore */ }
+      return true;
+    }
+
+    async startRecording() {
+      if (this._recorder) return true;
+      const parts = [];
+      (this.localStream?.getAudioTracks?.() || []).forEach((t) => parts.push(t));
+      (this.remoteStream?.getAudioTracks?.() || []).forEach((t) => parts.push(t));
+      const video = this.remoteStream?.getVideoTracks?.()?.[0] || this.localStream?.getVideoTracks?.()?.[0] || null;
+      if (video) parts.push(video);
+      if (!parts.length) throw Object.assign(new Error("recording_no_media"), { code: "recording_no_media" });
+      const mixed = new MediaStream(parts);
+      let mime = "";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported?.("video/webm;codecs=vp8,opus")) mime = "video/webm;codecs=vp8,opus";
+        else if (MediaRecorder.isTypeSupported?.("video/webm")) mime = "video/webm";
+      }
+      this._recordChunks = [];
+      this._recorder = new MediaRecorder(mixed, mime ? { mimeType: mime } : undefined);
+      this._recorder.ondataavailable = (ev) => { if (ev.data && ev.data.size) this._recordChunks.push(ev.data); };
+      this._recorder.onstop = () => {
+        try {
+          const blob = new Blob(this._recordChunks, { type: mime || "video/webm" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "workpass-call-" + Date.now() + ".webm";
+          a.click();
+          global.setTimeout(() => URL.revokeObjectURL(url), 5000);
+        } catch (_) { /* ignore */ }
+        this._recorder = null;
+        this._recordChunks = [];
+        try { this.onRecording(false); } catch (_) { /* ignore */ }
+      };
+      this._recorder.start(1000);
+      try { this.onRecording(true); } catch (_) { /* ignore */ }
+      return true;
+    }
+
+    stopRecording() {
+      if (!this._recorder) return false;
+      try { this._recorder.stop(); } catch (_) { this._recorder = null; }
+      return true;
+    }
+
+    isRecording() { return Boolean(this._recorder && this._recorder.state === "recording"); }
+    isScreenSharing() { return Boolean(this.screenSharing); }
+    isBlurEnabled() { return Boolean(this.blurEnabled); }
+
+    async switchCamera() {
+      if (this.ended || !this.cameraOn || !this.pc) {
+        throw new Error("camera_not_active");
+      }
+      const nextFacing = this.facingMode === "environment" ? "user" : "environment";
+      const camStream = await navigator.mediaDevices.getUserMedia(
+        videoConstraints(nextFacing, this.videoQuality || "hd"),
+      );
+      const newTrack = camStream.getVideoTracks()[0];
+      if (!newTrack) throw new Error("camera_switch_failed");
+
+      const sender = (this.pc.getSenders?.() || []).find((s) => s.track?.kind === "video");
+      const oldTrack = this.localStream?.getVideoTracks?.()?.[0] || null;
+      if (sender && typeof sender.replaceTrack === "function") {
+        await sender.replaceTrack(newTrack);
+      } else if (sender) {
+        try {
+          this.pc.removeTrack(sender);
+        } catch (_) {
+          /* ignore */
+        }
+        if (!this.localStream) this.localStream = camStream;
+        this.pc.addTrack(newTrack, this.localStream);
+        await this._renegotiate();
+      } else {
+        if (!this.localStream) this.localStream = camStream;
+        else this.localStream.addTrack(newTrack);
+        this.pc.addTrack(newTrack, this.localStream);
+        await this._renegotiate();
+      }
+
+      if (oldTrack) {
+        try {
+          oldTrack.stop();
+          this.localStream?.removeTrack?.(oldTrack);
+        } catch (_) {
+          /* ignore */
+        }
+      }
+      if (this.localStream && !this.localStream.getVideoTracks().includes(newTrack)) {
+        this.localStream.addTrack(newTrack);
+      }
+      // Stop leftover audio-less helper stream tracks except the one we keep.
+      camStream.getTracks().forEach((t) => {
+        if (t !== newTrack) {
+          try {
+            t.stop();
+          } catch (_) {
+            /* ignore */
+          }
+        }
+      });
+      this.facingMode = nextFacing;
+      try {
+        this.onLocalVideo(this.localStream, true);
       } catch (_) {
         /* ignore */
       }
-      try {
-        this.onLocalVideo(this.localStream, this.cameraOn);
-      } catch (_) {
-        /* ignore */
-      }
-      return this.cameraOn;
+      return this.facingMode;
     }
 
     async _renegotiate() {
@@ -646,10 +1217,24 @@
         audio.play().catch(() => {});
         this._attachRemoteAnalyser(remoteStream);
         const hasVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled !== false);
+        this.remoteHasVideo = hasVideo;
         try {
           this.onRemoteVideo(remoteStream, hasVideo);
         } catch (_) {
           /* ignore */
+        }
+        if (event.track) {
+          event.track.onended = () => {
+            const still = (this.remoteStream?.getVideoTracks?.() || []).some(
+              (t) => t.readyState === "live" && t.enabled !== false,
+            );
+            this.remoteHasVideo = still;
+            try {
+              this.onRemoteVideo(this.remoteStream, still);
+            } catch (_) {
+              /* ignore */
+            }
+          };
         }
       };
       this.pc.onicecandidate = (event) => {
@@ -671,6 +1256,7 @@
         if (state === "connected") {
           this._stopRingtone();
           this.onState("connected");
+          this._maybeAutoStartVideo();
         } else if (state === "failed") {
           void this.end("connection_failed");
         }
@@ -680,6 +1266,7 @@
         if (ice === "connected" || ice === "completed") {
           this._stopRingtone();
           this.onState("connected");
+          this._maybeAutoStartVideo();
         } else if (ice === "failed") {
           void this.end("ice_failed");
         }
@@ -914,6 +1501,14 @@
       await this.end("declined");
     }
 
+    _maybeAutoStartVideo() {
+      if (!this.preferVideo || this.cameraOn || this.cameraPreviewing || this._autoVideoStarted) return;
+      this._autoVideoStarted = true;
+      void this.setCameraEnabled(true).catch(() => {
+        this._autoVideoStarted = false;
+      });
+    }
+
     async end(reason, opts = {}) {
       if (this.ended) return;
       this.ended = true;
@@ -921,6 +1516,14 @@
       this._clearRingTimeout();
       this._stopRingtone();
       this._stopAudioMeters();
+      this._stopQualityMonitor();
+      try { this.stopRecording(); } catch (_) { /* ignore */ }
+      try { this._stopBlurPipeline(); } catch (_) { /* ignore */ }
+      try { await this.cancelCameraPreview(); } catch (_) { /* ignore */ }
+      if (this._screenTrack) {
+        try { this._screenTrack.stop(); } catch (_) { /* ignore */ }
+        this._screenTrack = null;
+      }
       const prefix = this.role === "worker" ? "/api/worker-app" : "/api";
       const remote = Boolean(opts?.remote) || /^(remote_|ended|missed|declined)/i.test(String(reason || ""));
       if (this.callId && !remote) {
@@ -946,6 +1549,18 @@
       }
       this.remoteStream = null;
       this.cameraOn = false;
+      this.cameraPreviewing = false;
+      this.previewStream = null;
+      this.remoteHasVideo = false;
+      this.facingMode = "user";
+      this.videoQuality = "hd";
+      this.screenSharing = false;
+      this.blurEnabled = false;
+      this._blurRawTrack = null;
+      this._cameraTrackBeforeShare = null;
+      this._autoVideoStarted = false;
+      this._lastQualityBytes = null;
+      this._lastQualityTs = 0;
       if (this.remoteAudio) {
         this.remoteAudio.pause();
         this.remoteAudio.srcObject = null;
@@ -964,5 +1579,8 @@
       return new VoiceCallSession(options);
     },
     createRingtone,
+    bindDraggablePip,
+    resetDraggablePip,
+    mapCameraError,
   };
 })(window);
