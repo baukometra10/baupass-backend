@@ -394,6 +394,8 @@
   let findReplaceMode = false;
   let commentsTimer = 0;
   let commentsFilter = "open";
+  let serverSuggestions = [];
+  let serverReviewComments = [];
   let statsTimer = 0;
   let selectionSyncRaf = 0;
   let diffVersionHtml = "";
@@ -1865,6 +1867,8 @@
           panel.hidden = false;
           $("commentsToggleBtn")?.setAttribute("aria-expanded", "true");
           renderCommentsPanel();
+          refreshSuggestions().catch(() => {});
+          refreshReviewComments().catch(() => {});
           scheduleFit();
         },
       },
@@ -1874,6 +1878,13 @@
         hint: "",
         icon: "comment",
         run: () => addCommentOnSelection(),
+      },
+      {
+        id: "suggestion",
+        label: dt("addSuggestion"),
+        hint: "",
+        icon: "comment",
+        run: () => addSuggestionFromSelection().catch(() => {}),
       },
     ];
   }
@@ -2433,6 +2444,11 @@
 
   function addCommentOnSelection() {
     if (!quill) return;
+    // In review mode the body is locked — persist server-side comments instead of blots.
+    if (document.body.classList.contains("docs-review-mode") || document.body.classList.contains("docs-workflow-locked")) {
+      addReviewCommentFromSelection().catch(() => {});
+      return;
+    }
     const range = quill.getSelection(true);
     if (!range || range.length < 1) {
       setStatus($("saveStatus"), dt("commentNeedSelection"), "err");
@@ -2510,13 +2526,49 @@
     const list = $("docCommentsList");
     const empty = $("docCommentsEmpty");
     if (!list) return;
+    const serverItems = (serverReviewComments || []).filter((c) => {
+      const done = String(c.status || "") === "done";
+      if (commentsFilter === "done") return done;
+      if (commentsFilter === "open") return !done;
+      return true;
+    });
     const all = collectComments();
-    const items = all.filter((c) => {
+    const blotItems = all.filter((c) => {
       if (commentsFilter === "done") return c.done;
       if (commentsFilter === "open") return !c.done;
       return true;
     });
-    list.innerHTML = items
+    const serverHtml = serverItems
+      .map((c) => {
+        const id = String(c.id || "");
+        const done = String(c.status || "") === "done";
+        const who = c.assignee
+          ? `<em class="doc-comments-assignee">@${escapeHtml(c.assignee)}</em>`
+          : `<em class="doc-comments-assignee">${escapeHtml(c.created_by_name || c.createdByName || "")}</em>`;
+        const replies = (c.replies || [])
+          .map(
+            (r) =>
+              `<li class="doc-comments-reply"><strong>${escapeHtml(r.created_by_name || r.createdByName || "—")}</strong>` +
+              `<span>${escapeHtml(r.body || "")}</span></li>`,
+          )
+          .join("");
+        const thread = replies ? `<ul class="doc-comments-thread">${replies}</ul>` : "";
+        return (
+          `<li class="doc-comments-item${done ? " is-done" : ""} is-server">` +
+          `<button type="button" class="doc-comments-jump" data-srv-cmt="${escapeHtml(id)}">` +
+          `<strong class="doc-comments-note">${escapeHtml(c.body || "")}</strong>${who}` +
+          `<span class="doc-comments-excerpt">${escapeHtml(c.excerpt || "…")}</span>` +
+          `</button>` +
+          thread +
+          `<div class="doc-comments-actions">` +
+          `<button type="button" class="cmd quiet" data-srv-reply="${escapeHtml(id)}">${escapeHtml(dt("commentReply"))}</button>` +
+          `<button type="button" class="cmd quiet" data-srv-resolve="${escapeHtml(id)}" data-done="${done ? "0" : "1"}">${escapeHtml(done ? dt("commentReopen") : dt("commentResolve"))}</button>` +
+          `</div>` +
+          `</li>`
+        );
+      })
+      .join("");
+    const blotHtml = blotItems
       .map((c) => {
         const idx = all.indexOf(c);
         const excerpt = String(c.excerpt || "").trim() || "…";
@@ -2550,11 +2602,38 @@
         );
       })
       .join("");
-    if (empty) empty.hidden = items.length > 0;
-    list.hidden = items.length === 0;
+    list.innerHTML = serverHtml + blotHtml;
+    const total = serverItems.length + blotItems.length;
+    if (empty) empty.hidden = total > 0;
+    list.hidden = total === 0;
     document.querySelectorAll("[data-cmt-filter]").forEach((btn) => {
       btn.classList.toggle("active", btn.getAttribute("data-cmt-filter") === commentsFilter);
     });
+    list.querySelectorAll("[data-srv-reply]").forEach((btn) => {
+      btn.addEventListener("click", () => replyServerComment(btn.getAttribute("data-srv-reply")));
+    });
+    list.querySelectorAll("[data-srv-resolve]").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        resolveServerComment(btn.getAttribute("data-srv-resolve"), btn.getAttribute("data-done") === "1"),
+      );
+    });
+    list.querySelectorAll("[data-srv-cmt]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const c = serverReviewComments.find((x) => String(x.id) === btn.getAttribute("data-srv-cmt"));
+        if (!c || !quill) return;
+        const idx = Number(c.anchor_index || c.anchorIndex || 0);
+        const len = Number(c.anchor_length || c.anchorLength || 0);
+        if (len > 0) {
+          try {
+            quill.setSelection(idx, len, "silent");
+          } catch {
+            /* ignore */
+          }
+          scheduleSelBubble();
+        }
+      });
+    });
+    refreshSuggestions().catch(() => {});
   }
 
   function scheduleComments() {
@@ -2680,6 +2759,255 @@
     markDirty();
     scheduleAutosave();
     renderCommentsPanel();
+  }
+
+  function canResolveSuggestionItem(item) {
+    if (hasCap("canResolveSuggestions") || hasCap("canPublish")) return true;
+    const mine = String(currentDoc?.created_by_user_id || currentDoc?.createdByUserId || "");
+    const me = String(window.__docsActorId || docsCaps?.userId || "");
+    if (mine && me && mine === me) return true;
+    // Authors often match via actor name fallback when id unknown — allow editors to resolve.
+    return hasCap("canReview", false);
+  }
+
+  async function refreshSuggestions() {
+    const list = $("suggestionsList");
+    const empty = $("suggestionsEmpty");
+    const status = $("suggestionsStatus");
+    if (!list || !currentDoc?.id || !activeCompanyId()) {
+      if (list) list.innerHTML = "";
+      if (status) setStatus(status, "—");
+      return;
+    }
+    try {
+      const data = await api(
+        `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/suggestions${companyQuery()}`,
+      );
+      serverSuggestions = data.items || [];
+      const pending = Number(data.pending || 0);
+      if (status) {
+        setStatus(status, pending ? dt("suggestionsPending", { n: pending }) : dt("suggestionsNonePending"));
+      }
+      const shown = serverSuggestions.filter((s) => {
+        if (commentsFilter === "done") return s.status !== "pending";
+        if (commentsFilter === "open") return s.status === "pending";
+        return true;
+      });
+      list.innerHTML = shown
+        .map((s) => {
+          const st = String(s.status || "pending");
+          const canAct = st === "pending" && canResolveSuggestionItem(s);
+          const actions = canAct
+            ? `<div class="doc-comments-actions">
+                <button type="button" class="cmd quiet" data-sug-accept="${escapeHtml(s.id)}">${escapeHtml(dt("suggestionAccept"))}</button>
+                <button type="button" class="cmd quiet" data-sug-reject="${escapeHtml(s.id)}">${escapeHtml(dt("suggestionReject"))}</button>
+              </div>`
+            : `<span class="doc-sub">${escapeHtml(dt(st === "accepted" ? "suggestionAccepted" : st === "rejected" ? "suggestionRejected" : "ackPending"))}</span>`;
+          return `<li class="doc-comments-item sug-${escapeHtml(st)}">
+            <button type="button" class="doc-comments-jump" data-sug-jump="${escapeHtml(s.id)}">
+              <strong class="doc-comments-note">${escapeHtml(s.note || dt("suggestionDefaultNote"))}</strong>
+              <em class="doc-comments-assignee">${escapeHtml(s.created_by_name || s.createdByName || "—")}</em>
+              <span class="doc-comments-excerpt"><del>${escapeHtml(s.original_text || s.originalText || "")}</del> → <ins>${escapeHtml(s.proposed_text || s.proposedText || "")}</ins></span>
+            </button>
+            ${actions}
+          </li>`;
+        })
+        .join("");
+      if (empty) empty.hidden = shown.length > 0;
+      list.hidden = shown.length === 0;
+      list.querySelectorAll("[data-sug-accept]").forEach((btn) => {
+        btn.addEventListener("click", () => resolveSuggestion(btn.getAttribute("data-sug-accept"), "accept"));
+      });
+      list.querySelectorAll("[data-sug-reject]").forEach((btn) => {
+        btn.addEventListener("click", () => resolveSuggestion(btn.getAttribute("data-sug-reject"), "reject"));
+      });
+      list.querySelectorAll("[data-sug-jump]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const sug = serverSuggestions.find((x) => x.id === btn.getAttribute("data-sug-jump"));
+          if (!sug || !quill) return;
+          const idx = Number(sug.anchor_index || sug.anchorIndex || 0);
+          const len = Number(sug.anchor_length || sug.anchorLength || 0) || String(sug.original_text || "").length;
+          try {
+            quill.setSelection(idx, len, "silent");
+          } catch {
+            /* ignore */
+          }
+          scheduleSelBubble();
+        });
+      });
+    } catch (e) {
+      if (status) setStatus(status, e.message || "—", "err");
+    }
+  }
+
+  async function addSuggestionFromSelection() {
+    if (!currentDoc?.id) {
+      setStatus($("saveStatus"), dt("needSave"), "err");
+      return;
+    }
+    if (!hasCap("canReview", false)) {
+      setStatus($("saveStatus"), dt("permDenied"), "err");
+      return;
+    }
+    const range = quill?.getSelection(true);
+    if (!range || range.length < 1) {
+      setStatus($("saveStatus"), dt("commentNeedSelection"), "err");
+      return;
+    }
+    const original = String(quill.getText(range.index, range.length) || "").trim();
+    if (!original) {
+      setStatus($("saveStatus"), dt("commentNeedSelection"), "err");
+      return;
+    }
+    const proposed = window.prompt(dt("suggestionProposePrompt"), original);
+    if (proposed === null) return;
+    if (!String(proposed).trim() || String(proposed).trim() === original) {
+      setStatus($("saveStatus"), dt("suggestionNoChange"), "err");
+      return;
+    }
+    const note = window.prompt(dt("suggestionNotePrompt"), "") || "";
+    try {
+      await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/suggestions${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          originalText: original,
+          proposedText: String(proposed).trim(),
+          note: String(note).trim(),
+          anchorIndex: range.index,
+          anchorLength: range.length,
+        }),
+      });
+      const panel = $("docComments");
+      if (panel) {
+        panel.hidden = false;
+        $("commentsToggleBtn")?.setAttribute("aria-expanded", "true");
+      }
+      await refreshSuggestions();
+      setStatus($("saveStatus"), dt("suggestionCreated"), "ok");
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
+  }
+
+  async function resolveSuggestion(id, action) {
+    if (!currentDoc?.id || !id) return;
+    try {
+      const data = await api(
+        `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/suggestions/${encodeURIComponent(id)}/${encodeURIComponent(action)}${companyQuery()}`,
+        { method: "POST", body: JSON.stringify({ company_id: activeCompanyId() }) },
+      );
+      if (action === "accept" && data.document) {
+        loadIntoEditor(data.document);
+        dirty = false;
+      }
+      await refreshSuggestions();
+      setStatus(
+        $("saveStatus"),
+        action === "accept" ? dt("suggestionAccepted") : dt("suggestionRejected"),
+        "ok",
+      );
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
+  }
+
+  async function refreshReviewComments() {
+    if (!currentDoc?.id || !activeCompanyId()) {
+      serverReviewComments = [];
+      renderCommentsPanel();
+      return;
+    }
+    try {
+      const data = await api(
+        `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/review-comments${companyQuery()}`,
+      );
+      serverReviewComments = data.items || [];
+    } catch {
+      serverReviewComments = [];
+    }
+    renderCommentsPanel();
+  }
+
+  async function addReviewCommentFromSelection() {
+    if (!currentDoc?.id) {
+      setStatus($("saveStatus"), dt("needSave"), "err");
+      return;
+    }
+    const range = quill?.getSelection(true);
+    const excerpt =
+      range && range.length ? String(quill.getText(range.index, range.length) || "").trim().slice(0, 160) : "";
+    const body = window.prompt(dt("commentPrompt"), "");
+    if (body === null || !String(body).trim()) return;
+    const assignee = window.prompt(dt("commentAssigneePrompt"), "") || "";
+    try {
+      await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/review-comments${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          body: String(body).trim(),
+          assignee: String(assignee).trim(),
+          excerpt,
+          anchorIndex: range?.index || 0,
+          anchorLength: range?.length || 0,
+        }),
+      });
+      if (range && range.length && quill && !document.body.classList.contains("docs-review-mode")) {
+        quill.formatText(
+          range.index,
+          range.length,
+          "wpComment",
+          serializeCommentMeta({
+            text: String(body).trim(),
+            assignee: String(assignee).trim(),
+            done: false,
+            replies: [],
+          }),
+          "user",
+        );
+        markDirty();
+        scheduleAutosave();
+      }
+      await refreshReviewComments();
+      setStatus($("saveStatus"), dt("commentSavedServer"), "ok");
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
+  }
+
+  async function replyServerComment(id) {
+    if (!currentDoc?.id || !id) return;
+    const text = window.prompt(dt("commentReplyPrompt"), "");
+    if (text === null || !String(text).trim()) return;
+    try {
+      await api(`/api/v2/docs/${encodeURIComponent(currentDoc.id)}/review-comments${companyQuery()}`, {
+        method: "POST",
+        body: JSON.stringify({
+          company_id: activeCompanyId(),
+          body: String(text).trim(),
+          parentId: id,
+        }),
+      });
+      await refreshReviewComments();
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
+  }
+
+  async function resolveServerComment(id, done) {
+    if (!currentDoc?.id || !id) return;
+    try {
+      await api(
+        `/api/v2/docs/${encodeURIComponent(currentDoc.id)}/review-comments/${encodeURIComponent(id)}${companyQuery()}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ company_id: activeCompanyId(), status: done ? "done" : "open" }),
+        },
+      );
+      await refreshReviewComments();
+    } catch (e) {
+      setStatus($("saveStatus"), e.message || dt("error"), "err");
+    }
   }
 
   function openPrintPreview(opts = {}) {
@@ -3955,6 +4283,8 @@
         canTestEmail: canEditCompanyLogo(),
         canUseWordPro: true,
         canEmail: true,
+        canReview: true,
+        canResolveSuggestions: canEditCompanyLogo(),
       };
     }
     applyDocsCapabilitiesUi();
@@ -5746,17 +6076,26 @@
       }
     }
     renderArchiveLinks(st);
-    const locked = st === "approved" || st === "archived";
-    document.body.classList.toggle("docs-workflow-locked", locked);
+    const hardLocked = st === "approved" || st === "archived";
+    const reviewMode = st === "in_review";
+    document.body.classList.toggle("docs-workflow-locked", hardLocked);
+    document.body.classList.toggle("docs-review-mode", reviewMode);
+    const banner = $("docReviewBanner");
+    if (banner) banner.hidden = !reviewMode;
     if (quill) {
       try {
-        quill.enable(!locked);
+        // Review: body read-only (selection still works); approved/archived fully locked.
+        quill.enable(!(hardLocked || reviewMode));
       } catch {
         /* ignore */
       }
     }
-    $("docHeader")?.setAttribute("contenteditable", locked ? "false" : "true");
-    $("docFooter")?.setAttribute("contenteditable", locked ? "false" : "true");
+    $("docHeader")?.setAttribute("contenteditable", hardLocked || reviewMode ? "false" : "true");
+    $("docFooter")?.setAttribute("contenteditable", hardLocked || reviewMode ? "false" : "true");
+    if (reviewMode || st === "draft") {
+      refreshSuggestions().catch(() => {});
+      refreshReviewComments().catch(() => {});
+    }
   }
 
   function renderArchiveLinks(status) {
@@ -6841,9 +7180,14 @@
       const open = panel.hidden;
       panel.hidden = !open;
       $("commentsToggleBtn")?.setAttribute("aria-expanded", open ? "true" : "false");
-      if (open) renderCommentsPanel();
+      if (open) {
+        refreshReviewComments().catch(() => renderCommentsPanel());
+        refreshSuggestions().catch(() => {});
+      }
       scheduleFit();
     });
+    $("addSuggestionBtn")?.addEventListener("click", () => addSuggestionFromSelection().catch(() => {}));
+    $("addReviewCommentBtn")?.addEventListener("click", () => addReviewCommentFromSelection().catch(() => {}));
     $("docOutlineList")?.addEventListener("click", (e) => {
       const btn = e.target?.closest?.("[data-outline]");
       if (!btn) return;

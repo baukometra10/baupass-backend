@@ -883,6 +883,279 @@ class EditorDocsRepository:
         ).fetchall()
         return [_row_to_dict(r) for r in rows]
 
+    def ensure_review_schema(self, db) -> None:
+        self.ensure_schema(db)
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editor_doc_suggestions (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                anchor_index INTEGER NOT NULL DEFAULT 0,
+                anchor_length INTEGER NOT NULL DEFAULT 0,
+                original_text TEXT NOT NULL DEFAULT '',
+                proposed_text TEXT NOT NULL DEFAULT '',
+                note TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'pending',
+                created_by_user_id TEXT,
+                created_by_name TEXT NOT NULL DEFAULT '',
+                resolved_by_user_id TEXT,
+                resolved_at TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editor_doc_review_comments (
+                id TEXT PRIMARY KEY,
+                document_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                parent_id TEXT,
+                anchor_index INTEGER NOT NULL DEFAULT 0,
+                anchor_length INTEGER NOT NULL DEFAULT 0,
+                excerpt TEXT NOT NULL DEFAULT '',
+                body TEXT NOT NULL DEFAULT '',
+                assignee TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'open',
+                created_by_user_id TEXT,
+                created_by_name TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        for stmt in (
+            "CREATE INDEX IF NOT EXISTS idx_editor_doc_suggestions_doc ON editor_doc_suggestions(document_id, status, created_at DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_editor_doc_review_comments_doc ON editor_doc_review_comments(document_id, status, created_at DESC)",
+        ):
+            try:
+                db.execute(stmt)
+            except Exception:
+                pass
+        try:
+            db.commit()
+        except Exception:
+            pass
+
+    def create_suggestion(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        anchor_index: int,
+        anchor_length: int,
+        original_text: str,
+        proposed_text: str,
+        note: str,
+        actor_user_id: str | None,
+        actor_name: str,
+    ) -> dict[str, Any]:
+        self.ensure_review_schema(db)
+        sid = str(uuid.uuid4())
+        now = _now()
+        db.execute(
+            """
+            INSERT INTO editor_doc_suggestions (
+                id, document_id, company_id, anchor_index, anchor_length,
+                original_text, proposed_text, note, status,
+                created_by_user_id, created_by_name, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)
+            """,
+            (
+                sid,
+                document_id,
+                company_id,
+                max(0, int(anchor_index or 0)),
+                max(0, int(anchor_length or 0)),
+                (original_text or "")[:8000],
+                (proposed_text or "")[:8000],
+                (note or "")[:2000],
+                actor_user_id,
+                (actor_name or "")[:120],
+                now,
+            ),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM editor_doc_suggestions WHERE id = ?", (sid,)).fetchone()
+        return _row_to_dict(row)
+
+    def list_suggestions(
+        self, db, *, document_id: str, company_id: str, status: str = ""
+    ) -> list[dict[str, Any]]:
+        self.ensure_review_schema(db)
+        st = (status or "").strip().lower()
+        if st in {"pending", "accepted", "rejected"}:
+            rows = db.execute(
+                """
+                SELECT * FROM editor_doc_suggestions
+                WHERE document_id = ? AND company_id = ? AND status = ?
+                ORDER BY created_at DESC
+                LIMIT 100
+                """,
+                (document_id, company_id, st),
+            ).fetchall()
+        else:
+            rows = db.execute(
+                """
+                SELECT * FROM editor_doc_suggestions
+                WHERE document_id = ? AND company_id = ?
+                ORDER BY
+                  CASE status WHEN 'pending' THEN 0 WHEN 'accepted' THEN 1 ELSE 2 END,
+                  created_at DESC
+                LIMIT 100
+                """,
+                (document_id, company_id),
+            ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+    def get_suggestion(
+        self, db, *, suggestion_id: str, document_id: str, company_id: str
+    ) -> dict[str, Any] | None:
+        self.ensure_review_schema(db)
+        row = db.execute(
+            """
+            SELECT * FROM editor_doc_suggestions
+            WHERE id = ? AND document_id = ? AND company_id = ?
+            """,
+            (suggestion_id, document_id, company_id),
+        ).fetchone()
+        return _row_to_dict(row) if row else None
+
+    def resolve_suggestion(
+        self,
+        db,
+        *,
+        suggestion_id: str,
+        document_id: str,
+        company_id: str,
+        status: str,
+        actor_user_id: str | None,
+    ) -> dict[str, Any] | None:
+        self.ensure_review_schema(db)
+        st = (status or "").strip().lower()
+        if st not in {"accepted", "rejected"}:
+            return None
+        now = _now()
+        db.execute(
+            """
+            UPDATE editor_doc_suggestions
+            SET status = ?, resolved_by_user_id = ?, resolved_at = ?
+            WHERE id = ? AND document_id = ? AND company_id = ? AND status = 'pending'
+            """,
+            (st, actor_user_id, now, suggestion_id, document_id, company_id),
+        )
+        db.commit()
+        return self.get_suggestion(
+            db, suggestion_id=suggestion_id, document_id=document_id, company_id=company_id
+        )
+
+    def create_review_comment(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        body: str,
+        excerpt: str = "",
+        assignee: str = "",
+        parent_id: str | None = None,
+        anchor_index: int = 0,
+        anchor_length: int = 0,
+        actor_user_id: str | None = None,
+        actor_name: str = "",
+    ) -> dict[str, Any]:
+        self.ensure_review_schema(db)
+        cid_row = str(uuid.uuid4())
+        now = _now()
+        db.execute(
+            """
+            INSERT INTO editor_doc_review_comments (
+                id, document_id, company_id, parent_id, anchor_index, anchor_length,
+                excerpt, body, assignee, status, created_by_user_id, created_by_name,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)
+            """,
+            (
+                cid_row,
+                document_id,
+                company_id,
+                (parent_id or None),
+                max(0, int(anchor_index or 0)),
+                max(0, int(anchor_length or 0)),
+                (excerpt or "")[:500],
+                (body or "")[:4000],
+                (assignee or "")[:120],
+                actor_user_id,
+                (actor_name or "")[:120],
+                now,
+                now,
+            ),
+        )
+        db.commit()
+        row = db.execute("SELECT * FROM editor_doc_review_comments WHERE id = ?", (cid_row,)).fetchone()
+        return _row_to_dict(row)
+
+    def list_review_comments(
+        self, db, *, document_id: str, company_id: str
+    ) -> list[dict[str, Any]]:
+        self.ensure_review_schema(db)
+        rows = db.execute(
+            """
+            SELECT * FROM editor_doc_review_comments
+            WHERE document_id = ? AND company_id = ?
+            ORDER BY created_at ASC
+            LIMIT 200
+            """,
+            (document_id, company_id),
+        ).fetchall()
+        return [_row_to_dict(r) for r in rows]
+
+    def update_review_comment(
+        self,
+        db,
+        *,
+        comment_id: str,
+        document_id: str,
+        company_id: str,
+        body: str | None = None,
+        assignee: str | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any] | None:
+        self.ensure_review_schema(db)
+        row = db.execute(
+            """
+            SELECT * FROM editor_doc_review_comments
+            WHERE id = ? AND document_id = ? AND company_id = ?
+            """,
+            (comment_id, document_id, company_id),
+        ).fetchone()
+        if not row:
+            return None
+        cur = _row_to_dict(row)
+        new_body = cur.get("body") if body is None else str(body)[:4000]
+        new_assignee = cur.get("assignee") if assignee is None else str(assignee)[:120]
+        new_status = cur.get("status")
+        if status is not None:
+            st = str(status).strip().lower()
+            if st in {"open", "done"}:
+                new_status = st
+        now = _now()
+        db.execute(
+            """
+            UPDATE editor_doc_review_comments
+            SET body = ?, assignee = ?, status = ?, updated_at = ?
+            WHERE id = ? AND document_id = ? AND company_id = ?
+            """,
+            (new_body, new_assignee, new_status, now, comment_id, document_id, company_id),
+        )
+        db.commit()
+        updated = db.execute(
+            "SELECT * FROM editor_doc_review_comments WHERE id = ?", (comment_id,)
+        ).fetchone()
+        return _row_to_dict(updated) if updated else None
+
 
 def dumps_json(value: Any) -> str:
     if value is None:

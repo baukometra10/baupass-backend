@@ -112,6 +112,13 @@ class EditorDocsService:
         clear_worker = worker_raw is not ... and str(worker_raw or "").strip() == ""
         clear_contract = contract_raw is not ... and str(contract_raw or "").strip() == ""
         before = self.repo.get_document(db, doc_id, company_id=company_id)
+        if before and str(before.get("status") or "") == "in_review":
+            content_touch = (
+                content_html is not None or content_text is not None or content_json is not None
+            )
+            note = str(data.get("versionNote") or data.get("version_note") or version_note or "")
+            if content_touch and not note.startswith("suggestion-accept"):
+                return {"error": "review_locked", "status": 409}
         doc = self.repo.update_document(
             db,
             doc_id,
@@ -1346,3 +1353,231 @@ class EditorDocsService:
         except Exception:
             pass
         return {"ok": True, "reminded": reminded, "minAgeDays": days}
+
+    def create_suggestion(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        actor_user_id: str | None,
+        actor_name: str,
+        original_text: str,
+        proposed_text: str,
+        note: str = "",
+        anchor_index: int = 0,
+        anchor_length: int = 0,
+    ) -> dict[str, Any]:
+        doc = self.repo.get_document(db, document_id, company_id=company_id)
+        if not doc:
+            return {"error": "not_found", "status": 404}
+        if str(doc.get("status") or "") == "archived":
+            return {"error": "archived", "status": 400}
+        original = str(original_text or "").strip()
+        proposed = str(proposed_text or "").strip()
+        if not original:
+            return {"error": "original_required", "status": 400}
+        if proposed == original:
+            return {"error": "no_change", "status": 400}
+        item = self.repo.create_suggestion(
+            db,
+            document_id=document_id,
+            company_id=company_id,
+            anchor_index=anchor_index,
+            anchor_length=anchor_length or len(original),
+            original_text=original,
+            proposed_text=proposed,
+            note=note,
+            actor_user_id=actor_user_id,
+            actor_name=actor_name,
+        )
+        return {"ok": True, "suggestion": item}
+
+    def list_suggestions(
+        self, db, *, document_id: str, company_id: str, status: str = ""
+    ) -> dict[str, Any]:
+        doc = self.repo.get_document(db, document_id, company_id=company_id)
+        if not doc:
+            return {"error": "not_found", "status": 404}
+        items = self.repo.list_suggestions(
+            db, document_id=document_id, company_id=company_id, status=status
+        )
+        pending = sum(1 for it in items if str(it.get("status") or "") == "pending")
+        return {"ok": True, "items": items, "pending": pending}
+
+    def resolve_suggestion(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        suggestion_id: str,
+        action: str,
+        actor_user_id: str | None,
+        actor_role: str = "",
+    ) -> dict[str, Any]:
+        doc = self.repo.get_document(db, document_id, company_id=company_id)
+        if not doc:
+            return {"error": "not_found", "status": 404}
+        sug = self.repo.get_suggestion(
+            db, suggestion_id=suggestion_id, document_id=document_id, company_id=company_id
+        )
+        if not sug:
+            return {"error": "suggestion_not_found", "status": 404}
+        if str(sug.get("status") or "") != "pending":
+            return {"error": "already_resolved", "status": 400}
+
+        role = (actor_role or "").strip().lower()
+        is_admin = role in {"superadmin", "company-admin"}
+        is_author = bool(actor_user_id) and str(doc.get("created_by_user_id") or "") == str(actor_user_id)
+        if not (is_admin or is_author):
+            return {"error": "forbidden", "status": 403}
+
+        act = (action or "").strip().lower()
+        if act not in {"accept", "reject"}:
+            return {"error": "invalid_action", "status": 400}
+
+        updated_doc = None
+        if act == "accept":
+            original = str(sug.get("original_text") or "")
+            proposed = str(sug.get("proposed_text") or "")
+            html = str(doc.get("content_html") or "")
+            text = str(doc.get("content_text") or "") or html_to_text(html)
+            new_html = html
+            new_text = text
+            applied = False
+            if original and original in html:
+                new_html = html.replace(original, proposed, 1)
+                applied = True
+            if original and original in text:
+                new_text = text.replace(original, proposed, 1)
+                applied = True
+            if not applied and original:
+                # Anchor fallback: replace by index in plain text, then mirror into HTML if possible.
+                idx = int(sug.get("anchor_index") or 0)
+                length = int(sug.get("anchor_length") or len(original))
+                if 0 <= idx < len(text) and text[idx : idx + length] == original:
+                    new_text = text[:idx] + proposed + text[idx + length :]
+                    if original in html:
+                        new_html = html.replace(original, proposed, 1)
+                    applied = True
+            if not applied:
+                return {"error": "anchor_mismatch", "status": 409}
+            updated_doc = self.update_doc(
+                db,
+                document_id,
+                company_id=company_id,
+                actor_user_id=actor_user_id,
+                data={
+                    "contentHtml": new_html,
+                    "contentText": new_text,
+                    "versionNote": f"suggestion-accept:{suggestion_id[:8]}",
+                },
+                save_version=True,
+            )
+            if not updated_doc:
+                return {"error": "update_failed", "status": 500}
+
+        resolved = self.repo.resolve_suggestion(
+            db,
+            suggestion_id=suggestion_id,
+            document_id=document_id,
+            company_id=company_id,
+            status="accepted" if act == "accept" else "rejected",
+            actor_user_id=actor_user_id,
+        )
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "docs.suggestion_accepted" if act == "accept" else "docs.suggestion_rejected",
+                f"Vorschlag {act}: {str(sug.get('note') or sug.get('original_text') or '')[:80]}",
+                target_type="editor_document",
+                target_id=document_id,
+                company_id=company_id,
+                actor={"id": actor_user_id, "role": role} if actor_user_id else None,
+                details={"suggestionId": suggestion_id, "action": act},
+            )
+        except Exception:
+            pass
+        return {
+            "ok": True,
+            "suggestion": resolved,
+            "document": updated_doc or doc,
+            "action": act,
+        }
+
+    def list_review_comments(self, db, *, document_id: str, company_id: str) -> dict[str, Any]:
+        doc = self.repo.get_document(db, document_id, company_id=company_id)
+        if not doc:
+            return {"error": "not_found", "status": 404}
+        items = self.repo.list_review_comments(db, document_id=document_id, company_id=company_id)
+        # Nest replies under parents for UI convenience.
+        by_id = {str(it["id"]): {**it, "replies": []} for it in items}
+        roots = []
+        for it in items:
+            pid = str(it.get("parent_id") or "").strip()
+            if pid and pid in by_id:
+                by_id[pid]["replies"].append(by_id[str(it["id"])])
+            else:
+                roots.append(by_id[str(it["id"])])
+        return {"ok": True, "items": roots, "flat": items}
+
+    def create_review_comment(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        body: str,
+        actor_user_id: str | None,
+        actor_name: str,
+        excerpt: str = "",
+        assignee: str = "",
+        parent_id: str | None = None,
+        anchor_index: int = 0,
+        anchor_length: int = 0,
+    ) -> dict[str, Any]:
+        doc = self.repo.get_document(db, document_id, company_id=company_id)
+        if not doc:
+            return {"error": "not_found", "status": 404}
+        if not str(body or "").strip():
+            return {"error": "body_required", "status": 400}
+        item = self.repo.create_review_comment(
+            db,
+            document_id=document_id,
+            company_id=company_id,
+            body=str(body).strip(),
+            excerpt=excerpt,
+            assignee=assignee,
+            parent_id=parent_id,
+            anchor_index=anchor_index,
+            anchor_length=anchor_length,
+            actor_user_id=actor_user_id,
+            actor_name=actor_name,
+        )
+        return {"ok": True, "comment": item}
+
+    def update_review_comment(
+        self,
+        db,
+        *,
+        document_id: str,
+        company_id: str,
+        comment_id: str,
+        body: str | None = None,
+        assignee: str | None = None,
+        status: str | None = None,
+    ) -> dict[str, Any]:
+        item = self.repo.update_review_comment(
+            db,
+            comment_id=comment_id,
+            document_id=document_id,
+            company_id=company_id,
+            body=body,
+            assignee=assignee,
+            status=status,
+        )
+        if not item:
+            return {"error": "not_found", "status": 404}
+        return {"ok": True, "comment": item}

@@ -40,6 +40,8 @@ def _docs_capabilities() -> dict:
         "canTestEmail": is_admin,
         "canUseWordPro": is_editor,
         "canEmail": is_editor,
+        "canReview": is_editor,
+        "canResolveSuggestions": is_admin,
     }
 
 
@@ -754,6 +756,8 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         )
         if not doc:
             return jsonify({"error": "not_found"}), 404
+        if isinstance(doc, dict) and doc.get("error"):
+            return jsonify({"error": doc["error"]}), int(doc.get("status") or 400)
         return jsonify({"ok": True, "document": doc})
 
     @docs_v2_bp.delete("/docs/<doc_id>")
@@ -1633,6 +1637,129 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         if result.get("error") == "invalid_status":
             return jsonify({"error": "invalid_status"}), 400
         return jsonify({"ok": True, "document": result})
+
+    @docs_v2_bp.get("/docs/<doc_id>/suggestions")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def list_doc_suggestions(doc_id: str):
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.list_suggestions(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            status=str(request.args.get("status") or ""),
+        )
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
+
+    @docs_v2_bp.post("/docs/<doc_id>/suggestions")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def create_doc_suggestion(doc_id: str):
+        denied = _deny_cap("canReview")
+        if denied:
+            return denied
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.create_suggestion(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            actor_user_id=_actor_id(),
+            actor_name=_actor_name(),
+            original_text=str(data.get("originalText") or data.get("original_text") or ""),
+            proposed_text=str(data.get("proposedText") or data.get("proposed_text") or ""),
+            note=str(data.get("note") or ""),
+            anchor_index=int(data.get("anchorIndex") or data.get("anchor_index") or 0),
+            anchor_length=int(data.get("anchorLength") or data.get("anchor_length") or 0),
+        )
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
+
+    @docs_v2_bp.post("/docs/<doc_id>/suggestions/<suggestion_id>/<action>")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def resolve_doc_suggestion(doc_id: str, suggestion_id: str, action: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.resolve_suggestion(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            suggestion_id=suggestion_id,
+            action=action,
+            actor_user_id=_actor_id(),
+            actor_role=_actor_role(),
+        )
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
+
+    @docs_v2_bp.get("/docs/<doc_id>/review-comments")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def list_review_comments(doc_id: str):
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.list_review_comments(get_db(), document_id=doc_id, company_id=cid)
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
+
+    @docs_v2_bp.post("/docs/<doc_id>/review-comments")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def create_review_comment(doc_id: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.create_review_comment(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            body=str(data.get("body") or data.get("text") or ""),
+            actor_user_id=_actor_id(),
+            actor_name=_actor_name(),
+            excerpt=str(data.get("excerpt") or ""),
+            assignee=str(data.get("assignee") or ""),
+            parent_id=str(data.get("parentId") or data.get("parent_id") or "").strip() or None,
+            anchor_index=int(data.get("anchorIndex") or data.get("anchor_index") or 0),
+            anchor_length=int(data.get("anchorLength") or data.get("anchor_length") or 0),
+        )
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
+
+    @docs_v2_bp.patch("/docs/<doc_id>/review-comments/<comment_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def patch_review_comment(doc_id: str, comment_id: str):
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data, required=True)
+        if not cid:
+            return forbidden_company()
+        result = _service.update_review_comment(
+            get_db(),
+            document_id=doc_id,
+            company_id=cid,
+            comment_id=comment_id,
+            body=None if "body" not in data and "text" not in data else str(data.get("body") or data.get("text") or ""),
+            assignee=None if "assignee" not in data else str(data.get("assignee") or ""),
+            status=None if "status" not in data else str(data.get("status") or ""),
+        )
+        if result.get("error"):
+            return jsonify({"error": result["error"]}), int(result.get("status") or 400)
+        return jsonify(result)
 
     @docs_v2_bp.post("/docs/<doc_id>/publish")
     @require_auth
