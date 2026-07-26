@@ -143,6 +143,24 @@ class TenantBranding {
       floatingLabelBehavior: FloatingLabelBehavior.never,
       isDense: true,
     );
+    final appBar = AppBarTheme(
+      backgroundColor: scheme.surface,
+      foregroundColor: scheme.onSurface,
+      elevation: 0,
+      centerTitle: false,
+      surfaceTintColor: Colors.transparent,
+    );
+    final elevated = ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: scheme.primary,
+        foregroundColor: onAccentColor,
+        // ignore: deprecated_member_use
+        disabledBackgroundColor: scheme.primary.withOpacity(0.35),
+        // ignore: deprecated_member_use
+        disabledForegroundColor: onAccentColor.withOpacity(0.7),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
     if (base == null) {
       return ThemeData(
         colorScheme: scheme,
@@ -151,6 +169,21 @@ class TenantBranding {
         canvasColor: scheme.surface,
         bottomNavigationBarTheme: nav,
         inputDecorationTheme: inputTheme,
+        appBarTheme: appBar,
+        elevatedButtonTheme: elevated,
+        floatingActionButtonTheme: FloatingActionButtonThemeData(
+          backgroundColor: scheme.primary,
+          foregroundColor: onAccentColor,
+        ),
+        progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
+        chipTheme: ChipThemeData(
+          // ignore: deprecated_member_use
+          selectedColor: scheme.primary.withOpacity(0.18),
+          checkmarkColor: scheme.primary,
+          labelStyle: TextStyle(color: scheme.onSurface),
+          secondaryLabelStyle: TextStyle(color: scheme.primary),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
       );
     }
     return base.copyWith(
@@ -159,6 +192,8 @@ class TenantBranding {
       canvasColor: scheme.surface,
       bottomNavigationBarTheme: nav,
       inputDecorationTheme: inputTheme,
+      appBarTheme: appBar,
+      elevatedButtonTheme: elevated,
     );
   }
 

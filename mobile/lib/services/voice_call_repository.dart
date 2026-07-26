@@ -274,13 +274,24 @@ class WorkerVoiceCallSession {
 
   void _refreshRemoteHasVideo() {
     final tracks = _remoteStream?.getVideoTracks() ?? const <MediaStreamTrack>[];
-    _remoteHasVideo = tracks.any((t) => t.enabled);
+    // Any remote video track counts — don't require enabled (admin cam can land muted briefly).
+    _remoteHasVideo = tracks.isNotEmpty;
+    for (final t in tracks) {
+      try {
+        if (!t.enabled) t.enabled = true;
+      } catch (_) {}
+    }
   }
 
   Future<void> _ingestRemoteTrack(RTCTrackEvent event) async {
     if (_ended) return;
     final track = event.track;
     try {
+      if (track.kind == 'video') {
+        try {
+          track.enabled = true;
+        } catch (_) {}
+      }
       if (_remoteStream == null) {
         if (event.streams.isNotEmpty) {
           _remoteStream = event.streams.first;

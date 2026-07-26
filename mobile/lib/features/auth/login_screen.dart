@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
@@ -269,172 +270,179 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLogin(BuildContext context) {
     final branding = _visibleBranding;
+    final scheme = Theme.of(context).colorScheme;
+    final brand = branding.effectiveSeed;
+    final onBrand = branding.onAccentColor;
     return TenantBrandingScope(
       branding: branding,
-      child: Scaffold(
-        appBar: AppBar(
-          title: Text(
-            _companyBranding.hasVisualIdentity ? branding.displayName : 'SUPPIX',
-            overflow: TextOverflow.ellipsis,
-          ),
-          actions: [
-            TextButton(
-              onPressed: _loading
-                  ? null
-                  : () => setState(() {
-                        _manualMode = !_manualMode;
-                        _error = null;
-                      }),
-              child: Text(_manualMode ? 'QR-Scan' : 'Manuell'),
-            ),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const LanguagePickerTile(dense: true),
-            const SizedBox(height: 16),
-            Row(
+      child: Theme(
+        data: branding.themeData(base: Theme.of(context)),
+        child: Scaffold(
+          appBar: AppBar(
+            title: Row(
               children: [
+                TenantBrandMark(branding: branding, size: 28, borderRadius: 8),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _loading
-                        ? null
-                        : () => setState(() {
-                              _manualMode = true;
-                              _error = null;
-                            }),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _manualMode ? const Color(0xFF0F766E) : const Color(0xFFE2E8F0),
-                      foregroundColor: _manualMode ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    icon: const Icon(Icons.keyboard, size: 18),
-                    label: const Text('Manuell'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _loading
-                        ? null
-                        : () => setState(() {
-                              _manualMode = false;
-                              _error = null;
-                            }),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: !_manualMode ? const Color(0xFF0F766E) : const Color(0xFFE2E8F0),
-                      foregroundColor: !_manualMode ? Colors.white : const Color(0xFF0F172A),
-                    ),
-                    icon: const Icon(Icons.qr_code_scanner, size: 18),
-                    label: const Text('QR'),
+                  child: Text(
+                    _companyBranding.hasVisualIdentity ? branding.displayName : 'SUPPIX',
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
-            if (_badApiBuild)
-              Card(
-                color: Theme.of(context).colorScheme.errorContainer,
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Text(
-                    'Falsche Server-URL in dieser APK (${AppConfig.apiBaseUrl}). '
-                    'Bitte aktuelle APK von join.html installieren.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onErrorContainer),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            children: [
+              Text(
+                t('loginTitle', 'Digitalen Ausweis aktivieren'),
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                t('loginSubtitle', 'Mitarbeiterausweis'),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 18),
+              const LanguagePickerTile(dense: true),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  // ignore: deprecated_member_use
+                  color: scheme.surfaceContainerHighest.withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ModeTab(
+                        selected: _manualMode,
+                        icon: Icons.keyboard_rounded,
+                        label: t('loginManual', 'Manuell'),
+                        brand: brand,
+                        onBrand: onBrand,
+                        onTap: _loading
+                            ? null
+                            : () => setState(() {
+                                  _manualMode = true;
+                                  _error = null;
+                                }),
+                      ),
+                    ),
+                    Expanded(
+                      child: _ModeTab(
+                        selected: !_manualMode,
+                        icon: Icons.qr_code_scanner_rounded,
+                        label: t('loginQr', 'QR-Scan'),
+                        brand: brand,
+                        onBrand: onBrand,
+                        onTap: _loading
+                            ? null
+                            : () => setState(() {
+                                  _manualMode = false;
+                                  _error = null;
+                                }),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              if (_badApiBuild)
+                Card(
+                  color: scheme.errorContainer,
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Text(
+                      'Falsche Server-URL in dieser APK (${AppConfig.apiBaseUrl}).',
+                      style: TextStyle(color: scheme.onErrorContainer),
+                    ),
                   ),
                 ),
-              ),
-            if (_companyBranding.hasVisualIdentity) ...[
-              Card(
-                child: ListTile(
-                  leading: TenantBrandMark(branding: _companyBranding, size: 44, borderRadius: 12),
-                  title: Text(_companyBranding.displayName),
-                  subtitle: const Text('Firmenprofil erkannt'),
+              if (_companyBranding.hasVisualIdentity) ...[
+                Card(
+                  child: ListTile(
+                    leading: TenantBrandMark(branding: _companyBranding, size: 44, borderRadius: 12),
+                    title: Text(_companyBranding.displayName),
+                    subtitle: Text(t('loginSubtitle', 'Mitarbeiterausweis')),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-            ],
-            if (!_manualMode) ...[
-              Text(
-                'Aktivierungs-QR scannen',
-                style: Theme.of(context).textTheme.titleLarge,
+                const SizedBox(height: 12),
+              ],
+              if (!_manualMode) ...[
+                Text(t('loginQrTitle', 'Aktivierungs-QR scannen'), style: Theme.of(context).textTheme.titleLarge),
+                const SizedBox(height: 8),
+                Text(t('loginQrHint', 'Kamera erlauben, dann Admin-QR scannen.')),
+                const SizedBox(height: 16),
+                QrScanPanel(
+                  busy: _loading,
+                  onScanned: _handleQrPayload,
+                  onRequestManualLogin: () => setState(() {
+                    _manualMode = true;
+                    _error = null;
+                  }),
+                ),
+              ] else ...[
+                _manualForm(),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: 16),
+                Text(_error!, style: TextStyle(color: scheme.error)),
+              ],
+              const SizedBox(height: 28),
+              Center(
+                child: Text(
+                  t('legal', 'Rechtliches'),
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(color: brand),
+                ),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Kamera erlauben, dann Admin-QR scannen. '
-                'Wenn die Kamera hängt: oben „Manuell“ → Badge-ID + PIN.',
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  TextButton(
+                    onPressed: () => _openLegal(privacy: false),
+                    child: Text(t('imprint', 'Impressum')),
+                  ),
+                  Text('·', style: TextStyle(color: scheme.onSurfaceVariant)),
+                  TextButton(
+                    onPressed: () => _openLegal(privacy: true),
+                    child: Text(t('privacy', 'Datenschutz')),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
-              QrScanPanel(
-                busy: _loading,
-                onScanned: _handleQrPayload,
-                onRequestManualLogin: () => setState(() {
-                  _manualMode = true;
-                  _error = null;
-                }),
-              ),
-            ] else ...[
-              _manualForm(),
             ],
-            if (_error != null) ...[
-              const SizedBox(height: 16),
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-            ],
-            const SizedBox(height: 28),
-            Center(
-              child: Text(
-                'Rechtliches',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextButton(
-                  onPressed: () => _openLegal(privacy: false),
-                  child: const Text('Impressum'),
-                ),
-                Text(
-                  '·',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-                TextButton(
-                  onPressed: () => _openLegal(privacy: true),
-                  child: const Text('Datenschutz'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _manualForm() {
+    final brand = _visibleBranding.effectiveSeed;
+    final onBrand = _visibleBranding.onAccentColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('Manuelle Anmeldung', style: Theme.of(context).textTheme.titleLarge),
+        Text(t('loginManualTitle', 'Manuelle Anmeldung'), style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
         Text(
-          'Ohne Kamera: Badge-ID + PIN vom Admin, oder den kompletten join-Link '
-          'aus dem Browser hier einfügen. Ein QR-Link funktioniert nur einmal.',
+          t('loginManualHint', 'Badge-ID + PIN vom Admin, oder Join-Link einfügen.'),
           style: Theme.of(context).textTheme.bodyMedium,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         SimpleTextField(
           controller: _badgeIdController,
-          hint: 'Badge-ID',
+          hint: t('loginBadge', 'Badge-ID'),
           textCapitalization: TextCapitalization.characters,
           enabled: !_loading,
         ),
         const SizedBox(height: 12),
         SimpleTextField(
           controller: _pinController,
-          hint: 'PIN',
+          hint: t('loginPin', 'PIN'),
           obscureText: true,
           keyboardType: TextInputType.number,
           enabled: !_loading,
@@ -442,14 +450,14 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 12),
         SimpleTextField(
           controller: _tokenController,
-          hint: 'Einmal-Aktivierungslink (optional)',
+          hint: t('loginLink', 'Einmal-Aktivierungslink (optional)'),
           enabled: !_loading,
           minLines: 1,
           maxLines: 3,
         ),
         const SizedBox(height: 16),
         SizedBox(
-          height: 48,
+          height: 50,
           child: ElevatedButton(
             onPressed: _loading
                 ? null
@@ -468,19 +476,66 @@ class _LoginScreenState extends State<LoginScreen> {
                     }
                   },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F766E),
-              foregroundColor: Colors.white,
+              backgroundColor: brand,
+              foregroundColor: onBrand,
             ),
             child: _loading
-                ? const SizedBox(
+                ? SizedBox(
                     height: 22,
                     width: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: onBrand),
                   )
-                : const Text('Anmelden'),
+                : Text(t('loginSubmit', 'Anmelden')),
           ),
         ),
       ],
+    );
+  }
+}
+
+class _ModeTab extends StatelessWidget {
+  const _ModeTab({
+    required this.selected,
+    required this.icon,
+    required this.label,
+    required this.brand,
+    required this.onBrand,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String label;
+  final Color brand;
+  final Color onBrand;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? brand : Colors.transparent,
+      borderRadius: BorderRadius.circular(11),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: selected ? onBrand : const Color(0xFF334155)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: selected ? onBrand : const Color(0xFF334155),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

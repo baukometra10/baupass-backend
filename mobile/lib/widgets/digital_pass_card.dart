@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/app_strings.dart';
 import '../core/tenant_branding.dart';
 import '../services/digital_card_repository.dart';
 import 'safe_qr_code.dart';
@@ -178,6 +179,23 @@ class DigitalPassCard extends StatelessWidget {
       return '${text.substring(8, 10)}.${text.substring(5, 7)}.${text.substring(0, 4)}';
     }
     return text.isEmpty ? '—' : text;
+  }
+
+  /// Badge-style Latin uppercase; keep Arabic/Unicode names readable.
+  static String _displayName(String raw) {
+    final name = raw.trim();
+    if (name.isEmpty) return '—';
+    final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(name);
+    if (hasArabic) return name;
+    return name.toUpperCase();
+  }
+
+  static String _displayMeta(String raw) {
+    final text = raw.trim();
+    if (text.isEmpty) return '';
+    final hasArabic = RegExp(r'[\u0600-\u06FF]').hasMatch(text);
+    if (hasArabic) return text;
+    return text.toUpperCase();
   }
 }
 
@@ -371,23 +389,23 @@ class _TopRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      brandLabel.toUpperCase(),
+                      DigitalPassCard._displayMeta(brandLabel),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.6,
-                        fontSize: (cardW * 0.048).clamp(14.0, 18.0),
+                        letterSpacing: 0.4,
+                        fontSize: (cardW * 0.046).clamp(13.0, 17.0),
                         height: 1.1,
                       ),
                     ),
                     Text(
-                      'MITARBEITERAUSWEIS',
+                      t('cardEmployee', 'MITARBEITERAUSWEIS'),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.55),
-                        fontSize: (cardW * 0.032).clamp(10.0, 12.0),
-                        letterSpacing: 1.0,
+                        fontSize: (cardW * 0.03).clamp(9.5, 11.5),
+                        letterSpacing: 0.8,
                         fontWeight: FontWeight.w600,
                         height: 1.15,
                       ),
@@ -431,95 +449,90 @@ class _MiddleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Match PWA: compact QR (~28%), portrait photo more prominent.
-    final qrSize = (cardW * 0.28).clamp(78.0, 118.0);
-    final photoH = (cardH * 0.42).clamp(88.0, 132.0);
-    final photoW = photoH * 0.78;
+    // Photo dominant left, compact QR right — balanced ID-1 layout.
+    final qrSize = (cardW * 0.26).clamp(72.0, 108.0);
+    final photoH = (cardH * 0.46).clamp(96.0, 140.0);
+    final photoW = photoH * 0.76;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _PhotoTile(width: photoW, height: photoH, photoData: photoData),
-        const Spacer(),
-        Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onQrTap,
-                borderRadius: BorderRadius.circular(14),
-                child: SizedBox(
-                  width: qrSize,
-                  height: qrSize,
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Positioned.fill(
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(14),
-                            gradient: LinearGradient(
-                              colors: palette.qrFrameColors,
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            border: Border.all(color: Colors.white.withValues(alpha: 0.42)),
-                            boxShadow: [
-                              BoxShadow(
-                                color: palette.qrFrameColors[1].withValues(alpha: 0.32),
-                                blurRadius: 10,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: const EdgeInsets.all(5),
+        SizedBox(width: cardW * 0.035),
+        Expanded(
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onQrTap,
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: qrSize,
+                      height: qrSize,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fill(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(9),
+                                borderRadius: BorderRadius.circular(12),
+                                color: palette.stripeMid.withValues(alpha: 0.35),
+                                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
                               ),
                               child: Padding(
-                                padding: const EdgeInsets.all(3),
-                                child: SafeQrCode(data: qrValue),
+                                padding: const EdgeInsets.all(4),
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(3),
+                                    child: SafeQrCode(data: qrValue),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                          if (remaining > 0)
+                            Positioned(
+                              right: -4,
+                              top: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: palette.stripeStart,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${remaining}s',
+                                  style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                      if (remaining > 0)
-                        Positioned(
-                          right: -6,
-                          top: -6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.55),
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-                            ),
-                            child: Text(
-                              '${remaining}s',
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ),
-                    ],
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 3),
+                Text(
+                  'QR',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.55),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Tippen → groß',
-              style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.6),
-                fontSize: 9.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
+          ),
         ),
       ],
     );
@@ -618,120 +631,128 @@ class _BottomSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final longName = name.length > 22;
-    final nameSize = (cardW * (longName ? 0.052 : 0.058)).clamp(16.0, 22.0);
-    final roleSize = (cardW * 0.036).clamp(11.0, 14.0);
-    final labelSize = (cardW * 0.028).clamp(9.0, 11.0);
-    final valueSize = (cardW * 0.034).clamp(11.0, 13.5);
-    final badgeSize = (cardW * 0.042).clamp(12.0, 15.0);
+    final nameSize = (cardW * (longName ? 0.048 : 0.056)).clamp(15.0, 20.0);
+    final roleSize = (cardW * 0.034).clamp(10.5, 13.0);
+    final labelSize = (cardW * 0.026).clamp(8.5, 10.5);
+    final valueSize = (cardW * 0.033).clamp(11.0, 13.0);
+    final badgeSize = (cardW * 0.04).clamp(12.0, 14.5);
+    final roleLine = DigitalPassCard._displayMeta(role.isEmpty ? (subcompany ?? '') : role);
+    final statusLabel = active ? 'AKTIV' : DigitalPassCard._displayMeta(status);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          name.isEmpty ? 'MITARBEITER' : name.toUpperCase(),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 1.0,
-            fontSize: nameSize,
-            height: 1.1,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          (role.isEmpty ? (subcompany ?? '') : role).toUpperCase(),
+          DigitalPassCard._displayName(name.isEmpty ? 'Mitarbeiter' : name),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.55),
-            fontSize: roleSize,
-            letterSpacing: 1.2,
-            fontWeight: FontWeight.w500,
+            color: Colors.white,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
+            fontSize: nameSize,
+            height: 1.15,
           ),
         ),
-        const SizedBox(height: 4),
+        if (roleLine.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            roleLine,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.62),
+              fontSize: roleSize,
+              letterSpacing: 0.6,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+        SizedBox(height: cardW * 0.012),
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
+              flex: 6,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _FieldLabelValue(
                     label: 'BADGE-ID',
-                    value: badgeId,
+                    value: badgeId.trim().isEmpty ? '—' : badgeId.trim(),
                     labelSize: labelSize,
                     valueSize: badgeSize,
                     valueColor: palette.badgeGold,
                     bold: true,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 5),
                   _FieldLabelValue(
                     label: 'GÜLTIG BIS',
                     value: DigitalPassCard._formatDate(validUntil),
                     labelSize: labelSize,
                     valueSize: valueSize,
-                    valueColor: Colors.white.withValues(alpha: 0.98),
+                    valueColor: Colors.white.withValues(alpha: 0.95),
                   ),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  brandLabel.toUpperCase(),
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: labelSize,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                if (subcompany != null && subcompany!.isNotEmpty) ...[
-                  const SizedBox(height: 2),
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
                   Text(
-                    subcompany!,
+                    DigitalPassCard._displayMeta(brandLabel),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: labelSize - 0.5,
+                      color: Colors.white.withValues(alpha: 0.9),
+                      fontSize: labelSize + 0.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.4,
                     ),
                   ),
-                ],
-                const SizedBox(height: 4),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(
-                        color: active ? const Color(0xFF4ADE80) : const Color(0xFFFF6B6B),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: (active ? const Color(0xFF4ADE80) : const Color(0xFFFF6B6B))
-                                .withValues(alpha: 0.7),
-                            blurRadius: 7,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 5),
+                  if (subcompany != null &&
+                      subcompany!.trim().isNotEmpty &&
+                      role.trim().isNotEmpty) ...[
+                    const SizedBox(height: 2),
                     Text(
-                      active ? 'AKTIV' : status.toUpperCase(),
+                      subcompany!.trim(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.end,
                       style: TextStyle(
-                        color: active ? const Color(0xFF4ADE80) : const Color(0xFFFFB3B3),
-                        fontWeight: FontWeight.w700,
+                        color: Colors.white.withValues(alpha: 0.5),
                         fontSize: labelSize,
-                        letterSpacing: 1.0,
                       ),
                     ),
                   ],
-                ),
-              ],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: (active ? const Color(0xFF4ADE80) : const Color(0xFFFF6B6B))
+                          .withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: (active ? const Color(0xFF4ADE80) : const Color(0xFFFF6B6B))
+                            .withValues(alpha: 0.65),
+                      ),
+                    ),
+                    child: Text(
+                      statusLabel,
+                      style: TextStyle(
+                        color: active ? const Color(0xFF86EFAC) : const Color(0xFFFFB3B3),
+                        fontWeight: FontWeight.w800,
+                        fontSize: labelSize,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),

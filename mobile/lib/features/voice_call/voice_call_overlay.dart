@@ -109,8 +109,16 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
         if (!mounted || !identical(_remoteRenderer, remoteRenderer)) return;
         _remoteRendererReady = true;
       }
-      if (remote != null && remoteHasVideo && !previewing) {
-        final changed = !identical(_boundRemoteStream, remote) || _boundRemoteVideoCount != remoteVideoCount;
+      // Prefer employer/remote video whenever any remote video track exists.
+      // Bug: worker camera ON kept local stream on the main view and never
+      // switched back when admin video arrived late.
+      final hasRemoteVideo = remoteVideoCount > 0 || remoteHasVideo;
+      if (remote != null && hasRemoteVideo && !previewing) {
+        final wasSelfPreview = _boundRemoteVideoCount == -2;
+        final changed = wasSelfPreview ||
+            !identical(_boundRemoteStream, remote) ||
+            _boundRemoteVideoCount != remoteVideoCount ||
+            remoteRenderer.srcObject != remote;
         if (changed) {
           await _bindRenderer(remoteRenderer, remote);
           _boundRemoteStream = remote;
@@ -1089,65 +1097,103 @@ class _ActiveControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final chips = <Widget>[
-      _MiniControl(
-        icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-        label: muted ? 'Stumm' : 'Mikro',
-        active: muted,
-        onTap: onToggleMute,
-      ),
-      _MiniControl(
-        icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-        label: cameraOn ? 'Cam aus' : 'Kamera',
-        active: cameraOn,
-        onTap: onToggleCamera,
-      ),
-      if (cameraOn) ...[
-        _MiniControl(
-          icon: Icons.cameraswitch_rounded,
-          label: 'Drehen',
-          active: false,
-          onTap: onFlipCamera,
-        ),
-        _MiniControl(
-          icon: Icons.blur_on_rounded,
-          label: 'Blur',
-          active: blurEnabled,
-          onTap: onToggleBlur,
-        ),
-      ],
-      _MiniControl(
-        icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-        label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
-        active: speakerOn,
-        onTap: onToggleSpeaker,
-      ),
-      _MiniControl(
-        icon: Icons.screen_share_rounded,
-        label: 'Screen',
-        active: screenSharing,
-        onTap: onToggleScreenShare,
-      ),
-      _MiniControl(
-        icon: recording ? Icons.stop_circle_rounded : Icons.fiber_manual_record,
-        label: recording ? 'Stop' : 'REC',
-        active: recording,
-        onTap: onToggleRecording,
-      ),
-      _MiniControl(
-        icon: Icons.image_rounded,
-        label: 'Bild',
-        active: false,
-        onTap: onShareImage,
-      ),
-    ];
+    // Primary: mute / camera / flip / speaker / more — hangup separate & large.
     return Column(
       children: [
         Wrap(
           alignment: WrapAlignment.center,
-          spacing: 12,
-          runSpacing: 12,
-          children: chips,
+          spacing: 14,
+          runSpacing: 14,
+          children: [
+            _MiniControl(
+              icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+              label: muted ? 'Stumm' : 'Mikro',
+              active: muted,
+              onTap: onToggleMute,
+            ),
+            _MiniControl(
+              icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+              label: cameraOn ? 'Cam aus' : 'Kamera',
+              active: cameraOn,
+              onTap: onToggleCamera,
+            ),
+            if (cameraOn)
+              _MiniControl(
+                icon: Icons.cameraswitch_rounded,
+                label: 'Drehen',
+                active: false,
+                onTap: onFlipCamera,
+              ),
+            _MiniControl(
+              icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+              label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
+              active: speakerOn,
+              onTap: onToggleSpeaker,
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Mehr',
+              color: const Color(0xFF1E293B),
+              onSelected: (v) {
+                switch (v) {
+                  case 'blur':
+                    unawaited(onToggleBlur());
+                    break;
+                  case 'screen':
+                    unawaited(onToggleScreenShare());
+                    break;
+                  case 'rec':
+                    unawaited(onToggleRecording());
+                    break;
+                  case 'image':
+                    unawaited(onShareImage());
+                    break;
+                }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(
+                  value: 'blur',
+                  enabled: cameraOn,
+                  child: Text(
+                    blurEnabled ? 'Blur aus' : 'Hintergrund weich',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'screen',
+                  child: Text(
+                    screenSharing ? 'Screen aus' : 'Bildschirm teilen',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'rec',
+                  child: Text(
+                    recording ? 'Aufnahme stoppen' : 'Aufnahme',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'image',
+                  child: Text('Bild senden', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+              child: Column(
+                children: [
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    shape: const CircleBorder(),
+                    child: const SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: Icon(Icons.more_horiz_rounded, color: Colors.white),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('Mehr', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
+                ],
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 28),
         _RoundActionButton(
