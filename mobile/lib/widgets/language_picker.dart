@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/app_strings.dart';
 import '../core/locale_controller.dart';
 
+/// Simple language chips — Dropdown/InputDecorator caused release null-check crashes.
 class LanguagePickerTile extends StatelessWidget {
   const LanguagePickerTile({super.key, this.dense = false});
 
@@ -16,38 +17,33 @@ class LanguagePickerTile extends StatelessWidget {
     return ListenableBuilder(
       listenable: ctrl,
       builder: (context, _) {
+        final current = LocaleController.supported.contains(ctrl.lang) ? ctrl.lang : 'de';
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            InputDecorator(
-              decoration: InputDecoration(
-                labelText: t('language', 'Sprache'),
-                isDense: dense,
-                border: const OutlineInputBorder(),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  key: ValueKey('lang-${ctrl.lang}'),
-                  value: LocaleController.supported.contains(ctrl.lang) ? ctrl.lang : 'de',
-                  isExpanded: true,
-                  items: LocaleController.supported
-                      .map(
-                        (code) => DropdownMenuItem(
-                          value: code,
-                          child: Text('${ctrl.labelFor(code)} (${code.toUpperCase()})'),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (v) {
-                    if (v != null) unawaited(ctrl.setLang(v));
+            Text(
+              t('language', 'Sprache'),
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            SizedBox(height: dense ? 6 : 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: LocaleController.supported.map((code) {
+                final selected = code == current;
+                return ChoiceChip(
+                  label: Text(code.toUpperCase()),
+                  selected: selected,
+                  onSelected: (_) {
+                    if (!selected) unawaited(ctrl.setLang(code));
                   },
-                ),
-              ),
+                );
+              }).toList(),
             ),
             if (!dense) ...[
               const SizedBox(height: 6),
               Text(
-                t('languageHint'),
+                t('languageHint', 'Sprache jederzeit hier ändern.'),
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],

@@ -356,25 +356,25 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   Widget build(BuildContext context) {
-    final lang = LocaleController.instance.lang;
     final rtl = LocaleController.instance.isRtl;
+    // IMPORTANT: Do NOT set MaterialApp.locale to tr/ar/pl/… without
+    // flutter_localizations — Material widgets then null-crash (Anzeige-Fehler)
+    // before login. App strings use LocaleController + t() separately.
     return MaterialApp(
       scaffoldMessengerKey: _messengerKey,
       title: _session != null ? _appBranding.displayName : 'SUPPIX',
       theme: _appBranding.themeData(),
-      locale: Locale(lang),
-      supportedLocales: LocaleController.supported.map((c) => Locale(c)).toList(),
-      // Keep Navigator/Overlay intact; never replace with an empty box.
+      locale: const Locale('de'),
+      supportedLocales: const [Locale('de'), Locale('en')],
       builder: (context, child) {
-        if (child == null) {
-          return const Scaffold(
-            backgroundColor: Color(0xFFF8FAFC),
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
+        final content = child ??
+            const Scaffold(
+              backgroundColor: Color(0xFFF8FAFC),
+              body: Center(child: CircularProgressIndicator()),
+            );
         return Directionality(
           textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
-          child: child,
+          child: content,
         );
       },
       home: _bootstrapping

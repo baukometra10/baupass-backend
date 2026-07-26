@@ -456,7 +456,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                     currentIndex: _index,
                     backgroundColor: scheme.surface,
                     selectedItemColor: scheme.primary,
-                    unselectedItemColor: scheme.onSurface.withValues(alpha: 0.72),
+                    // ignore: deprecated_member_use
+                    unselectedItemColor: scheme.onSurface.withOpacity(0.72),
                     selectedFontSize: 12,
                     unselectedFontSize: 11,
                     selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),

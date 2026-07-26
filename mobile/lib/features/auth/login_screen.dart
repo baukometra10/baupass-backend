@@ -44,7 +44,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pinController = TextEditingController();
   final _tokenController = TextEditingController();
   bool _loading = false;
-  bool _manualMode = false;
+  // Default manual — camera scanner must not block first paint / login.
+  bool _manualMode = true;
   bool _qrBadgeLaunch = false;
   String? _error;
   TenantBranding _shellBranding = TenantBranding.suppixShell;
@@ -238,23 +239,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    try {
+      return _buildLogin(context);
+    } catch (e) {
+      return Scaffold(
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Login-Fehler: $e'),
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () => setState(() {
+                    _manualMode = true;
+                    _error = null;
+                  }),
+                  child: const Text('Manuell versuchen'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Widget _buildLogin(BuildContext context) {
     final branding = _visibleBranding;
     return TenantBrandingScope(
       branding: branding,
       child: Scaffold(
         appBar: AppBar(
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TenantBrandMark(branding: branding, size: 28, borderRadius: 8),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  _companyBranding.hasVisualIdentity ? branding.displayName : 'SUPPIX',
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          title: Text(
+            _companyBranding.hasVisualIdentity ? branding.displayName : 'SUPPIX',
+            overflow: TextOverflow.ellipsis,
           ),
           actions: [
             TextButton(
@@ -272,6 +292,22 @@ class _LoginScreenState extends State<LoginScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             const LanguagePickerTile(dense: true),
+            const SizedBox(height: 16),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(value: true, label: Text('Manuell'), icon: Icon(Icons.keyboard)),
+                ButtonSegment<bool>(value: false, label: Text('QR'), icon: Icon(Icons.qr_code_scanner)),
+              ],
+              selected: {_manualMode},
+              onSelectionChanged: _loading
+                  ? null
+                  : (next) {
+                      setState(() {
+                        _manualMode = next.contains(true);
+                        _error = null;
+                      });
+                    },
+            ),
             const SizedBox(height: 16),
             if (_badApiBuild)
               Card(
@@ -302,9 +338,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Nach APK-Installation: Admin-QR hier scannen. '
-                'Wenn die Kamera blockiert: Einstellungen → Apps → SUPPIX → Kamera erlauben. '
-                'Oder oben „Manuell“ → Badge-ID + PIN (oder Einmal-Link aus dem Browser).',
+                'Kamera erlauben, dann Admin-QR scannen. '
+                'Wenn die Kamera hängt: oben „Manuell“ → Badge-ID + PIN.',
               ),
               const SizedBox(height: 16),
               QrScanPanel(

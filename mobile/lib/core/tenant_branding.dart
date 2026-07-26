@@ -37,11 +37,8 @@ class TenantBranding {
   String get aiAssistantTitle => '$displayName Assistent';
 
   static int argb32(Color color) {
-    final a = (color.a * 255.0).round().clamp(0, 255);
-    final r = (color.r * 255.0).round().clamp(0, 255);
-    final g = (color.g * 255.0).round().clamp(0, 255);
-    final b = (color.b * 255.0).round().clamp(0, 255);
-    return (a << 24) | (r << 16) | (g << 8) | b;
+    // ignore: deprecated_member_use
+    return color.value;
   }
 
   Map<String, dynamic> toCacheJson() => {
@@ -121,40 +118,35 @@ class TenantBranding {
   }
 
   ThemeData themeData({ThemeData? base}) {
+    final seed = effectiveSeed;
     final scheme = ColorScheme.fromSeed(
-      seedColor: effectiveSeed,
+      seedColor: seed,
       brightness: Brightness.light,
     );
-    // Keep theme simple — complex NavigationBarTheme/WidgetState wiring
-    // contributed to blank screens on some release builds.
+    // ignore: deprecated_member_use — withOpacity is more stable than withValues on some devices
+    final muted = scheme.onSurface.withOpacity(0.72);
+    final nav = BottomNavigationBarThemeData(
+      backgroundColor: scheme.surface,
+      selectedItemColor: scheme.primary,
+      unselectedItemColor: muted,
+      type: BottomNavigationBarType.fixed,
+      elevation: 8,
+      showUnselectedLabels: true,
+    );
     if (base == null) {
       return ThemeData(
         colorScheme: scheme,
         useMaterial3: true,
         scaffoldBackgroundColor: scheme.surface,
         canvasColor: scheme.surface,
-        bottomNavigationBarTheme: BottomNavigationBarThemeData(
-          backgroundColor: scheme.surface,
-          selectedItemColor: scheme.primary,
-          unselectedItemColor: scheme.onSurface.withValues(alpha: 0.7),
-          type: BottomNavigationBarType.fixed,
-          elevation: 8,
-          showUnselectedLabels: true,
-        ),
+        bottomNavigationBarTheme: nav,
       );
     }
     return base.copyWith(
       colorScheme: scheme,
       scaffoldBackgroundColor: scheme.surface,
       canvasColor: scheme.surface,
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: scheme.surface,
-        selectedItemColor: scheme.primary,
-        unselectedItemColor: scheme.onSurface.withValues(alpha: 0.7),
-        type: BottomNavigationBarType.fixed,
-        elevation: 8,
-        showUnselectedLabels: true,
-      ),
+      bottomNavigationBarTheme: nav,
     );
   }
 

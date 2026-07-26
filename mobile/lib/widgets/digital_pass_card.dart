@@ -249,11 +249,19 @@ class _WalletPalette {
   }
 
   static Color _shade(Color color, double amount) {
-    // Prefer withValues / .r.g.b — avoid deprecated .red/.green/.blue bangs.
-    return color.withValues(
-      red: (color.r + amount).clamp(0.0, 1.0),
-      green: (color.g + amount).clamp(0.0, 1.0),
-      blue: (color.b + amount).clamp(0.0, 1.0),
+    // Use classic channel math — avoids Color.r/withValues edge crashes on some devices.
+    // ignore: deprecated_member_use
+    final r = ((color.red / 255.0) + amount).clamp(0.0, 1.0);
+    // ignore: deprecated_member_use
+    final g = ((color.green / 255.0) + amount).clamp(0.0, 1.0);
+    // ignore: deprecated_member_use
+    final b = ((color.blue / 255.0) + amount).clamp(0.0, 1.0);
+    // ignore: deprecated_member_use
+    return Color.fromRGBO(
+      (r * 255).round(),
+      (g * 255).round(),
+      (b * 255).round(),
+      color.opacity,
     );
   }
 }
