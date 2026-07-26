@@ -34,6 +34,7 @@ def _docs_capabilities() -> dict:
         "canShare": is_admin,
         "canDelete": is_admin,
         "canSign": is_admin,
+        "canPublish": is_admin,
         "canPublishTeamTemplate": is_admin,
         "canManageLogo": is_admin,
         "canTestEmail": is_admin,
@@ -1645,6 +1646,9 @@ def register_docs_blueprint(flask_app: Flask) -> None:
         gate = _contract_docs_gate(get_db(), cid, doc=existing, data=(request.get_json(silent=True) or {}), action="publish")
         if gate:
             return gate
+        denied = _deny_cap("canPublish")
+        if denied:
+            return denied
         result = _service.publish_to_worker(
             get_db(),
             doc_id,
@@ -1654,6 +1658,10 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             notify=str(data.get("notify", "1")).lower() not in {"0", "false", "no"},
             doc_type=str(data.get("docType") or data.get("doc_type") or "sonstiges"),
             expiry_date=str(data.get("expiryDate") or data.get("expiry_date") or "").strip() or None,
+            compliance_required=str(
+                data.get("complianceRequired") if data.get("complianceRequired") is not None else data.get("compliance_required") or ""
+            ).lower()
+            in {"1", "true", "yes", "on"},
         )
         if result.get("error"):
             return jsonify({"error": result["error"]}), int(result.get("status") or 400)
@@ -1672,6 +1680,29 @@ def register_docs_blueprint(flask_app: Flask) -> None:
             days = 14
         items = _service.list_expiring_worker_docs(get_db(), company_id=cid, horizon_days=days)
         return jsonify({"ok": True, "items": items, "days": days})
+
+    @docs_v2_bp.get("/docs/unread-worker-docs")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def unread_worker_docs():
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        items = _service.list_unread_editor_docs(get_db(), company_id=cid)
+        return jsonify({"ok": True, "items": items, "count": len(items)})
+
+    @docs_v2_bp.get("/docs/<doc_id>/publish-receipts")
+    @require_auth
+    @require_roles("superadmin", "company-admin", "turnstile")
+    def publish_receipts(doc_id: str):
+        cid = _resolve_company_id(required=True)
+        if not cid:
+            return forbidden_company()
+        items = _service.list_archives_for_editor_doc(
+            get_db(), company_id=cid, editor_document_id=doc_id
+        )
+        unread = sum(1 for it in items if not it.get("acknowledged"))
+        return jsonify({"ok": True, "items": items, "unread": unread, "total": len(items)})
 
     @docs_v2_bp.post("/docs/from-contract")
     @require_auth

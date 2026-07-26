@@ -858,6 +858,7 @@ class EditorDocsService:
         notify: bool = True,
         doc_type: str = "sonstiges",
         expiry_date: str | None = None,
+        compliance_required: bool = False,
     ) -> dict[str, Any]:
         """Approve document, archive PDF into worker_documents, notify worker."""
         import json as _json
@@ -958,14 +959,25 @@ class EditorDocsService:
         exp = str(expiry_date or "").strip()[:10] or None
         if exp and not re.match(r"^\d{4}-\d{2}-\d{2}$", exp):
             exp = None
+        # Required-doc types already participate in lock engine; flag stores intent for audits/UI.
+        try:
+            from backend.server import _required_worker_doc_types
+
+            required_types = set(_required_worker_doc_types() or [])
+        except Exception:
+            required_types = {"mindestlohnnachweis", "personalausweis"}
+        compliance_flag = bool(compliance_required) or dtype in required_types
         meta = {
             "source": "editor",
             "editorDocumentId": doc_id,
             "title": title,
             "acknowledgedAt": None,
             "acknowledgedBy": None,
+            "complianceRequired": compliance_flag,
         }
         notes = f"editor:{doc_id}|Aus Dokumenteneditor freigegeben"
+        if compliance_flag:
+            notes += "|compliance_required"
         from backend.app.domains.workers.repository import WorkersRepository
 
         WorkersRepository().insert_worker_document(
@@ -1011,6 +1023,46 @@ class EditorDocsService:
                 notify_result = {"ok": False, "error": str(exc)}
 
         try:
+            from backend.server import create_system_alert, log_audit
+
+            log_audit(
+                "docs.published",
+                f"Editor-Dokument freigegeben: {title}",
+                target_type="worker_document",
+                target_id=archive_id,
+                company_id=company_id,
+                actor={"id": actor_user_id} if actor_user_id else None,
+                details={
+                    "editorDocumentId": doc_id,
+                    "workerDocumentId": archive_id,
+                    "workerId": wid,
+                    "docType": dtype,
+                    "expiryDate": exp,
+                    "complianceRequired": compliance_flag,
+                    "filename": safe_name,
+                },
+            )
+            create_system_alert(
+                db,
+                "docs.published",
+                "info",
+                f"An Mitarbeiter gesendet: {title}",
+                details=_json.dumps(
+                    {
+                        "documentId": doc_id,
+                        "workerDocumentId": archive_id,
+                        "companyId": company_id,
+                        "workerId": wid,
+                        "title": title,
+                    },
+                    ensure_ascii=False,
+                ),
+                dedup_minutes=2,
+            )
+        except Exception:
+            pass
+
+        try:
             db.commit()
         except Exception:
             pass
@@ -1024,6 +1076,9 @@ class EditorDocsService:
             "docType": dtype,
             "expiryDate": exp,
             "editorDocumentId": doc_id,
+            "complianceRequired": compliance_flag,
+            "acknowledged": False,
+            "acknowledgedAt": None,
             "notify": notify_result,
         }
 
@@ -1057,15 +1112,21 @@ class EditorDocsService:
         out = []
         for r in rows:
             editor_id = ""
+            ack_at = None
+            compliance = False
             try:
                 meta = _json.loads(str(r["e2e_meta"] or "") or "{}")
                 if isinstance(meta, dict):
                     editor_id = str(meta.get("editorDocumentId") or "")
+                    ack_at = meta.get("acknowledgedAt")
+                    compliance = bool(meta.get("complianceRequired"))
             except Exception:
                 meta = {}
             notes = str(r["notes"] or "")
             if not editor_id and notes.startswith("editor:"):
                 editor_id = notes.split("|", 1)[0].replace("editor:", "", 1).strip()
+            if "compliance_required" in notes:
+                compliance = True
             name = f"{r['first_name'] or ''} {r['last_name'] or ''}".strip()
             out.append(
                 {
@@ -1078,6 +1139,210 @@ class EditorDocsService:
                     "editorDocumentId": editor_id,
                     "source": "editor" if editor_id else "upload",
                     "createdAt": r["created_at"],
+                    "acknowledgedAt": ack_at,
+                    "acknowledged": bool(ack_at),
+                    "complianceRequired": compliance,
                 }
             )
         return out
+
+    @staticmethod
+    def _parse_editor_meta(row) -> dict[str, Any]:
+        import json as _json
+
+        meta: dict[str, Any] = {}
+        try:
+            raw = row["e2e_meta"] if hasattr(row, "keys") and "e2e_meta" in row.keys() else ""
+            parsed = _json.loads(str(raw or "") or "{}")
+            if isinstance(parsed, dict):
+                meta = parsed
+        except Exception:
+            meta = {}
+        notes = ""
+        try:
+            notes = str(row["notes"] or "") if hasattr(row, "keys") and "notes" in row.keys() else ""
+        except Exception:
+            notes = ""
+        editor_id = str(meta.get("editorDocumentId") or "").strip()
+        if not editor_id and notes.startswith("editor:"):
+            editor_id = notes.split("|", 1)[0].replace("editor:", "", 1).strip()
+        ack_at = meta.get("acknowledgedAt")
+        return {
+            "editorDocumentId": editor_id,
+            "acknowledgedAt": ack_at,
+            "acknowledged": bool(ack_at),
+            "acknowledgedBy": meta.get("acknowledgedBy"),
+            "complianceRequired": bool(meta.get("complianceRequired")) or ("compliance_required" in notes),
+            "source": str(meta.get("source") or ("editor" if editor_id else "upload")),
+            "title": str(meta.get("title") or ""),
+        }
+
+    def list_unread_editor_docs(
+        self, db, *, company_id: str, limit: int = 30
+    ) -> list[dict[str, Any]]:
+        """Editor-sourced worker_documents not yet acknowledged (Docs rail)."""
+        lim = max(1, min(int(limit or 30), 80))
+        try:
+            rows = db.execute(
+                """
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.filename, wd.expiry_date, wd.notes, wd.e2e_meta,
+                       wd.created_at, w.first_name, w.last_name
+                FROM worker_documents wd
+                LEFT JOIN workers w ON w.id = wd.worker_id
+                WHERE wd.company_id = ?
+                  AND (
+                    wd.notes LIKE 'editor:%'
+                    OR (wd.e2e_meta IS NOT NULL AND wd.e2e_meta LIKE '%"source": "editor"%')
+                    OR (wd.e2e_meta IS NOT NULL AND wd.e2e_meta LIKE '%"source":"editor"%')
+                  )
+                ORDER BY wd.created_at DESC
+                LIMIT ?
+                """,
+                (company_id, lim * 3),
+            ).fetchall()
+        except Exception:
+            return []
+        out = []
+        for r in rows:
+            parsed = self._parse_editor_meta(r)
+            if not parsed.get("editorDocumentId"):
+                continue
+            if parsed.get("acknowledged"):
+                continue
+            name = f"{r['first_name'] or ''} {r['last_name'] or ''}".strip()
+            out.append(
+                {
+                    "id": r["id"],
+                    "workerId": r["worker_id"],
+                    "workerName": name,
+                    "docType": r["doc_type"],
+                    "filename": r["filename"],
+                    "expiryDate": r["expiry_date"],
+                    "editorDocumentId": parsed["editorDocumentId"],
+                    "createdAt": r["created_at"],
+                    "acknowledged": False,
+                    "complianceRequired": parsed["complianceRequired"],
+                    "title": parsed.get("title") or r["filename"],
+                }
+            )
+            if len(out) >= lim:
+                break
+        return out
+
+    def list_archives_for_editor_doc(
+        self, db, *, company_id: str, editor_document_id: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Published worker_documents linked to an editor document (ack receipt)."""
+        eid = str(editor_document_id or "").strip()
+        if not eid:
+            return []
+        lim = max(1, min(int(limit or 10), 30))
+        try:
+            rows = db.execute(
+                """
+                SELECT wd.id, wd.worker_id, wd.doc_type, wd.filename, wd.expiry_date, wd.notes, wd.e2e_meta,
+                       wd.created_at, w.first_name, w.last_name
+                FROM worker_documents wd
+                LEFT JOIN workers w ON w.id = wd.worker_id
+                WHERE wd.company_id = ?
+                  AND (
+                    wd.notes LIKE ?
+                    OR (wd.e2e_meta IS NOT NULL AND wd.e2e_meta LIKE ?)
+                  )
+                ORDER BY wd.created_at DESC
+                LIMIT ?
+                """,
+                (company_id, f"editor:{eid}%", f"%{eid}%", lim),
+            ).fetchall()
+        except Exception:
+            return []
+        out = []
+        for r in rows:
+            parsed = self._parse_editor_meta(r)
+            if parsed.get("editorDocumentId") != eid:
+                continue
+            name = f"{r['first_name'] or ''} {r['last_name'] or ''}".strip()
+            out.append(
+                {
+                    "id": r["id"],
+                    "workerId": r["worker_id"],
+                    "workerName": name,
+                    "docType": r["doc_type"],
+                    "filename": r["filename"],
+                    "expiryDate": r["expiry_date"],
+                    "createdAt": r["created_at"],
+                    "acknowledged": parsed["acknowledged"],
+                    "acknowledgedAt": parsed["acknowledgedAt"],
+                    "complianceRequired": parsed["complianceRequired"],
+                }
+            )
+        return out
+
+    def run_stale_review_reminders(
+        self, db, *, min_age_days: int = 3, limit: int = 40
+    ) -> dict[str, Any]:
+        """Re-alert admins for editor docs stuck in_review."""
+        import json as _json
+        from datetime import datetime, timedelta, timezone
+
+        days = max(1, min(int(min_age_days or 3), 30))
+        lim = max(1, min(int(limit or 40), 100))
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        try:
+            rows = db.execute(
+                """
+                SELECT id, company_id, title, updated_at, status
+                FROM editor_documents
+                WHERE status = 'in_review'
+                  AND (updated_at IS NULL OR updated_at <= ?)
+                ORDER BY updated_at ASC
+                LIMIT ?
+                """,
+                (cutoff, lim),
+            ).fetchall()
+        except Exception:
+            return {"ok": False, "reminded": 0, "error": "query_failed"}
+
+        from backend.server import create_system_alert
+        from backend.app.platform.inbox.events import notify_inbox_changed
+
+        reminded = 0
+        for r in rows:
+            cid = str(r["company_id"] or "").strip()
+            doc_id = str(r["id"] or "").strip()
+            title = str(r["title"] or "Dokument").strip() or "Dokument"
+            if not cid or not doc_id:
+                continue
+            try:
+                create_system_alert(
+                    db,
+                    "docs.review.stale",
+                    "warning",
+                    f"Prüfung überfällig ({days}d+): {title}",
+                    details=_json.dumps(
+                        {
+                            "documentId": doc_id,
+                            "companyId": cid,
+                            "title": title,
+                            "minAgeDays": days,
+                            "updatedAt": r["updated_at"],
+                        },
+                        ensure_ascii=False,
+                    ),
+                    dedup_minutes=max(60, days * 24 * 60 // 2),
+                )
+                notify_inbox_changed(
+                    cid,
+                    source="docs_review_stale",
+                    alert_title=f"Prüfung überfällig: {title}",
+                    alert_message=f"Dokument wartet seit {days}+ Tagen auf Freigabe.",
+                    severity="warning",
+                )
+                reminded += 1
+            except Exception:
+                continue
+        try:
+            db.commit()
+        except Exception:
+            pass
+        return {"ok": True, "reminded": reminded, "minAgeDays": days}

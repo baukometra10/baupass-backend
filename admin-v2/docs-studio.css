@@ -3366,6 +3366,13 @@ body.page-a1 @page { size: A1; }
   padding-top: 0.55rem;
   border-top: 1px solid rgba(148, 163, 184, 0.22);
 }
+.publish-ack-box {
+  margin-top: 0.45rem;
+  padding-top: 0.4rem;
+  border-top: 1px dashed rgba(148, 163, 184, 0.25);
+}
+.ack-pending { color: #fbbf24; font-weight: 650; }
+.ack-ok { color: #6ee7b7; font-weight: 650; }
 .contract-banner {
   display: flex;
   align-items: center;

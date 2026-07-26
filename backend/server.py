@@ -605,7 +605,7 @@ IMMUTABLE_AUDIT_EVENT_PREFIXES = tuple(
             p.strip()
             for p in os.getenv(
                 "BAUPASS_IMMUTABLE_AUDIT_PREFIXES",
-                "security.,login.,worker.compliance_signature,import.,worker.deleted",
+                "security.,login.,worker.compliance_signature,import.,worker.deleted,docs.",
             ).split(",")
         ],
     )
@@ -8291,6 +8291,17 @@ def run_daily_jobs_cycle_once():
         if callable(send_document_expiry_fcm_pushes):
             send_document_expiry_fcm_pushes()
 
+        docs_review_reminder_result = {"ok": False, "reminded": 0}
+        try:
+            with app.app_context():
+                from backend.app.domains.docs.service import EditorDocsService
+
+                docs_review_reminder_result = EditorDocsService().run_stale_review_reminders(
+                    get_db(), min_age_days=3
+                )
+        except Exception as docs_rem_exc:
+            docs_review_reminder_result = {"ok": False, "error": str(docs_rem_exc)}
+
         camera_digest_result = {"ok": False}
         try:
             with app.app_context():
@@ -8343,6 +8354,7 @@ def run_daily_jobs_cycle_once():
             "databaseBackup": backup_result,
             "cameraDigest": camera_digest_result,
             "forecastNotify": forecast_notify_result,
+            "docsReviewReminders": docs_review_reminder_result,
         }
         try:
             from backend.app.tasks.job_health import record_job_run
@@ -29549,6 +29561,28 @@ def worker_app_my_document_acknowledge(doc_id):
         db.commit()
     except Exception as exc:
         return jsonify({"ok": False, "error": "update_failed", "message": str(exc)[:180]}), 500
+    try:
+        log_audit(
+            "docs.acknowledged",
+            f"Mitarbeiter hat Dokument gelesen: {doc['filename'] or doc_id}",
+            target_type="worker_document",
+            target_id=doc_id,
+            company_id=str(worker["company_id"] or ""),
+            actor={
+                "id": worker["id"],
+                "role": "worker",
+                "name": f"{(worker['first_name'] if 'first_name' in worker.keys() else '') or ''} {(worker['last_name'] if 'last_name' in worker.keys() else '') or ''}".strip(),
+            },
+            details={
+                "workerDocumentId": doc_id,
+                "editorDocumentId": meta.get("editorDocumentId"),
+                "workerId": worker["id"],
+                "filename": doc["filename"],
+                "acknowledgedAt": meta["acknowledgedAt"],
+            },
+        )
+    except Exception:
+        pass
     return jsonify({"ok": True, "id": doc_id, "acknowledgedAt": meta["acknowledgedAt"], **_worker_doc_meta_payload(
         {"notes": doc["notes"], "e2e_meta": json.dumps(meta)}
     )})

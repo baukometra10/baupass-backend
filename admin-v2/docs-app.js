@@ -3949,6 +3949,7 @@
         canShare: canEditCompanyLogo(),
         canDelete: canEditCompanyLogo(),
         canSign: canEditCompanyLogo(),
+        canPublish: canEditCompanyLogo(),
         canPublishTeamTemplate: canEditCompanyLogo(),
         canManageLogo: canEditCompanyLogo(),
         canTestEmail: canEditCompanyLogo(),
@@ -3971,6 +3972,7 @@
     setHidden("shareLinkBtn", !hasCap("canShare"));
     setHidden("shareLinkRailBtn", !hasCap("canShare"));
     setHidden("deleteBtn", !hasCap("canDelete"));
+    setHidden("publishBtn", !hasCap("canPublish"));
     setDisabled("wordProBtn", !hasCap("canUseWordPro", false));
     setHidden("emailTestBtn", !hasCap("canTestEmail"));
     setDisabled("signInsertBtn", !hasCap("canSign"));
@@ -4433,9 +4435,15 @@
               const editor = it.editorDocumentId
                 ? `<a href="/admin-v2/docs.html?company_id=${encodeURIComponent(activeCompanyId() || "")}&id=${encodeURIComponent(it.editorDocumentId)}">${escapeHtml(dt("expiringOpenEditor"))}</a>`
                 : `<span class="doc-sub">${escapeHtml(dt("expiringSourceUpload"))}</span>`;
+              const ack = it.acknowledged
+                ? `<span class="doc-sub ack-ok">${escapeHtml(dt("ackRead"))}</span>`
+                : it.editorDocumentId
+                  ? `<span class="doc-sub ack-pending">${escapeHtml(dt("ackPending"))}</span>`
+                  : "";
               return `<li class="version-row">
                 <span class="doc-title">${escapeHtml(it.workerName || it.workerId || "—")}</span>
                 <span class="doc-sub">${escapeHtml(it.filename || it.docType || "")} · ${escapeHtml(it.expiryDate || "")}</span>
+                ${ack}
                 ${editor}
               </li>`;
             })
@@ -4443,6 +4451,77 @@
         : "";
     } catch (e) {
       setStatus(status, e.message || "—", "err");
+    }
+  }
+
+  async function refreshUnreadDocs() {
+    const list = $("unreadDocsList");
+    const status = $("unreadDocsStatus");
+    if (!list || !status) return;
+    if (!activeCompanyId()) {
+      list.innerHTML = "";
+      setStatus(status, "—");
+      return;
+    }
+    try {
+      const data = await api(`/api/v2/docs/unread-worker-docs${companyQuery()}`);
+      const items = data.items || [];
+      setStatus(status, items.length ? dt("unreadDocsCount", { n: items.length }) : dt("unreadDocsNone"));
+      list.innerHTML = items.length
+        ? items
+            .map((it) => {
+              const href = `/admin-v2/docs.html?company_id=${encodeURIComponent(activeCompanyId() || "")}&id=${encodeURIComponent(it.editorDocumentId || "")}`;
+              return `<li class="version-row">
+                <span class="doc-title">${escapeHtml(it.workerName || it.workerId || "—")}</span>
+                <span class="doc-sub">${escapeHtml(it.title || it.filename || "")} · ${escapeHtml(dt("ackPending"))}</span>
+                <a href="${href}">${escapeHtml(dt("expiringOpenEditor"))}</a>
+              </li>`;
+            })
+            .join("")
+        : "";
+    } catch (e) {
+      setStatus(status, e.message || "—", "err");
+    }
+  }
+
+  async function refreshPublishReceipts(docId) {
+    const box = $("publishAckBox");
+    const list = $("publishAckList");
+    const status = $("publishAckStatus");
+    if (!box || !list || !status) return;
+    const id = docId || currentDoc?.id;
+    if (!id || !activeCompanyId()) {
+      box.hidden = true;
+      return;
+    }
+    try {
+      const data = await api(`/api/v2/docs/${encodeURIComponent(id)}/publish-receipts${companyQuery()}`);
+      const items = data.items || [];
+      if (!items.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      const unread = Number(data.unread || 0);
+      setStatus(
+        status,
+        unread ? dt("publishAckPending", { n: unread, t: items.length }) : dt("publishAckAllRead", { t: items.length }),
+        unread ? "" : "ok",
+      );
+      list.innerHTML = items
+        .map((it) => {
+          const when = it.acknowledgedAt ? String(it.acknowledgedAt).slice(0, 16).replace("T", " ") : "";
+          const state = it.acknowledged
+            ? `${escapeHtml(dt("ackRead"))}${when ? ` · ${escapeHtml(when)}` : ""}`
+            : escapeHtml(dt("ackPending"));
+          return `<li class="version-row">
+            <span class="doc-title">${escapeHtml(it.workerName || it.workerId || "—")}</span>
+            <span class="doc-sub ${it.acknowledged ? "ack-ok" : "ack-pending"}">${state}</span>
+          </li>`;
+        })
+        .join("");
+    } catch {
+      box.hidden = true;
     }
   }
 
@@ -5768,6 +5847,7 @@
     const docType = String($("publishDocType")?.value || "sonstiges").trim() || "sonstiges";
     const expiryDate = String($("publishExpiryDate")?.value || "").trim();
     const notify = $("publishNotifyCheck") ? !!$("publishNotifyCheck").checked : true;
+    const complianceRequired = $("publishComplianceCheck") ? !!$("publishComplianceCheck").checked : false;
     if (!confirm(dt("confirmPublish"))) {
       return;
     }
@@ -5781,6 +5861,7 @@
           notify,
           docType,
           expiryDate: expiryDate || undefined,
+          complianceRequired,
         }),
       });
       currentDoc = data.document;
@@ -5799,10 +5880,13 @@
         receipt.innerHTML =
           `${escapeHtml(dt("publishReceiptLine", { file: data.filename || "—", type: data.docType || docType }))}` +
           (data.expiryDate ? ` · ${escapeHtml(dt("publishExpiryShort", { d: data.expiryDate }))}` : "") +
+          ` · <span class="ack-pending">${escapeHtml(dt("ackPending"))}</span>` +
           ` · <a href="/admin-v2/index.html?company_id=${encodeURIComponent(activeCompanyId() || "")}&tab=workers&worker_id=${encodeURIComponent(wid)}">${escapeHtml(dt("archiveLinkWorker"))}</a>`;
       }
       renderArchiveLinks(currentDoc?.status || "archived");
       refreshExpiringDocs().catch(() => {});
+      refreshUnreadDocs().catch(() => {});
+      refreshPublishReceipts(currentDoc?.id).catch(() => {});
       const nextHint = $("approvalNextHint");
       if (nextHint) {
         nextHint.hidden = false;
@@ -5827,6 +5911,7 @@
     syncWorkerSelect(doc?.worker_id || qs().get("worker_id") || "");
     renderDocMeta(doc);
     syncContractChrome(doc);
+    refreshPublishReceipts(doc?.id).catch(() => {});
 
     // Always reset bands first — otherwise the previous doc's letterhead leaks.
     clearPaperBands();
@@ -7359,6 +7444,7 @@
       .then(() => loadMergeContext())
       .then(() => bootstrapFromQuery())
       .then(() => refreshExpiringDocs().catch(() => {}))
+      .then(() => refreshUnreadDocs().catch(() => {}))
       .then(async () => {
         try {
           const cid = activeCompanyId();

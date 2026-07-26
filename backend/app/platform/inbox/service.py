@@ -251,6 +251,9 @@ def build_operations_inbox(
                 "shift_swap_accepted": "Schichttausch",
                 "repeated_late_checkin": "Wiederholte Verspätung",
                 "tomorrow_attendance_forecast": "Prognose für morgen",
+                "docs.review": "Dokument zur Prüfung",
+                "docs.review.stale": "Dokument-Prüfung überfällig",
+                "docs.published": "Dokument an Mitarbeiter",
             }
             if code.startswith("sensitive_attempt"):
                 title_map[code] = "Sensibler Zugriff blockiert"
@@ -292,8 +295,24 @@ def build_operations_inbox(
                     f"Kanal={details_obj.get('channel')}, Tor={details_obj.get('gate')}, "
                     f"Fenster={details_obj.get('shiftStart')}-{details_obj.get('shiftEnd')}. Empfehlung?"
                 )
+            docs_nav = []
+            if code in {"docs.review", "docs.review.stale", "docs.published"}:
+                doc_id = str(details_obj.get("documentId") or details_obj.get("editorDocumentId") or "").strip()
+                company_for_docs = str(details_obj.get("companyId") or cid or "").strip()
+                if doc_id:
+                    q = f"id={doc_id}"
+                    if company_for_docs:
+                        q += f"&company_id={company_for_docs}"
+                    docs_nav = [
+                        {
+                            "type": "navigate",
+                            "url": f"/admin-v2/docs.html?{q}",
+                            "label": "Dokument prüfen" if "review" in code else "Im Editor öffnen",
+                        }
+                    ]
             actions = [
                 {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
+                *docs_nav,
                 *(
                     [
                         {
