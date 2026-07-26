@@ -1,6 +1,7 @@
 """Daily ops brief: attendance + unified security snapshot for Lagebild."""
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 from typing import Any
 
@@ -382,13 +383,181 @@ def build_security_brief(db, company_id: str) -> dict[str, Any]:
     }
 
 
+def _acked_voice_call_ids(db, company_id: str) -> set[str]:
+    """Call IDs already acknowledged in the ops inbox (voice_call_noted)."""
+    out: set[str] = set()
+    cid = str(company_id or "").strip()
+    if not cid:
+        return out
+    try:
+        rows = db.execute(
+            """
+            SELECT details FROM system_alerts
+            WHERE code = 'voice_call_noted'
+              AND (details LIKE ? OR details LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT 300
+            """,
+            (f'%"{cid}"%', f"%company_id={cid}%"),
+        ).fetchall()
+        for r in rows:
+            raw = r["details"] or ""
+            try:
+                details = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except Exception:
+                details = {}
+            if not isinstance(details, dict):
+                continue
+            detail_cid = str(details.get("companyId") or details.get("company_id") or "").strip()
+            if detail_cid and detail_cid != cid:
+                continue
+            call_id = str(details.get("callId") or details.get("call_id") or "").strip()
+            if call_id:
+                out.add(call_id)
+    except Exception:
+        return set()
+    return out
+
+
+def _worker_display_name(db, worker_id: str) -> str:
+    wid = str(worker_id or "").strip()
+    if not wid:
+        return ""
+    try:
+        row = db.execute(
+            """
+            SELECT TRIM(COALESCE(first_name, '') || ' ' || COALESCE(last_name, '')) AS worker_name
+            FROM workers
+            WHERE id = ? AND COALESCE(deleted_at, '') = ''
+            """,
+            (wid,),
+        ).fetchone()
+        if not row:
+            return wid
+        name = str(row["worker_name"] or "").strip()
+        return name or wid
+    except Exception:
+        return wid
+
+
+def build_chat_brief(db, company_id: str, *, lookback_days: int = 7) -> dict[str, Any]:
+    """Open chat/call follow-ups for Lagebild: missed inbound + callback requests."""
+    cid = str(company_id or "").strip()
+    days = max(1, min(int(lookback_days or 7), 30))
+    acked = _acked_voice_call_ids(db, cid) if cid else set()
+    missed_items: list[dict[str, Any]] = []
+    callback_items: list[dict[str, Any]] = []
+
+    if cid:
+        try:
+            from backend.app.platform.voice_calls.service import VoiceCallService
+
+            VoiceCallService(db)  # ensure schema
+        except Exception:
+            pass
+
+        try:
+            rows = db.execute(
+                """
+                SELECT id, worker_id, status, created_at, end_reason, initiated_by
+                FROM chat_voice_calls
+                WHERE company_id = ?
+                  AND COALESCE(initiated_by, 'admin') = 'worker'
+                  AND status = 'missed'
+                  AND datetime(created_at) >= datetime('now', ?)
+                ORDER BY datetime(created_at) DESC
+                LIMIT 40
+                """,
+                (cid, f"-{days} day"),
+            ).fetchall()
+            for r in rows:
+                call_id = str(r["id"] or "").strip()
+                if not call_id or call_id in acked:
+                    continue
+                wid = str(r["worker_id"] or "").strip()
+                missed_items.append(
+                    {
+                        "id": call_id,
+                        "kind": "missed_call",
+                        "status": "missed",
+                        "title": "Verpasster Anruf",
+                        "workerId": wid,
+                        "workerName": _worker_display_name(db, wid),
+                        "createdAt": str(r["created_at"] or ""),
+                        "endReason": str(r["end_reason"] or ""),
+                        "href": f"/admin-v2/chat.html?company_id={cid}&worker_id={wid}",
+                        "source": "chat",
+                    }
+                )
+        except Exception:
+            missed_items = []
+
+        try:
+            rows = db.execute(
+                """
+                SELECT id, worker_id, body, created_at
+                FROM chat_messages
+                WHERE company_id = ?
+                  AND body LIKE '%status=callback_requested%'
+                  AND datetime(created_at) >= datetime('now', ?)
+                ORDER BY datetime(created_at) DESC
+                LIMIT 60
+                """,
+                (cid, f"-{days} day"),
+            ).fetchall()
+            seen_calls: set[str] = set()
+            for r in rows:
+                body = str(r["body"] or "")
+                call_id = ""
+                for part in body.split("|"):
+                    if part.startswith("callId="):
+                        call_id = part.split("=", 1)[1].strip()
+                        break
+                if not call_id or call_id in seen_calls or call_id in acked:
+                    continue
+                seen_calls.add(call_id)
+                wid = str(r["worker_id"] or "").strip()
+                callback_items.append(
+                    {
+                        "id": call_id,
+                        "kind": "callback_requested",
+                        "status": "callback_requested",
+                        "title": "Rückruf angefordert",
+                        "workerId": wid,
+                        "workerName": _worker_display_name(db, wid),
+                        "createdAt": str(r["created_at"] or ""),
+                        "messageId": str(r["id"] or ""),
+                        "href": f"/admin-v2/chat.html?company_id={cid}&worker_id={wid}",
+                        "source": "chat",
+                    }
+                )
+        except Exception:
+            callback_items = []
+
+    # Prefer callback item when both exist for the same call.
+    callback_ids = {str(i.get("id") or "") for i in callback_items}
+    missed_items = [i for i in missed_items if str(i.get("id") or "") not in callback_ids]
+    items = (callback_items + missed_items)[:16]
+
+    return {
+        "missedCallsOpen": len(missed_items),
+        "callbackRequestsOpen": len(callback_items),
+        "totalOpen": len(items),
+        "items": items,
+        "lookbackDays": days,
+        "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+    }
+
+
 def build_daily_ops_brief(db, company_id: str) -> dict[str, Any]:
     attendance = build_attendance_brief(db, company_id)
     security = build_security_brief(db, company_id)
+    chat = build_chat_brief(db, company_id)
     return {
         "ok": True,
         "companyId": str(company_id),
         "attendance": attendance,
         "security": security,
+        "chat": chat,
         "autoDial": False,
     }

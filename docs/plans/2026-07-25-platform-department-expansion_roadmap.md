@@ -51,4 +51,11 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 3. Daily Brief `workWindow` + Lagebild-Anzeige ✅
 4. Einsatzplan: „Firmenzeiten“ auf leere Tage + Rotation optional mit Firmenzeiten ✅
 
-Unverändert: **kein Auto-Polizei-Notruf**. · Zeiten entscheidet jede Firma selbst.
+## Follow-up — Chat + Calls (Ops-Loop) — erledigt
+
+1. Daily Brief `chat`: verpasste eingehende Anrufe + Rückruf-Anfragen ✅
+2. Inbox: `vcall:{callId}` / `vcallcb:{callId}` (Quelle `chat`) + Resolve = „Kenntnis genommen“ ✅
+3. Lagebild: KPI + Block „Chat & Anrufe“ mit Deep-Link; Filter-Chip Chat ✅
+4. Inbox-Refresh bei Missed/Callback (`notify_inbox_changed`) ✅
+
+Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · Zeiten entscheidet jede Firma selbst.

@@ -359,3 +359,129 @@ def test_inbox_missing_checkin_ack(client_and_db, monkeypatch):
     items2 = (r2.get_json() or {}).get("items") or []
     still = [it for it in items2 if str(it.get("id") or "") == mid]
     assert not still, "acked missing check-in should leave attendance inbox"
+
+
+def test_inbox_missed_voice_call_ack(client_and_db):
+    """Worker-initiated missed calls appear under chat and resolve clears them."""
+    from datetime import datetime, timezone
+
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "VoiceInboxCo")
+    created = client.post(
+        f"/api/workers?company_id={cid}",
+        headers=headers,
+        json={
+            "companyId": cid,
+            "firstName": "Vera",
+            "lastName": "Ruft",
+            "insuranceNumber": "INS-VOICE-INBOX-1",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Nordtor",
+            "validUntil": "2026-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": f"CARD-VOICE-INB-{cid[:8]}",
+        },
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    wid = str((created.get_json() or {}).get("id") or "")
+    assert wid
+
+    call_id = f"vc-miss-{cid[:8]}"
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_voice_calls (
+                id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                caller_user_id TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'ringing',
+                created_at TEXT NOT NULL,
+                answered_at TEXT,
+                ended_at TEXT,
+                end_reason TEXT NOT NULL DEFAULT '',
+                initiated_by TEXT NOT NULL DEFAULT 'admin'
+            )
+            """
+        )
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id TEXT PRIMARY KEY,
+                thread_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                worker_id TEXT NOT NULL,
+                sender_type TEXT NOT NULL,
+                sender_user_id TEXT,
+                sender_worker_id TEXT,
+                body TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                read_at TEXT
+            )
+            """
+        )
+        db.execute(
+            """
+            INSERT INTO chat_voice_calls
+            (id, company_id, worker_id, caller_user_id, status, created_at, ended_at, end_reason, initiated_by)
+            VALUES (?, ?, ?, 'worker', 'missed', ?, ?, 'timeout', 'worker')
+            """,
+            (call_id, cid, wid, now, now),
+        )
+        db.execute(
+            """
+            INSERT INTO chat_messages
+            (id, company_id, worker_id, thread_id, sender_type, body, created_at)
+            VALUES (?, ?, ?, ?, 'worker', ?, ?)
+            """,
+            (
+                f"msg-cb-{call_id}",
+                cid,
+                wid,
+                f"t-{wid}",
+                f"@voice-call|status=callback_requested|duration=0|reason=worker_requested|role=worker|callId={call_id}",
+                now,
+            ),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    brief = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert brief.status_code == 200, brief.get_json()
+    chat = (brief.get_json() or {}).get("chat") or {}
+    assert int(chat.get("callbackRequestsOpen") or 0) >= 1
+    assert int(chat.get("totalOpen") or 0) >= 1
+
+    r = client.get(f"/api/inbox?company_id={cid}&source=chat", headers=headers)
+    assert r.status_code == 200
+    items = (r.get_json() or {}).get("items") or []
+    # Callback wins over missed for same callId
+    cb = [it for it in items if str(it.get("id") or "") == f"vcallcb:{call_id}"]
+    assert cb, f"expected callback inbox item, got {[it.get('id') for it in items]}"
+    assert cb[0].get("source") == "chat"
+    mid = cb[0]["id"]
+
+    ack = client.post(
+        f"/api/inbox/{mid}/resolve?company_id={cid}",
+        headers=headers,
+        json={},
+    )
+    assert ack.status_code == 200, ack.get_json()
+    assert (ack.get_json() or {}).get("ok") is True
+
+    r2 = client.get(f"/api/inbox?company_id={cid}&source=chat", headers=headers)
+    items2 = (r2.get_json() or {}).get("items") or []
+    still = [it for it in items2 if call_id in str(it.get("id") or "")]
+    assert not still, "acked voice call should leave chat inbox"
+
+    brief2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    chat2 = (brief2.get_json() or {}).get("chat") or {}
+    assert int(chat2.get("totalOpen") or 0) == 0

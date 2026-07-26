@@ -696,6 +696,63 @@ def build_operations_inbox(
         except Exception as exc:
             _inbox_soft_fail("missing_checkins", exc)
 
+        # Chat / voice: missed inbound + callback requests
+        try:
+            from backend.app.platform.physical_operations.daily_brief import build_chat_brief
+
+            chat = build_chat_brief(db, cid) or {}
+            for it in list(chat.get("items") or [])[:25]:
+                call_id = str(it.get("id") or "").strip()
+                wid = str(it.get("workerId") or "").strip()
+                if not call_id:
+                    continue
+                kind = str(it.get("kind") or "missed_call")
+                is_cb = kind == "callback_requested"
+                item_id = f"vcallcb:{call_id}" if is_cb else f"vcall:{call_id}"
+                name = str(it.get("workerName") or wid or "Mitarbeiter").strip()
+                status = str(it.get("status") or "")
+                if is_cb:
+                    title = f"Rückruf · {name}"
+                    message = "Mitarbeiter hat einen Rückruf angefordert — bitte im Chat zurückrufen."
+                    sev = "high"
+                    code = "voice_callback_requested"
+                else:
+                    title = f"Verpasster Anruf · {name}" if status != "declined" else f"Anruf abgelehnt · {name}"
+                    message = (
+                        "Eingehender Anruf nicht angenommen. Kenntnisnahme in der Inbox — Rückruf über Chat."
+                    )
+                    sev = "high" if status == "missed" else "medium"
+                    code = "voice_missed_call"
+                items.append(
+                    {
+                        "id": item_id,
+                        "source": "chat",
+                        "severity": sev,
+                        "code": code,
+                        "title": title,
+                        "message": message,
+                        "companyId": cid,
+                        "workerId": wid,
+                        "createdAt": str(it.get("createdAt") or _now_iso()),
+                        "status": "open",
+                        "actions": [
+                            {
+                                "type": "resolve",
+                                "action": "ack_voice_call",
+                                "params": {"call_id": call_id},
+                                "label": "Kenntnis genommen",
+                            },
+                            {
+                                "type": "navigate",
+                                "url": f"/admin-v2/chat.html?company_id={cid}&worker_id={wid}",
+                                "label": "Chat / Zurückrufen",
+                            },
+                        ],
+                    }
+                )
+        except Exception as exc:
+            _inbox_soft_fail("voice_calls", exc)
+
     items = [_item_with_sla(it) for it in items]
     items.sort(
         key=lambda x: (
@@ -915,6 +972,90 @@ def resolve_inbox_item(
         from .events import notify_inbox_changed
 
         notify_inbox_changed(company_id, source="missing_checkin_ack")
+        return {"ok": True, "id": item_id, "status": "acknowledged", "autoDial": False}
+
+    if item_id.startswith("vcall:") or item_id.startswith("vcallcb:"):
+        # vcall:{callId} | vcallcb:{callId}
+        prefix = "vcallcb:" if item_id.startswith("vcallcb:") else "vcall:"
+        call_id = item_id[len(prefix) :].strip()
+        if not company_id or not call_id:
+            return {"ok": False, "error": "invalid_voice_call_id"}
+        row = db.execute(
+            """
+            SELECT id, company_id, worker_id FROM chat_voice_calls
+            WHERE id = ? AND company_id = ?
+            """,
+            (call_id, company_id),
+        ).fetchone()
+        # Callback may reference a call that still exists; if not found, allow ack by id only
+        worker_id = str(row["worker_id"] if row else "") if row else ""
+        if row is None:
+            # Still permit ack when only chat log exists (callback without call row)
+            try:
+                msg = db.execute(
+                    """
+                    SELECT worker_id FROM chat_messages
+                    WHERE company_id = ? AND body LIKE ?
+                    ORDER BY datetime(created_at) DESC LIMIT 1
+                    """,
+                    (company_id, f"%callId={call_id}%"),
+                ).fetchone()
+                if msg:
+                    worker_id = str(msg["worker_id"] or "")
+            except Exception:
+                pass
+            if not worker_id:
+                return {"ok": False, "error": "not_found"}
+        from backend.app.platform.physical_operations.daily_brief import _acked_voice_call_ids
+
+        if call_id in _acked_voice_call_ids(db, str(company_id)):
+            return {"ok": True, "id": item_id, "status": "acknowledged", "alreadyResolved": True}
+        alert_id = f"vcallnote-{call_id}"[:80]
+        details = {
+            "companyId": str(company_id),
+            "workerId": worker_id,
+            "callId": call_id,
+            "acknowledgedAt": _now_iso(),
+            "acknowledgedBy": str(user_id or ""),
+            "note": "voice_call_noted",
+            "kind": "callback" if prefix == "vcallcb:" else "missed",
+        }
+        try:
+            db.execute(
+                """
+                INSERT INTO system_alerts (id, code, severity, message, details, created_at, resolved_at)
+                VALUES (?, 'voice_call_noted', 'info', ?, ?, ?, ?)
+                """,
+                (
+                    alert_id,
+                    f"Anruf zur Kenntnis genommen ({call_id})",
+                    json.dumps(details, ensure_ascii=False),
+                    _now_iso(),
+                    _now_iso(),
+                ),
+            )
+        except Exception:
+            try:
+                db.execute(
+                    """
+                    UPDATE system_alerts
+                    SET resolved_at = ?, details = ?, message = ?
+                    WHERE id = ? OR (code = 'voice_call_noted' AND details LIKE ?)
+                    """,
+                    (
+                        _now_iso(),
+                        json.dumps(details, ensure_ascii=False),
+                        f"Anruf zur Kenntnis genommen ({call_id})",
+                        alert_id,
+                        f'%"{call_id}"%',
+                    ),
+                )
+            except Exception as exc:
+                return {"ok": False, "error": "ack_failed", "hint": str(exc)}
+        db.commit()
+        from .events import notify_inbox_changed
+
+        notify_inbox_changed(company_id, source="voice_call_ack")
         return {"ok": True, "id": item_id, "status": "acknowledged", "autoDial": False}
 
     return {"ok": False, "error": "action_not_supported", "hint": "Use linked admin screens for documents and leave."}

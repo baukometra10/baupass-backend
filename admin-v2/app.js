@@ -4445,6 +4445,7 @@ function renderInboxFilters(bySource = {}) {
     { id: "", label: t("inbox.filterAll") },
     { id: "security", label: `${t("inbox.filterSecurity")} (${bySource.security ?? 0})` },
     { id: "attendance", label: `${t("inbox.filterAttendance")} (${bySource.attendance ?? 0})` },
+    { id: "chat", label: `${t("inbox.filterChat")} (${bySource.chat ?? 0})` },
     { id: "leave", label: `${t("inbox.filterLeave")} (${bySource.leave ?? 0})` },
     { id: "document", label: `${t("inbox.filterDocument")} (${bySource.document ?? 0})` },
     { id: "system", label: `${t("inbox.filterSystem")} (${bySource.system ?? 0})` },
@@ -5857,7 +5858,11 @@ async function loadOverview() {
     const camLayer = opsBrief?.layers?.["6_camera_ai"] || {};
     const att = dailyBrief?.attendance || {};
     const secBrief = dailyBrief?.security || {};
+    const chatBrief = dailyBrief?.chat || {};
     const openEsc = Number(secBrief.openCameraEscalations ?? camLayer.openEscalations ?? 0);
+    const chatOpen = Number(chatBrief.totalOpen || 0);
+    const missedCallsOpen = Number(chatBrief.missedCallsOpen || 0);
+    const callbackOpen = Number(chatBrief.callbackRequestsOpen || 0);
     const onSite = att.onSite ?? opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
     const checkIns = att.checkInsToday ?? opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
     const lateToday = Number(att.lateToday || 0);
@@ -5913,6 +5918,23 @@ async function loadOverview() {
         return `<li>${href} <span class="muted">· ${escapeHtml(it.source || "")}</span></li>`;
       })
       .join("");
+    const chatItems = (chatBrief.items || [])
+      .slice(0, 5)
+      .map((it) => {
+        const who = escapeHtml(it.workerName || it.workerId || "—");
+        const kind =
+          it.kind === "callback_requested" ? t("lage.chatCallback") : t("lage.chatMissed");
+        const link =
+          it.href ||
+          (it.workerId && q
+            ? `/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(it.workerId)}`
+            : "");
+        const label = link
+          ? `<a href="${escapeAttr(link)}" target="_blank" rel="noopener">${who}</a>`
+          : who;
+        return `<li><strong>${escapeHtml(kind)}</strong> · ${label}</li>`;
+      })
+      .join("");
     const escHtml = (camLayer.latestEscalations || [])
       .slice(0, 2)
       .map((e) => {
@@ -5937,6 +5959,7 @@ async function loadOverview() {
         <div class="lage-kpi"><span>${t("lage.outsideHours")}</span><strong>${outsideToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
         <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.chatOpen")}</span><strong style="color:${chatOpen > 0 ? "#fbbf24" : "inherit"}">${chatOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
@@ -5968,6 +5991,21 @@ async function loadOverview() {
         </p>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
+        <strong>${t("lage.chatTitle")}</strong>
+        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.chatHint")}</p>
+        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.chatMissed")}: <strong>${missedCallsOpen}</strong>
+          · ${t("lage.chatCallback")}: <strong>${callbackOpen}</strong></p>
+        ${
+          chatItems
+            ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${chatItems}</ul>`
+            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.chatEmpty")}</p>`
+        }
+        <p style="margin:0.45rem 0 0">
+          <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
+          · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="chat">${t("lage.openInboxChat")}</button>
+        </p>
+      </div>
+      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
         <strong>${t("lage.watchTitle")}</strong>
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
         <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchMode")}: <strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></p>
@@ -5986,7 +6024,7 @@ async function loadOverview() {
         const tab = btn.getAttribute("data-goto-tab");
         switchToTab(tab);
         if (tab === "inbox") {
-          inboxSourceFilter = "security";
+          inboxSourceFilter = btn.getAttribute("data-inbox-source") || "security";
           await loadInbox();
         } else if (tab === "access") await loadAccess();
       });

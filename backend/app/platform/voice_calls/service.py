@@ -348,6 +348,12 @@ class VoiceCallService:
                         message=f"{wname} hat angerufen — nicht erreicht.",
                         worker_id=worker_id,
                     )
+                    try:
+                        from backend.app.platform.inbox.events import notify_inbox_changed
+
+                        notify_inbox_changed(str(row["company_id"]), source="voice_call_missed")
+                    except Exception:
+                        pass
                 elif initiated_by == "admin":
                     try:
                         from backend.app.platform.push.delivery import deliver_worker_push
