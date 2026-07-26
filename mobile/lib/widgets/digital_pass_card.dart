@@ -38,8 +38,10 @@ class DigitalPassCard extends StatelessWidget {
   final String? subcompany;
   final TenantBranding? branding;
 
-  /// Mobile-friendly card proportions (taller than ISO wallet CR80).
-  static const _cardAspect = 0.72;
+  /// ISO/IEC 7810 ID-1 (CR80): 85.6 × 54 mm → width/height ≈ 1.585.
+  static const double id1WidthMm = 85.6;
+  static const double id1HeightMm = 54.0;
+  static const double _cardAspect = id1WidthMm / id1HeightMm;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +56,8 @@ class DigitalPassCard extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxW = constraints.maxWidth.isFinite ? constraints.maxWidth : 430.0;
-        final cardW = math.min(maxW, 380.0);
+        // Keep ID-1 landscape proportions; fit within available width.
+        final cardW = math.min(maxW, 420.0);
         final cardH = cardW / _cardAspect;
 
         return Center(
@@ -64,12 +67,12 @@ class DigitalPassCard extends StatelessWidget {
             child: _WalletCardShell(
               palette: palette,
               child: Padding(
-                padding: EdgeInsets.fromLTRB(cardW * 0.062, cardW * 0.052, cardW * 0.062, cardW * 0.048),
+                padding: EdgeInsets.fromLTRB(cardW * 0.045, cardH * 0.07, cardW * 0.045, cardH * 0.06),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _TopRow(brandLabel: brandLabel, tenant: tenant, palette: palette, cardW: cardW),
-                    SizedBox(height: cardH * 0.04),
+                    SizedBox(height: cardH * 0.03),
                     Expanded(
                       child: _MiddleRow(
                         qrValue: qrValue,

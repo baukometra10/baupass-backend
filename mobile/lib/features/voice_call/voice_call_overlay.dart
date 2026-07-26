@@ -420,6 +420,10 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                             _ConnectingActions(
                               accent: _accent,
                               note: widget.controller.statusNote,
+                              muted: widget.controller.muted,
+                              speakerOn: widget.controller.speakerOn,
+                              onToggleMute: widget.controller.toggleMute,
+                              onToggleSpeaker: widget.controller.toggleSpeaker,
                               onHangup: widget.controller.hangup,
                             )
                           else if (isOutgoing || (isRinging && widget.controller.isOutgoing))
@@ -926,11 +930,19 @@ class _ConnectingActions extends StatelessWidget {
   const _ConnectingActions({
     required this.accent,
     required this.note,
+    required this.muted,
+    required this.speakerOn,
+    required this.onToggleMute,
+    required this.onToggleSpeaker,
     required this.onHangup,
   });
 
   final Color accent;
   final String note;
+  final bool muted;
+  final bool speakerOn;
+  final Future<void> Function() onToggleMute;
+  final Future<void> Function() onToggleSpeaker;
   final Future<void> Function() onHangup;
 
   @override
@@ -947,6 +959,25 @@ class _ConnectingActions extends StatelessWidget {
           width: 28,
           height: 28,
           child: CircularProgressIndicator(strokeWidth: 2.5, color: accent),
+        ),
+        const SizedBox(height: 22),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _MiniControl(
+              icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+              label: muted ? 'Stumm' : 'Mikro',
+              active: muted,
+              onTap: onToggleMute,
+            ),
+            const SizedBox(width: 18),
+            _MiniControl(
+              icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+              label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
+              active: speakerOn,
+              onTap: onToggleSpeaker,
+            ),
+          ],
         ),
         const SizedBox(height: 28),
         _RoundActionButton(
@@ -1015,72 +1046,65 @@ class _ActiveControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final chips = <Widget>[
+      _MiniControl(
+        icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
+        label: muted ? 'Stumm' : 'Mikro',
+        active: muted,
+        onTap: onToggleMute,
+      ),
+      _MiniControl(
+        icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
+        label: cameraOn ? 'Cam aus' : 'Kamera',
+        active: cameraOn,
+        onTap: onToggleCamera,
+      ),
+      if (cameraOn) ...[
+        _MiniControl(
+          icon: Icons.cameraswitch_rounded,
+          label: 'Drehen',
+          active: false,
+          onTap: onFlipCamera,
+        ),
+        _MiniControl(
+          icon: Icons.blur_on_rounded,
+          label: 'Blur',
+          active: blurEnabled,
+          onTap: onToggleBlur,
+        ),
+      ],
+      _MiniControl(
+        icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
+        label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
+        active: speakerOn,
+        onTap: onToggleSpeaker,
+      ),
+      _MiniControl(
+        icon: Icons.screen_share_rounded,
+        label: 'Screen',
+        active: screenSharing,
+        onTap: onToggleScreenShare,
+      ),
+      _MiniControl(
+        icon: recording ? Icons.stop_circle_rounded : Icons.fiber_manual_record,
+        label: recording ? 'Stop' : 'REC',
+        active: recording,
+        onTap: onToggleRecording,
+      ),
+      _MiniControl(
+        icon: Icons.image_rounded,
+        label: 'Bild',
+        active: false,
+        onTap: onShareImage,
+      ),
+    ];
     return Column(
       children: [
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _MiniControl(
-                icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                label: muted ? 'Stumm' : 'Mikro',
-                active: muted,
-                onTap: onToggleMute,
-              ),
-              const SizedBox(width: 14),
-              _MiniControl(
-                icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-                label: cameraOn ? 'Cam aus' : 'Kamera',
-                active: cameraOn,
-                onTap: onToggleCamera,
-              ),
-              if (cameraOn) ...[
-                const SizedBox(width: 14),
-                _MiniControl(
-                  icon: Icons.cameraswitch_rounded,
-                  label: 'Drehen',
-                  active: false,
-                  onTap: onFlipCamera,
-                ),
-                const SizedBox(width: 14),
-                _MiniControl(
-                  icon: Icons.blur_on_rounded,
-                  label: 'Blur',
-                  active: blurEnabled,
-                  onTap: onToggleBlur,
-                ),
-              ],
-              const SizedBox(width: 14),
-              _MiniControl(
-                icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-                label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
-                active: speakerOn,
-                onTap: onToggleSpeaker,
-              ),
-              const SizedBox(width: 14),
-              _MiniControl(
-                icon: Icons.screen_share_rounded,
-                label: 'Screen',
-                active: screenSharing,
-                onTap: onToggleScreenShare,
-              ),
-              const SizedBox(width: 14),
-              _MiniControl(
-                icon: recording ? Icons.stop_circle_rounded : Icons.fiber_manual_record,
-                label: recording ? 'Stop' : 'REC',
-                active: recording,
-                onTap: onToggleRecording,
-              ),
-              const SizedBox(width: 14),
-              _MiniControl(
-                icon: Icons.image_rounded,
-                label: 'Bild',
-                active: false,
-                onTap: onShareImage,
-              ),
-            ],
-          ),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 12,
+          runSpacing: 12,
+          children: chips,
         ),
         const SizedBox(height: 28),
         _RoundActionButton(

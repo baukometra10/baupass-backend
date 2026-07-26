@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_strings.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
@@ -178,7 +179,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         return StatefulBuilder(
           builder: (ctx, setLocal) {
             return AlertDialog(
-              title: const Text('Schicht tauschen'),
+              title: Text(t('shiftSwap', 'Schicht tauschen')),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -189,6 +190,8 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
+                      // ignore: deprecated_member_use — need live value for dialog state
+                      value: pickId,
                       decoration: const InputDecoration(labelText: 'Kollege'),
                       items: coworkers
                           .map(
@@ -346,9 +349,9 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
           ),
         TabBar(
           controller: _tabs,
-          tabs: const [
-            Tab(text: 'Meine Schichten'),
-            Tab(text: 'Tausch'),
+          tabs: [
+            Tab(text: t('shiftsMine', 'Meine Schichten')),
+            Tab(text: t('shiftsSwapTab', 'Tausch')),
           ],
         ),
         Expanded(

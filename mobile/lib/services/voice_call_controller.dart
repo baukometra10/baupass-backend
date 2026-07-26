@@ -113,6 +113,10 @@ class VoiceCallController extends ChangeNotifier {
         unawaited(_handleCallKitAction('decline', callId));
       },
       onEnded: (callId) {
+        // User hung up from native UI — only hang up if we are not already in-app connected.
+        if (_phase == VoiceCallUiPhase.connecting || _phase == VoiceCallUiPhase.connected) {
+          return;
+        }
         unawaited(_handleCallKitAction('decline', callId));
       },
     ));
@@ -437,16 +441,22 @@ class VoiceCallController extends ChangeNotifier {
     _stopRingFeedback();
     _clearRingTimeout();
     final callId = (call['id'] ?? call['callId'] ?? '').toString();
-    if (callId.isNotEmpty) {
-      unawaited(_callKit.endCall(callId));
-    }
+    // Drop CallKit/Android ongoing UI (speaker+hangup only) so Flutter overlay owns controls.
+    await _callKit.dismissNativeUi(callId: callId);
+    _pendingCallKitAction = null;
     _phase = VoiceCallUiPhase.connecting;
     _statusNote = 'Verbindung wird aufgebaut…';
     notifyListeners();
 
     _sessionRtc = _buildRtcSession(session, call);
-    await _sessionRtc!.acceptAndConnect();
-    await _sessionRtc!.setSpeakerphone(_speakerOn);
+    try {
+      await _sessionRtc!.acceptAndConnect();
+      await _sessionRtc!.setSpeakerphone(_speakerOn);
+    } catch (error) {
+      _statusNote = 'Verbindung fehlgeschlagen';
+      notifyListeners();
+      rethrow;
+    }
   }
 
   WorkerVoiceCallSession _buildRtcSession(WorkerSession session, Map<String, dynamic> call) {
@@ -543,10 +553,8 @@ class VoiceCallController extends ChangeNotifier {
     final call = _call;
     _stopRingFeedback();
     _clearRingTimeout();
-    final callId = (call?['id'] ?? '').toString();
-    if (callId.isNotEmpty) {
-      unawaited(_callKit.endCall(callId));
-    }
+    final callId = (call?['id'] ?? call?['callId'] ?? '').toString();
+    unawaited(_callKit.dismissNativeUi(callId: callId));
     if (_isOutgoing) {
       await _sessionRtc?.end('cancelled');
       _sessionRtc = null;
@@ -572,10 +580,8 @@ class VoiceCallController extends ChangeNotifier {
   Future<void> hangup() async {
     _stopRingFeedback();
     _clearRingTimeout();
-    final callId = (_call?['id'] ?? '').toString();
-    if (callId.isNotEmpty) {
-      unawaited(_callKit.endCall(callId));
-    }
+    final callId = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+    unawaited(_callKit.dismissNativeUi(callId: callId));
     await _sessionRtc?.end('hangup');
     _sessionRtc = null;
     _finishEnded('Anruf beendet');
@@ -798,6 +804,8 @@ class VoiceCallController extends ChangeNotifier {
       _connectedAt = DateTime.now();
       _startDurationTimer();
       _stopRingFeedback();
+      final callId = (_call?['id'] ?? _call?['callId'] ?? '').toString();
+      unawaited(_callKit.dismissNativeUi(callId: callId));
       if (_preferVideo && !_cameraOn && !cameraPreviewing) {
         _preferVideo = false;
         Future<void>.delayed(const Duration(milliseconds: 350), () {

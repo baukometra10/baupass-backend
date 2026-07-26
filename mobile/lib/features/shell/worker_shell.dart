@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
 import '../../core/session_store.dart';
@@ -437,7 +438,11 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
               );
             },
             destinations: [
-              const NavigationDestination(icon: Icon(Icons.badge_outlined), selectedIcon: Icon(Icons.badge), label: 'Ausweis'),
+              NavigationDestination(
+                icon: const Icon(Icons.badge_outlined),
+                selectedIcon: const Icon(Icons.badge),
+                label: t('navPass', 'Ausweis'),
+              ),
               NavigationDestination(
                 icon: Badge(
                   isLabelVisible: _offlinePending > 0,
@@ -449,11 +454,23 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                   label: Text('$_offlinePending'),
                   child: const Icon(Icons.nfc),
                 ),
-                label: 'Check-in',
+                label: t('navCheckin', 'Check-in'),
               ),
-              const NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt), label: 'Aufgaben'),
-              const NavigationDestination(icon: Icon(Icons.chat_bubble_outline), selectedIcon: Icon(Icons.chat_bubble), label: 'Chat'),
-              const NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
+              NavigationDestination(
+                icon: const Icon(Icons.task_alt_outlined),
+                selectedIcon: const Icon(Icons.task_alt),
+                label: t('navTasks', 'Aufgaben'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.chat_bubble_outline),
+                selectedIcon: const Icon(Icons.chat_bubble),
+                label: t('navChat', 'Chat'),
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.person_outline),
+                selectedIcon: const Icon(Icons.person),
+                label: t('navProfile', 'Profil'),
+              ),
             ],
           ),
         ),

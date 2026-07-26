@@ -16597,7 +16597,7 @@ def shift_get_assignments():
             id, start_time, end_time, site, status, notes
         FROM shift_assignments
         WHERE worker_id = ? AND status != 'cancelled'
-          AND end_time >= datetime('now', '-1 day')
+          AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
         ORDER BY start_time ASC
         LIMIT 30
         """,
@@ -16832,10 +16832,16 @@ def shift_coworker_assignments():
     coworker_id = str(request.args.get("workerId") or request.args.get("worker_id") or "").strip()
     if not coworker_id:
         return jsonify({"error": "missing_worker_id"}), 400
-    coworker = db.execute(
-        "SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL",
-        (coworker_id,),
-    ).fetchone()
+    try:
+        coworker = db.execute(
+            "SELECT id, company_id FROM workers WHERE id = ? AND deleted_at IS NULL",
+            (coworker_id,),
+        ).fetchone()
+    except Exception:
+        coworker = db.execute(
+            "SELECT id, company_id FROM workers WHERE id = ?",
+            (coworker_id,),
+        ).fetchone()
     if not coworker or coworker["company_id"] != worker["company_id"]:
         return jsonify({"error": "not_found"}), 404
     assignments = db.execute(
@@ -16843,7 +16849,7 @@ def shift_coworker_assignments():
         SELECT id, start_time, end_time, site, status, notes
         FROM shift_assignments
         WHERE worker_id = ? AND status != 'cancelled'
-          AND end_time >= datetime('now', '-1 day')
+          AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
         ORDER BY start_time ASC
         LIMIT 30
         """,

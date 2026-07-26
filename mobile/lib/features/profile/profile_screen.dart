@@ -7,6 +7,8 @@ import '../../core/auth_repository.dart';
 import '../../core/session_store.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/worker_cache.dart';
+import '../../core/app_strings.dart';
+import '../../widgets/language_picker.dart';
 import '../../widgets/tenant_brand_mark.dart';
 import '../legal/legal_document_screen.dart';
 import '../legal/legal_hub_screen.dart';
@@ -119,7 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Profil'),
+        title: Text(t('navProfile', 'Profil')),
         actions: [
           IconButton(icon: const Icon(Icons.refresh), onPressed: _loading ? null : _load),
         ],
@@ -129,6 +131,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : ListView(
               padding: const EdgeInsets.all(20),
               children: [
+                const LanguagePickerTile(),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     TenantBrandMark(branding: branding, size: 48, borderRadius: 12),

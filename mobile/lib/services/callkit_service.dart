@@ -21,6 +21,8 @@ class CallKitService {
   CallKitActionHandler? onDecline;
   CallKitActionHandler? onEnded;
   bool _ready = false;
+  /// When true, CallKit "ended" events are ignored (we dismissed the native UI on purpose).
+  bool suppressEndedEvents = false;
 
   Future<void> initialize({
     CallKitActionHandler? onAccept,
@@ -83,6 +85,10 @@ class CallKitService {
         break;
       case Event.actionCallEnded:
       case Event.actionCallTimeout:
+        if (suppressEndedEvents) {
+          debugPrint('[callkit] ignore ended (suppressed) callId=$callId');
+          break;
+        }
         if (onEnded != null) {
           onEnded!(callId);
         } else {
@@ -165,6 +171,26 @@ class CallKitService {
       await FlutterCallkitIncoming.endCall(callId);
     } catch (_) {
       /* ignore */
+    }
+  }
+
+  /// Dismiss native ongoing-call UI so the in-app overlay owns the call.
+  Future<void> dismissNativeUi({String? callId}) async {
+    suppressEndedEvents = true;
+    try {
+      final id = (callId ?? '').trim();
+      if (id.isNotEmpty) {
+        await endCall(id);
+      }
+      try {
+        await FlutterCallkitIncoming.endAllCalls();
+      } catch (_) {
+        /* ignore */
+      }
+    } finally {
+      Future<void>.delayed(const Duration(seconds: 4), () {
+        suppressEndedEvents = false;
+      });
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'core/api_client.dart';
 import 'core/auth_repository.dart';
 import 'core/branding_store.dart';
+import 'core/locale_controller.dart';
 import 'core/session_store.dart';
 import 'core/tenant_branding.dart';
 import 'features/auth/login_screen.dart';
@@ -311,39 +312,53 @@ class _WorkerAppState extends State<WorkerApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      scaffoldMessengerKey: _messengerKey,
-      title: _session != null ? _appBranding.displayName : 'SUPPIX',
-      theme: _appBranding.themeData(),
-      home: _bootstrapping
-          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : _session != null
-              ? WorkerShell(
-                  key: _shellKey,
-                  session: _session!,
-                  auth: _auth,
-                  attendance: _attendance,
-                  digitalCard: _digitalCard,
-                  chat: _chat,
-                  nfc: _nfc,
-                  location: _location,
-                  geofence: _geofence,
-                  offlineStore: _offlineStore,
-                  offlineSync: _offlineSync,
-                  workerCache: _workerCache,
-                  tasks: _tasks,
-                  usage: _usage,
-                  push: _push,
-                  ai: _ai,
-                  onLogout: _onLogout,
-                )
-              : LoginScreen(
-                  auth: _auth,
-                  location: _location,
-                  push: _push,
-                  onLoggedIn: _onLoggedIn,
-                  initialError: _joinError,
-                ),
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final locale = LocaleController.instance;
+        return MaterialApp(
+          scaffoldMessengerKey: _messengerKey,
+          title: _session != null ? _appBranding.displayName : 'SUPPIX',
+          theme: _appBranding.themeData(),
+          locale: Locale(locale.lang),
+          supportedLocales: LocaleController.supported.map(Locale.new).toList(),
+          builder: (context, child) {
+            return Directionality(
+              textDirection: locale.textDirection,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+          home: _bootstrapping
+              ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+              : _session != null
+                  ? WorkerShell(
+                      key: _shellKey,
+                      session: _session!,
+                      auth: _auth,
+                      attendance: _attendance,
+                      digitalCard: _digitalCard,
+                      chat: _chat,
+                      nfc: _nfc,
+                      location: _location,
+                      geofence: _geofence,
+                      offlineStore: _offlineStore,
+                      offlineSync: _offlineSync,
+                      workerCache: _workerCache,
+                      tasks: _tasks,
+                      usage: _usage,
+                      push: _push,
+                      ai: _ai,
+                      onLogout: _onLogout,
+                    )
+                  : LoginScreen(
+                      auth: _auth,
+                      location: _location,
+                      push: _push,
+                      onLoggedIn: _onLoggedIn,
+                      initialError: _joinError,
+                    ),
+        );
+      },
     );
   }
 }

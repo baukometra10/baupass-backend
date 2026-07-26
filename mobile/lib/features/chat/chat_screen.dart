@@ -503,26 +503,93 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _attach() async {
     final threadId = _threadId;
     if (threadId == null || _sending || _voiceComposing) return;
-    final picked = await FilePicker.platform.pickFiles(withData: false);
+    FilePickerResult? picked;
+    try {
+      picked = await FilePicker.platform.pickFiles(
+        withData: true,
+        allowMultiple: false,
+        type: FileType.any,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Datei wählen fehlgeschlagen: $e')),
+      );
+      return;
+    }
     if (picked == null || picked.files.isEmpty) return;
-    final file = picked.files.single.path;
-    if (file == null || file.isEmpty) return;
+    final platformFile = picked.files.single;
+    File? file;
+    final path = platformFile.path;
+    if (path != null && path.isNotEmpty) {
+      file = File(path);
+    } else if (platformFile.bytes != null && platformFile.bytes!.isNotEmpty) {
+      final dir = await getTemporaryDirectory();
+      final name = (platformFile.name).trim().isEmpty
+          ? 'anhang-${DateTime.now().millisecondsSinceEpoch}.bin'
+          : platformFile.name;
+      file = File('${dir.path}/$name');
+      await file.writeAsBytes(platformFile.bytes!, flush: true);
+    }
+    if (file == null || !await file.exists()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Datei konnte nicht gelesen werden. Bitte Speicher-/Medien-Berechtigung erlauben.',
+          ),
+        ),
+      );
+      return;
+    }
     setState(() => _sending = true);
+    String? messageId;
     try {
       final res = await widget.chat.sendMessage(
         session: widget.session,
         threadId: threadId,
         body: _message.text.trim().isEmpty ? 'Anhang gesendet' : _message.text.trim(),
       );
-      final msg = Map<String, dynamic>.from(res['message'] as Map);
+      final msg = Map<String, dynamic>.from(res['message'] as Map? ?? const {});
+      final mid = (msg['id'] ?? '').toString().trim();
+      if (mid.isEmpty) {
+        throw StateError('message_id_missing');
+      }
+      messageId = mid;
       await widget.chat.uploadAttachment(
         session: widget.session,
         threadId: threadId,
-        messageId: msg['id'] as String,
-        file: File(file),
+        messageId: mid,
+        file: file,
+        displayFilename: platformFile.name,
       );
       _message.clear();
       await _boot(silent: true);
+    } on ApiException catch (e) {
+      final mid = (messageId ?? '').trim();
+      if (mid.isNotEmpty) {
+        try {
+          await widget.chat.deleteMessage(widget.session, mid);
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message ?? 'Anhang senden fehlgeschlagen'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } catch (e) {
+      final mid = (messageId ?? '').trim();
+      if (mid.isNotEmpty) {
+        try {
+          await widget.chat.deleteMessage(widget.session, mid);
+        } catch (_) {}
+      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Anhang senden fehlgeschlagen: $e')),
+      );
     } finally {
       if (mounted) setState(() => _sending = false);
     }

@@ -13,6 +13,7 @@ import '../../services/location_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/public_legal_loader.dart';
 import '../../services/tenant_branding_loader.dart';
+import '../../widgets/language_picker.dart';
 import '../../widgets/tenant_brand_mark.dart';
 import '../legal/public_legal_screen.dart';
 import 'qr_scan_panel.dart';
@@ -270,6 +271,8 @@ class _LoginScreenState extends State<LoginScreen> {
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            const LanguagePickerTile(dense: true),
+            const SizedBox(height: 16),
             if (_badApiBuild)
               Card(
                 color: Theme.of(context).colorScheme.errorContainer,
