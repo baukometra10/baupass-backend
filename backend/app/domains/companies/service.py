@@ -352,6 +352,13 @@ class CompaniesService:
 
         db.commit()
         row = self.companies.get_by_id(db, company_id)
+        workpass_lohn: dict = {"ok": False, "skipped": "not_run"}
+        try:
+            from backend.app.platform.accounting.platform_link import auto_provision_if_enabled
+
+            workpass_lohn = auto_provision_if_enabled(db, company_id)
+        except Exception as exc:
+            workpass_lohn = {"ok": False, "error": str(exc)[:200]}
         return {
             "status": 201,
             "body": {
@@ -363,6 +370,7 @@ class CompaniesService:
                     "apiKey": turnstile_credentials[0]["apiKey"],
                 },
                 "turnstileCredentialsList": turnstile_credentials,
+                "workpassLohn": workpass_lohn,
             },
             "audit": {"company_id": company_id, "company_name": company_name},
         }

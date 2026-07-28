@@ -21,6 +21,12 @@ def register_accounting_blueprint(flask_app) -> None:
     from .company_sync import company_upsert_payload
     from .hours_service import normalize_period
     from .monthly_job import run_monthly_accounting_exports
+    from .platform_link import (
+        get_platform_link,
+        provision_all_active_companies,
+        provision_company_for_lohn,
+        save_platform_link,
+    )
     from .schema import ensure_accounting_schema
     from .service import (
         approve_batch,
@@ -185,6 +191,55 @@ def register_accounting_blueprint(flask_app) -> None:
         return jsonify(payload), 200
 
     # ── Admin (session auth) ───────────────────────────────────────────
+
+    @accounting_bp.get("/payroll/accounting/platform-link")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_get_platform_link():
+        link = get_platform_link(get_db())
+        # Strip raw master key from HTTP response
+        safe = {k: v for k, v in link.items() if k != "master_api_key"}
+        return jsonify({"ok": True, "link": safe}), 200
+
+    @accounting_bp.post("/payroll/accounting/platform-link")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_save_platform_link():
+        data = request.get_json(silent=True) or {}
+        link = save_platform_link(
+            get_db(),
+            enabled=data.get("enabled") if "enabled" in data else None,
+            base_url=data.get("baseUrl") if "baseUrl" in data else None,
+            master_api_key=data.get("masterApiKey") if "masterApiKey" in data else None,
+            company_upsert_path=data.get("companyUpsertPath") if "companyUpsertPath" in data else None,
+            hours_webhook_path=data.get("hoursWebhookPath") if "hoursWebhookPath" in data else None,
+            platform_public_url=data.get("platformPublicUrl") if "platformPublicUrl" in data else None,
+            auto_provision=data.get("autoProvision") if "autoProvision" in data else None,
+            default_run_day=data.get("runDay") if "runDay" in data else None,
+        )
+        safe = {k: v for k, v in link.items() if k != "master_api_key"}
+        return jsonify({"ok": True, "link": safe}), 200
+
+    @accounting_bp.post("/payroll/accounting/provision/<company_id>")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_provision_company(company_id: str):
+        data = request.get_json(silent=True) or {}
+        result = provision_company_for_lohn(
+            get_db(),
+            company_id,
+            force=bool(data.get("force", False)),
+        )
+        code = 200 if result.get("ok") or result.get("skipped") else 400
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/provision-all")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_provision_all():
+        data = request.get_json(silent=True) or {}
+        result = provision_all_active_companies(get_db(), force=bool(data.get("force", False)))
+        return jsonify(result), 200
 
     @accounting_bp.get("/payroll/accounting/integration")
     @require_auth

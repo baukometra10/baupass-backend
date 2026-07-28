@@ -4,47 +4,57 @@
 **Product:** WorkPass Lohn (standalone) ↔ WorkPass / SUPPIX platform  
 **Auth model:** per-company API key + mandatory company header (tenant lock)
 
-Give this document to the accounting app. No other secrets are required from you beyond one `apiKey` per Firma.
+Give this document to the accounting app.
+
+**Normal ops:** connect platform ↔ WorkPass Lohn **once** (`platform-link`).  
+New companies get WorkPass Lohn automatically when created on the platform.
 
 ---
 
-## 0) One-time setup (platform admin)
+## 0) One-time setup (platform ↔ WorkPass Lohn) — once only
+
+Superadmin connects the platform to WorkPass Lohn **once**. After that, every new company created on the platform is auto-provisioned into WorkPass Lohn (Firma-ID + bridge credentials).
 
 ```http
-POST /api/payroll/accounting/integration
-Authorization: Bearer <admin-session>
+POST /api/payroll/accounting/platform-link
+Authorization: Bearer <superadmin-session>
 Content-Type: application/json
 
 {
-  "companyId": "<FIRMA-ID>",
   "enabled": true,
-  "runDay": 1,
-  "webhookUrl": "https://<WORKPASS-LOHN-HOST>/hooks/suppix-hours",
-  "rotateKey": true
+  "autoProvision": true,
+  "baseUrl": "https://<WORKPASS-LOHN-HOST>",
+  "masterApiKey": "<shared-master-key>",
+  "companyUpsertPath": "/v1/company/upsert",
+  "hoursWebhookPath": "/hooks/suppix-hours",
+  "platformPublicUrl": "https://<YOUR-PLATFORM-HOST>",
+  "runDay": 1
 }
 ```
 
-Response (store once — shown only now):
+Env alternative:
 
-```json
-{
-  "ok": true,
-  "integration": {
-    "company_id": "<FIRMA-ID>",
-    "apiKey": "acc_live_…",
-    "signingSecret": "…",
-    "api_key_prefix": "acc_live_…",
-    "webhook_url": "https://…",
-    "run_day": 1,
-    "enabled": 1
-  }
-}
+```text
+SUPPIX_WORKPASS_LOHN_ENABLED=1
+SUPPIX_WORKPASS_LOHN_BASE_URL=https://<WORKPASS-LOHN-HOST>
+SUPPIX_WORKPASS_LOHN_MASTER_KEY=<shared-master-key>
+SUPPIX_PUBLIC_BASE_URL=https://<YOUR-PLATFORM-HOST>
 ```
 
-In WorkPass Lohn → **API-Bridge**:
-- **Firma-ID** = `<FIRMA-ID>` (= platform `companies.id`)
-- **API Key** = `apiKey`
-- **Platform Base URL** = `https://<YOUR-PLATFORM-HOST>`
+What happens on `POST /api/companies` (create company):
+1. Platform creates local accounting credentials for that `companyId`
+2. Platform POSTs to WorkPass Lohn `POST {baseUrl}/v1/company/upsert` with company fields + `platformBridge.accountingKey`
+3. Company can use WorkPass Lohn immediately (same Firma-ID)
+
+Backfill existing companies:
+
+```http
+POST /api/payroll/accounting/provision-all
+Authorization: Bearer <superadmin-session>
+{ "force": false }
+```
+
+Manual (optional) per-company key rotate remains available via `POST /api/payroll/accounting/integration` — not required for normal onboarding.
 
 ---
 

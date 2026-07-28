@@ -230,6 +230,45 @@ def test_ingest_rejects_missing_company_id_on_row():
     assert result["errors"][0]["error"] == "company_id_required"
 
 
+def test_auto_provision_skipped_when_link_disabled():
+    from backend.app.platform.accounting.platform_link import auto_provision_if_enabled, save_platform_link
+
+    db = _db()
+    save_platform_link(db, enabled=False, base_url="https://lohn.test", master_api_key="master")
+    out = auto_provision_if_enabled(db, "c1")
+    assert out.get("skipped") == "platform_link_disabled"
+
+
+def test_provision_creates_local_integration_and_posts(monkeypatch):
+    from backend.app.platform.accounting import platform_link
+
+    db = _db()
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+        auto_provision=True,
+    )
+    calls = []
+
+    def _fake_post(link, body):
+        calls.append(body)
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_upsert", _fake_post)
+    result = platform_link.provision_company_for_lohn(db, "c1", force=True)
+    assert result["ok"] is True
+    assert calls
+    assert calls[0]["id"] == "c1"
+    assert calls[0]["platformBridge"]["accountingKey"].startswith("acc_live_")
+    assert calls[0]["platformBridge"]["firmaId"] == "c1"
+    integ = repository.get_integration(db, "c1")
+    assert integ is not None
+    assert int(integ["enabled"]) == 1
+
+
 def test_monthly_job_skips_wrong_day():
     db = _db()
     repository.upsert_integration(db, company_id="c1", run_day=1, rotate_key=True)
