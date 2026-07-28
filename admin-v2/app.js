@@ -6598,6 +6598,7 @@ async function loadAudit() {
     detail.classList.add("hidden");
     detail.textContent = "";
   }
+  closeAuditDetailModal();
   const params = new URLSearchParams();
   const q = ($("auditQ")?.value || "").trim();
   const eventType = ($("auditEventType")?.value || "").trim();
@@ -6714,36 +6715,26 @@ async function loadAudit() {
     }
     cols.push({
       label: "",
-      render: (r) =>
-        `<button type="button" class="ghost small" data-audit-id="${escapeHtml(r.id)}">${t("section.audit.details")}</button>`,
+      render: (r) => {
+        const idx = events.indexOf(r);
+        return `<button type="button" class="ghost small" data-audit-id="${escapeHtml(String(r.id ?? ""))}" data-audit-idx="${idx >= 0 ? idx : 0}">${t("section.audit.details")}</button>`;
+      },
     });
     renderTable(list, events, cols);
     list.querySelectorAll("[data-audit-id]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.getAttribute("data-audit-id");
-        const row = events.find((e) => e.id === id);
-        if (!row || !detail) return;
-        detail.classList.remove("hidden");
-        detail.textContent = JSON.stringify(
-          {
-            id: row.id,
-            eventType: row.eventType || row.event_type,
-            when: row.createdAt || row.created_at,
-            who: {
-              id: row.actorUserId || row.actor_user_id,
-              name: row.actorName || row.actor_name,
-              role: row.actorRole || row.actor_role,
-              ip: row.ipAddress || row.ip_address,
-            },
-            companyId: row.companyId || row.company_id,
-            target: { type: row.targetType || row.target_type, id: row.targetId || row.target_id },
-            message: row.message,
-            reason: row.reason,
-            details: row.details || {},
-          },
-          null,
-          2,
-        );
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const id = String(btn.getAttribute("data-audit-id") || "");
+        const idx = Number(btn.getAttribute("data-audit-idx"));
+        const row =
+          events.find((e) => String(e.id) === id) ||
+          (Number.isFinite(idx) ? events[idx] : null);
+        if (!row) {
+          showActionToast(t("section.audit.detailsMissing") || "Eintrag nicht gefunden", true);
+          return;
+        }
+        openAuditDetailModal(row);
       });
     });
     const exportLink = $("auditExportLink");
@@ -6777,6 +6768,79 @@ $("auditFilterForm")?.addEventListener("submit", (e) => {
 $("auditCompanyFilter")?.addEventListener("change", () => {
   loadAudit().catch((err) => showActionToast(err.message, true));
 });
+
+function closeAuditDetailModal() {
+  document.getElementById("auditDetailModal")?.remove();
+}
+
+function openAuditDetailModal(row) {
+  closeAuditDetailModal();
+  const payload = {
+    id: row.id,
+    eventType: row.eventType || row.event_type,
+    when: row.createdAt || row.created_at,
+    who: {
+      id: row.actorUserId || row.actor_user_id,
+      name: row.actorName || row.actor_name,
+      role: row.actorRole || row.actor_role,
+      ip: row.ipAddress || row.ip_address,
+    },
+    companyId: row.companyId || row.company_id,
+    target: { type: row.targetType || row.target_type, id: row.targetId || row.target_id },
+    message: row.message,
+    reason: row.reason,
+    details: row.details || {},
+  };
+  const pretty = JSON.stringify(payload, null, 2);
+  const inline = $("auditDetail");
+  if (inline) {
+    inline.classList.remove("hidden");
+    inline.textContent = pretty;
+  }
+  const modal = document.createElement("div");
+  modal.id = "auditDetailModal";
+  modal.className = "audit-detail-modal";
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
+  modal.innerHTML = `
+    <div class="audit-detail-modal-card">
+      <div class="audit-detail-modal-head">
+        <h3>${escapeHtml(t("section.audit.details") || "Details")}</h3>
+        <button type="button" class="ghost small" data-audit-close aria-label="${escapeAttr(t("common.close") || "Schließen")}">×</button>
+      </div>
+      <p class="muted small">${escapeHtml(String(payload.eventType || "—"))} · ${escapeHtml(String(payload.when || "—").slice(0, 19))}</p>
+      <pre class="audit-detail-pre">${escapeHtml(pretty)}</pre>
+      <div class="audit-detail-modal-actions">
+        <button type="button" class="ghost" data-audit-copy>${escapeHtml(t("section.audit.copy") || "Kopieren")}</button>
+        <button type="button" data-audit-close>${escapeHtml(t("common.close") || "Schließen")}</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  const close = () => closeAuditDetailModal();
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) close();
+  });
+  modal.querySelectorAll("[data-audit-close]").forEach((btn) => btn.addEventListener("click", close));
+  modal.querySelector("[data-audit-copy]")?.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(pretty);
+      showActionToast(t("section.audit.copied") || "Kopiert");
+    } catch {
+      showActionToast(t("section.audit.copyFailed") || "Kopieren fehlgeschlagen", true);
+    }
+  });
+  document.addEventListener(
+    "keydown",
+    function onEsc(e) {
+      if (e.key === "Escape") {
+        close();
+        document.removeEventListener("keydown", onEsc);
+      }
+    },
+    { once: true },
+  );
+}
 
 async function loadCopilot() {
   const answerEl = $("copilotAnswer");

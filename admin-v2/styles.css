@@ -2016,6 +2016,56 @@ h2 {
   overflow: auto;
 }
 
+.audit-detail-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+.audit-detail-modal-card {
+  width: min(720px, 96vw);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--panel, #121820);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem 1.1rem;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+.audit-detail-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+.audit-detail-modal-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.audit-detail-pre {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  background: #0d131a;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 55vh;
+  overflow: auto;
+  font-size: 0.82rem;
+}
+.audit-detail-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .lang-row-compact {
   display: inline-flex;
   align-items: center;

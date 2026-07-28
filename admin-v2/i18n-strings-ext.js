@@ -272,6 +272,10 @@ export const EXT_STRINGS = {
     "section.audit.message": "Zusammenfassung",
     "section.audit.why": "Grund",
     "section.audit.details": "Details",
+    "section.audit.detailsMissing": "Eintrag nicht gefunden",
+    "section.audit.copy": "Kopieren",
+    "section.audit.copied": "Kopiert",
+    "section.audit.copyFailed": "Kopieren fehlgeschlagen",
   },
   en: {
     "platform.banner.maturity": "Platform maturity",
