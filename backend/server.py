@@ -18473,6 +18473,33 @@ def update_company(company_id):
 
 @require_auth
 @require_roles("superadmin", "company-admin")
+def update_company_legal(company_id):
+    """Save Impressum / Datenschutz for one company (superadmin or own company-admin)."""
+    from backend.app.domains.companies.service import CompaniesService
+
+    user = g.current_user
+    if user.get("role") != "superadmin" and company_id != user.get("company_id"):
+        return jsonify({"error": "forbidden_company"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    result = CompaniesService().update_company_legal(get_db(), company_id, payload)
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "company.legal_updated",
+            f"Rechtstexte Firma {audit['company_id']} aktualisiert",
+            target_type="company",
+            target_id=audit["company_id"],
+            company_id=audit["company_id"],
+            actor=user,
+        )
+    return jsonify(result["body"])
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
 def get_company_mail_settings_endpoint(company_id):
     from backend.app.domains.companies.service import CompaniesService
 
@@ -30609,6 +30636,7 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/companies", companies_collection, ("GET", "POST"), "core_companies_collection")
     _patch_api_route("/api/login", login, ("POST",), "core_login")
     _patch_api_route("/api/companies/<company_id>", update_company, ("PUT",), "core_company_update")
+    _patch_api_route("/api/companies/<company_id>/legal", update_company_legal, ("PUT",), "core_company_legal_update")
     _patch_api_route("/api/companies/<company_id>", delete_company, ("DELETE",), "core_company_delete")
     _patch_api_route(
         "/api/companies/<company_id>/set-admin-password",

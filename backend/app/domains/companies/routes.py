@@ -41,6 +41,7 @@ def _register_core_company_routes() -> None:
         toggle_company_survey_prompt,
         toggle_turnstile_active,
         update_company,
+        update_company_legal,
         update_company_mail_settings_endpoint,
         update_company_work_times,
     )
@@ -52,6 +53,7 @@ def _register_core_company_routes() -> None:
         ("/companies/current/branding", current_company_branding, ("GET",)),
         ("/companies", companies_collection, ("GET", "POST")),
         ("/companies/<company_id>", update_company, ("PUT",)),
+        ("/companies/<company_id>/legal", update_company_legal, ("PUT",)),
         ("/companies/<company_id>", delete_company, ("DELETE",)),
         ("/companies/<company_id>/mail-settings", get_company_mail_settings_endpoint, ("GET",)),
         ("/companies/<company_id>/mail-settings", create_company_mail_settings_endpoint, ("POST",)),

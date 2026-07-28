@@ -574,19 +574,22 @@ class CompaniesService:
             operating_sector=operating_sector,
         )
         if "impressumText" in payload or "impressum_text" in payload or "datenschutzText" in payload or "datenschutz_text" in payload:
-            impressum_text = str(
-                payload.get("impressumText", payload.get("impressum_text", company.get("impressum_text") or ""))
-            )[:20000]
-            datenschutz_text = str(
-                payload.get("datenschutzText", payload.get("datenschutz_text", company.get("datenschutz_text") or ""))
-            )[:20000]
-            try:
-                db.execute(
-                    "UPDATE companies SET impressum_text = ?, datenschutz_text = ? WHERE id = ?",
-                    (impressum_text, datenschutz_text, company_id),
-                )
-            except Exception:
-                pass
+            legal_result = self.update_company_legal(
+                db,
+                company_id,
+                {
+                    "impressumText": payload.get(
+                        "impressumText", payload.get("impressum_text", company.get("impressum_text") or "")
+                    ),
+                    "datenschutzText": payload.get(
+                        "datenschutzText", payload.get("datenschutz_text", company.get("datenschutz_text") or "")
+                    ),
+                },
+                commit=False,
+                company=company,
+            )
+            if "error" in legal_result:
+                return legal_result
         rematch_inbox_company_links(db, company_id=company_id)
         db.commit()
         lohn_result = None
@@ -610,6 +613,66 @@ class CompaniesService:
         if lohn_result is not None:
             body["workpassLohn"] = lohn_result
         return {"body": body, "audit": {"company_id": company_id}}
+
+    def update_company_legal(
+        self,
+        db,
+        company_id: str,
+        payload: dict[str, Any],
+        *,
+        commit: bool = True,
+        company: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Update company Impressum / Datenschutz texts only."""
+        company = company or self.companies.get_by_id(db, company_id)
+        if not company:
+            return {"error": {"error": "company_not_found"}, "status": 404}
+        if company.get("deleted_at"):
+            return {"error": {"error": "company_deleted"}, "status": 400}
+
+        impressum_text = str(
+            payload.get("impressumText", payload.get("impressum_text", company.get("impressum_text") or ""))
+        )[:20000]
+        datenschutz_text = str(
+            payload.get("datenschutzText", payload.get("datenschutz_text", company.get("datenschutz_text") or ""))
+        )[:20000]
+
+        # Ensure columns exist (older DBs) before writing.
+        try:
+            cols = {str(r[1]) for r in db.execute("PRAGMA table_info(companies)").fetchall()}
+        except Exception:
+            cols = set()
+        if cols:
+            if "impressum_text" not in cols:
+                db.execute("ALTER TABLE companies ADD COLUMN impressum_text TEXT NOT NULL DEFAULT ''")
+            if "datenschutz_text" not in cols:
+                db.execute("ALTER TABLE companies ADD COLUMN datenschutz_text TEXT NOT NULL DEFAULT ''")
+
+        try:
+            db.execute(
+                "UPDATE companies SET impressum_text = ?, datenschutz_text = ? WHERE id = ?",
+                (impressum_text, datenschutz_text, company_id),
+            )
+        except Exception as exc:
+            return {
+                "error": {
+                    "error": "legal_update_failed",
+                    "message": str(exc)[:200],
+                },
+                "status": 500,
+            }
+
+        if commit:
+            db.commit()
+        return {
+            "body": {
+                "ok": True,
+                "companyId": company_id,
+                "impressumText": impressum_text,
+                "datenschutzText": datenschutz_text,
+            },
+            "audit": {"company_id": company_id},
+        }
 
     def _mail_access(self, db, user: dict[str, Any], company_id: str) -> dict[str, Any] | None:
         company = self.companies.get_mail_access_row(db, company_id)

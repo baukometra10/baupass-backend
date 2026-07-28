@@ -151,6 +151,13 @@
         payrollConfirmReject: "Stapel ablehnen? Es wird nichts an Mitarbeiter gesendet.",
         payrollDone: "Freigabe ok",
         payrollFailed: "Freigabe fehlgeschlagen",
+        lohnLinkLabel: "WorkPass Lohn — Plattform-Link",
+        lohnLinkOn: "Verbunden",
+        lohnLinkOff: "Nicht verbunden",
+        lohnLinkBase: "Basis-URL",
+        lohnLinkAuto: "Auto-Provision für neue Firmen (wenn aktiviert)",
+        lohnLinkMissing: "Noch kein Plattform-Link. Einmal via API oder Env einrichten.",
+        lohnLinkHint: "Siehe docs/integrations/workpass-lohn-api-contract-v1.md",
         scopeGlobal: "Alle Firmen",
         scopeOne: "Eine Firma",
         live: "Live",
@@ -220,6 +227,13 @@
         payrollConfirmReject: "Reject batch? Nothing will be sent to workers.",
         payrollDone: "Approved",
         payrollFailed: "Approval failed",
+        lohnLinkLabel: "WorkPass Lohn — platform link",
+        lohnLinkOn: "Connected",
+        lohnLinkOff: "Not connected",
+        lohnLinkBase: "Base URL",
+        lohnLinkAuto: "Auto-provision for new companies (when enabled)",
+        lohnLinkMissing: "No platform link yet. Configure once via API or env.",
+        lohnLinkHint: "See docs/integrations/workpass-lohn-api-contract-v1.md",
         scopeGlobal: "All companies",
         scopeOne: "One company",
         live: "Live",
@@ -288,6 +302,13 @@
         payrollConfirmReject: "رفض الدفعة؟ لن يُرسل شيء للموظفين.",
         payrollDone: "تم التأكيد",
         payrollFailed: "فشل التأكيد",
+        lohnLinkLabel: "WorkPass Lohn — ربط المنصة",
+        lohnLinkOn: "متصل",
+        lohnLinkOff: "غير متصل",
+        lohnLinkBase: "الرابط الأساسي",
+        lohnLinkAuto: "توفير تلقائي للشركات الجديدة (عند التفعيل)",
+        lohnLinkMissing: "لا يوجد ربط للمنصة بعد. اضبطه مرة واحدة عبر API أو Env.",
+        lohnLinkHint: "راجع docs/integrations/workpass-lohn-api-contract-v1.md",
         scopeGlobal: "جميع الشركات",
         scopeOne: "شركة واحدة",
         live: "مباشر",
@@ -555,6 +576,33 @@
       </div>`;
     }
 
+    function renderLohnLinkCard(linkPayload) {
+      const link = linkPayload?.link || linkPayload || null;
+      const enabled = Boolean(link && (Number(link.enabled) === 1 || link.enabled === true));
+      const baseUrl = String(link?.base_url || link?.baseUrl || "").trim();
+      const auto = Boolean(
+        link &&
+          (Number(link.auto_provision) === 1 ||
+            link.auto_provision === true ||
+            link.autoProvision === true)
+      );
+      if (!link || (!enabled && !baseUrl)) {
+        return `<div class="card payroll-card" id="lohnLinkCard">
+          <div class="label">${tr("lohnLinkLabel")}</div>
+          <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
+          <p class="muted">${tr("lohnLinkMissing")}</p>
+          <p class="muted">${tr("lohnLinkHint")}</p>
+        </div>`;
+      }
+      return `<div class="card payroll-card" id="lohnLinkCard">
+        <div class="label">${tr("lohnLinkLabel")}</div>
+        <div class="label" style="margin:0.35rem 0;color:${enabled ? "var(--ok,#15803d)" : "var(--warn,#b45309)"}">${enabled ? tr("lohnLinkOn") : tr("lohnLinkOff")}</div>
+        <p><strong>${tr("lohnLinkBase")}:</strong> ${baseUrl || "—"}</p>
+        <p class="muted">${tr("lohnLinkAuto")}: ${auto ? "✓" : "—"}</p>
+        <p class="muted">${tr("lohnLinkHint")}</p>
+      </div>`;
+    }
+
     function wirePayrollActions() {
       document.querySelectorAll("[data-payroll]").forEach((btn) => {
         btn.addEventListener("click", async () => {
@@ -588,7 +636,15 @@
       }
     }
 
-    function render(data, forecast, guardianBundle, payrollBatches) {
+    async function loadLohnPlatformLink() {
+      try {
+        return await api("/api/payroll/accounting/platform-link");
+      } catch {
+        return null;
+      }
+    }
+
+    function render(data, forecast, guardianBundle, payrollBatches, lohnLink) {
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
@@ -608,6 +664,7 @@
 
       grid.innerHTML = `
         ${renderGuardianCard(guardian, guardianHistory)}
+        ${renderLohnLinkCard(lohnLink)}
         ${renderPayrollCard(payrollBatches)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
@@ -697,13 +754,14 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [data, forecast, guardianBundle, payrollBatches] = await Promise.all([
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
           loadPayrollPending(),
+          loadLohnPlatformLink(),
         ]);
-        render(data, forecast, guardianBundle, payrollBatches);
+        render(data, forecast, guardianBundle, payrollBatches, lohnLink);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;

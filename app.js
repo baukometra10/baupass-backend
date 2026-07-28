@@ -1588,6 +1588,8 @@ const UI_TRANSLATIONS = {
     labelCompanyAdminPassword: "Admin-Startpasswort",
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
     btnCreateCompany: "Firma anlegen",
+    companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
+    companyCreateWorkpassLohnHint: "Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.",
     accountEyebrow: "Konto",
     accountPanelH3: "Mein Admin-Konto",
     accountPanelLead: "Benutzername, Anzeigename und Passwort zentral verwalten.",
@@ -2786,6 +2788,8 @@ const UI_TRANSLATIONS = {
     labelCompanyAdminPassword: "Admin start password",
     companyAdminPasswordPlaceholder: "e.g. Secure!2025",
     btnCreateCompany: "Create company",
+    companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
+    companyCreateWorkpassLohnHint: "Enable only if this company should use the WorkPass Lohn accounting app. Default: off.",
     accountEyebrow: "Account",
     accountPanelH3: "My admin account",
     accountPanelLead: "Manage username, display name, and password in one place.",
@@ -4449,6 +4453,8 @@ const UI_TRANSLATIONS = {
     labelCompanyAdminPassword: "كلمة مرور المشرف الأولية",
     companyAdminPasswordPlaceholder: "مثال: آمن!2025",
     btnCreateCompany: "إنشاء شركة",
+    companyCreateWorkpassLohnLabel: "WorkPass Lohn (اختياري)",
+    companyCreateWorkpassLohnHint: "فعّل فقط إذا كانت هذه الشركة ستستخدم تطبيق المحاسبة WorkPass Lohn. الافتراضي: متوقف.",
     accountEyebrow: "الحساب",
     accountPanelH3: "حساب المسؤول",
     accountPanelLead: "إدارة اسم المستخدم واسم العرض وكلمة المرور من مكان واحد.",
@@ -10478,6 +10484,17 @@ function getRuntimeUiTexts() {
     companyBtnInvoiceLang: "🌐 Invoice language",
     companyBtnBillingAddress: "📍 Billing address",
     companyBtnLegal: "⚖️ Legal notice",
+    companyBtnWorkpassLohnEnable: "💰 Enable WorkPass Lohn",
+    companyBtnWorkpassLohnDisable: "💰 Disable WorkPass Lohn",
+    companyWorkpassLohnStatusOn: "WorkPass Lohn: on",
+    companyWorkpassLohnStatusOff: "WorkPass Lohn: off",
+    companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
+    companyCreateWorkpassLohnHint: "Enable only if this company should use the WorkPass Lohn accounting app. Default: off.",
+    companyWorkpassLohnEnableConfirm: "Enable WorkPass Lohn for {name}? Hours can then be shared with the accounting app after platform linking.",
+    companyWorkpassLohnDisableConfirm: "Disable WorkPass Lohn for {name}? Hour exports and payslip delivery will stop.",
+    companyWorkpassLohnToggleFailed: "Could not update WorkPass Lohn: {error}",
+    companyWorkpassLohnEnabledToast: "WorkPass Lohn enabled",
+    companyWorkpassLohnDisabledToast: "WorkPass Lohn disabled",
     companyLegalModalTitle: "Legal notice & privacy (company)",
     companyLegalSaveFailed: "Could not save legal texts: {error}",
     companyLegalImpressumLabel: "Impressum",
@@ -11351,6 +11368,17 @@ function getRuntimeUiTexts() {
       companyBtnInvoiceLang: "🌐 Rechnungs-Sprache",
       companyBtnBillingAddress: "📍 Rechnungsadresse",
       companyBtnLegal: "⚖️ Rechtliches",
+      companyBtnWorkpassLohnEnable: "💰 WorkPass Lohn aktivieren",
+      companyBtnWorkpassLohnDisable: "💰 WorkPass Lohn deaktivieren",
+      companyWorkpassLohnStatusOn: "WorkPass Lohn: an",
+      companyWorkpassLohnStatusOff: "WorkPass Lohn: aus",
+      companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
+      companyCreateWorkpassLohnHint: "Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.",
+      companyWorkpassLohnEnableConfirm: "WorkPass Lohn für {name} aktivieren? Stunden können danach an die Buchhaltungs-App übermittelt werden (nach Plattform-Verknüpfung).",
+      companyWorkpassLohnDisableConfirm: "WorkPass Lohn für {name} deaktivieren? Stunden-Export und Lohnabrechnungs-Zustellung werden gestoppt.",
+      companyWorkpassLohnToggleFailed: "WorkPass Lohn konnte nicht aktualisiert werden: {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn aktiviert",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn deaktiviert",
       companyLegalModalTitle: "Impressum & Datenschutz (diese Firma)",
       companyLegalSaveFailed: "Rechtstexte konnten nicht gespeichert werden: {error}",
       companyLegalImpressumLabel: "Impressum",
@@ -12165,6 +12193,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 Belge e-postası",
       companyBtnInvoiceLang: "🌐 Fatura dili",
       companyBtnBillingAddress: "📍 Fatura adresi",
+      companyBtnLegal: "⚖️ Yasal bilgiler",
+      companyBtnWorkpassLohnEnable: "💰 WorkPass Lohn etkinleştir",
+      companyBtnWorkpassLohnDisable: "💰 WorkPass Lohn devre dışı bırak",
+      companyWorkpassLohnEnableConfirm: "{name} için WorkPass Lohn etkinleştirilsin mi? Platform bağlantısından sonra saatler muhasebe uygulamasına iletilebilir.",
+      companyWorkpassLohnDisableConfirm: "{name} için WorkPass Lohn devre dışı bırakılsın mı? Saat aktarımı ve bordro teslimi durur.",
+      companyWorkpassLohnToggleFailed: "WorkPass Lohn güncellenemedi: {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn etkinleştirildi",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn devre dışı bırakıldı",
       companyBtnAdminTfa: "🔐 Yönetici 2FA",
       companySectionAccess: "Erişim",
       companyBtnPasswordMail: "🔑 Şifre e-postası",
@@ -12973,6 +13009,18 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 بريد المستندات الإلكتروني",
       companyBtnInvoiceLang: "🌐 لغة الفاتورة",
       companyBtnBillingAddress: "📍 عنوان الفاتورة",
+      companyBtnLegal: "⚖️ الشؤون القانونية",
+      companyBtnWorkpassLohnEnable: "💰 تفعيل WorkPass Lohn",
+      companyBtnWorkpassLohnDisable: "💰 إيقاف WorkPass Lohn",
+      companyWorkpassLohnStatusOn: "WorkPass Lohn: مفعّل",
+      companyWorkpassLohnStatusOff: "WorkPass Lohn: متوقف",
+      companyCreateWorkpassLohnLabel: "WorkPass Lohn (اختياري)",
+      companyCreateWorkpassLohnHint: "فعّل فقط إذا كانت هذه الشركة ستستخدم تطبيق المحاسبة WorkPass Lohn. الافتراضي: متوقف.",
+      companyWorkpassLohnEnableConfirm: "تفعيل WorkPass Lohn لـ {name}؟ يمكن بعدها مشاركة الساعات مع تطبيق المحاسبة بعد ربط المنصة.",
+      companyWorkpassLohnDisableConfirm: "إيقاف WorkPass Lohn لـ {name}؟ سيتوقف تصدير الساعات وتسليم كشوف الرواتب.",
+      companyWorkpassLohnToggleFailed: "تعذر تحديث WorkPass Lohn: {error}",
+      companyWorkpassLohnEnabledToast: "تم تفعيل WorkPass Lohn",
+      companyWorkpassLohnDisabledToast: "تم إيقاف WorkPass Lohn",
       companyBtnAdminTfa: "🔐 المصادقة الثنائية للمشرف",
       companySectionAccess: "الوصول",
       companyBtnPasswordMail: "🔑 بريد كلمة المرور الإلكتروني",
@@ -13780,6 +13828,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 E-mail docs",
       companyBtnInvoiceLang: "🌐 Langue de facture",
       companyBtnBillingAddress: "📍 Adresse de facturation",
+      companyBtnLegal: "⚖️ Mentions légales",
+      companyBtnWorkpassLohnEnable: "💰 Activer WorkPass Lohn",
+      companyBtnWorkpassLohnDisable: "💰 Désactiver WorkPass Lohn",
+      companyWorkpassLohnEnableConfirm: "Activer WorkPass Lohn pour {name} ? Les heures pourront ensuite être partagées avec l'appli comptable après liaison plateforme.",
+      companyWorkpassLohnDisableConfirm: "Désactiver WorkPass Lohn pour {name} ? L'export d'heures et la livraison des fiches de paie s'arrêtent.",
+      companyWorkpassLohnToggleFailed: "Impossible de mettre à jour WorkPass Lohn : {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn activé",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn désactivé",
       companyBtnAdminTfa: "🔐 2FA admin",
       companySectionAccess: "Accès",
       companyBtnPasswordMail: "🔑 E-mail de mot de passe",
@@ -14587,6 +14643,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 Correo de docs.",
       companyBtnInvoiceLang: "🌐 Idioma de factura",
       companyBtnBillingAddress: "📍 Dirección de facturación",
+      companyBtnLegal: "⚖️ Aviso legal",
+      companyBtnWorkpassLohnEnable: "💰 Activar WorkPass Lohn",
+      companyBtnWorkpassLohnDisable: "💰 Desactivar WorkPass Lohn",
+      companyWorkpassLohnEnableConfirm: "¿Activar WorkPass Lohn para {name}? Después del enlace de plataforma se podrán compartir las horas con la app de contabilidad.",
+      companyWorkpassLohnDisableConfirm: "¿Desactivar WorkPass Lohn para {name}? Se detienen la exportación de horas y la entrega de nóminas.",
+      companyWorkpassLohnToggleFailed: "No se pudo actualizar WorkPass Lohn: {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn activado",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn desactivado",
       companyBtnAdminTfa: "🔐 2FA de admin",
       companySectionAccess: "Acceso",
       companyBtnPasswordMail: "🔑 Correo de contraseña",
@@ -15394,6 +15458,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 Email documenti",
       companyBtnInvoiceLang: "🌐 Lingua fattura",
       companyBtnBillingAddress: "📍 Indirizzo di fatturazione",
+      companyBtnLegal: "⚖️ Note legali",
+      companyBtnWorkpassLohnEnable: "💰 Attiva WorkPass Lohn",
+      companyBtnWorkpassLohnDisable: "💰 Disattiva WorkPass Lohn",
+      companyWorkpassLohnEnableConfirm: "Attivare WorkPass Lohn per {name}? Dopo il collegamento piattaforma le ore potranno essere condivise con l'app contabile.",
+      companyWorkpassLohnDisableConfirm: "Disattivare WorkPass Lohn per {name}? Esportazione ore e consegna buste paga verranno interrotte.",
+      companyWorkpassLohnToggleFailed: "Impossibile aggiornare WorkPass Lohn: {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn attivato",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn disattivato",
       companyBtnAdminTfa: "🔐 2FA admin",
       companySectionAccess: "Accesso",
       companyBtnPasswordMail: "🔑 Email password",
@@ -16201,6 +16273,14 @@ function getRuntimeUiTexts() {
       companyBtnDocEmail: "📧 E-mail dokumentów",
       companyBtnInvoiceLang: "🌐 Język faktury",
       companyBtnBillingAddress: "📍 Adres rozliczeniowy",
+      companyBtnLegal: "⚖️ Informacje prawne",
+      companyBtnWorkpassLohnEnable: "💰 Włącz WorkPass Lohn",
+      companyBtnWorkpassLohnDisable: "💰 Wyłącz WorkPass Lohn",
+      companyWorkpassLohnEnableConfirm: "Włączyć WorkPass Lohn dla {name}? Po połączeniu platformy godziny będą mogły być przekazywane do aplikacji księgowej.",
+      companyWorkpassLohnDisableConfirm: "Wyłączyć WorkPass Lohn dla {name}? Eksport godzin i dostarczanie pasków płacowych zostaną zatrzymane.",
+      companyWorkpassLohnToggleFailed: "Nie udało się zaktualizować WorkPass Lohn: {error}",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn włączony",
+      companyWorkpassLohnDisabledToast: "WorkPass Lohn wyłączony",
       companyBtnAdminTfa: "🔐 2FA administratora",
       companySectionAccess: "Dostęp",
       companyBtnPasswordMail: "🔑 E-mail hasła",
@@ -25109,6 +25189,8 @@ function renderCompanyList() {
         : companyMailStatus?.kind === "success"
           ? "helper-text helper-text-ok"
           : "helper-text helper-text-info";
+      const canManageCompanySettings = canRepair && !deleted;
+      const workpassLohnEnabled = isCompanyWorkpassLohnEnabled(company);
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
       const docEmailSelftestStatusMarkup = docEmailSelftestStatus
         ? `<p class="${docEmailSelftestStatusClass}">${escapeHtml(docEmailSelftestStatus.message || "")}</p>${docEmailSelftestStatus.testedAt ? `<p class="helper-text">${escapeHtml(runtimeText("companyDocEmailSelftestLastTestedLabel"))}: ${escapeHtml(formatClockTime(docEmailSelftestStatus.testedAt))}</p>` : ""}`
@@ -25126,6 +25208,7 @@ function renderCompanyList() {
           <strong>${escapeHtml(company.name || runtimeText("invoiceFallbackCompany"))}</strong>
           <p><strong>${escapeHtml(runtimeText("companyInternalIdLabel"))}</strong> <code class="company-id-code">${escapeHtml(companyId || "-")}</code> <button type="button" class="ghost-button small-button" data-company-id-copy="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyInternalIdCopyBtn"))}</button></p>
           <p><strong>${escapeHtml(runtimeText("companyCustomerNumberLabel"))}</strong> ${escapeHtml(customerNumber || "-")}</p>
+          <p class="${workpassLohnEnabled ? "helper-text helper-text-ok" : "helper-text"}"><strong>${escapeHtml(workpassLohnEnabled ? runtimeText("companyWorkpassLohnStatusOn") : runtimeText("companyWorkpassLohnStatusOff"))}</strong></p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
@@ -25242,7 +25325,8 @@ function renderCompanyList() {
                 <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-legal="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnLegal") || "Rechtliches")}</button>
+                <button type="button" class="ghost-button small-button" data-company-legal="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnLegal") || "Rechtliches")}</button>
+                <button type="button" class="ghost-button small-button ${workpassLohnEnabled ? "btn-success" : ""}" data-company-lohn-toggle="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(workpassLohnEnabled ? runtimeText("companyBtnWorkpassLohnDisable") : runtimeText("companyBtnWorkpassLohnEnable"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
                 ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
               </div>
@@ -25989,6 +26073,46 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       await openCompanyLegalModal(companyId, company);
+      return;
+    }
+
+    const lohnToggleButton = event.target.closest("[data-company-lohn-toggle]");
+    if (lohnToggleButton && !lohnToggleButton.disabled && elements.companyList.contains(lohnToggleButton)) {
+      const companyId = lohnToggleButton.dataset.companyLohnToggle;
+      const company = state.companies.find((e) => e.id === companyId);
+      if (!companyId || !company) return;
+      const currentlyEnabled = isCompanyWorkpassLohnEnabled(company);
+      const companyName = company.name || runtimeText("companyThisFallback");
+      const confirmMsg = currentlyEnabled
+        ? runtimeText("companyWorkpassLohnDisableConfirm").replace("{name}", companyName)
+        : runtimeText("companyWorkpassLohnEnableConfirm").replace("{name}", companyName);
+      if (!(await showConfirmDialog(confirmMsg))) return;
+      lohnToggleButton.disabled = true;
+      try {
+        const result = await apiRequest(`${API_BASE}/api/payroll/accounting/company-settings`, {
+          method: "PUT",
+          body: {
+            companyId,
+            workpassLohnEnabled: !currentlyEnabled,
+          },
+        });
+        const enabled = Boolean(result?.workpassLohnEnabled ?? !currentlyEnabled);
+        const idx = state.companies.findIndex((c) => c.id === companyId);
+        if (idx >= 0) {
+          state.companies[idx].workpass_lohn_enabled = enabled ? 1 : 0;
+          state.companies[idx].workpassLohnEnabled = enabled;
+        }
+        renderCompanyList();
+        showToast(
+          enabled
+            ? runtimeText("companyWorkpassLohnEnabledToast")
+            : runtimeText("companyWorkpassLohnDisabledToast"),
+          "success"
+        );
+      } catch (error) {
+        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: error.message }));
+        lohnToggleButton.disabled = false;
+      }
       return;
     }
 
@@ -26863,23 +26987,22 @@ async function openCompanyLegalModal(companyId, company) {
     errEl.style.display = "none";
     try {
       document.getElementById("companyLegalSaveBtn").disabled = true;
-      await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+      const impressumText = document.getElementById("companyLegalImpressumInput").value || "";
+      const datenschutzText = document.getElementById("companyLegalPrivacyInput").value || "";
+      await apiRequest(`${API_BASE}/api/companies/${companyId}/legal`, {
         method: "PUT",
         body: {
-          name: company.name,
-          contact: company.contact,
-          billingEmail: company.billingEmail || company.billing_email || "",
-          billingStreet: company.billingStreet || company.billing_street || "",
-          billingZipCity: company.billingZipCity || company.billing_zip_city || "",
-          documentEmail: company.documentEmail || company.document_email || "",
-          accessHost: company.accessHost || company.access_host || "",
-          plan: company.plan,
-          status: company.status,
-          invoiceEmailLang: company.invoiceEmailLang || company.invoice_email_lang || "de",
-          impressumText: document.getElementById("companyLegalImpressumInput").value || "",
-          datenschutzText: document.getElementById("companyLegalPrivacyInput").value || "",
+          impressumText,
+          datenschutzText,
         }
       });
+      const idx = state.companies.findIndex((c) => c.id === companyId);
+      if (idx >= 0) {
+        state.companies[idx].impressum_text = impressumText;
+        state.companies[idx].impressumText = impressumText;
+        state.companies[idx].datenschutz_text = datenschutzText;
+        state.companies[idx].datenschutzText = datenschutzText;
+      }
       closeModal();
       await loadAllData();
       refreshAll();
@@ -30707,6 +30830,7 @@ function printVisitorWeeklyReport() {
 async function handleSettingsSubmit(event) {
   event.preventDefault();
   if (!userCanManageSystem()) {
+    showToast(runtimeText("accessDenied") || "Nicht erlaubt", "error");
     return;
   }
 
@@ -30792,6 +30916,7 @@ async function handleSettingsSubmit(event) {
     state.settings = updated;
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
     refreshAll();
+    showToast(uiT("toastSaved") || "Gespeichert", "success");
   } catch (error) {
     showToast(uiT("alertSettingsSaveFailed").replace("{error}", error.message));
   }
@@ -31955,6 +32080,15 @@ function sanitizeInvoiceLogoSrc(value) {
   return "";
 }
 
+function isCompanyWorkpassLohnEnabled(company) {
+  const raw = company?.workpassLohnEnabled ?? company?.workpass_lohn_enabled;
+  if (raw === true || raw === 1) return true;
+  if (typeof raw === "string") {
+    return ["1", "true", "yes", "on"].includes(raw.trim().toLowerCase());
+  }
+  return false;
+}
+
 async function handleCompanySubmit(event) {
   event.preventDefault();
   if (!userCanManageSystem()) {
@@ -32011,6 +32145,7 @@ async function handleCompanySubmit(event) {
         invoiceEmailLang: (document.querySelector("#companyInvoiceEmailLang")?.value || "de"),
         reportTimezone: String(document.querySelector("#companyReportTimezone")?.value || "").trim(),
         operatingSector: String(document.querySelector("#companyOperatingSector")?.value || "construction").trim(),
+        workpassLohnEnabled: Boolean(document.querySelector("#companyWorkpassLohnEnabled")?.checked),
       }
     });
 
@@ -32028,6 +32163,10 @@ async function handleCompanySubmit(event) {
     const turnstileCountInput = document.querySelector("#companyTurnstileCount");
     if (turnstileCountInput) {
       turnstileCountInput.value = "1";
+    }
+    const workpassLohnInput = document.querySelector("#companyWorkpassLohnEnabled");
+    if (workpassLohnInput) {
+      workpassLohnInput.checked = false;
     }
     if (companyTurnstileEndpointInput) {
       companyTurnstileEndpointInput.value = companyTurnstileEndpoint || state.settings.turnstileEndpoint || "";

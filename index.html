@@ -2203,6 +2203,13 @@
                 <span data-ui-i18n="turnstileCountLabel">Anzahl Drehkreuze</span>
                 <input id="companyTurnstileCount" type="number" min="1" max="20" step="1" value="1" />
               </label>
+              <label class="full-width" style="display:flex;align-items:flex-start;gap:10px;flex-direction:row;">
+                <input id="companyWorkpassLohnEnabled" type="checkbox" style="margin-top:4px;" />
+                <span>
+                  <strong data-ui-i18n="companyCreateWorkpassLohnLabel">WorkPass Lohn (optional)</strong>
+                  <span class="helper-text" style="display:block;margin-top:2px;" data-ui-i18n="companyCreateWorkpassLohnHint">Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.</span>
+                </span>
+              </label>
               <button type="submit" class="ghost-button full-width" data-ui-i18n="btnCreateCompany">Firma anlegen</button>
             </form>
             </section>

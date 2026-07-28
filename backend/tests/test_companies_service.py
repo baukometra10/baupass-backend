@@ -151,6 +151,62 @@ class CompaniesServiceTest(unittest.TestCase):
         self.assertEqual(result["error"]["error"], "password_too_short")
 
     @patch("backend.server.rematch_inbox_company_links")
+    def test_update_company_legal_texts(self, _rematch):
+        self.conn.executescript(
+            """
+            DROP TABLE companies;
+            CREATE TABLE companies (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                plan TEXT,
+                deleted_at TEXT,
+                customer_number TEXT,
+                contact TEXT,
+                billing_email TEXT,
+                billing_street TEXT,
+                billing_zip_city TEXT,
+                document_email TEXT,
+                access_host TEXT,
+                branding_preset TEXT,
+                status TEXT,
+                trial_ends_at TEXT,
+                invoice_email_lang TEXT,
+                portal_display_name TEXT,
+                branding_accent_color TEXT,
+                branding_logo_data TEXT,
+                report_timezone TEXT,
+                operating_sector TEXT,
+                impressum_text TEXT NOT NULL DEFAULT '',
+                datenschutz_text TEXT NOT NULL DEFAULT ''
+            );
+            INSERT INTO companies (
+                id, name, plan, deleted_at, customer_number, contact, billing_email,
+                billing_street, billing_zip_city, document_email, access_host,
+                branding_preset, status, trial_ends_at, invoice_email_lang,
+                portal_display_name, branding_accent_color, branding_logo_data,
+                report_timezone, operating_sector, impressum_text, datenschutz_text
+            ) VALUES (
+                'cmp-a', 'Alpha', 'enterprise', NULL, 'K001', '', '', '', '', '', '',
+                '', 'aktiv', '', 'de', '', '', '', '', 'construction', '', ''
+            );
+            """
+        )
+        self.conn.commit()
+        result = self.svc.update_company_legal(
+            self.conn,
+            "cmp-a",
+            {"impressumText": "Firma Alpha", "datenschutzText": "DSGVO Text"},
+        )
+        self.assertTrue(result["body"]["ok"])
+        self.assertEqual(result["body"]["impressumText"], "Firma Alpha")
+        row = self.conn.execute(
+            "SELECT impressum_text, datenschutz_text FROM companies WHERE id = ?",
+            ("cmp-a",),
+        ).fetchone()
+        self.assertEqual(row["impressum_text"], "Firma Alpha")
+        self.assertEqual(row["datenschutz_text"], "DSGVO Text")
+
+    @patch("backend.server.rematch_inbox_company_links")
     def test_update_company_changes_name(self, _rematch):
         self.conn.executescript(
             """

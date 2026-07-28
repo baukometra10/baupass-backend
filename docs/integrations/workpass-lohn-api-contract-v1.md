@@ -7,13 +7,13 @@
 Give this document to the accounting app.
 
 **Normal ops:** connect platform ↔ WorkPass Lohn **once** (`platform-link`).  
-New companies get WorkPass Lohn automatically when created on the platform.
+Per company, WorkPass Lohn stays **optional** (default OFF). Enable in company Settings UI, on create checkbox, or via `company-settings` API.
 
 ---
 
 ## 0) One-time setup (platform ↔ WorkPass Lohn) — once only
 
-Superadmin connects the platform to WorkPass Lohn **once**. After that, every new company created on the platform is auto-provisioned into WorkPass Lohn (Firma-ID + bridge credentials).
+Superadmin connects the platform to WorkPass Lohn **once**. After that, companies that **opt in** can be provisioned into WorkPass Lohn (Firma-ID + bridge credentials).
 
 ```http
 POST /api/payroll/accounting/platform-link
@@ -43,13 +43,22 @@ SUPPIX_PUBLIC_BASE_URL=https://suppix-ai-workpass.com
 
 What happens on `POST /api/companies` (create company):
 - Default: **WorkPass Lohn stays OFF** (optional — company may use another accounting tool).
-- Only if create payload has `"workpassLohnEnabled": true` → provision into WorkPass Lohn.
-- Later toggle anytime:
+- Only if create payload has `"workpassLohnEnabled": true` (or the admin UI checkbox) → provision into WorkPass Lohn.
+- Later toggle anytime in **company card → Settings / Einstellungen**, or:
 
 ```http
 PUT /api/payroll/accounting/company-settings
 { "companyId": "<FIRMA-ID>", "workpassLohnEnabled": false }
 ```
+
+Company legal texts (Impressum / Datenschutz):
+
+```http
+PUT /api/companies/<company_id>/legal
+{ "impressumText": "...", "datenschutzText": "..." }
+```
+
+Ops Command Center shows platform-link status for superadmin.
 
 When disabled: platform **stops all outbound** hours/webhooks for that company (`403 workpass_lohn_disabled` on bridge).
 

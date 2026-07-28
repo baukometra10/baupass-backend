@@ -7,13 +7,17 @@
 سوبر أدمن يضبط الربط العام مرة واحدة (`platform-link`).
 
 **WorkPass Lohn اختياري لكل شركة** (افتراضي: متوقف):
-- عند إنشاء الشركة: `"workpassLohnEnabled": true` فقط إن أرادت المحاسبة معنا
+- في الواجهة: بطاقة الشركة → Einstellungen → زر تفعيل/إيقاف WorkPass Lohn
+- عند إنشاء الشركة: مربع اختيار اختياري، أو `"workpassLohnEnabled": true` في الـ API
 - من الإعدادات لاحقاً:
 
 ```http
 PUT /api/payroll/accounting/company-settings
 { "companyId": "…", "workpassLohnEnabled": false }
 ```
+
+Rechtliches لكل شركة: `PUT /api/companies/<id>/legal` (Impressum/Datenschutz).
+حالة الربط العام تظهر في Ops Command Center.
 
 عند الإيقاف: يتوقف إرسال الساعات/الـ webhook لهذه الشركة فوراً، ويمكنها استخدام برنامج محاسبة آخر.
 
