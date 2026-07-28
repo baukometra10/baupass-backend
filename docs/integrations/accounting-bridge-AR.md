@@ -1,121 +1,97 @@
-# جسر WorkPass Lohn (تطبيق المحاسبة المنفصل)
+# جسر WorkPass Lohn — عقد العزل الإلزامي
 
-اسم المنتج: **WorkPass Lohn** · SUPPIX AI · WorkPass Lohn-Buchhaltung  
-الوضع: **Standalone** (منفصل عن منصة WorkPass/Hub)
+اسم المنتج: **WorkPass Lohn** · SUPPIX AI · WorkPass Lohn-Buchhaltung (Standalone)
 
-المنصة **لا** تضمّن تطبيق المحاسبة. **WorkPass Lohn** يبقى منفصلاً ويتبادل البيانات عبر API موقّع ومعزول لكل شركة.
+## إلزامي عبر الـ API
+
+| قاعدة | التفاصيل |
+|---|---|
+| `company.id` | مطلوب في كل رواتب / فواتير / تسجيل شركة — بدونها يُرفض الطلب |
+| مفتاح الرواتب | `companyId::employeeId::period` (وليس الاسم) |
+| مفتاح الفواتير | `companyId::رقم_الفاتورة` حتى لا تتصادم أرقام متشابهة بين الشركات |
+| Header | `X-WorkPass-Company-Id` — كل قراءة/إصدار محدود بتلك الشركة فقط |
+| سجل الشركات | `POST /v1/company/upsert` في WorkPass Lohn · مرآة المنصة: `POST /api/v2/accounting/company/upsert` |
+| عزل | نفس رقم الموظف `1001` في شركتين = وظيفتان منفصلتان، بدون تسرّب |
+
+في واجهة WorkPass Lohn: حقل **Firma-ID** في تبويب API-Bridge يفلتر الـ Inbox لتلك الشركة فقط.  
+على المنصة: `Firma-ID` = `companies.id` (نفس القيمة في `X-WorkPass-Company-Id`).
 
 ## التدفق
 
-1. المنصة تجمع ساعات الشهر من `access_logs` + `hourly_rate` من عقد العمل.
-2. **WorkPass Lohn** يسحب الساعات (`GET`) أو يستقبل Webhook `hours.ready`.
-3. WorkPass Lohn يحسب الكشوفات ويرفعها (`POST /statements`) بحالة `pending_approval`.
-4. مسؤول الشركة أو السوبر أدمن يؤكد الإرسال في Ops («WorkPass Lohn — Freigabe»).
-5. بعد التأكيد فقط: `lohnabrechnung` تصل للموظف + Push/Mitteilung.
+1. المنصة تجمع ساعات الشهر + `hourly_rate` من العقد، مع `storageKey` و `company.id`.
+2. WorkPass Lohn يسحب الساعات أو يستقبل Webhook `hours.ready`.
+3. WorkPass Lohn يرفع الكشوفات مع `companyId` + `employeeId` بحالة `pending_approval`.
+4. مسؤول الشركة / سوبر أدمن يؤكد → `lohnabrechnung` للموظف.
 
-## إعداد التكامل (أدمن)
+## Headers (WorkPass Lohn → المنصة)
 
-```http
-POST /api/payroll/accounting/integration
-Authorization: Bearer <session>
-Content-Type: application/json
+| Header | مطلوب |
+|---|---|
+| `X-WorkPass-Company-Id` | نعم (بديل قديم: `X-Company-Id`) |
+| `X-Accounting-Key` | نعم (`acc_live_…`) |
+| `X-Suppix-Timestamp` / `X-Suppix-Signature` | عند التوقيع HMAC |
 
-{
-  "companyId": "…",
-  "webhookUrl": "https://lohn.example/hooks/suppix-hours",
-  "enabled": true,
-  "runDay": 1,
-  "rotateKey": true
-}
-```
+بدون `X-WorkPass-Company-Id` → `400 company_id_required`.
 
-الاستجابة تعرض مرة واحدة فقط: `apiKey` (`acc_live_…`) و `signingSecret`.
-
-## API لـ WorkPass Lohn
-
-Headers:
-
-| Header | مطلوب | معنى |
-|---|---|---|
-| `X-Company-Id` | نعم | معرّف الشركة |
-| `X-Accounting-Key` | نعم | المفتاح `acc_live_…` |
-| `X-Suppix-Timestamp` | عند التوقيع | Unix seconds |
-| `X-Suppix-Signature` | اختياري | HMAC-SHA256 لـ `{timestamp}.{raw_body}` بالمفتاح `signingSecret` |
-
-### سحب الساعات
+## مسارات المنصة
 
 ```http
-GET /api/v2/accounting/hours?period=2026-06
-X-Company-Id: c1
-X-Accounting-Key: acc_live_…
-```
-
-الحقول المهمة لكل صف: `workerId`, `hours`, `hourlyRate`, `grossEstimate` (تقديري فقط), `payBasis`.
-
-### تأكيد الاستلام
-
-```http
+GET  /api/v2/accounting/hours?period=2026-06
 POST /api/v2/accounting/hours/ack
+POST /api/v2/accounting/statements
+GET  /api/v2/accounting/company
+POST /api/v2/accounting/company/upsert
+```
+
+### صف ساعات (مثال)
+
+```json
 {
+  "companyId": "lufthansa",
+  "company": { "id": "lufthansa" },
+  "employeeId": "w-1001",
+  "workerId": "w-1001",
+  "storageKey": "lufthansa::w-1001::2026-06",
   "period": "2026-06",
-  "fingerprint": "…"
+  "hours": 160,
+  "hourlyRate": 15
 }
 ```
 
-### رفع كشوفات الحساب
+إثبات العزل: `otherco::w-1001::2026-06` مفتاح مختلف تماماً عن `lufthansa::w-1001::2026-06`.
 
-```http
-POST /api/v2/accounting/statements
+### رفع كشوفات
+
+```json
 {
+  "companyId": "lufthansa",
   "period": "2026-06",
-  "externalRef": "workpass-lohn-run-42",
   "statements": [
     {
-      "workerId": "w1",
+      "companyId": "lufthansa",
+      "employeeId": "w-1001",
+      "storageKey": "lufthansa::w-1001::2026-06",
       "hours": 160,
-      "hourlyRate": 15,
       "grossAmount": 2400,
-      "netAmount": 1850,
-      "currency": "EUR",
-      "filename": "lohn_2026-06_w1.pdf",
-      "pdfBase64": "<base64-pdf>"
+      "pdfBase64": "…"
     }
   ]
 }
 ```
 
-الحالة بعد الرفع: `pending_approval` — **لا إرسال للموظفين تلقائياً**.
+كل صف بدون `companyId` يُرفض (`company_id_required`).  
+`companyId` مخالف للهيدر → `403 company_id_mismatch`.
 
-### Webhook صادر من المنصة
-
-```json
-{
-  "event": "hours.ready",
-  "companyId": "c1",
-  "period": "2026-06",
-  "exportId": "phe-…",
-  "fingerprint": "…",
-  "pullUrl": "/api/v2/accounting/hours?period=2026-06",
-  "product": "WorkPass Lohn"
-}
-```
-
-Headers: `X-Suppix-Timestamp`, `X-Suppix-Signature`, `X-Suppix-Event`, `User-Agent: SUPPIX-WorkPass-Lohn-Bridge/1.0`.
-
-## موافقة على المنصة
+### شركة (مرآة upsert)
 
 ```http
-GET  /api/payroll/statements/pending
-GET  /api/payroll/statements/{batchId}
-POST /api/payroll/statements/{batchId}/approve
-POST /api/payroll/statements/{batchId}/reject
+POST /api/v2/accounting/company/upsert
+X-WorkPass-Company-Id: lufthansa
 ```
 
-الأدوار: `company-admin`, `superadmin`.
+الجسم يجب أن يحتوي `id` / `companyId` مطابقاً للهيدر.
 
 ## حدود
 
-- المنصة لا تحسب الضرائب/التأمينات/الصافي النهائي — ذلك في **WorkPass Lohn**.
-- لا دمج كود WorkPass Lohn داخل ريبو المنصة.
-- لا إرسال كشوفات للموظفين قبل موافقة بشرية.
-- حماية الدخول بـ PIN في WorkPass Lohn محلية لهذا التطبيق؛ مفاتيح الجسر منفصلة.
+- المنصة لا تحسب الضرائب/الصافي — ذلك في WorkPass Lohn.
+- لا إرسال للموظفين قبل موافقة بشرية على المنصة.

@@ -147,6 +147,8 @@ def test_ingest_and_approve_releases_document(tmp_path, monkeypatch):
         statements=[
             {
                 "workerId": "w1",
+                "companyId": "c1",
+                "employeeId": "w1",
                 "hours": 8,
                 "hourlyRate": 15,
                 "grossAmount": 120,
@@ -181,7 +183,7 @@ def test_reject_batch_no_release(tmp_path, monkeypatch):
         db,
         company_id="c1",
         period="2026-06",
-        statements=[{"workerId": "w1", "hours": 1, "pdfBase64": base64.b64encode(pdf).decode("ascii")}],
+        statements=[{"workerId": "w1", "companyId": "c1", "hours": 1, "pdfBase64": base64.b64encode(pdf).decode("ascii")}],
     )
     rejected = service.reject_batch(db, batch_id=result["batchId"], actor_user_id="admin-1", reason="wrong")
     assert rejected["ok"] is True
@@ -193,6 +195,39 @@ def test_previous_period():
 
     assert previous_period(datetime(2026, 7, 1, tzinfo=timezone.utc)) == "2026-06"
     assert previous_period(datetime(2026, 1, 5, tzinfo=timezone.utc)) == "2025-12"
+
+
+def test_tenant_storage_keys_isolate_same_employee_number():
+    from backend.app.platform.accounting.keys import invoice_storage_key, payroll_storage_key
+
+    a = payroll_storage_key(company_id="lufthansa", employee_id="1001", period="2026-06")
+    b = payroll_storage_key(company_id="otherco", employee_id="1001", period="2026-06")
+    assert a == "lufthansa::1001::2026-06"
+    assert b == "otherco::1001::2026-06"
+    assert a != b
+    assert invoice_storage_key(company_id="lufthansa", invoice_number="RE-1") == "lufthansa::RE-1"
+    assert invoice_storage_key(company_id="otherco", invoice_number="RE-1") == "otherco::RE-1"
+
+
+def test_hours_rows_include_storage_key():
+    db = _db()
+    payload = hours_service.aggregate_company_hours(db, company_id="c1", period="2026-06")
+    row = payload["rows"][0]
+    assert row["storageKey"] == "c1::w1::2026-06"
+    assert row["company"]["id"] == "c1"
+    assert payload["company"]["id"] == "c1"
+
+
+def test_ingest_rejects_missing_company_id_on_row():
+    db = _db()
+    result = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-06",
+        statements=[{"workerId": "w1", "hours": 1}],
+    )
+    assert result["createdCount"] == 0
+    assert result["errors"][0]["error"] == "company_id_required"
 
 
 def test_monthly_job_skips_wrong_day():

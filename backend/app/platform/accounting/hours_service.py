@@ -7,6 +7,8 @@ from calendar import monthrange
 from datetime import datetime, timedelta
 from typing import Any
 
+from .keys import payroll_storage_key, require_company_id
+
 _PERIOD_RE = re.compile(r"^\d{4}-\d{2}$")
 _CHECK_IN = {"check-in", "checkin", "in", "entry", "enter"}
 _CHECK_OUT = {"check-out", "checkout", "out", "exit", "leave"}
@@ -127,6 +129,7 @@ def _contract_rate_for_worker(db, *, company_id: str, worker_id: str) -> dict[st
 
 def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, Any]:
     """Build payroll hours payload for one company/period."""
+    company_id = require_company_id(company_id)
     period = normalize_period(period)
     start, end = period_bounds(period)
     workers = db.execute(
@@ -164,9 +167,14 @@ def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, An
         else:
             gross_estimate = 0.0
             pay_basis = "unknown"
+        storage_key = payroll_storage_key(company_id=company_id, employee_id=wid, period=period)
         rows_out.append(
             {
+                "companyId": company_id,
+                "company": {"id": company_id},
                 "workerId": wid,
+                "employeeId": wid,
+                "storageKey": storage_key,
                 "firstName": worker["first_name"] or "",
                 "lastName": worker["last_name"] or "",
                 "badgeId": worker["badge_id"] or "",
@@ -180,17 +188,19 @@ def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, An
                 "payBasis": pay_basis,
                 "currency": "EUR",
                 "contractId": rate_info.get("contractId"),
-                "note": "grossEstimate is platform hint only; accounting app computes official payroll",
+                "note": "grossEstimate is platform hint only; WorkPass Lohn computes official payroll",
             }
         )
 
     company = db.execute("SELECT id, name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    company_name = (company["name"] if company else "") or ""
     return {
         "ok": True,
         "format": "suppix_workpass_lohn_hours_v1",
         "product": "WorkPass Lohn",
         "companyId": company_id,
-        "companyName": (company["name"] if company else "") or "",
+        "company": {"id": company_id, "name": company_name},
+        "companyName": company_name,
         "period": period,
         "periodStart": start,
         "periodEnd": end,
@@ -198,5 +208,6 @@ def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, An
         "totalHours": round(sum(float(r["hours"]) for r in rows_out), 2),
         "totalGrossEstimate": round(sum(float(r["grossEstimate"]) for r in rows_out), 2),
         "currency": "EUR",
+        "tenantIsolation": "companyId::employeeId::period",
         "rows": rows_out,
     }

@@ -14,6 +14,7 @@ from urllib import request as urlrequest
 from . import repository as repo
 from .auth import sign_payload
 from .hours_service import aggregate_company_hours, normalize_period
+from .keys import invoice_storage_key, payroll_storage_key, require_company_id
 from .schema import ensure_accounting_schema
 
 
@@ -36,6 +37,7 @@ def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -
         "X-Suppix-Timestamp": ts,
         "X-Suppix-Event": str(body.get("event") or "hours.ready"),
         "X-Suppix-Product": "WorkPass Lohn",
+        "X-WorkPass-Company-Id": str(body.get("companyId") or ""),
     }
     if signing_secret:
         headers["X-Suppix-Signature"] = sign_payload(signing_secret, timestamp=ts, body=raw)
@@ -67,12 +69,14 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
         "event": "hours.ready",
         "product": "WorkPass Lohn",
         "companyId": company_id,
+        "company": {"id": company_id},
         "period": payload["period"],
         "exportId": payload.get("exportId"),
         "fingerprint": payload.get("fingerprint"),
         "rowCount": payload.get("rowCount"),
         "totalHours": payload.get("totalHours"),
         "pullUrl": f"/api/v2/accounting/hours?period={payload['period']}",
+        "tenantIsolation": "companyId::employeeId::period",
     }
     result = _post_webhook(webhook, event, signing_secret=str(full["signing_secret"] or "") if full else "")
     if not result.get("ok"):
@@ -109,6 +113,10 @@ def ingest_statements(
     external_ref: str = "",
     notes: str = "",
 ) -> dict[str, Any]:
+    try:
+        company_id = require_company_id(company_id)
+    except ValueError:
+        return {"ok": False, "error": "company_id_required"}
     period = normalize_period(period)
     if not statements:
         return {"ok": False, "error": "statements_required"}
@@ -118,16 +126,35 @@ def ingest_statements(
     created: list[str] = []
     errors: list[dict[str, Any]] = []
     for idx, item in enumerate(statements):
-        worker_id = str(item.get("workerId") or item.get("worker_id") or "").strip()
+        item_company = str(
+            item.get("companyId") or item.get("company_id") or (item.get("company") or {}).get("id") or ""
+        ).strip()
+        if item_company and item_company != company_id:
+            errors.append({"index": idx, "error": "company_id_mismatch", "companyId": item_company})
+            continue
+        if not item_company:
+            # company.id is mandatory on every payroll row — reject if caller omitted it
+            errors.append({"index": idx, "error": "company_id_required"})
+            continue
+        worker_id = str(
+            item.get("workerId") or item.get("worker_id") or item.get("employeeId") or item.get("employee_id") or ""
+        ).strip()
         if not worker_id:
-            errors.append({"index": idx, "error": "worker_id_required"})
+            errors.append({"index": idx, "error": "employee_id_required"})
+            continue
+        try:
+            storage_key = str(item.get("storageKey") or "").strip() or payroll_storage_key(
+                company_id=company_id, employee_id=worker_id, period=period
+            )
+        except ValueError as exc:
+            errors.append({"index": idx, "error": str(exc)})
             continue
         worker = db.execute(
             "SELECT id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
             (worker_id, company_id),
         ).fetchone()
         if not worker:
-            errors.append({"index": idx, "error": "worker_not_found", "workerId": worker_id})
+            errors.append({"index": idx, "error": "worker_not_found", "employeeId": worker_id, "storageKey": storage_key})
             continue
         pdf_b64 = item.get("pdfBase64") or item.get("pdf_base64") or ""
         filename = str(item.get("filename") or f"lohnabrechnung_{period}_{worker_id}.pdf").strip()
@@ -139,13 +166,13 @@ def ingest_statements(
             try:
                 raw = base64.b64decode(pdf_b64)
             except Exception:
-                errors.append({"index": idx, "error": "invalid_pdf_base64", "workerId": worker_id})
+                errors.append({"index": idx, "error": "invalid_pdf_base64", "employeeId": worker_id})
                 continue
             if len(raw) < 20 or not raw.startswith(b"%PDF"):
-                errors.append({"index": idx, "error": "not_a_pdf", "workerId": worker_id})
+                errors.append({"index": idx, "error": "not_a_pdf", "employeeId": worker_id})
                 continue
             if len(raw) > 15 * 1024 * 1024:
-                errors.append({"index": idx, "error": "pdf_too_large", "workerId": worker_id})
+                errors.append({"index": idx, "error": "pdf_too_large", "employeeId": worker_id})
                 continue
             dest_dir = _storage_dir(company_id, period)
             dest_dir.mkdir(parents=True, exist_ok=True)
@@ -153,6 +180,20 @@ def ingest_statements(
             dest.write_bytes(raw)
             file_path = str(dest)
             file_size = len(raw)
+        invoice_number = str(item.get("invoiceNumber") or item.get("invoice_number") or "").strip()
+        invoice_key = ""
+        if invoice_number:
+            try:
+                invoice_key = invoice_storage_key(company_id=company_id, invoice_number=invoice_number)
+            except ValueError as exc:
+                errors.append({"index": idx, "error": str(exc)})
+                continue
+        meta = {k: v for k, v in item.items() if k not in {"pdfBase64", "pdf_base64"}}
+        meta["storageKey"] = storage_key
+        meta["companyId"] = company_id
+        meta["employeeId"] = worker_id
+        if invoice_key:
+            meta["invoiceStorageKey"] = invoice_key
         stmt_id = repo.add_statement(
             db,
             batch_id=batch_id,
@@ -171,18 +212,20 @@ def ingest_statements(
             filename=filename,
             file_path=file_path,
             file_size=file_size,
-            external_ref=str(item.get("externalRef") or item.get("external_ref") or ""),
-            meta={k: v for k, v in item.items() if k not in {"pdfBase64", "pdf_base64"}},
+            external_ref=str(item.get("externalRef") or item.get("external_ref") or storage_key)[:120],
+            meta=meta,
         )
         created.append(stmt_id)
     return {
         "ok": True,
         "batchId": batch_id,
+        "companyId": company_id,
         "period": period,
         "status": "pending_approval",
         "createdCount": len(created),
         "statementIds": created,
         "errors": errors,
+        "tenantIsolation": "companyId::employeeId::period",
     }
 
 
