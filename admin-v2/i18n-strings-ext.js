@@ -539,6 +539,10 @@ export const EXT_STRINGS = {
     "section.audit.message": "Summary",
     "section.audit.why": "Reason",
     "section.audit.details": "Details",
+    "section.audit.detailsMissing": "Entry not found",
+    "section.audit.copy": "Copy",
+    "section.audit.copied": "Copied",
+    "section.audit.copyFailed": "Copy failed",
   },
   ar: {
     "platform.banner.maturity": "نضج المنصة",
@@ -794,5 +798,9 @@ export const EXT_STRINGS = {
     "section.audit.message": "الملخص",
     "section.audit.why": "السبب",
     "section.audit.details": "التفاصيل",
+    "section.audit.detailsMissing": "لم يتم العثور على السجل",
+    "section.audit.copy": "نسخ",
+    "section.audit.copied": "تم النسخ",
+    "section.audit.copyFailed": "فشل النسخ",
   },
 };
