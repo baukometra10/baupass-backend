@@ -7,6 +7,7 @@ import 'package:open_file/open_file.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../core/api_client.dart';
+import '../core/locale_controller.dart';
 import '../core/session_store.dart';
 import '../core/tenant_branding.dart';
 import '../features/chat/chat_attachment_helpers.dart';
@@ -90,6 +91,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
         session: widget.session,
         threadId: threadId,
         body: body,
+        sourceLang: LocaleController.instance.lang,
       );
       _message.clear();
       final msg = Map<String, dynamic>.from(res['message'] as Map);
@@ -135,6 +137,7 @@ class _WorkerHomeChatPanelState extends State<WorkerHomeChatPanel> {
         session: widget.session,
         threadId: threadId,
         body: _message.text.trim().isEmpty ? 'Unterlage gesendet' : _message.text.trim(),
+        sourceLang: LocaleController.instance.lang,
       );
       final msg = Map<String, dynamic>.from(res['message'] as Map);
       await widget.chat.uploadAttachment(

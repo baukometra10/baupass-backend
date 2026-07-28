@@ -298,11 +298,16 @@ class ChatRepository {
     required String outbound,
     required bool e2eClientUnavailable,
     String? replyToMessageId,
+    String? sourceLang,
   }) {
     final body = <String, dynamic>{'body': outbound};
     final replyId = replyToMessageId?.trim() ?? '';
     if (replyId.isNotEmpty) {
       body['reply_to_message_id'] = replyId;
+    }
+    final lang = (sourceLang ?? '').trim().toLowerCase();
+    if (lang.isNotEmpty) {
+      body['sourceLang'] = lang;
     }
     return _api.postJson(
       '/api/worker-app/chat/threads/$threadId/messages',
@@ -318,6 +323,7 @@ class ChatRepository {
     required String threadId,
     required String body,
     String? replyToMessageId,
+    String? sourceLang,
   }) async {
     await ensureE2eReady(session);
     final prepared = await _prepareOutboundBody(session, body);
@@ -328,6 +334,7 @@ class ChatRepository {
         outbound: prepared.outbound,
         e2eClientUnavailable: prepared.e2eClientUnavailable,
         replyToMessageId: replyToMessageId,
+        sourceLang: sourceLang,
       );
     } on ApiException catch (e) {
       if (e.errorCode == 'thread_not_found' || e.errorCode == 'chat_send_failed') {
@@ -339,10 +346,31 @@ class ChatRepository {
           outbound: prepared.outbound,
           e2eClientUnavailable: prepared.e2eClientUnavailable,
           replyToMessageId: replyToMessageId,
+          sourceLang: sourceLang,
         );
       }
       rethrow;
     }
+  }
+
+  Future<Map<String, dynamic>> translateMessage({
+    required WorkerSession session,
+    required String text,
+    required String targetLang,
+    String? sourceLang,
+    String? messageId,
+  }) {
+    return _api.postJson(
+      '/api/worker-app/chat/translate',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+      body: <String, dynamic>{
+        'text': text,
+        'targetLang': targetLang,
+        if (sourceLang != null && sourceLang.trim().isNotEmpty) 'sourceLang': sourceLang.trim(),
+        if (messageId != null && messageId.trim().isNotEmpty) 'messageId': messageId.trim(),
+      },
+    );
   }
 
   Future<Map<String, dynamic>> uploadAttachment({

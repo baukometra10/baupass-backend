@@ -185,6 +185,7 @@
     .bubble.worker.tail { border-end-start-radius:4px; }
     .bubble-sender { display:none; }
     .bubble-body { white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+    .bubble-translated-cue { margin-inline-start:6px; opacity:0.65; font-size:0.78rem; vertical-align:middle; }
     .bubble-meta { display:flex; justify-content:flex-end; align-items:center; gap:0.28rem; margin-top:0.22rem; font-size:0.68rem; color:rgba(226,232,240,.72); }
     .bubble.admin .bubble-meta { color:rgba(236,254,255,.78); }
     .chat-ticks { letter-spacing:-0.14em; font-size:0.78rem; line-height:1; color:#8696a0; }
@@ -1754,6 +1755,11 @@
     let threadListPollTimer = null;
     let chatRealtimeStop = null;
     let adminChatMessagesCache = [];
+    /** @type {Map<string, string>} messageId:targetLang → translation */
+    const adminChatTranslationCache = new Map();
+    /** @type {Set<string>} message ids currently showing original text */
+    const adminChatShowOriginalIds = new Set();
+    let adminChatTranslateInFlight = new Set();
     const adminThreadPreviewCache = {};
     const ADMIN_PREVIEW_CACHE_KEY = "suppix-admin-chat-preview-cache";
     let adminReplyTo = null;
@@ -3321,6 +3327,8 @@
         star: window.adminChatT("chatMenuStar"),
         unstar: window.adminChatT("chatMenuUnstar"),
         delete: window.adminChatT("chatMenuDelete"),
+        showOriginal: window.adminChatT("chatShowOriginal"),
+        showTranslation: window.adminChatT("chatShowTranslation"),
         copy: {
           voice: window.adminChatT("chatVoiceMessage"),
           photo: window.adminChatT("chatPreviewPhoto"),
@@ -3330,6 +3338,73 @@
           call: window.adminChatT("voiceCallLogTitle"),
         },
       };
+    }
+    function adminUiLang() {
+      return window.getAdminChatLang?.() || "de";
+    }
+    function messageSourceLang(msg) {
+      return String(msg?.sourceLang || msg?.source_lang || "").trim().toLowerCase().slice(0, 2);
+    }
+    function messageNeedsTranslation(msg) {
+      const body = String(msg?.body || "").trim();
+      if (!body) return false;
+      if (body.startsWith("@voice-call|") || body.startsWith("@location|")) return false;
+      if (window.SUPPIXChatVoice?.isVoiceOnlyBody?.(body, window.adminChatT("chatVoiceMessage"))) return false;
+      const source = messageSourceLang(msg);
+      const target = adminUiLang();
+      if (!source || source === target) return false;
+      return true;
+    }
+    function translationCacheKey(msg) {
+      return `${String(msg?.id || "")}:${adminUiLang()}`;
+    }
+    function displayBodyForAdminMsg(msg) {
+      const original = String(msg?.body || "");
+      if (!messageNeedsTranslation(msg)) return original;
+      const id = String(msg?.id || "");
+      if (id && adminChatShowOriginalIds.has(id)) return original;
+      const cached = adminChatTranslationCache.get(translationCacheKey(msg));
+      return cached || original;
+    }
+    function isShowingAdminOriginal(msg) {
+      const id = String(msg?.id || "");
+      return Boolean(id && adminChatShowOriginalIds.has(id));
+    }
+    async function translateAdminMessage(msg) {
+      if (!messageNeedsTranslation(msg)) return;
+      const id = String(msg.id || "");
+      if (!id || id.startsWith("pending-")) return;
+      const key = translationCacheKey(msg);
+      if (adminChatTranslationCache.has(key)) return;
+      if (adminChatTranslateInFlight.has(key)) return;
+      adminChatTranslateInFlight.add(key);
+      try {
+        const res = await api(`/api/chat/translate?company_id=${encodeURIComponent(companyId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: String(msg.body || ""),
+            sourceLang: messageSourceLang(msg),
+            targetLang: adminUiLang(),
+            messageId: id,
+          }),
+        });
+        if (res?.ok && res.translation && !res.skipped) {
+          adminChatTranslationCache.set(key, String(res.translation));
+          refreshAdminMessageListView();
+        }
+      } catch {
+        /* keep original */
+      } finally {
+        adminChatTranslateInFlight.delete(key);
+      }
+    }
+    function ensureAdminTranslations(messages) {
+      (messages || []).forEach((msg) => {
+        if (messageNeedsTranslation(msg) && !adminChatTranslationCache.has(translationCacheKey(msg))) {
+          translateAdminMessage(msg);
+        }
+      });
     }
     function messageBubbleDecor(msg) {
       const messageId = String(msg?.id || "").trim();
@@ -3436,6 +3511,8 @@
         labels: adminMessageMenuLabels(),
         canDelete: (msg) => canDeleteAdminMessage(msg),
         canForward: () => true,
+        canShowOriginal: (msg) => messageNeedsTranslation(msg) && !isShowingAdminOriginal(msg) && adminChatTranslationCache.has(translationCacheKey(msg)),
+        canShowTranslation: (msg) => messageNeedsTranslation(msg) && isShowingAdminOriginal(msg),
         onReply: (msg) => setAdminReplyTo(msg),
         onCopy: async (_msg, text) => {
           try {
@@ -3452,6 +3529,18 @@
         },
         onStarToggle: (msg) => {
           window.SUPPIXChatMessagePrefs?.toggleStar?.(currentThreadId, msg.id);
+          refreshAdminMessageListView();
+        },
+        onShowOriginal: (msg) => {
+          const id = String(msg?.id || "");
+          if (!id) return;
+          adminChatShowOriginalIds.add(id);
+          refreshAdminMessageListView();
+        },
+        onShowTranslation: (msg) => {
+          const id = String(msg?.id || "");
+          if (!id) return;
+          adminChatShowOriginalIds.delete(id);
           refreshAdminMessageListView();
         },
         onDelete: (msg) => {
@@ -3575,12 +3664,16 @@
           }).join("")}</div>`
         : "";
       const voiceOnly = hasVoice && window.SUPPIXChatVoice?.isVoiceOnlyBody?.(msg.body, window.adminChatT("chatVoiceMessage"));
-      const body = voiceOnly ? "" : escapeHtml(msg.body || "");
+      const displayBody = voiceOnly ? "" : displayBodyForAdminMsg(msg);
+      const body = displayBody ? escapeHtml(displayBody) : "";
+      const translatedCue = (!voiceOnly && messageNeedsTranslation(msg) && !isShowingAdminOriginal(msg) && adminChatTranslationCache.has(translationCacheKey(msg)))
+        ? `<span class="bubble-translated-cue" title="${escapeAttr(window.adminChatT("chatTranslated") || "Translated")}">⇄</span>`
+        : "";
       const messageId = escapeHtml(String(msg.id || ""));
       const decor = messageBubbleDecor(msg);
       const sideClass = msg.senderType === "admin" ? "admin" : "worker";
       const classes = ["bubble", sideClass, grouped ? "grouped" : "", tail ? "tail" : "", voiceOnly ? "is-voice-only" : "", decor.extraClass].filter(Boolean).join(" ");
-      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${body ? `<span class="bubble-body">${body}</span>` : ""}${attach}<div class="bubble-meta">${decor.badges}<span>${time}</span>${ticks}${decor.menuBtn}</div></div>`;
+      return `<div class="${classes}" data-message-id="${messageId}"><strong class="bubble-sender">${who}</strong>${renderReplyQuoteHtml(msg)}${body ? `<span class="bubble-body">${body}</span>${translatedCue}` : ""}${attach}<div class="bubble-meta">${decor.badges}<span>${time}</span>${ticks}${decor.menuBtn}</div></div>`;
     }
     async function clearAdminChatMessages(scope) {
       if (!currentThreadId) return;
@@ -3785,6 +3878,7 @@
         adminChatMessagesCache = messages;
         updateAdminThreadPreviewCache(workerId, messages);
         if (!quiet) {
+          adminChatShowOriginalIds.clear();
           lastThreadMetaName = name || "";
           updateChatHead(name, workerId);
           syncAdminThreadCompose();
@@ -3803,6 +3897,7 @@
         scrollMessageListToBottom(!quiet);
         hydrateChatImagePreviews();
         hydrateChatAudioPreviews();
+        ensureAdminTranslations(messages);
         const activeRow = threads.find((item) => String(item.worker_id) === String(workerId));
         if (activeRow) activeRow.unread_count = 0;
         renderThreads();
@@ -3926,6 +4021,7 @@
             body: JSON.stringify({
               worker_id: currentWorkerId,
               body: outboundBody,
+              sourceLang: adminUiLang(),
               ...(adminReplyTo?.id ? { reply_to_message_id: adminReplyTo.id } : {}),
             }),
           });
@@ -5810,6 +5906,16 @@
     syncAdminThreadCompose();
     window.applyAdminChatI18n?.();
     window.initAdminChatLangSync?.();
+    if (!window.__adminChatTranslateLangBound) {
+      window.__adminChatTranslateLangBound = true;
+      window.addEventListener("baupass-admin-lang", () => {
+        adminChatShowOriginalIds.clear();
+        if (adminChatMessagesCache.length) {
+          refreshAdminMessageListView();
+          ensureAdminTranslations(adminChatMessagesCache);
+        }
+      });
+    }
 
     function broadcastWorkerLabel(row) {
       const name = threadDisplayName(row);

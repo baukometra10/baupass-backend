@@ -160,6 +160,12 @@
     if (config.canForward?.(msg)) items.push(buildMenuItem("forward", labels.forward || "Weiterleiten"));
     items.push(buildMenuItem("pin", pinned ? (labels.unpin || "Loslösen") : (labels.pin || "Fixieren"), { active: pinned }));
     items.push(buildMenuItem("star", starred ? (labels.unstar || "Stern entfernen") : (labels.star || "Mit Stern markieren"), { active: starred }));
+    if (config.canShowOriginal?.(msg)) {
+      items.push(buildMenuItem("showOriginal", labels.showOriginal || "Original anzeigen"));
+    }
+    if (config.canShowTranslation?.(msg)) {
+      items.push(buildMenuItem("showTranslation", labels.showTranslation || "Übersetzung anzeigen"));
+    }
     if (config.canDelete?.(msg)) {
       items.push(buildMenuItem("delete", labels.delete || "Löschen", { danger: true }));
     }
@@ -184,6 +190,8 @@
         else if (action === "forward") config.onForward?.(msg);
         else if (action === "pin") config.onPinToggle?.(msg);
         else if (action === "star") config.onStarToggle?.(msg);
+        else if (action === "showOriginal") config.onShowOriginal?.(msg);
+        else if (action === "showTranslation") config.onShowTranslation?.(msg);
         else if (action === "delete") config.onDelete?.(msg);
       });
     });
@@ -197,11 +205,15 @@
     labels = {},
     canDelete,
     canForward,
+    canShowOriginal,
+    canShowTranslation,
     onReply,
     onCopy,
     onForward,
     onPinToggle,
     onStarToggle,
+    onShowOriginal,
+    onShowTranslation,
     onDelete,
   } = {}) {
     if (!rootEl || rootEl.dataset.chatMenuBound === "1") {
@@ -215,11 +227,15 @@
       getThreadId,
       canDelete,
       canForward,
+      canShowOriginal,
+      canShowTranslation,
       onReply,
       onCopy,
       onForward,
       onPinToggle,
       onStarToggle,
+      onShowOriginal,
+      onShowTranslation,
       onDelete,
     };
 

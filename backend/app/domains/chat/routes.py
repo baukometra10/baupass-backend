@@ -555,6 +555,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 body=str(data.get("body") or ""),
                 allow_plaintext_e2e_fallback=e2e_client_unavailable,
                 reply_to_message_id=str(data.get("reply_to_message_id") or data.get("replyToMessageId") or "").strip() or None,
+                source_lang=str(data.get("source_lang") or data.get("sourceLang") or "").strip() or None,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:
@@ -564,6 +565,27 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 "e2e_required": "Verschlüsselte Nachricht erforderlich — E2E-Schlüssel prüfen.",
             }
             return jsonify({"error": code, "message": messages.get(code, code)}), 400
+
+    @chat_core_bp.post("/chat/translate")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("worker_chat")
+    def admin_chat_translate():
+        cid = company_id_from_user()
+        if not cid:
+            return forbidden_company()
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.ai.translate import translate_text
+
+        result = translate_text(
+            str(data.get("text") or ""),
+            target_lang=str(data.get("targetLang") or data.get("target_lang") or "en"),
+            source_lang=str(data.get("sourceLang") or data.get("source_lang") or "").strip() or None,
+        )
+        status = 200 if result.get("ok") or result.get("error") in {"translate_unavailable", "not_translatable"} else 400
+        if result.get("error") == "empty_text":
+            status = 400
+        return jsonify(result), status
 
     @chat_core_bp.get("/worker-app/chat/events/recent")
     @require_worker_session
@@ -931,6 +953,7 @@ def register_chat_blueprint(flask_app: Flask) -> None:
                 body=str(data.get("body") or ""),
                 allow_plaintext_e2e_fallback=e2e_client_unavailable,
                 reply_to_message_id=str(data.get("reply_to_message_id") or data.get("replyToMessageId") or "").strip() or None,
+                source_lang=str(data.get("source_lang") or data.get("sourceLang") or "").strip() or None,
             )
             return jsonify({"ok": True, "message": message})
         except ValueError as exc:
@@ -938,6 +961,28 @@ def register_chat_blueprint(flask_app: Flask) -> None:
         except Exception:
             logging.getLogger(__name__).exception("worker_chat_send failed for thread %s", thread_id)
             return jsonify({"error": "chat_send_failed", "message": "Nachricht konnte nicht gesendet werden."}), 500
+
+    @chat_core_bp.post("/worker-app/chat/translate")
+    @require_worker_session
+    def worker_chat_translate():
+        worker_id, company_id = _worker_session_identity()
+        if not worker_id or not company_id:
+            return jsonify({"error": "worker_context_missing", "message": "Worker-Sitzung ungueltig."}), 401
+        blocked = _worker_chat_allowed(company_id)
+        if blocked:
+            return blocked
+        data = request.get_json(silent=True) or {}
+        from backend.app.platform.ai.translate import translate_text
+
+        result = translate_text(
+            str(data.get("text") or ""),
+            target_lang=str(data.get("targetLang") or data.get("target_lang") or "en"),
+            source_lang=str(data.get("sourceLang") or data.get("source_lang") or "").strip() or None,
+        )
+        status = 200 if result.get("ok") or result.get("error") in {"translate_unavailable", "not_translatable"} else 400
+        if result.get("error") == "empty_text":
+            status = 400
+        return jsonify(result), status
 
     @chat_core_bp.delete("/worker-app/chat/messages/<message_id>")
     @require_worker_session

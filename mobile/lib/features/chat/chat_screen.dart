@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:record/record.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/chat_repository.dart';
@@ -66,10 +68,14 @@ class _ChatScreenState extends State<ChatScreen> {
   final ChatMessagePrefsState _messagePrefs = ChatMessagePrefsState();
   final ScrollController _messageScroll = ScrollController();
   final Map<String, GlobalKey> _messageKeys = {};
+  final Map<String, String> _translationCache = <String, String>{};
+  final Set<String> _showOriginalIds = <String>{};
+  final Set<String> _translateInFlight = <String>{};
 
   @override
   void initState() {
     super.initState();
+    LocaleController.instance.addListener(_onLocaleChanged);
     _message.addListener(_onComposeChanged);
     _boot().then((_) {
       if (!mounted) return;
@@ -87,6 +93,14 @@ class _ChatScreenState extends State<ChatScreen> {
         _boot(silent: true);
       }
     });
+  }
+
+  void _onLocaleChanged() {
+    _showOriginalIds.clear();
+    if (mounted) {
+      setState(() {});
+      unawaited(_ensureTranslations());
+    }
   }
 
   Future<void> _openCallHistory() async {
@@ -130,6 +144,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    LocaleController.instance.removeListener(_onLocaleChanged);
     _pollTimer?.cancel();
     _voiceTicker?.cancel();
     _message.removeListener(_onComposeChanged);
@@ -178,11 +193,68 @@ class _ChatScreenState extends State<ChatScreen> {
         _messagePrefs.applyServerPrefs(prefs);
         _loading = false;
       });
+      unawaited(_ensureTranslations());
     } catch (_) {
       if (!mounted) return;
       setState(() => _loading = false);
     } finally {
       _silentRefresh = false;
+    }
+  }
+
+  String _messageSourceLang(Map<String, dynamic> item) {
+    return ((item['sourceLang'] ?? item['source_lang'] ?? '') as String).trim().toLowerCase();
+  }
+
+  bool _needsTranslation(Map<String, dynamic> item) {
+    final body = (item['body'] as String? ?? '').trim();
+    if (body.isEmpty) return false;
+    if (body.startsWith('@voice-call|') || body.startsWith('@location|')) return false;
+    if (_isVoiceOnlyBody(body)) return false;
+    final source = _messageSourceLang(item);
+    final target = LocaleController.instance.lang;
+    if (source.isEmpty || source == target) return false;
+    return true;
+  }
+
+  String _translationKey(Map<String, dynamic> item) {
+    final id = (item['id'] as String? ?? '').trim();
+    return '$id:${LocaleController.instance.lang}';
+  }
+
+  String _displayBody(Map<String, dynamic> item) {
+    final original = item['body'] as String? ?? '';
+    if (!_needsTranslation(item)) return original;
+    final id = (item['id'] as String? ?? '').trim();
+    if (id.isNotEmpty && _showOriginalIds.contains(id)) return original;
+    return _translationCache[_translationKey(item)] ?? original;
+  }
+
+  Future<void> _ensureTranslations() async {
+    for (final item in List<Map<String, dynamic>>.from(_messages)) {
+      if (!_needsTranslation(item)) continue;
+      final key = _translationKey(item);
+      if (_translationCache.containsKey(key) || _translateInFlight.contains(key)) continue;
+      _translateInFlight.add(key);
+      try {
+        final res = await widget.chat.translateMessage(
+          session: widget.session,
+          text: item['body'] as String? ?? '',
+          targetLang: LocaleController.instance.lang,
+          sourceLang: _messageSourceLang(item),
+          messageId: item['id'] as String?,
+        );
+        if (res['ok'] == true && res['skipped'] != true) {
+          final translation = (res['translation'] as String?)?.trim() ?? '';
+          if (translation.isNotEmpty && mounted) {
+            setState(() => _translationCache[key] = translation);
+          }
+        }
+      } catch (_) {
+        /* keep original */
+      } finally {
+        _translateInFlight.remove(key);
+      }
     }
   }
 
@@ -198,6 +270,7 @@ class _ChatScreenState extends State<ChatScreen> {
         threadId: threadId,
         body: body,
         replyToMessageId: replyId,
+        sourceLang: LocaleController.instance.lang,
       );
       _message.clear();
       final msg = Map<String, dynamic>.from(res['message'] as Map);
@@ -259,6 +332,7 @@ class _ChatScreenState extends State<ChatScreen> {
         session: widget.session,
         threadId: threadId,
         body: 'Sprachnachricht',
+        sourceLang: LocaleController.instance.lang,
       );
       final msg = Map<String, dynamic>.from(res['message'] as Map);
       messageId = (msg['id'] ?? '').toString().trim();
@@ -471,6 +545,7 @@ class _ChatScreenState extends State<ChatScreen> {
         session: widget.session,
         threadId: threadId,
         body: body,
+        sourceLang: LocaleController.instance.lang,
       );
       await _boot(silent: true);
     } catch (e) {
@@ -563,6 +638,7 @@ class _ChatScreenState extends State<ChatScreen> {
         session: widget.session,
         threadId: threadId,
         body: _message.text.trim().isEmpty ? 'Anhang gesendet' : _message.text.trim(),
+        sourceLang: LocaleController.instance.lang,
       );
       final msg = Map<String, dynamic>.from(res['message'] as Map? ?? const {});
       final mid = (msg['id'] ?? '').toString().trim();
@@ -1003,6 +1079,9 @@ class _ChatScreenState extends State<ChatScreen> {
     final id = (item['id'] as String?)?.trim() ?? '';
     final pinned = id.isNotEmpty && _messagePrefs.isPinned(id);
     final starred = id.isNotEmpty && _messagePrefs.isStarred(id);
+    final needsTx = _needsTranslation(item);
+    final hasTx = needsTx && _translationCache.containsKey(_translationKey(item));
+    final showingOriginal = id.isNotEmpty && _showOriginalIds.contains(id);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -1013,7 +1092,7 @@ class _ChatScreenState extends State<ChatScreen> {
             children: [
               ListTile(
                 leading: const Icon(Icons.reply),
-                title: const Text('Antworten'),
+                title: Text(t('chatReply', 'Antworten')),
                 onTap: () {
                   Navigator.pop(context);
                   _setReplyTo(item);
@@ -1022,7 +1101,7 @@ class _ChatScreenState extends State<ChatScreen> {
               if (id.isNotEmpty)
                 ListTile(
                   leading: Icon(pinned ? Icons.push_pin : Icons.push_pin_outlined),
-                  title: Text(pinned ? 'Loslösen' : 'Anheften'),
+                  title: Text(pinned ? t('chatUnpin', 'Loslösen') : t('chatPin', 'Anheften')),
                   onTap: () async {
                     Navigator.pop(context);
                     await _toggleMessagePin(item);
@@ -1034,28 +1113,46 @@ class _ChatScreenState extends State<ChatScreen> {
                     starred ? Icons.star : Icons.star_border,
                     color: starred ? const Color(0xFFF59E0B) : null,
                   ),
-                  title: Text(starred ? 'Stern entfernen' : 'Mit Stern markieren'),
+                  title: Text(starred ? t('chatUnstar', 'Stern entfernen') : t('chatStar', 'Mit Stern markieren')),
                   onTap: () async {
                     Navigator.pop(context);
                     await _toggleMessageStar(item);
                   },
                 ),
+              if (hasTx && !showingOriginal)
+                ListTile(
+                  leading: const Icon(Icons.translate),
+                  title: Text(t('chatShowOriginal', 'Original anzeigen')),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _showOriginalIds.add(id));
+                  },
+                ),
+              if (hasTx && showingOriginal)
+                ListTile(
+                  leading: const Icon(Icons.translate),
+                  title: Text(t('chatShowTranslation', 'Übersetzung anzeigen')),
+                  onTap: () {
+                    Navigator.pop(context);
+                    setState(() => _showOriginalIds.remove(id));
+                  },
+                ),
               ListTile(
                 leading: const Icon(Icons.copy),
-                title: const Text('Kopieren'),
+                title: Text(t('chatCopy', 'Kopieren')),
                 onTap: () async {
                   Navigator.pop(context);
-                  await Clipboard.setData(ClipboardData(text: _messagePreview(item)));
+                  await Clipboard.setData(ClipboardData(text: _displayBody(item)));
                   if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Kopiert')),
+                    SnackBar(content: Text(t('chatCopied', 'Kopiert'))),
                   );
                 },
               ),
               if (isWorker && id.isNotEmpty)
                 ListTile(
                   leading: Icon(Icons.delete_outline, color: Theme.of(context).colorScheme.error),
-                  title: Text('Löschen', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                  title: Text(t('chatDelete', 'Löschen'), style: TextStyle(color: Theme.of(context).colorScheme.error)),
                   onTap: () async {
                     Navigator.pop(context);
                     try {
@@ -1064,7 +1161,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     } catch (e) {
                       if (!mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Löschen fehlgeschlagen: $e')),
+                        SnackBar(content: Text('${t('chatDeleteFailed', 'Löschen fehlgeschlagen')}: $e')),
                       );
                     }
                   },
@@ -1315,9 +1412,26 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 ),
                                               )
                                             else if (showBody && (item['body'] as String? ?? '').trim().isNotEmpty)
-                                              Text(
-                                                item['body'] as String? ?? '',
-                                                style: Theme.of(context).textTheme.bodyMedium,
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    _displayBody(item),
+                                                    style: Theme.of(context).textTheme.bodyMedium,
+                                                  ),
+                                                  if (_needsTranslation(item) &&
+                                                      _translationCache.containsKey(_translationKey(item)) &&
+                                                      !(messageId.isNotEmpty && _showOriginalIds.contains(messageId)))
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(top: 2),
+                                                      child: Text(
+                                                        '⇄ ${t('chatTranslated', 'Übersetzt')}',
+                                                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                                                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             if (audioAttachments.isNotEmpty) ...[
                                               if (showBody) const SizedBox(height: 6),

@@ -326,10 +326,13 @@ def test_worker_chat_send_persists_message(client_and_db):
             sender_user_id=None,
             sender_worker_id=worker_id,
             body="Antwort vom Mitarbeiter",
+            source_lang="ar",
         )
         assert message["id"]
+        assert message.get("sourceLang") == "ar"
         rows = service.list_messages(thread_id, company_id)
-        assert any(row.get("body") == "Antwort vom Mitarbeiter" for row in rows)
+        hit = next(row for row in rows if row.get("body") == "Antwort vom Mitarbeiter")
+        assert hit.get("sourceLang") == "ar"
 
 
 def test_chat_broadcast_creates_messages(client_and_db):

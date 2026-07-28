@@ -134,6 +134,7 @@ class ChatService:
                 ("read_at", "ALTER TABLE chat_messages ADD COLUMN read_at TEXT"),
                 ("body", "ALTER TABLE chat_messages ADD COLUMN body TEXT NOT NULL DEFAULT ''"),
                 ("reply_to_message_id", "ALTER TABLE chat_messages ADD COLUMN reply_to_message_id TEXT"),
+                ("source_lang", "ALTER TABLE chat_messages ADD COLUMN source_lang TEXT"),
             ):
                 if column not in message_cols:
                     try:
@@ -449,6 +450,18 @@ class ChatService:
             return True
         return False
 
+    def _normalize_source_lang(self, value: Any) -> str | None:
+        from backend.app.platform.ai.langs import try_normalize_ui_lang
+
+        return try_normalize_ui_lang(str(value or "").strip() or None)
+
+    def _row_source_lang(self, row: Any) -> str | None:
+        try:
+            raw = row["source_lang"]
+        except (KeyError, IndexError, TypeError):
+            return None
+        return self._normalize_source_lang(raw)
+
     def _message_preview_text(
         self,
         body: Any,
@@ -676,6 +689,7 @@ class ChatService:
                     "createdAt": row["created_at"],
                     "readAt": row["read_at"],
                     "replyToMessageId": str(row["reply_to_message_id"] or "") or None,
+                    "sourceLang": self._row_source_lang(row),
                     "attachments": [],
                 },
             )
@@ -906,6 +920,7 @@ class ChatService:
         body: str,
         allow_plaintext_e2e_fallback: bool = False,
         reply_to_message_id: str | None = None,
+        source_lang: str | None = None,
     ) -> dict[str, Any]:
         if not body.strip():
             raise ValueError("message_required")
@@ -920,6 +935,7 @@ class ChatService:
                 body=body,
                 allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
                 reply_to_message_id=reply_to_message_id,
+                source_lang=source_lang,
             )
         except ValueError:
             raise
@@ -935,6 +951,7 @@ class ChatService:
                 body=body,
                 allow_plaintext_e2e_fallback=allow_plaintext_e2e_fallback,
                 reply_to_message_id=reply_to_message_id,
+                source_lang=source_lang,
             )
 
     def _create_message_record(
@@ -950,11 +967,13 @@ class ChatService:
         silent_side_effects: bool = False,
         allow_plaintext_e2e_fallback: bool = False,
         reply_to_message_id: str | None = None,
+        source_lang: str | None = None,
     ) -> dict[str, Any]:
         message_id = f"msg-{uuid.uuid4().hex[:16]}"
         now = utc_now_iso()
         plain_body = body.strip()
         clean_reply_id = str(reply_to_message_id or "").strip() or None
+        clean_source_lang = self._normalize_source_lang(source_lang)
         if clean_reply_id:
             reply_row = self.db.execute(
                 "SELECT id FROM chat_messages WHERE id = ? AND thread_id = ? AND company_id = ?",
@@ -969,10 +988,22 @@ class ChatService:
         self.db.execute(
             """
             INSERT INTO chat_messages
-            (id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body, created_at, reply_to_message_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, body, created_at, reply_to_message_id, source_lang)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (message_id, thread_id, company_id, worker_id, sender_type, sender_user_id, sender_worker_id, stored_body, now, clean_reply_id),
+            (
+                message_id,
+                thread_id,
+                company_id,
+                worker_id,
+                sender_type,
+                sender_user_id,
+                sender_worker_id,
+                stored_body,
+                now,
+                clean_reply_id,
+                clean_source_lang,
+            ),
         )
         self.db.execute(
             """
@@ -1046,6 +1077,7 @@ class ChatService:
             "body": plain_body,
             "createdAt": now,
             "replyToMessageId": clean_reply_id,
+            "sourceLang": clean_source_lang,
             "attachments": [],
         }
 
