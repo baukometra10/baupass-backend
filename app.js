@@ -26942,7 +26942,7 @@ async function openCompanyLegalModal(companyId, company) {
 
   const modal = document.createElement("div");
   modal.id = "companyLegalModal";
-  modal.className = "admin-modal";
+  modal.className = "admin-modal-overlay";
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
   modal.innerHTML = `
