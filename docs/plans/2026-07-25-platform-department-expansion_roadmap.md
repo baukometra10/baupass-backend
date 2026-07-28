@@ -82,4 +82,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. CallKit „Zurückrufen“ → Chat + optional Auto-Callback-Request ✅
 3. Cold-start Pending Keys für Missed/Callback ✅
 
-Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs · Zeiten entscheidet jede Firma selbst.
+## Follow-up — Autopilot Soft-Hints (HR) — erledigt
+
+1. Täglicher Hinweis bei offenen Urlaubsanträgen (`autopilot.leave_queue`) — **kein Auto-Approve** ✅
+2. Täglicher Hinweis bei Docs `in_review` (`autopilot.docs_review`) — **kein Auto-Approve** ✅
+3. Admin-Toggles + Inbox-Deep-Links ✅
+
+Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs/Urlaub · Zeiten entscheidet jede Firma selbst.

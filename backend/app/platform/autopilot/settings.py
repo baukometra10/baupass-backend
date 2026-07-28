@@ -19,6 +19,9 @@ DEFAULTS: dict[str, Any] = {
     "autoInboxAckLowSecurity": False,
     "autoPrepareNextMonthDeployment": True,
     "autoSendDeploymentPlans": False,
+    # Soft admin suggestions only — never auto-approve leave/docs, never auto-dial.
+    "autoSuggestPendingLeave": True,
+    "autoSuggestDocsReview": True,
 }
 
 

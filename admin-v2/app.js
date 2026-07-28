@@ -1726,6 +1726,8 @@ const AUTOPILOT_KEYS = [
   "autoEnsureScheduledReport",
   "autoInboxBulkDocPush",
   "autoInboxAckLowSecurity",
+  "autoSuggestPendingLeave",
+  "autoSuggestDocsReview",
 ];
 
 const AUTOPILOT_LABEL_KEYS = {
@@ -1737,6 +1739,8 @@ const AUTOPILOT_LABEL_KEYS = {
   autoInboxBulkDocPush: "autopilot.inboxDoc",
   autoInboxAckLowSecurity: "autopilot.inboxSec",
   autoPrepareNextMonthDeployment: "autopilot.prepareNext",
+  autoSuggestPendingLeave: "autopilot.suggestLeave",
+  autoSuggestDocsReview: "autopilot.suggestDocsReview",
 };
 
 let deploymentModalWorkerId = null;

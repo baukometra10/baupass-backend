@@ -301,14 +301,27 @@ def build_operations_inbox(
     # System alerts — only when they belong to the selected company (or global view without company)
     try:
         cond = "" if include_resolved else "AND resolved_at IS NULL"
+        params: list[Any] = []
+        company_sql = ""
+        if cid:
+            # Prefer tenant rows so busy shared DBs don't bury company alerts under LIMIT.
+            company_sql = """
+              AND (
+                details LIKE ?
+                OR details LIKE ?
+                OR details LIKE ?
+              )
+            """
+            params.extend([f'%"{cid}"%', f"%company_id={cid}%", f"%companyId={cid}%"])
         rows = db.execute(
             f"""
             SELECT id, code, severity, message, details, created_at, resolved_at
             FROM system_alerts
-            WHERE 1=1 {cond}
+            WHERE 1=1 {cond} {company_sql}
             ORDER BY created_at DESC
-            LIMIT 60
-            """
+            LIMIT 80
+            """,
+            tuple(params),
         ).fetchall()
         for r in rows:
             details = (r["details"] or "") if r else ""
@@ -333,6 +346,8 @@ def build_operations_inbox(
                 "docs.review": "Dokument zur Prüfung",
                 "docs.review.stale": "Dokument-Prüfung überfällig",
                 "docs.published": "Dokument an Mitarbeiter",
+                "autopilot.leave_queue": "Urlaub offen (Hinweis)",
+                "autopilot.docs_review": "Docs in Prüfung (Hinweis)",
             }
             if code.startswith("sensitive_attempt"):
                 title_map[code] = "Sensibler Zugriff blockiert"
@@ -375,7 +390,7 @@ def build_operations_inbox(
                     f"Fenster={details_obj.get('shiftStart')}-{details_obj.get('shiftEnd')}. Empfehlung?"
                 )
             docs_nav = []
-            if code in {"docs.review", "docs.review.stale", "docs.published"}:
+            if code in {"docs.review", "docs.review.stale", "docs.published", "autopilot.docs_review"}:
                 doc_id = str(details_obj.get("documentId") or details_obj.get("editorDocumentId") or "").strip()
                 company_for_docs = str(details_obj.get("companyId") or cid or "").strip()
                 if doc_id:
@@ -389,9 +404,33 @@ def build_operations_inbox(
                             "label": "Dokument prüfen" if "review" in code else "Im Editor öffnen",
                         }
                     ]
+                elif code == "autopilot.docs_review" and company_for_docs:
+                    docs_nav = [
+                        {
+                            "type": "navigate",
+                            "url": f"/admin-v2/docs.html?company_id={company_for_docs}&status=in_review",
+                            "label": "Docs in Prüfung",
+                        },
+                        {
+                            "type": "navigate",
+                            "url": f"/admin-v2/index.html?company_id={company_for_docs}&tab=inbox&source=document",
+                            "label": "Dokument-Inbox",
+                        },
+                    ]
+            leave_nav = []
+            if code == "autopilot.leave_queue":
+                company_for_leave = str(details_obj.get("companyId") or cid or "").strip()
+                leave_nav = [
+                    {
+                        "type": "navigate",
+                        "url": f"/admin-v2/index.html?company_id={company_for_leave}&tab=inbox&source=leave",
+                        "label": "Urlaub-Inbox",
+                    }
+                ]
             actions = [
                 {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
                 *docs_nav,
+                *leave_nav,
                 *(
                     [
                         {

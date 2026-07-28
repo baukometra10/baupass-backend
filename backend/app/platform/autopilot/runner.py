@@ -241,6 +241,129 @@ def _ensure_scheduled_report_job(db, company_id: str, local_hour: int, timezone:
         return False
 
 
+def _suggest_pending_leave(db, company_id: str) -> dict[str, Any]:
+    """Info alert when leave requests wait — never auto-approve."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.leave_suggest", day_key, hours=20):
+        return {"skipped": True, "reason": "already_suggested_today"}
+    try:
+        row = db.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM leave_requests lr
+            JOIN workers w ON w.id = lr.worker_id
+            WHERE (w.company_id = ? OR lr.company_id = ?)
+              AND lr.status IN ('pending', 'ausstehend')
+              AND COALESCE(w.deleted_at, '') = ''
+            """,
+            (cid, cid),
+        ).fetchone()
+        count = int((row["c"] if row else 0) or 0)
+    except Exception:
+        return {"ok": False, "error": "query_failed"}
+    if count <= 0:
+        return {"skipped": True, "reason": "none_pending"}
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            "autopilot.leave_queue",
+            "info",
+            f"{count} Urlaubsantrag/Anträge warten auf Prüfung — kein Auto-Approve.",
+            details=json.dumps(
+                {
+                    "companyId": cid,
+                    "pendingLeave": count,
+                    "autoApprove": False,
+                    "hint": "Inbox Urlaub öffnen und genehmigen/ablehnen.",
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=18 * 60,
+        )
+        _log_autopilot(
+            db,
+            cid,
+            "autopilot.leave_suggest",
+            day_key,
+            f"Hinweis: {count} offene Urlaubsanträge",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(cid, source="autopilot_leave_suggest")
+        except Exception:
+            pass
+        return {"ok": True, "pendingLeave": count}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+def _suggest_docs_review(db, company_id: str) -> dict[str, Any]:
+    """Info alert when editor docs wait in_review — never auto-approve."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.docs_review_suggest", day_key, hours=20):
+        return {"skipped": True, "reason": "already_suggested_today"}
+    try:
+        try:
+            from backend.app.domains.docs.repository import EditorDocsRepository
+
+            EditorDocsRepository().ensure_schema(db)
+        except Exception:
+            pass
+        row = db.execute(
+            """
+            SELECT COUNT(*) AS c
+            FROM editor_documents
+            WHERE company_id = ? AND status = 'in_review'
+            """,
+            (cid,),
+        ).fetchone()
+        count = int((row["c"] if row else 0) or 0)
+    except Exception:
+        return {"ok": False, "error": "query_failed"}
+    if count <= 0:
+        return {"skipped": True, "reason": "none_in_review"}
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            "autopilot.docs_review",
+            "info",
+            f"{count} Dokument(e) in Prüfung — bitte freigeben (kein Auto-Approve).",
+            details=json.dumps(
+                {
+                    "companyId": cid,
+                    "inReviewDocuments": count,
+                    "autoApprove": False,
+                    "href": f"/admin-v2/docs.html?company_id={cid}&status=in_review",
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=18 * 60,
+        )
+        _log_autopilot(
+            db,
+            cid,
+            "autopilot.docs_review_suggest",
+            day_key,
+            f"Hinweis: {count} Docs in Prüfung",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(cid, source="autopilot_docs_review_suggest")
+        except Exception:
+            pass
+        return {"ok": True, "inReviewDocuments": count}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
     settings = get_settings(db, company_id)
     summary: dict[str, Any] = {"companyId": str(company_id), "ok": True}
@@ -277,6 +400,12 @@ def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
 
     if settings.get("autoPrepareNextMonthDeployment", True) and not settings.get("autoSendDeploymentPlans", False):
         summary["nextMonthPrepared"] = _maybe_prepare_next_month_deployment(db, company_id)
+
+    if settings.get("autoSuggestPendingLeave", True):
+        summary["leaveSuggest"] = _suggest_pending_leave(db, company_id)
+
+    if settings.get("autoSuggestDocsReview", True):
+        summary["docsReviewSuggest"] = _suggest_docs_review(db, company_id)
 
     return summary
 
