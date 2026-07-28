@@ -1730,6 +1730,8 @@ const AUTOPILOT_KEYS = [
   "autoSuggestDocsReview",
   "autoSuggestMissingExpected",
   "autoSuggestOpenSecurity",
+  "autoDailyOpsDigest",
+  "autoWorkerMorningPush",
 ];
 
 const AUTOPILOT_LABEL_KEYS = {
@@ -1745,6 +1747,8 @@ const AUTOPILOT_LABEL_KEYS = {
   autoSuggestDocsReview: "autopilot.suggestDocsReview",
   autoSuggestMissingExpected: "autopilot.suggestMissing",
   autoSuggestOpenSecurity: "autopilot.suggestSecurityOpen",
+  autoDailyOpsDigest: "autopilot.dailyDigest",
+  autoWorkerMorningPush: "autopilot.workerMorningPush",
 };
 
 let deploymentModalWorkerId = null;
@@ -6075,6 +6079,14 @@ async function loadOverview() {
         <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
         <button type="button" class="ghost" data-goto-tab="access">${t("lage.openAccess")}</button>
         <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.inbox")}</button>
+      </div>
+      <div class="lage-map-embed">
+        <iframe
+          title="${escapeAttr(t("lage.openMap"))}"
+          loading="lazy"
+          referrerpolicy="same-origin"
+          src="/ops-live-map.html${q ? `${q}&embed=1` : `?embed=1`}"
+        ></iframe>
       </div>
     `;
     lage.querySelectorAll("[data-goto-tab]").forEach((btn) => {

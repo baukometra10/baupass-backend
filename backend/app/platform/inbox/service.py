@@ -350,6 +350,7 @@ def build_operations_inbox(
                 "autopilot.docs_review": "Docs in Prüfung (Hinweis)",
                 "autopilot.missing_expected": "Fehlende MA (Hinweis)",
                 "autopilot.security_open": "Security offen (Hinweis)",
+                "autopilot.ops_digest": "Tages-Digest (Hinweis)",
             }
             if code.startswith("sensitive_attempt"):
                 title_map[code] = "Sensibler Zugriff blockiert"

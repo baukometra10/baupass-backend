@@ -24,6 +24,10 @@ DEFAULTS: dict[str, Any] = {
     "autoSuggestDocsReview": True,
     "autoSuggestMissingExpected": True,
     "autoSuggestOpenSecurity": True,
+    # One daily Slack/Teams digest instead of only scattered soft alerts.
+    "autoDailyOpsDigest": True,
+    # Soft morning push to workers with actionable items (check-in / chat / docs).
+    "autoWorkerMorningPush": True,
 }
 
 

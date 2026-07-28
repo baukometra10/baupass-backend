@@ -337,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (_morningBrief != null) ...[
                 Card(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -351,6 +351,27 @@ class _HomeScreenState extends State<HomeScreen> {
                         Text(
                           _morningBriefSubtitle(_morningBrief!),
                           style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton(
+                              onPressed: widget.onOpenAttendance,
+                              child: Text(t('morningGoCheckin')),
+                            ),
+                            if (widget.onOpenChat != null)
+                              OutlinedButton(
+                                onPressed: widget.onOpenChat,
+                                child: Text(t('morningGoChat')),
+                              ),
+                            if (widget.onOpenTasks != null)
+                              OutlinedButton(
+                                onPressed: widget.onOpenTasks,
+                                child: Text(t('morningGoDocs')),
+                              ),
+                          ],
                         ),
                       ],
                     ),

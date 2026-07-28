@@ -101,4 +101,11 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 3. Smoke: Brief→Inbox→Live-Map→Copilot (pytest + platform-smoke) ✅
 4. Docs-i18n 8 Sprachen regeneriert; Mobile Call QA-Checkliste ✅
 
+## Follow-up — Digests + Embed + UI-E2E — erledigt
+
+1. Morgenbrief-Taps (Check-in/Chat/Docs) + optional Morning-Push ✅
+2. Live-Map Embed im Lagebild + Single-Click Pins ✅
+3. Playwright `admin-lage-inbox` + Autopilot Slack/Teams Tages-Digest ✅
+4. Call-QA Checkliste erweitert; backups/ephemeral in `.gitignore` ✅
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs/Urlaub · Zeiten entscheidet jede Firma selbst.

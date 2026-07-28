@@ -14,6 +14,10 @@ backend/baupass.db
 backend/site.db
 backend/*.db-wal
 backend/*.db-shm
+backend/backups/
+
+# Flutter ephemeral (generated)
+mobile/**/ephemeral/
 
 # Wallet credentials and local environment files
 backend/wallet/*.p12

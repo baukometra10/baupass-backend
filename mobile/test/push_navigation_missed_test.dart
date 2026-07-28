@@ -42,4 +42,12 @@ void main() {
     });
     expect(route?.missedCallId, 'vc-4');
   });
+
+  test('morning-brief opens home tab', () {
+    final route = PushNavigation.routeFromData({
+      'tag': 'morning-brief',
+    });
+    expect(route?.tabIndex, 0);
+    expect(route?.openChat, isNot(true));
+  });
 }

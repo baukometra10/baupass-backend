@@ -478,6 +478,156 @@ def _suggest_open_security(db, company_id: str) -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:200]}
 
 
+def _send_daily_ops_digest(db, company_id: str) -> dict[str, Any]:
+    """One Slack/Teams digest from daily brief — no auto-approve / auto-dial."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.ops_digest", day_key, hours=20):
+        return {"skipped": True, "reason": "already_sent_today"}
+    try:
+        from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
+
+        brief = build_daily_ops_brief(db, cid) or {}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+    att = brief.get("attendance") or {}
+    sec = brief.get("security") or {}
+    chat = brief.get("chat") or {}
+    hr = brief.get("hr") or {}
+    lines = [
+        f"Anwesenheit: vor Ort {int(att.get('onSite') or 0)} · fehlt {int(att.get('missingExpected') or 0)} · spät {int(att.get('lateToday') or 0)}",
+        f"Security: offen {int(sec.get('totalOpen') or 0)} (Cam {int(sec.get('openCameraEscalations') or 0)}) — kein Auto-Polizei",
+        f"Chat/Anrufe: offen {int(chat.get('totalOpen') or 0)} — kein Auto-Dial",
+        f"HR: Urlaub {int(hr.get('pendingLeave') or 0)} · Docs ablaufend {int(hr.get('expiringDocuments') or 0)} · Prüfung {int(hr.get('inReviewDocuments') or 0)} — kein Auto-Approve",
+        f"Lage: /admin-v2/index.html?company_id={cid}",
+    ]
+    total_signal = (
+        int(att.get("missingExpected") or 0)
+        + int(att.get("lateToday") or 0)
+        + int(sec.get("totalOpen") or 0)
+        + int(chat.get("totalOpen") or 0)
+        + int(hr.get("totalOpen") or 0)
+    )
+    if total_signal <= 0:
+        return {"skipped": True, "reason": "quiet_day"}
+
+    text = "\n".join(lines)
+    sent = 0
+    try:
+        from backend.app.platform.inbox.slack_notify import _webhook_urls
+        from backend.app.platform.ai.notifications import send_webhook_notification
+
+        for url in _webhook_urls():
+            ok, _ = send_webhook_notification(url, text, title="SUPPIX Tages-Digest")
+            if ok:
+                sent += 1
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200], "sent": sent}
+
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            "autopilot.ops_digest",
+            "info",
+            "Tages-Digest an Slack/Teams gesendet (Sammelhinweis).",
+            details=json.dumps(
+                {
+                    "companyId": cid,
+                    "webhookSent": sent,
+                    "autoDial": False,
+                    "autoApprove": False,
+                    "href": f"/admin-v2/index.html?company_id={cid}",
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=18 * 60,
+        )
+    except Exception:
+        pass
+
+    _log_autopilot(db, cid, "autopilot.ops_digest", day_key, f"Digest webhooks={sent}")
+    try:
+        from backend.app.platform.inbox.events import notify_inbox_changed
+
+        notify_inbox_changed(cid, source="autopilot_ops_digest")
+    except Exception:
+        pass
+    return {"ok": True, "sent": sent, "signals": total_signal}
+
+
+def _push_worker_morning_briefs(db, company_id: str) -> dict[str, Any]:
+    """Optional morning push for workers with actionable home-brief items."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.worker_morning_push", day_key, hours=20):
+        return {"skipped": True, "reason": "already_pushed_today"}
+
+    pushed = 0
+    scanned = 0
+    try:
+        rows = db.execute(
+            """
+            SELECT id, first_name, last_name FROM workers
+            WHERE company_id = ? AND COALESCE(deleted_at, '') = '' AND status = 'aktiv'
+            LIMIT 400
+            """,
+            (cid,),
+        ).fetchall()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+    from backend.app.domains.workers.morning_brief import build_worker_morning_brief
+    from backend.app.platform.push.automation import push_to_worker
+
+    for row in rows or []:
+        wid = str(row["id"] or "")
+        if not wid:
+            continue
+        scanned += 1
+        brief = build_worker_morning_brief(db, worker_id=wid, company_id=cid)
+        actionable = (
+            not brief.get("checkedInToday")
+            or int(brief.get("unreadChat") or 0) > 0
+            or int(brief.get("expiringDocuments") or 0) > 0
+            or int(brief.get("pendingLeave") or 0) > 0
+        )
+        if not actionable:
+            continue
+        parts = []
+        if not brief.get("checkedInToday"):
+            parts.append("Check-in offen")
+        if int(brief.get("unreadChat") or 0) > 0:
+            parts.append(f"Chat {int(brief.get('unreadChat') or 0)}")
+        if int(brief.get("expiringDocuments") or 0) > 0:
+            parts.append(f"Docs {int(brief.get('expiringDocuments') or 0)}")
+        body = " · ".join(parts) if parts else "Morgenüberblick in der App"
+        try:
+            delivery = push_to_worker(
+                db,
+                wid,
+                "Morgenüberblick",
+                body,
+                tag="morning-brief",
+                company_id=cid,
+            )
+            if int((delivery or {}).get("pushSent") or 0) > 0:
+                pushed += 1
+        except Exception:
+            continue
+
+    _log_autopilot(
+        db,
+        cid,
+        "autopilot.worker_morning_push",
+        day_key,
+        f"Morning push scanned={scanned} sent={pushed}",
+    )
+    return {"ok": True, "scanned": scanned, "pushed": pushed}
+
+
 def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
     settings = get_settings(db, company_id)
     summary: dict[str, Any] = {"companyId": str(company_id), "ok": True}
@@ -526,6 +676,12 @@ def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
 
     if settings.get("autoSuggestOpenSecurity", True):
         summary["securityOpenSuggest"] = _suggest_open_security(db, company_id)
+
+    if settings.get("autoDailyOpsDigest", True):
+        summary["opsDigest"] = _send_daily_ops_digest(db, company_id)
+
+    if settings.get("autoWorkerMorningPush", True):
+        summary["workerMorningPush"] = _push_worker_morning_briefs(db, company_id)
 
     return summary
 

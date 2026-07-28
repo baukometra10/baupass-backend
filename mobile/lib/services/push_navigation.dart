@@ -48,6 +48,9 @@ class PushNavigation {
         return const WorkerAppRoute(tabIndex: 1);
       case 'ai-briefing':
         return const WorkerAppRoute(tabIndex: 0, openAi: true);
+      case 'morning-brief':
+      case 'worker-morning-brief':
+        return const WorkerAppRoute(tabIndex: 0);
       case 'foreman-alert':
       case 'ops-notify':
         return const WorkerAppRoute(tabIndex: 4);

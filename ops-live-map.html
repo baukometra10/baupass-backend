@@ -214,8 +214,15 @@
       }).addTo(map);
       if (popupHtml) marker.bindPopup(popupHtml);
       if (openHref) {
-        marker.on("dblclick", (ev) => {
-          try { L.DomEvent.stop(ev); } catch (_) {}
+        marker.on("click", (ev) => {
+          try { L.DomEvent.stopPropagation(ev); } catch (_) {}
+          const embed = new URLSearchParams(location.search).get("embed") === "1";
+          if (embed && window.top && window.top !== window) {
+            try {
+              window.top.open(openHref, "_blank", "noopener");
+              return;
+            } catch (_) { /* fall through */ }
+          }
           window.open(openHref, "_blank", "noopener");
         });
       }
@@ -267,7 +274,7 @@
           `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>` +
           (chatHref
             ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>` +
-              `<br><small>${escapeHtml(window.opsMapT("dblClickOpen"))}</small>`
+              `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>`
             : "");
         const m = addPinMarker(w.lat, w.lng, "worker", label, popup, chatHref || null);
         layers.workers.push(m);
@@ -287,7 +294,7 @@
           `<b>${escapeHtml(label)}</b><br>${escapeHtml(cam.zone || "")}` +
           `<br>${cam.alert ? escapeHtml(window.opsMapT("cameraAlert")) : escapeHtml(window.opsMapT("cameraOk"))}` +
           `<br><a class="btn-link" href="${escapeHtml(href)}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openCameraWatch"))}</strong></a>` +
-          `<br><small>${escapeHtml(window.opsMapT("dblClickOpen"))}</small>` +
+          `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>` +
           `<br><small>${escapeHtml(window.opsMapT("noAutodial"))}</small>`;
         const m = addPinMarker(cam.lat, cam.lng, kind, label, popup, href !== "#" ? href : null);
         layers.cameras.push(m);
