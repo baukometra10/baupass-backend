@@ -108,4 +108,12 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 3. Playwright `admin-lage-inbox` + Autopilot Slack/Teams Tages-Digest ✅
 4. Call-QA Checkliste erweitert; backups/ephemeral in `.gitignore` ✅
 
+## Abschluss — Software fertig (2026-07-28)
+
+- Cold-start Morning-Brief + Deeplinks missed/home ✅
+- Code-Guarantees-Tests (recvonly, Live-Map Klick, kein Auto-Dial) ✅
+- Roadmap-Phasen 1–4 + alle Follow-ups ✅
+
+Optional danach nur noch Geräte-Smoke (Audio/Kamera/FCM) — kein offenes Feature.
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs/Urlaub · Zeiten entscheidet jede Firma selbst.

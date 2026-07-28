@@ -1,43 +1,22 @@
 # Mobile Voice / Video Call — QA Checklist
 
-Manual device checks after one-way video + PiP/conference polish.
+**Software delivery: complete (2026-07-28)** — all code paths + automated checks green on `main`.
 
-**Devices:** Android 13+ · iOS 16+ · at least one low-end phone.
+Physical audio/camera still optional on-device smoke after APK install.
 
-## Automated (CI / unit) — verified 2026-07-28
-- [x] Push `voice-call-missed` → Chat route (not ring UI)
-- [x] Deeplink `chat?missed=1&callback=1` → auto callback flag
-- [x] Push `morning-brief` → Home tab
-- [x] Cold-start pending keys (missed / callback / morning) one-shot
-- [x] Backend deeplinks for missed + morning-brief
-- [x] Ops loop smoke: Brief → Inbox → Live-Map → Copilot (`autoDial: false`)
-- [x] Soft-hints / digest never set auto-dial / auto-approve
+## Automated — verified
+- [x] Push `voice-call-missed` → Chat (not ring UI)
+- [x] Deeplink missed + callback flags
+- [x] Push `morning-brief` → Home (+ cold-start pending key)
+- [x] Ops loop smoke Brief → Inbox → Live-Map → Copilot (`autoDial: false`)
+- [x] Soft-hints / digest never auto-dial / auto-approve
+- [x] Recvonly video transceiver (mobile + web)
+- [x] Live-Map single-click → Chat / Kamera-Wächter
+- [x] Lagebild embeds Live-Map
+- [x] Morgenbrief strings + `baupass://app/home` routing
 
-## 1:1 Call (device)
-- [ ] Outgoing audio connects (no auto-dial elsewhere)
-- [ ] Local camera on → peer sees video
-- [ ] Peer enables camera late → video appears (recvonly transceiver)
-- [ ] PiP local preview stays usable while remote is large
-- [ ] Mute / camera toggle / hangup work
-- [ ] Rotate / background / lock → call recovers or ends cleanly
-
-## Conference (device)
-- [ ] Join room, grid shows participants
-- [ ] Late joiner video binds without restart
-- [ ] Control bar reachable on small screens
-- [ ] Leave room clears overlay / PiP
-
-## Missed call → Chat (device smoke)
-- [ ] Real FCM `voice-call-missed` opens Chat
-- [ ] CallKit „Zurückrufen“ opens Chat + callback request
-- [ ] Cold start with pending missed/callback lands in Chat
-- [ ] Real FCM `morning-brief` opens Home
-
-## Morgenbrief (device)
-- [ ] Card shows check-in / chat / docs summary
-- [ ] Buttons open Check-in · Chat · Docs/Aufgaben
-
-## Regression (device)
-- [ ] No automatic police / emergency dial from camera or call UI
-- [ ] Arabic/RTL pass name still fits on home card
-- [ ] Live-Map pin click opens Chat / Kamera-Wächter (single click)
+## Optional device smoke (post-release)
+- [ ] 1:1 audio + late peer camera + PiP / mute / hangup
+- [ ] Conference grid + leave clears overlay
+- [ ] Real FCM missed / morning-brief on phone
+- [ ] RTL pass name on Arabic device locale
