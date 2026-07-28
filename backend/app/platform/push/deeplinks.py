@@ -18,6 +18,9 @@ _TAG_ROUTES: dict[str, str] = {
     "notification": "baupass://app/profile",
     "worker-chat": "baupass://app/chat",
     "voice-call": "baupass://app/voice-call",
+    "voice-call-missed": "baupass://app/chat?missed=1",
+    "morning-brief": "baupass://app/home",
+    "worker-morning-brief": "baupass://app/home",
     "conference-invite": "baupass://app/conference",
     "contract-sign": "baupass://app/contract-sign",
 }
@@ -32,6 +35,9 @@ _PWA_TAG_PATHS: dict[str, str] = {
     "worker-document": "/emp-app.html#documents",
     "worker-chat": "/emp-app.html#chat",
     "voice-call": "/emp-app.html#chat",
+    "voice-call-missed": "/emp-app.html#chat",
+    "morning-brief": "/emp-app.html",
+    "worker-morning-brief": "/emp-app.html",
     "conference-invite": "/emp-app.html#chat",
     "contract-sign": "/emp-app.html#documents",
     "notification": "/emp-app.html",
@@ -48,6 +54,10 @@ def push_data_payload(*, tag: str, worker_id: str, extra: dict | None = None) ->
         call_id = str(extra.get("callId") or extra.get("call_id") or "").strip()
         if call_id:
             route = f"baupass://app/voice-call?callId={call_id}"
+    if tag == "voice-call-missed" and extra:
+        call_id = str(extra.get("callId") or extra.get("call_id") or "").strip()
+        if call_id:
+            route = f"baupass://app/chat?missed=1&callId={call_id}"
     if tag == "conference-invite" and extra:
         room_id = str(extra.get("roomId") or extra.get("room_id") or "").strip()
         if room_id:

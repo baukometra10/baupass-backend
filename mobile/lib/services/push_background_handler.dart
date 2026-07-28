@@ -13,6 +13,7 @@ const String kPendingMissedVoiceCallIdKey = 'suppix_pending_missed_voice_call_id
 const String kPendingMissedCallbackCallIdKey = 'suppix_pending_missed_callback_call_id';
 const String kPendingConferenceRoomIdKey = 'suppix_pending_conference_room_id';
 const String kPendingCallKitActionKey = 'suppix_pending_callkit_action';
+const String kPendingMorningBriefKey = 'suppix_pending_morning_brief';
 
 /// Top-level FCM handler — runs even when the APK is killed/backgrounded.
 @pragma('vm:entry-point')
@@ -41,6 +42,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       );
     } else if ((tag == 'voice-call-missed' || type == 'voice_call_missed') && callId.isNotEmpty) {
       await prefs.setString(kPendingMissedVoiceCallIdKey, callId);
+    } else if (tag == 'morning-brief' || tag == 'worker-morning-brief') {
+      await prefs.setBool(kPendingMorningBriefKey, true);
     } else if (tag == 'voice-call-camera' && callId.isNotEmpty) {
       await prefs.setString(kPendingVoiceCallIdKey, callId);
       await prefs.setString(
@@ -143,6 +146,14 @@ Future<String?> takePendingConferenceRoomId() async {
   if (id.isEmpty) return null;
   await prefs.remove(kPendingConferenceRoomIdKey);
   return id;
+}
+
+Future<bool> takePendingMorningBrief() async {
+  final prefs = await SharedPreferences.getInstance();
+  final flag = prefs.getBool(kPendingMorningBriefKey) == true;
+  if (!flag) return false;
+  await prefs.remove(kPendingMorningBriefKey);
+  return true;
 }
 
 Future<void> persistPendingCallKitAction(String action, String callId) async {

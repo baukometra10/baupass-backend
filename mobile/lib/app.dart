@@ -344,6 +344,9 @@ class _WorkerAppState extends State<WorkerApp> {
     if (roomId != null && roomId.isNotEmpty) {
       _queueOrWakeConference(roomId);
     }
+    if (await takePendingMorningBrief()) {
+      _queueOrApplyRoute(const WorkerAppRoute(tabIndex: 0));
+    }
   }
 
   @override
