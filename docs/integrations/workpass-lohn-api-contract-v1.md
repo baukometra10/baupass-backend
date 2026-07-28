@@ -1,6 +1,6 @@
 # WorkPass Lohn ↔ SUPPIX Platform — API Contract (v1)
 
-**Base URL (production):** `https://<YOUR-PLATFORM-HOST>`  
+**Base URL (production):** `https://suppix-ai-workpass.com`  
 **Product:** WorkPass Lohn (standalone) ↔ WorkPass / SUPPIX platform  
 **Auth model:** per-company API key + mandatory company header (tenant lock)
 
@@ -27,7 +27,7 @@ Content-Type: application/json
   "masterApiKey": "<shared-master-key>",
   "companyUpsertPath": "/v1/company/upsert",
   "hoursWebhookPath": "/hooks/suppix-hours",
-  "platformPublicUrl": "https://<YOUR-PLATFORM-HOST>",
+  "platformPublicUrl": "https://suppix-ai-workpass.com",
   "runDay": 1
 }
 ```
@@ -38,7 +38,7 @@ Env alternative:
 SUPPIX_WORKPASS_LOHN_ENABLED=1
 SUPPIX_WORKPASS_LOHN_BASE_URL=https://<WORKPASS-LOHN-HOST>
 SUPPIX_WORKPASS_LOHN_MASTER_KEY=<shared-master-key>
-SUPPIX_PUBLIC_BASE_URL=https://<YOUR-PLATFORM-HOST>
+SUPPIX_PUBLIC_BASE_URL=https://suppix-ai-workpass.com
 ```
 
 What happens on `POST /api/companies` (create company):
