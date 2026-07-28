@@ -16560,7 +16560,7 @@ function applySupportReadOnlyUiState() {
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
     "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-handover-sign], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
-    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete]",
+    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete], [data-company-legal], [data-company-lohn-toggle]",
     "[data-company-mail-provider], [data-company-mail-sender-email], [data-company-mail-sender-name], [data-company-mail-imap-host], [data-company-mail-imap-port], [data-company-mail-imap-username], [data-company-mail-imap-password], [data-company-mail-imap-tls], [data-company-mail-smtp-host], [data-company-mail-smtp-port], [data-company-mail-smtp-username], [data-company-mail-smtp-password], [data-company-mail-smtp-tls], [data-company-mail-brevo-key], [data-company-mail-save], [data-company-mail-test-inbound], [data-company-mail-test-outbound]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
@@ -25189,7 +25189,7 @@ function renderCompanyList() {
         : companyMailStatus?.kind === "success"
           ? "helper-text helper-text-ok"
           : "helper-text helper-text-info";
-      const canManageCompanySettings = canRepair && !deleted;
+      const canManageCompanySettings = (canDeleteAny || canRepair) && !deleted && !isSupportReadOnlyMode();
       const workpassLohnEnabled = isCompanyWorkpassLohnEnabled(company);
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
       const docEmailSelftestStatusMarkup = docEmailSelftestStatus
