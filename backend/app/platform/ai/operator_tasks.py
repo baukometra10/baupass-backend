@@ -1378,6 +1378,7 @@ def _task_daily_briefing(db, company_id: str, *, lang: str) -> dict[str, Any]:
     hr_n = int(hr.get("totalOpen") or 0)
     leave_n = int(hr.get("pendingLeave") or 0)
     docs_n = int(hr.get("expiringDocuments") or 0)
+    review_n = int(hr.get("inReviewDocuments") or 0)
     issues = insights.get("topIssues") or insights.get("issues") or insights.get("priorities") or []
     if isinstance(issues, dict):
         issues = list(issues.values())
@@ -1391,11 +1392,13 @@ def _task_daily_briefing(db, company_id: str, *, lang: str) -> dict[str, Any]:
 
     brief_extra_de = (
         f"• Fehlt/spät: **{missing_n}** / **{late_n}**\n"
-        f"• Chat/Anrufe: **{chat_n}** · HR: **{hr_n}** (Urlaub {leave_n}, Docs {docs_n})\n"
+        f"• Chat/Anrufe: **{chat_n}** · HR: **{hr_n}** "
+        f"(Urlaub {leave_n}, Docs {docs_n}, Prüfung {review_n})\n"
     )
     brief_extra_en = (
         f"• Missing/late: **{missing_n}** / **{late_n}**\n"
-        f"• Chat/calls: **{chat_n}** · HR: **{hr_n}** (leave {leave_n}, docs {docs_n})\n"
+        f"• Chat/calls: **{chat_n}** · HR: **{hr_n}** "
+        f"(leave {leave_n}, docs {docs_n}, review {review_n})\n"
     )
     tail_de = (("Schwerpunkte:\n" + "\n".join(issue_lines)) if issue_lines else "Keine kritischen Schwerpunkte gemeldet.")
     tail_en = (("Priorities:\n" + "\n".join(issue_lines)) if issue_lines else "No critical priorities reported.")

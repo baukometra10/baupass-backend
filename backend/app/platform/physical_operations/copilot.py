@@ -51,6 +51,7 @@ def _daily_brief_for_copilot(db, company_id: str) -> dict[str, Any]:
         "hr": {
             "pendingLeave": int(hr.get("pendingLeave") or 0),
             "expiringDocuments": int(hr.get("expiringDocuments") or 0),
+            "inReviewDocuments": int(hr.get("inReviewDocuments") or 0),
             "totalOpen": int(hr.get("totalOpen") or 0),
             "items": list(hr.get("items") or [])[:6],
         },
@@ -207,19 +208,22 @@ def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
     ):
         leave_n = int(hr.get("pendingLeave") or ctx.get("pendingLeave") or 0)
         docs_n = int(hr.get("expiringDocuments") or 0)
+        review_n = int(hr.get("inReviewDocuments") or 0)
         bits = []
         for it in (hr.get("items") or [])[:4]:
             who = str(it.get("workerName") or it.get("workerId") or "").strip()
             if it.get("kind") == "leave":
                 bits.append(f"Urlaub: {who or '—'}")
+            elif it.get("kind") == "docs_review":
+                bits.append(f"Prüfung: {it.get('docTitle') or 'Dokument'}")
             else:
                 bits.append(f"Doc: {who or '—'} ({it.get('docType') or 'Dokument'} bis {it.get('expiryDate') or '—'})")
         detail = (" · " + "; ".join(bits)) if bits else ""
         return {
             "answer": (
-                f"HR offen: {int(hr.get('totalOpen') or (leave_n + docs_n))} "
-                f"(Urlaub {leave_n}, Docs ablaufend {docs_n}).{detail} "
-                "Inbox Urlaub/Dokumente oder /admin-v2/docs.html."
+                f"HR offen: {int(hr.get('totalOpen') or (leave_n + docs_n + review_n))} "
+                f"(Urlaub {leave_n}, Docs ablaufend {docs_n}, in Prüfung {review_n}).{detail} "
+                "Kein Auto-Approve — Inbox Dokumente oder /admin-v2/docs.html?status=in_review."
             ),
             "source": "daily_brief.hr",
         }
@@ -278,8 +282,9 @@ def _deterministic_qa(ctx: dict, question: str) -> dict[str, Any]:
                 f"Chat/Anrufe {int(chat.get('totalOpen') or 0)} · "
                 f"HR {int(hr.get('totalOpen') or 0)} "
                 f"(Urlaub {int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}, "
-                f"Docs {int(hr.get('expiringDocuments') or 0)}). "
-                "Kein Auto-Dial. Details: Lagebild / Inbox."
+                f"Docs {int(hr.get('expiringDocuments') or 0)}, "
+                f"Prüfung {int(hr.get('inReviewDocuments') or 0)}). "
+                "Kein Auto-Dial / kein Auto-Approve. Details: Lagebild / Inbox."
             ),
             "source": "daily_brief",
         }

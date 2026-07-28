@@ -562,6 +562,65 @@ def build_operations_inbox(
         except Exception as exc:
             _inbox_soft_fail("document_expiry", exc)
 
+        # Editor documents waiting for review (live status, not only system alerts)
+        try:
+            try:
+                from backend.app.domains.docs.repository import EditorDocsRepository
+
+                EditorDocsRepository().ensure_schema(db)
+            except Exception:
+                pass
+            rows = db.execute(
+                """
+                SELECT id, title, mode, worker_id, updated_at, created_at
+                FROM editor_documents
+                WHERE company_id = ?
+                  AND status = 'in_review'
+                ORDER BY datetime(COALESCE(updated_at, created_at)) ASC
+                LIMIT 30
+                """,
+                (cid,),
+            ).fetchall()
+            for r in rows:
+                did = str(r["id"] or "").strip()
+                if not did:
+                    continue
+                title = str(r["title"] or "Dokument").strip() or "Dokument"
+                mode = str(r["mode"] or "general")
+                items.append(
+                    {
+                        "id": f"edoc:{did}",
+                        "source": "document",
+                        "severity": "medium",
+                        "code": "docs_in_review",
+                        "title": f"Prüfung · {title}",
+                        "message": (
+                            f"Editor-Dokument wartet auf Freigabe (Modus: {mode}). "
+                            "Im Docs-Editor prüfen — kein Auto-Approve."
+                        ),
+                        "companyId": cid,
+                        "workerId": str(r["worker_id"] or "").strip() or None,
+                        "createdAt": _coerce_iso_timestamp(r["updated_at"])
+                        or _coerce_iso_timestamp(r["created_at"])
+                        or _now_iso(),
+                        "status": "open",
+                        "actions": [
+                            {
+                                "type": "navigate",
+                                "url": f"/admin-v2/docs.html?company_id={cid}&id={did}&status=in_review",
+                                "label": "Dokument prüfen",
+                            },
+                            {
+                                "type": "navigate",
+                                "url": f"/admin-v2/docs.html?company_id={cid}&status=in_review",
+                                "label": "Alle in Prüfung",
+                            },
+                        ],
+                    }
+                )
+        except Exception as exc:
+            _inbox_soft_fail("editor_docs_review", exc)
+
         # Pending leave requests
         try:
             rows = db.execute(

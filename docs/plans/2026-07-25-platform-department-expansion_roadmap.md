@@ -70,4 +70,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Deterministische Antworten für Lage, Spät/fehlt, Chat/Anrufe, Urlaub/Docs ✅
 3. Quick-Actions Chat/Anrufe + Urlaub & Docs; Tagesbriefing nutzt Brief-KPIs ✅
 
-Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · Zeiten entscheidet jede Firma selbst.
+## Follow-up — Docs in_review im Ops-Loop — erledigt
+
+1. Daily Brief `hr.inReviewDocuments` aus `editor_documents` (Status `in_review`) ✅
+2. Inbox `edoc:{id}` (Quelle `document`) + Deep-Link `docs.html?status=in_review` ✅
+3. Lagebild/Copilot zeigen „In Prüfung“ — **kein Auto-Approve** ✅
+
+Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs · Zeiten entscheidet jede Firma selbst.

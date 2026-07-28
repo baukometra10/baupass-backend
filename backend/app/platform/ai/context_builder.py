@@ -319,7 +319,8 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
         if hr or ctx.get("pendingLeave"):
             lines.append(
                 f"- HR open: leave **{int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}**, "
-                f"expiring docs **{int(hr.get('expiringDocuments') or 0)}**"
+                f"expiring docs **{int(hr.get('expiringDocuments') or 0)}**, "
+                f"in review **{int(hr.get('inReviewDocuments') or 0)}**"
             )
         if em.get("active"):
             lines.append(f"- **Active emergency:** {em.get('summary', 'yes')}")
@@ -364,7 +365,8 @@ def deterministic_briefing(ctx: dict[str, Any], lang: str = "de") -> str:
     if hr or ctx.get("pendingLeave"):
         lines.append(
             f"- HR offen: Urlaub **{int(hr.get('pendingLeave') or ctx.get('pendingLeave') or 0)}** · "
-            f"Docs ablaufend **{int(hr.get('expiringDocuments') or 0)}**"
+            f"Docs ablaufend **{int(hr.get('expiringDocuments') or 0)}** · "
+            f"in Prüfung **{int(hr.get('inReviewDocuments') or 0)}**"
         )
     if em.get("active"):
         lines.append(f"- **Aktiver Notfall:** {em.get('summary', 'ja')}")

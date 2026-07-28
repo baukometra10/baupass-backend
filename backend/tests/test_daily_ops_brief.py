@@ -565,3 +565,64 @@ def test_daily_brief_hr_leave_and_docs(client_and_db):
     assert doc_inbox.status_code == 200
     doc_items = (doc_inbox.get_json() or {}).get("items") or []
     assert any(str(it.get("id") or "") == f"doc:{doc_id}" for it in doc_items)
+
+
+def test_daily_brief_docs_in_review(client_and_db):
+    """Editor documents with status in_review appear in HR brief and document inbox."""
+    client, db_path = client_and_db
+    headers = _superadmin_headers(client)
+    cid = _create_company(client, headers, "DocsReviewBriefCo")
+    edoc_id = f"edoc-rev-{cid[:8]}"
+    db = _open_db(db_path)
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS editor_documents (
+                id TEXT PRIMARY KEY,
+                company_id TEXT,
+                title TEXT NOT NULL DEFAULT 'Unbenannt',
+                mode TEXT NOT NULL DEFAULT 'general',
+                status TEXT NOT NULL DEFAULT 'draft',
+                content_json TEXT NOT NULL DEFAULT '',
+                content_html TEXT NOT NULL DEFAULT '',
+                content_text TEXT NOT NULL DEFAULT '',
+                worker_id TEXT,
+                contract_id TEXT,
+                created_by_user_id TEXT,
+                updated_by_user_id TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        db.execute(
+            """
+            INSERT INTO editor_documents
+            (id, company_id, title, mode, status, created_at, updated_at)
+            VALUES (?, ?, 'Sicherheitsunterweisung Q3', 'general', 'in_review', datetime('now'), datetime('now'))
+            """,
+            (edoc_id, cid),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    brief = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    assert brief.status_code == 200, brief.get_json()
+    hr = (brief.get_json() or {}).get("hr") or {}
+    assert int(hr.get("inReviewDocuments") or 0) >= 1
+    assert int(hr.get("totalOpen") or 0) >= 1
+    kinds = {str(it.get("kind") or "") for it in (hr.get("items") or [])}
+    assert "docs_review" in kinds
+    hrefs = [str(it.get("href") or "") for it in (hr.get("items") or []) if it.get("kind") == "docs_review"]
+    assert any("status=in_review" in h and edoc_id in h for h in hrefs)
+
+    inbox = client.get(f"/api/inbox?company_id={cid}&source=document", headers=headers)
+    assert inbox.status_code == 200
+    items = (inbox.get_json() or {}).get("items") or []
+    edocs = [it for it in items if str(it.get("id") or "") == f"edoc:{edoc_id}"]
+    assert edocs, f"expected edoc inbox item, got {[it.get('id') for it in items]}"
+    assert edocs[0].get("source") == "document"
+    assert any(
+        "docs.html" in str(a.get("url") or "") for a in (edocs[0].get("actions") or []) if a.get("type") == "navigate"
+    )

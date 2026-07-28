@@ -550,11 +550,12 @@ def build_chat_brief(db, company_id: str, *, lookback_days: int = 7) -> dict[str
 
 
 def build_hr_brief(db, company_id: str, *, expiry_days: int = 14) -> dict[str, Any]:
-    """Pending leave + documents expiring soon for Lagebild (same sources as inbox)."""
+    """Pending leave + expiring worker docs + editor docs in_review for Lagebild."""
     cid = str(company_id or "").strip()
     horizon_days = max(1, min(int(expiry_days or 14), 60))
     leave_items: list[dict[str, Any]] = []
     doc_items: list[dict[str, Any]] = []
+    review_items: list[dict[str, Any]] = []
 
     if cid:
         try:
@@ -639,12 +640,52 @@ def build_hr_brief(db, company_id: str, *, expiry_days: int = 14) -> dict[str, A
         except Exception:
             doc_items = []
 
-    items = (leave_items[:8] + doc_items[:8])[:16]
+        try:
+            try:
+                from backend.app.domains.docs.repository import EditorDocsRepository
+
+                EditorDocsRepository().ensure_schema(db)
+            except Exception:
+                pass
+            rows = db.execute(
+                """
+                SELECT id, title, mode, status, updated_at, worker_id, created_at
+                FROM editor_documents
+                WHERE company_id = ?
+                  AND status = 'in_review'
+                ORDER BY datetime(COALESCE(updated_at, created_at)) ASC
+                LIMIT 40
+                """,
+                (cid,),
+            ).fetchall()
+            for r in rows:
+                did = str(r["id"] or "").strip()
+                if not did:
+                    continue
+                title = str(r["title"] or "Dokument").strip() or "Dokument"
+                review_items.append(
+                    {
+                        "id": did,
+                        "kind": "docs_review",
+                        "title": "Dokument zur Prüfung",
+                        "docTitle": title,
+                        "mode": str(r["mode"] or "general"),
+                        "workerId": str(r["worker_id"] or "").strip(),
+                        "createdAt": str(r["updated_at"] or r["created_at"] or ""),
+                        "href": f"/admin-v2/docs.html?company_id={cid}&id={did}&status=in_review",
+                        "source": "document",
+                    }
+                )
+        except Exception:
+            review_items = []
+
+    items = (review_items[:8] + leave_items[:6] + doc_items[:6])[:16]
     return {
         "pendingLeave": len(leave_items),
         "expiringDocuments": len(doc_items),
+        "inReviewDocuments": len(review_items),
         "expiryDays": horizon_days,
-        "totalOpen": len(leave_items) + len(doc_items),
+        "totalOpen": len(leave_items) + len(doc_items) + len(review_items),
         "items": items,
         "updatedAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
     }

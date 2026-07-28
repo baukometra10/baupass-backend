@@ -26,8 +26,9 @@ def test_deterministic_qa_lage_includes_chat_and_hr():
             "hr": {
                 "pendingLeave": 2,
                 "expiringDocuments": 1,
-                "totalOpen": 3,
-                "items": [],
+                "inReviewDocuments": 1,
+                "totalOpen": 4,
+                "items": [{"kind": "docs_review", "docTitle": "SU Q3"}],
             },
         },
     }
@@ -35,7 +36,8 @@ def test_deterministic_qa_lage_includes_chat_and_hr():
     assert lage.get("source") == "daily_brief"
     answer = str(lage.get("answer") or "")
     assert "Chat/Anrufe 2" in answer
-    assert "HR 3" in answer
+    assert "HR 4" in answer
+    assert "Prüfung 1" in answer
     assert "fehlt 2" in answer
 
     chat = _deterministic_qa(ctx, "Welche Chat-/Anruf-Nachzüge sind offen (verpasst, Rückruf)?")
@@ -49,6 +51,8 @@ def test_deterministic_qa_lage_includes_chat_and_hr():
     assert hr.get("source") == "daily_brief.hr"
     assert "Urlaub 2" in str(hr.get("answer") or "")
     assert "Docs ablaufend 1" in str(hr.get("answer") or "")
+    assert "in Prüfung 1" in str(hr.get("answer") or "")
+    assert "SU Q3" in str(hr.get("answer") or "")
 
 
 def test_copilot_context_includes_daily_brief(client_and_db):

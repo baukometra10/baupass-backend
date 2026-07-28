@@ -5871,6 +5871,7 @@ async function loadOverview() {
     const hrOpen = Number(hrBrief.totalOpen || 0);
     const pendingLeave = Number(hrBrief.pendingLeave || 0);
     const expiringDocs = Number(hrBrief.expiringDocuments || 0);
+    const inReviewDocs = Number(hrBrief.inReviewDocuments || 0);
     const onSite = att.onSite ?? opsSnap?.workersOnSite ?? twin.workersOnSite ?? wf.onSite ?? 0;
     const checkIns = att.checkInsToday ?? opsSnap?.checkInsToday ?? opsSnap?.checkinsToday ?? 0;
     const lateToday = Number(att.lateToday || 0);
@@ -5946,6 +5947,13 @@ async function loadOverview() {
     const hrItems = (hrBrief.items || [])
       .slice(0, 5)
       .map((it) => {
+        if (it.kind === "docs_review") {
+          const title = escapeHtml(it.docTitle || it.title || "—");
+          const link = it.href
+            ? `<a href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${title}</a>`
+            : title;
+          return `<li><strong>${escapeHtml(t("lage.hrReview"))}</strong> · ${link}</li>`;
+        }
         const who = escapeHtml(it.workerName || it.workerId || "—");
         if (it.kind === "leave") {
           const range = [it.startDate, it.endDate].filter(Boolean).join("–") || "—";
@@ -6034,7 +6042,8 @@ async function loadOverview() {
         <strong>${t("lage.hrTitle")}</strong>
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.hrHint")}</p>
         <p class="muted small" style="margin:0.2rem 0 0">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong>
-          · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong></p>
+          · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong>
+          · ${t("lage.hrReview")}: <strong style="color:${inReviewDocs > 0 ? "#fbbf24" : "inherit"}">${inReviewDocs}</strong></p>
         ${
           hrItems
             ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${hrItems}</ul>`
@@ -6043,7 +6052,7 @@ async function loadOverview() {
         <p style="margin:0.45rem 0 0">
           <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="leave">${t("lage.openInboxLeave")}</button>
           · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="document">${t("lage.openInboxDocs")}</button>
-          · <a href="/admin-v2/docs.html${q}" target="_blank" rel="noopener">${t("lage.openDocs")}</a>
+          · <a href="/admin-v2/docs.html${q}${q ? "&" : "?"}status=in_review" target="_blank" rel="noopener">${t("lage.openDocsReview")}</a>
         </p>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
