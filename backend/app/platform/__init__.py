@@ -189,3 +189,10 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_workforce_blueprint"],
         ).register_workforce_blueprint(flask_app),
     )
+    _step(
+        "accounting",
+        lambda: __import__(
+            "backend.app.platform.accounting",
+            fromlist=["register_accounting_blueprint"],
+        ).register_accounting_blueprint(flask_app),
+    )

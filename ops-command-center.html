@@ -61,6 +61,10 @@
     .guardian-ops span.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
     .guardian-history { margin-top: 0.55rem; font-size: 0.68rem; color: var(--muted); max-height: 110px; overflow-y: auto; }
     .guardian-history-row { padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
+    .payroll-card { grid-column: 1 / -1; }
+    .payroll-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
+    .payroll-row:last-child { border-bottom: 0; }
+    .payroll-actions button { margin-left: 0.25rem; }
   </style>
 </head>
 <body class="ops-app">
@@ -138,6 +142,15 @@
         checkFailed: "Check fehlgeschlagen",
         repairFailed: "Reparatur fehlgeschlagen",
         guardianFix: "Fix",
+        payrollLabel: "Lohnabrechnungen (Buchhaltung)",
+        payrollPending: "{n} Stapel warten auf Freigabe",
+        payrollNone: "Keine Stapel zur Freigabe",
+        payrollApprove: "Freigeben & an Mitarbeiter senden",
+        payrollReject: "Ablehnen",
+        payrollConfirmApprove: "Kassenbelege wirklich an die Mitarbeiter-App senden?",
+        payrollConfirmReject: "Stapel ablehnen? Es wird nichts an Mitarbeiter gesendet.",
+        payrollDone: "Freigabe ok",
+        payrollFailed: "Freigabe fehlgeschlagen",
         scopeGlobal: "Alle Firmen",
         scopeOne: "Eine Firma",
         live: "Live",
@@ -198,6 +211,15 @@
         checkFailed: "Check failed",
         repairFailed: "Repair failed",
         guardianFix: "Fix",
+        payrollLabel: "Payslips (accounting)",
+        payrollPending: "{n} batches awaiting approval",
+        payrollNone: "No batches to approve",
+        payrollApprove: "Approve & send to workers",
+        payrollReject: "Reject",
+        payrollConfirmApprove: "Really send payslips to the worker app?",
+        payrollConfirmReject: "Reject batch? Nothing will be sent to workers.",
+        payrollDone: "Approved",
+        payrollFailed: "Approval failed",
         scopeGlobal: "All companies",
         scopeOne: "One company",
         live: "Live",
@@ -257,6 +279,15 @@
         checkFailed: "فشل الفحص",
         repairFailed: "فشل الإصلاح",
         guardianFix: "Fix",
+        payrollLabel: "كشوفات الراتب (المحاسبة)",
+        payrollPending: "{n} دفعات بانتظار التأكيد",
+        payrollNone: "لا توجد دفعات للتأكيد",
+        payrollApprove: "تأكيد وإرسال للموظفين",
+        payrollReject: "رفض",
+        payrollConfirmApprove: "إرسال كشوفات الحساب إلى تطبيق الموظفين؟",
+        payrollConfirmReject: "رفض الدفعة؟ لن يُرسل شيء للموظفين.",
+        payrollDone: "تم التأكيد",
+        payrollFailed: "فشل التأكيد",
         scopeGlobal: "جميع الشركات",
         scopeOne: "شركة واحدة",
         live: "مباشر",
@@ -499,7 +530,65 @@
       });
     }
 
-    function render(data, forecast, guardianBundle) {
+    function renderPayrollCard(batches) {
+      const list = Array.isArray(batches) ? batches : [];
+      const head = list.length
+        ? tr("payrollPending", { n: list.length })
+        : tr("payrollNone");
+      const rows = list.slice(0, 12).map((b) => {
+        const id = String(b.id || "");
+        const period = String(b.period || "—");
+        const count = b.statement_count ?? b.statementCount ?? 0;
+        const company = String(b.company_id || b.companyId || "");
+        return `<div class="payroll-row" data-batch="${id}">
+          <div class="label">${period} · ${count} · ${company || "—"}</div>
+          <div class="payroll-actions">
+            <button type="button" data-payroll="approve" data-id="${id}">${tr("payrollApprove")}</button>
+            <button type="button" data-payroll="reject" data-id="${id}">${tr("payrollReject")}</button>
+          </div>
+        </div>`;
+      }).join("") || `<div class="label">—</div>`;
+      return `<div class="card payroll-card" id="payrollCard">
+        <div class="label">${tr("payrollLabel")}</div>
+        <div class="label" style="margin:0.35rem 0">${head}</div>
+        ${rows}
+      </div>`;
+    }
+
+    function wirePayrollActions() {
+      document.querySelectorAll("[data-payroll]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const action = btn.getAttribute("data-payroll");
+          if (!id) return;
+          if (action === "approve" && !window.confirm(tr("payrollConfirmApprove"))) return;
+          if (action === "reject" && !window.confirm(tr("payrollConfirmReject"))) return;
+          try {
+            await api(`/api/payroll/statements/${encodeURIComponent(id)}/${action}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: "{}",
+            });
+            await load();
+          } catch (e) {
+            alert(e.message || tr("payrollFailed"));
+          }
+        });
+      });
+    }
+
+    async function loadPayrollPending() {
+      try {
+        let url = "/api/payroll/statements/pending";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const data = await api(url);
+        return data.batches || [];
+      } catch {
+        return [];
+      }
+    }
+
+    function render(data, forecast, guardianBundle, payrollBatches) {
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
@@ -519,6 +608,7 @@
 
       grid.innerHTML = `
         ${renderGuardianCard(guardian, guardianHistory)}
+        ${renderPayrollCard(payrollBatches)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
         </div>
@@ -573,6 +663,7 @@
       });
       document.getElementById("refreshBtn")?.addEventListener("click", load);
       wireGuardianActions();
+      wirePayrollActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
     }
@@ -606,12 +697,13 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [data, forecast, guardianBundle] = await Promise.all([
+        const [data, forecast, guardianBundle, payrollBatches] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
+          loadPayrollPending(),
         ]);
-        render(data, forecast, guardianBundle);
+        render(data, forecast, guardianBundle, payrollBatches);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;

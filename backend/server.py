@@ -8262,6 +8262,12 @@ def run_daily_jobs_cycle_once():
             lock_workers_with_expired_documents(db)
             monthly_result = run_monthly_invoice_cycle(db)
             try:
+                from backend.app.platform.accounting.monthly_job import run_monthly_accounting_exports
+
+                accounting_hours_result = run_monthly_accounting_exports(db, force=False)
+            except Exception as accounting_exc:
+                accounting_hours_result = {"ok": False, "error": str(accounting_exc)}
+            try:
                 from backend.app.platform.setup_status import alert_critical_channels_if_needed
 
                 channel_alerts = alert_critical_channels_if_needed(db)
@@ -8275,6 +8281,15 @@ def run_daily_jobs_cycle_once():
                     message=f"Monatsrechnungslauf {monthly_result.get('period', '')} hatte {monthly_result.get('failed', 0)} Fehler.",
                     details=monthly_result,
                     dedup_minutes=60 * 24 * 31,
+                )
+            if accounting_hours_result.get("ok") is False and accounting_hours_result.get("error"):
+                create_system_alert(
+                    db,
+                    code="accounting_hours_export_failed",
+                    severity="warning",
+                    message="Monats-Stundenexport an Buchhaltung fehlgeschlagen.",
+                    details=accounting_hours_result,
+                    dedup_minutes=60 * 12,
                 )
         if callable(send_daily_summary_email):
             send_daily_summary_email()

@@ -1,0 +1,264 @@
+"""Accounting bridge routes — external app API + admin approval."""
+from __future__ import annotations
+
+from flask import Blueprint, g, jsonify, request
+
+accounting_bp = Blueprint("platform_accounting", __name__)
+
+
+def _company_scope_for_user(user: dict) -> str | None:
+    role = str(user.get("role") or "")
+    if role == "superadmin":
+        return (request.args.get("company_id") or (request.get_json(silent=True) or {}).get("companyId") or "").strip() or None
+    return (user.get("company_id") or "").strip() or None
+
+
+def register_accounting_blueprint(flask_app) -> None:
+    from backend.server import get_db, require_auth, require_roles
+
+    from .auth import authenticate_accounting_request
+    from . import repository as repo
+    from .hours_service import normalize_period
+    from .monthly_job import run_monthly_accounting_exports
+    from .schema import ensure_accounting_schema
+    from .service import (
+        approve_batch,
+        ingest_statements,
+        notify_hours_ready,
+        prepare_hour_export,
+        reject_batch,
+    )
+
+    def _auth_accounting():
+        db = get_db()
+        ensure_accounting_schema(db)
+        company_id = (request.headers.get("X-Company-Id") or request.args.get("company_id") or "").strip()
+        api_key = (
+            request.headers.get("X-Accounting-Key")
+            or request.headers.get("X-Api-Key")
+            or ""
+        ).strip()
+        if api_key.lower().startswith("bearer "):
+            api_key = api_key[7:].strip()
+        auth = request.headers.get("Authorization") or ""
+        if not api_key and auth.lower().startswith("bearer "):
+            api_key = auth[7:].strip()
+        timestamp = (request.headers.get("X-Suppix-Timestamp") or "").strip()
+        signature = (request.headers.get("X-Suppix-Signature") or "").strip()
+        body = request.get_data(cache=True) or b""
+        integ = authenticate_accounting_request(
+            db,
+            company_id=company_id,
+            api_key=api_key,
+            timestamp=timestamp,
+            signature=signature,
+            body=body,
+            # Signature verified when provided; API key alone is enough for pull/push MVP.
+            require_signature=bool(signature),
+        )
+        return integ
+
+    @accounting_bp.get("/v2/accounting/hours")
+    def accounting_pull_hours():
+        integ = _auth_accounting()
+        if not integ:
+            return jsonify({"error": "unauthorized"}), 401
+        period = (request.args.get("period") or "").strip()
+        if not period:
+            from .monthly_job import previous_period
+
+            period = previous_period()
+        try:
+            payload = prepare_hour_export(
+                get_db(),
+                company_id=integ["company_id"],
+                period=period,
+                mark_sent=True,
+            )
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        return jsonify(payload), 200
+
+    @accounting_bp.post("/v2/accounting/hours/ack")
+    def accounting_ack_hours():
+        integ = _auth_accounting()
+        if not integ:
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        period = str(data.get("period") or "").strip()
+        fingerprint = str(data.get("fingerprint") or "").strip()
+        if not period:
+            return jsonify({"error": "period_required"}), 400
+        try:
+            normalize_period(period)
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        result = repo.ack_hour_export(
+            get_db(),
+            company_id=integ["company_id"],
+            period=period,
+            fingerprint=fingerprint,
+        )
+        code = 200 if result.get("ok") else 404
+        return jsonify(result), code
+
+    @accounting_bp.post("/v2/accounting/statements")
+    def accounting_push_statements():
+        integ = _auth_accounting()
+        if not integ:
+            return jsonify({"error": "unauthorized"}), 401
+        data = request.get_json(silent=True) or {}
+        period = str(data.get("period") or "").strip()
+        statements = data.get("statements") or data.get("items") or []
+        if not isinstance(statements, list):
+            return jsonify({"error": "statements_must_be_array"}), 400
+        try:
+            normalize_period(period)
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        result = ingest_statements(
+            get_db(),
+            company_id=integ["company_id"],
+            period=period,
+            statements=statements,
+            external_ref=str(data.get("externalRef") or ""),
+            notes=str(data.get("notes") or ""),
+        )
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
+
+    # ── Admin (session auth) ───────────────────────────────────────────
+
+    @accounting_bp.get("/payroll/accounting/integration")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_get_integration():
+        user = g.current_user
+        company_id = _company_scope_for_user(user)
+        if user["role"] != "superadmin":
+            company_id = user.get("company_id")
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        row = repo.get_integration(get_db(), company_id)
+        return jsonify({"ok": True, "integration": row}), 200
+
+    @accounting_bp.post("/payroll/accounting/integration")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_upsert_integration():
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            data.get("companyId") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        out = repo.upsert_integration(
+            get_db(),
+            company_id=str(company_id),
+            webhook_url=str(data.get("webhookUrl") or ""),
+            enabled=bool(data.get("enabled", True)),
+            run_day=int(data.get("runDay") or 1),
+            rotate_key=bool(data.get("rotateKey") or data.get("createKey")),
+        )
+        return jsonify({"ok": True, "integration": out}), 200
+
+    @accounting_bp.get("/payroll/statements/pending")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_pending_batches():
+        user = g.current_user
+        company_id = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin" and request.args.get("company_id"):
+            company_id = request.args.get("company_id")
+        batches = repo.list_pending_batches(get_db(), company_id=company_id)
+        return jsonify({"ok": True, "batches": batches}), 200
+
+    @accounting_bp.get("/payroll/statements/<batch_id>")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_batch_detail(batch_id: str):
+        user = g.current_user
+        db = get_db()
+        batch = repo.get_batch(db, batch_id)
+        if not batch:
+            return jsonify({"error": "not_found"}), 404
+        if user["role"] != "superadmin" and batch["company_id"] != user.get("company_id"):
+            return jsonify({"error": "forbidden"}), 403
+        statements = repo.list_batch_statements(db, batch_id)
+        return jsonify({"ok": True, "batch": batch, "statements": statements}), 200
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/approve")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_approve_batch(batch_id: str):
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = approve_batch(
+            get_db(),
+            batch_id=batch_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/reject")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_reject_batch(batch_id: str):
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = reject_batch(
+            get_db(),
+            batch_id=batch_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+            reason=str(data.get("reason") or ""),
+        )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/export-now")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_export_now():
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            data.get("companyId") or request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        period = str(data.get("period") or "").strip()
+        notify = bool(data.get("notify", True))
+        try:
+            if notify:
+                result = notify_hours_ready(get_db(), company_id=str(company_id), period=period or __import__(
+                    "backend.app.platform.accounting.monthly_job", fromlist=["previous_period"]
+                ).previous_period())
+            else:
+                if not period:
+                    from .monthly_job import previous_period
+
+                    period = previous_period()
+                payload = prepare_hour_export(get_db(), company_id=str(company_id), period=period, mark_sent=False)
+                result = {"ok": True, "payload": payload}
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        return jsonify(result), 200
+
+    @accounting_bp.post("/payroll/accounting/run-monthly")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_run_monthly():
+        data = request.get_json(silent=True) or {}
+        result = run_monthly_accounting_exports(
+            get_db(),
+            force=bool(data.get("force", True)),
+            period=str(data.get("period") or "").strip() or None,
+        )
+        return jsonify(result), 200
+
+    flask_app.register_blueprint(accounting_bp, url_prefix="/api")
