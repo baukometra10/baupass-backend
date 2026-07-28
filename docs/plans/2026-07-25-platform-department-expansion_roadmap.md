@@ -76,4 +76,10 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Inbox `edoc:{id}` (Quelle `document`) + Deep-Link `docs.html?status=in_review` ✅
 3. Lagebild/Copilot zeigen „In Prüfung“ — **kein Auto-Approve** ✅
 
+## Follow-up — Mobile Push → Chat/Anruf — erledigt
+
+1. Tag `voice-call-missed` öffnet Chat (nicht Klingel-UI) inkl. Deep-Link `baupass://app/chat?missed=1` ✅
+2. CallKit „Zurückrufen“ → Chat + optional Auto-Callback-Request ✅
+3. Cold-start Pending Keys für Missed/Callback ✅
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs · Zeiten entscheidet jede Firma selbst.

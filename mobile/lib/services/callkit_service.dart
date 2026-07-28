@@ -20,6 +20,7 @@ class CallKitService {
   CallKitActionHandler? onAccept;
   CallKitActionHandler? onDecline;
   CallKitActionHandler? onEnded;
+  CallKitActionHandler? onCallback;
   bool _ready = false;
   /// When true, CallKit "ended" events are ignored (we dismissed the native UI on purpose).
   bool suppressEndedEvents = false;
@@ -28,16 +29,19 @@ class CallKitService {
     CallKitActionHandler? onAccept,
     CallKitActionHandler? onDecline,
     CallKitActionHandler? onEnded,
+    CallKitActionHandler? onCallback,
   }) async {
     if (_ready) {
       this.onAccept = onAccept ?? this.onAccept;
       this.onDecline = onDecline ?? this.onDecline;
       this.onEnded = onEnded ?? this.onEnded;
+      this.onCallback = onCallback ?? this.onCallback;
       return;
     }
     this.onAccept = onAccept;
     this.onDecline = onDecline;
     this.onEnded = onEnded;
+    this.onCallback = onCallback;
     try {
       await FlutterCallkitIncoming.requestNotificationPermission({
         'title': 'Anrufbenachrichtigungen',
@@ -95,6 +99,13 @@ class CallKitService {
           unawaited(persistPendingCallKitAction('decline', callId));
         }
         break;
+      case Event.actionCallCallback:
+        if (onCallback != null) {
+          onCallback!(callId);
+        } else {
+          unawaited(persistPendingMissedCallback(callId));
+        }
+        break;
       default:
         break;
     }
@@ -129,7 +140,7 @@ class CallKitService {
       textDecline: 'Ablehnen',
       missedCallNotification: const NotificationParams(
         showNotification: true,
-        isShowCallback: false,
+        isShowCallback: true,
         subtitle: 'Verpasster Anruf',
         callbackText: 'Zurückrufen',
       ),

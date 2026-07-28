@@ -9,6 +9,8 @@ import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const String kPendingVoiceCallIdKey = 'suppix_pending_voice_call_id';
+const String kPendingMissedVoiceCallIdKey = 'suppix_pending_missed_voice_call_id';
+const String kPendingMissedCallbackCallIdKey = 'suppix_pending_missed_callback_call_id';
 const String kPendingConferenceRoomIdKey = 'suppix_pending_conference_room_id';
 const String kPendingCallKitActionKey = 'suppix_pending_callkit_action';
 
@@ -22,6 +24,7 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
   final data = message.data;
   final tag = (data['tag'] ?? '').toString().trim();
+  final type = (data['type'] ?? '').toString().trim();
   final callId = (data['callId'] ?? data['call_id'] ?? '').toString().trim();
   final roomId = (data['roomId'] ?? data['room_id'] ?? '').toString().trim();
   final title = (message.notification?.title ?? data['title'] ?? 'SUPPIX').toString();
@@ -36,6 +39,8 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         callerName: title.isNotEmpty ? title : 'Arbeitgeber',
         handle: body.isNotEmpty ? body : 'Eingehender Anruf',
       );
+    } else if ((tag == 'voice-call-missed' || type == 'voice_call_missed') && callId.isNotEmpty) {
+      await prefs.setString(kPendingMissedVoiceCallIdKey, callId);
     } else if (tag == 'voice-call-camera' && callId.isNotEmpty) {
       await prefs.setString(kPendingVoiceCallIdKey, callId);
       await prefs.setString(
@@ -66,7 +71,7 @@ Future<void> _showBackgroundIncomingCall({
     textDecline: 'Ablehnen',
     missedCallNotification: const NotificationParams(
       showNotification: true,
-      isShowCallback: false,
+      isShowCallback: true,
       subtitle: 'Verpasster Anruf',
       callbackText: 'Zurückrufen',
     ),
@@ -106,6 +111,29 @@ Future<String?> takePendingVoiceCallId() async {
   final id = (prefs.getString(kPendingVoiceCallIdKey) ?? '').trim();
   if (id.isEmpty) return null;
   await prefs.remove(kPendingVoiceCallIdKey);
+  return id;
+}
+
+Future<String?> takePendingMissedVoiceCallId() async {
+  final prefs = await SharedPreferences.getInstance();
+  final id = (prefs.getString(kPendingMissedVoiceCallIdKey) ?? '').trim();
+  if (id.isEmpty) return null;
+  await prefs.remove(kPendingMissedVoiceCallIdKey);
+  return id;
+}
+
+Future<void> persistPendingMissedCallback(String callId) async {
+  final id = callId.trim();
+  if (id.isEmpty) return;
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setString(kPendingMissedCallbackCallIdKey, id);
+}
+
+Future<String?> takePendingMissedCallback() async {
+  final prefs = await SharedPreferences.getInstance();
+  final id = (prefs.getString(kPendingMissedCallbackCallIdKey) ?? '').trim();
+  if (id.isEmpty) return null;
+  await prefs.remove(kPendingMissedCallbackCallIdKey);
   return id;
 }
 

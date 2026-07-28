@@ -19,11 +19,22 @@ class PushForegroundListener {
 
     void openFromMessage(RemoteMessage message) {
       final tag = (message.data['tag'] ?? '').trim();
+      final type = (message.data['type'] ?? '').trim();
       final callId = (message.data['callId'] ?? message.data['call_id'] ?? '').trim();
       final roomId = (message.data['roomId'] ?? message.data['room_id'] ?? '').trim();
       final fromName = (message.data['fromName'] ?? message.data['from_name'] ?? 'Arbeitgeber').toString();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+      }
+      if ((tag == 'voice-call-missed' || type == 'voice_call_missed') && onRoute != null) {
+        final route = PushNavigation.routeFromMessage(message) ??
+            WorkerAppRoute(
+              tabIndex: 3,
+              openChat: true,
+              missedCallId: callId.isNotEmpty ? callId : null,
+            );
+        onRoute(route);
+        return;
       }
       if (tag == 'voice-call-camera' && onCameraIntent != null) {
         onCameraIntent(callId, fromName);
@@ -42,6 +53,26 @@ class PushForegroundListener {
       final fromName = (message.data['fromName'] ?? message.data['from_name'] ?? 'Arbeitgeber').toString();
       if (tag == 'voice-call' && callId.isNotEmpty && onVoiceCall != null) {
         onVoiceCall(callId);
+        return;
+      }
+      final type = (message.data['type'] ?? '').trim();
+      if (tag == 'voice-call-missed' || type == 'voice_call_missed') {
+        final route = PushNavigation.routeFromMessage(message);
+        final title = message.notification?.title ??
+            message.data['title'] ??
+            'Verpasster Anruf';
+        final body = message.notification?.body ??
+            message.data['body'] ??
+            'Anruf vom Arbeitgeber — nicht erreicht.';
+        messengerKey.currentState?.showSnackBar(
+          SnackBar(
+            content: Text('$title: $body'),
+            duration: const Duration(seconds: 6),
+            action: route != null && onRoute != null
+                ? SnackBarAction(label: 'Chat', onPressed: () => onRoute(route))
+                : null,
+          ),
+        );
         return;
       }
       if (tag == 'voice-call-camera') {

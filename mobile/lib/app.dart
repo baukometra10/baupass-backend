@@ -319,6 +319,27 @@ class _WorkerAppState extends State<WorkerApp> {
     if (callId != null && callId.isNotEmpty) {
       _queueOrWakeVoiceCall(callId);
     }
+    final missedId = await takePendingMissedVoiceCallId();
+    if (missedId != null && missedId.isNotEmpty) {
+      _queueOrApplyRoute(
+        WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          missedCallId: missedId,
+        ),
+      );
+    }
+    final callbackId = await takePendingMissedCallback();
+    if (callbackId != null && callbackId.isNotEmpty) {
+      _queueOrApplyRoute(
+        WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          missedCallId: callbackId,
+          requestCallback: true,
+        ),
+      );
+    }
     final roomId = await takePendingConferenceRoomId();
     if (roomId != null && roomId.isNotEmpty) {
       _queueOrWakeConference(roomId);

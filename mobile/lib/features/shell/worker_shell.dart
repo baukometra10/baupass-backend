@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/worker_auth_errors.dart';
@@ -27,6 +28,7 @@ import '../../services/push_notification_service.dart';
 import '../../services/tasks_repository.dart';
 import '../../services/usage_repository.dart';
 import '../../services/voice_call_controller.dart';
+import '../../services/push_background_handler.dart';
 import '../../services/worker_cache.dart';
 import '../attendance/attendance_screen.dart';
 import '../home/home_screen.dart';
@@ -95,12 +97,25 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   String? _shownConferenceId;
   String? _pendingConferenceForceId;
   bool _conferenceSheetOpen = false;
+  String? _chatMissedCallId;
+  bool _chatAutoCallback = false;
+  int _chatRouteNonce = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _voiceCall = VoiceCallController(repo: widget.chat.voiceCalls);
+    _voiceCall.onMissedCallback = (callId) {
+      navigateTo(
+        WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          missedCallId: callId,
+          requestCallback: true,
+        ),
+      );
+    };
     // Defer CallKit/bind so first frame (Ausweis) can paint after QR login.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -126,7 +141,21 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       _voiceCall.onAppResumed();
       unawaited(_pollConferenceInvite());
+      unawaited(_drainMissedCallbackIntent());
     }
+  }
+
+  Future<void> _drainMissedCallbackIntent() async {
+    final id = await takePendingMissedCallback();
+    if (id == null || id.isEmpty || !mounted) return;
+    navigateTo(
+      WorkerAppRoute(
+        tabIndex: 3,
+        openChat: true,
+        missedCallId: id,
+        requestCallback: true,
+      ),
+    );
   }
 
   @override
@@ -219,16 +248,22 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     if (callId.isNotEmpty) {
       _voiceCall.wakeForCall(callId);
     }
+    final missedId = (route.missedCallId ?? '').trim();
     final roomId = (route.conferenceRoomId ?? '').trim();
     if (roomId.isNotEmpty) {
       wakeForConference(roomId);
     }
     setState(() {
-      _index = route.openChat ? 3 : route.tabIndex.clamp(0, 4);
+      _index = route.openChat || missedId.isNotEmpty ? 3 : route.tabIndex.clamp(0, 4);
       _tasksSubTab = route.tasksSubTab.clamp(0, 4);
       _shiftsInnerTab = route.shiftsInnerTab.clamp(0, 1);
+      if (missedId.isNotEmpty || route.requestCallback) {
+        _chatMissedCallId = missedId.isNotEmpty ? missedId : null;
+        _chatAutoCallback = route.requestCallback;
+        _chatRouteNonce += 1;
+      }
     });
-    if (route.openChat && mounted) {
+    if ((route.openChat || missedId.isNotEmpty) && mounted) {
       widget.usage.trackFeature(
         featureId: 'worker-chat',
         bearerToken: widget.session.bearer,
@@ -377,7 +412,14 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           shiftsInnerTab: _shiftsInnerTab,
         );
       case 3:
-        return ChatScreen(session: widget.session, chat: widget.chat, voiceCall: _voiceCall);
+        return ChatScreen(
+          key: ValueKey('chat-$_chatRouteNonce-${_chatMissedCallId ?? ""}'),
+          session: widget.session,
+          chat: widget.chat,
+          voiceCall: _voiceCall,
+          focusMissedCallId: _chatMissedCallId,
+          autoRequestCallback: _chatAutoCallback,
+        );
       case 4:
         return ProfileScreen(
           session: widget.session,
@@ -412,7 +454,9 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     // Build only the active tab. IndexedStack mounted Chat/Tasks/etc. at login
     // and a crash in any of them blanked the whole shell after QR join.
-    return TenantBrandingScope(
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) => TenantBrandingScope(
       branding: _branding,
       child: Theme(
         data: _branding.themeData(base: Theme.of(context)),
@@ -516,6 +560,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           },
         ),
       ),
+    ),
     );
   }
 }

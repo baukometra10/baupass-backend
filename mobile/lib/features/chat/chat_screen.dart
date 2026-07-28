@@ -28,11 +28,15 @@ class ChatScreen extends StatefulWidget {
     required this.session,
     required this.chat,
     this.voiceCall,
+    this.focusMissedCallId,
+    this.autoRequestCallback = false,
   });
 
   final WorkerSession session;
   final ChatRepository chat;
   final VoiceCallController? voiceCall;
+  final String? focusMissedCallId;
+  final bool autoRequestCallback;
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -67,7 +71,17 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _message.addListener(_onComposeChanged);
-    _boot();
+    _boot().then((_) {
+      if (!mounted) return;
+      final missed = (widget.focusMissedCallId ?? '').trim();
+      if (widget.autoRequestCallback && missed.isNotEmpty) {
+        unawaited(_requestCallback(callId: missed));
+      } else if (missed.isNotEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Verpasster Anruf — Rückruf im Chat möglich')),
+        );
+      }
+    });
     _pollTimer = Timer.periodic(const Duration(seconds: 8), (_) {
       if (!_sending && !_silentRefresh && !_voiceComposing && mounted) {
         _boot(silent: true);

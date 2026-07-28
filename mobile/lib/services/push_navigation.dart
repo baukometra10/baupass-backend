@@ -5,7 +5,15 @@ import 'deep_link_service.dart';
 /// Maps FCM data payloads to in-app routes.
 class PushNavigation {
   static WorkerAppRoute? routeFromMessage(RemoteMessage message) {
-    final data = message.data;
+    return routeFromData(message.data);
+  }
+
+  /// Pure mapper for tests (no Firebase types required beyond Map).
+  static WorkerAppRoute? routeFromData(Map<String, dynamic> raw) {
+    final data = <String, String>{};
+    raw.forEach((key, value) {
+      data[key.toString()] = (value ?? '').toString();
+    });
     final link = (data['route'] ?? data['deeplink'] ?? '').trim();
     if (link.isNotEmpty) {
       try {
@@ -14,9 +22,14 @@ class PushNavigation {
         /* fall through */
       }
     }
-    // Admin camera-watch pushes use url=/admin-v2/camera-watch.html?company_id=&escalation=
-    // (see camera_notifications.deliver_admin_push). Worker app has no admin route — ignore.
-    switch (data['tag']) {
+    final tag = (data['tag'] ?? '').trim();
+    final type = (data['type'] ?? '').trim();
+    final callId = (data['callId'] ?? data['call_id'] ?? '').trim();
+    final roomId = (data['roomId'] ?? data['room_id'] ?? '').trim();
+
+    // Admin camera-watch pushes use url=/admin-v2/camera-watch.html?…
+    // Worker app has no admin route — ignore those tags below.
+    switch (tag) {
       case 'deployment-plan':
       case 'deployment_plan':
       case 'einsatzplan':
@@ -40,9 +53,14 @@ class PushNavigation {
         return const WorkerAppRoute(tabIndex: 4);
       case 'worker-chat':
         return const WorkerAppRoute(tabIndex: 3, openChat: true);
+      case 'voice-call-missed':
+        return WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          missedCallId: callId.isNotEmpty ? callId : null,
+        );
       case 'voice-call':
       case 'voice-call-camera':
-        final callId = (data['callId'] ?? data['call_id'] ?? '').trim();
         return WorkerAppRoute(
           tabIndex: 3,
           openChat: true,
@@ -50,7 +68,6 @@ class PushNavigation {
         );
       case 'conference-invite':
       case 'conference':
-        final roomId = (data['roomId'] ?? data['room_id'] ?? '').trim();
         return WorkerAppRoute(
           tabIndex: 3,
           openChat: true,
@@ -63,7 +80,17 @@ class PushNavigation {
         }
         return const WorkerAppRoute(tabIndex: 0);
       default:
-        return null;
+        break;
     }
+
+    // Backend may send type without matching tag.
+    if (type == 'voice_call_missed') {
+      return WorkerAppRoute(
+        tabIndex: 3,
+        openChat: true,
+        missedCallId: callId.isNotEmpty ? callId : null,
+      );
+    }
+    return null;
   }
 }

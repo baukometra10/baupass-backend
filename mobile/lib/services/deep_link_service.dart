@@ -39,12 +39,38 @@ class DeepLinkService {
         );
       case 'chat':
       case 'messages':
-        return const WorkerAppRoute(tabIndex: 3);
+        final missedFlag = (uri.queryParameters['missed'] ?? '').toLowerCase();
+        final isMissed = missedFlag == '1' || missedFlag == 'true' || missedFlag == 'yes';
+        final callId =
+            uri.queryParameters['callId'] ?? uri.queryParameters['call_id'];
+        final wantCallback = (uri.queryParameters['callback'] ?? '').toLowerCase();
+        final autoCb = wantCallback == '1' || wantCallback == 'true' || wantCallback == 'yes';
+        if (isMissed || autoCb) {
+          return WorkerAppRoute(
+            tabIndex: 3,
+            openChat: true,
+            missedCallId: callId,
+            requestCallback: autoCb,
+          );
+        }
+        return WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          incomingCallId: callId,
+        );
       case 'voice-call':
         return WorkerAppRoute(
           tabIndex: 3,
           openChat: true,
           incomingCallId: uri.queryParameters['callId'] ?? uri.queryParameters['call_id'],
+        );
+      case 'voice-call-missed':
+      case 'missed-call':
+        return WorkerAppRoute(
+          tabIndex: 3,
+          openChat: true,
+          missedCallId: uri.queryParameters['callId'] ?? uri.queryParameters['call_id'],
+          requestCallback: (uri.queryParameters['callback'] ?? '') == '1',
         );
       case 'conference':
       case 'conference-invite':
@@ -121,6 +147,8 @@ class WorkerAppRoute {
     this.shiftsInnerTab = 0,
     this.externalUrl,
     this.incomingCallId,
+    this.missedCallId,
+    this.requestCallback = false,
     this.conferenceRoomId,
   });
 
@@ -132,5 +160,9 @@ class WorkerAppRoute {
   final int shiftsInnerTab;
   final String? externalUrl;
   final String? incomingCallId;
+  /// Missed/ended call to surface in chat (do not wake ringing UI).
+  final String? missedCallId;
+  /// When true with [missedCallId], request employer callback after chat opens.
+  final bool requestCallback;
   final String? conferenceRoomId;
 }

@@ -103,6 +103,8 @@ class VoiceCallController extends ChangeNotifier {
     return 'Ende-zu-Ende verschlüsselt · DTLS-SRTP';
   }
 
+  void Function(String callId)? onMissedCallback;
+
   void bind(WorkerSession session) {
     _session = session;
     unawaited(_callKit.initialize(
@@ -118,6 +120,12 @@ class VoiceCallController extends ChangeNotifier {
           return;
         }
         unawaited(_handleCallKitAction('decline', callId));
+      },
+      onCallback: (callId) {
+        final id = callId.trim();
+        if (id.isEmpty) return;
+        unawaited(persistPendingMissedCallback(id));
+        onMissedCallback?.call(id);
       },
     ));
     unawaited(_drainPendingCallKitAction());

@@ -365,7 +365,11 @@ class VoiceCallService:
                             body="Anruf von Ihrem Arbeitgeber — nicht erreicht.",
                             tag="voice-call-missed",
                             company_id=str(row["company_id"]),
-                            extra={"callId": str(row["id"]), "type": "voice_call_missed"},
+                            extra={
+                                "callId": str(row["id"]),
+                                "type": "voice_call_missed",
+                                "route": f"baupass://app/chat?callId={row['id']}&missed=1",
+                            },
                         )
                     except Exception:
                         pass
