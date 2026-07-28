@@ -364,6 +364,120 @@ def _suggest_docs_review(db, company_id: str) -> dict[str, Any]:
         return {"ok": False, "error": str(exc)[:200]}
 
 
+def _suggest_missing_expected(db, company_id: str) -> dict[str, Any]:
+    """Info alert when expected workers are still missing — never auto-dial."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.missing_suggest", day_key, hours=20):
+        return {"skipped": True, "reason": "already_suggested_today"}
+    try:
+        from backend.app.platform.physical_operations.daily_brief import build_attendance_brief
+
+        att = build_attendance_brief(db, cid) or {}
+        count = int(att.get("missingExpected") or 0)
+        names = [
+            str(w.get("name") or w.get("workerName") or "").strip()
+            for w in (att.get("missingWorkers") or [])[:5]
+            if isinstance(w, dict)
+        ]
+    except Exception:
+        return {"ok": False, "error": "query_failed"}
+    if count <= 0:
+        return {"skipped": True, "reason": "none_missing"}
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            "autopilot.missing_expected",
+            "info",
+            f"{count} erwartete MA fehlen noch — bitte prüfen (kein Auto-Dial).",
+            details=json.dumps(
+                {
+                    "companyId": cid,
+                    "missingExpected": count,
+                    "names": [n for n in names if n],
+                    "autoDial": False,
+                    "href": f"/admin-v2/index.html?company_id={cid}&tab=inbox&source=attendance",
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=18 * 60,
+        )
+        _log_autopilot(
+            db,
+            cid,
+            "autopilot.missing_suggest",
+            day_key,
+            f"Hinweis: {count} fehlende erwartete MA",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(cid, source="autopilot_missing_suggest")
+        except Exception:
+            pass
+        return {"ok": True, "missingExpected": count}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
+def _suggest_open_security(db, company_id: str) -> dict[str, Any]:
+    """Info alert when security/camera items stay open — never auto police call."""
+    cid = str(company_id)
+    day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _recent_autopilot_audit(db, cid, "autopilot.security_open_suggest", day_key, hours=20):
+        return {"skipped": True, "reason": "already_suggested_today"}
+    try:
+        from backend.app.platform.physical_operations.daily_brief import build_security_brief
+
+        sec = build_security_brief(db, cid) or {}
+        open_sec = int(sec.get("openSecurityAlerts") or 0)
+        open_cam = int(sec.get("openCameraEscalations") or 0)
+        total = int(sec.get("totalOpen") or (open_sec + open_cam) or 0)
+    except Exception:
+        return {"ok": False, "error": "query_failed"}
+    if total <= 0:
+        return {"skipped": True, "reason": "none_open"}
+    try:
+        from backend.server import create_system_alert
+
+        create_system_alert(
+            db,
+            "autopilot.security_open",
+            "info",
+            f"{total} Security-/Kamera-Punkte offen — assistiert prüfen (kein Auto-Polizei-Anruf).",
+            details=json.dumps(
+                {
+                    "companyId": cid,
+                    "openSecurityAlerts": open_sec,
+                    "openCameraEscalations": open_cam,
+                    "totalOpen": total,
+                    "autoDial": False,
+                    "href": f"/admin-v2/index.html?company_id={cid}&tab=inbox&source=security",
+                },
+                ensure_ascii=False,
+            ),
+            dedup_minutes=18 * 60,
+        )
+        _log_autopilot(
+            db,
+            cid,
+            "autopilot.security_open_suggest",
+            day_key,
+            f"Hinweis: {total} offene Security-/Kamera-Punkte",
+        )
+        try:
+            from backend.app.platform.inbox.events import notify_inbox_changed
+
+            notify_inbox_changed(cid, source="autopilot_security_open_suggest")
+        except Exception:
+            pass
+        return {"ok": True, "totalOpen": total, "openSecurityAlerts": open_sec, "openCameraEscalations": open_cam}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:200]}
+
+
 def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
     settings = get_settings(db, company_id)
     summary: dict[str, Any] = {"companyId": str(company_id), "ok": True}
@@ -406,6 +520,12 @@ def run_company_autopilot(db, company_id: str) -> dict[str, Any]:
 
     if settings.get("autoSuggestDocsReview", True):
         summary["docsReviewSuggest"] = _suggest_docs_review(db, company_id)
+
+    if settings.get("autoSuggestMissingExpected", True):
+        summary["missingSuggest"] = _suggest_missing_expected(db, company_id)
+
+    if settings.get("autoSuggestOpenSecurity", True):
+        summary["securityOpenSuggest"] = _suggest_open_security(db, company_id)
 
     return summary
 

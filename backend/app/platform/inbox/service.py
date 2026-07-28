@@ -348,6 +348,8 @@ def build_operations_inbox(
                 "docs.published": "Dokument an Mitarbeiter",
                 "autopilot.leave_queue": "Urlaub offen (Hinweis)",
                 "autopilot.docs_review": "Docs in Prüfung (Hinweis)",
+                "autopilot.missing_expected": "Fehlende MA (Hinweis)",
+                "autopilot.security_open": "Security offen (Hinweis)",
             }
             if code.startswith("sensitive_attempt"):
                 title_map[code] = "Sensibler Zugriff blockiert"
@@ -427,10 +429,42 @@ def build_operations_inbox(
                         "label": "Urlaub-Inbox",
                     }
                 ]
+            missing_nav = []
+            if code == "autopilot.missing_expected":
+                company_for_miss = str(details_obj.get("companyId") or cid or "").strip()
+                missing_nav = [
+                    {
+                        "type": "navigate",
+                        "url": f"/admin-v2/index.html?company_id={company_for_miss}&tab=inbox&source=attendance",
+                        "label": "Anwesenheit-Inbox",
+                    },
+                    {
+                        "type": "navigate",
+                        "url": f"/ops-live-map.html?company_id={company_for_miss}",
+                        "label": "Live-Karte",
+                    },
+                ]
+            security_hint_nav = []
+            if code == "autopilot.security_open":
+                company_for_sec = str(details_obj.get("companyId") or cid or "").strip()
+                security_hint_nav = [
+                    {
+                        "type": "navigate",
+                        "url": f"/admin-v2/index.html?company_id={company_for_sec}&tab=inbox&source=security",
+                        "label": "Security-Inbox",
+                    },
+                    {
+                        "type": "navigate",
+                        "url": f"/admin-v2/camera-watch.html?company_id={company_for_sec}",
+                        "label": "Kamera-Wächter",
+                    },
+                ]
             actions = [
                 {"type": "ack", "action": "ack_system_alert", "params": {"alert_id": r["id"]}},
                 *docs_nav,
                 *leave_nav,
+                *missing_nav,
+                *security_hint_nav,
                 *(
                     [
                         {

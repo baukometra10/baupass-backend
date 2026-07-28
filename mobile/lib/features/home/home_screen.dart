@@ -60,6 +60,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _morningBrief;
   DynamicQrPayload? _dynamicQr;
   Timer? _qrTimer;
   int _unreadNotifications = 0;
@@ -86,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _profile = me);
       await _refreshQr();
       await _refreshNotifications();
+      await _refreshMorningBrief();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() => _loadError = formatWorkerAuthError(e));
@@ -99,6 +101,16 @@ class _HomeScreenState extends State<HomeScreen> {
           _loadError = t('profileLoadError');
         });
       }
+    }
+  }
+
+  Future<void> _refreshMorningBrief() async {
+    try {
+      final brief = await widget.auth.fetchMorningBrief(widget.session);
+      if (!mounted) return;
+      setState(() => _morningBrief = brief);
+    } catch (_) {
+      // optional card
     }
   }
 
@@ -196,6 +208,29 @@ class _HomeScreenState extends State<HomeScreen> {
         const SnackBar(content: Text('Wallet-Pass fehlgeschlagen.')),
       );
     }
+  }
+
+  String _morningBriefSubtitle(Map<String, dynamic> brief) {
+    final parts = <String>[];
+    final checked = brief['checkedInToday'] == true || brief['onSiteNow'] == true;
+    parts.add(checked ? t('morningCheckedIn') : t('morningNotCheckedIn'));
+    final colleagues = (brief['colleaguesOnSite'] as num?)?.toInt() ?? 0;
+    if (colleagues > 0) {
+      parts.add(t('morningColleagues').replaceAll('{n}', '$colleagues'));
+    }
+    final chat = (brief['unreadChat'] as num?)?.toInt() ?? 0;
+    if (chat > 0) {
+      parts.add(t('morningChat').replaceAll('{n}', '$chat'));
+    }
+    final leave = (brief['pendingLeave'] as num?)?.toInt() ?? 0;
+    if (leave > 0) {
+      parts.add(t('morningLeave').replaceAll('{n}', '$leave'));
+    }
+    final docs = (brief['expiringDocuments'] as num?)?.toInt() ?? 0;
+    if (docs > 0) {
+      parts.add(t('morningDocs').replaceAll('{n}', '$docs'));
+    }
+    return parts.join(' · ');
   }
 
   @override
@@ -299,6 +334,30 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             if (worker != null) ...[
+              if (_morningBrief != null) ...[
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          t('morningBriefTitle'),
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          _morningBriefSubtitle(_morningBrief!),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               Builder(
                 builder: (context) {
                   try {

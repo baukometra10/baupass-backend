@@ -99,6 +99,14 @@ class AuthRepository {
     );
   }
 
+  Future<Map<String, dynamic>> fetchMorningBrief(WorkerSession session) {
+    return _api.getJson(
+      '/api/worker-app/morning-brief',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+  }
+
   Future<void> logout(WorkerSession session) async {
     try {
       await _api.postJson(

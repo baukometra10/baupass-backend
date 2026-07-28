@@ -116,5 +116,30 @@ test.describe('Platform smoke', () => {
       data: { name: firstCompany.name || 'Test' },
     });
     expect([200, 400, 422]).toContain(putCompany.status());
+
+    const brief = await request.get(
+      `/api/ops-os/daily-brief?company_id=${encodeURIComponent(firstCompany.id)}`,
+      { headers },
+    );
+    expect(brief.ok()).toBeTruthy();
+    const briefBody = await brief.json();
+    expect(briefBody.ok).toBeTruthy();
+    expect(briefBody.autoDial).toBeFalsy();
+    expect(briefBody.attendance).toBeTruthy();
+
+    const liveMap = await request.get(
+      `/api/ops-os/live-map?company_id=${encodeURIComponent(firstCompany.id)}`,
+      { headers },
+    );
+    expect(liveMap.ok()).toBeTruthy();
+    const mapBody = await liveMap.json();
+    expect(mapBody.autoDial).toBeFalsy();
+    expect(mapBody.counts).toBeTruthy();
+
+    const copilot = await request.post(
+      `/api/ops-os/copilot?company_id=${encodeURIComponent(firstCompany.id)}`,
+      { headers, data: { question: 'Lage heute Übersicht', company_id: firstCompany.id } },
+    );
+    expect(copilot.ok()).toBeTruthy();
   });
 });

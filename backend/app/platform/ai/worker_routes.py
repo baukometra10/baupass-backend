@@ -211,5 +211,19 @@ def register_worker_ai_blueprint(flask_app) -> None:
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    @worker_ai_bp.get("/morning-brief")
+    @require_worker_session
+    def worker_morning_brief():
+        from backend.app.domains.workers.morning_brief import build_worker_morning_brief
+
+        worker = g.worker or {}
+        return jsonify(
+            build_worker_morning_brief(
+                get_db(),
+                worker_id=str(worker.get("id") or ""),
+                company_id=str(worker.get("company_id") or ""),
+            )
+        )
+
     if "worker_ai" not in flask_app.blueprints:
         flask_app.register_blueprint(worker_ai_bp, url_prefix="/api/worker-app")

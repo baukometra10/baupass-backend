@@ -1728,6 +1728,8 @@ const AUTOPILOT_KEYS = [
   "autoInboxAckLowSecurity",
   "autoSuggestPendingLeave",
   "autoSuggestDocsReview",
+  "autoSuggestMissingExpected",
+  "autoSuggestOpenSecurity",
 ];
 
 const AUTOPILOT_LABEL_KEYS = {
@@ -1741,6 +1743,8 @@ const AUTOPILOT_LABEL_KEYS = {
   autoPrepareNextMonthDeployment: "autopilot.prepareNext",
   autoSuggestPendingLeave: "autopilot.suggestLeave",
   autoSuggestDocsReview: "autopilot.suggestDocsReview",
+  autoSuggestMissingExpected: "autopilot.suggestMissing",
+  autoSuggestOpenSecurity: "autopilot.suggestSecurityOpen",
 };
 
 let deploymentModalWorkerId = null;

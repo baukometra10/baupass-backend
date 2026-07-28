@@ -88,4 +88,17 @@ Unverändert: **kein Auto-Polizei-Notruf**. Kamera-Wächter bleibt assistiert.
 2. Täglicher Hinweis bei Docs `in_review` (`autopilot.docs_review`) — **kein Auto-Approve** ✅
 3. Admin-Toggles + Inbox-Deep-Links ✅
 
+## Follow-up — Soft-Hints Absenz + Security — erledigt
+
+1. Hinweis fehlende erwartete MA (`autopilot.missing_expected`) — **kein Auto-Dial** ✅
+2. Hinweis offene Security/Kamera (`autopilot.security_open`) — **kein Auto-Polizei** ✅
+3. Admin-Toggles + Inbox/Live-Map Deep-Links ✅
+
+## Follow-up — Worker-Morgenbrief + Live-Map + Smoke — erledigt
+
+1. `GET /api/worker-app/morning-brief` + Mobile Home-Card ✅
+2. Live-Map: Doppelklick Pin → Chat/Wächter, Status mit fehlt/Alarm ✅
+3. Smoke: Brief→Inbox→Live-Map→Copilot (pytest + platform-smoke) ✅
+4. Docs-i18n 8 Sprachen regeneriert; Mobile Call QA-Checkliste ✅
+
 Unverändert: **kein Auto-Polizei-Notruf** · **kein Auto-Dial** bei Anrufen · **kein Auto-Approve** für Docs/Urlaub · Zeiten entscheidet jede Firma selbst.

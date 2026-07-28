@@ -175,6 +175,14 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     elif workers:
         center = {"lat": float(workers[0]["lat"]), "lng": float(workers[0]["lng"])}
 
+    missing_expected = 0
+    try:
+        from backend.app.platform.physical_operations.daily_brief import build_attendance_brief
+
+        missing_expected = int((build_attendance_brief(db, cid) or {}).get("missingExpected") or 0)
+    except Exception:
+        missing_expected = 0
+
     return {
         "companyId": cid,
         "date": today,
@@ -186,6 +194,7 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         "cameras": cameras,
         "openSecurityAlerts": len(alerts),
         "openCameraEscalations": len(open_esc_by_cam),
+        "missingExpected": missing_expected,
         "alerts": alerts,
         "autoDial": False,
         "counts": {
@@ -194,5 +203,7 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
             "gates": len(gates),
             "cameras": len(cameras),
             "cameraAlerts": sum(1 for c in cameras if c.get("alert")),
+            "missingExpected": missing_expected,
+            "security": len(alerts),
         },
     }

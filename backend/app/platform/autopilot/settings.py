@@ -22,6 +22,8 @@ DEFAULTS: dict[str, Any] = {
     # Soft admin suggestions only — never auto-approve leave/docs, never auto-dial.
     "autoSuggestPendingLeave": True,
     "autoSuggestDocsReview": True,
+    "autoSuggestMissingExpected": True,
+    "autoSuggestOpenSecurity": True,
 }
 
 
