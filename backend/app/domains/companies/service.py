@@ -352,13 +352,29 @@ class CompaniesService:
 
         db.commit()
         row = self.companies.get_by_id(db, company_id)
-        workpass_lohn: dict = {"ok": False, "skipped": "not_run"}
+        workpass_lohn: dict = {"ok": True, "workpassLohnEnabled": False, "skipped": "opted_out"}
+        include_lohn = payload.get("workpassLohnEnabled")
+        if include_lohn is None:
+            include_lohn = payload.get("includeWorkpassLohn")
+        if isinstance(include_lohn, str):
+            include_lohn = include_lohn.strip().lower() in {"1", "true", "yes", "on"}
+        else:
+            include_lohn = bool(include_lohn)
         try:
-            from backend.app.platform.accounting.platform_link import auto_provision_if_enabled
+            from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
 
-            workpass_lohn = auto_provision_if_enabled(db, company_id)
+            if include_lohn:
+                workpass_lohn = set_workpass_lohn_enabled(
+                    db, company_id, enabled=True, provision_if_enabled=True
+                )
+            else:
+                # Explicitly keep disabled (default) — no data sent to WorkPass Lohn
+                workpass_lohn = set_workpass_lohn_enabled(
+                    db, company_id, enabled=False, provision_if_enabled=False
+                )
+                workpass_lohn["skipped"] = "opted_out"
         except Exception as exc:
-            workpass_lohn = {"ok": False, "error": str(exc)[:200]}
+            workpass_lohn = {"ok": False, "error": str(exc)[:200], "workpassLohnEnabled": False}
         return {
             "status": 201,
             "body": {
@@ -573,7 +589,27 @@ class CompaniesService:
                 pass
         rematch_inbox_company_links(db, company_id=company_id)
         db.commit()
-        return {"body": {"ok": True}, "audit": {"company_id": company_id}}
+        lohn_result = None
+        if "workpassLohnEnabled" in payload or "includeWorkpassLohn" in payload:
+            raw = payload.get("workpassLohnEnabled")
+            if raw is None:
+                raw = payload.get("includeWorkpassLohn")
+            if isinstance(raw, str):
+                enabled = raw.strip().lower() in {"1", "true", "yes", "on"}
+            else:
+                enabled = bool(raw)
+            try:
+                from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+                lohn_result = set_workpass_lohn_enabled(
+                    db, company_id, enabled=enabled, provision_if_enabled=True
+                )
+            except Exception as exc:
+                lohn_result = {"ok": False, "error": str(exc)[:200]}
+        body: dict[str, Any] = {"ok": True}
+        if lohn_result is not None:
+            body["workpassLohn"] = lohn_result
+        return {"body": body, "audit": {"company_id": company_id}}
 
     def _mail_access(self, db, user: dict[str, Any], company_id: str) -> dict[str, Any] | None:
         company = self.companies.get_mail_access_row(db, company_id)

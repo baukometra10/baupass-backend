@@ -42,9 +42,16 @@ SUPPIX_PUBLIC_BASE_URL=https://<YOUR-PLATFORM-HOST>
 ```
 
 What happens on `POST /api/companies` (create company):
-1. Platform creates local accounting credentials for that `companyId`
-2. Platform POSTs to WorkPass Lohn `POST {baseUrl}/v1/company/upsert` with company fields + `platformBridge.accountingKey`
-3. Company can use WorkPass Lohn immediately (same Firma-ID)
+- Default: **WorkPass Lohn stays OFF** (optional — company may use another accounting tool).
+- Only if create payload has `"workpassLohnEnabled": true` → provision into WorkPass Lohn.
+- Later toggle anytime:
+
+```http
+PUT /api/payroll/accounting/company-settings
+{ "companyId": "<FIRMA-ID>", "workpassLohnEnabled": false }
+```
+
+When disabled: platform **stops all outbound** hours/webhooks for that company (`403 workpass_lohn_disabled` on bridge).
 
 Backfill existing companies:
 

@@ -2,24 +2,20 @@
 
 اسم المنتج: **WorkPass Lohn** · SUPPIX AI · WorkPass Lohn-Buchhaltung (Standalone)
 
-## ربط مرة واحدة + تفعيل تلقائي للشركات
+## ربط مرة واحدة + تفعيل اختياري لكل شركة
 
-سوبر أدمن يضبط مرة واحدة فقط:
+سوبر أدمن يضبط الربط العام مرة واحدة (`platform-link`).
+
+**WorkPass Lohn اختياري لكل شركة** (افتراضي: متوقف):
+- عند إنشاء الشركة: `"workpassLohnEnabled": true` فقط إن أرادت المحاسبة معنا
+- من الإعدادات لاحقاً:
 
 ```http
-POST /api/payroll/accounting/platform-link
-{
-  "enabled": true,
-  "autoProvision": true,
-  "baseUrl": "https://<WORKPASS-LOHN>",
-  "masterApiKey": "…",
-  "platformPublicUrl": "https://<PLATFORM>"
-}
+PUT /api/payroll/accounting/company-settings
+{ "companyId": "…", "workpassLohnEnabled": false }
 ```
 
-بعدها: عند `إنشاء شركة` على المنصة → تُنشأ بيانات الجسر محلياً ويُرسل `POST /v1/company/upsert` إلى WorkPass Lohn مع `Firma-ID` + مفتاح الربط. الشركة تحصل على المحاسبة مباشرة.
-
-للشركات القديمة: `POST /api/payroll/accounting/provision-all`
+عند الإيقاف: يتوقف إرسال الساعات/الـ webhook لهذه الشركة فوراً، ويمكنها استخدام برنامج محاسبة آخر.
 
 ---
 

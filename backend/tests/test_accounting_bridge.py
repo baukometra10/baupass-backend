@@ -17,7 +17,10 @@ def _db():
     ensure_accounting_schema(conn)
     conn.execute(
         """
-        CREATE TABLE companies (id TEXT PRIMARY KEY, name TEXT)
+        CREATE TABLE companies (
+            id TEXT PRIMARY KEY, name TEXT, deleted_at TEXT,
+            workpass_lohn_enabled INTEGER NOT NULL DEFAULT 0
+        )
         """
     )
     conn.execute(
@@ -241,8 +244,11 @@ def test_auto_provision_skipped_when_link_disabled():
 
 def test_provision_creates_local_integration_and_posts(monkeypatch):
     from backend.app.platform.accounting import platform_link
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
 
     db = _db()
+    # Opt-in first (optional feature)
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
     platform_link.save_platform_link(
         db,
         enabled=True,
@@ -269,8 +275,25 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
     assert int(integ["enabled"]) == 1
 
 
-def test_monthly_job_skips_wrong_day():
+def test_disable_stops_outbound(monkeypatch):
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+    from backend.app.platform.accounting import service as accounting_service
+
     db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    repository.upsert_integration(db, company_id="c1", webhook_url="https://lohn.test/hook", rotate_key=True)
+    set_workpass_lohn_enabled(db, "c1", enabled=False, provision_if_enabled=False)
+    out = accounting_service.notify_hours_ready(db, company_id="c1", period="2026-06")
+    assert out.get("error") == "workpass_lohn_disabled"
+    integ = repository.get_integration(db, "c1")
+    assert int(integ["enabled"]) == 0
+
+
+def test_monthly_job_skips_wrong_day():
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
     repository.upsert_integration(db, company_id="c1", run_day=1, rotate_key=True)
     from datetime import datetime, timezone
 

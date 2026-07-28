@@ -317,10 +317,25 @@ def list_batch_statements(db, batch_id: str) -> list[dict[str, Any]]:
 
 def list_enabled_integrations(db) -> list[dict[str, Any]]:
     ensure_accounting_schema(db)
-    rows = db.execute(
-        """
-        SELECT id, company_id, enabled, webhook_url, signing_secret, run_day, last_export_period
-        FROM accounting_integrations WHERE enabled = 1
-        """
-    ).fetchall()
+    from .company_opt_in import ensure_company_lohn_column
+
+    ensure_company_lohn_column(db)
+    try:
+        rows = db.execute(
+            """
+            SELECT i.id, i.company_id, i.enabled, i.webhook_url, i.signing_secret, i.run_day, i.last_export_period
+            FROM accounting_integrations i
+            JOIN companies c ON c.id = i.company_id
+            WHERE i.enabled = 1
+              AND COALESCE(c.workpass_lohn_enabled, 0) = 1
+              AND c.deleted_at IS NULL
+            """
+        ).fetchall()
+    except Exception:
+        rows = db.execute(
+            """
+            SELECT id, company_id, enabled, webhook_url, signing_secret, run_day, last_export_period
+            FROM accounting_integrations WHERE enabled = 1
+            """
+        ).fetchall()
     return [dict(r) for r in rows]

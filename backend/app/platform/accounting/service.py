@@ -52,6 +52,10 @@ def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -
 
 
 def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
+    from .company_opt_in import is_workpass_lohn_enabled
+
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
     integration = repo.get_integration(db, company_id)
     if not integration or not int(integration.get("enabled") or 0):
         return {"ok": False, "error": "integration_disabled"}

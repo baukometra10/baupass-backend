@@ -4824,6 +4824,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN review_token TEXT NOT NULL DEFAULT ''")
     if "survey_prompt_enabled" not in company_review_cols:
         cur.execute("ALTER TABLE companies ADD COLUMN survey_prompt_enabled INTEGER NOT NULL DEFAULT 0")
+    if "workpass_lohn_enabled" not in company_review_cols:
+        cur.execute("ALTER TABLE companies ADD COLUMN workpass_lohn_enabled INTEGER NOT NULL DEFAULT 0")
 
     # ── Nutzungsanalyse & System-Zufriedenheit ─────────────────────────────────
     cur.execute(

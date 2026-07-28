@@ -27,6 +27,7 @@ def register_accounting_blueprint(flask_app) -> None:
         provision_company_for_lohn,
         save_platform_link,
     )
+    from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
     from .schema import ensure_accounting_schema
     from .service import (
         approve_batch,
@@ -82,6 +83,11 @@ def register_accounting_blueprint(flask_app) -> None:
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
         period = (request.args.get("period") or "").strip()
         if not period:
             from .monthly_job import previous_period
@@ -104,6 +110,11 @@ def register_accounting_blueprint(flask_app) -> None:
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
         data = request.get_json(silent=True) or {}
         period = str(data.get("period") or "").strip()
         fingerprint = str(data.get("fingerprint") or "").strip()
@@ -129,6 +140,11 @@ def register_accounting_blueprint(flask_app) -> None:
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
         data = request.get_json(silent=True) or {}
         period = str(data.get("period") or "").strip()
         body_company = str(
@@ -160,6 +176,11 @@ def register_accounting_blueprint(flask_app) -> None:
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
         try:
             payload = company_upsert_payload(get_db(), integ["company_id"])
         except LookupError:
@@ -174,6 +195,11 @@ def register_accounting_blueprint(flask_app) -> None:
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
         data = request.get_json(silent=True) or {}
         body_id = str(
             data.get("id") or data.get("companyId") or (data.get("company") or {}).get("id") or ""
@@ -225,12 +251,68 @@ def register_accounting_blueprint(flask_app) -> None:
     @require_roles("superadmin")
     def admin_provision_company(company_id: str):
         data = request.get_json(silent=True) or {}
-        result = provision_company_for_lohn(
-            get_db(),
-            company_id,
-            force=bool(data.get("force", False)),
-        )
+        if bool(data.get("enable") or data.get("force")):
+            result = set_workpass_lohn_enabled(
+                get_db(), company_id, enabled=True, provision_if_enabled=True
+            )
+        else:
+            result = provision_company_for_lohn(
+                get_db(),
+                company_id,
+                force=bool(data.get("force", False)),
+            )
         code = 200 if result.get("ok") or result.get("skipped") else 400
+        return jsonify(result), code
+
+    @accounting_bp.get("/payroll/accounting/company-settings")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_get_company_lohn_settings():
+        user = g.current_user
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"error": "forbidden"}), 403
+        enabled = is_workpass_lohn_enabled(get_db(), company_id)
+        integ = repo.get_integration(get_db(), company_id)
+        return jsonify(
+            {
+                "ok": True,
+                "companyId": company_id,
+                "workpassLohnEnabled": enabled,
+                "integrationEnabled": bool(integ and int(integ.get("enabled") or 0)),
+                "optional": True,
+            }
+        ), 200
+
+    @accounting_bp.put("/payroll/accounting/company-settings")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_put_company_lohn_settings():
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            data.get("companyId") or request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"error": "forbidden"}), 403
+        if "workpassLohnEnabled" not in data and "enabled" not in data:
+            return jsonify({"error": "workpassLohnEnabled_required"}), 400
+        enabled = data.get("workpassLohnEnabled") if "workpassLohnEnabled" in data else data.get("enabled")
+        if isinstance(enabled, str):
+            enabled = enabled.strip().lower() in {"1", "true", "yes", "on"}
+        result = set_workpass_lohn_enabled(
+            get_db(),
+            str(company_id),
+            enabled=bool(enabled),
+            provision_if_enabled=True,
+        )
+        code = 200 if result.get("ok") else 400
         return jsonify(result), code
 
     @accounting_bp.post("/payroll/accounting/provision-all")

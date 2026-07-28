@@ -177,6 +177,27 @@ def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, A
         return {"ok": False, "error": str(exc)[:200]}
 
 
+def notify_company_lohn_status(db, company_id: str, *, enabled: bool) -> dict[str, Any]:
+    """Tell WorkPass Lohn that a company opted in/out (best-effort)."""
+    link = get_platform_link(db)
+    if not int(link.get("enabled") or 0) or not str(link.get("base_url") or "").strip():
+        return {"ok": False, "skipped": "platform_link_disabled"}
+    try:
+        company_payload = company_upsert_payload(db, company_id)
+    except LookupError:
+        return {"ok": False, "error": "company_not_found"}
+    body = {
+        **company_payload,
+        "id": company_id,
+        "companyId": company_id,
+        "product": "WorkPass Lohn",
+        "entitlement": "included_with_platform" if enabled else "disabled",
+        "workpassLohnEnabled": bool(enabled),
+        "event": "company.lohn.enabled" if enabled else "company.lohn.disabled",
+    }
+    return _post_lohn_upsert(link, body)
+
+
 def provision_company_for_lohn(
     db,
     company_id: str,
@@ -185,11 +206,17 @@ def provision_company_for_lohn(
 ) -> dict[str, Any]:
     """
     Create local accounting bridge credentials for the company and register it in WorkPass Lohn.
-    Call once when a company is granted platform access.
+    Requires per-company opt-in (`companies.workpass_lohn_enabled = 1`).
     """
     company_id = (company_id or "").strip()
     if not company_id:
         return {"ok": False, "error": "company_id_required"}
+
+    from .company_opt_in import ensure_company_lohn_column, is_workpass_lohn_enabled
+
+    ensure_company_lohn_column(db)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "skipped": "company_opted_out"}
 
     link = get_platform_link(db)
     if not int(link.get("enabled") or 0):
