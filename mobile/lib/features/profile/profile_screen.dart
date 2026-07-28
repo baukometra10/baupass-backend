@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api_client.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/auth_repository.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../services/push_notification_service.dart';
 import '../../services/worker_cache.dart';
@@ -119,7 +120,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final apkUrl = (install['apkUrl'] as String?)?.trim() ?? '';
     final testFlightUrl = (install['testFlightUrl'] as String?)?.trim() ?? '';
 
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) => Scaffold(
       appBar: AppBar(
         title: Text(t('navProfile', 'Profil')),
         actions: [
@@ -159,9 +162,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 20),
                 if (worker != null) ...[
-                  Text('Badge: ${worker['badgeId'] ?? '-'}'),
-                  Text('Rolle: ${worker['role'] ?? '-'}'),
-                  Text('Standort: ${worker['site'] ?? '-'}'),
+                  Text('${t('badge')}: ${worker['badgeId'] ?? '-'}'),
+                  Text('${t('role')}: ${worker['role'] ?? '-'}'),
+                  Text('${t('site')}: ${worker['site'] ?? '-'}'),
                 ],
                 const SizedBox(height: 16),
                 if (leave != null)
@@ -171,9 +174,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Urlaub', style: Theme.of(context).textTheme.titleMedium),
-                          Text('Verbleibend: ${leave['remaining'] ?? '-'} Tage'),
-                          Text('Genommen (Jahr): ${leave['taken'] ?? 0}'),
+                          Text(t('leave'), style: Theme.of(context).textTheme.titleMedium),
+                          Text('${t('leaveRemaining')}: ${leave['remaining'] ?? '-'} ${t('days')}'),
+                          Text('${t('leaveTaken')}: ${leave['taken'] ?? 0}'),
                         ],
                       ),
                     ),
@@ -186,8 +189,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Team vor Ort', style: Theme.of(context).textTheme.titleMedium),
-                          Text('Anwesend: ${team['present'] ?? 0} / ${team['expected'] ?? 0}'),
+                          Text(t('teamOnSite'), style: Theme.of(context).textTheme.titleMedium),
+                          Text('${t('present')}: ${team['present'] ?? 0} / ${team['expected'] ?? 0}'),
                         ],
                       ),
                     ),
@@ -204,7 +207,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('App-Updates', style: Theme.of(context).textTheme.titleMedium),
+                          Text(t('appUpdates'), style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 8),
                           if (playStoreUrl.isNotEmpty)
                             OutlinedButton.icon(
@@ -242,17 +245,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 SwitchListTile(
-                  title: const Text('Push-Benachrichtigungen'),
+                  title: Text(t('pushNotifications')),
                   subtitle: Text(
                     _pushServerStatus == null
-                        ? 'Push-Status wird geladen…'
+                        ? '…'
                         : (_pushServerStatus!['fcmConfigured'] == true
                             ? (_pushEnabled
-                                ? 'Hybrid-App (FCM). Token wird beim Login synchronisiert.'
-                                : 'FCM bereit — aktivieren, um dieses Gerät zu registrieren.')
+                                ? 'FCM'
+                                : 'FCM')
                             : (_pushServerStatus!['anyChannelReady'] == true
-                                ? 'Push auf dem Server teilweise konfiguriert.'
-                                : 'FCM_SERVER_KEY auf dem Server setzen für native Push.')),
+                                ? 'Push'
+                                : 'FCM')),
                   ),
                   value: _pushEnabled,
                   onChanged: (value) async {
@@ -267,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Push aktiviert — google-services.json / GoogleService-Info.plist oder BAUPASS_FCM_TOKEN ergänzen.',
+                              'Push — google-services.json / BAUPASS_FCM_TOKEN',
                             ),
                           ),
                         );
@@ -277,12 +280,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Rechtliches',
+                  t('legal'),
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Impressum & Datenschutz',
+                  t('legalSubtitle'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -293,8 +296,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       ListTile(
                         leading: const Icon(Icons.balance_outlined),
-                        title: const Text('Rechtliches'),
-                        subtitle: const Text('Impressum & Datenschutz'),
+                        title: Text(t('legal')),
+                        subtitle: Text(t('legalSubtitle')),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           Navigator.of(context).push(
@@ -307,7 +310,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.gavel_outlined),
-                        title: const Text('Impressum'),
+                        title: Text(t('imprint')),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           Navigator.of(context).push(
@@ -323,8 +326,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const Divider(height: 1),
                       ListTile(
                         leading: const Icon(Icons.privacy_tip_outlined),
-                        title: const Text('Datenschutz'),
-                        subtitle: const Text('Erklärung & Firmenkontakt'),
+                        title: Text(t('privacy')),
+                        subtitle: Text(t('privacySubtitle')),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           Navigator.of(context).push(
@@ -344,10 +347,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 OutlinedButton.icon(
                   onPressed: _logout,
                   icon: const Icon(Icons.logout),
-                  label: const Text('Abmelden'),
+                  label: Text(t('logout')),
                 ),
               ],
             ),
+    ),
     );
   }
 }

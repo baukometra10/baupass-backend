@@ -334,6 +334,9 @@ class WorkerVoiceCallSession {
     for (final track in _localStream!.getTracks()) {
       await _pc!.addTrack(track, _localStream!);
     }
+    // Unified Plan ignores legacy offerToReceiveVideo on many builds — reserve a
+    // video m-line so late admin camera renegotiation can actually reach the worker.
+    await _ensureRecvVideoTransceiver(_pc!);
     _emitLocal(preview: false);
     _pc!.onTrack = (event) {
       unawaited(_ingestRemoteTrack(event));
@@ -487,11 +490,7 @@ class WorkerVoiceCallSession {
     if (_localStream != camStream && camStream != null) {
       await _localStream!.addTrack(videoTrack);
     }
-    final senders = await pc.getSenders();
-    final hasVideo = senders.any((s) => s.track?.kind == 'video');
-    if (!hasVideo) {
-      await pc.addTrack(videoTrack, _localStream!);
-    }
+    await _attachLocalVideoTrack(pc, videoTrack);
     await _renegotiate();
     _cameraPreviewing = false;
     _previewStream = null;
@@ -576,6 +575,58 @@ class WorkerVoiceCallSession {
     return null;
   }
 
+  Future<void> _ensureRecvVideoTransceiver(RTCPeerConnection pc) async {
+    try {
+      final existing = await pc.getTransceivers();
+      for (final tx in existing) {
+        final sk = tx.sender.track?.kind;
+        final rk = tx.receiver.track?.kind;
+        if (sk == 'video' || rk == 'video') return;
+      }
+      // Audio-only call starts with one transceiver; a second slot is our video reserve.
+      if (existing.length >= 2) return;
+      await pc.addTransceiver(
+        kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
+        init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),
+      );
+    } catch (_) {
+      /* older WebRTC builds — fall back to offerToReceiveVideo */
+    }
+  }
+
+  /// Publish local camera on the reserved video transceiver when possible
+  /// (avoids a second video m-line that breaks remote receive).
+  Future<void> _attachLocalVideoTrack(RTCPeerConnection pc, MediaStreamTrack videoTrack) async {
+    try {
+      final transceivers = await pc.getTransceivers();
+      for (final tx in transceivers) {
+        final sk = tx.sender.track?.kind;
+        final rk = tx.receiver.track?.kind;
+        if (sk == 'audio' || rk == 'audio') continue;
+        final videoSlot = sk == 'video' || rk == 'video' || (sk == null && rk == null);
+        if (!videoSlot) continue;
+        try {
+          await tx.setDirection(TransceiverDirection.SendRecv);
+        } catch (_) {}
+        try {
+          await tx.sender.replaceTrack(videoTrack);
+          return;
+        } catch (_) {
+          /* try next / fall through */
+        }
+      }
+    } catch (_) {
+      /* fall through to addTrack */
+    }
+    final senders = await pc.getSenders();
+    final existing = senders.where((s) => s.track?.kind == 'video').toList();
+    if (existing.isNotEmpty) {
+      await existing.first.replaceTrack(videoTrack);
+    } else {
+      await pc.addTrack(videoTrack, _localStream!);
+    }
+  }
+
   Future<void> _replaceOutgoingVideoTrack(MediaStreamTrack newTrack, {bool stopOld = true}) async {
     final pc = _pc;
     if (pc == null) return;
@@ -593,7 +644,7 @@ class WorkerVoiceCallSession {
     } else {
       _localStream ??= await createLocalMediaStream('local');
       await _localStream!.addTrack(newTrack);
-      await pc.addTrack(newTrack, _localStream!);
+      await _attachLocalVideoTrack(pc, newTrack);
       await _renegotiate();
     }
     if (_localStream != null && !_localStream!.getVideoTracks().contains(newTrack)) {
@@ -1065,6 +1116,37 @@ class WorkerVoiceCallSession {
     }
   }
 
+  /// Pull video/audio from peer connection receivers into `_remoteStream`.
+  /// Fixes one-way video when admin enables camera after the call started.
+  Future<void> _syncReceiversIntoRemoteStream(RTCPeerConnection pc) async {
+    if (_ended) return;
+    try {
+      final receivers = await pc.getReceivers();
+      for (final receiver in receivers) {
+        final track = receiver.track;
+        if (track == null) continue;
+        if (track.kind == 'video') {
+          try {
+            track.enabled = true;
+          } catch (_) {}
+        }
+        if (_remoteStream == null) {
+          _remoteStream = await createLocalMediaStream('remote-$callId');
+        }
+        final exists = _remoteStream!.getTracks().any((t) => t.id == track.id);
+        if (!exists) {
+          await _remoteStream!.addTrack(track);
+        }
+      }
+      _refreshRemoteHasVideo();
+      if (_remoteStream != null) {
+        onRemoteStream?.call(_remoteStream!);
+      }
+    } catch (_) {
+      /* keep call alive */
+    }
+  }
+
   Future<void> _applySignal(Map<String, dynamic> signal) async {
     final type = (signal['signalType'] ?? '').toString();
     final payloadRaw = signal['payload'];
@@ -1076,6 +1158,9 @@ class WorkerVoiceCallSession {
       return;
     }
     if (type == 'camera_state') {
+      if (payload['enabled'] == true && _pc != null) {
+        unawaited(_syncReceiversIntoRemoteStream(_pc!));
+      }
       onCameraState?.call(payload);
       return;
     }
@@ -1097,6 +1182,7 @@ class WorkerVoiceCallSession {
           /* rollback unsupported on some builds — continue best-effort */
         }
       }
+      await _ensureRecvVideoTransceiver(pc);
       await pc.setRemoteDescription(
         RTCSessionDescription(
           payload['sdp']?.toString() ?? '',
@@ -1112,6 +1198,8 @@ class WorkerVoiceCallSession {
         type: 'answer',
         payload: {'type': answer.type, 'sdp': answer.sdp},
       );
+      // Admin camera renegotiation often delivers tracks via receivers, not only onTrack.
+      await _syncReceiversIntoRemoteStream(pc);
       onState('connecting');
     } else if (type == 'answer') {
       if (pc.signalingState == RTCSignalingState.RTCSignalingStateStable) {
@@ -1124,6 +1212,7 @@ class WorkerVoiceCallSession {
         ),
       );
       await _flushPendingIce(pc);
+      await _syncReceiversIntoRemoteStream(pc);
       onState('connecting');
     } else if (type == 'ice-candidate') {
       final hasRemote = (await pc.getRemoteDescription()) != null;
@@ -1170,6 +1259,10 @@ class WorkerVoiceCallSession {
           } catch (_) {
             /* keep cursor so a failed signal can be retried next tick */
           }
+        }
+        // Periodically re-bind late remote video (admin cam after audio-only start).
+        if (_pc != null && !_remoteHasVideo) {
+          await _syncReceiversIntoRemoteStream(_pc!);
         }
       } catch (_) {
         /* ignore transient poll errors */

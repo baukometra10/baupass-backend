@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../core/app_strings.dart';
 import '../../core/tenant_branding.dart';
 import '../../services/voice_call_controller.dart';
 
@@ -121,11 +122,14 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
             remoteRenderer.srcObject != remote;
         if (changed) {
           await _bindRenderer(remoteRenderer, remote);
+          await Future<void>.delayed(const Duration(milliseconds: 50));
+          if (!mounted || !identical(_remoteRenderer, remoteRenderer)) return;
+          await _bindRenderer(remoteRenderer, remote);
           _boundRemoteStream = remote;
           _boundRemoteVideoCount = remoteVideoCount;
         }
       } else if (local != null && localLive) {
-        // Self-preview full-bleed until peer video arrives / during cam preview
+        // Alone / waiting for peer video — temporary self preview on main.
         if (!identical(_boundRemoteStream, local) || _boundRemoteVideoCount != -2) {
           await _bindRenderer(remoteRenderer, local);
           _boundRemoteStream = local;
@@ -137,7 +141,8 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
         _boundRemoteVideoCount = -1;
       }
 
-      if (local != null && localLive && remoteHasVideo && !previewing) {
+      // Zoom-style: keep self on PiP renderer whenever camera is live.
+      if (local != null && localLive) {
         _localRenderer ??= RTCVideoRenderer();
         final localRenderer = _localRenderer;
         if (localRenderer == null) return;
@@ -229,9 +234,15 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
 
     final showVideo = _showVideoStage && isConnected;
     final previewing = widget.controller.cameraPreviewing;
-    final mirrorMain = showVideo &&
-        (previewing || (!_remoteHasVideo && (widget.controller.cameraOn || previewing)));
+    final remoteOnMain = showVideo && _remoteHasVideo && !previewing;
+    final mirrorMain = showVideo && !remoteOnMain && (widget.controller.cameraOn || previewing);
     final blurLocal = widget.controller.blurEnabled;
+    final showSelfPip = showVideo &&
+        !previewing &&
+        widget.controller.cameraOn &&
+        _localRenderer != null &&
+        _localRendererReady &&
+        remoteOnMain;
 
     return SizedBox.expand(
       child: Material(
@@ -274,18 +285,16 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                     ),
                   ),
                 ),
-              if (showVideo &&
-                  widget.controller.cameraOn &&
-                  _remoteHasVideo &&
-                  _localRenderer != null &&
-                  _localRendererReady)
+              if (showSelfPip)
                 Builder(
                   builder: (context) {
                     final size = MediaQuery.sizeOf(context);
-                    const pipW = 112.0;
-                    const pipH = 152.0;
-                    final defaultLeft = size.width - pipW - 16;
-                    final defaultTop = size.height - pipH - 150;
+                    const pipW = 108.0;
+                    const pipH = 144.0;
+                    // Zoom-like default: top-end PiP (RTL-aware via Directionality).
+                    final rtl = Directionality.of(context) == TextDirection.rtl;
+                    final defaultLeft = rtl ? 16.0 : size.width - pipW - 16;
+                    final defaultTop = MediaQuery.paddingOf(context).top + 56;
                     final left = (_pipOffset?.dx ?? defaultLeft).clamp(8.0, size.width - pipW - 8);
                     final top = (_pipOffset?.dy ?? defaultTop).clamp(8.0, size.height - pipH - 8);
                     return Positioned(
@@ -362,15 +371,45 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                   child: IgnorePointer(
                     ignoring: showVideo && !_chromeVisible,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                       child: Column(
                         children: [
-                          _SecureBadge(accent: _accent),
+                          if (!showVideo) _SecureBadge(accent: _accent),
                           if (peerBanner.isNotEmpty) ...[
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 10),
                             _PeerCameraBanner(message: peerBanner, accent: _accent),
                           ],
-                          if (!showVideo) ...[
+                          if (showVideo) ...[
+                            Align(
+                              alignment: Alignment.topCenter,
+                              child: Column(
+                                children: [
+                                  Text(
+                                    widget.controller.isOutgoing
+                                        ? t('employer', 'Arbeitgeber')
+                                        : widget.controller.callerLabel,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      shadows: [Shadow(blurRadius: 10, color: Colors.black54)],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    statusLine,
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.8),
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Spacer(),
+                          ] else ...[
                             const Spacer(flex: 2),
                             _CallerAvatar(
                               label: widget.controller.callerLabel,
@@ -379,31 +418,30 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                               ringing: showRingAnim,
                             ),
                             const SizedBox(height: 22),
-                          ] else
-                            const Spacer(flex: 2),
-                          Text(
-                            widget.controller.isOutgoing ? 'Arbeitgeber' : widget.controller.callerLabel,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: showVideo ? 20 : 28,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.3,
-                              shadows: const [Shadow(blurRadius: 12, color: Colors.black54)],
+                            Text(
+                              widget.controller.isOutgoing
+                                  ? t('employer', 'Arbeitgeber')
+                                  : widget.controller.callerLabel,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: -0.3,
+                                shadows: [Shadow(blurRadius: 12, color: Colors.black54)],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            statusLine,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.85),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w500,
-                              shadows: const [Shadow(blurRadius: 10, color: Colors.black54)],
+                            const SizedBox(height: 8),
+                            Text(
+                              statusLine,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                shadows: const [Shadow(blurRadius: 10, color: Colors.black54)],
+                              ),
                             ),
-                          ),
-                          if (!showVideo) ...[
                             const SizedBox(height: 6),
                             Text(
                               widget.controller.subtitleLabel,
@@ -413,33 +451,33 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
                                 fontSize: 13,
                               ),
                             ),
-                          ],
-                          if (isConnected && !showVideo) ...[
-                            const SizedBox(height: 22),
-                            _CallLevelMeters(
-                              local: widget.controller.localLevel,
-                              remote: widget.controller.remoteLevel,
-                              accent: _accent,
-                            ),
-                            if (widget.controller.connectionDiag.isNotEmpty) ...[
-                              const SizedBox(height: 10),
-                              Text(
-                                widget.controller.connectionDiag,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.5),
-                                  fontSize: 11,
-                                  fontFamily: 'monospace',
-                                ),
+                            if (isConnected) ...[
+                              const SizedBox(height: 22),
+                              _CallLevelMeters(
+                                local: widget.controller.localLevel,
+                                remote: widget.controller.remoteLevel,
+                                accent: _accent,
                               ),
+                              if (widget.controller.connectionDiag.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  widget.controller.connectionDiag,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: 18),
+                              _WaveBars(controller: _waveController, accent: _accent),
+                            ] else if (showRingAnim) ...[
+                              const SizedBox(height: 28),
+                              _WaveBars(controller: _waveController, accent: _accent),
                             ],
-                            const SizedBox(height: 18),
-                            _WaveBars(controller: _waveController, accent: _accent),
-                          ] else if (showRingAnim && !showVideo) ...[
-                            const SizedBox(height: 28),
-                            _WaveBars(controller: _waveController, accent: _accent),
+                            const Spacer(flex: 3),
                           ],
-                          const Spacer(flex: 3),
                           if (isRinging && !widget.controller.isOutgoing)
                             _IncomingActions(
                               accent: _accent,
@@ -1097,41 +1135,42 @@ class _ActiveControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Primary: mute / camera / flip / speaker / more — hangup separate & large.
-    return Column(
-      children: [
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 14,
-          runSpacing: 14,
+    // Zoom-style: compact floating pill — mic / cam / flip / speaker / more / hangup.
+    return Material(
+      color: Colors.black.withValues(alpha: 0.42),
+      borderRadius: BorderRadius.circular(28),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _MiniControl(
+            _ZoomControl(
               icon: muted ? Icons.mic_off_rounded : Icons.mic_rounded,
-              label: muted ? 'Stumm' : 'Mikro',
               active: muted,
               onTap: onToggleMute,
             ),
-            _MiniControl(
+            const SizedBox(width: 8),
+            _ZoomControl(
               icon: cameraOn ? Icons.videocam_rounded : Icons.videocam_off_rounded,
-              label: cameraOn ? 'Cam aus' : 'Kamera',
               active: cameraOn,
               onTap: onToggleCamera,
             ),
-            if (cameraOn)
-              _MiniControl(
+            if (cameraOn) ...[
+              const SizedBox(width: 8),
+              _ZoomControl(
                 icon: Icons.cameraswitch_rounded,
-                label: 'Drehen',
-                active: false,
                 onTap: onFlipCamera,
               ),
-            _MiniControl(
+            ],
+            const SizedBox(width: 8),
+            _ZoomControl(
               icon: speakerOn ? Icons.volume_up_rounded : Icons.hearing_rounded,
-              label: speakerOn ? 'Lautsp.' : 'Ohrhörer',
               active: speakerOn,
               onTap: onToggleSpeaker,
             ),
+            const SizedBox(width: 8),
             PopupMenuButton<String>(
-              tooltip: 'Mehr',
+              tooltip: '…',
               color: const Color(0xFF1E293B),
               onSelected: (v) {
                 switch (v) {
@@ -1154,55 +1193,82 @@ class _ActiveControls extends StatelessWidget {
                   value: 'blur',
                   enabled: cameraOn,
                   child: Text(
-                    blurEnabled ? 'Blur aus' : 'Hintergrund weich',
+                    blurEnabled ? 'Blur off' : 'Blur',
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'screen',
                   child: Text(
-                    screenSharing ? 'Screen aus' : 'Bildschirm teilen',
+                    screenSharing ? 'Stop share' : 'Share',
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
                 PopupMenuItem(
                   value: 'rec',
                   child: Text(
-                    recording ? 'Aufnahme stoppen' : 'Aufnahme',
+                    recording ? 'Stop rec' : 'Record',
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
                 const PopupMenuItem(
                   value: 'image',
-                  child: Text('Bild senden', style: TextStyle(color: Colors.white)),
+                  child: Text('Image', style: TextStyle(color: Colors.white)),
                 ),
               ],
-              child: Column(
-                children: [
-                  Material(
-                    color: Colors.white.withValues(alpha: 0.08),
-                    shape: const CircleBorder(),
-                    child: const SizedBox(
-                      width: 58,
-                      height: 58,
-                      child: Icon(Icons.more_horiz_rounded, color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text('Mehr', style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 12)),
-                ],
+              child: Material(
+                color: Colors.white.withValues(alpha: 0.12),
+                shape: const CircleBorder(),
+                child: const SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: Icon(Icons.more_horiz_rounded, color: Colors.white, size: 24),
+                ),
               ),
+            ),
+            const SizedBox(width: 12),
+            _ZoomControl(
+              icon: Icons.call_end_rounded,
+              danger: true,
+              onTap: onHangup,
             ),
           ],
         ),
-        const SizedBox(height: 28),
-        _RoundActionButton(
-          icon: Icons.call_end_rounded,
-          label: 'Auflegen',
-          color: const Color(0xFFE53935),
-          onTap: onHangup,
+      ),
+    );
+  }
+}
+
+class _ZoomControl extends StatelessWidget {
+  const _ZoomControl({
+    required this.icon,
+    this.active = false,
+    this.danger = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final bool active;
+  final bool danger;
+  final Future<void> Function()? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = danger
+        ? const Color(0xFFE53935)
+        : Colors.white.withValues(alpha: active ? 0.28 : 0.12);
+    return Material(
+      color: bg,
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap == null ? null : () => unawaited(onTap!()),
+        child: SizedBox(
+          width: 52,
+          height: 52,
+          child: Icon(icon, color: Colors.white, size: 24),
         ),
-      ],
+      ),
     );
   }
 }

@@ -4,8 +4,10 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../core/worker_auth_errors.dart';
 import '../../services/ai_assistant_service.dart';
@@ -94,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() {
           _profile = cached;
-          _loadError = 'Profil konnte nicht geladen werden — nach unten ziehen zum Aktualisieren.';
+          _loadError = t('profileLoadError');
         });
       }
     }
@@ -196,45 +198,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Widget _infoTile(String label, String value, {Widget? valueWidget}) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                  ),
-            ),
-            const SizedBox(height: 4),
-            valueWidget ??
-                Text(
-                  value,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final worker = _profile?['worker'] as Map<String, dynamic>?;
-    final company = _profile?['company'] as Map<String, dynamic>?;
     final subcompany = _profile?['subcompany'] as Map<String, dynamic>?;
     final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
     final branding = TenantBranding.fromMePayload(_profile);
@@ -242,7 +208,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final openCheckIn = siteAccess?['openCheckInToday'] == true;
     final status = worker?['status'] as String? ?? 'aktiv';
 
-    return Scaffold(
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) => Scaffold(
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -259,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'Mitteilungen',
+            tooltip: t('notifications'),
             icon: Badge(
               isLabelVisible: _unreadNotifications > 0,
               label: Text('$_unreadNotifications'),
@@ -268,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _openNotifications,
           ),
           IconButton(
-            tooltip: 'KI Assistent',
+            tooltip: branding.aiAssistantTitle,
             icon: const Icon(Icons.smart_toy_outlined),
             onPressed: () {
               Navigator.of(context).push(
@@ -282,13 +250,13 @@ class _HomeScreenState extends State<HomeScreen> {
             },
           ),
           IconButton(
-            tooltip: 'Chat mit Firma',
+            tooltip: t('navChat'),
             icon: const Icon(Icons.chat_bubble_outline),
             onPressed: _openChatFullScreen,
           ),
           if (widget.voiceCall != null)
             IconButton(
-              tooltip: 'Kontakte',
+              tooltip: t('contacts'),
               icon: const Icon(Icons.contacts_rounded),
               onPressed: () {
                 unawaited(CompanyContactsSheet.show(
@@ -303,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           if (widget.voiceCall != null)
             IconButton(
-              tooltip: 'Firma anrufen',
+              tooltip: t('callEmployer'),
               icon: const Icon(Icons.call_rounded),
               onPressed: widget.voiceCall!.isActive
                   ? null
@@ -351,7 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     return Card(
                       child: Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Text('Ausweis-Fehler: $e'),
+                        child: Text('${t('navPass')}: $e'),
                       ),
                     );
                   }
@@ -359,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Wallet fürs Gate · QR bleibt Fallback',
+                t('walletHint'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -369,14 +337,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 OutlinedButton.icon(
                   onPressed: () => _addToWallet('apple'),
                   icon: const Icon(Icons.wallet),
-                  label: const Text('Zu Apple Wallet'),
+                  label: Text(t('toAppleWallet')),
                   style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                 )
               else if (Platform.isAndroid)
                 OutlinedButton.icon(
                   onPressed: () => _addToWallet('google'),
                   icon: const Icon(Icons.wallet),
-                  label: const Text('Zu Google Wallet'),
+                  label: Text(t('toGoogleWallet')),
                   style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                 )
               else
@@ -386,7 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => _addToWallet('apple'),
                         icon: const Icon(Icons.wallet),
-                        label: const Text('Apple Wallet'),
+                        label: Text(t('toAppleWallet')),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -394,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: OutlinedButton.icon(
                         onPressed: () => _addToWallet('google'),
                         icon: const Icon(Icons.wallet),
-                        label: const Text('Google Wallet'),
+                        label: Text(t('toGoogleWallet')),
                       ),
                     ),
                   ],
@@ -407,15 +375,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   openCheckIn ? Icons.login : Icons.logout,
                   color: Theme.of(context).colorScheme.primary,
                 ),
-                title: Text(openCheckIn ? 'Heute eingecheckt' : 'Noch nicht eingecheckt'),
-                subtitle: worker?['site'] != null ? Text('Baustelle: ${worker!['site']}') : null,
+                title: Text(openCheckIn ? t('checkedInToday') : t('notCheckedIn')),
+                subtitle: worker?['site'] != null
+                    ? Text('${t('constructionSite')}: ${worker!['site']}')
+                    : null,
               ),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: widget.onOpenAttendance,
               icon: const Icon(Icons.nfc),
-              label: const Text('NFC Check-in / Check-out'),
+              label: Text(t('nfcCheckin')),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
             ),
             const SizedBox(height: 8),
@@ -423,7 +393,7 @@ class _HomeScreenState extends State<HomeScreen> {
               FilledButton.tonalIcon(
                 onPressed: widget.onOpenDeploymentPlan,
                 icon: const Icon(Icons.event_note),
-                label: const Text('Mein Einsatzplan'),
+                label: Text(t('myDeploymentPlan')),
                 style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
               ),
             if (widget.onOpenDeploymentPlan != null) const SizedBox(height: 8),
@@ -445,6 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 }

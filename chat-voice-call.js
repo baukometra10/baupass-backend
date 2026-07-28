@@ -1212,6 +1212,16 @@
       });
       const stream = await this._ensureMedia();
       stream.getTracks().forEach((track) => this.pc.addTrack(track, stream));
+      // Reserve a video m-line so late peer-camera renegotiation can be received
+      // (offerToReceiveVideo is ignored on Unified Plan in many browsers).
+      try {
+        const hasVideoTx = (this.pc.getTransceivers?.() || []).some(
+          (t) => t.receiver?.track?.kind === "video" || t.sender?.track?.kind === "video",
+        );
+        if (!hasVideoTx && (this.pc.getTransceivers?.() || []).length < 2) {
+          this.pc.addTransceiver("video", { direction: "recvonly" });
+        }
+      } catch (_) { /* ignore */ }
       this._startAudioMeters();
       this.pc.ontrack = (event) => {
         const incoming = event.streams?.[0];

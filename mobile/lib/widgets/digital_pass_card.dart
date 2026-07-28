@@ -461,7 +461,7 @@ class _MiddleRow extends StatelessWidget {
         SizedBox(width: cardW * 0.035),
         Expanded(
           child: Align(
-            alignment: Alignment.centerRight,
+            alignment: AlignmentDirectional.centerEnd,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.end,
@@ -630,28 +630,45 @@ class _BottomSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final longName = name.length > 22;
-    final nameSize = (cardW * (longName ? 0.048 : 0.056)).clamp(15.0, 20.0);
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final displayName = DigitalPassCard._displayName(
+      name.isEmpty ? t('cardEmployeeName', 'Mitarbeiter') : name,
+    );
+    final arabicName = RegExp(r'[\u0600-\u06FF]').hasMatch(displayName);
+    final longName = displayName.length > (arabicName ? 18 : 22);
+    // Arabic glyphs need less letter-spacing and a smaller size to avoid overflow.
+    final nameSize = (cardW * (arabicName ? (longName ? 0.038 : 0.044) : (longName ? 0.048 : 0.056)))
+        .clamp(arabicName ? 12.0 : 15.0, arabicName ? 16.5 : 20.0);
     final roleSize = (cardW * 0.034).clamp(10.5, 13.0);
     final labelSize = (cardW * 0.026).clamp(8.5, 10.5);
     final valueSize = (cardW * 0.033).clamp(11.0, 13.0);
     final badgeSize = (cardW * 0.04).clamp(12.0, 14.5);
     final roleLine = DigitalPassCard._displayMeta(role.isEmpty ? (subcompany ?? '') : role);
-    final statusLabel = active ? 'AKTIV' : DigitalPassCard._displayMeta(status);
+    final statusLabel = active ? t('cardActive', 'AKTIV') : DigitalPassCard._displayMeta(status);
+    final nameAlign = rtl ? TextAlign.right : TextAlign.left;
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          DigitalPassCard._displayName(name.isEmpty ? 'Mitarbeiter' : name),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 0.4,
-            fontSize: nameSize,
-            height: 1.15,
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: rtl ? Alignment.centerRight : Alignment.centerLeft,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: cardW * 0.92),
+            child: Text(
+              displayName,
+              maxLines: arabicName ? 2 : 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: nameAlign,
+              textDirection: arabicName ? TextDirection.rtl : null,
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                letterSpacing: arabicName ? 0 : 0.4,
+                fontSize: nameSize,
+                height: arabicName ? 1.2 : 1.15,
+              ),
+            ),
           ),
         ),
         if (roleLine.isNotEmpty) ...[
@@ -660,10 +677,11 @@ class _BottomSection extends StatelessWidget {
             roleLine,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            textAlign: nameAlign,
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.62),
               fontSize: roleSize,
-              letterSpacing: 0.6,
+              letterSpacing: arabicName ? 0 : 0.6,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -678,20 +696,22 @@ class _BottomSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _FieldLabelValue(
-                    label: 'BADGE-ID',
+                    label: t('cardBadgeId', 'BADGE-ID'),
                     value: badgeId.trim().isEmpty ? '—' : badgeId.trim(),
                     labelSize: labelSize,
                     valueSize: badgeSize,
                     valueColor: palette.badgeGold,
                     bold: true,
+                    rtl: rtl,
                   ),
                   const SizedBox(height: 5),
                   _FieldLabelValue(
-                    label: 'GÜLTIG BIS',
+                    label: t('cardValidUntil', 'GÜLTIG BIS'),
                     value: DigitalPassCard._formatDate(validUntil),
                     labelSize: labelSize,
                     valueSize: valueSize,
                     valueColor: Colors.white.withValues(alpha: 0.95),
+                    rtl: rtl,
                   ),
                 ],
               ),
@@ -711,7 +731,7 @@ class _BottomSection extends StatelessWidget {
                       color: Colors.white.withValues(alpha: 0.9),
                       fontSize: labelSize + 0.5,
                       fontWeight: FontWeight.w800,
-                      letterSpacing: 0.4,
+                      letterSpacing: rtl ? 0 : 0.4,
                     ),
                   ),
                   if (subcompany != null &&
@@ -747,7 +767,7 @@ class _BottomSection extends StatelessWidget {
                         color: active ? const Color(0xFF86EFAC) : const Color(0xFFFFB3B3),
                         fontWeight: FontWeight.w800,
                         fontSize: labelSize,
-                        letterSpacing: 0.8,
+                        letterSpacing: rtl ? 0 : 0.8,
                       ),
                     ),
                   ),
@@ -769,6 +789,7 @@ class _FieldLabelValue extends StatelessWidget {
     required this.valueSize,
     required this.valueColor,
     this.bold = false,
+    this.rtl = false,
   });
 
   final String label;
@@ -777,6 +798,7 @@ class _FieldLabelValue extends StatelessWidget {
   final double valueSize;
   final Color valueColor;
   final bool bold;
+  final bool rtl;
 
   @override
   Widget build(BuildContext context) {
@@ -785,10 +807,11 @@ class _FieldLabelValue extends StatelessWidget {
       children: [
         Text(
           label,
+          textAlign: rtl ? TextAlign.right : TextAlign.left,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.6),
             fontSize: labelSize,
-            letterSpacing: 1.4,
+            letterSpacing: rtl ? 0 : 1.4,
             fontWeight: FontWeight.w500,
             height: 1.05,
           ),
@@ -797,11 +820,12 @@ class _FieldLabelValue extends StatelessWidget {
           value.isEmpty ? '—' : value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          textAlign: rtl ? TextAlign.right : TextAlign.left,
           style: TextStyle(
             color: valueColor,
             fontSize: valueSize,
             fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-            letterSpacing: bold ? 0.9 : 0.4,
+            letterSpacing: rtl ? 0 : (bold ? 0.9 : 0.4),
             height: 1.1,
           ),
         ),

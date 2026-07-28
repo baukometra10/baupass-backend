@@ -301,44 +301,45 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                         ? const Center(
                             child: Text('Warte auf Teilnehmer…', style: TextStyle(color: Colors.white70)),
                           )
-                        : GridView.builder(
-                            padding: const EdgeInsets.all(12),
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: tiles.length == 1 ? 1 : 2,
-                              mainAxisSpacing: 10,
-                              crossAxisSpacing: 10,
-                              childAspectRatio: tiles.length == 1 ? 0.75 : 0.72,
-                            ),
-                            itemCount: tiles.length,
-                            itemBuilder: (context, i) => tiles[i],
-                          ),
+                        : _ZoomParticipantGrid(tiles: tiles),
                   ),
                 if (!_connecting && _error == null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _RoundControl(
-                          icon: _micOn ? Icons.mic : Icons.mic_off,
-                          label: _micOn ? 'Mikro' : 'Stumm',
-                          active: _micOn,
-                          onTap: _busyMedia ? null : _toggleMic,
+                    child: Center(
+                      child: Material(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(28),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _RoundControl(
+                                icon: _micOn ? Icons.mic : Icons.mic_off,
+                                label: _micOn ? 'Mikro' : 'Stumm',
+                                active: _micOn,
+                                onTap: _busyMedia ? null : _toggleMic,
+                              ),
+                              const SizedBox(width: 10),
+                              _RoundControl(
+                                icon: _camOn ? Icons.videocam : Icons.videocam_off,
+                                label: _camOn ? 'Kamera' : 'Cam aus',
+                                active: _camOn,
+                                onTap: _busyMedia ? null : _toggleCam,
+                              ),
+                              const SizedBox(width: 10),
+                              _RoundControl(
+                                icon: Icons.call_end,
+                                label: 'Verlassen',
+                                active: false,
+                                danger: true,
+                                onTap: _leave,
+                              ),
+                            ],
+                          ),
                         ),
-                        _RoundControl(
-                          icon: _camOn ? Icons.videocam : Icons.videocam_off,
-                          label: _camOn ? 'Kamera' : 'Cam aus',
-                          active: _camOn,
-                          onTap: _busyMedia ? null : _toggleCam,
-                        ),
-                        _RoundControl(
-                          icon: Icons.call_end,
-                          label: 'Verlassen',
-                          active: false,
-                          danger: true,
-                          onTap: _leave,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
               ],
@@ -442,6 +443,54 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
       if (!hasVideo) return true;
     }
     return false;
+  }
+}
+
+class _ZoomParticipantGrid extends StatelessWidget {
+  const _ZoomParticipantGrid({required this.tiles});
+
+  final List<_ParticipantTile> tiles;
+
+  int get _crossAxisCount {
+    final n = tiles.length;
+    if (n <= 1) return 1;
+    if (n <= 4) return 2;
+    if (n <= 9) return 3;
+    return 4;
+  }
+
+  double get _aspect {
+    final n = tiles.length;
+    if (n == 1) return 0.72;
+    if (n == 2) return 0.85;
+    if (n <= 4) return 1.0;
+    return 1.05;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cols = _crossAxisCount;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Prefer fitting the grid in one viewport like Zoom gallery view.
+        final rows = (tiles.length / cols).ceil().clamp(1, 6);
+        final cellH = (constraints.maxHeight - 12 * (rows - 1) - 24) / rows;
+        final cellW = (constraints.maxWidth - 12 * (cols - 1) - 24) / cols;
+        final ratio = cellW > 0 && cellH > 0 ? cellW / cellH : _aspect;
+        return GridView.builder(
+          padding: const EdgeInsets.all(12),
+          physics: tiles.length > cols * 3 ? const AlwaysScrollableScrollPhysics() : const NeverScrollableScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: ratio.clamp(0.55, 1.6),
+          ),
+          itemCount: tiles.length,
+          itemBuilder: (context, i) => tiles[i],
+        );
+      },
+    );
   }
 }
 
