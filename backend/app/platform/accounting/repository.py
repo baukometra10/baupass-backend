@@ -201,7 +201,7 @@ def create_statement_batch(
         """
         INSERT INTO payroll_statement_batches
         (id, company_id, period, status, source, external_ref, statement_count, notes, created_at, updated_at)
-        VALUES (?, ?, ?, 'pending_approval', 'accounting_app', ?, 0, ?, ?, ?)
+        VALUES (?, ?, ?, 'pending_approval', 'workpass_lohn', ?, 0, ?, ?, ?)
         """,
         (batch_id, company_id, period, (external_ref or "")[:120], (notes or "")[:500], now, now),
     )

@@ -1,13 +1,16 @@
-# جسر المحاسبة الخارجي (Accounting Bridge)
+# جسر WorkPass Lohn (تطبيق المحاسبة المنفصل)
 
-المنصة **لا** تضمّن تطبيق المحاسبة. التطبيق يبقى منفصلاً ويتبادل البيانات عبر API موقّع ومعزول لكل شركة.
+اسم المنتج: **WorkPass Lohn** · SUPPIX AI · WorkPass Lohn-Buchhaltung  
+الوضع: **Standalone** (منفصل عن منصة WorkPass/Hub)
+
+المنصة **لا** تضمّن تطبيق المحاسبة. **WorkPass Lohn** يبقى منفصلاً ويتبادل البيانات عبر API موقّع ومعزول لكل شركة.
 
 ## التدفق
 
 1. المنصة تجمع ساعات الشهر من `access_logs` + `hourly_rate` من عقد العمل.
-2. تطبيق المحاسبة يسحب الساعات (`GET`) أو يستقبل Webhook `hours.ready`.
-3. المحاسبة تحسب الكشوفات وترفعها (`POST /statements`) بحالة `pending_approval`.
-4. مسؤول الشركة أو السوبر أدمن يؤكد الإرسال.
+2. **WorkPass Lohn** يسحب الساعات (`GET`) أو يستقبل Webhook `hours.ready`.
+3. WorkPass Lohn يحسب الكشوفات ويرفعها (`POST /statements`) بحالة `pending_approval`.
+4. مسؤول الشركة أو السوبر أدمن يؤكد الإرسال في Ops («WorkPass Lohn — Freigabe»).
 5. بعد التأكيد فقط: `lohnabrechnung` تصل للموظف + Push/Mitteilung.
 
 ## إعداد التكامل (أدمن)
@@ -18,8 +21,8 @@ Authorization: Bearer <session>
 Content-Type: application/json
 
 {
-  "companyId": "…",          // سوبر أدمن فقط
-  "webhookUrl": "https://accounting.example/hooks/suppix-hours",
+  "companyId": "…",
+  "webhookUrl": "https://lohn.example/hooks/suppix-hours",
   "enabled": true,
   "runDay": 1,
   "rotateKey": true
@@ -28,7 +31,7 @@ Content-Type: application/json
 
 الاستجابة تعرض مرة واحدة فقط: `apiKey` (`acc_live_…`) و `signingSecret`.
 
-## API لتطبيق المحاسبة
+## API لـ WorkPass Lohn
 
 Headers:
 
@@ -65,7 +68,7 @@ POST /api/v2/accounting/hours/ack
 POST /api/v2/accounting/statements
 {
   "period": "2026-06",
-  "externalRef": "run-42",
+  "externalRef": "workpass-lohn-run-42",
   "statements": [
     {
       "workerId": "w1",
@@ -85,8 +88,6 @@ POST /api/v2/accounting/statements
 
 ### Webhook صادر من المنصة
 
-عند يوم التشغيل (`runDay`) أو `export-now` مع webhook:
-
 ```json
 {
   "event": "hours.ready",
@@ -94,11 +95,12 @@ POST /api/v2/accounting/statements
   "period": "2026-06",
   "exportId": "phe-…",
   "fingerprint": "…",
-  "pullUrl": "/api/v2/accounting/hours?period=2026-06"
+  "pullUrl": "/api/v2/accounting/hours?period=2026-06",
+  "product": "WorkPass Lohn"
 }
 ```
 
-Headers: `X-Suppix-Timestamp`, `X-Suppix-Signature`, `X-Suppix-Event`.
+Headers: `X-Suppix-Timestamp`, `X-Suppix-Signature`, `X-Suppix-Event`, `User-Agent: SUPPIX-WorkPass-Lohn-Bridge/1.0`.
 
 ## موافقة على المنصة
 
@@ -109,17 +111,11 @@ POST /api/payroll/statements/{batchId}/approve
 POST /api/payroll/statements/{batchId}/reject
 ```
 
-الأدوار: `company-admin`, `superadmin` (عزل الشركة لمسؤول الشركة).
-
-تشغيل يدوي للتصدير:
-
-```http
-POST /api/payroll/accounting/export-now
-{ "period": "2026-06", "notify": true }
-```
+الأدوار: `company-admin`, `superadmin`.
 
 ## حدود
 
-- المنصة لا تحسب الضرائب/التأمينات/الصافي النهائي.
-- لا دمج كود المحاسبة داخل الريبو.
+- المنصة لا تحسب الضرائب/التأمينات/الصافي النهائي — ذلك في **WorkPass Lohn**.
+- لا دمج كود WorkPass Lohn داخل ريبو المنصة.
 - لا إرسال كشوفات للموظفين قبل موافقة بشرية.
+- حماية الدخول بـ PIN في WorkPass Lohn محلية لهذا التطبيق؛ مفاتيح الجسر منفصلة.

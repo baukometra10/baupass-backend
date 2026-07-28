@@ -187,7 +187,8 @@ def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, An
     company = db.execute("SELECT id, name FROM companies WHERE id = ?", (company_id,)).fetchone()
     return {
         "ok": True,
-        "format": "suppix_payroll_hours_v1",
+        "format": "suppix_workpass_lohn_hours_v1",
+        "product": "WorkPass Lohn",
         "companyId": company_id,
         "companyName": (company["name"] if company else "") or "",
         "period": period,

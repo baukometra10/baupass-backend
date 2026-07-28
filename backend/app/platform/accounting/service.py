@@ -32,9 +32,10 @@ def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -
     ts = str(int(__import__("time").time()))
     headers = {
         "Content-Type": "application/json",
-        "User-Agent": "SUPPIX-AccountingBridge/1.0",
+        "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
         "X-Suppix-Timestamp": ts,
         "X-Suppix-Event": str(body.get("event") or "hours.ready"),
+        "X-Suppix-Product": "WorkPass Lohn",
     }
     if signing_secret:
         headers["X-Suppix-Signature"] = sign_payload(signing_secret, timestamp=ts, body=raw)
@@ -64,6 +65,7 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
     payload = prepare_hour_export(db, company_id=company_id, period=period, mark_sent=True)
     event = {
         "event": "hours.ready",
+        "product": "WorkPass Lohn",
         "companyId": company_id,
         "period": payload["period"],
         "exportId": payload.get("exportId"),

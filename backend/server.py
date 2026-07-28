@@ -8287,7 +8287,7 @@ def run_daily_jobs_cycle_once():
                     db,
                     code="accounting_hours_export_failed",
                     severity="warning",
-                    message="Monats-Stundenexport an Buchhaltung fehlgeschlagen.",
+                    message="Monats-Stundenexport an WorkPass Lohn fehlgeschlagen.",
                     details=accounting_hours_result,
                     dedup_minutes=60 * 12,
                 )

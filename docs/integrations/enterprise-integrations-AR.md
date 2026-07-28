@@ -5,7 +5,7 @@
 | نظام | الحالة | التالي |
 |------|--------|--------|
 | DATEV | ✅ CSV + OAuth | استقرار + retry |
-| تطبيق محاسبة خارجي | ✅ جسر API | [accounting-bridge-AR.md](accounting-bridge-AR.md) |
+| WorkPass Lohn (محاسبة) | ✅ جسر API منفصل | [accounting-bridge-AR.md](accounting-bridge-AR.md) |
 | Microsoft 365 / Entra | ✅ SSO | Group → role mapping |
 | SAP | 📋 | HR sync عند عقد |
 | Oracle | 📋 | عند طلب |
