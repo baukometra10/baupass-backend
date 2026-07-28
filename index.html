@@ -2098,6 +2098,64 @@
             </form>
             </section>
 
+            <section class="superadmin-block" id="workpassLohnLinkSection" data-superadmin-only>
+              <div class="panel-heading superadmin-block-heading">
+                <div>
+                  <p class="eyebrow" data-ui-i18n="lohnLinkEyebrow">WorkPass Lohn</p>
+                  <h3 data-ui-i18n="lohnLinkH3">Buchhaltungs-App verbinden (einmalig)</h3>
+                </div>
+              </div>
+              <p class="helper-text" data-ui-i18n="lohnLinkIntro">Einmaliger Plattform-Link zu WorkPass Lohn. Danach kann jede Firma separat in den Firmeneinstellungen aktiviert werden.</p>
+              <p id="workpassLohnLinkStatus" class="helper-text" aria-live="polite"></p>
+              <form id="workpassLohnLinkForm" class="form-grid compact-grid superadmin-settings-form">
+                <label>
+                  <span data-ui-i18n="lohnLinkEnabledLabel">Verbindung aktiv</span>
+                  <select id="lohnLinkEnabled">
+                    <option value="1" data-ui-i18n="optYes">Ja</option>
+                    <option value="0" selected data-ui-i18n="optNo">Nein</option>
+                  </select>
+                </label>
+                <label>
+                  <span data-ui-i18n="lohnLinkAutoLabel">Auto-Provision bei Firmen-Opt-in</span>
+                  <select id="lohnLinkAutoProvision">
+                    <option value="1" selected>Ja</option>
+                    <option value="0">Nein</option>
+                  </select>
+                </label>
+                <label class="full-width">
+                  <span data-ui-i18n="lohnLinkBaseUrlLabel">WorkPass Lohn Basis-URL</span>
+                  <input id="lohnLinkBaseUrl" type="url" placeholder="https://lohn.example.com" autocomplete="off" />
+                </label>
+                <label class="full-width">
+                  <span data-ui-i18n="lohnLinkMasterKeyLabel">Master-API-Key</span>
+                  <input id="lohnLinkMasterKey" type="password" placeholder="leer lassen = behalten" autocomplete="new-password" />
+                  <span id="lohnLinkMasterKeyHint" class="helper-text"></span>
+                </label>
+                <label class="full-width">
+                  <span data-ui-i18n="lohnLinkPlatformUrlLabel">Öffentliche Plattform-URL</span>
+                  <input id="lohnLinkPlatformUrl" type="url" placeholder="https://suppix-ai-workpass.com" />
+                </label>
+                <label>
+                  <span data-ui-i18n="lohnLinkUpsertPathLabel">Company-Upsert Pfad</span>
+                  <input id="lohnLinkUpsertPath" type="text" value="/v1/company/upsert" />
+                </label>
+                <label>
+                  <span data-ui-i18n="lohnLinkWebhookPathLabel">Hours-Webhook Pfad</span>
+                  <input id="lohnLinkWebhookPath" type="text" value="/hooks/suppix-hours" />
+                </label>
+                <label>
+                  <span data-ui-i18n="lohnLinkRunDayLabel">Export-Tag (1–28)</span>
+                  <input id="lohnLinkRunDay" type="number" min="1" max="28" value="1" />
+                </label>
+                <div class="full-width button-row" style="gap:8px;flex-wrap:wrap;">
+                  <button type="submit" class="primary-button" data-ui-i18n="lohnLinkSaveBtn">Verbindung speichern</button>
+                  <button type="button" class="ghost-button" id="lohnLinkTestBtn" data-ui-i18n="lohnLinkTestBtn">Verbindung testen</button>
+                  <button type="button" class="ghost-button" id="lohnLinkReloadBtn" data-ui-i18n="lohnLinkReloadBtn">Status laden</button>
+                </div>
+                <p id="lohnLinkFormMessage" class="helper-text full-width" aria-live="polite"></p>
+              </form>
+            </section>
+
             <section class="superadmin-block superadmin-company-block">
             <div class="panel-heading superadmin-block-heading">
               <div>

@@ -32,6 +32,18 @@ Content-Type: application/json
 }
 ```
 
+**UI tools (superadmin):**
+- Legacy: Admin → Einstellungen → **WorkPass Lohn — Buchhaltungs-App verbinden**
+- Admin-v2: Tab **Plattform** → panel **WorkPass Lohn — Plattform-Link**
+- Ops Command Center shows link status
+- CLI: `.\deploy\link-workpass-lohn.ps1 -BaseUrl https://lohn… -MasterKey … -PlatformUrl https://suppix-ai-workpass.com`
+
+Connectivity check:
+
+```http
+POST /api/payroll/accounting/platform-link/test
+```
+
 Env alternative:
 
 ```text

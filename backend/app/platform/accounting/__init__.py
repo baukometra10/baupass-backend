@@ -26,6 +26,7 @@ def register_accounting_blueprint(flask_app) -> None:
         provision_all_active_companies,
         provision_company_for_lohn,
         save_platform_link,
+        test_platform_link_connectivity,
     )
     from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
     from .schema import ensure_accounting_schema
@@ -245,6 +246,14 @@ def register_accounting_blueprint(flask_app) -> None:
         )
         safe = {k: v for k, v in link.items() if k != "master_api_key"}
         return jsonify({"ok": True, "link": safe}), 200
+
+    @accounting_bp.post("/payroll/accounting/platform-link/test")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_test_platform_link():
+        result = test_platform_link_connectivity(get_db())
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
 
     @accounting_bp.post("/payroll/accounting/provision/<company_id>")
     @require_auth

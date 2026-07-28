@@ -1590,6 +1590,28 @@ const UI_TRANSLATIONS = {
     btnCreateCompany: "Firma anlegen",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.",
+    lohnLinkEyebrow: "WorkPass Lohn",
+    lohnLinkH3: "Buchhaltungs-App verbinden (einmalig)",
+    lohnLinkIntro: "Einmaliger Plattform-Link zu WorkPass Lohn. Danach kann jede Firma separat in den Firmeneinstellungen aktiviert werden.",
+    lohnLinkEnabledLabel: "Verbindung aktiv",
+    lohnLinkAutoLabel: "Auto-Provision bei Firmen-Opt-in",
+    lohnLinkBaseUrlLabel: "WorkPass Lohn Basis-URL",
+    lohnLinkMasterKeyLabel: "Master-API-Key",
+    lohnLinkPlatformUrlLabel: "Öffentliche Plattform-URL",
+    lohnLinkUpsertPathLabel: "Company-Upsert Pfad",
+    lohnLinkWebhookPathLabel: "Hours-Webhook Pfad",
+    lohnLinkRunDayLabel: "Export-Tag (1–28)",
+    lohnLinkSaveBtn: "Verbindung speichern",
+    lohnLinkTestBtn: "Verbindung testen",
+    lohnLinkReloadBtn: "Status laden",
+    lohnLinkStatusOn: "Verbunden · {base}",
+    lohnLinkStatusOff: "Nicht verbunden",
+    lohnLinkKeySet: "Master-Key hinterlegt ({preview})",
+    lohnLinkKeyMissing: "Noch kein Master-Key gespeichert",
+    lohnLinkSaved: "WorkPass Lohn Verbindung gespeichert",
+    lohnLinkSaveFailed: "Speichern fehlgeschlagen: {error}",
+    lohnLinkTestOk: "Erreichbar ({status}) · {url}",
+    lohnLinkTestFailed: "Test fehlgeschlagen: {error}",
     accountEyebrow: "Konto",
     accountPanelH3: "Mein Admin-Konto",
     accountPanelLead: "Benutzername, Anzeigename und Passwort zentral verwalten.",
@@ -2790,6 +2812,28 @@ const UI_TRANSLATIONS = {
     btnCreateCompany: "Create company",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Enable only if this company should use the WorkPass Lohn accounting app. Default: off.",
+    lohnLinkEyebrow: "WorkPass Lohn",
+    lohnLinkH3: "Connect accounting app (once)",
+    lohnLinkIntro: "One-time platform link to WorkPass Lohn. Afterwards enable each company in company settings.",
+    lohnLinkEnabledLabel: "Link enabled",
+    lohnLinkAutoLabel: "Auto-provision on company opt-in",
+    lohnLinkBaseUrlLabel: "WorkPass Lohn base URL",
+    lohnLinkMasterKeyLabel: "Master API key",
+    lohnLinkPlatformUrlLabel: "Public platform URL",
+    lohnLinkUpsertPathLabel: "Company upsert path",
+    lohnLinkWebhookPathLabel: "Hours webhook path",
+    lohnLinkRunDayLabel: "Export day (1–28)",
+    lohnLinkSaveBtn: "Save connection",
+    lohnLinkTestBtn: "Test connection",
+    lohnLinkReloadBtn: "Reload status",
+    lohnLinkStatusOn: "Connected · {base}",
+    lohnLinkStatusOff: "Not connected",
+    lohnLinkKeySet: "Master key stored ({preview})",
+    lohnLinkKeyMissing: "No master key stored yet",
+    lohnLinkSaved: "WorkPass Lohn connection saved",
+    lohnLinkSaveFailed: "Save failed: {error}",
+    lohnLinkTestOk: "Reachable ({status}) · {url}",
+    lohnLinkTestFailed: "Test failed: {error}",
     accountEyebrow: "Account",
     accountPanelH3: "My admin account",
     accountPanelLead: "Manage username, display name, and password in one place.",
@@ -4455,6 +4499,28 @@ const UI_TRANSLATIONS = {
     btnCreateCompany: "إنشاء شركة",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (اختياري)",
     companyCreateWorkpassLohnHint: "فعّل فقط إذا كانت هذه الشركة ستستخدم تطبيق المحاسبة WorkPass Lohn. الافتراضي: متوقف.",
+    lohnLinkEyebrow: "WorkPass Lohn",
+    lohnLinkH3: "ربط تطبيق المحاسبة (مرة واحدة)",
+    lohnLinkIntro: "ربط المنصة مرة واحدة مع WorkPass Lohn. بعدها فعّل كل شركة من إعدادات الشركة.",
+    lohnLinkEnabledLabel: "الربط مفعّل",
+    lohnLinkAutoLabel: "توفير تلقائي عند تفعيل الشركة",
+    lohnLinkBaseUrlLabel: "رابط WorkPass Lohn الأساسي",
+    lohnLinkMasterKeyLabel: "مفتاح API الرئيسي",
+    lohnLinkPlatformUrlLabel: "رابط المنصة العام",
+    lohnLinkUpsertPathLabel: "مسار تحديث الشركة",
+    lohnLinkWebhookPathLabel: "مسار Webhook الساعات",
+    lohnLinkRunDayLabel: "يوم التصدير (1–28)",
+    lohnLinkSaveBtn: "حفظ الربط",
+    lohnLinkTestBtn: "اختبار الاتصال",
+    lohnLinkReloadBtn: "تحديث الحالة",
+    lohnLinkStatusOn: "متصل · {base}",
+    lohnLinkStatusOff: "غير متصل",
+    lohnLinkKeySet: "المفتاح محفوظ ({preview})",
+    lohnLinkKeyMissing: "لا يوجد مفتاح محفوظ بعد",
+    lohnLinkSaved: "تم حفظ ربط WorkPass Lohn",
+    lohnLinkSaveFailed: "فشل الحفظ: {error}",
+    lohnLinkTestOk: "يمكن الوصول ({status}) · {url}",
+    lohnLinkTestFailed: "فشل الاختبار: {error}",
     accountEyebrow: "الحساب",
     accountPanelH3: "حساب المسؤول",
     accountPanelLead: "إدارة اسم المستخدم واسم العرض وكلمة المرور من مكان واحد.",
@@ -30827,6 +30893,132 @@ function printVisitorWeeklyReport() {
   reportWindow.print();
 }
 
+function applyWorkpassLohnLinkToForm(link) {
+  const enabled = Boolean(link?.enabled || link?.configured);
+  const baseUrl = String(link?.baseUrl || link?.base_url || "").trim();
+  const platformUrl = String(link?.platformPublicUrl || link?.platform_public_url || "").trim();
+  const upsert = String(link?.companyUpsertPath || link?.company_upsert_path || "/v1/company/upsert");
+  const webhook = String(link?.hoursWebhookPath || link?.hours_webhook_path || "/hooks/suppix-hours");
+  const runDay = Number(link?.runDay || link?.default_run_day || 1) || 1;
+  const auto = link?.autoProvision ?? link?.auto_provision;
+  const autoOn = auto === true || Number(auto) === 1 || auto == null;
+  const enabledEl = document.querySelector("#lohnLinkEnabled");
+  const autoEl = document.querySelector("#lohnLinkAutoProvision");
+  const baseEl = document.querySelector("#lohnLinkBaseUrl");
+  const platformEl = document.querySelector("#lohnLinkPlatformUrl");
+  const upsertEl = document.querySelector("#lohnLinkUpsertPath");
+  const webhookEl = document.querySelector("#lohnLinkWebhookPath");
+  const runEl = document.querySelector("#lohnLinkRunDay");
+  const keyHint = document.querySelector("#lohnLinkMasterKeyHint");
+  const statusEl = document.querySelector("#workpassLohnLinkStatus");
+  if (enabledEl) enabledEl.value = enabled ? "1" : "0";
+  if (autoEl) autoEl.value = autoOn ? "1" : "0";
+  if (baseEl) baseEl.value = baseUrl;
+  if (platformEl) platformEl.value = platformUrl || "https://suppix-ai-workpass.com";
+  if (upsertEl) upsertEl.value = upsert;
+  if (webhookEl) webhookEl.value = webhook;
+  if (runEl) runEl.value = String(Math.max(1, Math.min(28, runDay)));
+  if (keyHint) {
+    keyHint.textContent = link?.masterApiKeySet
+      ? runtimeTextTemplate("lohnLinkKeySet", { preview: link.masterApiKeyPreview || "***" })
+      : runtimeText("lohnLinkKeyMissing");
+  }
+  if (statusEl) {
+    statusEl.textContent = enabled && baseUrl
+      ? runtimeTextTemplate("lohnLinkStatusOn", { base: baseUrl })
+      : runtimeText("lohnLinkStatusOff");
+    statusEl.className = enabled && baseUrl ? "helper-text helper-text-ok" : "helper-text helper-text-warning";
+  }
+  const keyInput = document.querySelector("#lohnLinkMasterKey");
+  if (keyInput) keyInput.value = "";
+}
+
+async function loadWorkpassLohnLinkForm() {
+  const section = document.querySelector("#workpassLohnLinkSection");
+  if (!section || !userCanManageSystem()) return;
+  try {
+    const data = await apiRequest(`${API_BASE}/api/payroll/accounting/platform-link`);
+    applyWorkpassLohnLinkToForm(data?.link || data || {});
+  } catch (error) {
+    const statusEl = document.querySelector("#workpassLohnLinkStatus");
+    if (statusEl) {
+      statusEl.textContent = runtimeTextTemplate("lohnLinkSaveFailed", { error: error.message });
+      statusEl.className = "helper-text helper-text-warning";
+    }
+  }
+}
+
+function wireWorkpassLohnLinkForm() {
+  const form = document.querySelector("#workpassLohnLinkForm");
+  if (!form || form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+  const msg = document.querySelector("#lohnLinkFormMessage");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!userCanManageSystem()) {
+      showToast(runtimeText("accessDenied") || "Nicht erlaubt", "error");
+      return;
+    }
+    const body = {
+      enabled: document.querySelector("#lohnLinkEnabled")?.value === "1",
+      autoProvision: document.querySelector("#lohnLinkAutoProvision")?.value === "1",
+      baseUrl: String(document.querySelector("#lohnLinkBaseUrl")?.value || "").trim(),
+      platformPublicUrl: String(document.querySelector("#lohnLinkPlatformUrl")?.value || "").trim(),
+      companyUpsertPath: String(document.querySelector("#lohnLinkUpsertPath")?.value || "").trim() || "/v1/company/upsert",
+      hoursWebhookPath: String(document.querySelector("#lohnLinkWebhookPath")?.value || "").trim() || "/hooks/suppix-hours",
+      runDay: Number(document.querySelector("#lohnLinkRunDay")?.value || 1) || 1,
+    };
+    const masterKey = String(document.querySelector("#lohnLinkMasterKey")?.value || "").trim();
+    if (masterKey) body.masterApiKey = masterKey;
+    try {
+      const result = await apiRequest(`${API_BASE}/api/payroll/accounting/platform-link`, {
+        method: "POST",
+        body,
+      });
+      applyWorkpassLohnLinkToForm(result?.link || {});
+      if (msg) {
+        msg.textContent = runtimeText("lohnLinkSaved");
+        msg.className = "helper-text helper-text-ok full-width";
+      }
+      showToast(runtimeText("lohnLinkSaved"), "success");
+    } catch (error) {
+      if (msg) {
+        msg.textContent = runtimeTextTemplate("lohnLinkSaveFailed", { error: error.message });
+        msg.className = "helper-text helper-text-warning full-width";
+      }
+      showToast(runtimeTextTemplate("lohnLinkSaveFailed", { error: error.message }));
+    }
+  });
+  document.querySelector("#lohnLinkTestBtn")?.addEventListener("click", async () => {
+    if (!userCanManageSystem()) return;
+    try {
+      const result = await apiRequest(`${API_BASE}/api/payroll/accounting/platform-link/test`, {
+        method: "POST",
+        body: {},
+      });
+      const text = runtimeTextTemplate("lohnLinkTestOk", {
+        status: result.status || "ok",
+        url: result.url || result.baseUrl || "",
+      });
+      if (msg) {
+        msg.textContent = text;
+        msg.className = "helper-text helper-text-ok full-width";
+      }
+      showToast(text, "success");
+    } catch (error) {
+      const text = runtimeTextTemplate("lohnLinkTestFailed", { error: error.message });
+      if (msg) {
+        msg.textContent = text;
+        msg.className = "helper-text helper-text-warning full-width";
+      }
+      showToast(text);
+    }
+  });
+  document.querySelector("#lohnLinkReloadBtn")?.addEventListener("click", () => {
+    loadWorkpassLohnLinkForm().catch(() => {});
+  });
+}
+
 async function handleSettingsSubmit(event) {
   event.preventDefault();
   if (!userCanManageSystem()) {
@@ -38380,6 +38572,9 @@ if (settingsForm) {
       showToast(uiT("toastSaved") || "Vorlage eingefügt", "success");
     });
   }
+
+  wireWorkpassLohnLinkForm();
+  loadWorkpassLohnLinkForm().catch(() => {});
 
   // Live rot/grün Feedback für wichtige Felder
   const SETTINGS_REQUIRED_FIELDS = [

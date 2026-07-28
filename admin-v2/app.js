@@ -1543,6 +1543,51 @@ function renderQuickLinks() {
   });
 }
 
+function bindLohnPlatformLinkPanel(host) {
+  if (!host || host.dataset.bound === "1") return;
+  host.dataset.bound = "1";
+  const form = host.querySelector("#lohnPlatformLinkForm");
+  const msg = host.querySelector("#lohnLinkMsg");
+  form?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const fd = new FormData(form);
+    const body = {
+      enabled: String(fd.get("enabled") || "0") === "1",
+      autoProvision: String(fd.get("autoProvision") || "0") === "1",
+      baseUrl: String(fd.get("baseUrl") || "").trim(),
+      platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
+      companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
+      hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
+      runDay: Number(fd.get("runDay") || 1) || 1,
+    };
+    const master = String(fd.get("masterApiKey") || "").trim();
+    if (master) body.masterApiKey = master;
+    try {
+      await api("/api/payroll/accounting/platform-link", { method: "POST", body: JSON.stringify(body) });
+      if (msg) msg.textContent = t("lohnLink.saved") || "Gespeichert";
+      showActionToast(t("lohnLink.saved") || "Gespeichert");
+      await loadPlatform();
+    } catch (e) {
+      if (msg) msg.textContent = e.message || "error";
+      showActionToast(e.message || "error", true);
+    }
+  });
+  host.querySelector("#lohnLinkTestBtn")?.addEventListener("click", async () => {
+    try {
+      const result = await api("/api/payroll/accounting/platform-link/test", {
+        method: "POST",
+        body: "{}",
+      });
+      const text = `${t("lohnLink.testOk") || "OK"} · ${result.status || ""} · ${result.url || result.baseUrl || ""}`;
+      if (msg) msg.textContent = text;
+      showActionToast(text);
+    } catch (e) {
+      if (msg) msg.textContent = e.message || "error";
+      showActionToast(e.message || "error", true);
+    }
+  });
+}
+
 async function loadPlatformBanner() {
   const el = $("platformBanner");
   try {
@@ -2367,7 +2412,7 @@ async function loadPlatform() {
         <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
       </div>`;
 
-    const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups, billingOv, revenue] = await Promise.all([
+    const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups, billingOv, revenue, lohnLinkPayload] = await Promise.all([
       api("/api/platform/entitlements").catch(() => null),
       api("/api/ai/status").catch(() => ({ configured: false })),
       api("/api/admin/wallet/runtime-status").catch(() => null),
@@ -2379,7 +2424,49 @@ async function loadPlatform() {
       api("/api/admin/database/backups").catch(() => ({ items: [] })),
       cid ? fetchBillingOverviewCached(cid) : Promise.resolve(null),
       api("/api/v2/billing/revenue-metrics").catch(() => null),
+      api("/api/payroll/accounting/platform-link").catch(() => null),
     ]);
+    const lohnLink = lohnLinkPayload?.link || {};
+    const lohnEnabled = Boolean(lohnLink.enabled || lohnLink.configured);
+    const lohnBase = String(lohnLink.baseUrl || lohnLink.base_url || "").trim();
+    const lohnAuto = lohnLink.autoProvision ?? lohnLink.auto_provision;
+    const lohnAutoOn = lohnAuto === true || Number(lohnAuto) === 1 || lohnAuto == null;
+    const lohnPanel = `<div class="panel-block" id="lohnPlatformLinkPanel">
+        <h3>${t("lohnLink.title") || "WorkPass Lohn — Plattform-Link"}</h3>
+        <p class="muted small">${t("lohnLink.hint") || "Einmalige Verbindung zur Buchhaltungs-App. Firmen danach einzeln in Einstellungen aktivieren."}</p>
+        <p class="muted small">${lohnEnabled && lohnBase ? `✓ ${escapeHtml(lohnBase)}` : (t("lohnLink.off") || "Nicht verbunden")}</p>
+        <form id="lohnPlatformLinkForm" class="tool-form" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr;">
+          <label>${t("lohnLink.enabled") || "Aktiv"}
+            <select name="enabled"><option value="1" ${lohnEnabled ? "selected" : ""}>Ja</option><option value="0" ${!lohnEnabled ? "selected" : ""}>Nein</option></select>
+          </label>
+          <label>${t("lohnLink.auto") || "Auto-Provision"}
+            <select name="autoProvision"><option value="1" ${lohnAutoOn ? "selected" : ""}>Ja</option><option value="0" ${!lohnAutoOn ? "selected" : ""}>Nein</option></select>
+          </label>
+          <label class="full" style="grid-column:1/-1">${t("lohnLink.baseUrl") || "Basis-URL"}
+            <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://lohn.example.com" />
+          </label>
+          <label class="full" style="grid-column:1/-1">${t("lohnLink.masterKey") || "Master-API-Key"}
+            <input name="masterApiKey" type="password" placeholder="${lohnLink.masterApiKeySet ? escapeAttr(lohnLink.masterApiKeyPreview || "***") : ""}" autocomplete="new-password" />
+          </label>
+          <label class="full" style="grid-column:1/-1">${t("lohnLink.platformUrl") || "Plattform-URL"}
+            <input name="platformPublicUrl" type="url" value="${escapeAttr(String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com"))}" />
+          </label>
+          <label>${t("lohnLink.upsertPath") || "Upsert-Pfad"}
+            <input name="companyUpsertPath" value="${escapeAttr(String(lohnLink.companyUpsertPath || lohnLink.company_upsert_path || "/v1/company/upsert"))}" />
+          </label>
+          <label>${t("lohnLink.webhookPath") || "Webhook-Pfad"}
+            <input name="hoursWebhookPath" value="${escapeAttr(String(lohnLink.hoursWebhookPath || lohnLink.hours_webhook_path || "/hooks/suppix-hours"))}" />
+          </label>
+          <label>${t("lohnLink.runDay") || "Export-Tag"}
+            <input name="runDay" type="number" min="1" max="28" value="${escapeAttr(String(lohnLink.runDay || lohnLink.default_run_day || 1))}" />
+          </label>
+          <div style="grid-column:1/-1;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            <button type="submit">${t("lohnLink.save") || "Speichern"}</button>
+            <button type="button" class="ghost" id="lohnLinkTestBtn">${t("lohnLink.test") || "Testen"}</button>
+          </div>
+          <p id="lohnLinkMsg" class="muted small" style="grid-column:1/-1"></p>
+        </form>
+      </div>`;
     const ap = autopilot?.settings || {};
     const autopilotToggles = AUTOPILOT_KEYS.map(
       (key) => `
@@ -2468,6 +2555,7 @@ async function loadPlatform() {
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       ${dbBanner}
       ${channelsHtml}
+      ${lohnPanel}
       <div class="platform-panel-grid">
       ${
         revenue
@@ -2607,6 +2695,7 @@ async function loadPlatform() {
     await loadCompanyWorkTimesForm(cid);
     bindAutopilotPanel($("autopilotPanel"), ap);
     bindLegacyDashboardLinks(panel);
+    bindLohnPlatformLinkPanel($("lohnPlatformLinkPanel"));
     panel.querySelectorAll("[data-goto-tab]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         switchToTab(btn.getAttribute("data-goto-tab"));

@@ -71,7 +71,66 @@ def get_platform_link(db) -> dict[str, Any]:
     key = str(data.get("master_api_key") or "")
     data["masterApiKeySet"] = bool(key)
     data["masterApiKeyPreview"] = (key[:6] + "…" + key[-4:]) if len(key) > 12 else ("***" if key else "")
+    # camelCase aliases for admin UIs
+    data["baseUrl"] = str(data.get("base_url") or "")
+    data["companyUpsertPath"] = str(data.get("company_upsert_path") or "/v1/company/upsert")
+    data["hoursWebhookPath"] = str(data.get("hours_webhook_path") or "/hooks/suppix-hours")
+    data["platformPublicUrl"] = str(data.get("platform_public_url") or "")
+    data["autoProvision"] = bool(int(data.get("auto_provision") or 0))
+    data["runDay"] = int(data.get("default_run_day") or 1)
+    data["enabled"] = bool(int(data.get("enabled") or 0)) if not isinstance(data.get("enabled"), bool) else data.get("enabled")
     return data
+
+
+def test_platform_link_connectivity(db) -> dict[str, Any]:
+    """Ping WorkPass Lohn base URL (health-ish) using stored link settings."""
+    link = get_platform_link(db)
+    base = str(link.get("base_url") or "").rstrip("/")
+    if not base:
+        return {"ok": False, "error": "lohn_base_url_missing"}
+    if not link.get("enabled"):
+        return {"ok": False, "error": "platform_link_disabled", "baseUrl": base}
+    # Prefer /health then root
+    candidates = [f"{base}/health", f"{base}/api/health", base]
+    last_error = ""
+    for url in candidates:
+        req = urlrequest.Request(
+            url,
+            headers={
+                "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
+                "Accept": "application/json,text/plain,*/*",
+            },
+            method="GET",
+        )
+        master = str(link.get("master_api_key") or "")
+        if master:
+            req.add_header("Authorization", f"Bearer {master}")
+            req.add_header("X-WorkPass-Master-Key", master)
+        try:
+            with urlrequest.urlopen(req, timeout=12) as resp:
+                body = resp.read()[:400].decode("utf-8", errors="replace")
+                return {
+                    "ok": True,
+                    "status": int(resp.status),
+                    "url": url,
+                    "baseUrl": base,
+                    "bodyPreview": body,
+                }
+        except urlerror.HTTPError as exc:
+            # 401/404 still proves host is reachable
+            if int(exc.code) in {401, 403, 404, 405}:
+                return {
+                    "ok": True,
+                    "reachable": True,
+                    "status": int(exc.code),
+                    "url": url,
+                    "baseUrl": base,
+                    "note": "host_reachable_auth_or_path",
+                }
+            last_error = f"HTTP {exc.code}"
+        except Exception as exc:
+            last_error = str(exc)[:200]
+    return {"ok": False, "error": last_error or "unreachable", "baseUrl": base}
 
 
 def save_platform_link(
