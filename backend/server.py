@@ -9039,9 +9039,13 @@ def start_background_jobs():
             run_platform_guardian_once()
             time.sleep(interval)
 
-    if os.getenv("BAUPASS_GUARDIAN_ENABLED", "1").strip().lower() not in {"0", "false", "no"}:
-        threading.Thread(target=platform_guardian_loop, name="baupass-platform-guardian", daemon=True).start()  # baupass:allow-inline-thread
+    try:
+        from backend.app.platform.guardian.runner import guardian_enabled as _guardian_enabled
 
+        if _guardian_enabled():
+            threading.Thread(target=platform_guardian_loop, name="baupass-platform-guardian", daemon=True).start()  # baupass:allow-inline-thread
+    except Exception as exc:
+        print(f"[baupass] WARNING: platform guardian loop not started: {exc}", flush=True)
     # Expiry-Check beim Start einmal ausführen, danach täglich (non-fatal on PG/SQLite errors)
     try:
         check_doc_expiry_warnings()

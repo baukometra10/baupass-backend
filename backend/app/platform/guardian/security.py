@@ -13,31 +13,45 @@ _last_security_alert_at: float = 0.0
 
 
 def security_guard_enabled() -> bool:
-    return os.getenv("BAUPASS_GUARDIAN_SECURITY", "1").strip().lower() not in {"0", "false", "no"}
+    from .env import guardian_flag
+
+    return guardian_flag("SECURITY", "1")
 
 
 def security_remediation_enabled() -> bool:
-    return os.getenv("BAUPASS_GUARDIAN_SECURITY_REMEDIATION", "1").strip().lower() not in {"0", "false", "no"}
+    from .env import guardian_flag
+
+    return guardian_flag("SECURITY_REMEDIATION", "1")
 
 
 def login_spike_threshold_15m() -> int:
-    return max(5, int(os.getenv("BAUPASS_GUARDIAN_LOGIN_SPIKE_THRESHOLD", "15")))
+    from .env import guardian_int
+
+    return guardian_int("LOGIN_SPIKE_THRESHOLD", 15, minimum=5)
 
 
 def login_spike_threshold_24h() -> int:
-    return max(10, int(os.getenv("BAUPASS_GUARDIAN_LOGIN_DAILY_THRESHOLD", "50")))
+    from .env import guardian_int
+
+    return guardian_int("LOGIN_DAILY_THRESHOLD", 50, minimum=10)
 
 
 def security_alert_cooldown_seconds() -> int:
-    return max(60, int(os.getenv("BAUPASS_GUARDIAN_SECURITY_ALERT_COOLDOWN_SECONDS", "600")))
+    from .env import guardian_int
+
+    return guardian_int("SECURITY_ALERT_COOLDOWN_SECONDS", 600, minimum=60)
 
 
 def ip_ban_threshold() -> int:
-    return max(3, int(os.getenv("BAUPASS_GUARDIAN_IP_BAN_THRESHOLD", "8")))
+    from .env import guardian_int
+
+    return guardian_int("IP_BAN_THRESHOLD", 8, minimum=3)
 
 
 def ip_ban_hours() -> int:
-    return max(1, int(os.getenv("BAUPASS_GUARDIAN_IP_BAN_HOURS", "2")))
+    from .env import guardian_int
+
+    return guardian_int("IP_BAN_HOURS", 2, minimum=1)
 
 
 def _failed_login_ips(db, *, minutes: int = 15) -> dict[str, int]:

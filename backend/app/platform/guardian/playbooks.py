@@ -10,11 +10,15 @@ _playbook_last_run: dict[str, float] = {}
 
 
 def remediation_enabled() -> bool:
-    return os.getenv("BAUPASS_GUARDIAN_REMEDIATION", "1").strip().lower() not in {"0", "false", "no"}
+    from .env import guardian_flag
+
+    return guardian_flag("REMEDIATION", "1")
 
 
 def remediation_cooldown_seconds() -> int:
-    return max(60, int(os.getenv("BAUPASS_GUARDIAN_REMEDIATION_COOLDOWN_SECONDS", "300")))
+    from .env import guardian_int
+
+    return guardian_int("REMEDIATION_COOLDOWN_SECONDS", 180, minimum=30)
 
 
 def reset_playbook_state_for_tests() -> None:
@@ -238,6 +242,47 @@ def ack_stale_warning_alerts(db, *, after_hours: int = 48, force: bool = False) 
         return {"id": "stale_warning_alerts", "ok": False, "error": str(exc)[:200]}
 
 
+def retry_missing_api_routes(*, failed_probes: list[str] | None = None, force: bool = False) -> dict[str, Any]:
+    """Re-mount critical domain/platform blueprints when registry/API probes fail."""
+    failed = set(failed_probes or [])
+    needs = force or bool(
+        failed.intersection(
+            {
+                "api_route_registry",
+                "api_companies",
+                "api_ops_command",
+                "api_daily_brief",
+                "api_live_map",
+                "api_docs_inbox",
+                "api_admin_overview",
+                "api_billing_pricing",
+                "api",
+                "ready",
+            }
+        )
+    )
+    if not needs:
+        return {"id": "retry_api_routes", "skipped": "no_api_probe_failure"}
+    if not force and not _can_run("retry_api_routes"):
+        return {"id": "retry_api_routes", "skipped": "cooldown"}
+    try:
+        from backend.server import (
+            _ensure_billing_v2_routes,
+            _ensure_critical_api_routes,
+            _ensure_platform_workforce_routes,
+            _retry_failed_domain_blueprints,
+        )
+
+        _retry_failed_domain_blueprints()
+        _ensure_critical_api_routes()
+        _ensure_platform_workforce_routes()
+        _ensure_billing_v2_routes()
+        _mark_run("retry_api_routes")
+        return {"id": "retry_api_routes", "ok": True, "forced": force, "triggers": sorted(failed)}
+    except Exception as exc:
+        return {"id": "retry_api_routes", "ok": False, "error": str(exc)[:200]}
+
+
 def run_playbooks(
     db,
     *,
@@ -258,6 +303,15 @@ def run_playbooks(
         actions.append(recover_sqlite_storage(db_ok=False, force=force))
         applied = [a for a in actions if a.get("ok") and not a.get("skipped")]
         return {"enabled": True, "actions": actions, "appliedCount": len(applied), "forced": force, "skipped": "database_unhealthy"}
+
+    # API / route failures first — customers hit these immediately.
+    if force or status in {"degraded", "down"} or failed_probes:
+        actions.append(
+            retry_missing_api_routes(
+                failed_probes=failed_probes,
+                force=force or status in {"degraded", "down"},
+            )
+        )
 
     actions.append(cleanup_expired_sessions(db, force=force))
     actions.append(trigger_worker_session_cleanup(force=force))

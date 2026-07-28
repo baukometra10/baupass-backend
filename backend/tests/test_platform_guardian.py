@@ -79,9 +79,16 @@ def test_security_detects_login_spike():
                 def __getitem__(self, key):
                     return self._c
 
-            if "15" in str(params[0]):
-                return _Row(20)
-            return _Row(10)
+            count = 20 if "15" in str(params[0]) else 10
+
+            class _Cur:
+                def fetchone(self):
+                    return _Row(count)
+
+                def fetchall(self):
+                    return []
+
+            return _Cur()
 
     report = security.scan_security(_Db())
     assert report["elevated"] is True
@@ -135,3 +142,81 @@ def test_guardian_history_ring_buffer():
     rows = history.get_history()
     assert len(rows) == 2
     assert rows[0]["status"] == "degraded"
+
+
+def test_notify_urgent_on_new_failure_fingerprint(monkeypatch):
+    notify.reset_notify_state_for_tests()
+    monkeypatch.setenv("BAUPASS_GUARDIAN_WEBHOOK_URL", "https://example.test/hook")
+    monkeypatch.setenv("BAUPASS_GUARDIAN_ALERT_COOLDOWN_SECONDS", "3600")
+    calls = []
+
+    def _fake_send(url, text, *, title=""):
+        calls.append(text)
+        return True, ""
+
+    monkeypatch.setattr(
+        "backend.app.platform.ai.notifications.send_webhook_notification",
+        _fake_send,
+    )
+    snap = {
+        "status": "degraded",
+        "ready": True,
+        "timestamp": "2026-06-01T12:00:00Z",
+        "cloud": {"host": "baupass.example"},
+        "failedProbes": ["api_companies"],
+        "remediation": {"appliedCount": 1, "actions": [{"id": "retry_api_routes", "ok": True}]},
+    }
+    first = notify.maybe_notify_guardian(snap, previous_status="degraded")
+    assert first.get("sent") == 1
+    assert first.get("newFailures") is True
+    assert "vor Kunden" in calls[0] or "SOFORT" in calls[0]
+
+    # Same fingerprint during cooldown → skip
+    second = notify.maybe_notify_guardian(snap, previous_status="degraded")
+    assert second.get("skipped") == "cooldown"
+
+    # New probe failure → alert again immediately
+    snap2 = dict(snap)
+    snap2["failedProbes"] = ["api_companies", "api_live_map"]
+    third = notify.maybe_notify_guardian(snap2, previous_status="degraded")
+    assert third.get("sent") == 1
+    assert third.get("urgent") is True
+
+
+def test_retry_api_routes_playbook(monkeypatch):
+    playbooks.reset_playbook_state_for_tests()
+    calls = []
+
+    monkeypatch.setattr(
+        "backend.server._retry_failed_domain_blueprints",
+        lambda: calls.append("retry"),
+    )
+    monkeypatch.setattr(
+        "backend.server._ensure_critical_api_routes",
+        lambda: calls.append("critical"),
+    )
+    monkeypatch.setattr(
+        "backend.server._ensure_platform_workforce_routes",
+        lambda: calls.append("workforce"),
+    )
+    monkeypatch.setattr(
+        "backend.server._ensure_billing_v2_routes",
+        lambda: calls.append("billing"),
+    )
+
+    skipped = playbooks.retry_missing_api_routes(failed_probes=["admin_v2"])
+    assert skipped.get("skipped") == "no_api_probe_failure"
+
+    ok = playbooks.retry_missing_api_routes(failed_probes=["api_route_registry", "api_companies"])
+    assert ok.get("ok") is True
+    assert calls == ["retry", "critical", "workforce", "billing"]
+
+
+def test_guardian_interval_default_fast():
+    assert runner.guardian_interval_seconds() >= 15
+    # With no override, default is 30
+    import os
+
+    os.environ.pop("BAUPASS_GUARDIAN_INTERVAL_SECONDS", None)
+    os.environ.pop("SUPPIX_GUARDIAN_INTERVAL_SECONDS", None)
+    assert runner.guardian_interval_seconds() == 30
