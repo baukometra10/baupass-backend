@@ -123,6 +123,8 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
         )
         master = str(link.get("master_api_key") or "")
         if master:
+            # WorkPass Lohn expects X-WorkPass-Key (Bearer/Master aliases kept for compatibility).
+            req.add_header("X-WorkPass-Key", master)
             req.add_header("Authorization", f"Bearer {master}")
             req.add_header("X-WorkPass-Master-Key", master)
         try:
@@ -243,6 +245,7 @@ def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, A
         "X-Suppix-Product": "WorkPass Lohn",
     }
     if master:
+        headers["X-WorkPass-Key"] = master
         headers["Authorization"] = f"Bearer {master}"
         headers["X-WorkPass-Master-Key"] = master
         headers["X-Suppix-Signature"] = sign_payload(master, timestamp=ts, body=raw)

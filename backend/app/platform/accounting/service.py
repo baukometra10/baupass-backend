@@ -28,7 +28,13 @@ def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = F
     return payload
 
 
-def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -> dict[str, Any]:
+def _post_webhook(
+    url: str,
+    body: dict[str, Any],
+    *,
+    signing_secret: str = "",
+    api_key: str = "",
+) -> dict[str, Any]:
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     ts = str(int(__import__("time").time()))
     headers = {
@@ -39,6 +45,10 @@ def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -
         "X-Suppix-Product": "WorkPass Lohn",
         "X-WorkPass-Company-Id": str(body.get("companyId") or ""),
     }
+    if api_key:
+        headers["X-WorkPass-Key"] = api_key
+        headers["Authorization"] = f"Bearer {api_key}"
+        headers["X-WorkPass-Master-Key"] = api_key
     if signing_secret:
         headers["X-Suppix-Signature"] = sign_payload(signing_secret, timestamp=ts, body=raw)
     req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
@@ -53,6 +63,7 @@ def _post_webhook(url: str, body: dict[str, Any], *, signing_secret: str = "") -
 
 def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
     from .company_opt_in import is_workpass_lohn_enabled
+    from .platform_link import get_platform_link
 
     if not is_workpass_lohn_enabled(db, company_id):
         return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
@@ -82,7 +93,14 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
         "pullUrl": f"/api/v2/accounting/hours?period={payload['period']}",
         "tenantIsolation": "companyId::employeeId::period",
     }
-    result = _post_webhook(webhook, event, signing_secret=str(full["signing_secret"] or "") if full else "")
+    link = get_platform_link(db)
+    master = str(link.get("master_api_key") or "")
+    result = _post_webhook(
+        webhook,
+        event,
+        signing_secret=str(full["signing_secret"] or "") if full else "",
+        api_key=master,
+    )
     if not result.get("ok"):
         db.execute(
             "UPDATE payroll_hour_exports SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
