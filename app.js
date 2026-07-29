@@ -20065,7 +20065,9 @@ async function apiRequest(url, options = {}) {
       requestError.status = response.status;
       throw requestError;
     }
-    const requestError = new Error(payload?.error || `http_${response.status}`);
+    const requestError = new Error(
+      payload?.message || payload?.error || `http_${response.status}`
+    );
     requestError.code = payload?.error || `http_${response.status}`;
     requestError.payload = payload;
     requestError.status = response.status;
@@ -30991,7 +30993,29 @@ function wireWorkpassLohnLinkForm() {
   });
   document.querySelector("#lohnLinkTestBtn")?.addEventListener("click", async () => {
     if (!userCanManageSystem()) return;
+    // Always persist current form values before testing — avoids stale/disabled link.
     try {
+      const saveBody = {
+        enabled: document.querySelector("#lohnLinkEnabled")?.value === "1",
+        autoProvision: document.querySelector("#lohnLinkAutoProvision")?.value === "1",
+        baseUrl: String(document.querySelector("#lohnLinkBaseUrl")?.value || "").trim(),
+        platformPublicUrl: String(document.querySelector("#lohnLinkPlatformUrl")?.value || "").trim(),
+        companyUpsertPath: String(document.querySelector("#lohnLinkUpsertPath")?.value || "").trim() || "/v1/company/upsert",
+        hoursWebhookPath: String(document.querySelector("#lohnLinkWebhookPath")?.value || "").trim() || "/hooks/suppix-hours",
+        runDay: Number(document.querySelector("#lohnLinkRunDay")?.value || 1) || 1,
+      };
+      const masterKey = String(document.querySelector("#lohnLinkMasterKey")?.value || "").trim();
+      if (masterKey) saveBody.masterApiKey = masterKey;
+      if (!saveBody.baseUrl) {
+        throw new Error("WorkPass Lohn Basis-URL fehlt (nicht die Plattform-URL).");
+      }
+      if (/suppix-ai-workpass\.com/i.test(saveBody.baseUrl)) {
+        throw new Error("Basis-URL muss die Lohn-App sein — nicht https://suppix-ai-workpass.com");
+      }
+      await apiRequest(`${API_BASE}/api/payroll/accounting/platform-link`, {
+        method: "POST",
+        body: saveBody,
+      });
       const result = await apiRequest(`${API_BASE}/api/payroll/accounting/platform-link/test`, {
         method: "POST",
         body: {},
@@ -31006,7 +31030,8 @@ function wireWorkpassLohnLinkForm() {
       }
       showToast(text, "success");
     } catch (error) {
-      const text = runtimeTextTemplate("lohnLinkTestFailed", { error: error.message });
+      const detail = error?.payload?.message || error.message || "error";
+      const text = runtimeTextTemplate("lohnLinkTestFailed", { error: detail });
       if (msg) {
         msg.textContent = text;
         msg.className = "helper-text helper-text-warning full-width";

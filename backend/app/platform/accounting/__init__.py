@@ -252,6 +252,8 @@ def register_accounting_blueprint(flask_app) -> None:
     @require_roles("superadmin")
     def admin_test_platform_link():
         result = test_platform_link_connectivity(get_db())
+        if not result.get("ok") and not result.get("message"):
+            result["message"] = str(result.get("error") or "test_failed")
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 

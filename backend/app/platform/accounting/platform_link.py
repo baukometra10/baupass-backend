@@ -87,9 +87,28 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
     link = get_platform_link(db)
     base = str(link.get("base_url") or "").rstrip("/")
     if not base:
-        return {"ok": False, "error": "lohn_base_url_missing"}
+        return {
+            "ok": False,
+            "error": "lohn_base_url_missing",
+            "message": "WorkPass Lohn Basis-URL fehlt. Bitte Lohn-Host speichern (nicht die Plattform-URL).",
+        }
     if not link.get("enabled"):
-        return {"ok": False, "error": "platform_link_disabled", "baseUrl": base}
+        return {
+            "ok": False,
+            "error": "platform_link_disabled",
+            "baseUrl": base,
+            "message": "Verbindung ist deaktiviert. Bitte «Verbindung aktiv = Ja» speichern.",
+        }
+    platform_public = str(link.get("platform_public_url") or "").rstrip("/").lower()
+    if base.lower() in {"https://suppix-ai-workpass.com", "http://suppix-ai-workpass.com"} or (
+        platform_public and base.lower() == platform_public
+    ):
+        return {
+            "ok": False,
+            "error": "lohn_base_url_is_platform",
+            "baseUrl": base,
+            "message": "Basis-URL zeigt auf die Plattform. Hier muss die URL der WorkPass-Lohn-App stehen.",
+        }
     # Prefer /health then root
     candidates = [f"{base}/health", f"{base}/api/health", base]
     last_error = ""
@@ -115,6 +134,7 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
                     "url": url,
                     "baseUrl": base,
                     "bodyPreview": body,
+                    "message": "Lohn-Host erreichbar.",
                 }
         except urlerror.HTTPError as exc:
             # 401/404 still proves host is reachable
@@ -126,11 +146,20 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
                     "url": url,
                     "baseUrl": base,
                     "note": "host_reachable_auth_or_path",
+                    "message": f"Lohn-Host erreichbar (HTTP {exc.code}).",
                 }
             last_error = f"HTTP {exc.code}"
         except Exception as exc:
             last_error = str(exc)[:200]
-    return {"ok": False, "error": last_error or "unreachable", "baseUrl": base}
+    return {
+        "ok": False,
+        "error": last_error or "unreachable",
+        "baseUrl": base,
+        "message": (
+            f"Lohn-Host nicht erreichbar ({last_error or 'unreachable'}). "
+            "Prüfe Basis-URL und ob der Server von der Plattform aus erreichbar ist."
+        ),
+    }
 
 
 def save_platform_link(

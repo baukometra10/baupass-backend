@@ -1574,6 +1574,23 @@ function bindLohnPlatformLinkPanel(host) {
   });
   host.querySelector("#lohnLinkTestBtn")?.addEventListener("click", async () => {
     try {
+      const fd = new FormData(form);
+      const body = {
+        enabled: String(fd.get("enabled") || "0") === "1",
+        autoProvision: String(fd.get("autoProvision") || "0") === "1",
+        baseUrl: String(fd.get("baseUrl") || "").trim(),
+        platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
+        companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
+        hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
+        runDay: Number(fd.get("runDay") || 1) || 1,
+      };
+      const master = String(fd.get("masterApiKey") || "").trim();
+      if (master) body.masterApiKey = master;
+      if (!body.baseUrl) throw new Error("WorkPass Lohn Basis-URL fehlt.");
+      if (/suppix-ai-workpass\.com/i.test(body.baseUrl)) {
+        throw new Error("Basis-URL muss die Lohn-App sein — nicht die Plattform.");
+      }
+      await api("/api/payroll/accounting/platform-link", { method: "POST", body: JSON.stringify(body) });
       const result = await api("/api/payroll/accounting/platform-link/test", {
         method: "POST",
         body: "{}",
@@ -1582,8 +1599,9 @@ function bindLohnPlatformLinkPanel(host) {
       if (msg) msg.textContent = text;
       showActionToast(text);
     } catch (e) {
-      if (msg) msg.textContent = e.message || "error";
-      showActionToast(e.message || "error", true);
+      const detail = e?.data?.message || e.message || "error";
+      if (msg) msg.textContent = detail;
+      showActionToast(detail, true);
     }
   });
 }
