@@ -66,7 +66,12 @@ const REMOTE_API_BASE_FALLBACKS = [
 
 function isKnownProductionApiHost(hostname) {
   const host = String(hostname || "").toLowerCase();
-  return host.endsWith(".up.railway.app") || host.endsWith(".onrender.com");
+  return (
+    host === "suppix-ai-workpass.com"
+    || host.endsWith(".suppix-ai-workpass.com")
+    || host.endsWith(".up.railway.app")
+    || host.endsWith(".onrender.com")
+  );
 }
 
 function isStaticFrontendHost(hostname) {
@@ -359,9 +364,14 @@ async function ensureControlPassApiBase() {
       if (!health.ok) {
         continue;
       }
+      // Route probe only — never send session cookies (would try to create a company).
       const probe = await fetch(`${base}/api/companies`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer __api_base_probe__",
+        },
+        credentials: "omit",
         body: "{}",
       });
       // 401/403 = route exists; 404/405 = wrong host or broken API surface
