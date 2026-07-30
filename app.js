@@ -31037,6 +31037,7 @@ function applyWorkpassLohnLinkToForm(link) {
   if (autoEl) autoEl.value = autoOn ? "1" : "0";
   if (baseEl) baseEl.value = baseUrl;
   if (platformEl) platformEl.value = platformUrl || "https://suppix-ai-workpass.com";
+  if (baseEl && !baseUrl) baseEl.placeholder = "https://workpass-lohn.up.railway.app";
   if (upsertEl) upsertEl.value = upsert;
   if (webhookEl) webhookEl.value = webhook;
   if (runEl) runEl.value = String(Math.max(1, Math.min(28, runDay)));

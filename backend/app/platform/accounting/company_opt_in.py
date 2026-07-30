@@ -132,30 +132,64 @@ def set_workpass_lohn_enabled(
     if provision_if_enabled and not provision.get("ok"):
         skip = str(provision.get("skipped") or "")
         err = str(provision.get("error") or skip or "provision_failed")
+        login_sync = provision.get("loginSync") or {}
+        remote = provision.get("remote") or {}
         messages = {
             "platform_link_disabled": (
                 "WorkPass Lohn Plattform-Link fehlt oder ist deaktiviert. "
-                "Bitte zuerst als Superadmin unter Admin → WorkPass Lohn verbinden."
+                "Als Superadmin: Admin → WorkPass Lohn → Basis-URL + Master-Key speichern."
             ),
             "lohn_base_url_missing": (
-                "WorkPass Lohn Basis-URL fehlt. Bitte Plattform-Link speichern."
+                "WorkPass Lohn Basis-URL fehlt. Bitte Plattform-Link speichern "
+                "(https://workpass-lohn.up.railway.app)."
+            ),
+            "master_api_key_missing": (
+                "Master-API-Key fehlt. Bitte im Plattform-Link den gleichen Key wie in "
+                "WorkPass Lohn (WORKPASS_API_KEY) speichern."
             ),
             "company_opted_out": "WorkPass Lohn ist für diese Firma nicht freigeschaltet.",
         }
-        login_sync = provision.get("loginSync") or {}
+        detail = ""
+        for blob in (login_sync, remote, provision):
+            if not blob.get("ok") and blob.get("error"):
+                detail = str(blob.get("error"))[:220]
+                err = f"{blob.get('error') and 'sync_failed'}:{detail}"[:240]
+                break
+            if blob.get("status") and not blob.get("ok"):
+                detail = f"HTTP {blob.get('status')} {blob.get('error') or ''}".strip()
+                err = detail[:240]
+                break
         if not login_sync.get("ok") and login_sync.get("error"):
-            err = f"login_sync_failed:{login_sync.get('error')}"
+            err = f"login_sync_failed:{str(login_sync.get('error'))[:180]}"
+        base_msg = (
+            messages.get(skip)
+            or messages.get(str(provision.get("error") or ""))
+            or messages.get("master_api_key_missing" if "master_api_key_missing" in err else "")
+        )
+        if not base_msg:
+            if "401" in err or "Unauthorized" in err or "X-WorkPass-Key" in err:
+                base_msg = (
+                    "WorkPass Lohn lehnt den Master-Key ab (401). "
+                    "Im Plattform-Link denselben WORKPASS_API_KEY speichern und erneut senden."
+                )
+            elif "urlopen" in err or "getaddrinfo" in err or "timed out" in err.lower():
+                base_msg = (
+                    "WorkPass Lohn Host nicht erreichbar. Basis-URL prüfen: "
+                    "https://workpass-lohn.up.railway.app"
+                )
+            else:
+                base_msg = (
+                    "Login konnte nicht an WorkPass Lohn gesendet werden. "
+                    "Admin → WorkPass Lohn Plattform-Link (Basis-URL + Master-Key) prüfen."
+                )
+        if detail and detail not in base_msg:
+            base_msg = f"{base_msg} Details: {detail}"
         return {
             "ok": False,
             "companyId": company_id,
             "workpassLohnEnabled": True,
             "error": err,
-            "message": messages.get(skip)
-            or messages.get(str(provision.get("error") or ""))
-            or (
-                "Firma wurde lokal aktiviert, aber Login konnte nicht an WorkPass Lohn "
-                "gesendet werden. Plattform-Link und Master-Key prüfen."
-            ),
+            "message": base_msg,
             "provision": provision,
         }
 
