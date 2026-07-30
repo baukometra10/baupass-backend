@@ -156,10 +156,12 @@
         lohnLinkOff: "Nicht verbunden",
         lohnLinkBase: "Basis-URL",
         lohnLinkAuto: "Auto-Provision für neue Firmen (wenn aktiviert)",
-        lohnLinkMissing: "Noch kein Plattform-Link. Einmal in Admin → Plattform / Einstellungen speichern.",
-        lohnLinkHint: "Admin → WorkPass Lohn Plattform-Link · docs/integrations/workpass-lohn-api-contract-v1.md",
-        lohnLinkOpenAdmin: "Plattform-Link öffnen",
+        lohnLinkMissing: "Noch kein Plattform-Link. Einmal in Admin → Plattform / Einstellungen speichern (nur Superadmin).",
+        lohnLinkHint: "Nur Superadmin richtet den einmaligen Plattform-Link ein.",
+        lohnLinkOpenAdmin: "Als Superadmin: Plattform-Link öffnen",
         lohnLinkLoadError: "Status konnte nicht geladen werden (Login/Rechte prüfen).",
+        lohnLinkCompanyAdminHint: "Als Firmen-Admin siehst du den Plattform-Link nicht. Bitte Superadmin verbinden lassen. Danach WorkPass Lohn in den Firmeneinstellungen aktivieren.",
+        lohnLinkOpenDashboard: "Zum Firmenportal",
         scopeGlobal: "Alle Firmen",
         scopeOne: "Eine Firma",
         live: "Live",
@@ -234,10 +236,12 @@
         lohnLinkOff: "Not connected",
         lohnLinkBase: "Base URL",
         lohnLinkAuto: "Auto-provision for new companies (when enabled)",
-        lohnLinkMissing: "No platform link yet. Save it once in Admin → Platform / Settings.",
-        lohnLinkHint: "Admin → WorkPass Lohn platform link · docs/integrations/workpass-lohn-api-contract-v1.md",
-        lohnLinkOpenAdmin: "Open platform link",
+        lohnLinkMissing: "No platform link yet. Save it once in Admin → Platform / Settings (superadmin only).",
+        lohnLinkHint: "Only superadmin configures the one-time platform link.",
+        lohnLinkOpenAdmin: "As superadmin: open platform link",
         lohnLinkLoadError: "Could not load status (check login/permissions).",
+        lohnLinkCompanyAdminHint: "As company admin you cannot see the platform link. Ask superadmin to connect it, then enable WorkPass Lohn in company settings.",
+        lohnLinkOpenDashboard: "Open company portal",
         scopeGlobal: "All companies",
         scopeOne: "One company",
         live: "Live",
@@ -311,10 +315,12 @@
         lohnLinkOff: "غير متصل",
         lohnLinkBase: "الرابط الأساسي",
         lohnLinkAuto: "توفير تلقائي للشركات الجديدة (عند التفعيل)",
-        lohnLinkMissing: "لا يوجد ربط للمنصة بعد. احفظه مرة واحدة في Admin → Plattform / Einstellungen.",
-        lohnLinkHint: "Admin → WorkPass Lohn Plattform-Link · docs/integrations/workpass-lohn-api-contract-v1.md",
-        lohnLinkOpenAdmin: "فتح إعداد الربط",
+        lohnLinkMissing: "لا يوجد ربط للمنصة بعد. احفظه مرة واحدة كـ Superadmin في Admin → Plattform.",
+        lohnLinkHint: "فقط Superadmin يضبط الربط مرة واحدة.",
+        lohnLinkOpenAdmin: "كـ Superadmin: فتح إعداد الربط",
         lohnLinkLoadError: "تعذر تحميل الحالة (تحقق من الدخول/الصلاحيات).",
+        lohnLinkCompanyAdminHint: "كأدمن شركة لا ترى Plattform-Link. اطلب من Superadmin الربط، ثم فعّل WorkPass Lohn من إعدادات الشركة.",
+        lohnLinkOpenDashboard: "إلى بوابة الشركة",
         scopeGlobal: "جميع الشركات",
         scopeOne: "شركة واحدة",
         live: "مباشر",
@@ -582,7 +588,32 @@
       </div>`;
     }
 
+    let cachedMe = null;
+
+    async function loadMe() {
+      try {
+        cachedMe = await api("/api/me");
+      } catch {
+        cachedMe = null;
+      }
+      return cachedMe;
+    }
+
+    function currentRole() {
+      return String(cachedMe?.role || cachedMe?.user?.role || "").toLowerCase();
+    }
+
     function renderLohnLinkCard(linkPayload) {
+      const role = currentRole();
+      const isCompanyAdmin = role === "company-admin";
+      if (isCompanyAdmin) {
+        return `<div class="card payroll-card" id="lohnLinkCard">
+          <div class="label">${tr("lohnLinkLabel")}</div>
+          <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
+          <p class="muted">${tr("lohnLinkCompanyAdminHint")}</p>
+          <p class="muted"><a href="/index.html">${tr("lohnLinkOpenDashboard")}</a></p>
+        </div>`;
+      }
       if (linkPayload === null) {
         return `<div class="card payroll-card" id="lohnLinkCard">
           <div class="label">${tr("lohnLinkLabel")}</div>
@@ -776,6 +807,7 @@
           loadGuardianBundle(),
           loadPayrollPending(),
           loadLohnPlatformLink(),
+          loadMe(),
         ]);
         render(data, forecast, guardianBundle, payrollBatches, lohnLink);
       } catch (e) {

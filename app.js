@@ -37056,6 +37056,9 @@ function applyDeepLinkViewFromUrl() {
     setView(view);
   } else if (upgradePlan) {
     void tryHubUpgradeCheckout(upgradePlan);
+  } else if (allowed.length) {
+    // Deep-link to a role-forbidden view (e.g. company-admin + #admin) → avoid blank screen.
+    setView(allowed.includes("dashboard") ? "dashboard" : allowed[0]);
   }
 }
 
