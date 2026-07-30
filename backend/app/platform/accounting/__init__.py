@@ -190,6 +190,66 @@ def register_accounting_blueprint(flask_app) -> None:
             return jsonify({"error": "company_id_required"}), 400
         return jsonify(payload), 200
 
+    @accounting_bp.get("/v2/accounting/company/access")
+    def accounting_get_company_access():
+        """
+        WorkPass Lohn pulls company-admin username/password for collaboration.
+        Auth: per-company accounting key + X-WorkPass-Company-Id.
+        """
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+        from . import repository as repo
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        login = repo.get_lohn_login(get_db(), integ["company_id"])
+        if not login:
+            # Fall back to username-only from users table
+            username = ""
+            try:
+                admin_row = get_db().execute(
+                    """
+                    SELECT username FROM users
+                    WHERE company_id = ? AND role = 'company-admin'
+                    ORDER BY id LIMIT 1
+                    """,
+                    (integ["company_id"],),
+                ).fetchone()
+                username = str((admin_row["username"] if admin_row else "") or "").strip()
+            except Exception:
+                username = ""
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "password_not_available",
+                    "message": "No stored password for Lohn. Re-provision company or reset admin password to push credentials.",
+                    "companyId": integ["company_id"],
+                    "username": username,
+                    "login": {"username": username, "password": ""} if username else None,
+                }
+            ), 409
+        access = {
+            "username": login["username"],
+            "password": login["password"],
+            "role": "company-admin",
+            "firmaId": integ["company_id"],
+            "companyId": integ["company_id"],
+        }
+        return jsonify(
+            {
+                "ok": True,
+                "product": "WorkPass Lohn",
+                "companyId": integ["company_id"],
+                "access": access,
+                "login": access,
+                "username": access["username"],
+                "password": access["password"],
+            }
+        ), 200
+
     @accounting_bp.post("/v2/accounting/company/upsert")
     def accounting_company_upsert_mirror():
         """Platform mirror of WorkPass Lohn POST /v1/company/upsert (Firma-ID scoped)."""
@@ -264,13 +324,20 @@ def register_accounting_blueprint(flask_app) -> None:
         data = request.get_json(silent=True) or {}
         if bool(data.get("enable") or data.get("force")):
             result = set_workpass_lohn_enabled(
-                get_db(), company_id, enabled=True, provision_if_enabled=True
+                get_db(),
+                company_id,
+                enabled=True,
+                provision_if_enabled=True,
+                admin_username=data.get("username") or data.get("adminUsername"),
+                admin_password=data.get("password") or data.get("adminPassword"),
             )
         else:
             result = provision_company_for_lohn(
                 get_db(),
                 company_id,
                 force=bool(data.get("force", False)),
+                admin_username=data.get("username") or data.get("adminUsername"),
+                admin_password=data.get("password") or data.get("adminPassword"),
             )
         code = 200 if result.get("ok") or result.get("skipped") else 400
         return jsonify(result), code

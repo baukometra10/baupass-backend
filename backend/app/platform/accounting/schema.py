@@ -90,8 +90,39 @@ def ensure_accounting_schema(db) -> None:
     )
     for sql in statements:
         db.execute(sql)
+    _ensure_integration_login_columns(db)
     try:
         db.commit()
     except Exception:
         pass
     _ENSURED = True
+
+
+def _ensure_integration_login_columns(db) -> None:
+    """Store company-admin login for WorkPass Lohn bridge (encrypted at rest when key set)."""
+    cols: set[str] = set()
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(accounting_integrations)").fetchall()}
+    except Exception:
+        cols = set()
+    alters = []
+    if cols:
+        if "lohn_login_username" not in cols:
+            alters.append(
+                "ALTER TABLE accounting_integrations ADD COLUMN lohn_login_username TEXT NOT NULL DEFAULT ''"
+            )
+        if "lohn_login_password_enc" not in cols:
+            alters.append(
+                "ALTER TABLE accounting_integrations ADD COLUMN lohn_login_password_enc TEXT NOT NULL DEFAULT ''"
+            )
+    else:
+        # Postgres / unknown: best-effort IF NOT EXISTS style
+        alters = [
+            "ALTER TABLE accounting_integrations ADD COLUMN IF NOT EXISTS lohn_login_username TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE accounting_integrations ADD COLUMN IF NOT EXISTS lohn_login_password_enc TEXT NOT NULL DEFAULT ''",
+        ]
+    for sql in alters:
+        try:
+            db.execute(sql)
+        except Exception:
+            pass

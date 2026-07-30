@@ -57,11 +57,14 @@ def set_workpass_lohn_enabled(
     *,
     enabled: bool,
     provision_if_enabled: bool = True,
+    admin_username: str | None = None,
+    admin_password: str | None = None,
 ) -> dict[str, Any]:
     """
     Toggle WorkPass Lohn for one company.
     When disabled: local bridge off + no outbound hours/webhooks.
     When enabled: flag on + optional provision to WorkPass Lohn.
+    Optional admin_username/password are pushed to Lohn on provision.
     """
     ensure_company_lohn_column(db)
     company_id = (company_id or "").strip()
@@ -115,7 +118,13 @@ def set_workpass_lohn_enabled(
         try:
             from .platform_link import provision_company_for_lohn
 
-            provision = provision_company_for_lohn(db, company_id, force=False)
+            provision = provision_company_for_lohn(
+                db,
+                company_id,
+                force=False,
+                admin_username=admin_username,
+                admin_password=admin_password,
+            )
         except Exception as exc:
             provision = {"ok": False, "error": str(exc)[:200]}
     return {

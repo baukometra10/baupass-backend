@@ -356,6 +356,15 @@ class CompaniesService:
         include_lohn = payload.get("workpassLohnEnabled")
         if include_lohn is None:
             include_lohn = payload.get("includeWorkpassLohn")
+        if include_lohn is None:
+            # Auto-enable when one-time platform-link + autoProvision is active
+            try:
+                from backend.app.platform.accounting.platform_link import get_platform_link
+
+                link = get_platform_link(db)
+                include_lohn = bool(link.get("enabled") and link.get("autoProvision"))
+            except Exception:
+                include_lohn = False
         if isinstance(include_lohn, str):
             include_lohn = include_lohn.strip().lower() in {"1", "true", "yes", "on"}
         else:
@@ -365,7 +374,12 @@ class CompaniesService:
 
             if include_lohn:
                 workpass_lohn = set_workpass_lohn_enabled(
-                    db, company_id, enabled=True, provision_if_enabled=True
+                    db,
+                    company_id,
+                    enabled=True,
+                    provision_if_enabled=True,
+                    admin_username=username,
+                    admin_password=admin_password,
                 )
             else:
                 # Explicitly keep disabled (default) — no data sent to WorkPass Lohn
@@ -1347,8 +1361,26 @@ class CompaniesService:
         )
         self.users.delete_sessions(db, admin_user["id"])
         db.commit()
+        lohn_sync: dict = {"skipped": "not_requested"}
+        try:
+            from backend.app.platform.accounting.company_opt_in import is_workpass_lohn_enabled
+            from backend.app.platform.accounting.platform_link import sync_lohn_login_credentials
+
+            if is_workpass_lohn_enabled(db, company_id):
+                lohn_sync = sync_lohn_login_credentials(
+                    db,
+                    company_id,
+                    username=str(admin_user["username"] or ""),
+                    password=new_password,
+                )
+        except Exception as exc:
+            lohn_sync = {"ok": False, "error": str(exc)[:160]}
         return {
-            "body": {"ok": True, "username": admin_user["username"]},
+            "body": {
+                "ok": True,
+                "username": admin_user["username"],
+                "workpassLohnSync": lohn_sync,
+            },
             "audit": {
                 "company_id": company_id,
                 "user_id": admin_user["id"],

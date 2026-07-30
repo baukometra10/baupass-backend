@@ -54,14 +54,47 @@ SUPPIX_PUBLIC_BASE_URL=https://suppix-ai-workpass.com
 ```
 
 What happens on `POST /api/companies` (create company):
-- Default: **WorkPass Lohn stays OFF** (optional — company may use another accounting tool).
-- Only if create payload has `"workpassLohnEnabled": true` (or the admin UI checkbox) → provision into WorkPass Lohn.
+- If platform-link is **enabled** and **autoProvision=true**: WorkPass Lohn is **auto-enabled** and the new company-admin **username + password** are pushed to Lohn via `/v1/company/upsert` (`access` / `login` fields).
+- Explicit `"workpassLohnEnabled": false` keeps Lohn off.
+- Explicit `"workpassLohnEnabled": true` (or the admin UI checkbox) also provisions + pushes credentials.
 - Later toggle anytime in **company card → Settings / Einstellungen**, or:
 
 ```http
 PUT /api/payroll/accounting/company-settings
 { "companyId": "<FIRMA-ID>", "workpassLohnEnabled": false }
 ```
+
+WorkPass Lohn can also **pull** credentials anytime:
+
+```http
+GET /api/v2/accounting/company/access
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "companyId": "<FIRMA-ID>",
+  "access": {
+    "username": "firmaadmin",
+    "password": "…",
+    "role": "company-admin",
+    "firmaId": "<FIRMA-ID>",
+    "companyId": "<FIRMA-ID>"
+  },
+  "login": { "username": "firmaadmin", "password": "…" }
+}
+```
+
+On company-admin password reset, credentials are re-pushed to Lohn automatically (when Lohn is enabled).
+
+Payslips flow (already live):
+1. Lohn → `POST /api/v2/accounting/statements` (PDF batch)
+2. Platform status `pending_approval`
+3. Human approves → `lohnabrechnung` document + push to employee
 
 Company legal texts (Impressum / Datenschutz):
 

@@ -6,9 +6,11 @@
 
 سوبر أدمن يضبط الربط العام مرة واحدة (`platform-link`).
 
-**WorkPass Lohn اختياري لكل شركة** (افتراضي: متوقف):
-- في الواجهة: بطاقة الشركة → Einstellungen → زر تفعيل/إيقاف WorkPass Lohn
-- عند إنشاء الشركة: مربع اختيار اختياري، أو `"workpassLohnEnabled": true` في الـ API
+**WorkPass Lohn اختياري لكل شركة**:
+- إذا كان `platform-link` مفعّلاً مع Auto-Provision: عند إنشاء شركة تُرسل تلقائياً إلى Lohn مع **اسم المستخدم وكلمة المرور**
+- أو عبر مربع الاختيار / `"workpassLohnEnabled": true`
+- سحب بيانات الدخول من Lohn: `GET /api/v2/accounting/company/access`
+- كشوف الأجور ترجع عبر `POST /api/v2/accounting/statements` ثم موافقة بشرية قبل إرسالها للموظف
 - من الإعدادات لاحقاً:
 
 ```http

@@ -247,6 +247,12 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
 
     db = _db()
+    db.execute(
+        "CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, role TEXT, company_id TEXT)"
+    )
+    db.execute(
+        "INSERT INTO users (id, username, role, company_id) VALUES ('u1', 'demofirma', 'company-admin', 'c1')"
+    )
     # Opt-in first (optional feature)
     set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
     platform_link.save_platform_link(
@@ -264,15 +270,36 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
         return {"ok": True, "status": 200, "body": "{}"}
 
     monkeypatch.setattr(platform_link, "_post_lohn_upsert", _fake_post)
-    result = platform_link.provision_company_for_lohn(db, "c1", force=True)
+    result = platform_link.provision_company_for_lohn(
+        db,
+        "c1",
+        force=True,
+        admin_username="demofirma",
+        admin_password="Secret123!",
+    )
     assert result["ok"] is True
     assert calls
     assert calls[0]["id"] == "c1"
     assert calls[0]["platformBridge"]["accountingKey"].startswith("acc_live_")
     assert calls[0]["platformBridge"]["firmaId"] == "c1"
+    assert calls[0]["platformBridge"]["accessUrl"].endswith("/api/v2/accounting/company/access")
+    assert calls[0]["access"]["username"] == "demofirma"
+    assert calls[0]["access"]["password"] == "Secret123!"
+    assert calls[0]["login"]["password"] == "Secret123!"
     integ = repository.get_integration(db, "c1")
     assert integ is not None
     assert int(integ["enabled"]) == 1
+    login = repository.get_lohn_login(db, "c1")
+    assert login == {"username": "demofirma", "password": "Secret123!"}
+
+
+def test_company_access_login_roundtrip():
+    db = _db()
+    repository.upsert_integration(db, company_id="c1", webhook_url="", rotate_key=True)
+    assert repository.store_lohn_login(db, "c1", username="acme", password="Pw-42")["ok"] is True
+    login = repository.get_lohn_login(db, "c1")
+    assert login["username"] == "acme"
+    assert login["password"] == "Pw-42"
 
 
 def test_disable_stops_outbound(monkeypatch):

@@ -294,10 +294,14 @@ def provision_company_for_lohn(
     company_id: str,
     *,
     force: bool = False,
+    admin_username: str | None = None,
+    admin_password: str | None = None,
 ) -> dict[str, Any]:
     """
     Create local accounting bridge credentials for the company and register it in WorkPass Lohn.
     Requires per-company opt-in (`companies.workpass_lohn_enabled = 1`).
+    When admin_username/password are provided (company create / password reset), they are
+    stored encrypted and pushed to WorkPass Lohn so both systems can collaborate.
     """
     company_id = (company_id or "").strip()
     if not company_id:
@@ -336,12 +340,36 @@ def provision_company_for_lohn(
     except LookupError:
         return {"ok": False, "error": "company_not_found"}
 
+    # Resolve / persist company-admin login for Lohn
+    username = (admin_username or "").strip()
+    password = str(admin_password or "")
+    if not username:
+        try:
+            admin_row = db.execute(
+                """
+                SELECT username FROM users
+                WHERE company_id = ? AND role = 'company-admin'
+                ORDER BY id LIMIT 1
+                """,
+                (company_id,),
+            ).fetchone()
+            if admin_row:
+                username = str(admin_row["username"] or "").strip()
+        except Exception:
+            username = ""
+    if username and password:
+        repo.store_lohn_login(db, company_id, username=username, password=password)
+    login = repo.get_lohn_login(db, company_id)
+    if not login and username and password:
+        login = {"username": username, "password": password}
+
     platform_url = str(link.get("platform_public_url") or "").rstrip("/")
     bridge = {
         "baseUrl": platform_url,
         "hoursUrl": f"{platform_url}/api/v2/accounting/hours" if platform_url else "/api/v2/accounting/hours",
         "statementsUrl": f"{platform_url}/api/v2/accounting/statements" if platform_url else "/api/v2/accounting/statements",
         "companyUpsertUrl": f"{platform_url}/api/v2/accounting/company/upsert" if platform_url else "/api/v2/accounting/company/upsert",
+        "accessUrl": f"{platform_url}/api/v2/accounting/company/access" if platform_url else "/api/v2/accounting/company/access",
         "headerCompanyId": "X-WorkPass-Company-Id",
         "headerApiKey": "X-Accounting-Key",
         "companyId": company_id,
@@ -371,6 +399,20 @@ def provision_company_for_lohn(
         "entitlement": "included_with_platform",
         "platformBridge": bridge,
     }
+    if login:
+        access = {
+            "username": login["username"],
+            "password": login["password"],
+            "role": "company-admin",
+            "firmaId": company_id,
+            "companyId": company_id,
+        }
+        body["access"] = access
+        body["login"] = access
+        body["username"] = login["username"]
+        body["password"] = login["password"]
+        body["adminUsername"] = login["username"]
+        body["adminPassword"] = login["password"]
     remote = _post_lohn_upsert(link, body)
     return {
         "ok": bool(remote.get("ok")),
@@ -380,10 +422,39 @@ def provision_company_for_lohn(
             "webhookUrl": webhook,
             "apiKeyPrefix": local.get("api_key_prefix") or local.get("apiKey", "")[:16],
             "keyRotated": bool(local.get("apiKey")),
+            "loginUsername": (login or {}).get("username") or "",
+            "loginPushed": bool(login),
         },
         "remote": remote,
         "autoProvision": True,
     }
+
+
+def sync_lohn_login_credentials(
+    db,
+    company_id: str,
+    *,
+    username: str,
+    password: str,
+) -> dict[str, Any]:
+    """Store credentials and push them to WorkPass Lohn when the company is opted in."""
+    company_id = (company_id or "").strip()
+    username = (username or "").strip()
+    password = str(password or "")
+    if not company_id or not username or not password:
+        return {"ok": False, "error": "credentials_required"}
+    from .company_opt_in import is_workpass_lohn_enabled
+
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "skipped": "company_opted_out"}
+    # Ensure integration exists, then store + push
+    return provision_company_for_lohn(
+        db,
+        company_id,
+        force=False,
+        admin_username=username,
+        admin_password=password,
+    )
 
 
 def auto_provision_if_enabled(db, company_id: str) -> dict[str, Any]:

@@ -17,15 +17,82 @@ def _now() -> str:
 
 def get_integration(db, company_id: str) -> dict[str, Any] | None:
     ensure_accounting_schema(db)
-    row = db.execute(
-        """
-        SELECT id, company_id, enabled, webhook_url, api_key_prefix, run_day,
-               last_export_period, created_at, updated_at
-        FROM accounting_integrations WHERE company_id = ? LIMIT 1
-        """,
+    try:
+        row = db.execute(
+            """
+            SELECT id, company_id, enabled, webhook_url, api_key_prefix, run_day,
+                   last_export_period, created_at, updated_at,
+                   COALESCE(lohn_login_username, '') AS lohn_login_username,
+                   COALESCE(lohn_login_password_enc, '') AS lohn_login_password_enc
+            FROM accounting_integrations WHERE company_id = ? LIMIT 1
+            """,
+            (company_id,),
+        ).fetchone()
+    except Exception:
+        row = db.execute(
+            """
+            SELECT id, company_id, enabled, webhook_url, api_key_prefix, run_day,
+                   last_export_period, created_at, updated_at
+            FROM accounting_integrations WHERE company_id = ? LIMIT 1
+            """,
+            (company_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def store_lohn_login(
+    db,
+    company_id: str,
+    *,
+    username: str,
+    password: str,
+) -> dict[str, Any]:
+    """Persist company-admin credentials for WorkPass Lohn (password encrypted when possible)."""
+    ensure_accounting_schema(db)
+    company_id = (company_id or "").strip()
+    username = (username or "").strip()
+    password = str(password or "")
+    if not company_id or not username or not password:
+        return {"ok": False, "error": "credentials_required"}
+    from backend.app.platform.security.field_encryption import maybe_encrypt_field
+
+    enc = maybe_encrypt_field(password, company_id=company_id)
+    now = _now()
+    existing = db.execute(
+        "SELECT id FROM accounting_integrations WHERE company_id = ?",
         (company_id,),
     ).fetchone()
-    return dict(row) if row else None
+    if existing:
+        db.execute(
+            """
+            UPDATE accounting_integrations
+            SET lohn_login_username = ?, lohn_login_password_enc = ?, updated_at = ?
+            WHERE company_id = ?
+            """,
+            (username, enc, now, company_id),
+        )
+    else:
+        # Integration row may not exist yet — caller should upsert_integration first.
+        return {"ok": False, "error": "integration_missing"}
+    db.commit()
+    return {"ok": True, "username": username, "passwordStored": True}
+
+
+def get_lohn_login(db, company_id: str) -> dict[str, Any] | None:
+    """Return plaintext login for bridge use (Lohn pull / outbound upsert)."""
+    row = get_integration(db, company_id)
+    if not row:
+        return None
+    username = str(row.get("lohn_login_username") or "").strip()
+    enc = str(row.get("lohn_login_password_enc") or "")
+    if not username or not enc:
+        return None
+    from backend.app.platform.security.field_encryption import maybe_decrypt_field
+
+    password = maybe_decrypt_field(enc, company_id=company_id)
+    if not password:
+        return None
+    return {"username": username, "password": password}
 
 
 def upsert_integration(
