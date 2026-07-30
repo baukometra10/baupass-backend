@@ -323,6 +323,9 @@ def test_enable_fails_when_platform_link_missing():
     assert out["ok"] is False
     assert out["error"] in {"platform_link_disabled", "lohn_base_url_missing"}
     assert "Plattform-Link" in (out.get("message") or "") or out.get("error")
+
+
+def test_disable_stops_outbound(monkeypatch):
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
     from backend.app.platform.accounting import service as accounting_service
 
