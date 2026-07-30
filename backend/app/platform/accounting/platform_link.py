@@ -487,31 +487,46 @@ def provision_company_for_lohn(
         "platformBridge": bridge,
     }
     login_sync_result: dict[str, Any] = {"skipped": "no_login"}
+    lohn_login_email = ""
     if login:
+        # WorkPass Lohn authenticates companies as {companyId}@firma.de + login.password
+        lohn_login_email = f"{company_id}@firma.de"
         access = {
             "username": login["username"],
             "password": login["password"],
+            "email": lohn_login_email,
             "role": "company-admin",
             "firmaId": company_id,
             "companyId": company_id,
         }
         body["access"] = access
-        body["login"] = access
+        body["login"] = {
+            "username": login["username"],
+            "password": login["password"],
+            "email": lohn_login_email,
+        }
         body["username"] = login["username"]
         body["password"] = login["password"]
+        body["email"] = lohn_login_email
         body["adminUsername"] = login["username"]
         body["adminPassword"] = login["password"]
         login_sync_body = {
             "id": company_id,
             "companyId": company_id,
             "firmaId": company_id,
+            "name": str((company_payload.get("company") or {}).get("name") or company_payload.get("name") or company_id),
             "product": "WorkPass Lohn",
+            "email": lohn_login_email,
             "username": login["username"],
             "password": login["password"],
             "login": {
+                "email": lohn_login_email,
                 "username": login["username"],
                 "password": login["password"],
             },
+            "login.password": login["password"],
+            "login.username": login["username"],
+            "login.email": lohn_login_email,
             "access": access,
             "platformBridge": {
                 "companyId": company_id,
@@ -520,12 +535,30 @@ def provision_company_for_lohn(
                 "accessUrl": bridge.get("accessUrl") or "",
             },
         }
+        # Password sync first — Lohn UI blocks without hasLoginPassword from login-sync.
         login_sync_result = _post_lohn_login_sync(link, login_sync_body)
     remote = _post_lohn_upsert(link, body)
     ok = bool(remote.get("ok"))
     # Prefer login-sync success when Lohn specifically requires it; upsert alone is not enough.
     if login and not login_sync_result.get("ok") and login_sync_result.get("skipped") != "no_login":
         ok = False
+    # Detect soft-success without password (Lohn returns ok but hasLoginPassword false)
+    if login and login_sync_result.get("ok"):
+        ws = {}
+        try:
+            raw = login_sync_result.get("body") or ""
+            parsed = json.loads(raw) if isinstance(raw, str) and raw.strip().startswith("{") else {}
+            ws = parsed.get("workspace") or {}
+            if ws.get("hasLoginPassword") is False:
+                ok = False
+                login_sync_result = {
+                    **login_sync_result,
+                    "ok": False,
+                    "error": "lohn_password_not_stored",
+                    "message": "WorkPass Lohn accepted sync but hasLoginPassword=false",
+                }
+        except Exception:
+            pass
     out = {
         "ok": ok,
         "companyId": company_id,
@@ -535,6 +568,7 @@ def provision_company_for_lohn(
             "apiKeyPrefix": local.get("api_key_prefix") or local.get("apiKey", "")[:16],
             "keyRotated": bool(local.get("apiKey")),
             "loginUsername": (login or {}).get("username") or "",
+            "lohnLoginEmail": lohn_login_email,
             "loginPushed": bool(login),
             "loginMinted": bool(login.get("minted")) if login else False,
         },
@@ -551,6 +585,7 @@ def provision_company_for_lohn(
     if login and login_sync_result.get("ok"):
         # One-time reveal in this API response so Superadmin can open Lohn with same login.
         out["loginUsername"] = login["username"]
+        out["lohnLoginEmail"] = lohn_login_email
         out["exportedPassword"] = login["password"]
         if not out.get("temporaryAdminPassword"):
             out["temporaryAdminPassword"] = login["password"]

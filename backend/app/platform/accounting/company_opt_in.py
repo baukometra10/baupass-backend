@@ -168,6 +168,8 @@ def set_workpass_lohn_enabled(
         or provision.get("exportedPassword"),
         "loginUsername": provision.get("loginUsername")
         or ((provision.get("localIntegration") or {}).get("loginUsername") or ""),
+        "lohnLoginEmail": provision.get("lohnLoginEmail")
+        or ((provision.get("localIntegration") or {}).get("lohnLoginEmail") or ""),
         "warning": provision.get("warning"),
     }
 

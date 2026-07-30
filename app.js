@@ -10571,10 +10571,13 @@ function getRuntimeUiTexts() {
     companyWorkpassLohnToggleFailed: "Could not update WorkPass Lohn: {error}",
     companyWorkpassLohnEnabledToast: "WorkPass Lohn enabled — login sent to accounting",
     companyWorkpassLohnLoginTitle: "WorkPass Lohn login",
-    companyWorkpassLohnLoginUser: "Username",
+    companyWorkpassLohnLoginUser: "Username (platform)",
     companyWorkpassLohnLoginPass: "Password",
-    companyWorkpassLohnLoginIntro: "These credentials were exported to WorkPass Lohn. Sign in there with them.",
-    companyWorkpassLohnLoginHint: "Same username/password as company admin (may be newly generated).",
+    companyWorkpassLohnLoginEmail: "Email in WorkPass Lohn",
+    companyWorkpassLohnFirmaId: "Company ID",
+    companyBtnWorkpassLohnSyncLogin: "Send login to Lohn",
+    companyWorkpassLohnLoginIntro: "Credentials were exported to WorkPass Lohn. Sign in there with email + password.",
+    companyWorkpassLohnLoginHint: "Lohn login = {companyId}@firma.de + password (not platform username alone).",
     companyWorkpassLohnDisabledToast: "WorkPass Lohn disabled",
     companyLegalModalTitle: "Legal notice & privacy (company)",
     companyLegalSaveFailed: "Could not save legal texts: {error}",
@@ -11460,10 +11463,13 @@ function getRuntimeUiTexts() {
       companyWorkpassLohnToggleFailed: "WorkPass Lohn konnte nicht aktualisiert werden: {error}",
       companyWorkpassLohnEnabledToast: "WorkPass Lohn aktiviert — Login an Buchhaltung gesendet",
       companyWorkpassLohnLoginTitle: "WorkPass Lohn Login",
-      companyWorkpassLohnLoginUser: "Benutzername",
+      companyWorkpassLohnLoginUser: "Benutzername (Plattform)",
       companyWorkpassLohnLoginPass: "Passwort",
-      companyWorkpassLohnLoginIntro: "Diese Zugangsdaten wurden an WorkPass Lohn exportiert. Damit dort anmelden.",
-      companyWorkpassLohnLoginHint: "Gleicher Benutzername und Passwort wie Firmen-Admin (ggf. neu erzeugt).",
+      companyWorkpassLohnLoginEmail: "E-Mail in WorkPass Lohn",
+      companyWorkpassLohnFirmaId: "Firma-ID",
+      companyBtnWorkpassLohnSyncLogin: "Login an Lohn senden",
+      companyWorkpassLohnLoginIntro: "Diese Zugangsdaten wurden an WorkPass Lohn exportiert. In Lohn mit E-Mail + Passwort anmelden.",
+      companyWorkpassLohnLoginHint: "Lohn-Login = {Firma-ID}@firma.de + Passwort (nicht der Plattform-Benutzername allein).",
       companyWorkpassLohnDisabledToast: "WorkPass Lohn deaktiviert",
       companyLegalModalTitle: "Impressum & Datenschutz (diese Firma)",
       companyLegalSaveFailed: "Rechtstexte konnten nicht gespeichert werden: {error}",
@@ -13107,10 +13113,13 @@ function getRuntimeUiTexts() {
       companyWorkpassLohnToggleFailed: "تعذر تحديث WorkPass Lohn: {error}",
       companyWorkpassLohnEnabledToast: "تم تفعيل WorkPass Lohn — أُرسل الدخول للمحاسبة",
       companyWorkpassLohnLoginTitle: "تسجيل دخول WorkPass Lohn",
-      companyWorkpassLohnLoginUser: "اسم المستخدم",
+      companyWorkpassLohnLoginUser: "اسم المستخدم (المنصة)",
       companyWorkpassLohnLoginPass: "كلمة المرور",
-      companyWorkpassLohnLoginIntro: "تم تصدير بيانات الدخول إلى WorkPass Lohn. سجّل الدخول هناك بها.",
-      companyWorkpassLohnLoginHint: "نفس اسم المستخدم وكلمة المرور لأدمن الشركة (قد تكون جديدة).",
+      companyWorkpassLohnLoginEmail: "البريد في WorkPass Lohn",
+      companyWorkpassLohnFirmaId: "معرف الشركة",
+      companyBtnWorkpassLohnSyncLogin: "إرسال الدخول إلى Lohn",
+      companyWorkpassLohnLoginIntro: "تم تصدير بيانات الدخول إلى WorkPass Lohn. سجّل هناك بالبريد + كلمة المرور.",
+      companyWorkpassLohnLoginHint: "دخول Lohn = {معرف-الشركة}@firma.de + كلمة المرور (وليس اسم منصة فقط).",
       companyWorkpassLohnDisabledToast: "تم إيقاف WorkPass Lohn",
       companyBtnAdminTfa: "🔐 المصادقة الثنائية للمشرف",
       companySectionAccess: "الوصول",
@@ -16651,7 +16660,7 @@ function applySupportReadOnlyUiState() {
     "#docAssignForm input, #docAssignForm select, #docAssignForm textarea, #docAssignForm button",
     "#docCompanyMatchForm input, #docCompanyMatchForm select, #docCompanyMatchForm textarea, #docCompanyMatchForm button",
     "[data-worker-edit], [data-worker-delete], [data-worker-restore], [data-worker-app-link], [data-worker-handover-sign], [data-worker-reset-pin], [data-worker-toggle-lock], [data-worker-toggle-identity-token]",
-    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete], [data-company-legal], [data-company-lohn-toggle]",
+    "[data-company-doc-email], [data-company-doc-email-auto], [data-company-doc-email-selftest], [data-company-doc-email-copy], [data-company-otp-setup], [data-company-add-turnstile], [data-company-repair], [data-company-toggle-lock], [data-company-delete], [data-company-legal], [data-company-lohn-toggle], [data-company-lohn-sync]",
     "[data-company-mail-provider], [data-company-mail-sender-email], [data-company-mail-sender-name], [data-company-mail-imap-host], [data-company-mail-imap-port], [data-company-mail-imap-username], [data-company-mail-imap-password], [data-company-mail-imap-tls], [data-company-mail-smtp-host], [data-company-mail-smtp-port], [data-company-mail-smtp-username], [data-company-mail-smtp-password], [data-company-mail-smtp-tls], [data-company-mail-brevo-key], [data-company-mail-save], [data-company-mail-test-inbound], [data-company-mail-test-outbound]",
     "[data-collections-mark-paid], [data-collections-toggle-lock]"
   ];
@@ -25420,6 +25429,7 @@ function renderCompanyList() {
                 <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
                 <button type="button" class="ghost-button small-button" data-company-legal="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnLegal") || "Rechtliches")}</button>
                 <button type="button" class="ghost-button small-button ${workpassLohnEnabled ? "btn-success" : ""}" data-company-lohn-toggle="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(workpassLohnEnabled ? runtimeText("companyBtnWorkpassLohnDisable") : runtimeText("companyBtnWorkpassLohnEnable"))}</button>
+                ${workpassLohnEnabled && canManageCompanySettings ? `<button type="button" class="ghost-button small-button" data-company-lohn-sync="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnWorkpassLohnSyncLogin") || "Login an Lohn senden")}</button>` : ""}
                 <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
                 ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
               </div>
@@ -26169,6 +26179,50 @@ function bindCompanyRowActions() {
       return;
     }
 
+    const lohnSyncButton = event.target.closest("[data-company-lohn-sync]");
+    if (lohnSyncButton && !lohnSyncButton.disabled && elements.companyList.contains(lohnSyncButton)) {
+      const companyId = lohnSyncButton.dataset.companyLohnSync;
+      if (!companyId) return;
+      lohnSyncButton.disabled = true;
+      try {
+        const result = await apiRequest(
+          `${API_BASE}/api/payroll/accounting/provision/${encodeURIComponent(companyId)}`,
+          { method: "POST", body: { force: true, enable: true } }
+        );
+        const userName = String(result?.loginUsername || result?.localIntegration?.loginUsername || "").trim();
+        const lohnEmail = String(result?.lohnLoginEmail || result?.localIntegration?.lohnLoginEmail || "").trim()
+          || `${companyId}@firma.de`;
+        const tempPass = String(result?.temporaryAdminPassword || result?.exportedPassword || "").trim();
+        if (!(result?.ok || result?.loginSync?.ok) || !tempPass) {
+          throw Object.assign(new Error(result?.message || result?.error || result?.loginSync?.error || "sync_failed"), {
+            payload: result,
+          });
+        }
+        showSecretDialog(
+          runtimeText("companyWorkpassLohnLoginTitle") || "WorkPass Lohn Login",
+          [
+            `${runtimeText("companyWorkpassLohnLoginEmail") || "E-Mail (Lohn)"}: ${lohnEmail}`,
+            `${runtimeText("companyWorkpassLohnLoginUser") || "Benutzername"}: ${userName || "—"}`,
+            `${runtimeText("companyWorkpassLohnLoginPass") || "Passwort"}: ${tempPass}`,
+            `${runtimeText("companyWorkpassLohnFirmaId") || "Firma-ID"}: ${companyId}`,
+            runtimeText("companyWorkpassLohnLoginHint")
+              || "In WorkPass Lohn mit E-Mail + Passwort anmelden.",
+          ],
+          {
+            intro: runtimeText("companyWorkpassLohnLoginIntro") || "Login an WorkPass Lohn exportiert.",
+            copyLabel: runtimeText("companyCreatedCopyLabel") || "Kopieren",
+            copyValue: `${lohnEmail}\n${tempPass}`,
+          }
+        );
+      } catch (error) {
+        const detail = error?.payload?.message || error?.payload?.error || error.message;
+        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: detail }), "error", 8000);
+      } finally {
+        lohnSyncButton.disabled = false;
+      }
+      return;
+    }
+
     const lohnToggleButton = event.target.closest("[data-company-lohn-toggle]");
     if (lohnToggleButton && !lohnToggleButton.disabled && elements.companyList.contains(lohnToggleButton)) {
       const companyId = lohnToggleButton.dataset.companyLohnToggle;
@@ -26198,22 +26252,26 @@ function bindCompanyRowActions() {
         renderCompanyList();
         if (enabled) {
           const userName = String(result?.loginUsername || "").trim();
-          const tempPass = String(result?.temporaryAdminPassword || "").trim();
-          const provisionOk = result?.provision?.ok !== false;
-          if (userName && tempPass) {
+          const lohnEmail = String(result?.lohnLoginEmail || "").trim()
+            || (companyId ? `${companyId}@firma.de` : "");
+          const tempPass = String(result?.temporaryAdminPassword || result?.exportedPassword || "").trim();
+          const provisionOk = result?.ok !== false && result?.provision?.ok !== false;
+          if (tempPass && (lohnEmail || userName)) {
             showSecretDialog(
               runtimeText("companyWorkpassLohnLoginTitle") || "WorkPass Lohn Login",
               [
-                `${runtimeText("companyWorkpassLohnLoginUser") || "Benutzername"}: ${userName}`,
+                `${runtimeText("companyWorkpassLohnLoginEmail") || "E-Mail (Lohn)"}: ${lohnEmail || "—"}`,
+                `${runtimeText("companyWorkpassLohnLoginUser") || "Benutzername"}: ${userName || "—"}`,
                 `${runtimeText("companyWorkpassLohnLoginPass") || "Passwort"}: ${tempPass}`,
+                `${runtimeText("companyWorkpassLohnFirmaId") || "Firma-ID"}: ${companyId}`,
                 runtimeText("companyWorkpassLohnLoginHint")
-                  || "Diese Zugangsdaten wurden an WorkPass Lohn gesendet. Bitte dort damit anmelden.",
+                  || "In WorkPass Lohn mit E-Mail + Passwort anmelden (nicht nur Plattform-Benutzername).",
               ],
               {
                 intro: runtimeText("companyWorkpassLohnLoginIntro")
                   || "Login an WorkPass Lohn exportiert.",
                 copyLabel: runtimeText("companyCreatedCopyLabel") || "Kopieren",
-                copyValue: `${userName}\n${tempPass}`,
+                copyValue: `${lohnEmail}\n${tempPass}`,
               }
             );
           } else if (provisionOk) {

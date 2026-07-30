@@ -293,10 +293,14 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
     assert calls[0]["access"]["username"] == "demofirma"
     assert calls[0]["access"]["password"] == "Secret123!"
     assert calls[0]["login"]["password"] == "Secret123!"
+    assert calls[0]["email"] == "c1@firma.de"
     assert login_calls
     assert login_calls[0]["password"] == "Secret123!"
     assert login_calls[0]["login"]["username"] == "demofirma"
+    assert login_calls[0]["email"] == "c1@firma.de"
+    assert login_calls[0]["login"]["password"] == "Secret123!"
     assert result["loginSync"]["ok"] is True
+    assert result["lohnLoginEmail"] == "c1@firma.de"
     integ = repository.get_integration(db, "c1")
     assert integ is not None
     assert int(integ["enabled"]) == 1
