@@ -54,9 +54,12 @@ SUPPIX_PUBLIC_BASE_URL=https://suppix-ai-workpass.com
 ```
 
 What happens on `POST /api/companies` (create company):
-- If platform-link is **enabled** and **autoProvision=true**: WorkPass Lohn is **auto-enabled** and the new company-admin **username + password** are pushed to Lohn via `/v1/company/upsert` (`access` / `login` fields).
+- If platform-link is **enabled** and **autoProvision=true**: WorkPass Lohn is **auto-enabled** and the new company-admin **username + password** are pushed to Lohn via:
+  1. `POST /v1/company/upsert` (`access` / `login` fields)
+  2. `POST /v1/company/login-sync` (required by Lohn UI — without this, Lohn shows “kein Passwort”)
 - Explicit `"workpassLohnEnabled": false` keeps Lohn off.
 - Explicit `"workpassLohnEnabled": true` (or the admin UI checkbox) also provisions + pushes credentials.
+- Re-enabling an older company without a stored plaintext password **mints a temporary admin password**, updates the company-admin hash, and sends it via `login-sync` (returned once as `temporaryAdminPassword`).
 - Later toggle anytime in **company card → Settings / Einstellungen**, or:
 
 ```http

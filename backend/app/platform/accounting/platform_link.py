@@ -227,21 +227,34 @@ def _company_webhook_url(link: dict[str, Any]) -> str:
     return f"{base}{path}"
 
 
-def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
+def _post_lohn_json(
+    link: dict[str, Any],
+    *,
+    path: str,
+    body: dict[str, Any],
+    event: str,
+) -> dict[str, Any]:
     base = str(link.get("base_url") or "").rstrip("/")
-    path = str(link.get("company_upsert_path") or "/v1/company/upsert")
     if not base:
         return {"ok": False, "error": "lohn_base_url_missing"}
+    if not path.startswith("/"):
+        path = "/" + path
     url = f"{base}{path}"
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     ts = str(int(time.time()))
     master = str(link.get("master_api_key") or "")
+    company_id = str(
+        body.get("id")
+        or body.get("companyId")
+        or (body.get("login") or {}).get("companyId")
+        or ""
+    )
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
-        "X-WorkPass-Company-Id": str(body.get("id") or body.get("companyId") or ""),
+        "X-WorkPass-Company-Id": company_id,
         "X-Suppix-Timestamp": ts,
-        "X-Suppix-Event": "company.upsert",
+        "X-Suppix-Event": event,
         "X-Suppix-Product": "WorkPass Lohn",
     }
     if master:
@@ -255,6 +268,7 @@ def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, A
             return {
                 "ok": True,
                 "status": int(resp.status),
+                "url": url,
                 "body": resp.read()[:800].decode("utf-8", errors="replace"),
             }
     except urlerror.HTTPError as exc:
@@ -263,9 +277,96 @@ def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, A
             detail = exc.read()[:400].decode("utf-8", errors="replace")
         except Exception:
             detail = str(exc)
-        return {"ok": False, "status": int(exc.code), "error": detail or str(exc)[:200]}
+        return {"ok": False, "status": int(exc.code), "url": url, "error": detail or str(exc)[:200]}
     except Exception as exc:
-        return {"ok": False, "error": str(exc)[:200]}
+        return {"ok": False, "error": str(exc)[:200], "url": url}
+
+
+def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
+    path = str(link.get("company_upsert_path") or "/v1/company/upsert")
+    return _post_lohn_json(link, path=path, body=body, event="company.upsert")
+
+
+def _post_lohn_login_sync(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
+    """WorkPass Lohn expects passwords via POST /v1/company/login-sync."""
+    return _post_lohn_json(link, path="/v1/company/login-sync", body=body, event="company.login-sync")
+
+
+def _resolve_or_mint_lohn_login(
+    db,
+    company_id: str,
+    *,
+    admin_username: str | None = None,
+    admin_password: str | None = None,
+) -> dict[str, Any]:
+    """
+    Return {username, password, minted?} for Lohn.
+    If password missing on re-enable, mint a new company-admin password and store it.
+    """
+    import secrets
+
+    from werkzeug.security import generate_password_hash
+
+    username = (admin_username or "").strip()
+    password = str(admin_password or "")
+    if not username:
+        try:
+            admin_row = db.execute(
+                """
+                SELECT id, username FROM users
+                WHERE company_id = ? AND role = 'company-admin'
+                ORDER BY id LIMIT 1
+                """,
+                (company_id,),
+            ).fetchone()
+        except Exception:
+            admin_row = None
+        if admin_row:
+            username = str(admin_row["username"] or "").strip()
+            admin_id = str(admin_row["id"] or "")
+        else:
+            admin_id = ""
+    else:
+        admin_id = ""
+        try:
+            admin_row = db.execute(
+                """
+                SELECT id FROM users
+                WHERE company_id = ? AND role = 'company-admin' AND username = ?
+                LIMIT 1
+                """,
+                (company_id, username),
+            ).fetchone()
+            if admin_row:
+                admin_id = str(admin_row["id"] or "")
+        except Exception:
+            pass
+
+    if username and password:
+        repo.store_lohn_login(db, company_id, username=username, password=password)
+        return {"username": username, "password": password, "minted": False}
+
+    existing = repo.get_lohn_login(db, company_id)
+    if existing:
+        return {**existing, "minted": False}
+
+    if not username:
+        return {}
+
+    # Re-enable / old company: mint password so Lohn login-sync can succeed
+    password = secrets.token_urlsafe(14)
+    if admin_id:
+        try:
+            db.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (generate_password_hash(password), admin_id),
+            )
+            db.execute("DELETE FROM sessions WHERE user_id = ?", (admin_id,))
+            db.commit()
+        except Exception:
+            pass
+    repo.store_lohn_login(db, company_id, username=username, password=password)
+    return {"username": username, "password": password, "minted": True}
 
 
 def notify_company_lohn_status(db, company_id: str, *, enabled: bool) -> dict[str, Any]:
@@ -341,27 +442,12 @@ def provision_company_for_lohn(
         return {"ok": False, "error": "company_not_found"}
 
     # Resolve / persist company-admin login for Lohn
-    username = (admin_username or "").strip()
-    password = str(admin_password or "")
-    if not username:
-        try:
-            admin_row = db.execute(
-                """
-                SELECT username FROM users
-                WHERE company_id = ? AND role = 'company-admin'
-                ORDER BY id LIMIT 1
-                """,
-                (company_id,),
-            ).fetchone()
-            if admin_row:
-                username = str(admin_row["username"] or "").strip()
-        except Exception:
-            username = ""
-    if username and password:
-        repo.store_lohn_login(db, company_id, username=username, password=password)
-    login = repo.get_lohn_login(db, company_id)
-    if not login and username and password:
-        login = {"username": username, "password": password}
+    login = _resolve_or_mint_lohn_login(
+        db,
+        company_id,
+        admin_username=admin_username,
+        admin_password=admin_password,
+    )
 
     platform_url = str(link.get("platform_public_url") or "").rstrip("/")
     bridge = {
@@ -370,6 +456,7 @@ def provision_company_for_lohn(
         "statementsUrl": f"{platform_url}/api/v2/accounting/statements" if platform_url else "/api/v2/accounting/statements",
         "companyUpsertUrl": f"{platform_url}/api/v2/accounting/company/upsert" if platform_url else "/api/v2/accounting/company/upsert",
         "accessUrl": f"{platform_url}/api/v2/accounting/company/access" if platform_url else "/api/v2/accounting/company/access",
+        "loginSyncPath": "/v1/company/login-sync",
         "headerCompanyId": "X-WorkPass-Company-Id",
         "headerApiKey": "X-Accounting-Key",
         "companyId": company_id,
@@ -399,6 +486,7 @@ def provision_company_for_lohn(
         "entitlement": "included_with_platform",
         "platformBridge": bridge,
     }
+    login_sync_result: dict[str, Any] = {"skipped": "no_login"}
     if login:
         access = {
             "username": login["username"],
@@ -413,9 +501,33 @@ def provision_company_for_lohn(
         body["password"] = login["password"]
         body["adminUsername"] = login["username"]
         body["adminPassword"] = login["password"]
+        login_sync_body = {
+            "id": company_id,
+            "companyId": company_id,
+            "firmaId": company_id,
+            "product": "WorkPass Lohn",
+            "username": login["username"],
+            "password": login["password"],
+            "login": {
+                "username": login["username"],
+                "password": login["password"],
+            },
+            "access": access,
+            "platformBridge": {
+                "companyId": company_id,
+                "firmaId": company_id,
+                "accountingKey": bridge.get("accountingKey") or "",
+                "accessUrl": bridge.get("accessUrl") or "",
+            },
+        }
+        login_sync_result = _post_lohn_login_sync(link, login_sync_body)
     remote = _post_lohn_upsert(link, body)
-    return {
-        "ok": bool(remote.get("ok")),
+    ok = bool(remote.get("ok"))
+    # Prefer login-sync success when Lohn specifically requires it; upsert alone is not enough.
+    if login and not login_sync_result.get("ok") and login_sync_result.get("skipped") != "no_login":
+        ok = False
+    out = {
+        "ok": ok,
         "companyId": company_id,
         "localIntegration": {
             "enabled": True,
@@ -424,10 +536,19 @@ def provision_company_for_lohn(
             "keyRotated": bool(local.get("apiKey")),
             "loginUsername": (login or {}).get("username") or "",
             "loginPushed": bool(login),
+            "loginMinted": bool(login.get("minted")) if login else False,
         },
         "remote": remote,
+        "loginSync": login_sync_result,
         "autoProvision": True,
     }
+    if login and login.get("minted"):
+        out["temporaryAdminPassword"] = login["password"]
+        out["warning"] = (
+            "Admin-Passwort neu erzeugt und an WorkPass Lohn gesendet "
+            "(alte Firmen ohne gespeichertes Klartext-Passwort)."
+        )
+    return out
 
 
 def sync_lohn_login_credentials(

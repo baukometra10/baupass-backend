@@ -270,6 +270,13 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
         return {"ok": True, "status": 200, "body": "{}"}
 
     monkeypatch.setattr(platform_link, "_post_lohn_upsert", _fake_post)
+    login_calls = []
+
+    def _fake_login_sync(link, body):
+        login_calls.append(body)
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_login_sync", _fake_login_sync)
     result = platform_link.provision_company_for_lohn(
         db,
         "c1",
@@ -286,6 +293,10 @@ def test_provision_creates_local_integration_and_posts(monkeypatch):
     assert calls[0]["access"]["username"] == "demofirma"
     assert calls[0]["access"]["password"] == "Secret123!"
     assert calls[0]["login"]["password"] == "Secret123!"
+    assert login_calls
+    assert login_calls[0]["password"] == "Secret123!"
+    assert login_calls[0]["login"]["username"] == "demofirma"
+    assert result["loginSync"]["ok"] is True
     integ = repository.get_integration(db, "c1")
     assert integ is not None
     assert int(integ["enabled"]) == 1

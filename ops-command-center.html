@@ -156,8 +156,10 @@
         lohnLinkOff: "Nicht verbunden",
         lohnLinkBase: "Basis-URL",
         lohnLinkAuto: "Auto-Provision für neue Firmen (wenn aktiviert)",
-        lohnLinkMissing: "Noch kein Plattform-Link. Einmal via API oder Env einrichten.",
-        lohnLinkHint: "Siehe docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkMissing: "Noch kein Plattform-Link. Einmal in Admin → Plattform / Einstellungen speichern.",
+        lohnLinkHint: "Admin → WorkPass Lohn Plattform-Link · docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkOpenAdmin: "Plattform-Link öffnen",
+        lohnLinkLoadError: "Status konnte nicht geladen werden (Login/Rechte prüfen).",
         scopeGlobal: "Alle Firmen",
         scopeOne: "Eine Firma",
         live: "Live",
@@ -232,8 +234,10 @@
         lohnLinkOff: "Not connected",
         lohnLinkBase: "Base URL",
         lohnLinkAuto: "Auto-provision for new companies (when enabled)",
-        lohnLinkMissing: "No platform link yet. Configure once via API or env.",
-        lohnLinkHint: "See docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkMissing: "No platform link yet. Save it once in Admin → Platform / Settings.",
+        lohnLinkHint: "Admin → WorkPass Lohn platform link · docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkOpenAdmin: "Open platform link",
+        lohnLinkLoadError: "Could not load status (check login/permissions).",
         scopeGlobal: "All companies",
         scopeOne: "One company",
         live: "Live",
@@ -307,8 +311,10 @@
         lohnLinkOff: "غير متصل",
         lohnLinkBase: "الرابط الأساسي",
         lohnLinkAuto: "توفير تلقائي للشركات الجديدة (عند التفعيل)",
-        lohnLinkMissing: "لا يوجد ربط للمنصة بعد. اضبطه مرة واحدة عبر API أو Env.",
-        lohnLinkHint: "راجع docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkMissing: "لا يوجد ربط للمنصة بعد. احفظه مرة واحدة في Admin → Plattform / Einstellungen.",
+        lohnLinkHint: "Admin → WorkPass Lohn Plattform-Link · docs/integrations/workpass-lohn-api-contract-v1.md",
+        lohnLinkOpenAdmin: "فتح إعداد الربط",
+        lohnLinkLoadError: "تعذر تحميل الحالة (تحقق من الدخول/الصلاحيات).",
         scopeGlobal: "جميع الشركات",
         scopeOne: "شركة واحدة",
         live: "مباشر",
@@ -577,6 +583,14 @@
     }
 
     function renderLohnLinkCard(linkPayload) {
+      if (linkPayload === null) {
+        return `<div class="card payroll-card" id="lohnLinkCard">
+          <div class="label">${tr("lohnLinkLabel")}</div>
+          <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
+          <p class="muted">${tr("lohnLinkLoadError")}</p>
+          <p class="muted"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
+        </div>`;
+      }
       const link = linkPayload?.link || linkPayload || null;
       const enabled = Boolean(link && (Number(link.enabled) === 1 || link.enabled === true));
       const baseUrl = String(link?.base_url || link?.baseUrl || "").trim();
@@ -592,6 +606,7 @@
           <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
           <p class="muted">${tr("lohnLinkMissing")}</p>
           <p class="muted">${tr("lohnLinkHint")}</p>
+          <p class="muted"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
         </div>`;
       }
       return `<div class="card payroll-card" id="lohnLinkCard">
@@ -600,6 +615,7 @@
         <p><strong>${tr("lohnLinkBase")}:</strong> ${baseUrl || "—"}</p>
         <p class="muted">${tr("lohnLinkAuto")}: ${auto ? "✓" : "—"}</p>
         <p class="muted">${tr("lohnLinkHint")}</p>
+        <p class="muted"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
       </div>`;
     }
 
