@@ -10569,7 +10569,12 @@ function getRuntimeUiTexts() {
     companyWorkpassLohnEnableConfirm: "Enable WorkPass Lohn for {name}? Hours can then be shared with the accounting app after platform linking.",
     companyWorkpassLohnDisableConfirm: "Disable WorkPass Lohn for {name}? Hour exports and payslip delivery will stop.",
     companyWorkpassLohnToggleFailed: "Could not update WorkPass Lohn: {error}",
-    companyWorkpassLohnEnabledToast: "WorkPass Lohn enabled",
+    companyWorkpassLohnEnabledToast: "WorkPass Lohn enabled — login sent to accounting",
+    companyWorkpassLohnLoginTitle: "WorkPass Lohn login",
+    companyWorkpassLohnLoginUser: "Username",
+    companyWorkpassLohnLoginPass: "Password",
+    companyWorkpassLohnLoginIntro: "These credentials were exported to WorkPass Lohn. Sign in there with them.",
+    companyWorkpassLohnLoginHint: "Same username/password as company admin (may be newly generated).",
     companyWorkpassLohnDisabledToast: "WorkPass Lohn disabled",
     companyLegalModalTitle: "Legal notice & privacy (company)",
     companyLegalSaveFailed: "Could not save legal texts: {error}",
@@ -11453,7 +11458,12 @@ function getRuntimeUiTexts() {
       companyWorkpassLohnEnableConfirm: "WorkPass Lohn für {name} aktivieren? Stunden können danach an die Buchhaltungs-App übermittelt werden (nach Plattform-Verknüpfung).",
       companyWorkpassLohnDisableConfirm: "WorkPass Lohn für {name} deaktivieren? Stunden-Export und Lohnabrechnungs-Zustellung werden gestoppt.",
       companyWorkpassLohnToggleFailed: "WorkPass Lohn konnte nicht aktualisiert werden: {error}",
-      companyWorkpassLohnEnabledToast: "WorkPass Lohn aktiviert",
+      companyWorkpassLohnEnabledToast: "WorkPass Lohn aktiviert — Login an Buchhaltung gesendet",
+      companyWorkpassLohnLoginTitle: "WorkPass Lohn Login",
+      companyWorkpassLohnLoginUser: "Benutzername",
+      companyWorkpassLohnLoginPass: "Passwort",
+      companyWorkpassLohnLoginIntro: "Diese Zugangsdaten wurden an WorkPass Lohn exportiert. Damit dort anmelden.",
+      companyWorkpassLohnLoginHint: "Gleicher Benutzername und Passwort wie Firmen-Admin (ggf. neu erzeugt).",
       companyWorkpassLohnDisabledToast: "WorkPass Lohn deaktiviert",
       companyLegalModalTitle: "Impressum & Datenschutz (diese Firma)",
       companyLegalSaveFailed: "Rechtstexte konnten nicht gespeichert werden: {error}",
@@ -13095,7 +13105,12 @@ function getRuntimeUiTexts() {
       companyWorkpassLohnEnableConfirm: "تفعيل WorkPass Lohn لـ {name}؟ يمكن بعدها مشاركة الساعات مع تطبيق المحاسبة بعد ربط المنصة.",
       companyWorkpassLohnDisableConfirm: "إيقاف WorkPass Lohn لـ {name}؟ سيتوقف تصدير الساعات وتسليم كشوف الرواتب.",
       companyWorkpassLohnToggleFailed: "تعذر تحديث WorkPass Lohn: {error}",
-      companyWorkpassLohnEnabledToast: "تم تفعيل WorkPass Lohn",
+      companyWorkpassLohnEnabledToast: "تم تفعيل WorkPass Lohn — أُرسل الدخول للمحاسبة",
+      companyWorkpassLohnLoginTitle: "تسجيل دخول WorkPass Lohn",
+      companyWorkpassLohnLoginUser: "اسم المستخدم",
+      companyWorkpassLohnLoginPass: "كلمة المرور",
+      companyWorkpassLohnLoginIntro: "تم تصدير بيانات الدخول إلى WorkPass Lohn. سجّل الدخول هناك بها.",
+      companyWorkpassLohnLoginHint: "نفس اسم المستخدم وكلمة المرور لأدمن الشركة (قد تكون جديدة).",
       companyWorkpassLohnDisabledToast: "تم إيقاف WorkPass Lohn",
       companyBtnAdminTfa: "🔐 المصادقة الثنائية للمشرف",
       companySectionAccess: "الوصول",
@@ -26181,14 +26196,51 @@ function bindCompanyRowActions() {
           state.companies[idx].workpassLohnEnabled = enabled;
         }
         renderCompanyList();
-        showToast(
-          enabled
-            ? runtimeText("companyWorkpassLohnEnabledToast")
-            : runtimeText("companyWorkpassLohnDisabledToast"),
-          "success"
-        );
+        if (enabled) {
+          const userName = String(result?.loginUsername || "").trim();
+          const tempPass = String(result?.temporaryAdminPassword || "").trim();
+          const provisionOk = result?.provision?.ok !== false;
+          if (userName && tempPass) {
+            showSecretDialog(
+              runtimeText("companyWorkpassLohnLoginTitle") || "WorkPass Lohn Login",
+              [
+                `${runtimeText("companyWorkpassLohnLoginUser") || "Benutzername"}: ${userName}`,
+                `${runtimeText("companyWorkpassLohnLoginPass") || "Passwort"}: ${tempPass}`,
+                runtimeText("companyWorkpassLohnLoginHint")
+                  || "Diese Zugangsdaten wurden an WorkPass Lohn gesendet. Bitte dort damit anmelden.",
+              ],
+              {
+                intro: runtimeText("companyWorkpassLohnLoginIntro")
+                  || "Login an WorkPass Lohn exportiert.",
+                copyLabel: runtimeText("companyCreatedCopyLabel") || "Kopieren",
+                copyValue: `${userName}\n${tempPass}`,
+              }
+            );
+          } else if (provisionOk) {
+            showToast(
+              runtimeText("companyWorkpassLohnEnabledToast")
+                || "WorkPass Lohn aktiv — Login an Buchhaltung gesendet.",
+              "success"
+            );
+          } else {
+            showToast(
+              result?.message
+                || runtimeTextTemplate("companyWorkpassLohnToggleFailed", {
+                  error: result?.error || "provision_failed",
+                }),
+              "error",
+              8000
+            );
+          }
+        } else {
+          showToast(
+            runtimeText("companyWorkpassLohnDisabledToast"),
+            "success"
+          );
+        }
       } catch (error) {
-        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: error.message }));
+        const detail = error?.payload?.message || error?.payload?.error || error.message;
+        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: detail }), "error", 8000);
         lohnToggleButton.disabled = false;
       }
       return;

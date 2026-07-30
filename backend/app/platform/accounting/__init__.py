@@ -389,6 +389,8 @@ def register_accounting_blueprint(flask_app) -> None:
             str(company_id),
             enabled=bool(enabled),
             provision_if_enabled=True,
+            admin_username=data.get("username") or data.get("adminUsername"),
+            admin_password=data.get("password") or data.get("adminPassword"),
         )
         code = 200 if result.get("ok") else 400
         return jsonify(result), code

@@ -313,7 +313,16 @@ def test_company_access_login_roundtrip():
     assert login["password"] == "Pw-42"
 
 
-def test_disable_stops_outbound(monkeypatch):
+def test_enable_fails_when_platform_link_missing():
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+    from backend.app.platform.accounting.platform_link import save_platform_link
+
+    db = _db()
+    save_platform_link(db, enabled=False, base_url="", master_api_key="")
+    out = set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=True)
+    assert out["ok"] is False
+    assert out["error"] in {"platform_link_disabled", "lohn_base_url_missing"}
+    assert "Plattform-Link" in (out.get("message") or "") or out.get("error")
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
     from backend.app.platform.accounting import service as accounting_service
 

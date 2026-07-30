@@ -548,6 +548,12 @@ def provision_company_for_lohn(
             "Admin-Passwort neu erzeugt und an WorkPass Lohn gesendet "
             "(alte Firmen ohne gespeichertes Klartext-Passwort)."
         )
+    if login and login_sync_result.get("ok"):
+        # One-time reveal in this API response so Superadmin can open Lohn with same login.
+        out["loginUsername"] = login["username"]
+        out["exportedPassword"] = login["password"]
+        if not out.get("temporaryAdminPassword"):
+            out["temporaryAdminPassword"] = login["password"]
     return out
 
 

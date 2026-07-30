@@ -121,17 +121,54 @@ def set_workpass_lohn_enabled(
             provision = provision_company_for_lohn(
                 db,
                 company_id,
-                force=False,
+                force=True,
                 admin_username=admin_username,
                 admin_password=admin_password,
             )
         except Exception as exc:
             provision = {"ok": False, "error": str(exc)[:200]}
+
+    # Enabling without a successful Lohn push is not useful for the accounting app.
+    if provision_if_enabled and not provision.get("ok"):
+        skip = str(provision.get("skipped") or "")
+        err = str(provision.get("error") or skip or "provision_failed")
+        messages = {
+            "platform_link_disabled": (
+                "WorkPass Lohn Plattform-Link fehlt oder ist deaktiviert. "
+                "Bitte zuerst als Superadmin unter Admin → WorkPass Lohn verbinden."
+            ),
+            "lohn_base_url_missing": (
+                "WorkPass Lohn Basis-URL fehlt. Bitte Plattform-Link speichern."
+            ),
+            "company_opted_out": "WorkPass Lohn ist für diese Firma nicht freigeschaltet.",
+        }
+        login_sync = provision.get("loginSync") or {}
+        if not login_sync.get("ok") and login_sync.get("error"):
+            err = f"login_sync_failed:{login_sync.get('error')}"
+        return {
+            "ok": False,
+            "companyId": company_id,
+            "workpassLohnEnabled": True,
+            "error": err,
+            "message": messages.get(skip)
+            or messages.get(str(provision.get("error") or ""))
+            or (
+                "Firma wurde lokal aktiviert, aber Login konnte nicht an WorkPass Lohn "
+                "gesendet werden. Plattform-Link und Master-Key prüfen."
+            ),
+            "provision": provision,
+        }
+
     return {
         "ok": True,
         "companyId": company_id,
         "workpassLohnEnabled": True,
         "provision": provision,
+        "temporaryAdminPassword": provision.get("temporaryAdminPassword")
+        or provision.get("exportedPassword"),
+        "loginUsername": provision.get("loginUsername")
+        or ((provision.get("localIntegration") or {}).get("loginUsername") or ""),
+        "warning": provision.get("warning"),
     }
 
 
