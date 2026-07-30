@@ -605,16 +605,12 @@
 
     function renderLohnLinkCard(linkPayload) {
       const role = currentRole();
-      const isCompanyAdmin = role === "company-admin";
-      if (isCompanyAdmin) {
-        return `<div class="card payroll-card" id="lohnLinkCard">
-          <div class="label">${tr("lohnLinkLabel")}</div>
-          <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
-          <p class="muted">${tr("lohnLinkCompanyAdminHint")}</p>
-          <p class="muted"><a href="/index.html">${tr("lohnLinkOpenDashboard")}</a></p>
-        </div>`;
+      // Firmen-Admins need no platform-link UX — Superadmin connects once; company just uses Lohn.
+      if (role === "company-admin") {
+        return "";
       }
-      if (linkPayload === null) {
+      if (linkPayload === null || linkPayload?.skipped) {
+        if (linkPayload?.skipped) return "";
         return `<div class="card payroll-card" id="lohnLinkCard">
           <div class="label">${tr("lohnLinkLabel")}</div>
           <div class="label" style="margin:0.35rem 0;color:var(--warn,#b45309)">${tr("lohnLinkOff")}</div>
@@ -684,6 +680,9 @@
     }
 
     async function loadLohnPlatformLink() {
+      if (currentRole() === "company-admin") {
+        return { skipped: true };
+      }
       try {
         return await api("/api/payroll/accounting/platform-link");
       } catch {
@@ -801,13 +800,13 @@
       try {
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        await loadMe();
         const [data, forecast, guardianBundle, payrollBatches, lohnLink] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
           loadPayrollPending(),
           loadLohnPlatformLink(),
-          loadMe(),
         ]);
         render(data, forecast, guardianBundle, payrollBatches, lohnLink);
       } catch (e) {
