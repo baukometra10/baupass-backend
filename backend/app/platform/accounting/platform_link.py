@@ -242,13 +242,20 @@ def _post_lohn_json(
     url = f"{base}{path}"
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     ts = str(int(time.time()))
-    master = str(link.get("master_api_key") or "")
+    master = str(link.get("master_api_key") or "").strip()
     company_id = str(
         body.get("id")
         or body.get("companyId")
         or (body.get("login") or {}).get("companyId")
         or ""
     )
+    if not master:
+        return {
+            "ok": False,
+            "error": "master_api_key_missing",
+            "message": "Master-API-Key fehlt im Plattform-Link.",
+            "url": url,
+        }
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
@@ -256,12 +263,11 @@ def _post_lohn_json(
         "X-Suppix-Timestamp": ts,
         "X-Suppix-Event": event,
         "X-Suppix-Product": "WorkPass Lohn",
+        "X-WorkPass-Key": master,
+        "Authorization": f"Bearer {master}",
+        "X-WorkPass-Master-Key": master,
+        "X-Suppix-Signature": sign_payload(master, timestamp=ts, body=raw),
     }
-    if master:
-        headers["X-WorkPass-Key"] = master
-        headers["Authorization"] = f"Bearer {master}"
-        headers["X-WorkPass-Master-Key"] = master
-        headers["X-Suppix-Signature"] = sign_payload(master, timestamp=ts, body=raw)
     req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
     try:
         with urlrequest.urlopen(req, timeout=20) as resp:
