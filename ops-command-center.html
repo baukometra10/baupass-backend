@@ -65,6 +65,79 @@
     .payroll-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
     .payroll-row:last-child { border-bottom: 0; }
     .payroll-actions button { margin-left: 0.25rem; }
+    .lohn-notify-stack { grid-column: 1 / -1; display: grid; gap: 0.55rem; }
+    .lohn-toast {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.75rem; align-items: start;
+      padding: 0.9rem 1rem; border-radius: 14px;
+      border: 1px solid rgba(251, 191, 36, 0.45);
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.16), rgba(15, 23, 32, 0.95));
+      box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+      animation: lohnToastIn 0.35s ease-out;
+    }
+    @keyframes lohnToastIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .lohn-toast-badge {
+      width: 2.35rem; height: 2.35rem; border-radius: 12px; display: grid; place-items: center;
+      background: rgba(251, 191, 36, 0.2); color: #fbbf24; font-weight: 800; font-size: 0.85rem;
+    }
+    .lohn-toast-title { font-weight: 700; color: var(--text); font-size: 0.95rem; }
+    .lohn-toast-body { margin-top: 0.2rem; color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
+    .lohn-toast-meta { margin-top: 0.35rem; font-size: 0.68rem; color: #fbbf24; letter-spacing: 0.02em; }
+    .lohn-toast-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+    .lohn-toast-actions button, .lohn-hub button, .lohn-item button {
+      font-size: 0.72rem; padding: 0.35rem 0.6rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0c1218; color: var(--accent); cursor: pointer;
+      white-space: nowrap;
+    }
+    .lohn-toast-actions button.primary, .lohn-item button.primary {
+      border-color: rgba(75, 227, 209, 0.45); background: rgba(75, 227, 209, 0.12);
+    }
+    .lohn-toast-actions button.ghost { color: var(--muted); }
+    .lohn-hub {
+      grid-column: 1 / -1;
+      border: 1px solid rgba(75, 227, 209, 0.28);
+      background: linear-gradient(180deg, rgba(18, 28, 38, 0.98), rgba(10, 16, 22, 0.98));
+      border-radius: 16px; padding: 0;
+      overflow: hidden;
+    }
+    .lohn-hub-head {
+      display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center;
+      padding: 0.85rem 1rem; border-bottom: 1px solid var(--border);
+      background: rgba(75, 227, 209, 0.06);
+    }
+    .lohn-hub-title { font-weight: 700; color: var(--text); font-size: 0.95rem; }
+    .lohn-hub-sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; }
+    .lohn-hub-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .lohn-pill {
+      font-size: 0.68rem; padding: 0.2rem 0.5rem; border-radius: 999px;
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .lohn-pill.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
+    .lohn-pill.ok { color: var(--accent); border-color: rgba(75, 227, 209, 0.35); }
+    .lohn-hub-body { display: grid; gap: 0; }
+    .lohn-section { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); }
+    .lohn-section:last-child { border-bottom: 0; }
+    .lohn-section-head {
+      display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; margin-bottom: 0.55rem;
+    }
+    .lohn-section-title { font-size: 0.78rem; font-weight: 650; color: var(--text); }
+    .lohn-section-hint { font-size: 0.68rem; color: var(--muted); }
+    .lohn-empty { font-size: 0.75rem; color: var(--muted); padding: 0.35rem 0; }
+    .lohn-item {
+      display: grid; grid-template-columns: 1fr auto; gap: 0.65rem; align-items: start;
+      padding: 0.65rem 0.7rem; margin: 0.35rem 0; border-radius: 12px;
+      border: 1px solid var(--border); background: rgba(8, 14, 20, 0.65);
+    }
+    .lohn-item.unread { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.05); }
+    .lohn-item-title { font-weight: 650; font-size: 0.84rem; color: var(--text); }
+    .lohn-item-body { margin-top: 0.2rem; font-size: 0.74rem; color: var(--muted); line-height: 1.35; }
+    .lohn-item-meta { margin-top: 0.3rem; font-size: 0.66rem; color: #94a3b8; }
+    .lohn-item-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+    .lohn-link-row { font-size: 0.78rem; color: var(--muted); }
+    .lohn-link-row strong { color: var(--text); }
+    .lohn-link-row a { color: #fbbf24; }
   </style>
 </head>
 <body class="ops-app">
@@ -157,12 +230,18 @@
         dataAlertsDismiss: "Gelesen / ausblenden",
         dataAlertsDismissFailed: "Konnte nicht ausblenden",
         dataAlertsFields: "Fehlt: {fields}",
-        lohnMessagesLabel: "WorkPass Lohn — Nachrichten",
-        lohnMessagesNone: "Keine offenen Lohn-Nachrichten",
-        lohnMessagesPending: "{n} offene Nachrichten",
-        lohnMessagesOpen: "Öffnen / gelesen",
+        lohnMessagesLabel: "WorkPass Lohn — Posteingang",
+        lohnMessagesNone: "Keine ungelesenen Lohn-Nachrichten",
+        lohnMessagesPending: "{n} ungelesen",
+        lohnMessagesOpen: "Öffnen & bestätigen",
         lohnMessagesOpenFailed: "Nachricht konnte nicht bestätigt werden",
         lohnMessagesSync: "Von Lohn holen",
+        lohnMessagesBannerDismiss: "Mitteilung weg",
+        lohnMessagesBannerHint: "Wie am Handy: Mitteilung wegwischen — bleibt ungelesen im Posteingang",
+        lohnMessagesToastEyebrow: "Neue Mitteilung · WorkPass Lohn",
+        lohnMessagesUnreadBadge: "Ungelesen",
+        lohnHubTitle: "WorkPass Lohn",
+        lohnHubSub: "Mitteilungen · Posteingang · Freigaben",
         lohnLinkLabel: "WorkPass Lohn — Plattform-Link",
         lohnLinkOn: "Verbunden",
         lohnLinkOff: "Nicht verbunden",
@@ -249,12 +328,18 @@
         dataAlertsDismiss: "Mark read / dismiss",
         dataAlertsDismissFailed: "Could not dismiss",
         dataAlertsFields: "Missing: {fields}",
-        lohnMessagesLabel: "WorkPass Lohn — messages",
-        lohnMessagesNone: "No open Lohn messages",
-        lohnMessagesPending: "{n} open messages",
-        lohnMessagesOpen: "Open / mark read",
+        lohnMessagesLabel: "WorkPass Lohn — inbox",
+        lohnMessagesNone: "No unread Lohn messages",
+        lohnMessagesPending: "{n} unread",
+        lohnMessagesOpen: "Open & acknowledge",
         lohnMessagesOpenFailed: "Could not acknowledge message",
         lohnMessagesSync: "Pull from Lohn",
+        lohnMessagesBannerDismiss: "Dismiss alert",
+        lohnMessagesBannerHint: "Like a phone: swipe the alert away — it stays unread in the inbox",
+        lohnMessagesToastEyebrow: "New alert · WorkPass Lohn",
+        lohnMessagesUnreadBadge: "Unread",
+        lohnHubTitle: "WorkPass Lohn",
+        lohnHubSub: "Alerts · inbox · approvals",
         lohnLinkLabel: "WorkPass Lohn — platform link",
         lohnLinkOn: "Connected",
         lohnLinkOff: "Not connected",
@@ -340,12 +425,18 @@
         dataAlertsDismiss: "مقروء / إخفاء",
         dataAlertsDismissFailed: "تعذر الإخفاء",
         dataAlertsFields: "ناقص: {fields}",
-        lohnMessagesLabel: "WorkPass Lohn — رسائل",
-        lohnMessagesNone: "لا توجد رسائل مفتوحة",
-        lohnMessagesPending: "{n} رسائل مفتوحة",
-        lohnMessagesOpen: "فتح / مقروء",
+        lohnMessagesLabel: "WorkPass Lohn — البريد الوارد",
+        lohnMessagesNone: "لا توجد رسائل غير مقروءة",
+        lohnMessagesPending: "{n} غير مقروء",
+        lohnMessagesOpen: "فتح وتأكيد",
         lohnMessagesOpenFailed: "تعذر تأكيد الرسالة",
         lohnMessagesSync: "جلب من Lohn",
+        lohnMessagesBannerDismiss: "إخفاء الإشعار",
+        lohnMessagesBannerHint: "مثل الهاتف: أغلق الإشعار — تبقى غير مقروءة في البريد",
+        lohnMessagesToastEyebrow: "إشعار جديد · WorkPass Lohn",
+        lohnMessagesUnreadBadge: "غير مقروء",
+        lohnHubTitle: "WorkPass Lohn",
+        lohnHubSub: "إشعارات · بريد · موافقات",
         lohnLinkLabel: "WorkPass Lohn — ربط المنصة",
         lohnLinkOn: "متصل",
         lohnLinkOff: "غير متصل",
@@ -609,22 +700,27 @@
         const period = String(b.period || "—");
         const count = b.statement_count ?? b.statementCount ?? 0;
         const company = String(b.company_id || b.companyId || "");
-        return `<div class="payroll-row" data-batch="${id}">
-          <div class="label">${period} · ${count} · ${company || "—"}</div>
-          <div class="payroll-actions">
-            <button type="button" data-payroll="approve" data-id="${id}">${tr("payrollApprove")}</button>
+        return `<div class="lohn-item">
+          <div>
+            <div class="lohn-item-title">${period} · ${count}</div>
+            <div class="lohn-item-meta">${company || "—"}</div>
+          </div>
+          <div class="lohn-item-actions">
+            <button type="button" class="primary" data-payroll="approve" data-id="${id}">${tr("payrollApprove")}</button>
             <button type="button" data-payroll="reject" data-id="${id}">${tr("payrollReject")}</button>
           </div>
         </div>`;
-      }).join("") || `<div class="label">—</div>`;
-      return `<div class="card payroll-card" id="payrollCard">
-        <div class="label">${tr("payrollLabel")}</div>
-        <div class="label" style="margin:0.35rem 0">${head}</div>
+      }).join("") || `<div class="lohn-empty">${tr("payrollNone")}</div>`;
+      return `<div class="lohn-section" id="payrollCard">
+        <div class="lohn-section-head">
+          <div class="lohn-section-title">${tr("payrollLabel")}</div>
+          <div class="lohn-section-hint">${head}</div>
+        </div>
         ${rows}
       </div>`;
     }
 
-    function renderDataAlertsCard(alerts) {
+    function renderDataAlertsSection(alerts) {
       const list = Array.isArray(alerts) ? alerts : [];
       const head = list.length
         ? tr("dataAlertsPending", { n: list.length })
@@ -640,22 +736,27 @@
         const detail = fields
           ? tr("dataAlertsFields", { fields })
           : (msg || "—");
-        return `<div class="payroll-row" data-alert="${id}">
-          <div class="label">${name} · ${period} · ${company || "—"}</div>
-          <div class="muted" style="margin:0.2rem 0 0.4rem">${detail}${msg && fields ? ` — ${msg}` : ""}</div>
-          <div class="payroll-actions">
+        return `<div class="lohn-item unread">
+          <div>
+            <div class="lohn-item-title">${name}</div>
+            <div class="lohn-item-body">${detail}${msg && fields ? ` — ${msg}` : ""}</div>
+            <div class="lohn-item-meta">${period} · ${company || "—"}</div>
+          </div>
+          <div class="lohn-item-actions">
             <button type="button" data-data-alert="dismiss" data-id="${id}">${tr("dataAlertsDismiss")}</button>
           </div>
         </div>`;
-      }).join("") || `<div class="label">—</div>`;
-      return `<div class="card payroll-card" id="dataAlertsCard">
-        <div class="label">${tr("dataAlertsLabel")}</div>
-        <div class="label" style="margin:0.35rem 0">${head}</div>
+      }).join("") || `<div class="lohn-empty">${tr("dataAlertsNone")}</div>`;
+      return `<div class="lohn-section" id="dataAlertsCard">
+        <div class="lohn-section-head">
+          <div class="lohn-section-title">${tr("dataAlertsLabel")}</div>
+          <div class="lohn-section-hint">${head}</div>
+        </div>
         ${rows}
       </div>`;
     }
 
-    function renderLohnMessagesCard(messages) {
+    function renderLohnMessagesSection(messages) {
       const list = Array.isArray(messages) ? messages : [];
       const head = list.length
         ? tr("lohnMessagesPending", { n: list.length })
@@ -669,22 +770,127 @@
         const name = [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
           || String(m.workerId || "");
         const meta = [period, company, name].filter(Boolean).join(" · ") || "—";
-        return `<div class="payroll-row" data-lohn-msg="${id}">
-          <div class="label">${subject}</div>
-          <div class="muted" style="margin:0.2rem 0">${meta}</div>
-          ${body ? `<div class="muted" style="margin:0 0 0.4rem">${body.slice(0, 180)}</div>` : ""}
-          <div class="payroll-actions">
-            <button type="button" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
+        return `<div class="lohn-item unread" data-lohn-msg="${id}">
+          <div>
+            <div class="lohn-item-title">${subject} <span class="lohn-pill warn">${tr("lohnMessagesUnreadBadge")}</span></div>
+            ${body ? `<div class="lohn-item-body">${body.slice(0, 220)}</div>` : ""}
+            <div class="lohn-item-meta">${meta}</div>
+          </div>
+          <div class="lohn-item-actions">
+            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
           </div>
         </div>`;
-      }).join("") || `<div class="label">—</div>`;
-      return `<div class="card payroll-card" id="lohnMessagesCard">
-        <div class="label">${tr("lohnMessagesLabel")}</div>
-        <div class="label" style="margin:0.35rem 0">${head}</div>
-        <div class="payroll-actions" style="margin-bottom:0.5rem">
-          <button type="button" id="lohnMessagesSyncBtn">${tr("lohnMessagesSync")}</button>
+      }).join("") || `<div class="lohn-empty">${tr("lohnMessagesNone")}</div>`;
+      return `<div class="lohn-section" id="lohnMessagesCard">
+        <div class="lohn-section-head">
+          <div>
+            <div class="lohn-section-title">${tr("lohnMessagesLabel")}</div>
+            <div class="lohn-section-hint">${tr("lohnMessagesBannerHint")}</div>
+          </div>
+          <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
+            <span class="lohn-section-hint">${head}</span>
+            <button type="button" id="lohnMessagesSyncBtn">${tr("lohnMessagesSync")}</button>
+          </div>
         </div>
         ${rows}
+      </div>`;
+    }
+
+    function renderLohnNotificationToasts(messages) {
+      const list = (Array.isArray(messages) ? messages : []).filter((m) => m && m.bannerVisible !== false);
+      if (!list.length) return "";
+      const toasts = list.slice(0, 5).map((m) => {
+        const id = String(m.id || "");
+        const subject = String(m.subject || m.kind || "WorkPass Lohn");
+        const body = String(m.body || "").trim();
+        const company = String(m.companyId || "");
+        const period = String(m.period || "");
+        return `<div class="lohn-toast" data-toast-id="${id}">
+          <div class="lohn-toast-badge" aria-hidden="true">WL</div>
+          <div>
+            <div class="lohn-toast-meta">${tr("lohnMessagesToastEyebrow")}</div>
+            <div class="lohn-toast-title">${subject}</div>
+            ${body ? `<div class="lohn-toast-body">${body.slice(0, 160)}</div>` : ""}
+            <div class="lohn-toast-meta">${[company, period].filter(Boolean).join(" · ")}</div>
+          </div>
+          <div class="lohn-toast-actions">
+            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
+            <button type="button" class="ghost" data-lohn-msg="dismiss-banner" data-id="${id}">${tr("lohnMessagesBannerDismiss")}</button>
+          </div>
+        </div>`;
+      }).join("");
+      return `<div class="lohn-notify-stack" id="lohnNotifyStack">${toasts}</div>`;
+    }
+
+    function renderLohnLinkSection(linkPayload) {
+      const role = currentRole();
+      if (role === "company-admin") {
+        return `<div class="lohn-section">
+          <div class="lohn-section-title">${tr("lohnLinkLabel")}</div>
+          <div class="lohn-empty">${tr("lohnLinkCompanyAdminHint")}</div>
+        </div>`;
+      }
+      if (linkPayload === null || linkPayload?.skipped) {
+        if (linkPayload?.skipped) return "";
+        return `<div class="lohn-section">
+          <div class="lohn-section-title">${tr("lohnLinkLabel")}</div>
+          <div class="lohn-empty">${tr("lohnLinkLoadError")}</div>
+          <p class="lohn-link-row"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
+        </div>`;
+      }
+      const link = linkPayload?.link || linkPayload || null;
+      const enabled = Boolean(link && (Number(link.enabled) === 1 || link.enabled === true));
+      const baseUrl = String(link?.base_url || link?.baseUrl || "").trim();
+      const auto = Boolean(
+        link &&
+          (Number(link.auto_provision) === 1 ||
+            link.auto_provision === true ||
+            link.autoProvision === true)
+      );
+      if (!link || (!enabled && !baseUrl)) {
+        return `<div class="lohn-section">
+          <div class="lohn-section-title">${tr("lohnLinkLabel")}</div>
+          <div class="lohn-empty">${tr("lohnLinkMissing")}</div>
+          <p class="lohn-link-row"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
+        </div>`;
+      }
+      return `<div class="lohn-section">
+        <div class="lohn-section-head">
+          <div class="lohn-section-title">${tr("lohnLinkLabel")}</div>
+          <span class="lohn-pill ${enabled ? "ok" : "warn"}">${enabled ? tr("lohnLinkOn") : tr("lohnLinkOff")}</span>
+        </div>
+        <div class="lohn-link-row"><strong>${tr("lohnLinkBase")}:</strong> ${baseUrl || "—"}</div>
+        <div class="lohn-link-row">${tr("lohnLinkAuto")}: ${auto ? "✓" : "—"}</div>
+        <div class="lohn-link-row muted">${tr("lohnLinkHint")}</div>
+        <p class="lohn-link-row"><a href="/index.html#admin">${tr("lohnLinkOpenAdmin")}</a></p>
+      </div>`;
+    }
+
+    function renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches) {
+      const msgCount = Array.isArray(lohnMessages) ? lohnMessages.length : 0;
+      const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
+      const batchCount = Array.isArray(payrollBatches) ? payrollBatches.length : 0;
+      const notifyCount = (Array.isArray(lohnMessages) ? lohnMessages : []).filter((m) => m.bannerVisible !== false).length;
+      return `${renderLohnNotificationToasts(lohnMessages)}
+      <div class="lohn-hub" id="lohnHub">
+        <div class="lohn-hub-head">
+          <div>
+            <div class="lohn-hub-title">${tr("lohnHubTitle")}</div>
+            <div class="lohn-hub-sub">${tr("lohnHubSub")}</div>
+          </div>
+          <div class="lohn-hub-pills">
+            ${notifyCount ? `<span class="lohn-pill warn">${notifyCount} · ${tr("lohnMessagesToastEyebrow")}</span>` : ""}
+            <span class="lohn-pill ${msgCount ? "warn" : "ok"}">${msgCount ? tr("lohnMessagesPending", { n: msgCount }) : tr("lohnMessagesNone")}</span>
+            <span class="lohn-pill ${alertCount ? "warn" : ""}">${alertCount ? tr("dataAlertsPending", { n: alertCount }) : tr("dataAlertsNone")}</span>
+            <span class="lohn-pill ${batchCount ? "warn" : ""}">${batchCount ? tr("payrollPending", { n: batchCount }) : tr("payrollNone")}</span>
+          </div>
+        </div>
+        <div class="lohn-hub-body">
+          ${renderLohnMessagesSection(lohnMessages)}
+          ${renderDataAlertsSection(dataAlerts)}
+          ${renderPayrollCard(payrollBatches)}
+          ${renderLohnLinkSection(lohnLink)}
+        </div>
       </div>`;
     }
 
@@ -804,6 +1010,22 @@
           }
         });
       });
+      document.querySelectorAll("[data-lohn-msg='dismiss-banner']").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          if (!id) return;
+          try {
+            await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/dismiss-banner`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: "{}",
+            });
+            await load();
+          } catch (e) {
+            alert(e.message || tr("lohnMessagesOpenFailed"));
+          }
+        });
+      });
       document.getElementById("lohnMessagesSyncBtn")?.addEventListener("click", async () => {
         try {
           await api("/api/payroll/accounting/messages/sync", {
@@ -881,11 +1103,8 @@
       const prompts = actionPrompts();
 
       grid.innerHTML = `
+        ${renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches)}
         ${renderGuardianCard(guardian, guardianHistory)}
-        ${renderLohnLinkCard(lohnLink)}
-        ${renderLohnMessagesCard(lohnMessages)}
-        ${renderDataAlertsCard(dataAlerts)}
-        ${renderPayrollCard(payrollBatches)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
         </div>

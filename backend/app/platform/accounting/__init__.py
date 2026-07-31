@@ -31,6 +31,7 @@ def register_accounting_blueprint(flask_app) -> None:
     from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
     from .messages_inbox import (
         ack_message_to_lohn,
+        dismiss_message_banner,
         handle_inbound_lohn_webhook,
         list_pending_accounting_messages,
         platform_webhook_public_path,
@@ -612,6 +613,7 @@ def register_accounting_blueprint(flask_app) -> None:
         if sync and company_id:
             pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))
         messages = list_pending_accounting_messages(get_db(), company_id=company_id)
+        notifications = [m for m in messages if m.get("bannerVisible")]
         link = get_platform_link(get_db())
         platform_url = str(link.get("platform_public_url") or "").rstrip("/")
         webhook_url = (
@@ -623,11 +625,32 @@ def register_accounting_blueprint(flask_app) -> None:
             {
                 "ok": True,
                 "messages": messages,
+                "notifications": notifications,
                 "count": len(messages),
+                "notificationCount": len(notifications),
                 "webhookUrl": webhook_url,
                 "webhookEnv": "WORKPASS_PLATFORM_WEBHOOK_URL",
             }
         ), 200
+
+    @accounting_bp.post("/payroll/accounting/messages/<message_id>/dismiss-banner")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_dismiss_message_banner(message_id: str):
+        """Hide dashboard toast only — inbox stays unread; no Lohn ack."""
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = dismiss_message_banner(
+            get_db(),
+            message_id=message_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        if result.get("error") == "not_found":
+            return jsonify(result), 404
+        if result.get("error") == "forbidden_company":
+            return jsonify(result), 403
+        return jsonify(result), 200
 
     @accounting_bp.post("/payroll/accounting/messages/sync")
     @require_auth

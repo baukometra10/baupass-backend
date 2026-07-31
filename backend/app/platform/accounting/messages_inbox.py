@@ -181,7 +181,7 @@ def upsert_accounting_messages(
                 UPDATE accounting_messages
                 SET event = ?, kind = ?, subject = ?, body = ?, period = ?, worker_id = ?,
                     payload_json = ?, status = 'pending', updated_at = ?, ack_error = '',
-                    acked_at = NULL
+                    acked_at = NULL, banner_dismissed_at = NULL, received_at = ?
                 WHERE id = ?
                 """,
                 (
@@ -193,6 +193,7 @@ def upsert_accounting_messages(
                     norm["workerId"],
                     payload_json,
                     now,
+                    now,
                     existing["id"],
                 ),
             )
@@ -200,28 +201,53 @@ def upsert_accounting_messages(
             ids.append(str(existing["id"]))
         else:
             mid = f"amsg-{uuid.uuid4().hex[:16]}"
-            db.execute(
-                """
-                INSERT INTO accounting_messages
-                (id, external_id, company_id, event, kind, subject, body, period, worker_id,
-                 payload_json, status, received_at, read_at, acked_at, ack_error, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, '', ?)
-                """,
-                (
-                    mid,
-                    norm["externalId"],
-                    norm["companyId"],
-                    norm["event"],
-                    norm["kind"],
-                    norm["subject"],
-                    norm["body"],
-                    norm["period"],
-                    norm["workerId"],
-                    payload_json,
-                    now,
-                    now,
-                ),
-            )
+            try:
+                db.execute(
+                    """
+                    INSERT INTO accounting_messages
+                    (id, external_id, company_id, event, kind, subject, body, period, worker_id,
+                     payload_json, status, received_at, read_at, acked_at, ack_error, updated_at,
+                     banner_dismissed_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, '', ?, NULL)
+                    """,
+                    (
+                        mid,
+                        norm["externalId"],
+                        norm["companyId"],
+                        norm["event"],
+                        norm["kind"],
+                        norm["subject"],
+                        norm["body"],
+                        norm["period"],
+                        norm["workerId"],
+                        payload_json,
+                        now,
+                        now,
+                    ),
+                )
+            except Exception:
+                db.execute(
+                    """
+                    INSERT INTO accounting_messages
+                    (id, external_id, company_id, event, kind, subject, body, period, worker_id,
+                     payload_json, status, received_at, read_at, acked_at, ack_error, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NULL, NULL, '', ?)
+                    """,
+                    (
+                        mid,
+                        norm["externalId"],
+                        norm["companyId"],
+                        norm["event"],
+                        norm["kind"],
+                        norm["subject"],
+                        norm["body"],
+                        norm["period"],
+                        norm["workerId"],
+                        payload_json,
+                        now,
+                        now,
+                    ),
+                )
             created += 1
             ids.append(mid)
         kind_l = (norm["kind"] or "").lower()
@@ -310,10 +336,60 @@ def list_pending_accounting_messages(
                 "workerLastName": data.get("last_name") or "",
                 "status": data.get("status") or "pending",
                 "receivedAt": data.get("received_at"),
+                "bannerDismissedAt": data.get("banner_dismissed_at"),
+                "bannerVisible": not bool(str(data.get("banner_dismissed_at") or "").strip()),
+                "unread": True,
                 "payload": payload if isinstance(payload, dict) else {},
             }
         )
     return out
+
+
+def dismiss_message_banner(
+    db,
+    *,
+    message_id: str,
+    actor_user_id: str = "",
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Hide dashboard notification only — message stays unread in inbox (phone banner vs Gmail).
+    Does NOT ack WorkPass Lohn.
+    """
+    ensure_accounting_schema(db)
+    row = db.execute("SELECT * FROM accounting_messages WHERE id = ?", (message_id,)).fetchone()
+    if not row:
+        return {"ok": False, "error": "not_found"}
+    if company_id and str(row["company_id"]) != str(company_id):
+        return {"ok": False, "error": "forbidden_company"}
+    if str(row["status"] or "") != "pending":
+        return {"ok": True, "id": message_id, "status": row["status"], "bannerVisible": False}
+    now = _now()
+    try:
+        db.execute(
+            """
+            UPDATE accounting_messages
+            SET banner_dismissed_at = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (now, now, message_id),
+        )
+    except Exception:
+        return {"ok": False, "error": "banner_column_missing"}
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "id": message_id,
+        "status": "pending",
+        "bannerVisible": False,
+        "unread": True,
+        "acked": False,
+        "note": "banner_dismissed_inbox_unread",
+        "actorUserId": str(actor_user_id or "")[:80],
+    }
 
 
 def _lohn_get_json(link: dict[str, Any], *, path: str, company_id: str = "") -> dict[str, Any]:

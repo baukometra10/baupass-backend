@@ -131,11 +131,33 @@ def ensure_accounting_schema(db) -> None:
     for sql in statements:
         db.execute(sql)
     _ensure_integration_login_columns(db)
+    _ensure_accounting_message_banner_column(db)
     try:
         db.commit()
     except Exception:
         pass
     _ENSURED = True
+
+
+def _ensure_accounting_message_banner_column(db) -> None:
+    """Banner dismiss ≠ inbox read — like phone notification vs Gmail unread."""
+    cols: set[str] = set()
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(accounting_messages)").fetchall()}
+    except Exception:
+        cols = set()
+    if cols and "banner_dismissed_at" not in cols:
+        try:
+            db.execute("ALTER TABLE accounting_messages ADD COLUMN banner_dismissed_at TEXT")
+        except Exception:
+            pass
+    elif not cols:
+        try:
+            db.execute(
+                "ALTER TABLE accounting_messages ADD COLUMN IF NOT EXISTS banner_dismissed_at TEXT"
+            )
+        except Exception:
+            pass
 
 
 def _ensure_integration_login_columns(db) -> None:

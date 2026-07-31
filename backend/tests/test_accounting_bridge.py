@@ -488,6 +488,34 @@ def test_accounting_messages_inbox_upsert_and_ack(monkeypatch):
     assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
 
 
+def test_message_banner_dismiss_keeps_inbox_unread():
+    from backend.app.platform.accounting import messages_inbox
+
+    db = _db()
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-banner",
+                "companyId": "c1",
+                "subject": "Neue Mitteilung",
+                "body": "IBAN fehlt",
+            }
+        ],
+    )
+    mid = stored["ids"][0]
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert pending[0]["bannerVisible"] is True
+    dismissed = messages_inbox.dismiss_message_banner(db, message_id=mid, actor_user_id="u1")
+    assert dismissed["ok"] is True
+    assert dismissed["unread"] is True
+    assert dismissed["acked"] is False
+    pending2 = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending2) == 1
+    assert pending2[0]["bannerVisible"] is False
+    assert pending2[0]["status"] == "pending"
+
+
 def test_platform_webhook_auth_master_key():
     from backend.app.platform.accounting import messages_inbox, platform_link
 
