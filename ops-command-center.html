@@ -96,18 +96,21 @@
     }
     .lohn-toast-actions button.ghost { color: var(--muted); }
     .lohn-hub {
-      grid-column: 1 / -1;
-      border: 1px solid rgba(75, 227, 209, 0.28);
-      background: linear-gradient(180deg, rgba(18, 28, 38, 0.98), rgba(10, 16, 22, 0.98));
+      grid-column: 1 / -1 !important;
+      border: 1px solid rgba(75, 227, 209, 0.45) !important;
+      background: linear-gradient(180deg, rgba(18, 28, 38, 0.98), rgba(10, 16, 22, 0.98)) !important;
       border-radius: 16px; padding: 0;
       overflow: hidden;
+      min-height: 8rem;
+      position: relative;
+      z-index: 5;
     }
     .lohn-hub-head {
       display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center;
       padding: 0.85rem 1rem; border-bottom: 1px solid var(--border);
-      background: rgba(75, 227, 209, 0.06);
+      background: rgba(75, 227, 209, 0.1);
     }
-    .lohn-hub-title { font-weight: 700; color: var(--text); font-size: 0.95rem; }
+    .lohn-hub-title { font-weight: 700; color: #eaf3ff !important; font-size: 1.05rem; }
     .lohn-hub-sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; }
     .lohn-hub-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; }
     .lohn-pill {
@@ -138,6 +141,14 @@
     .lohn-link-row { font-size: 0.78rem; color: var(--muted); }
     .lohn-link-row strong { color: var(--text); }
     .lohn-link-row a { color: #fbbf24; }
+    #lohnHeaderChip {
+      font-size: 0.72rem; padding: 0.28rem 0.55rem; border-radius: 999px;
+      border: 1px solid rgba(75, 227, 209, 0.45); background: rgba(75, 227, 209, 0.12);
+      color: var(--accent); text-decoration: none; white-space: nowrap;
+    }
+    #lohnHeaderChip.has-mail {
+      border-color: rgba(251, 191, 36, 0.55); background: rgba(251, 191, 36, 0.14); color: #fbbf24;
+    }
   </style>
 </head>
 <body class="ops-app">
@@ -150,6 +161,7 @@
       </div>
     </div>
     <nav class="ops-nav">
+      <a id="lohnHeaderChip" href="#lohnHub">WorkPass Lohn</a>
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
       <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
       <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
@@ -164,7 +176,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260705g"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260731lohn1"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -763,12 +775,12 @@
         : tr("lohnMessagesNone");
       const rows = list.slice(0, 20).map((m) => {
         const id = String(m.id || "");
-        const subject = String(m.subject || m.kind || "—");
-        const body = String(m.body || "").trim();
-        const period = String(m.period || "");
-        const company = String(m.companyId || "");
-        const name = [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
-          || String(m.workerId || "");
+        const subject = escapeLohnHtml(m.subject || m.kind || "—");
+        const body = escapeLohnHtml(String(m.body || "").trim());
+        const period = escapeLohnHtml(m.period || "");
+        const company = escapeLohnHtml(m.companyId || "");
+        const name = escapeLohnHtml([m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
+          || String(m.workerId || ""));
         const meta = [period, company, name].filter(Boolean).join(" · ") || "—";
         return `<div class="lohn-item unread" data-lohn-msg="${id}">
           <div>
@@ -801,10 +813,10 @@
       if (!list.length) return "";
       const toasts = list.slice(0, 5).map((m) => {
         const id = String(m.id || "");
-        const subject = String(m.subject || m.kind || "WorkPass Lohn");
-        const body = String(m.body || "").trim();
-        const company = String(m.companyId || "");
-        const period = String(m.period || "");
+        const subject = escapeLohnHtml(m.subject || m.kind || "WorkPass Lohn");
+        const body = escapeLohnHtml(String(m.body || "").trim());
+        const company = escapeLohnHtml(m.companyId || "");
+        const period = escapeLohnHtml(m.period || "");
         return `<div class="lohn-toast" data-toast-id="${id}">
           <div class="lohn-toast-badge" aria-hidden="true">WL</div>
           <div>
@@ -866,6 +878,41 @@
       </div>`;
     }
 
+    function escapeLohnHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function updateLohnHeaderChip(messages) {
+      const chip = document.getElementById("lohnHeaderChip");
+      if (!chip) return;
+      const list = Array.isArray(messages) ? messages : [];
+      const n = list.length;
+      chip.textContent = n ? `WorkPass Lohn (${n})` : "WorkPass Lohn";
+      chip.classList.toggle("has-mail", n > 0);
+      chip.href = "#lohnHub";
+    }
+
+    function renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches) {
+      try {
+        return renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches);
+      } catch (err) {
+        console.error("lohn hub render failed", err);
+        return `<div class="lohn-hub" id="lohnHub">
+          <div class="lohn-hub-head">
+            <div>
+              <div class="lohn-hub-title">WorkPass Lohn</div>
+              <div class="lohn-hub-sub">Panel konnte nicht geladen werden — bitte Seite neu laden (Strg+F5).</div>
+            </div>
+          </div>
+          <div class="lohn-section"><div class="lohn-empty">${escapeLohnHtml(err && err.message ? err.message : "render_error")}</div></div>
+        </div>`;
+      }
+    }
+
     function renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches) {
       const msgCount = Array.isArray(lohnMessages) ? lohnMessages.length : 0;
       const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
@@ -879,7 +926,7 @@
             <div class="lohn-hub-sub">${tr("lohnHubSub")}</div>
           </div>
           <div class="lohn-hub-pills">
-            ${notifyCount ? `<span class="lohn-pill warn">${notifyCount} · ${tr("lohnMessagesToastEyebrow")}</span>` : ""}
+            ${notifyCount ? `<span class="lohn-pill warn">${notifyCount} | ${escapeLohnHtml(tr("lohnMessagesToastEyebrow"))}</span>` : ""}
             <span class="lohn-pill ${msgCount ? "warn" : "ok"}">${msgCount ? tr("lohnMessagesPending", { n: msgCount }) : tr("lohnMessagesNone")}</span>
             <span class="lohn-pill ${alertCount ? "warn" : ""}">${alertCount ? tr("dataAlertsPending", { n: alertCount }) : tr("dataAlertsNone")}</span>
             <span class="lohn-pill ${batchCount ? "warn" : ""}">${batchCount ? tr("payrollPending", { n: batchCount }) : tr("payrollNone")}</span>
@@ -1102,8 +1149,9 @@
       const sec = totals.openSecurityAlerts ?? 0;
       const prompts = actionPrompts();
 
+      updateLohnHeaderChip(lohnMessages);
       grid.innerHTML = `
-        ${renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches)}
+        ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches)}
         ${renderGuardianCard(guardian, guardianHistory)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
