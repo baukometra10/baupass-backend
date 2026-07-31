@@ -31,7 +31,9 @@ def register_accounting_blueprint(flask_app) -> None:
     from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
     from .messages_inbox import (
         ack_message_to_lohn,
+        count_pending_accounting_messages,
         create_test_accounting_message,
+        dismiss_all_message_banners,
         dismiss_message_banner,
         handle_inbound_lohn_webhook,
         list_pending_accounting_messages,
@@ -633,6 +635,33 @@ def register_accounting_blueprint(flask_app) -> None:
                 "webhookEnv": "WORKPASS_PLATFORM_WEBHOOK_URL",
             }
         ), 200
+
+    @accounting_bp.get("/payroll/accounting/messages/counts")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_count_accounting_messages():
+        user = g.current_user
+        company_id = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin" and request.args.get("company_id"):
+            company_id = request.args.get("company_id")
+        counts = count_pending_accounting_messages(get_db(), company_id=company_id)
+        return jsonify({"ok": True, **counts}), 200
+
+    @accounting_bp.post("/payroll/accounting/messages/dismiss-banners")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_dismiss_all_message_banners():
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin":
+            data = request.get_json(silent=True) or {}
+            company_scope = data.get("companyId") or request.args.get("company_id") or company_scope
+        result = dismiss_all_message_banners(
+            get_db(),
+            actor_user_id=str(user.get("id") or ""),
+            company_id=str(company_scope) if company_scope else None,
+        )
+        return jsonify(result), 200
 
     @accounting_bp.post("/payroll/accounting/messages/<message_id>/dismiss-banner")
     @require_auth

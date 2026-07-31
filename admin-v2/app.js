@@ -1089,10 +1089,15 @@ async function refreshLohnBadgeOnly() {
     return;
   }
   try {
-    const data = await api(`/api/payroll/accounting/messages${q}`);
-    updateLohnNavBadge(data.count ?? (data.messages || []).length);
+    const data = await api(`/api/payroll/accounting/messages/counts${q}`);
+    updateLohnNavBadge(data.count ?? data.unread ?? 0);
   } catch {
-    /* ignore — Lohn optional per company */
+    try {
+      const data = await api(`/api/payroll/accounting/messages${q}`);
+      updateLohnNavBadge(data.count ?? (data.messages || []).length);
+    } catch {
+      /* Lohn optional per company */
+    }
   }
 }
 
@@ -7154,6 +7159,11 @@ async function bootSession() {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    if (!window.__lohnBadgePoll) {
+      window.__lohnBadgePoll = setInterval(() => {
+        refreshLohnBadgeOnly().catch(() => {});
+      }, 45000);
+    }
     maybePromptSatisfactionSurvey().catch(() => {});
   } catch (e) {
     if (isAuthError(e)) return;
@@ -7191,6 +7201,11 @@ $("loginBtn").addEventListener("click", async () => {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    if (!window.__lohnBadgePoll) {
+      window.__lohnBadgePoll = setInterval(() => {
+        refreshLohnBadgeOnly().catch(() => {});
+      }, 45000);
+    }
     maybePromptSatisfactionSurvey().catch(() => {});
   } catch (e) {
     $("loginError").textContent = e.message || t("login.fail");

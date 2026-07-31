@@ -75,6 +75,15 @@
       padding:0.35rem 0.55rem; border-radius:8px; border:1px solid var(--border);
       background:rgba(251,191,36,0.08); margin-bottom:0.35rem;
     }
+    #lohnPayrollBanner {
+      font-size:0.78rem; line-height:1.4; color:var(--text);
+      padding:0.55rem 0.7rem; border-radius:10px;
+      border:1px solid rgba(251,191,36,0.45);
+      background:linear-gradient(135deg, rgba(251,191,36,0.14), rgba(15,23,42,0.2));
+      margin:0 0 0.55rem;
+    }
+    #lohnPayrollBanner strong { color:#fbbf24; }
+    #lohnPayrollBanner.hidden { display:none !important; }
     .events-panel {
       flex:0 0 auto; border-top:1px solid var(--border); padding:0.45rem 0.65rem;
       font-size:0.68rem; max-height:100px; overflow:auto; background:rgba(0,0,0,0.06);
@@ -436,6 +445,7 @@
             </div>
           </section>
           <section class="field-section">
+            <div id="lohnPayrollBanner" class="hidden" role="status"></div>
             <h4 data-cpi18n="sectionEmployee">Mitarbeiter</h4>
             <div class="field-grid">
               <label class="span-2"><span data-cpi18n="workerPicker">Mitarbeiter wählen</span><select id="workerPicker"><option value="" data-cpi18n="workerPickerManual">— manuell / ohne MA —</option></select></label>
@@ -578,6 +588,6 @@
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260731lohn2"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260731lohn5"></script>
 </body>
 </html>

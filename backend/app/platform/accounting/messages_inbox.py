@@ -368,6 +368,117 @@ def upsert_accounting_messages(
     }
 
 
+def count_pending_accounting_messages(
+    db,
+    *,
+    company_id: str | None = None,
+) -> dict[str, int]:
+    """Lightweight unread + toast counts for nav badges (no full payload)."""
+    ensure_accounting_schema(db)
+    from .schema import _ensure_accounting_message_banner_column
+
+    _ensure_accounting_message_banner_column(db)
+    if company_id:
+        rows = db.execute(
+            """
+            SELECT status, banner_dismissed_at, payload_json
+            FROM accounting_messages
+            WHERE company_id = ? AND status = 'pending'
+            """,
+            (company_id,),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """
+            SELECT status, banner_dismissed_at, payload_json
+            FROM accounting_messages
+            WHERE status = 'pending'
+            """
+        ).fetchall()
+    unread = 0
+    notifications = 0
+    for row in rows:
+        unread += 1
+        banner_dismissed = bool(str(row["banner_dismissed_at"] or "").strip())
+        if not banner_dismissed:
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except Exception:
+                payload = {}
+            if isinstance(payload, dict):
+                banner_dismissed = bool(payload.get("bannerDismissed") or payload.get("banner_dismissed"))
+        if not banner_dismissed:
+            notifications += 1
+    return {"count": unread, "notificationCount": notifications, "unread": unread}
+
+
+def dismiss_all_message_banners(
+    db,
+    *,
+    actor_user_id: str = "",
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    """Hide all pending toasts; inbox stays unread."""
+    pending = list_pending_accounting_messages(db, company_id=company_id, limit=500)
+    dismissed = 0
+    for item in pending:
+        if not item.get("bannerVisible"):
+            continue
+        out = dismiss_message_banner(
+            db,
+            message_id=str(item.get("id") or ""),
+            actor_user_id=actor_user_id,
+            company_id=company_id,
+        )
+        if out.get("ok"):
+            dismissed += 1
+    return {"ok": True, "dismissed": dismissed, "pending": len(pending)}
+
+
+def dismiss_related_data_alerts_for_message(
+    db,
+    *,
+    company_id: str,
+    worker_id: str = "",
+    period: str = "",
+    actor_user_id: str = "",
+) -> dict[str, Any]:
+    """When a Lohn message is opened, clear matching open missing-data alerts."""
+    ensure_accounting_schema(db)
+    company_id = str(company_id or "").strip()
+    worker_id = str(worker_id or "").strip()
+    period = str(period or "").strip()[:7]
+    if not company_id:
+        return {"ok": True, "dismissed": 0}
+    now = _now()
+    if worker_id and period:
+        cur = db.execute(
+            """
+            UPDATE lohn_data_alerts
+            SET status = 'dismissed', dismissed_at = ?, dismissed_by_user_id = ?, updated_at = ?
+            WHERE company_id = ? AND status = 'open'
+              AND worker_id = ? AND (period = ? OR period = '' OR period IS NULL)
+            """,
+            (now, str(actor_user_id or "")[:80], now, company_id, worker_id, period),
+        )
+    elif worker_id:
+        cur = db.execute(
+            """
+            UPDATE lohn_data_alerts
+            SET status = 'dismissed', dismissed_at = ?, dismissed_by_user_id = ?, updated_at = ?
+            WHERE company_id = ? AND status = 'open' AND worker_id = ?
+            """,
+            (now, str(actor_user_id or "")[:80], now, company_id, worker_id),
+        )
+    else:
+        return {"ok": True, "dismissed": 0}
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return {"ok": True, "dismissed": int(getattr(cur, "rowcount", 0) or 0)}
+
+
 def list_pending_accounting_messages(
     db,
     *,
@@ -690,6 +801,14 @@ def ack_message_to_lohn(
     except Exception:
         pass
 
+    alerts = dismiss_related_data_alerts_for_message(
+        db,
+        company_id=str(row["company_id"] or ""),
+        worker_id=str(row["worker_id"] or ""),
+        period=str(row["period"] or ""),
+        actor_user_id=str(actor_user_id or ""),
+    )
+
     link = get_platform_link(db)
     external_id = str(row["external_id"] or "")
     company_for_lohn = str(row["company_id"] or "")
@@ -744,6 +863,7 @@ def ack_message_to_lohn(
         "externalId": external_id,
         "status": "acked",
         "ack": ack_remote,
+        "dataAlerts": alerts,
     }
     if err:
         result["warning"] = "ack_remote_failed"

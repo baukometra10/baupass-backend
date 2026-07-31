@@ -618,6 +618,66 @@ def test_acked_message_not_resurrected_by_lohn_sync():
     assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
 
 
+def test_message_counts_and_dismiss_all_banners():
+    from backend.app.platform.accounting import messages_inbox, repository
+
+    db = _db()
+    messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {"id": "c-1", "companyId": "c1", "subject": "A", "body": "iban", "workerId": "w1"},
+            {"id": "c-2", "companyId": "c1", "subject": "B", "body": "tax", "workerId": "w1"},
+        ],
+    )
+    counts = messages_inbox.count_pending_accounting_messages(db, company_id="c1")
+    assert counts["count"] == 2
+    assert counts["notificationCount"] == 2
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    messages_inbox.dismiss_message_banner(db, message_id=pending[0]["id"], actor_user_id="u1")
+    counts2 = messages_inbox.count_pending_accounting_messages(db, company_id="c1")
+    assert counts2["count"] == 2
+    assert counts2["notificationCount"] == 1
+    out = messages_inbox.dismiss_all_message_banners(db, company_id="c1", actor_user_id="u1")
+    assert out["ok"] is True
+    assert out["dismissed"] >= 1
+    counts3 = messages_inbox.count_pending_accounting_messages(db, company_id="c1")
+    assert counts3["notificationCount"] == 0
+    assert counts3["count"] == 2
+
+
+def test_ack_dismisses_matching_data_alert():
+    from backend.app.platform.accounting import messages_inbox, repository
+
+    db = _db()
+    repository.ingest_lohn_data_alerts(
+        db,
+        company_id="c1",
+        period="2026-07",
+        issues=[{"workerId": "w1", "missingFields": ["iban"], "message": "IBAN fehlt"}],
+    )
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1")
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-alert-link",
+                "companyId": "c1",
+                "period": "2026-07",
+                "workerId": "w1",
+                "kind": "missing_data",
+                "subject": "IBAN",
+                "body": "fehlt",
+                "missingFields": ["iban"],
+            }
+        ],
+    )
+    mid = stored["ids"][0]
+    acked = messages_inbox.ack_message_to_lohn(db, message_id=mid, actor_user_id="u1")
+    assert acked["ok"] is True
+    assert (acked.get("dataAlerts") or {}).get("dismissed", 0) >= 1
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1") == []
+
+
 def test_message_banner_dismiss_payload_fallback():
     """list_pending respects bannerDismissed inside payload_json (column fallback)."""
     from backend.app.platform.accounting import messages_inbox

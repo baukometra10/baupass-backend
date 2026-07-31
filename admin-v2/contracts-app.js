@@ -1303,15 +1303,29 @@
           employee_iban: "employeeIban",
         };
         const ids = new Set();
+        const labels = [];
         (fields || []).forEach((f) => {
           const key = String(f || "").trim().toLowerCase();
           if (map[key]) ids.add(map[key]);
-          if (key.includes("iban")) ids.add("employeeIban");
-          if (key.includes("tax") || key.includes("steuer")) ids.add("employeeTaxId");
+          if (key.includes("iban")) {
+            ids.add("employeeIban");
+            labels.push("IBAN");
+          }
+          if (key.includes("tax") || key.includes("steuer")) {
+            ids.add("employeeTaxId");
+            labels.push("Steuer-ID");
+          }
         });
         if (!ids.size && focusPayroll) {
           ids.add("employeeIban");
           ids.add("employeeTaxId");
+          labels.push("IBAN", "Steuer-ID");
+        }
+        const banner = document.getElementById("lohnPayrollBanner");
+        if (banner && (focusPayroll || ids.size)) {
+          const uniq = [...new Set(labels.length ? labels : ["IBAN", "Steuer-ID"])];
+          banner.classList.remove("hidden");
+          banner.innerHTML = `<strong>WorkPass Lohn</strong> — bitte fehlende Stammdaten ergänzen: <strong>${uniq.join(", ")}</strong>. Danach speichern. Lohnabrechnungen werden nicht automatisch freigegeben.`;
         }
         ids.forEach((id) => {
           const el = document.getElementById(id);
