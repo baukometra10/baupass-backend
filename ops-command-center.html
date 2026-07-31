@@ -151,6 +151,12 @@
         payrollConfirmReject: "Stapel ablehnen? Es wird nichts an Mitarbeiter gesendet.",
         payrollDone: "Freigabe ok",
         payrollFailed: "Freigabe fehlgeschlagen",
+        dataAlertsLabel: "WorkPass Lohn — Fehlende Mitarbeiterdaten",
+        dataAlertsNone: "Keine offenen Hinweise zu fehlenden Daten",
+        dataAlertsPending: "{n} offene Hinweise",
+        dataAlertsDismiss: "Gelesen / ausblenden",
+        dataAlertsDismissFailed: "Konnte nicht ausblenden",
+        dataAlertsFields: "Fehlt: {fields}",
         lohnLinkLabel: "WorkPass Lohn — Plattform-Link",
         lohnLinkOn: "Verbunden",
         lohnLinkOff: "Nicht verbunden",
@@ -231,6 +237,12 @@
         payrollConfirmReject: "Reject batch? Nothing will be sent to workers.",
         payrollDone: "Approved",
         payrollFailed: "Approval failed",
+        dataAlertsLabel: "WorkPass Lohn — missing employee data",
+        dataAlertsNone: "No open missing-data notices",
+        dataAlertsPending: "{n} open notices",
+        dataAlertsDismiss: "Mark read / dismiss",
+        dataAlertsDismissFailed: "Could not dismiss",
+        dataAlertsFields: "Missing: {fields}",
         lohnLinkLabel: "WorkPass Lohn — platform link",
         lohnLinkOn: "Connected",
         lohnLinkOff: "Not connected",
@@ -310,6 +322,12 @@
         payrollConfirmReject: "رفض الدفعة؟ لن يُرسل شيء للموظفين.",
         payrollDone: "تم التأكيد",
         payrollFailed: "فشل التأكيد",
+        dataAlertsLabel: "WorkPass Lohn — بيانات ناقصة",
+        dataAlertsNone: "لا توجد تنبيهات بيانات ناقصة",
+        dataAlertsPending: "{n} تنبيهات مفتوحة",
+        dataAlertsDismiss: "مقروء / إخفاء",
+        dataAlertsDismissFailed: "تعذر الإخفاء",
+        dataAlertsFields: "ناقص: {fields}",
         lohnLinkLabel: "WorkPass Lohn — ربط المنصة",
         lohnLinkOn: "متصل",
         lohnLinkOff: "غير متصل",
@@ -588,6 +606,37 @@
       </div>`;
     }
 
+    function renderDataAlertsCard(alerts) {
+      const list = Array.isArray(alerts) ? alerts : [];
+      const head = list.length
+        ? tr("dataAlertsPending", { n: list.length })
+        : tr("dataAlertsNone");
+      const rows = list.slice(0, 20).map((a) => {
+        const id = String(a.id || "");
+        const name = [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
+          || String(a.employeeId || a.workerId || "—");
+        const period = String(a.period || "—");
+        const company = String(a.companyId || "");
+        const fields = Array.isArray(a.missingFields) ? a.missingFields.join(", ") : "";
+        const msg = String(a.message || "").trim();
+        const detail = fields
+          ? tr("dataAlertsFields", { fields })
+          : (msg || "—");
+        return `<div class="payroll-row" data-alert="${id}">
+          <div class="label">${name} · ${period} · ${company || "—"}</div>
+          <div class="muted" style="margin:0.2rem 0 0.4rem">${detail}${msg && fields ? ` — ${msg}` : ""}</div>
+          <div class="payroll-actions">
+            <button type="button" data-data-alert="dismiss" data-id="${id}">${tr("dataAlertsDismiss")}</button>
+          </div>
+        </div>`;
+      }).join("") || `<div class="label">—</div>`;
+      return `<div class="card payroll-card" id="dataAlertsCard">
+        <div class="label">${tr("dataAlertsLabel")}</div>
+        <div class="label" style="margin:0.35rem 0">${head}</div>
+        ${rows}
+      </div>`;
+    }
+
     let cachedMe = null;
 
     async function loadMe() {
@@ -668,12 +717,42 @@
       });
     }
 
+    function wireDataAlertActions() {
+      document.querySelectorAll("[data-data-alert='dismiss']").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          if (!id) return;
+          try {
+            await api(`/api/payroll/accounting/data-alerts/${encodeURIComponent(id)}/dismiss`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: "{}",
+            });
+            await load();
+          } catch (e) {
+            alert(e.message || tr("dataAlertsDismissFailed"));
+          }
+        });
+      });
+    }
+
     async function loadPayrollPending() {
       try {
         let url = "/api/payroll/statements/pending";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
         const data = await api(url);
         return data.batches || [];
+      } catch {
+        return [];
+      }
+    }
+
+    async function loadDataAlerts() {
+      try {
+        let url = "/api/payroll/accounting/data-alerts";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const data = await api(url);
+        return data.alerts || [];
       } catch {
         return [];
       }
@@ -690,7 +769,7 @@
       }
     }
 
-    function render(data, forecast, guardianBundle, payrollBatches, lohnLink) {
+    function render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts) {
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
@@ -711,6 +790,7 @@
       grid.innerHTML = `
         ${renderGuardianCard(guardian, guardianHistory)}
         ${renderLohnLinkCard(lohnLink)}
+        ${renderDataAlertsCard(dataAlerts)}
         ${renderPayrollCard(payrollBatches)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
@@ -767,6 +847,7 @@
       document.getElementById("refreshBtn")?.addEventListener("click", load);
       wireGuardianActions();
       wirePayrollActions();
+      wireDataAlertActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
     }
@@ -801,14 +882,15 @@
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
         await loadMe();
-        const [data, forecast, guardianBundle, payrollBatches, lohnLink] = await Promise.all([
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
           loadPayrollPending(),
           loadLohnPlatformLink(),
+          loadDataAlerts(),
         ]);
-        render(data, forecast, guardianBundle, payrollBatches, lohnLink);
+        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;

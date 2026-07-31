@@ -111,6 +111,11 @@ POST /api/v2/accounting/company/upsert
 - **دفع (Push):** المنصة ترسل `POST {LOHN}/v1/payroll/batch` تلقائياً مع نفس الحمولة
 - بعد الدفع يكفي في Lohn: «Nur Freigabe offener Jobs»
 
+### بيانات ناقصة للموظف
+
+- Lohn/Steuer → `POST /api/v2/accounting/employee-data-alerts`
+- في Ops: بطاقة «Fehlende Mitarbeiterdaten» + زر **Gelesen / ausblenden**
+
 ### شركة (مرآة upsert)
 
 ```http

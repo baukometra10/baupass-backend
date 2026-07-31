@@ -397,3 +397,40 @@ def test_push_payroll_batch_to_lohn(monkeypatch):
     assert posts[0]["body"]["format"] == "platform.payroll.batch.v1"
     assert posts[0]["body"]["period"] == "2026-06"
     assert posts[0]["body"]["companyId"] == "c1"
+
+
+def test_lohn_data_alerts_ingest_and_dismiss():
+    db = _db()
+    out = repository.ingest_lohn_data_alerts(
+        db,
+        company_id="c1",
+        period="2026-07",
+        issues=[
+            {
+                "employeeId": "w1",
+                "workerId": "w1",
+                "missingFields": ["taxId", "iban"],
+                "message": "Steuer-ID und IBAN fehlen",
+            }
+        ],
+    )
+    assert out["ok"] is True
+    assert out["createdCount"] == 1
+    open_alerts = repository.list_open_lohn_data_alerts(db, company_id="c1")
+    assert len(open_alerts) == 1
+    assert open_alerts[0]["missingFields"] == ["taxId", "iban"]
+    assert "IBAN" in open_alerts[0]["message"]
+    dismissed = repository.dismiss_lohn_data_alert(
+        db, alert_id=open_alerts[0]["id"], actor_user_id="admin-1", company_id="c1"
+    )
+    assert dismissed["ok"] is True
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1") == []
+    # Re-notify same worker/period re-opens
+    out2 = repository.ingest_lohn_data_alerts(
+        db,
+        company_id="c1",
+        period="2026-07",
+        issues=[{"employeeId": "w1", "missingFields": ["birthDate"]}],
+    )
+    assert out2["updatedCount"] == 1
+    assert len(repository.list_open_lohn_data_alerts(db, company_id="c1")) == 1

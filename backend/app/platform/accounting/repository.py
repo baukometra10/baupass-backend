@@ -406,3 +406,196 @@ def list_enabled_integrations(db) -> list[dict[str, Any]]:
             """
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def _alert_row_to_dict(row) -> dict[str, Any]:
+    data = dict(row)
+    try:
+        fields = json.loads(data.get("missing_fields_json") or "[]")
+    except Exception:
+        fields = []
+    if not isinstance(fields, list):
+        fields = []
+    return {
+        "id": data.get("id"),
+        "companyId": data.get("company_id"),
+        "workerId": data.get("worker_id") or "",
+        "employeeId": data.get("employee_id") or data.get("worker_id") or "",
+        "period": data.get("period") or "",
+        "missingFields": fields,
+        "message": data.get("message") or "",
+        "externalRef": data.get("external_ref") or "",
+        "status": data.get("status") or "open",
+        "createdAt": data.get("created_at"),
+        "updatedAt": data.get("updated_at"),
+        "dismissedAt": data.get("dismissed_at"),
+        "dismissedByUserId": data.get("dismissed_by_user_id"),
+        "workerFirstName": data.get("first_name") or "",
+        "workerLastName": data.get("last_name") or "",
+    }
+
+
+def ingest_lohn_data_alerts(
+    db,
+    *,
+    company_id: str,
+    period: str = "",
+    issues: list[dict[str, Any]],
+    external_ref: str = "",
+) -> dict[str, Any]:
+    """Upsert open alerts from WorkPass Lohn / Steuer for missing employee fields."""
+    ensure_accounting_schema(db)
+    company_id = (company_id or "").strip()
+    if not company_id:
+        return {"ok": False, "error": "company_id_required"}
+    if not isinstance(issues, list) or not issues:
+        return {"ok": False, "error": "issues_required"}
+    period = (period or "").strip()[:7]
+    now = _now()
+    created_ids: list[str] = []
+    updated_ids: list[str] = []
+    for item in issues:
+        if not isinstance(item, dict):
+            continue
+        worker_id = str(item.get("workerId") or item.get("employeeId") or item.get("worker_id") or "").strip()
+        employee_id = str(item.get("employeeId") or item.get("workerId") or worker_id).strip()
+        item_period = str(item.get("period") or period or "").strip()[:7]
+        fields = item.get("missingFields") or item.get("missing_fields") or item.get("fields") or []
+        if isinstance(fields, str):
+            fields = [f.strip() for f in fields.split(",") if f.strip()]
+        if not isinstance(fields, list):
+            fields = []
+        fields = [str(f).strip() for f in fields if str(f).strip()]
+        message = str(item.get("message") or item.get("text") or "").strip()
+        if not message and fields:
+            message = f"Fehlende Daten: {', '.join(fields)}"
+        if not message and not fields:
+            message = "Mitarbeiterdaten unvollständig"
+        ref = str(item.get("externalRef") or item.get("external_ref") or external_ref or "").strip()
+        existing = None
+        if worker_id or employee_id:
+            existing = db.execute(
+                """
+                SELECT id, status FROM lohn_data_alerts
+                WHERE company_id = ?
+                  AND period = ?
+                  AND (worker_id = ? OR employee_id = ?)
+                  AND status IN ('open', 'dismissed')
+                ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, updated_at DESC
+                LIMIT 1
+                """,
+                (company_id, item_period, worker_id or employee_id, employee_id or worker_id),
+            ).fetchone()
+        fields_json = json.dumps(fields, ensure_ascii=False)
+        if existing:
+            alert_id = str(existing["id"])
+            db.execute(
+                """
+                UPDATE lohn_data_alerts
+                SET worker_id = ?, employee_id = ?, missing_fields_json = ?, message = ?,
+                    external_ref = ?, status = 'open', updated_at = ?,
+                    dismissed_at = NULL, dismissed_by_user_id = NULL
+                WHERE id = ?
+                """,
+                (
+                    worker_id or employee_id,
+                    employee_id or worker_id,
+                    fields_json,
+                    message[:1000],
+                    ref[:200],
+                    now,
+                    alert_id,
+                ),
+            )
+            updated_ids.append(alert_id)
+        else:
+            alert_id = f"lda-{uuid.uuid4().hex[:16]}"
+            db.execute(
+                """
+                INSERT INTO lohn_data_alerts
+                (id, company_id, worker_id, employee_id, period, missing_fields_json, message,
+                 external_ref, status, created_at, updated_at, dismissed_at, dismissed_by_user_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, NULL, NULL)
+                """,
+                (
+                    alert_id,
+                    company_id,
+                    worker_id or employee_id,
+                    employee_id or worker_id,
+                    item_period,
+                    fields_json,
+                    message[:1000],
+                    ref[:200],
+                    now,
+                    now,
+                ),
+            )
+            created_ids.append(alert_id)
+    db.commit()
+    return {
+        "ok": True,
+        "companyId": company_id,
+        "period": period,
+        "createdCount": len(created_ids),
+        "updatedCount": len(updated_ids),
+        "createdIds": created_ids,
+        "updatedIds": updated_ids,
+    }
+
+
+def list_open_lohn_data_alerts(db, *, company_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+    ensure_accounting_schema(db)
+    limit = max(1, min(int(limit or 100), 500))
+    if company_id:
+        rows = db.execute(
+            """
+            SELECT a.*, w.first_name, w.last_name
+            FROM lohn_data_alerts a
+            LEFT JOIN workers w ON w.id = a.worker_id
+            WHERE a.company_id = ? AND a.status = 'open'
+            ORDER BY a.updated_at DESC
+            LIMIT ?
+            """,
+            (company_id, limit),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """
+            SELECT a.*, w.first_name, w.last_name
+            FROM lohn_data_alerts a
+            LEFT JOIN workers w ON w.id = a.worker_id
+            WHERE a.status = 'open'
+            ORDER BY a.updated_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [_alert_row_to_dict(r) for r in rows]
+
+
+def dismiss_lohn_data_alert(
+    db,
+    *,
+    alert_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    ensure_accounting_schema(db)
+    row = db.execute("SELECT * FROM lohn_data_alerts WHERE id = ?", (alert_id,)).fetchone()
+    if not row:
+        return {"ok": False, "error": "not_found"}
+    if company_id and str(row["company_id"]) != str(company_id):
+        return {"ok": False, "error": "forbidden_company"}
+    if str(row["status"] or "") == "dismissed":
+        return {"ok": True, "id": alert_id, "status": "dismissed", "already": True}
+    now = _now()
+    db.execute(
+        """
+        UPDATE lohn_data_alerts
+        SET status = 'dismissed', dismissed_at = ?, dismissed_by_user_id = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (now, str(actor_user_id or "")[:80], now, alert_id),
+    )
+    db.commit()
+    return {"ok": True, "id": alert_id, "status": "dismissed"}

@@ -262,6 +262,36 @@ X-Accounting-Key: acc_live_…
 }
 ```
 
+### 3.2b Missing employee data (Steuer / Lohn → Platform)
+
+When payroll cannot complete because employee master data is incomplete, Lohn/Steuer notifies the platform. Admins see the notice in Ops Command Center and dismiss it with **Gelesen / ausblenden**.
+
+```http
+POST /api/v2/accounting/employee-data-alerts
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+
+{
+  "companyId": "<FIRMA-ID>",
+  "period": "2026-07",
+  "issues": [
+    {
+      "employeeId": "w-1001",
+      "workerId": "w-1001",
+      "missingFields": ["taxId", "iban", "birthDate"],
+      "message": "Steuer-ID und IBAN fehlen"
+    }
+  ]
+}
+```
+
+Admin list / dismiss:
+
+```http
+GET  /api/payroll/accounting/data-alerts
+POST /api/payroll/accounting/data-alerts/<alertId>/dismiss
+```
+
 ### 3.3 Push payslip batch (PDF)
 
 ```http

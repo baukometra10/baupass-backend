@@ -212,6 +212,37 @@ def register_accounting_blueprint(flask_app) -> None:
         )
         return jsonify(result), (200 if result.get("ok") else 400)
 
+    @accounting_bp.post("/v2/accounting/employee-data-alerts")
+    def accounting_push_employee_data_alerts():
+        """WorkPass Lohn / Steuer → platform: missing employee fields for a period."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        data = request.get_json(silent=True) or {}
+        body_company = str(
+            data.get("companyId") or data.get("company_id") or (data.get("company") or {}).get("id") or ""
+        ).strip()
+        if body_company and body_company != integ["company_id"]:
+            return jsonify({"error": "company_id_mismatch"}), 403
+        issues = data.get("issues") or data.get("alerts") or data.get("items") or []
+        if isinstance(data.get("issue"), dict):
+            issues = [data["issue"]]
+        if not isinstance(issues, list):
+            return jsonify({"error": "issues_must_be_array"}), 400
+        result = repo.ingest_lohn_data_alerts(
+            get_db(),
+            company_id=integ["company_id"],
+            period=str(data.get("period") or "").strip(),
+            issues=issues,
+            external_ref=str(data.get("externalRef") or ""),
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
+
     @accounting_bp.get("/v2/accounting/company")
     def accounting_get_company():
         integ, err = _auth_accounting()
@@ -487,6 +518,35 @@ def register_accounting_blueprint(flask_app) -> None:
             company_id = request.args.get("company_id")
         batches = repo.list_pending_batches(get_db(), company_id=company_id)
         return jsonify({"ok": True, "batches": batches}), 200
+
+    @accounting_bp.get("/payroll/accounting/data-alerts")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_list_data_alerts():
+        user = g.current_user
+        company_id = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin" and request.args.get("company_id"):
+            company_id = request.args.get("company_id")
+        alerts = repo.list_open_lohn_data_alerts(get_db(), company_id=company_id)
+        return jsonify({"ok": True, "alerts": alerts, "count": len(alerts)}), 200
+
+    @accounting_bp.post("/payroll/accounting/data-alerts/<alert_id>/dismiss")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_dismiss_data_alert(alert_id: str):
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = repo.dismiss_lohn_data_alert(
+            get_db(),
+            alert_id=alert_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        if result.get("error") == "not_found":
+            return jsonify(result), 404
+        if result.get("error") == "forbidden_company":
+            return jsonify(result), 403
+        return jsonify(result), 200
 
     @accounting_bp.get("/payroll/statements/<batch_id>")
     @require_auth

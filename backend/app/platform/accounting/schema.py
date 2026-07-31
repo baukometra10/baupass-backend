@@ -87,6 +87,24 @@ def ensure_accounting_schema(db) -> None:
         "CREATE INDEX IF NOT EXISTS idx_payroll_batches_company_status ON payroll_statement_batches(company_id, status)",
         "CREATE INDEX IF NOT EXISTS idx_payroll_statements_batch ON payroll_statements(batch_id)",
         "CREATE INDEX IF NOT EXISTS idx_payroll_statements_worker ON payroll_statements(worker_id, period)",
+        """
+        CREATE TABLE IF NOT EXISTS lohn_data_alerts (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            worker_id TEXT NOT NULL DEFAULT '',
+            employee_id TEXT NOT NULL DEFAULT '',
+            period TEXT NOT NULL DEFAULT '',
+            missing_fields_json TEXT NOT NULL DEFAULT '[]',
+            message TEXT NOT NULL DEFAULT '',
+            external_ref TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            dismissed_at TEXT,
+            dismissed_by_user_id TEXT
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_lohn_data_alerts_company_status ON lohn_data_alerts(company_id, status)",
     )
     for sql in statements:
         db.execute(sql)
