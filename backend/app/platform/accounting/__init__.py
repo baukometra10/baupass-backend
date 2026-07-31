@@ -35,6 +35,8 @@ def register_accounting_blueprint(flask_app) -> None:
         ingest_statements,
         notify_hours_ready,
         prepare_hour_export,
+        prepare_payroll_batch,
+        push_payroll_batch_to_lohn,
         reject_batch,
     )
 
@@ -96,6 +98,44 @@ def register_accounting_blueprint(flask_app) -> None:
             period = previous_period()
         try:
             payload = prepare_hour_export(
+                get_db(),
+                company_id=integ["company_id"],
+                period=period,
+                mark_sent=True,
+            )
+        except ValueError as exc:
+            code = "company_id_required" if "company" in str(exc) else "invalid_period"
+            return jsonify({"error": code}), 400
+        return jsonify(payload), 200
+
+    @accounting_bp.get("/v2/accounting/payroll-batch")
+    @accounting_bp.post("/v2/accounting/payroll-batch")
+    def accounting_payroll_batch():
+        """platform.payroll.batch.v1 — Lohn pulls { companyId, period }."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        data = request.get_json(silent=True) or {}
+        period = (
+            (request.args.get("period") or "").strip()
+            or str(data.get("period") or "").strip()
+        )
+        body_company = str(
+            data.get("companyId") or data.get("company_id") or (data.get("company") or {}).get("id") or ""
+        ).strip()
+        if body_company and body_company != integ["company_id"]:
+            return jsonify({"error": "company_id_mismatch"}), 403
+        if not period:
+            from .monthly_job import previous_period
+
+            period = previous_period()
+        try:
+            payload = prepare_payroll_batch(
                 get_db(),
                 company_id=integ["company_id"],
                 period=period,
@@ -521,11 +561,39 @@ def register_accounting_blueprint(flask_app) -> None:
                     from .monthly_job import previous_period
 
                     period = previous_period()
-                payload = prepare_hour_export(get_db(), company_id=str(company_id), period=period, mark_sent=False)
-                result = {"ok": True, "payload": payload}
+                payload = prepare_payroll_batch(
+                    get_db(), company_id=str(company_id), period=period, mark_sent=False
+                )
+                result = {"ok": True, "capability": "platform.payroll.batch.v1", "payload": payload}
         except ValueError:
             return jsonify({"error": "invalid_period"}), 400
         return jsonify(result), 200
+
+    @accounting_bp.post("/payroll/accounting/push-payroll-batch")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_push_payroll_batch():
+        """Force platform → Lohn POST /v1/payroll/batch for a company/period."""
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            data.get("companyId") or request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        period = str(data.get("period") or "").strip()
+        if not period:
+            from .monthly_job import previous_period
+
+            period = previous_period()
+        try:
+            result = push_payroll_batch_to_lohn(
+                get_db(), company_id=str(company_id), period=period
+            )
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
 
     @accounting_bp.post("/payroll/accounting/run-monthly")
     @require_auth

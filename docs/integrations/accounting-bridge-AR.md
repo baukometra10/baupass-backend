@@ -105,6 +105,12 @@ POST /api/v2/accounting/company/upsert
 كل صف بدون `companyId` يُرفض (`company_id_required`).  
 `companyId` مخالف للهيدر → `403 company_id_mismatch`.
 
+### دفعة الرواتب الشهرية (`platform.payroll.batch.v1`)
+
+- **سحب (Pull):** `GET|POST /api/v2/accounting/payroll-batch?period=2026-07`
+- **دفع (Push):** المنصة ترسل `POST {LOHN}/v1/payroll/batch` تلقائياً مع نفس الحمولة
+- بعد الدفع يكفي في Lohn: «Nur Freigabe offener Jobs»
+
 ### شركة (مرآة upsert)
 
 ```http

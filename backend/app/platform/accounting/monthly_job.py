@@ -6,7 +6,7 @@ from typing import Any
 
 from . import repository as repo
 from .hours_service import normalize_period
-from .service import notify_hours_ready, prepare_hour_export
+from .service import notify_hours_ready
 
 
 def previous_period(reference: datetime | None = None) -> str:
@@ -25,7 +25,7 @@ def run_monthly_accounting_exports(
     period: str | None = None,
 ) -> dict[str, Any]:
     """
-    On run_day (per company), prepare previous month's hours and optionally webhook.
+    On run_day (per company), prepare previous month's payroll batch and push/notify Lohn.
     Does NOT release payslips to workers.
     """
     now = reference_date or datetime.now(timezone.utc)
@@ -43,13 +43,9 @@ def run_monthly_accounting_exports(
             if existing and existing.get("status") in {"sent", "acked", "queued"}:
                 results.append({"companyId": company_id, "skipped": "already_exported", "period": target_period})
                 continue
-        webhook = str(integ.get("webhook_url") or "").strip()
         try:
-            if webhook:
-                out = notify_hours_ready(db, company_id=company_id, period=target_period)
-            else:
-                payload = prepare_hour_export(db, company_id=company_id, period=target_period, mark_sent=False)
-                out = {"ok": True, "mode": "pull_only", "export": {"id": payload.get("exportId"), "period": target_period}}
+            # notify_hours_ready: prepare platform.payroll.batch.v1, webhook + POST /v1/payroll/batch
+            out = notify_hours_ready(db, company_id=company_id, period=target_period)
             results.append({"companyId": company_id, **out})
         except Exception as exc:
             results.append({"companyId": company_id, "ok": False, "error": str(exc)[:200]})

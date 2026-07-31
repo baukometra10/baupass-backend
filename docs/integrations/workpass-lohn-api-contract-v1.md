@@ -211,6 +211,43 @@ Notes:
 - `grossEstimate` is a **hint only** — WorkPass Lohn computes official payroll.
 - `employeeId` / `workerId` = platform worker UUID/id (use this in `storageKey`, not the display name).
 
+### 3.1b Pull payroll batch (`platform.payroll.batch.v1`)
+
+Preferred for monthly Lohn jobs. Same tenant auth as hours.
+
+```http
+GET /api/v2/accounting/payroll-batch?period=2026-07
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+```
+
+Or POST body:
+
+```http
+POST /api/v2/accounting/payroll-batch
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+
+{ "companyId": "<FIRMA-ID>", "period": "2026-07" }
+```
+
+Response includes `format` / `capability` = `platform.payroll.batch.v1`, plus `employees[]` and `rows[]`.
+
+### 3.1c Platform push → Lohn (when pull URL is not configured)
+
+Platform also sends the same payload outbound:
+
+```http
+POST {LOHN_BASE}/v1/payroll/batch
+X-WorkPass-Key: <MASTER-KEY>
+X-WorkPass-Company-Id: <FIRMA-ID>
+
+{ "format": "platform.payroll.batch.v1", "companyId": "…", "period": "2026-07", "employees": [ … ] }
+```
+
+Triggered by monthly job / `POST /api/payroll/accounting/export-now` / `POST /api/payroll/accounting/push-payroll-batch`.  
+After a successful push, Lohn only needs «Nur Freigabe offener Jobs».
+
 ### 3.2 Ack hours received
 
 ```http

@@ -459,6 +459,13 @@ def provision_company_for_lohn(
     bridge = {
         "baseUrl": platform_url,
         "hoursUrl": f"{platform_url}/api/v2/accounting/hours" if platform_url else "/api/v2/accounting/hours",
+        "payrollBatchUrl": (
+            f"{platform_url}/api/v2/accounting/payroll-batch"
+            if platform_url
+            else "/api/v2/accounting/payroll-batch"
+        ),
+        "payrollBatchCapability": "platform.payroll.batch.v1",
+        "payrollBatchPushPath": "/v1/payroll/batch",
         "statementsUrl": f"{platform_url}/api/v2/accounting/statements" if platform_url else "/api/v2/accounting/statements",
         "companyUpsertUrl": f"{platform_url}/api/v2/accounting/company/upsert" if platform_url else "/api/v2/accounting/company/upsert",
         "accessUrl": f"{platform_url}/api/v2/accounting/company/access" if platform_url else "/api/v2/accounting/company/access",

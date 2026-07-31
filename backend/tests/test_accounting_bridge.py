@@ -355,3 +355,45 @@ def test_monthly_job_skips_wrong_day():
         db, reference_date=datetime(2026, 7, 15, tzinfo=timezone.utc), force=False
     )
     assert out["results"][0].get("skipped") == "not_run_day"
+
+
+def test_prepare_payroll_batch_v1():
+    db = _db()
+    batch = service.prepare_payroll_batch(db, company_id="c1", period="2026-06", mark_sent=True)
+    assert batch["format"] == "platform.payroll.batch.v1"
+    assert batch["capability"] == "platform.payroll.batch.v1"
+    assert batch["companyId"] == "c1"
+    assert batch["period"] == "2026-06"
+    assert batch["employeeCount"] == 1
+    assert batch["employees"][0]["employeeId"] == "w1"
+    assert batch["employees"][0]["hours"] == 8.0
+    assert batch["fingerprint"]
+
+
+def test_push_payroll_batch_to_lohn(monkeypatch):
+    from backend.app.platform.accounting import platform_link
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+    posts = []
+
+    def _fake_post(link, *, path, body, event):
+        posts.append({"path": path, "event": event, "body": body})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    out = service.push_payroll_batch_to_lohn(db, company_id="c1", period="2026-06")
+    assert out["ok"] is True
+    assert posts[0]["path"] == "/v1/payroll/batch"
+    assert posts[0]["body"]["format"] == "platform.payroll.batch.v1"
+    assert posts[0]["body"]["period"] == "2026-06"
+    assert posts[0]["body"]["companyId"] == "c1"

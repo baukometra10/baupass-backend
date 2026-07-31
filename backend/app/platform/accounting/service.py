@@ -18,6 +18,10 @@ from .keys import invoice_storage_key, payroll_storage_key, require_company_id
 from .schema import ensure_accounting_schema
 
 
+PAYROLL_BATCH_FORMAT = "platform.payroll.batch.v1"
+PAYROLL_BATCH_PATH = "/v1/payroll/batch"
+
+
 def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
     payload = aggregate_company_hours(db, company_id=company_id, period=period)
     status = "sent" if mark_sent else "queued"
@@ -26,6 +30,50 @@ def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = F
     payload["fingerprint"] = meta["fingerprint"]
     payload["exportStatus"] = meta["status"]
     return payload
+
+
+def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
+    """
+    Capability platform.payroll.batch.v1 — same hours rows, packaged for Lohn pull/push.
+    Body contract: { companyId, period } → full batch with employees[].
+    """
+    hours = prepare_hour_export(db, company_id=company_id, period=period, mark_sent=mark_sent)
+    company_id = require_company_id(company_id)
+    period = normalize_period(period)
+    employees = []
+    for row in hours.get("rows") or []:
+        employees.append(
+            {
+                **row,
+                "employeeId": row.get("employeeId") or row.get("workerId"),
+                "workerId": row.get("workerId") or row.get("employeeId"),
+            }
+        )
+    return {
+        "ok": True,
+        "capability": PAYROLL_BATCH_FORMAT,
+        "format": PAYROLL_BATCH_FORMAT,
+        "product": "WorkPass Lohn",
+        "companyId": company_id,
+        "company": hours.get("company") or {"id": company_id},
+        "companyName": hours.get("companyName") or "",
+        "period": period,
+        "periodStart": hours.get("periodStart"),
+        "periodEnd": hours.get("periodEnd"),
+        "rowCount": hours.get("rowCount") or len(employees),
+        "employeeCount": len(employees),
+        "totalHours": hours.get("totalHours"),
+        "totalGrossEstimate": hours.get("totalGrossEstimate"),
+        "currency": hours.get("currency") or "EUR",
+        "tenantIsolation": "companyId::employeeId::period",
+        "exportId": hours.get("exportId"),
+        "fingerprint": hours.get("fingerprint"),
+        "exportStatus": hours.get("exportStatus"),
+        "rows": hours.get("rows") or [],
+        "employees": employees,
+        "hoursFormat": "suppix_workpass_lohn_hours_v1",
+        "note": "grossEstimate is platform hint only; WorkPass Lohn computes official payroll",
+    }
 
 
 def _post_webhook(
@@ -61,6 +109,82 @@ def _post_webhook(
         return {"ok": False, "error": str(exc)[:200]}
 
 
+def push_payroll_batch_to_lohn(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    batch: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Platform → Lohn POST /v1/payroll/batch with platform.payroll.batch.v1 payload.
+    Use when Lohn cannot pull; after success Lohn only needs «Freigabe offener Jobs».
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .platform_link import _post_lohn_json, get_platform_link
+
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
+    integration = repo.get_integration(db, company_id)
+    if not integration or not int(integration.get("enabled") or 0):
+        return {"ok": False, "error": "integration_disabled"}
+    link = get_platform_link(db)
+    if not link.get("enabled") or not str(link.get("base_url") or "").strip():
+        return {
+            "ok": False,
+            "error": "platform_link_disabled",
+            "hint": "Admin → WorkPass Lohn Plattform-Link prüfen",
+            "skipped": True,
+        }
+    if batch is None:
+        batch = prepare_payroll_batch(db, company_id=company_id, period=period, mark_sent=True)
+    platform_url = str(link.get("platform_public_url") or "").rstrip("/")
+    body = {
+        **batch,
+        "event": "payroll.batch",
+        "pullUrl": (
+            f"{platform_url}/api/v2/accounting/payroll-batch?period={batch['period']}"
+            if platform_url
+            else f"/api/v2/accounting/payroll-batch?period={batch['period']}"
+        ),
+        "hoursPullUrl": (
+            f"{platform_url}/api/v2/accounting/hours?period={batch['period']}"
+            if platform_url
+            else f"/api/v2/accounting/hours?period={batch['period']}"
+        ),
+    }
+    result = _post_lohn_json(
+        link,
+        path=PAYROLL_BATCH_PATH,
+        body=body,
+        event="payroll.batch",
+    )
+    if not result.get("ok"):
+        db.execute(
+            "UPDATE payroll_hour_exports SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
+            (
+                str(result.get("error") or result.get("status") or "payroll_batch_push_failed")[:200],
+                __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ"),
+                batch.get("exportId"),
+            ),
+        )
+        db.commit()
+    return {
+        "ok": bool(result.get("ok")),
+        "capability": PAYROLL_BATCH_FORMAT,
+        "path": PAYROLL_BATCH_PATH,
+        "push": result,
+        "batch": {
+            "companyId": company_id,
+            "period": batch["period"],
+            "exportId": batch.get("exportId"),
+            "fingerprint": batch.get("fingerprint"),
+            "employeeCount": batch.get("employeeCount"),
+            "totalHours": batch.get("totalHours"),
+        },
+    }
+
+
 def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
     from .company_opt_in import is_workpass_lohn_enabled
     from .platform_link import get_platform_link
@@ -77,41 +201,75 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
         (company_id,),
     ).fetchone()
     webhook = str((full["webhook_url"] if full else "") or "").strip()
-    if not webhook:
-        return {"ok": False, "error": "no_webhook_url", "hint": "Accounting app can pull GET /api/v2/accounting/hours"}
-    payload = prepare_hour_export(db, company_id=company_id, period=period, mark_sent=True)
-    event = {
-        "event": "hours.ready",
-        "product": "WorkPass Lohn",
-        "companyId": company_id,
-        "company": {"id": company_id},
-        "period": payload["period"],
-        "exportId": payload.get("exportId"),
-        "fingerprint": payload.get("fingerprint"),
-        "rowCount": payload.get("rowCount"),
-        "totalHours": payload.get("totalHours"),
-        "pullUrl": f"/api/v2/accounting/hours?period={payload['period']}",
-        "tenantIsolation": "companyId::employeeId::period",
-    }
     link = get_platform_link(db)
     master = str(link.get("master_api_key") or "")
-    result = _post_webhook(
-        webhook,
-        event,
-        signing_secret=str(full["signing_secret"] or "") if full else "",
-        api_key=master,
+    platform_url = str(link.get("platform_public_url") or "").rstrip("/")
+
+    # Always build payroll batch (marks hour export sent) — Lohn may pull or receive push.
+    batch = prepare_payroll_batch(db, company_id=company_id, period=period, mark_sent=True)
+    period_norm = batch["period"]
+    payroll_pull = (
+        f"{platform_url}/api/v2/accounting/payroll-batch?period={period_norm}"
+        if platform_url
+        else f"/api/v2/accounting/payroll-batch?period={period_norm}"
     )
-    if not result.get("ok"):
+    hours_pull = (
+        f"{platform_url}/api/v2/accounting/hours?period={period_norm}"
+        if platform_url
+        else f"/api/v2/accounting/hours?period={period_norm}"
+    )
+
+    webhook_result: dict[str, Any] = {"skipped": "no_webhook_url"}
+    if webhook:
+        event = {
+            "event": "hours.ready",
+            "product": "WorkPass Lohn",
+            "capability": PAYROLL_BATCH_FORMAT,
+            "format": PAYROLL_BATCH_FORMAT,
+            "companyId": company_id,
+            "company": {"id": company_id},
+            "period": period_norm,
+            "exportId": batch.get("exportId"),
+            "fingerprint": batch.get("fingerprint"),
+            "rowCount": batch.get("rowCount"),
+            "employeeCount": batch.get("employeeCount"),
+            "totalHours": batch.get("totalHours"),
+            "pullUrl": hours_pull,
+            "payrollBatchPullUrl": payroll_pull,
+            "tenantIsolation": "companyId::employeeId::period",
+        }
+        webhook_result = _post_webhook(
+            webhook,
+            event,
+            signing_secret=str(full["signing_secret"] or "") if full else "",
+            api_key=master,
+        )
+
+    # Push full batch to Lohn so open jobs appear without pull URL config.
+    push_result = push_payroll_batch_to_lohn(
+        db, company_id=company_id, period=period_norm, batch=batch
+    )
+
+    # Pull-ready counts as success even if outbound push/webhook is unavailable.
+    ok = bool(webhook_result.get("ok") or push_result.get("ok") or batch.get("exportId"))
+    if webhook and not webhook_result.get("ok") and not push_result.get("ok"):
         db.execute(
             "UPDATE payroll_hour_exports SET status = 'failed', error = ?, updated_at = ? WHERE id = ?",
             (
-                str(result.get("error") or result.get("status") or "webhook_failed")[:200],
+                str(webhook_result.get("error") or webhook_result.get("status") or "webhook_failed")[:200],
                 __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ"),
-                payload.get("exportId"),
+                batch.get("exportId"),
             ),
         )
         db.commit()
-    return {"ok": bool(result.get("ok")), "webhook": result, "export": {"id": payload.get("exportId"), "period": payload["period"]}}
+    return {
+        "ok": ok,
+        "webhook": webhook_result,
+        "payrollBatchPush": push_result,
+        "payrollBatchPullUrl": payroll_pull,
+        "export": {"id": batch.get("exportId"), "period": period_norm},
+        "capability": PAYROLL_BATCH_FORMAT,
+    }
 
 
 def _storage_dir(company_id: str, period: str) -> Path:
