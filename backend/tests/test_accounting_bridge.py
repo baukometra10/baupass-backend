@@ -473,8 +473,8 @@ def test_accounting_messages_inbox_upsert_and_ack(monkeypatch):
 
     posts = []
 
-    def _fake_post(link, *, path, body, event):
-        posts.append({"path": path, "event": event, "body": body})
+    def _fake_post(link, *, path, body, event, timeout=20):
+        posts.append({"path": path, "event": event, "body": body, "timeout": timeout})
         return {"ok": True, "status": 200, "body": "{}"}
 
     monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
