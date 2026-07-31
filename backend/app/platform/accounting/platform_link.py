@@ -471,6 +471,14 @@ def provision_company_for_lohn(
             if platform_url
             else "/api/v2/accounting/employee-data-alerts"
         ),
+        "platformWebhookUrl": (
+            f"{platform_url}/api/v2/accounting/webhook"
+            if platform_url
+            else "/api/v2/accounting/webhook"
+        ),
+        "platformWebhookEnv": "WORKPASS_PLATFORM_WEBHOOK_URL",
+        "messagesPendingPath": "/v1/messages/pending",
+        "messagesAckPath": "/v1/messages/ack",
         "statementsUrl": f"{platform_url}/api/v2/accounting/statements" if platform_url else "/api/v2/accounting/statements",
         "companyUpsertUrl": f"{platform_url}/api/v2/accounting/company/upsert" if platform_url else "/api/v2/accounting/company/upsert",
         "accessUrl": f"{platform_url}/api/v2/accounting/company/access" if platform_url else "/api/v2/accounting/company/access",

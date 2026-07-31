@@ -292,6 +292,57 @@ GET  /api/payroll/accounting/data-alerts
 POST /api/payroll/accounting/data-alerts/<alertId>/dismiss
 ```
 
+### 3.2c Accounting message inbox (`accounting.message`)
+
+Lohn configures:
+
+```text
+WORKPASS_PLATFORM_WEBHOOK_URL=https://suppix-ai-workpass.com/api/v2/accounting/webhook
+```
+
+**Inbound webhook (Lohn → Platform):**
+
+```http
+POST /api/v2/accounting/webhook
+X-WorkPass-Key: <MASTER-KEY>
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Suppix-Event: accounting.message
+
+{
+  "event": "accounting.message",
+  "companyId": "<FIRMA-ID>",
+  "id": "msg-42",
+  "kind": "missing_data",
+  "subject": "Fehlende Mitarbeiterdaten",
+  "body": "Steuer-ID fehlt für Ali Hassan",
+  "period": "2026-07",
+  "workerId": "w-1001"
+}
+```
+
+On receive, the platform stores the message and also pulls:
+
+```http
+GET {LOHN}/v1/messages/pending?companyId=<FIRMA-ID>
+```
+
+**Admin inbox (Ops Command Center):**
+
+```http
+GET  /api/payroll/accounting/messages
+POST /api/payroll/accounting/messages/sync
+POST /api/payroll/accounting/messages/<id>/open
+```
+
+Opening / clicking a message marks it read and acks Lohn:
+
+```http
+POST {LOHN}/v1/messages/ack
+{ "messageId": "msg-42", "companyId": "<FIRMA-ID>" }
+```
+
+After ack the message leaves the platform inbox.
+
 ### 3.3 Push payslip batch (PDF)
 
 ```http

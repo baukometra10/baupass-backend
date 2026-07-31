@@ -116,6 +116,12 @@ POST /api/v2/accounting/company/upsert
 - Lohn/Steuer → `POST /api/v2/accounting/employee-data-alerts`
 - في Ops: بطاقة «Fehlende Mitarbeiterdaten» + زر **Gelesen / ausblenden**
 
+### صندوق رسائل Lohn (`accounting.message`)
+
+- Webhook على المنصة: `POST /api/v2/accounting/webhook` (= `WORKPASS_PLATFORM_WEBHOOK_URL`)
+- سحب: المنصة تستدعي `{LOHN}/v1/messages/pending`
+- عند الفتح في Ops: Ack → `{LOHN}/v1/messages/ack` ثم تختفي الرسالة
+
 ### شركة (مرآة upsert)
 
 ```http

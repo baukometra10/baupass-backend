@@ -29,6 +29,14 @@ def register_accounting_blueprint(flask_app) -> None:
         test_platform_link_connectivity,
     )
     from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
+    from .messages_inbox import (
+        ack_message_to_lohn,
+        handle_inbound_lohn_webhook,
+        list_pending_accounting_messages,
+        platform_webhook_public_path,
+        pull_pending_messages_from_lohn,
+        verify_platform_webhook_auth,
+    )
     from .schema import ensure_accounting_schema
     from .service import (
         approve_batch,
@@ -243,6 +251,40 @@ def register_accounting_blueprint(flask_app) -> None:
         )
         return jsonify(result), (200 if result.get("ok") else 400)
 
+    @accounting_bp.post("/v2/accounting/webhook")
+    @accounting_bp.post("/v2/accounting/hooks/lohn")
+    def accounting_platform_webhook():
+        """
+        Inbound WORKPASS_PLATFORM_WEBHOOK_URL target.
+        Lohn posts accounting.message here; platform stores + pulls /v1/messages/pending.
+        """
+        db = get_db()
+        ensure_accounting_schema(db)
+        raw = request.get_data(cache=True) or b""
+        data = request.get_json(silent=True) or {}
+        company_hint = str(
+            request.headers.get("X-WorkPass-Company-Id")
+            or request.headers.get("X-Company-Id")
+            or data.get("companyId")
+            or data.get("company_id")
+            or ""
+        ).strip()
+        auth = verify_platform_webhook_auth(
+            db,
+            headers={k: v for k, v in request.headers.items()},
+            body=raw,
+            company_id=company_hint,
+        )
+        if not auth.get("ok"):
+            return jsonify({"error": auth.get("error") or "unauthorized", "hint": auth.get("hint")}), 401
+        result = handle_inbound_lohn_webhook(
+            db,
+            data=data if isinstance(data, dict) else {},
+            company_id=str(auth.get("companyId") or company_hint or ""),
+        )
+        result["webhookPath"] = platform_webhook_public_path()
+        return jsonify(result), 200
+
     @accounting_bp.get("/v2/accounting/company")
     def accounting_get_company():
         integ, err = _auth_accounting()
@@ -357,6 +399,11 @@ def register_accounting_blueprint(flask_app) -> None:
         link = get_platform_link(get_db())
         # Strip raw master key from HTTP response
         safe = {k: v for k, v in link.items() if k != "master_api_key"}
+        platform_url = str(link.get("platform_public_url") or "").rstrip("/")
+        safe["platformWebhookUrl"] = (
+            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook"
+        )
+        safe["platformWebhookEnv"] = "WORKPASS_PLATFORM_WEBHOOK_URL"
         return jsonify({"ok": True, "link": safe}), 200
 
     @accounting_bp.post("/payroll/accounting/platform-link")
@@ -376,6 +423,11 @@ def register_accounting_blueprint(flask_app) -> None:
             default_run_day=data.get("runDay") if "runDay" in data else None,
         )
         safe = {k: v for k, v in link.items() if k != "master_api_key"}
+        platform_url = str(link.get("platform_public_url") or "").rstrip("/")
+        safe["platformWebhookUrl"] = (
+            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook"
+        )
+        safe["platformWebhookEnv"] = "WORKPASS_PLATFORM_WEBHOOK_URL"
         return jsonify({"ok": True, "link": safe}), 200
 
     @accounting_bp.post("/payroll/accounting/platform-link/test")
@@ -539,6 +591,69 @@ def register_accounting_blueprint(flask_app) -> None:
         result = repo.dismiss_lohn_data_alert(
             get_db(),
             alert_id=alert_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        if result.get("error") == "not_found":
+            return jsonify(result), 404
+        if result.get("error") == "forbidden_company":
+            return jsonify(result), 403
+        return jsonify(result), 200
+
+    @accounting_bp.get("/payroll/accounting/messages")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_list_accounting_messages():
+        user = g.current_user
+        company_id = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin" and request.args.get("company_id"):
+            company_id = request.args.get("company_id")
+        sync = str(request.args.get("sync") or "").strip().lower() in {"1", "true", "yes"}
+        if sync and company_id:
+            pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))
+        messages = list_pending_accounting_messages(get_db(), company_id=company_id)
+        link = get_platform_link(get_db())
+        platform_url = str(link.get("platform_public_url") or "").rstrip("/")
+        webhook_url = (
+            f"{platform_url}{platform_webhook_public_path()}"
+            if platform_url
+            else platform_webhook_public_path()
+        )
+        return jsonify(
+            {
+                "ok": True,
+                "messages": messages,
+                "count": len(messages),
+                "webhookUrl": webhook_url,
+                "webhookEnv": "WORKPASS_PLATFORM_WEBHOOK_URL",
+            }
+        ), 200
+
+    @accounting_bp.post("/payroll/accounting/messages/sync")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_sync_accounting_messages():
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            data.get("companyId") or request.args.get("company_id") or user.get("company_id")
+        )
+        result = pull_pending_messages_from_lohn(
+            get_db(), company_id=str(company_id) if company_id else None
+        )
+        code = 200 if result.get("ok") or result.get("skipped") else 400
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/messages/<message_id>/open")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_open_accounting_message(message_id: str):
+        """Open/click: mark read + ack to WorkPass Lohn — message leaves inbox."""
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = ack_message_to_lohn(
+            get_db(),
+            message_id=message_id,
             actor_user_id=str(user.get("id") or ""),
             company_id=company_scope,
         )

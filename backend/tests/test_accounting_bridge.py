@@ -434,3 +434,77 @@ def test_lohn_data_alerts_ingest_and_dismiss():
     )
     assert out2["updatedCount"] == 1
     assert len(repository.list_open_lohn_data_alerts(db, company_id="c1")) == 1
+
+
+def test_accounting_messages_inbox_upsert_and_ack(monkeypatch):
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db()
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-1",
+                "companyId": "c1",
+                "event": "accounting.message",
+                "kind": "missing_data",
+                "subject": "IBAN fehlt",
+                "body": "Bitte IBAN ergänzen",
+                "period": "2026-07",
+                "workerId": "w1",
+                "missingFields": ["iban"],
+            }
+        ],
+    )
+    assert stored["createdCount"] == 1
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending) == 1
+    assert pending[0]["externalId"] == "msg-1"
+    assert pending[0]["subject"] == "IBAN fehlt"
+    # missing_data also mirrored into data-alerts
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1")
+
+    posts = []
+
+    def _fake_post(link, *, path, body, event):
+        posts.append({"path": path, "event": event, "body": body})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    acked = messages_inbox.ack_message_to_lohn(
+        db, message_id=pending[0]["id"], actor_user_id="admin-1", company_id="c1"
+    )
+    assert acked["ok"] is True
+    assert acked["status"] == "acked"
+    assert posts[0]["path"] == "/v1/messages/ack"
+    assert posts[0]["body"]["messageId"] == "msg-1"
+    assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
+
+
+def test_platform_webhook_auth_master_key():
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db()
+    platform_link.save_platform_link(
+        db, enabled=True, base_url="https://lohn.test", master_api_key="master-secret"
+    )
+    ok = messages_inbox.verify_platform_webhook_auth(
+        db,
+        headers={"X-WorkPass-Key": "master-secret", "X-WorkPass-Company-Id": "c1"},
+        body=b"{}",
+        company_id="c1",
+    )
+    assert ok["ok"] is True
+    bad = messages_inbox.verify_platform_webhook_auth(
+        db,
+        headers={"X-WorkPass-Key": "wrong"},
+        body=b"{}",
+    )
+    assert bad["ok"] is False

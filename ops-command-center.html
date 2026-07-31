@@ -157,6 +157,12 @@
         dataAlertsDismiss: "Gelesen / ausblenden",
         dataAlertsDismissFailed: "Konnte nicht ausblenden",
         dataAlertsFields: "Fehlt: {fields}",
+        lohnMessagesLabel: "WorkPass Lohn — Nachrichten",
+        lohnMessagesNone: "Keine offenen Lohn-Nachrichten",
+        lohnMessagesPending: "{n} offene Nachrichten",
+        lohnMessagesOpen: "Öffnen / gelesen",
+        lohnMessagesOpenFailed: "Nachricht konnte nicht bestätigt werden",
+        lohnMessagesSync: "Von Lohn holen",
         lohnLinkLabel: "WorkPass Lohn — Plattform-Link",
         lohnLinkOn: "Verbunden",
         lohnLinkOff: "Nicht verbunden",
@@ -243,6 +249,12 @@
         dataAlertsDismiss: "Mark read / dismiss",
         dataAlertsDismissFailed: "Could not dismiss",
         dataAlertsFields: "Missing: {fields}",
+        lohnMessagesLabel: "WorkPass Lohn — messages",
+        lohnMessagesNone: "No open Lohn messages",
+        lohnMessagesPending: "{n} open messages",
+        lohnMessagesOpen: "Open / mark read",
+        lohnMessagesOpenFailed: "Could not acknowledge message",
+        lohnMessagesSync: "Pull from Lohn",
         lohnLinkLabel: "WorkPass Lohn — platform link",
         lohnLinkOn: "Connected",
         lohnLinkOff: "Not connected",
@@ -328,6 +340,12 @@
         dataAlertsDismiss: "مقروء / إخفاء",
         dataAlertsDismissFailed: "تعذر الإخفاء",
         dataAlertsFields: "ناقص: {fields}",
+        lohnMessagesLabel: "WorkPass Lohn — رسائل",
+        lohnMessagesNone: "لا توجد رسائل مفتوحة",
+        lohnMessagesPending: "{n} رسائل مفتوحة",
+        lohnMessagesOpen: "فتح / مقروء",
+        lohnMessagesOpenFailed: "تعذر تأكيد الرسالة",
+        lohnMessagesSync: "جلب من Lohn",
         lohnLinkLabel: "WorkPass Lohn — ربط المنصة",
         lohnLinkOn: "متصل",
         lohnLinkOff: "غير متصل",
@@ -637,6 +655,39 @@
       </div>`;
     }
 
+    function renderLohnMessagesCard(messages) {
+      const list = Array.isArray(messages) ? messages : [];
+      const head = list.length
+        ? tr("lohnMessagesPending", { n: list.length })
+        : tr("lohnMessagesNone");
+      const rows = list.slice(0, 20).map((m) => {
+        const id = String(m.id || "");
+        const subject = String(m.subject || m.kind || "—");
+        const body = String(m.body || "").trim();
+        const period = String(m.period || "");
+        const company = String(m.companyId || "");
+        const name = [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
+          || String(m.workerId || "");
+        const meta = [period, company, name].filter(Boolean).join(" · ") || "—";
+        return `<div class="payroll-row" data-lohn-msg="${id}">
+          <div class="label">${subject}</div>
+          <div class="muted" style="margin:0.2rem 0">${meta}</div>
+          ${body ? `<div class="muted" style="margin:0 0 0.4rem">${body.slice(0, 180)}</div>` : ""}
+          <div class="payroll-actions">
+            <button type="button" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
+          </div>
+        </div>`;
+      }).join("") || `<div class="label">—</div>`;
+      return `<div class="card payroll-card" id="lohnMessagesCard">
+        <div class="label">${tr("lohnMessagesLabel")}</div>
+        <div class="label" style="margin:0.35rem 0">${head}</div>
+        <div class="payroll-actions" style="margin-bottom:0.5rem">
+          <button type="button" id="lohnMessagesSyncBtn">${tr("lohnMessagesSync")}</button>
+        </div>
+        ${rows}
+      </div>`;
+    }
+
     let cachedMe = null;
 
     async function loadMe() {
@@ -736,6 +787,37 @@
       });
     }
 
+    function wireLohnMessageActions() {
+      document.querySelectorAll("[data-lohn-msg='open']").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          if (!id) return;
+          try {
+            await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/open`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: "{}",
+            });
+            await load();
+          } catch (e) {
+            alert(e.message || tr("lohnMessagesOpenFailed"));
+          }
+        });
+      });
+      document.getElementById("lohnMessagesSyncBtn")?.addEventListener("click", async () => {
+        try {
+          await api("/api/payroll/accounting/messages/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: companyId ? JSON.stringify({ companyId }) : "{}",
+          });
+          await load();
+        } catch (e) {
+          alert(e.message || tr("lohnMessagesOpenFailed"));
+        }
+      });
+    }
+
     async function loadPayrollPending() {
       try {
         let url = "/api/payroll/statements/pending";
@@ -758,6 +840,17 @@
       }
     }
 
+    async function loadLohnMessages() {
+      try {
+        let url = "/api/payroll/accounting/messages";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const data = await api(url);
+        return data.messages || [];
+      } catch {
+        return [];
+      }
+    }
+
     async function loadLohnPlatformLink() {
       if (currentRole() === "company-admin") {
         return { skipped: true };
@@ -769,7 +862,7 @@
       }
     }
 
-    function render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts) {
+    function render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages) {
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
@@ -790,6 +883,7 @@
       grid.innerHTML = `
         ${renderGuardianCard(guardian, guardianHistory)}
         ${renderLohnLinkCard(lohnLink)}
+        ${renderLohnMessagesCard(lohnMessages)}
         ${renderDataAlertsCard(dataAlerts)}
         ${renderPayrollCard(payrollBatches)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
@@ -848,6 +942,7 @@
       wireGuardianActions();
       wirePayrollActions();
       wireDataAlertActions();
+      wireLohnMessageActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
     }
@@ -882,15 +977,16 @@
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
         await loadMe();
-        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts] = await Promise.all([
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
           loadPayrollPending(),
           loadLohnPlatformLink(),
           loadDataAlerts(),
+          loadLohnMessages(),
         ]);
-        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts);
+        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;
