@@ -600,3 +600,69 @@ def ack_message_to_lohn(
 def platform_webhook_public_path() -> str:
     """Canonical path for WORKPASS_PLATFORM_WEBHOOK_URL on this platform."""
     return "/api/v2/accounting/webhook"
+
+
+def create_test_accounting_message(
+    db,
+    *,
+    company_id: str,
+    subject: str = "",
+    body: str = "",
+    period: str = "",
+    worker_id: str = "",
+    kind: str = "missing_data",
+) -> dict[str, Any]:
+    """
+    Superadmin live-test helper: inject an accounting.message like Lohn would.
+    Does not call WorkPass Lohn — verifies toast → banner dismiss → inbox → open/ack UI.
+    """
+    company_id = (company_id or "").strip()
+    if not company_id:
+        return {"ok": False, "error": "company_id_required"}
+    now = _now()
+    external_id = f"test-{uuid.uuid4().hex[:12]}"
+    subject = (subject or "Test: Fehlende Mitarbeiterdaten").strip()[:300]
+    body = (
+        body
+        or "Dies ist eine Testnachricht von der Plattform (simuliert WorkPass Lohn). "
+        "Mitteilung wegwischen = Banner weg, Posteingang bleibt ungelesen. "
+        "Öffnen & bestätigen = Ack."
+    ).strip()[:4000]
+    period = (period or "").strip()[:7]
+    worker_id = (worker_id or "").strip()
+    stored = upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": external_id,
+                "messageId": external_id,
+                "companyId": company_id,
+                "event": EVENT_ACCOUNTING_MESSAGE,
+                "kind": kind or "missing_data",
+                "subject": subject,
+                "body": body,
+                "period": period,
+                "workerId": worker_id,
+                "employeeId": worker_id,
+                "missingFields": ["taxId", "iban"] if (kind or "").startswith("missing") else [],
+                "test": True,
+                "createdAt": now,
+            }
+        ],
+        default_company=company_id,
+    )
+    pending = list_pending_accounting_messages(db, company_id=company_id, limit=20)
+    match = next((m for m in pending if m.get("externalId") == external_id), pending[0] if pending else None)
+    return {
+        "ok": True,
+        "test": True,
+        "externalId": external_id,
+        "companyId": company_id,
+        "message": match,
+        "store": stored,
+        "checklist": [
+            "Gelbe Mitteilung oben sichtbar",
+            "Mitteilung weg → Banner weg, Posteingang ungelesen",
+            "Öffnen & bestätigen → Nachricht verschwindet",
+        ],
+    }

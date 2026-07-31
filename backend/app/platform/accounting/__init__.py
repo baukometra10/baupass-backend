@@ -31,6 +31,7 @@ def register_accounting_blueprint(flask_app) -> None:
     from .company_opt_in import is_workpass_lohn_enabled, set_workpass_lohn_enabled
     from .messages_inbox import (
         ack_message_to_lohn,
+        create_test_accounting_message,
         dismiss_message_banner,
         handle_inbound_lohn_webhook,
         list_pending_accounting_messages,
@@ -665,6 +666,31 @@ def register_accounting_blueprint(flask_app) -> None:
             get_db(), company_id=str(company_id) if company_id else None
         )
         code = 200 if result.get("ok") or result.get("skipped") else 400
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/messages/test")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_test_accounting_message():
+        """Inject a simulated Lohn accounting.message for live UI verification."""
+        data = request.get_json(silent=True) or {}
+        company_id = str(
+            data.get("companyId")
+            or request.args.get("company_id")
+            or ""
+        ).strip()
+        if not company_id:
+            return jsonify({"error": "company_id_required", "hint": "companyId im Body oder ?company_id="}), 400
+        result = create_test_accounting_message(
+            get_db(),
+            company_id=company_id,
+            subject=str(data.get("subject") or ""),
+            body=str(data.get("body") or ""),
+            period=str(data.get("period") or ""),
+            worker_id=str(data.get("workerId") or data.get("employeeId") or ""),
+            kind=str(data.get("kind") or "missing_data"),
+        )
+        code = 200 if result.get("ok") else 400
         return jsonify(result), code
 
     @accounting_bp.post("/payroll/accounting/messages/<message_id>/open")

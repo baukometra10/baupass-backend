@@ -516,6 +516,21 @@ def test_message_banner_dismiss_keeps_inbox_unread():
     assert pending2[0]["status"] == "pending"
 
 
+def test_create_test_accounting_message_for_live_check():
+    from backend.app.platform.accounting import messages_inbox
+
+    db = _db()
+    out = messages_inbox.create_test_accounting_message(
+        db, company_id="c1", period="2026-07", worker_id="w1"
+    )
+    assert out["ok"] is True
+    assert out["test"] is True
+    assert out["message"]["bannerVisible"] is True
+    assert out["message"]["companyId"] == "c1"
+    assert "Test" in out["message"]["subject"] or out["message"]["subject"]
+    assert len(messages_inbox.list_pending_accounting_messages(db, company_id="c1")) >= 1
+
+
 def test_platform_webhook_auth_master_key():
     from backend.app.platform.accounting import messages_inbox, platform_link
 

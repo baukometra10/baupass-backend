@@ -248,6 +248,9 @@
         lohnMessagesOpen: "Öffnen & bestätigen",
         lohnMessagesOpenFailed: "Nachricht konnte nicht bestätigt werden",
         lohnMessagesSync: "Von Lohn holen",
+        lohnMessagesTest: "Testnachricht",
+        lohnMessagesTestOk: "Testnachricht erzeugt — Mitteilung oben prüfen",
+        lohnMessagesTestNeedCompany: "Bitte Firma wählen (?company_id=…) oder in der Firmenliste klicken",
         lohnMessagesBannerDismiss: "Mitteilung weg",
         lohnMessagesBannerHint: "Wie am Handy: Mitteilung wegwischen — bleibt ungelesen im Posteingang",
         lohnMessagesToastEyebrow: "Neue Mitteilung · WorkPass Lohn",
@@ -346,6 +349,9 @@
         lohnMessagesOpen: "Open & acknowledge",
         lohnMessagesOpenFailed: "Could not acknowledge message",
         lohnMessagesSync: "Pull from Lohn",
+        lohnMessagesTest: "Test message",
+        lohnMessagesTestOk: "Test message created — check the toast above",
+        lohnMessagesTestNeedCompany: "Pick a company (?company_id=…) or click a row in the companies table",
         lohnMessagesBannerDismiss: "Dismiss alert",
         lohnMessagesBannerHint: "Like a phone: swipe the alert away — it stays unread in the inbox",
         lohnMessagesToastEyebrow: "New alert · WorkPass Lohn",
@@ -443,6 +449,9 @@
         lohnMessagesOpen: "فتح وتأكيد",
         lohnMessagesOpenFailed: "تعذر تأكيد الرسالة",
         lohnMessagesSync: "جلب من Lohn",
+        lohnMessagesTest: "رسالة تجريبية",
+        lohnMessagesTestOk: "تم إنشاء رسالة تجريبية — تحقق من الإشعار أعلاه",
+        lohnMessagesTestNeedCompany: "اختر شركة (?company_id=…) أو انقر صفاً في الجدول",
         lohnMessagesBannerDismiss: "إخفاء الإشعار",
         lohnMessagesBannerHint: "مثل الهاتف: أغلق الإشعار — تبقى غير مقروءة في البريد",
         lohnMessagesToastEyebrow: "إشعار جديد · WorkPass Lohn",
@@ -802,6 +811,7 @@
           <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">
             <span class="lohn-section-hint">${head}</span>
             <button type="button" id="lohnMessagesSyncBtn">${tr("lohnMessagesSync")}</button>
+            ${currentRole() === "superadmin" ? `<button type="button" class="primary" id="lohnMessagesTestBtn">${tr("lohnMessagesTest")}</button>` : ""}
           </div>
         </div>
         ${rows}
@@ -1081,6 +1091,32 @@
             body: companyId ? JSON.stringify({ companyId }) : "{}",
           });
           await load();
+        } catch (e) {
+          alert(e.message || tr("lohnMessagesOpenFailed"));
+        }
+      });
+      document.getElementById("lohnMessagesTestBtn")?.addEventListener("click", async () => {
+        const cid =
+          companyId ||
+          String(lastPayload?.companies?.[0]?.id || lastPayload?.companies?.[0]?.companyId || "").trim();
+        if (!cid) {
+          alert(tr("lohnMessagesTestNeedCompany"));
+          return;
+        }
+        try {
+          await api("/api/payroll/accounting/messages/test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              companyId: cid,
+              period: String(lastStatusDate || "").slice(0, 7),
+              kind: "missing_data",
+            }),
+          });
+          await load();
+          const hub = document.getElementById("lohnHub");
+          if (hub) hub.scrollIntoView({ behavior: "smooth", block: "start" });
+          alert(tr("lohnMessagesTestOk"));
         } catch (e) {
           alert(e.message || tr("lohnMessagesOpenFailed"));
         }

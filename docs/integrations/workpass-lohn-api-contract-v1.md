@@ -343,6 +343,23 @@ POST {LOHN}/v1/messages/ack
 
 After ack the message leaves the platform inbox.
 
+### Live-Test (ohne Lohn)
+
+Superadmin in Ops Command Center:
+
+1. Firma wählen (`?company_id=…`) oder erste Firma in der Liste
+2. Button **Testnachricht**
+3. Gelbe Mitteilung oben prüfen
+4. **Mitteilung weg** → Banner weg, Posteingang bleibt ungelesen
+5. **Öffnen & bestätigen** → Nachricht verschwindet
+
+API:
+
+```http
+POST /api/payroll/accounting/messages/test
+{ "companyId": "<FIRMA-ID>", "period": "2026-07", "kind": "missing_data" }
+```
+
 ### 3.3 Push payslip batch (PDF)
 
 ```http
