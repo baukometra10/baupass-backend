@@ -651,6 +651,8 @@ def register_accounting_blueprint(flask_app) -> None:
             return jsonify(result), 404
         if result.get("error") == "forbidden_company":
             return jsonify(result), 403
+        if not result.get("ok"):
+            return jsonify(result), 400
         return jsonify(result), 200
 
     @accounting_bp.post("/payroll/accounting/messages/sync")

@@ -819,7 +819,7 @@
     }
 
     function renderLohnNotificationToasts(messages) {
-      const list = (Array.isArray(messages) ? messages : []).filter((m) => m && m.bannerVisible !== false);
+      const list = (Array.isArray(messages) ? messages : []).filter((m) => m && m.bannerVisible === true);
       if (!list.length) return "";
       const toasts = list.slice(0, 5).map((m) => {
         const id = String(m.id || "");
@@ -927,7 +927,7 @@
       const msgCount = Array.isArray(lohnMessages) ? lohnMessages.length : 0;
       const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
       const batchCount = Array.isArray(payrollBatches) ? payrollBatches.length : 0;
-      const notifyCount = (Array.isArray(lohnMessages) ? lohnMessages : []).filter((m) => m.bannerVisible !== false).length;
+      const notifyCount = (Array.isArray(lohnMessages) ? lohnMessages : []).filter((m) => m.bannerVisible === true).length;
       return `${renderLohnNotificationToasts(lohnMessages)}
       <div class="lohn-hub" id="lohnHub">
         <div class="lohn-hub-head">
@@ -1068,18 +1068,27 @@
         });
       });
       document.querySelectorAll("[data-lohn-msg='dismiss-banner']").forEach((btn) => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
           const id = btn.getAttribute("data-id");
           if (!id) return;
+          btn.disabled = true;
+          // Optimistic: hide toast immediately (inbox stays)
+          document.querySelector(`[data-toast-id="${CSS.escape(id)}"]`)?.remove();
           try {
-            await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/dismiss-banner`, {
+            const res = await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/dismiss-banner`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: "{}",
             });
+            if (res && res.ok === false) {
+              throw new Error(res.error || tr("lohnMessagesOpenFailed"));
+            }
             await load();
           } catch (e) {
             alert(e.message || tr("lohnMessagesOpenFailed"));
+            await load();
           }
         });
       });
