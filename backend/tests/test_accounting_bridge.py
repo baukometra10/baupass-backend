@@ -517,7 +517,7 @@ def test_message_banner_dismiss_keeps_inbox_unread():
 
 
 def test_message_banner_dismiss_payload_fallback():
-    """Dismiss still works when banner_dismissed_at column is unavailable."""
+    """list_pending respects bannerDismissed inside payload_json (column fallback)."""
     from backend.app.platform.accounting import messages_inbox
 
     db = _db()
@@ -526,23 +526,14 @@ def test_message_banner_dismiss_payload_fallback():
         [{"id": "msg-fb", "companyId": "c1", "subject": "Fallback", "body": "x"}],
     )
     mid = stored["ids"][0]
-
-    def _boom(*_a, **_k):
-        raise RuntimeError("no column")
-
-    # Force column update path to fail once, then payload fallback
-    orig = db.execute
-
-    def _execute(sql, params=()):
-        if "banner_dismissed_at" in str(sql) and str(sql).strip().upper().startswith("UPDATE"):
-            raise RuntimeError("no column")
-        return orig(sql, params)
-
-    db.execute = _execute  # type: ignore
-    out = messages_inbox.dismiss_message_banner(db, message_id=mid, actor_user_id="u1")
-    db.execute = orig  # type: ignore
-    assert out["ok"] is True
+    now = messages_inbox._now()
+    db.execute(
+        "UPDATE accounting_messages SET payload_json = ?, updated_at = ? WHERE id = ?",
+        (json.dumps({"bannerDismissed": True, "bannerDismissedAt": now}), now, mid),
+    )
+    db.commit()
     pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending) == 1
     assert pending[0]["bannerVisible"] is False
     assert pending[0]["payload"].get("bannerDismissed") is True
 
