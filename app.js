@@ -24906,6 +24906,52 @@ function updateBulkActionBar() {
   }
 }
 
+function beginEditWorker(worker) {
+  if (!worker || worker.deletedAt) return false;
+  state.editingWorkerId = worker.id;
+  if (elements.companySelect) elements.companySelect.value = worker.companyId;
+  populateSubcompanySelects();
+  const sub = document.querySelector("#subcompanySelect");
+  if (sub) sub.value = worker.subcompanyId || "";
+  const firstName = document.querySelector("#firstName");
+  const lastName = document.querySelector("#lastName");
+  const insuranceNumber = document.querySelector("#insuranceNumber");
+  if (firstName) firstName.value = worker.firstName || "";
+  if (lastName) lastName.value = worker.lastName || "";
+  if (insuranceNumber) insuranceNumber.value = worker.insuranceNumber || "";
+  if (elements.workerType) elements.workerType.value = isVisitorWorker(worker) ? "visitor" : "worker";
+  const role = document.querySelector("#role");
+  if (role) role.value = worker.role || "";
+  populateWorkerSiteFields(worker);
+  const physicalCardId = document.querySelector("#physicalCardId");
+  if (physicalCardId) physicalCardId.value = worker.physicalCardId || "";
+  const validUntil = document.querySelector("#validUntil");
+  if (validUntil) validUntil.value = worker.validUntil || "";
+  if (elements.visitorCompany) elements.visitorCompany.value = worker.visitorCompany || "";
+  if (elements.visitPurpose) elements.visitPurpose.value = worker.visitPurpose || "";
+  if (elements.hostName) elements.hostName.value = worker.hostName || "";
+  if (elements.visitEndAt) elements.visitEndAt.value = worker.visitEndAt ? toDateTimeLocalValue(worker.visitEndAt) : "";
+  const workerStatus = document.querySelector("#workerStatus");
+  if (workerStatus) workerStatus.value = worker.status || "aktiv";
+  const badgePin = document.querySelector("#badgePin");
+  if (badgePin) badgePin.value = "";
+  setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
+  loadComplianceSignatureForWorker(worker);
+  syncWorkerTypeUi();
+  syncWorkerEditorUi();
+  resetWorkerFormPhaseForWorker(worker);
+  setView("workers");
+  document.querySelector("#workerForm")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
+}
+
+function beginEditWorkerById(workerId) {
+  const id = String(workerId || "").trim();
+  if (!id) return false;
+  const worker = (state.workers || []).find((entry) => String(entry.id) === id);
+  return beginEditWorker(worker);
+}
+
 function bindWorkerRowActions() {
 
   // Delegate checkbox changes to update bulk bar
@@ -24924,31 +24970,7 @@ function bindWorkerRowActions() {
   elements.workerList.querySelectorAll("[data-worker-edit]").forEach((button) => {
     button.onclick = () => {
       const worker = state.workers.find((entry) => entry.id === button.dataset.workerEdit);
-      if (!worker || worker.deletedAt) return;
-      state.editingWorkerId = worker.id;
-      if (elements.companySelect) elements.companySelect.value = worker.companyId;
-      populateSubcompanySelects();
-      document.querySelector("#subcompanySelect").value = worker.subcompanyId || "";
-      document.querySelector("#firstName").value = worker.firstName || "";
-      document.querySelector("#lastName").value = worker.lastName || "";
-      document.querySelector("#insuranceNumber").value = worker.insuranceNumber || "";
-      if (elements.workerType) elements.workerType.value = isVisitorWorker(worker) ? "visitor" : "worker";
-      document.querySelector("#role").value = worker.role || "";
-      populateWorkerSiteFields(worker);
-      document.querySelector("#physicalCardId").value = worker.physicalCardId || "";
-      document.querySelector("#validUntil").value = worker.validUntil || "";
-      if (elements.visitorCompany) elements.visitorCompany.value = worker.visitorCompany || "";
-      if (elements.visitPurpose) elements.visitPurpose.value = worker.visitPurpose || "";
-      if (elements.hostName) elements.hostName.value = worker.hostName || "";
-      if (elements.visitEndAt) elements.visitEndAt.value = worker.visitEndAt ? toDateTimeLocalValue(worker.visitEndAt) : "";
-      document.querySelector("#workerStatus").value = worker.status || "aktiv";
-      document.querySelector("#badgePin").value = "";
-      setPhotoEditorSource(worker.photoData || "", { resetOffset: true });
-      loadComplianceSignatureForWorker(worker);
-      syncWorkerTypeUi();
-      syncWorkerEditorUi();
-      resetWorkerFormPhaseForWorker(worker);
-      setView("workers");
+      beginEditWorker(worker);
     };
   });
 
@@ -37122,6 +37144,7 @@ function applyDeepLinkViewFromUrl() {
   }
   void applyCompanyIdFromUrl();
   const params = new URLSearchParams(window.location.search);
+  const deepWorkerId = String(params.get("worker_id") || "").trim();
   let view = params.get("view");
   if (!view) {
     const hash = (window.location.hash || "").replace(/^#/, "").trim();
@@ -37141,6 +37164,9 @@ function applyDeepLinkViewFromUrl() {
     if (hash && hashViews[hash]) {
       view = hashViews[hash];
     }
+  }
+  if (deepWorkerId && !view) {
+    view = "workers";
   }
   if (params.get("einsatzplan") === "1" || view === "deployment-plan") {
     requestEinsatzplanEditor();
@@ -37170,6 +37196,13 @@ function applyDeepLinkViewFromUrl() {
   } else if (allowed.length) {
     // Deep-link to a role-forbidden view (e.g. company-admin + #admin) → avoid blank screen.
     setView(allowed.includes("dashboard") ? "dashboard" : allowed[0]);
+  }
+  if (deepWorkerId) {
+    params.delete("worker_id");
+    const cleanQuery = params.toString();
+    const nextUrl = `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ""}${window.location.hash || ""}`;
+    window.history.replaceState({}, "", nextUrl);
+    beginEditWorkerById(deepWorkerId);
   }
 }
 

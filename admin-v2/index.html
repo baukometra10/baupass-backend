@@ -119,7 +119,10 @@
             </div>
             <div class="nav-group">
               <span class="nav-group-label" data-i18n="nav.group.ops">Betrieb</span>
-              <button type="button" data-tab="operations" class="tab nav-item" data-i18n="tab.operations">Betrieb</button>
+              <button type="button" data-tab="operations" class="tab nav-item" id="tabOperationsBtn">
+                <span data-i18n="tab.operations">Betrieb</span>
+                <span id="lohnOpsBadge" class="tab-badge hidden" title="WorkPass Lohn"></span>
+              </button>
               <button type="button" data-tab="billing" class="tab nav-item" data-i18n="tab.billing">Rechnungen</button>
               <button type="button" data-tab="tools" class="tab nav-item" data-i18n="tab.tools">Tools</button>
               <button type="button" data-tab="platform" class="tab nav-item" data-i18n="tab.platform">Plattform</button>
@@ -347,7 +350,10 @@
           </button>
           <button type="button" class="tab mobile-nav-item" data-tab="workers" data-i18n="tab.workers">Team</button>
           <button type="button" class="tab mobile-nav-item" data-tab="access" data-i18n="tab.access">Anw.</button>
-          <button type="button" class="tab mobile-nav-item" data-tab="operations" data-i18n="tab.operations">Betrieb</button>
+          <button type="button" class="tab mobile-nav-item" data-tab="operations">
+            <span data-i18n="tab.operations">Betrieb</span>
+            <span id="lohnOpsMobileBadge" class="tab-badge hidden" title="WorkPass Lohn"></span>
+          </button>
         </nav>
       </div>
     </section>
@@ -557,7 +563,7 @@
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
-  <script src="app.js?v=20260728ap1" type="module"></script>
+  <script src="app.js?v=20260731lohn2" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

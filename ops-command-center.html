@@ -86,12 +86,14 @@
     .lohn-toast-body { margin-top: 0.2rem; color: var(--muted); font-size: 0.78rem; line-height: 1.35; }
     .lohn-toast-meta { margin-top: 0.35rem; font-size: 0.68rem; color: #fbbf24; letter-spacing: 0.02em; }
     .lohn-toast-actions { display: flex; flex-direction: column; gap: 0.3rem; }
-    .lohn-toast-actions button, .lohn-hub button, .lohn-item button {
+    .lohn-toast-actions button, .lohn-hub button, .lohn-item button,
+    .lohn-toast-actions a, .lohn-item-actions a {
       font-size: 0.72rem; padding: 0.35rem 0.6rem; border-radius: 8px;
       border: 1px solid var(--border); background: #0c1218; color: var(--accent); cursor: pointer;
-      white-space: nowrap;
+      white-space: nowrap; text-decoration: none; text-align: center; display: inline-block;
     }
-    .lohn-toast-actions button.primary, .lohn-item button.primary {
+    .lohn-toast-actions button.primary, .lohn-item button.primary,
+    .lohn-toast-actions a.primary, .lohn-item-actions a.primary {
       border-color: rgba(75, 227, 209, 0.45); background: rgba(75, 227, 209, 0.12);
     }
     .lohn-toast-actions button.ghost { color: var(--muted); }
@@ -148,7 +150,31 @@
     }
     #lohnHeaderChip.has-mail {
       border-color: rgba(251, 191, 36, 0.55); background: rgba(251, 191, 36, 0.14); color: #fbbf24;
+      animation: lohnChipPulse 1.6s ease-in-out infinite;
     }
+    @keyframes lohnChipPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+      50% { box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18); }
+    }
+    .lohn-field-chips { display: flex; flex-wrap: wrap; gap: 0.28rem; margin-top: 0.35rem; }
+    .lohn-field-chip {
+      font-size: 0.66rem; padding: 0.12rem 0.4rem; border-radius: 6px;
+      border: 1px solid rgba(251, 191, 36, 0.4); color: #fbbf24; background: rgba(251, 191, 36, 0.08);
+    }
+    .lohn-batch-bar {
+      display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: end;
+      padding: 0.55rem 0 0.15rem;
+    }
+    .lohn-batch-bar label {
+      display: grid; gap: 0.2rem; font-size: 0.68rem; color: var(--muted);
+    }
+    .lohn-batch-bar input[type="month"] {
+      font-size: 0.78rem; padding: 0.32rem 0.45rem; border-radius: 8px;
+      border: 1px solid var(--border); background: #0c1218; color: var(--text);
+    }
+    .lohn-batch-hint { font-size: 0.68rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.35; }
+    .lohn-batch-status { font-size: 0.72rem; margin-top: 0.4rem; color: var(--accent); }
+    .lohn-batch-status.err { color: var(--danger); }
   </style>
 </head>
 <body class="ops-app">
@@ -176,7 +202,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260731lohn1"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260731lohn2"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -242,6 +268,7 @@
         dataAlertsDismiss: "Gelesen / ausblenden",
         dataAlertsDismissFailed: "Konnte nicht ausblenden",
         dataAlertsFields: "Fehlt: {fields}",
+        dataAlertsOpenWorker: "Stammdaten öffnen",
         lohnMessagesLabel: "WorkPass Lohn — Posteingang",
         lohnMessagesNone: "Keine ungelesenen Lohn-Nachrichten",
         lohnMessagesPending: "{n} ungelesen",
@@ -255,8 +282,20 @@
         lohnMessagesBannerHint: "Wie am Handy: Mitteilung wegwischen — bleibt ungelesen im Posteingang",
         lohnMessagesToastEyebrow: "Neue Mitteilung · WorkPass Lohn",
         lohnMessagesUnreadBadge: "Ungelesen",
+        lohnMessagesOpenWorker: "Stammdaten",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Mitteilungen · Posteingang · Freigaben",
+        lohnHubSub: "Mitteilungen · Posteingang · Freigaben · Monats-Batch",
+        lohnBatchLabel: "Monats-Batch an WorkPass Lohn",
+        lohnBatchPeriod: "Periode",
+        lohnBatchSend: "Stunden an Lohn senden",
+        lohnBatchPush: "Batch erneut pushen",
+        lohnBatchHint: "Sendet Stunden/Stammdaten an WorkPass Lohn. Lohnabrechnungen werden nie automatisch freigegeben — Freigabe bleibt manuell.",
+        lohnBatchNeedCompany: "Bitte zuerst eine Firma wählen.",
+        lohnBatchOk: "Batch an Lohn gesendet.",
+        lohnBatchFailed: "Batch-Versand fehlgeschlagen",
+        lohnFieldTaxId: "Steuer-ID",
+        lohnFieldIban: "IBAN",
+        lohnFieldInsurance: "RV-Nummer",
         lohnLinkLabel: "WorkPass Lohn — Plattform-Link",
         lohnLinkOn: "Verbunden",
         lohnLinkOff: "Nicht verbunden",
@@ -343,6 +382,7 @@
         dataAlertsDismiss: "Mark read / dismiss",
         dataAlertsDismissFailed: "Could not dismiss",
         dataAlertsFields: "Missing: {fields}",
+        dataAlertsOpenWorker: "Open master data",
         lohnMessagesLabel: "WorkPass Lohn — inbox",
         lohnMessagesNone: "No unread Lohn messages",
         lohnMessagesPending: "{n} unread",
@@ -356,8 +396,20 @@
         lohnMessagesBannerHint: "Like a phone: swipe the alert away — it stays unread in the inbox",
         lohnMessagesToastEyebrow: "New alert · WorkPass Lohn",
         lohnMessagesUnreadBadge: "Unread",
+        lohnMessagesOpenWorker: "Master data",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Alerts · inbox · approvals",
+        lohnHubSub: "Alerts · inbox · approvals · monthly batch",
+        lohnBatchLabel: "Monthly batch to WorkPass Lohn",
+        lohnBatchPeriod: "Period",
+        lohnBatchSend: "Send hours to Lohn",
+        lohnBatchPush: "Re-push batch",
+        lohnBatchHint: "Sends hours/master data to WorkPass Lohn. Payslips are never auto-approved — approval stays manual.",
+        lohnBatchNeedCompany: "Select a company first.",
+        lohnBatchOk: "Batch sent to Lohn.",
+        lohnBatchFailed: "Batch send failed",
+        lohnFieldTaxId: "Tax ID",
+        lohnFieldIban: "IBAN",
+        lohnFieldInsurance: "Social security no.",
         lohnLinkLabel: "WorkPass Lohn — platform link",
         lohnLinkOn: "Connected",
         lohnLinkOff: "Not connected",
@@ -443,6 +495,7 @@
         dataAlertsDismiss: "مقروء / إخفاء",
         dataAlertsDismissFailed: "تعذر الإخفاء",
         dataAlertsFields: "ناقص: {fields}",
+        dataAlertsOpenWorker: "فتح البيانات الأساسية",
         lohnMessagesLabel: "WorkPass Lohn — البريد الوارد",
         lohnMessagesNone: "لا توجد رسائل غير مقروءة",
         lohnMessagesPending: "{n} غير مقروء",
@@ -456,8 +509,20 @@
         lohnMessagesBannerHint: "مثل الهاتف: أغلق الإشعار — تبقى غير مقروءة في البريد",
         lohnMessagesToastEyebrow: "إشعار جديد · WorkPass Lohn",
         lohnMessagesUnreadBadge: "غير مقروء",
+        lohnMessagesOpenWorker: "البيانات الأساسية",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "إشعارات · بريد · موافقات",
+        lohnHubSub: "إشعارات · بريد · موافقات · دفعة شهرية",
+        lohnBatchLabel: "دفعة شهرية إلى WorkPass Lohn",
+        lohnBatchPeriod: "الفترة",
+        lohnBatchSend: "إرسال الساعات إلى Lohn",
+        lohnBatchPush: "إعادة دفع الدفعة",
+        lohnBatchHint: "يرسل الساعات/البيانات إلى WorkPass Lohn. كشوف الأجور لا تُعتمد تلقائياً — الاعتماد يبقى يدوياً.",
+        lohnBatchNeedCompany: "اختر شركة أولاً.",
+        lohnBatchOk: "تم إرسال الدفعة إلى Lohn.",
+        lohnBatchFailed: "فشل إرسال الدفعة",
+        lohnFieldTaxId: "الرقم الضريبي",
+        lohnFieldIban: "IBAN",
+        lohnFieldInsurance: "رقم التأمين",
         lohnLinkLabel: "WorkPass Lohn — ربط المنصة",
         lohnLinkOn: "متصل",
         lohnLinkOff: "غير متصل",
@@ -723,12 +788,12 @@
         const company = String(b.company_id || b.companyId || "");
         return `<div class="lohn-item">
           <div>
-            <div class="lohn-item-title">${period} · ${count}</div>
-            <div class="lohn-item-meta">${company || "—"}</div>
+            <div class="lohn-item-title">${escapeLohnHtml(period)} · ${escapeLohnHtml(String(count))}</div>
+            <div class="lohn-item-meta">${escapeLohnHtml(company || "—")}</div>
           </div>
           <div class="lohn-item-actions">
-            <button type="button" class="primary" data-payroll="approve" data-id="${id}">${tr("payrollApprove")}</button>
-            <button type="button" data-payroll="reject" data-id="${id}">${tr("payrollReject")}</button>
+            <button type="button" class="primary" data-payroll="approve" data-id="${escapeLohnHtml(id)}">${tr("payrollApprove")}</button>
+            <button type="button" data-payroll="reject" data-id="${escapeLohnHtml(id)}">${tr("payrollReject")}</button>
           </div>
         </div>`;
       }).join("") || `<div class="lohn-empty">${tr("payrollNone")}</div>`;
@@ -738,6 +803,93 @@
           <div class="lohn-section-hint">${head}</div>
         </div>
         ${rows}
+      </div>`;
+    }
+
+    function defaultLohnPeriod() {
+      const d = new Date();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() - 1);
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    }
+
+    function labelLohnField(field) {
+      const key = String(field || "").trim();
+      const lower = key.toLowerCase();
+      if (lower === "taxid" || lower === "tax_id" || lower === "employee_tax_id") return tr("lohnFieldTaxId");
+      if (lower === "iban" || lower === "employee_iban") return tr("lohnFieldIban");
+      if (lower === "insurancenumber" || lower === "insurance_number" || lower === "sozialversicherung") {
+        return tr("lohnFieldInsurance");
+      }
+      return key;
+    }
+
+    function renderLohnFieldChips(fields) {
+      const list = Array.isArray(fields) ? fields : [];
+      if (!list.length) return "";
+      return `<div class="lohn-field-chips">${list
+        .slice(0, 8)
+        .map((f) => `<span class="lohn-field-chip">${escapeLohnHtml(labelLohnField(f))}</span>`)
+        .join("")}</div>`;
+    }
+
+    function workerStammdatenUrl(cid, workerId, fields) {
+      const wid = String(workerId || "").trim();
+      if (!wid) return "";
+      const company = String(cid || companyId || "").trim();
+      const fieldList = Array.isArray(fields) ? fields.map((f) => String(f).trim()).filter(Boolean) : [];
+      const payrollish = fieldList.some((f) => {
+        const x = f.toLowerCase();
+        return x.includes("iban") || x.includes("tax") || x.includes("steuer");
+      });
+      if (payrollish || !fieldList.length) {
+        const u = new URL("/admin-v2/contracts.html", location.origin);
+        if (company) u.searchParams.set("company_id", company);
+        u.searchParams.set("worker_id", wid);
+        u.searchParams.set("focus", "payroll");
+        if (fieldList.length) u.searchParams.set("fields", fieldList.join(","));
+        return `${u.pathname}${u.search}`;
+      }
+      const u = new URL("/index.html", location.origin);
+      if (company) u.searchParams.set("company_id", company);
+      u.searchParams.set("view", "workers");
+      u.searchParams.set("worker_id", wid);
+      u.hash = "workers";
+      return `${u.pathname}${u.search}${u.hash}`;
+    }
+
+    function stammdatenButtonHtml(cid, workerId, fields, labelKey) {
+      const href = workerStammdatenUrl(cid, workerId, fields);
+      if (!href) return "";
+      return `<a class="primary" href="${escapeLohnHtml(href)}" target="_blank" rel="noopener">${tr(labelKey || "lohnMessagesOpenWorker")}</a>`;
+    }
+
+    function messageMissingFields(m) {
+      if (Array.isArray(m?.missingFields) && m.missingFields.length) return m.missingFields;
+      const payload = m?.payload && typeof m.payload === "object" ? m.payload : {};
+      const raw = payload.missingFields || payload.fields || [];
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") return raw.split(",").map((s) => s.trim()).filter(Boolean);
+      return [];
+    }
+
+    function renderLohnBatchSection() {
+      const period = defaultLohnPeriod();
+      return `<div class="lohn-section" id="lohnBatchCard">
+        <div class="lohn-section-head">
+          <div>
+            <div class="lohn-section-title">${tr("lohnBatchLabel")}</div>
+            <div class="lohn-section-hint">${tr("lohnBatchHint")}</div>
+          </div>
+        </div>
+        <div class="lohn-batch-bar">
+          <label>${tr("lohnBatchPeriod")}
+            <input type="month" id="lohnBatchPeriod" value="${escapeLohnHtml(period)}" />
+          </label>
+          <button type="button" class="primary" id="lohnBatchSendBtn">${tr("lohnBatchSend")}</button>
+          <button type="button" id="lohnBatchPushBtn">${tr("lohnBatchPush")}</button>
+        </div>
+        <div class="lohn-batch-status" id="lohnBatchStatus" hidden></div>
       </div>`;
     }
 
@@ -752,19 +904,23 @@
           || String(a.employeeId || a.workerId || "—");
         const period = String(a.period || "—");
         const company = String(a.companyId || "");
-        const fields = Array.isArray(a.missingFields) ? a.missingFields.join(", ") : "";
+        const fields = Array.isArray(a.missingFields) ? a.missingFields : [];
+        const fieldsJoined = fields.join(", ");
         const msg = String(a.message || "").trim();
-        const detail = fields
-          ? tr("dataAlertsFields", { fields })
+        const detail = fieldsJoined
+          ? tr("dataAlertsFields", { fields: fieldsJoined })
           : (msg || "—");
+        const openBtn = stammdatenButtonHtml(company, a.workerId || a.employeeId, fields, "dataAlertsOpenWorker");
         return `<div class="lohn-item unread">
           <div>
-            <div class="lohn-item-title">${name}</div>
-            <div class="lohn-item-body">${detail}${msg && fields ? ` — ${msg}` : ""}</div>
-            <div class="lohn-item-meta">${period} · ${company || "—"}</div>
+            <div class="lohn-item-title">${escapeLohnHtml(name)}</div>
+            <div class="lohn-item-body">${escapeLohnHtml(detail)}${msg && fieldsJoined ? ` — ${escapeLohnHtml(msg)}` : ""}</div>
+            ${renderLohnFieldChips(fields)}
+            <div class="lohn-item-meta">${escapeLohnHtml(period)} · ${escapeLohnHtml(company || "—")}</div>
           </div>
           <div class="lohn-item-actions">
-            <button type="button" data-data-alert="dismiss" data-id="${id}">${tr("dataAlertsDismiss")}</button>
+            ${openBtn}
+            <button type="button" data-data-alert="dismiss" data-id="${escapeLohnHtml(id)}">${tr("dataAlertsDismiss")}</button>
           </div>
         </div>`;
       }).join("") || `<div class="lohn-empty">${tr("dataAlertsNone")}</div>`;
@@ -791,13 +947,17 @@
         const name = escapeLohnHtml([m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
           || String(m.workerId || ""));
         const meta = [period, company, name].filter(Boolean).join(" · ") || "—";
+        const fields = messageMissingFields(m);
+        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields);
         return `<div class="lohn-item unread" data-lohn-msg="${id}">
           <div>
             <div class="lohn-item-title">${subject} <span class="lohn-pill warn">${tr("lohnMessagesUnreadBadge")}</span></div>
             ${body ? `<div class="lohn-item-body">${body.slice(0, 220)}</div>` : ""}
+            ${renderLohnFieldChips(fields)}
             <div class="lohn-item-meta">${meta}</div>
           </div>
           <div class="lohn-item-actions">
+            ${openWorker}
             <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
           </div>
         </div>`;
@@ -827,15 +987,19 @@
         const body = escapeLohnHtml(String(m.body || "").trim());
         const company = escapeLohnHtml(m.companyId || "");
         const period = escapeLohnHtml(m.period || "");
+        const fields = messageMissingFields(m);
+        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields);
         return `<div class="lohn-toast" data-toast-id="${id}">
           <div class="lohn-toast-badge" aria-hidden="true">WL</div>
           <div>
             <div class="lohn-toast-meta">${tr("lohnMessagesToastEyebrow")}</div>
             <div class="lohn-toast-title">${subject}</div>
             ${body ? `<div class="lohn-toast-body">${body.slice(0, 160)}</div>` : ""}
+            ${renderLohnFieldChips(fields)}
             <div class="lohn-toast-meta">${[company, period].filter(Boolean).join(" · ")}</div>
           </div>
           <div class="lohn-toast-actions">
+            ${openWorker}
             <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
             <button type="button" class="ghost" data-lohn-msg="dismiss-banner" data-id="${id}">${tr("lohnMessagesBannerDismiss")}</button>
           </div>
@@ -945,6 +1109,7 @@
         <div class="lohn-hub-body">
           ${renderLohnMessagesSection(lohnMessages)}
           ${renderDataAlertsSection(dataAlerts)}
+          ${renderLohnBatchSection()}
           ${renderPayrollCard(payrollBatches)}
           ${renderLohnLinkSection(lohnLink)}
         </div>
@@ -1132,6 +1297,84 @@
       });
     }
 
+    function setLohnBatchStatus(text, isError) {
+      const el = document.getElementById("lohnBatchStatus");
+      if (!el) return;
+      if (!text) {
+        el.hidden = true;
+        el.textContent = "";
+        el.classList.remove("err");
+        return;
+      }
+      el.hidden = false;
+      el.textContent = text;
+      el.classList.toggle("err", !!isError);
+    }
+
+    function wireLohnBatchActions() {
+      const resolveCompany = () =>
+        companyId ||
+        String(lastPayload?.companies?.[0]?.id || lastPayload?.companies?.[0]?.companyId || "").trim();
+      const periodValue = () => {
+        const raw = String(document.getElementById("lohnBatchPeriod")?.value || "").trim();
+        return raw || defaultLohnPeriod();
+      };
+      document.getElementById("lohnBatchSendBtn")?.addEventListener("click", async () => {
+        const cid = resolveCompany();
+        if (!cid) {
+          alert(tr("lohnBatchNeedCompany"));
+          return;
+        }
+        const btn = document.getElementById("lohnBatchSendBtn");
+        if (btn) btn.disabled = true;
+        setLohnBatchStatus("…");
+        try {
+          const res = await api("/api/payroll/accounting/export-now", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId: cid, period: periodValue(), notify: true }),
+          });
+          if (res && res.ok === false) {
+            throw new Error(res.error || tr("lohnBatchFailed"));
+          }
+          setLohnBatchStatus(tr("lohnBatchOk"), false);
+          await load();
+        } catch (e) {
+          setLohnBatchStatus(e.message || tr("lohnBatchFailed"), true);
+          alert(e.message || tr("lohnBatchFailed"));
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      });
+      document.getElementById("lohnBatchPushBtn")?.addEventListener("click", async () => {
+        const cid = resolveCompany();
+        if (!cid) {
+          alert(tr("lohnBatchNeedCompany"));
+          return;
+        }
+        const btn = document.getElementById("lohnBatchPushBtn");
+        if (btn) btn.disabled = true;
+        setLohnBatchStatus("…");
+        try {
+          const res = await api("/api/payroll/accounting/push-payroll-batch", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ companyId: cid, period: periodValue() }),
+          });
+          if (res && res.ok === false) {
+            throw new Error(res.error || tr("lohnBatchFailed"));
+          }
+          setLohnBatchStatus(tr("lohnBatchOk"), false);
+          await load();
+        } catch (e) {
+          setLohnBatchStatus(e.message || tr("lohnBatchFailed"), true);
+          alert(e.message || tr("lohnBatchFailed"));
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      });
+    }
+
     async function loadPayrollPending() {
       try {
         let url = "/api/payroll/statements/pending";
@@ -1255,6 +1498,7 @@
       wirePayrollActions();
       wireDataAlertActions();
       wireLohnMessageActions();
+      wireLohnBatchActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
     }

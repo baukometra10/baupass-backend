@@ -365,6 +365,13 @@ def list_pending_accounting_messages(
         banner_dismissed = bool(str(data.get("banner_dismissed_at") or "").strip())
         if not banner_dismissed:
             banner_dismissed = bool(payload.get("bannerDismissed") or payload.get("banner_dismissed"))
+        raw_fields = payload.get("missingFields") or payload.get("fields") or []
+        if isinstance(raw_fields, str):
+            raw_fields = [p.strip() for p in raw_fields.split(",") if p.strip()]
+        if not isinstance(raw_fields, list):
+            raw_fields = []
+        missing_fields = [str(f).strip() for f in raw_fields if str(f).strip()][:40]
+        worker_id = str(data.get("worker_id") or payload.get("workerId") or payload.get("employeeId") or "").strip()
         out.append(
             {
                 "id": data.get("id"),
@@ -375,9 +382,10 @@ def list_pending_accounting_messages(
                 "subject": data.get("subject") or "",
                 "body": data.get("body") or "",
                 "period": data.get("period") or "",
-                "workerId": data.get("worker_id") or "",
+                "workerId": worker_id,
                 "workerFirstName": data.get("first_name") or "",
                 "workerLastName": data.get("last_name") or "",
+                "missingFields": missing_fields,
                 "status": data.get("status") or "pending",
                 "receivedAt": data.get("received_at"),
                 "bannerDismissedAt": data.get("banner_dismissed_at"),
@@ -698,6 +706,22 @@ def create_test_accounting_message(
     ).strip()[:4000]
     period = (period or "").strip()[:7]
     worker_id = (worker_id or "").strip()
+    if not worker_id:
+        try:
+            row = db.execute(
+                """
+                SELECT id FROM workers
+                WHERE company_id = ?
+                  AND deleted_at IS NULL
+                LIMIT 1
+                """,
+                (company_id,),
+            ).fetchone()
+            if row:
+                worker_id = str(row["id"] or "").strip()
+        except Exception:
+            worker_id = ""
+    missing_fields = ["taxId", "iban"] if (kind or "").startswith("missing") else []
     stored = upsert_accounting_messages(
         db,
         [
@@ -712,7 +736,7 @@ def create_test_accounting_message(
                 "period": period,
                 "workerId": worker_id,
                 "employeeId": worker_id,
-                "missingFields": ["taxId", "iban"] if (kind or "").startswith("missing") else [],
+                "missingFields": missing_fields,
                 "test": True,
                 "createdAt": now,
             }

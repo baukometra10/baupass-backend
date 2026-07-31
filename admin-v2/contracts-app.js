@@ -1286,11 +1286,66 @@
       void window.E2EAdminBridge?.ensureIdentity?.();
       window.E2EAdminBridge?.mountSecurityPanel?.(document.getElementById("e2eSecurityHost"), { companyId });
       const preWorker = params.get("worker_id") || "";
-      loadTemplates().then(() => loadWorkers()).then(loadContracts).then(checkIntegrations).then(() => {
+      const focusPayroll = String(params.get("focus") || "").toLowerCase() === "payroll";
+      const highlightFields = String(params.get("fields") || "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      function highlightPayrollFields(fields) {
+        const map = {
+          taxid: "employeeTaxId",
+          tax_id: "employeeTaxId",
+          employee_tax_id: "employeeTaxId",
+          steuernummer: "employeeTaxId",
+          steuer_id: "employeeTaxId",
+          iban: "employeeIban",
+          employee_iban: "employeeIban",
+        };
+        const ids = new Set();
+        (fields || []).forEach((f) => {
+          const key = String(f || "").trim().toLowerCase();
+          if (map[key]) ids.add(map[key]);
+          if (key.includes("iban")) ids.add("employeeIban");
+          if (key.includes("tax") || key.includes("steuer")) ids.add("employeeTaxId");
+        });
+        if (!ids.size && focusPayroll) {
+          ids.add("employeeIban");
+          ids.add("employeeTaxId");
+        }
+        ids.forEach((id) => {
+          const el = document.getElementById(id);
+          const label = el?.closest("label");
+          el?.classList.add("field-error");
+          label?.classList.add("field-error");
+        });
+        const first = document.getElementById([...ids][0] || "employeeIban") || document.getElementById("employeeTaxId");
+        if (first) {
+          first.scrollIntoView({ behavior: "smooth", block: "center" });
+          try { first.focus({ preventScroll: true }); } catch { /* ignore */ }
+        }
+      }
+
+      loadTemplates().then(() => loadWorkers()).then(loadContracts).then(checkIntegrations).then(async () => {
         if (preWorker) {
           document.getElementById("workerPicker").value = preWorker;
           document.getElementById("workerId").value = preWorker;
           document.getElementById("workerPicker").dispatchEvent(new Event("change"));
+          const match = (contracts || []).find((row) => String(row.worker_id || "") === String(preWorker));
+          if (match?.id) {
+            try {
+              const data = await api(`/api/contracts/${encodeURIComponent(match.id)}?company_id=${encodeURIComponent(companyId)}`);
+              currentContractId = data.id || "";
+              await fillFormFromContract(data);
+              setStatus(`${data.title || data.id}`, { active: true });
+              renderContractList();
+            } catch (e) {
+              setStatus(e.message || "contract_open_failed", { error: true });
+            }
+          }
+          highlightPayrollFields(highlightFields);
+        } else if (focusPayroll || highlightFields.length) {
+          highlightPayrollFields(highlightFields);
         }
       }).catch((e) => { setStatus(e.message, { error: true }); });
     });

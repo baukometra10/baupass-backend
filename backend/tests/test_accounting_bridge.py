@@ -550,7 +550,10 @@ def test_create_test_accounting_message_for_live_check():
     assert out["message"]["bannerVisible"] is True
     assert out["message"]["companyId"] == "c1"
     assert "Test" in out["message"]["subject"] or out["message"]["subject"]
-    assert len(messages_inbox.list_pending_accounting_messages(db, company_id="c1")) >= 1
+    assert out["message"].get("missingFields") == ["taxId", "iban"]
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending) >= 1
+    assert pending[0].get("missingFields") == ["taxId", "iban"]
 
 
 def test_platform_webhook_auth_master_key():

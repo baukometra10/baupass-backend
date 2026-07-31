@@ -1063,6 +1063,39 @@ function updateInboxTabBadge(open, critical) {
   paintInboxBadge($("inboxMobileBadge"), open, critical);
 }
 
+function paintLohnBadge(el, count) {
+  if (!el) return;
+  const n = Number(count) || 0;
+  if (n <= 0) {
+    el.classList.add("hidden");
+    el.textContent = "";
+    el.removeAttribute("title");
+    return;
+  }
+  el.classList.remove("hidden");
+  el.textContent = String(n);
+  el.title = t("lohn.badgeTooltip", { n });
+}
+
+function updateLohnNavBadge(count) {
+  paintLohnBadge($("lohnOpsBadge"), count);
+  paintLohnBadge($("lohnOpsMobileBadge"), count);
+}
+
+async function refreshLohnBadgeOnly() {
+  const q = companyQuery();
+  if (getUser().role === "superadmin" && !q) {
+    updateLohnNavBadge(0);
+    return;
+  }
+  try {
+    const data = await api(`/api/payroll/accounting/messages${q}`);
+    updateLohnNavBadge(data.count ?? (data.messages || []).length);
+  } catch {
+    /* ignore — Lohn optional per company */
+  }
+}
+
 async function refreshInboxBadgeOnly() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
@@ -1076,6 +1109,7 @@ async function refreshInboxBadgeOnly() {
   } catch {
     /* ignore */
   }
+  refreshLohnBadgeOnly().catch(() => {});
 }
 
 function scheduleOverviewReload() {
@@ -5955,6 +5989,7 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
+      <a href="/ops-command-center.html${q}#lohnHub" target="_blank" rel="noopener" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></a>
       <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
       <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
       <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
@@ -5965,6 +6000,12 @@ async function loadOverview() {
       switchToTab("operations");
       await loadOperations();
     });
+    refreshLohnBadgeOnly()
+      .then(() => {
+        const n = Number($("lohnOpsBadge")?.textContent || 0);
+        paintLohnBadge($("opsStripLohnBadge"), n);
+      })
+      .catch(() => {});
   } else if (strip) {
     strip.classList.add("hidden");
   }
