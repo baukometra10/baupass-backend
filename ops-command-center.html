@@ -202,7 +202,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260731lohn2"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260731lohn3"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -1216,20 +1216,37 @@
     }
 
     function wireLohnMessageActions() {
-      document.querySelectorAll("[data-lohn-msg='open']").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          if (!id) return;
-          try {
-            await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/open`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: "{}",
-            });
-            await load();
-          } catch (e) {
-            alert(e.message || tr("lohnMessagesOpenFailed"));
+      const openMessage = async (btn) => {
+        const id = btn.getAttribute("data-id");
+        if (!id) return;
+        btn.disabled = true;
+        const prev = btn.textContent;
+        btn.textContent = "…";
+        // Optimistic: hide toast + inbox row immediately
+        document.querySelector(`[data-toast-id="${CSS.escape(id)}"]`)?.remove();
+        document.querySelector(`.lohn-item[data-lohn-msg="${CSS.escape(id)}"]`)?.remove();
+        try {
+          const res = await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/open`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: "{}",
+          });
+          if (res && res.ok === false) {
+            throw new Error(res.error || tr("lohnMessagesOpenFailed"));
           }
+          await load();
+        } catch (e) {
+          alert(e.message || tr("lohnMessagesOpenFailed"));
+          btn.disabled = false;
+          btn.textContent = prev || tr("lohnMessagesOpen");
+          await load();
+        }
+      };
+      document.querySelectorAll("[data-lohn-msg='open']").forEach((btn) => {
+        btn.addEventListener("click", async (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          await openMessage(btn);
         });
       });
       document.querySelectorAll("[data-lohn-msg='dismiss-banner']").forEach((btn) => {

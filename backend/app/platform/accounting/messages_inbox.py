@@ -600,15 +600,43 @@ def ack_message_to_lohn(
     from .platform_link import _post_lohn_json
 
     ensure_accounting_schema(db)
-    row = db.execute("SELECT * FROM accounting_messages WHERE id = ?", (message_id,)).fetchone()
+    mid = str(message_id or "").strip()
+    if not mid:
+        return {"ok": False, "error": "not_found"}
+    row = db.execute("SELECT * FROM accounting_messages WHERE id = ?", (mid,)).fetchone()
+    if not row:
+        # UI / Lohn may pass external message id
+        row = db.execute(
+            "SELECT * FROM accounting_messages WHERE external_id = ?", (mid,)
+        ).fetchone()
     if not row:
         return {"ok": False, "error": "not_found"}
     if company_id and str(row["company_id"]) != str(company_id):
         return {"ok": False, "error": "forbidden_company"}
+
+    local_id = str(row["id"])
+    if str(row["status"] or "") == "acked":
+        return {
+            "ok": True,
+            "id": local_id,
+            "externalId": str(row["external_id"] or ""),
+            "status": "acked",
+            "alreadyAcked": True,
+        }
+
     now = _now()
+    # Local ack first so Ops inbox clears even if Lohn is slow/unreachable.
     db.execute(
-        "UPDATE accounting_messages SET read_at = COALESCE(read_at, ?), updated_at = ? WHERE id = ?",
-        (now, now, message_id),
+        """
+        UPDATE accounting_messages
+        SET status = 'acked',
+            read_at = COALESCE(read_at, ?),
+            acked_at = ?,
+            ack_error = '',
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now, now, now, local_id),
     )
     try:
         db.commit()
@@ -617,21 +645,24 @@ def ack_message_to_lohn(
 
     link = get_platform_link(db)
     external_id = str(row["external_id"] or "")
+    company_for_lohn = str(row["company_id"] or "")
     body = {
         "messageId": external_id,
         "id": external_id,
-        "companyId": row["company_id"],
+        "companyId": company_for_lohn,
         "event": EVENT_ACCOUNTING_MESSAGE,
         "ackedAt": now,
         "ackedBy": str(actor_user_id or "")[:80],
     }
     ack_remote: dict[str, Any]
     if link.get("enabled") and str(link.get("base_url") or "").strip() and external_id:
+        # Short timeout: local inbox already cleared; remote ack is best-effort.
         ack_remote = _post_lohn_json(
             link,
             path=MESSAGES_ACK_PATH,
             body=body,
             event="messages.ack",
+            timeout=8,
         )
         if not ack_remote.get("ok") and int(ack_remote.get("status") or 0) == 404:
             ack_remote = _post_lohn_json(
@@ -639,6 +670,7 @@ def ack_message_to_lohn(
                 path=f"/v1/messages/{urlparse.quote(external_id)}/ack",
                 body=body,
                 event="messages.ack",
+                timeout=8,
             )
     else:
         ack_remote = {"skipped": "platform_link_or_external_id_missing"}
@@ -646,22 +678,22 @@ def ack_message_to_lohn(
     err = ""
     if not ack_remote.get("ok") and not ack_remote.get("skipped"):
         err = str(ack_remote.get("error") or ack_remote.get("status") or "ack_failed")[:200]
+        db.execute(
+            """
+            UPDATE accounting_messages
+            SET ack_error = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (err, now, local_id),
+        )
+        try:
+            db.commit()
+        except Exception:
+            pass
 
-    db.execute(
-        """
-        UPDATE accounting_messages
-        SET status = 'acked', acked_at = ?, ack_error = ?, updated_at = ?
-        WHERE id = ?
-        """,
-        (now, err, now, message_id),
-    )
-    try:
-        db.commit()
-    except Exception:
-        pass
     result: dict[str, Any] = {
         "ok": True,
-        "id": message_id,
+        "id": local_id,
         "externalId": external_id,
         "status": "acked",
         "ack": ack_remote,

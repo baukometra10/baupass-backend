@@ -485,6 +485,51 @@ def test_accounting_messages_inbox_upsert_and_ack(monkeypatch):
     assert acked["status"] == "acked"
     assert posts[0]["path"] == "/v1/messages/ack"
     assert posts[0]["body"]["messageId"] == "msg-1"
+    assert posts[0]["body"]["companyId"] == "c1"
+    assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
+
+    # Idempotent: already acked
+    again = messages_inbox.ack_message_to_lohn(
+        db, message_id=pending[0]["id"], actor_user_id="admin-1", company_id="c1"
+    )
+    assert again["ok"] is True
+    assert again.get("alreadyAcked") is True
+
+
+def test_ack_clears_inbox_even_if_lohn_remote_fails(monkeypatch):
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db()
+    platform_link.save_platform_link(
+        db, enabled=True, base_url="https://lohn.test", master_api_key="master-secret"
+    )
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-remote-fail",
+                "companyId": "c1",
+                "kind": "info",
+                "subject": "Hallo",
+                "body": "x",
+            }
+        ],
+    )
+    assert stored["createdCount"] == 1
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending) == 1
+
+    def _fail_post(link, *, path, body, event, timeout=20):
+        return {"ok": False, "status": 503, "error": "lohn_down"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fail_post)
+    # Also accept ack by external id
+    acked = messages_inbox.ack_message_to_lohn(
+        db, message_id="msg-remote-fail", actor_user_id="admin-1"
+    )
+    assert acked["ok"] is True
+    assert acked["status"] == "acked"
+    assert acked.get("warning") == "ack_remote_failed"
     assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
 
 

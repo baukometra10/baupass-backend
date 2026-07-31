@@ -233,6 +233,7 @@ def _post_lohn_json(
     path: str,
     body: dict[str, Any],
     event: str,
+    timeout: float = 20,
 ) -> dict[str, Any]:
     base = str(link.get("base_url") or "").rstrip("/")
     if not base:
@@ -244,9 +245,10 @@ def _post_lohn_json(
     ts = str(int(time.time()))
     master = str(link.get("master_api_key") or "").strip()
     company_id = str(
-        body.get("id")
-        or body.get("companyId")
+        body.get("companyId")
+        or body.get("company_id")
         or (body.get("login") or {}).get("companyId")
+        or body.get("id")
         or ""
     )
     if not master:
@@ -270,7 +272,7 @@ def _post_lohn_json(
     }
     req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
     try:
-        with urlrequest.urlopen(req, timeout=20) as resp:
+        with urlrequest.urlopen(req, timeout=max(2.0, float(timeout or 20))) as resp:
             return {
                 "ok": True,
                 "status": int(resp.status),
