@@ -121,9 +121,10 @@ POST /api/v2/accounting/company/upsert
 - Webhook على المنصة: `POST /api/v2/accounting/webhook` (= `WORKPASS_PLATFORM_WEBHOOK_URL`)
 - سحب: المنصة تستدعي `{LOHN}/v1/messages/pending`
 - عند الفتح في Ops: Ack → `{LOHN}/v1/messages/ack` ثم تختفي الرسالة
-- Toast + Posteingang: Deep-Link **Stammdaten** عند وجود `workerId` / `missingFields`
-- Admin-v2: Nav-Badge على Tab «Betrieb» + Strip-Link «WorkPass Lohn»
-- Ops: Ein-Klick **Monats-Batch** (`export-now` / `push-payroll-batch`) — **kein Auto-Approve** للـ Payslips
+- Toast + Posteingang: Deep-Link **Stammdaten** bei vorhandenem `workerId` / `missingFields`
+- **Öffnen & ergänzen** bestätigt lokal und öffnet Vertrags-Stammdaten (IBAN/Steuer-ID) — Sync darf bestätigte/weggewischte Mitteilungen nicht wiederbeleben
+- Admin-v2: Nav-Badge auf Tab «Betrieb» + Strip-Link «WorkPass Lohn»
+- Ops: Ein-Klick **Monats-Batch** (`export-now` / `push-payroll-batch`) — **kein Auto-Approve** für Payslips
 
 ### شركة (مرآة upsert)
 

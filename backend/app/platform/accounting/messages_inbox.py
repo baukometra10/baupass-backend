@@ -160,6 +160,7 @@ def upsert_accounting_messages(
     ensure_accounting_schema(db)
     created = 0
     updated = 0
+    skipped_acked = 0
     ids: list[str] = []
     now = _now()
     for raw in messages or []:
@@ -168,7 +169,8 @@ def upsert_accounting_messages(
             continue
         existing = db.execute(
             """
-            SELECT id, status FROM accounting_messages
+            SELECT id, status, banner_dismissed_at, payload_json, subject, body, kind, period, worker_id
+            FROM accounting_messages
             WHERE company_id = ? AND external_id = ?
             LIMIT 1
             """,
@@ -176,51 +178,90 @@ def upsert_accounting_messages(
         ).fetchone()
         payload_json = json.dumps(norm["payload"], ensure_ascii=False)
         if existing:
-            # Re-open banner for fresh/updated Lohn messages
+            existing_status = str(existing["status"] or "").strip().lower()
+            # Locally confirmed messages must not reappear when Lohn still lists them pending.
+            if existing_status == "acked":
+                skipped_acked += 1
+                ids.append(str(existing["id"]))
+                continue
+
             try:
-                existing_payload = json.loads(
-                    (db.execute("SELECT payload_json FROM accounting_messages WHERE id = ?", (existing["id"],)).fetchone() or {})["payload_json"]
-                    or "{}"
-                )
+                existing_payload = json.loads(existing["payload_json"] or "{}")
             except Exception:
                 existing_payload = {}
-            if isinstance(existing_payload, dict):
-                existing_payload.pop("bannerDismissed", None)
-                existing_payload.pop("banner_dismissed", None)
-                existing_payload.pop("bannerDismissedAt", None)
-            merged_payload = {**(existing_payload if isinstance(existing_payload, dict) else {}), **(norm["payload"] if isinstance(norm["payload"], dict) else {})}
-            merged_payload.pop("bannerDismissed", None)
-            merged_payload.pop("banner_dismissed", None)
+            if not isinstance(existing_payload, dict):
+                existing_payload = {}
+
+            banner_dismissed_at = str(existing["banner_dismissed_at"] or "").strip()
+            banner_dismissed = bool(banner_dismissed_at) or bool(
+                existing_payload.get("bannerDismissed") or existing_payload.get("banner_dismissed")
+            )
+
+            merged_payload = {**existing_payload, **(norm["payload"] if isinstance(norm["payload"], dict) else {})}
+            if banner_dismissed:
+                # Keep toast dismissed across sync/webhook pulls of the same message.
+                merged_payload["bannerDismissed"] = True
+                if banner_dismissed_at:
+                    merged_payload["bannerDismissedAt"] = banner_dismissed_at
+                elif not merged_payload.get("bannerDismissedAt"):
+                    merged_payload["bannerDismissedAt"] = now
+            else:
+                merged_payload.pop("bannerDismissed", None)
+                merged_payload.pop("banner_dismissed", None)
+                merged_payload.pop("bannerDismissedAt", None)
             payload_json = json.dumps(merged_payload, ensure_ascii=False)
+
+            # Content refresh only — never clear local banner dismiss / never revive acked.
             try:
-                db.execute(
-                    """
-                    UPDATE accounting_messages
-                    SET event = ?, kind = ?, subject = ?, body = ?, period = ?, worker_id = ?,
-                        payload_json = ?, status = 'pending', updated_at = ?, ack_error = '',
-                        acked_at = NULL, banner_dismissed_at = NULL, received_at = ?
-                    WHERE id = ?
-                    """,
-                    (
-                        norm["event"],
-                        norm["kind"],
-                        norm["subject"],
-                        norm["body"],
-                        norm["period"],
-                        norm["workerId"],
-                        payload_json,
-                        now,
-                        now,
-                        existing["id"],
-                    ),
-                )
+                if banner_dismissed_at:
+                    db.execute(
+                        """
+                        UPDATE accounting_messages
+                        SET event = ?, kind = ?, subject = ?, body = ?, period = ?, worker_id = ?,
+                            payload_json = ?, status = 'pending', updated_at = ?, received_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            norm["event"],
+                            norm["kind"],
+                            norm["subject"],
+                            norm["body"],
+                            norm["period"],
+                            norm["workerId"],
+                            payload_json,
+                            now,
+                            now,
+                            existing["id"],
+                        ),
+                    )
+                else:
+                    db.execute(
+                        """
+                        UPDATE accounting_messages
+                        SET event = ?, kind = ?, subject = ?, body = ?, period = ?, worker_id = ?,
+                            payload_json = ?, status = 'pending', updated_at = ?,
+                            banner_dismissed_at = NULL, received_at = ?
+                        WHERE id = ?
+                        """,
+                        (
+                            norm["event"],
+                            norm["kind"],
+                            norm["subject"],
+                            norm["body"],
+                            norm["period"],
+                            norm["workerId"],
+                            payload_json,
+                            now,
+                            now,
+                            existing["id"],
+                        ),
+                    )
             except Exception:
                 db.execute(
                     """
                     UPDATE accounting_messages
                     SET event = ?, kind = ?, subject = ?, body = ?, period = ?, worker_id = ?,
-                        payload_json = ?, status = 'pending', updated_at = ?, ack_error = '',
-                        acked_at = NULL, received_at = ?
+                        payload_json = ?, status = 'pending', updated_at = ?, received_at = ?
                     WHERE id = ?
                     """,
                     (
@@ -318,7 +359,13 @@ def upsert_accounting_messages(
         db.commit()
     except Exception:
         pass
-    return {"ok": True, "createdCount": created, "updatedCount": updated, "ids": ids}
+    return {
+        "ok": True,
+        "createdCount": created,
+        "updatedCount": updated,
+        "skippedAckedCount": skipped_acked,
+        "ids": ids,
+    }
 
 
 def list_pending_accounting_messages(

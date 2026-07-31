@@ -560,6 +560,63 @@ def test_message_banner_dismiss_keeps_inbox_unread():
     assert pending2[0]["bannerVisible"] is False
     assert pending2[0]["status"] == "pending"
 
+    # Sync/webhook pull of the same message must NOT bring the toast back
+    messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-banner",
+                "companyId": "c1",
+                "subject": "Neue Mitteilung",
+                "body": "IBAN fehlt — bitte ergänzen",
+            }
+        ],
+    )
+    pending3 = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert len(pending3) == 1
+    assert pending3[0]["bannerVisible"] is False
+    assert pending3[0]["status"] == "pending"
+
+
+def test_acked_message_not_resurrected_by_lohn_sync():
+    from backend.app.platform.accounting import messages_inbox
+
+    db = _db()
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-acked-stay",
+                "companyId": "c1",
+                "subject": "Bankverbindung fehlt",
+                "body": "IBAN ergänzen",
+                "workerId": "w1",
+                "missingFields": ["iban"],
+            }
+        ],
+    )
+    mid = stored["ids"][0]
+    acked = messages_inbox.ack_message_to_lohn(db, message_id=mid, actor_user_id="u1")
+    assert acked["ok"] is True
+    assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
+
+    # Lohn still returns it as pending — platform must keep it acked
+    again = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-acked-stay",
+                "companyId": "c1",
+                "subject": "Bankverbindung fehlt",
+                "body": "IBAN ergänzen",
+                "workerId": "w1",
+                "missingFields": ["iban"],
+            }
+        ],
+    )
+    assert again.get("skippedAckedCount") == 1
+    assert messages_inbox.list_pending_accounting_messages(db, company_id="c1") == []
+
 
 def test_message_banner_dismiss_payload_fallback():
     """list_pending respects bannerDismissed inside payload_json (column fallback)."""

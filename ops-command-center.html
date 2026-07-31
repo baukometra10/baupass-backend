@@ -202,7 +202,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260731lohn3"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260731lohn4"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -272,7 +272,7 @@
         lohnMessagesLabel: "WorkPass Lohn — Posteingang",
         lohnMessagesNone: "Keine ungelesenen Lohn-Nachrichten",
         lohnMessagesPending: "{n} ungelesen",
-        lohnMessagesOpen: "Öffnen & bestätigen",
+        lohnMessagesOpen: "Öffnen & ergänzen",
         lohnMessagesOpenFailed: "Nachricht konnte nicht bestätigt werden",
         lohnMessagesSync: "Von Lohn holen",
         lohnMessagesTest: "Testnachricht",
@@ -386,7 +386,7 @@
         lohnMessagesLabel: "WorkPass Lohn — inbox",
         lohnMessagesNone: "No unread Lohn messages",
         lohnMessagesPending: "{n} unread",
-        lohnMessagesOpen: "Open & acknowledge",
+        lohnMessagesOpen: "Open & complete",
         lohnMessagesOpenFailed: "Could not acknowledge message",
         lohnMessagesSync: "Pull from Lohn",
         lohnMessagesTest: "Test message",
@@ -499,7 +499,7 @@
         lohnMessagesLabel: "WorkPass Lohn — البريد الوارد",
         lohnMessagesNone: "لا توجد رسائل غير مقروءة",
         lohnMessagesPending: "{n} غير مقروء",
-        lohnMessagesOpen: "فتح وتأكيد",
+        lohnMessagesOpen: "فتح وإكمال",
         lohnMessagesOpenFailed: "تعذر تأكيد الرسالة",
         lohnMessagesSync: "جلب من Lohn",
         lohnMessagesTest: "رسالة تجريبية",
@@ -833,23 +833,38 @@
         .join("")}</div>`;
     }
 
-    function workerStammdatenUrl(cid, workerId, fields) {
+    function inferMissingFields(m) {
+      const fields = messageMissingFields(m);
+      if (fields.length) return fields;
+      const text = `${m?.kind || ""} ${m?.subject || ""} ${m?.body || ""}`.toLowerCase();
+      const out = [];
+      if (/iban|bank|konto|verbindung|sepa|bic/.test(text)) out.push("iban");
+      if (/steuer|taxid|tax_id|steuerid|steuernummer/.test(text)) out.push("taxId");
+      if (/versicherung|rv-?nummer|sozialversicherung|insurance/.test(text)) out.push("insuranceNumber");
+      return out;
+    }
+
+    function workerStammdatenUrl(cid, workerId, fields, hintText) {
       const wid = String(workerId || "").trim();
-      if (!wid) return "";
       const company = String(cid || companyId || "").trim();
-      const fieldList = Array.isArray(fields) ? fields.map((f) => String(f).trim()).filter(Boolean) : [];
+      let fieldList = Array.isArray(fields) ? fields.map((f) => String(f).trim()).filter(Boolean) : [];
+      if (!fieldList.length && hintText) {
+        fieldList = inferMissingFields({ subject: hintText, body: hintText, kind: hintText });
+      }
       const payrollish = fieldList.some((f) => {
         const x = f.toLowerCase();
-        return x.includes("iban") || x.includes("tax") || x.includes("steuer");
-      });
-      if (payrollish || !fieldList.length) {
+        return x.includes("iban") || x.includes("tax") || x.includes("steuer") || x.includes("bank") || x.includes("bic");
+      }) || /iban|bank|konto|steuer|tax/.test(String(hintText || "").toLowerCase());
+      // Contracts holds IBAN / Steuer-ID — best place for Lohn missing-data / bank connection.
+      if (payrollish || fieldList.length || wid) {
         const u = new URL("/admin-v2/contracts.html", location.origin);
         if (company) u.searchParams.set("company_id", company);
-        u.searchParams.set("worker_id", wid);
+        if (wid) u.searchParams.set("worker_id", wid);
         u.searchParams.set("focus", "payroll");
         if (fieldList.length) u.searchParams.set("fields", fieldList.join(","));
         return `${u.pathname}${u.search}`;
       }
+      if (!wid) return "";
       const u = new URL("/index.html", location.origin);
       if (company) u.searchParams.set("company_id", company);
       u.searchParams.set("view", "workers");
@@ -858,8 +873,8 @@
       return `${u.pathname}${u.search}${u.hash}`;
     }
 
-    function stammdatenButtonHtml(cid, workerId, fields, labelKey) {
-      const href = workerStammdatenUrl(cid, workerId, fields);
+    function stammdatenButtonHtml(cid, workerId, fields, labelKey, hintText) {
+      const href = workerStammdatenUrl(cid, workerId, fields, hintText);
       if (!href) return "";
       return `<a class="primary" href="${escapeLohnHtml(href)}" target="_blank" rel="noopener">${tr(labelKey || "lohnMessagesOpenWorker")}</a>`;
     }
@@ -910,7 +925,13 @@
         const detail = fieldsJoined
           ? tr("dataAlertsFields", { fields: fieldsJoined })
           : (msg || "—");
-        const openBtn = stammdatenButtonHtml(company, a.workerId || a.employeeId, fields, "dataAlertsOpenWorker");
+        const openBtn = stammdatenButtonHtml(
+          company,
+          a.workerId || a.employeeId,
+          fields,
+          "dataAlertsOpenWorker",
+          `${a.message || ""} ${fieldsJoined}`,
+        );
         return `<div class="lohn-item unread">
           <div>
             <div class="lohn-item-title">${escapeLohnHtml(name)}</div>
@@ -947,8 +968,10 @@
         const name = escapeLohnHtml([m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
           || String(m.workerId || ""));
         const meta = [period, company, name].filter(Boolean).join(" · ") || "—";
-        const fields = messageMissingFields(m);
-        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields);
+        const fields = inferMissingFields(m);
+        const hint = `${m.subject || ""} ${m.body || ""} ${m.kind || ""}`;
+        const openHref = workerStammdatenUrl(m.companyId, m.workerId, fields, hint);
+        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields, "lohnMessagesOpenWorker", hint);
         return `<div class="lohn-item unread" data-lohn-msg="${id}">
           <div>
             <div class="lohn-item-title">${subject} <span class="lohn-pill warn">${tr("lohnMessagesUnreadBadge")}</span></div>
@@ -958,7 +981,7 @@
           </div>
           <div class="lohn-item-actions">
             ${openWorker}
-            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
+            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}" data-open-href="${escapeLohnHtml(openHref)}">${tr("lohnMessagesOpen")}</button>
           </div>
         </div>`;
       }).join("") || `<div class="lohn-empty">${tr("lohnMessagesNone")}</div>`;
@@ -987,8 +1010,10 @@
         const body = escapeLohnHtml(String(m.body || "").trim());
         const company = escapeLohnHtml(m.companyId || "");
         const period = escapeLohnHtml(m.period || "");
-        const fields = messageMissingFields(m);
-        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields);
+        const fields = inferMissingFields(m);
+        const hint = `${m.subject || ""} ${m.body || ""} ${m.kind || ""}`;
+        const openHref = workerStammdatenUrl(m.companyId, m.workerId, fields, hint);
+        const openWorker = stammdatenButtonHtml(m.companyId, m.workerId, fields, "lohnMessagesOpenWorker", hint);
         return `<div class="lohn-toast" data-toast-id="${id}">
           <div class="lohn-toast-badge" aria-hidden="true">WL</div>
           <div>
@@ -1000,7 +1025,7 @@
           </div>
           <div class="lohn-toast-actions">
             ${openWorker}
-            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}">${tr("lohnMessagesOpen")}</button>
+            <button type="button" class="primary" data-lohn-msg="open" data-id="${id}" data-open-href="${escapeLohnHtml(openHref)}">${tr("lohnMessagesOpen")}</button>
             <button type="button" class="ghost" data-lohn-msg="dismiss-banner" data-id="${id}">${tr("lohnMessagesBannerDismiss")}</button>
           </div>
         </div>`;
@@ -1219,6 +1244,7 @@
       const openMessage = async (btn) => {
         const id = btn.getAttribute("data-id");
         if (!id) return;
+        const openHref = String(btn.getAttribute("data-open-href") || "").trim();
         btn.disabled = true;
         const prev = btn.textContent;
         btn.textContent = "…";
@@ -1233,6 +1259,9 @@
           });
           if (res && res.ok === false) {
             throw new Error(res.error || tr("lohnMessagesOpenFailed"));
+          }
+          if (openHref) {
+            window.open(openHref, "_blank", "noopener");
           }
           await load();
         } catch (e) {
