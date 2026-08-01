@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../services/attendance_repository.dart';
 
@@ -95,114 +97,121 @@ class _TimesheetsScreenState extends State<TimesheetsScreen> {
 
   String _directionLabel(String direction) {
     final d = direction.toLowerCase();
-    if (d.contains('check-in') || d == 'in' || d == 'login') return 'Ein';
-    if (d.contains('check-out') || d == 'out' || d == 'logout') return 'Aus';
+    if (d.contains('check-in') || d == 'in' || d == 'login') return t('gpsIn');
+    if (d.contains('check-out') || d == 'out' || d == 'logout') return t('gpsOut');
     return direction;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Stundennachweis'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loading ? null : _load,
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final hours = _formatMinutes(_todayWorkMinutes);
+        final todayLine = _attendanceOpen
+            ? t('todayHoursOpen').replaceAll('{h}', hours)
+            : t('todayHours').replaceAll('{h}', hours);
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(t('timesheetTitle')),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loading ? null : _load,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(_error!, textAlign: TextAlign.center),
-                        const SizedBox(height: 12),
-                        FilledButton(onPressed: _load, child: const Text('Erneut laden')),
-                      ],
-                    ),
-                  ),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(20),
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          onPressed: () => _shiftMonth(-1),
-                          icon: const Icon(Icons.chevron_left),
-                        ),
-                        Expanded(
-                          child: Text(
-                            _month,
-                            textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => _shiftMonth(1),
-                          icon: const Icon(Icons.chevron_right),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Card(
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : _error != null
+                  ? Center(
                       child: Padding(
-                        padding: const EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(24),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('Monat gesamt', style: Theme.of(context).textTheme.titleSmall),
-                            Text(
-                              _formatMinutes(_monthTotalMinutes),
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Heute: ${_formatMinutes(_todayWorkMinutes)}'
-                              '${_attendanceOpen ? ' (eingestempelt)' : ''}',
-                            ),
+                            Text(_error!, textAlign: TextAlign.center),
+                            const SizedBox(height: 12),
+                            FilledButton(onPressed: _load, child: Text(t('reload'))),
                           ],
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Ereignisse', style: Theme.of(context).textTheme.titleMedium),
-                    const SizedBox(height: 8),
-                    if (_rows.isEmpty)
-                      const Text('Keine Einträge in diesem Monat.')
-                    else
-                      ..._rows.map((row) {
-                        final ts = (row['timestamp'] as String?) ?? '';
-                        final direction = (row['direction'] as String?) ?? '';
-                        final gate = (row['gate'] as String?) ?? '';
-                        final note = (row['note'] as String?) ?? '';
-                        return Card(
-                          child: ListTile(
-                            leading: Icon(
-                              direction.toLowerCase().contains('out') ||
-                                      direction.toLowerCase().contains('check-out')
-                                  ? Icons.logout
-                                  : Icons.login,
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.all(20),
+                      children: [
+                        Row(
+                          children: [
+                            IconButton(
+                              onPressed: () => _shiftMonth(-1),
+                              icon: const Icon(Icons.chevron_left),
                             ),
-                            title: Text(_directionLabel(direction)),
-                            subtitle: Text(
-                              [
-                                if (ts.isNotEmpty) ts.replaceFirst('T', ' ').substring(0, 16),
-                                if (gate.isNotEmpty) gate,
-                                if (note.isNotEmpty) note,
-                              ].join(' · '),
+                            Expanded(
+                              child: Text(
+                                _month,
+                                textAlign: TextAlign.center,
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: () => _shiftMonth(1),
+                              icon: const Icon(Icons.chevron_right),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(t('monthTotal'), style: Theme.of(context).textTheme.titleSmall),
+                                Text(
+                                  _formatMinutes(_monthTotalMinutes),
+                                  style: Theme.of(context).textTheme.headlineSmall,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(todayLine),
+                              ],
                             ),
                           ),
-                        );
-                      }),
-                  ],
-                ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(t('events'), style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        if (_rows.isEmpty)
+                          Text(t('noEntriesMonth'))
+                        else
+                          ..._rows.map((row) {
+                            final ts = (row['timestamp'] as String?) ?? '';
+                            final direction = (row['direction'] as String?) ?? '';
+                            final gate = (row['gate'] as String?) ?? '';
+                            final note = (row['note'] as String?) ?? '';
+                            return Card(
+                              child: ListTile(
+                                leading: Icon(
+                                  direction.toLowerCase().contains('out') ||
+                                          direction.toLowerCase().contains('check-out')
+                                      ? Icons.logout
+                                      : Icons.login,
+                                ),
+                                title: Text(_directionLabel(direction)),
+                                subtitle: Text(
+                                  [
+                                    if (ts.isNotEmpty) ts.replaceFirst('T', ' ').substring(0, 16),
+                                    if (gate.isNotEmpty) gate,
+                                    if (note.isNotEmpty) note,
+                                  ].join(' · '),
+                                ),
+                              ),
+                            );
+                          }),
+                      ],
+                    ),
+        );
+      },
     );
   }
 }

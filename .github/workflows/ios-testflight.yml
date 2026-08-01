@@ -20,7 +20,7 @@ jobs:
       IOS_CERT_P12: ${{ secrets.IOS_DISTRIBUTION_CERT_P12_BASE64 }}
       IOS_CERT_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_CERT_PASSWORD }}
       IOS_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
-      API_URL: https://baupass-production.up.railway.app
+      API_URL: https://suppix-workpass-ai.up.railway.app
     steps:
       - name: Check signing secrets
         id: secrets
@@ -29,18 +29,19 @@ jobs:
           for name in ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8 IOS_CERT_P12 IOS_CERT_PASSWORD IOS_PROFILE; do
             val="${!name}"
             if [ -z "$val" ]; then
-              echo "::warning::$name is not set"
+              echo "::error::$name is not set — see docs/testflight-github-secrets.md"
               missing=1
             fi
           done
           if [ "$missing" = "1" ]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
             {
-              echo "## iOS TestFlight skipped"
+              echo "## iOS TestFlight blocked"
               echo ""
-              echo "Configure secrets listed in \`docs/testflight-internal-distribution.md\`,"
-              echo "then re-run this workflow."
+              echo "Required GitHub secrets are missing — **no IPA was uploaded**."
+              echo "Configure secrets in \`docs/testflight-github-secrets.md\`, then re-run **iOS TestFlight**."
             } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
           fi
@@ -69,14 +70,11 @@ jobs:
             mobile/ios/Runner/Info.plist \
             mobile/ios/Runner/GoogleService-Info.plist \
             mobile/ios/Runner/Runner.entitlements \
-            mobile/lib/firebase_bootstrap.dart \
-            mobile/lib/services/push_foreground_listener.dart \
-            mobile/lib/services/push_navigation.dart \
-            mobile/lib/services/push_notification_service.dart \
-            mobile/lib/features/auth/login_screen.dart \
-            mobile/lib/app.dart \
+            mobile/ios/Runner/Base.lproj/LaunchScreen.storyboard \
+            mobile/lib \
             mobile/pubspec.yaml \
-            mobile/test/widget_test.dart
+            mobile/analysis_options.yaml \
+            mobile/test
 
       - name: Apply NFC entitlements to Xcode project
         if: steps.secrets.outputs.ready == 'true'
@@ -135,7 +133,9 @@ jobs:
       - name: Analyze Dart
         if: steps.secrets.outputs.ready == 'true'
         working-directory: mobile
-        run: flutter analyze --no-fatal-infos
+        run: |
+          flutter pub get
+          flutter analyze --no-fatal-infos
 
       - name: Build signed IPA
         if: steps.secrets.outputs.ready == 'true'

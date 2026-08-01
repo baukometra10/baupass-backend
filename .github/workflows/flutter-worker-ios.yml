@@ -33,14 +33,11 @@ jobs:
             mobile/ios/Runner/Info.plist \
             mobile/ios/Runner/GoogleService-Info.plist \
             mobile/ios/Runner/Runner.entitlements \
-            mobile/lib/firebase_bootstrap.dart \
-            mobile/lib/services/push_foreground_listener.dart \
-            mobile/lib/services/push_navigation.dart \
-            mobile/lib/services/push_notification_service.dart \
-            mobile/lib/features/auth/login_screen.dart \
-            mobile/lib/app.dart \
+            mobile/ios/Runner/Base.lproj/LaunchScreen.storyboard \
+            mobile/lib \
             mobile/pubspec.yaml \
-            mobile/test/widget_test.dart
+            mobile/analysis_options.yaml \
+            mobile/test
 
       - name: Apply NFC entitlements to Xcode project
         working-directory: mobile
@@ -64,13 +61,16 @@ jobs:
 
       - name: Analyze Dart
         working-directory: mobile
-        run: flutter analyze --no-fatal-infos
+        run: |
+          # Fresh pub resolve avoids corrupt local caches; treat infos as non-fatal.
+          flutter pub get
+          flutter analyze --no-fatal-infos
 
       - name: Build iOS (no codesign)
         id: build_ios
         working-directory: mobile
         env:
-          API_URL: https://baupass-production.up.railway.app
+          API_URL: https://suppix-workpass-ai.up.railway.app
         run: |
           set -o pipefail
           flutter build ios --release --no-codesign --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-ios.log || {

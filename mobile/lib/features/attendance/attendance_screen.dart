@@ -177,6 +177,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String _attendanceErrorMessage(ApiException e) {
     switch (e.errorCode) {
       case 'outside_geofence':
+        final dist = e.payload?['distanceMeters'] ?? e.payload?['distance'];
+        final radius = e.payload?['allowedRadiusMeters'] ?? e.payload?['radiusMeters'];
+        if (dist != null && radius != null) {
+          return t('errOutsideGeofenceDistance')
+              .replaceAll('{dist}', '${(dist as num).round()}')
+              .replaceAll('{radius}', '${(radius as num).round()}');
+        }
         return t('errOutsideGeofence');
       case 'site_location_unavailable':
         return t('errSiteLocationUnavailable');

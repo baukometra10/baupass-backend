@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
+import '../../core/locale_controller.dart';
 import '../../core/plan_features.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
@@ -67,63 +69,68 @@ class _TasksScreenState extends State<TasksScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
-    final leaveOk = planHasFeature(_profile, 'leave_management');
-    final docsOk = planHasFeature(_profile, 'document_upload');
-    final contractsOk = planHasFeature(_profile, 'employment_contracts');
-    final planOk = planHasFeature(_profile, 'deployment_plan');
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final leaveOk = planHasFeature(_profile, 'leave_management');
+        final docsOk = planHasFeature(_profile, 'document_upload');
+        final contractsOk = planHasFeature(_profile, 'employment_contracts');
+        final planOk = planHasFeature(_profile, 'deployment_plan');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Aufgaben'),
-        automaticallyImplyLeading: false,
-        bottom: TabBar(
-          controller: _tabs,
-          isScrollable: true,
-          tabs: const [
-            Tab(text: 'Einsatzplan'),
-            Tab(text: 'Urlaub'),
-            Tab(text: 'Dokumente'),
-            Tab(text: 'Verträge'),
-            Tab(text: 'Schichten'),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabs,
-        children: [
-          DeploymentPlanTab(
-            session: widget.session,
-            tasks: widget.tasks,
-            enabled: planOk,
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(t('navTasks')),
+            automaticallyImplyLeading: false,
+            bottom: TabBar(
+              controller: _tabs,
+              isScrollable: true,
+              tabs: [
+                Tab(text: t('tabPlan')),
+                Tab(text: t('tabLeave')),
+                Tab(text: t('tabDocs')),
+                Tab(text: t('tabContracts')),
+                Tab(text: t('tabShifts')),
+              ],
+            ),
           ),
-          LeaveRequestsTab(
-            session: widget.session,
-            tasks: widget.tasks,
-            enabled: leaveOk,
-            onSubmitted: _loadProfile,
+          body: TabBarView(
+            controller: _tabs,
+            children: [
+              DeploymentPlanTab(
+                session: widget.session,
+                tasks: widget.tasks,
+                enabled: planOk,
+              ),
+              LeaveRequestsTab(
+                session: widget.session,
+                tasks: widget.tasks,
+                enabled: leaveOk,
+                onSubmitted: _loadProfile,
+              ),
+              DocumentsTab(
+                session: widget.session,
+                tasks: widget.tasks,
+                enabled: docsOk,
+                onOpenDeploymentPlan: planOk
+                    ? () {
+                        _tabs.animateTo(0);
+                      }
+                    : null,
+              ),
+              ContractsTab(
+                session: widget.session,
+                tasks: widget.tasks,
+                enabled: contractsOk,
+              ),
+              ShiftsTab(
+                session: widget.session,
+                tasks: widget.tasks,
+                initialInnerTab: widget.shiftsInnerTab,
+              ),
+            ],
           ),
-          DocumentsTab(
-            session: widget.session,
-            tasks: widget.tasks,
-            enabled: docsOk,
-            onOpenDeploymentPlan: planOk
-                ? () {
-                    _tabs.animateTo(0);
-                  }
-                : null,
-          ),
-          ContractsTab(
-            session: widget.session,
-            tasks: widget.tasks,
-            enabled: contractsOk,
-          ),
-          ShiftsTab(
-            session: widget.session,
-            tasks: widget.tasks,
-            initialInnerTab: widget.shiftsInnerTab,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

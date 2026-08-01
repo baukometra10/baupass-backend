@@ -74,6 +74,7 @@ jobs:
             mobile/android/app/src/main/res \
             mobile/lib \
             mobile/pubspec.yaml \
+            mobile/analysis_options.yaml \
             mobile/test
 
       - name: Restore injected Firebase config

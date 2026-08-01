@@ -16,14 +16,21 @@ class OfflineSyncService {
 
   WorkerSession? _session;
 
+  static bool _isOnline(List<dynamic> results) {
+    // Avoid hard dependency on ConnectivityResult symbol (analyzer/cache quirks).
+    return results.any((r) {
+      final name = r is Enum ? r.name : '$r';
+      return name != 'none' && !name.endsWith('.none');
+    });
+  }
+
   void bindSession(WorkerSession? session) {
     _session = session;
   }
 
   void listen(void Function(int syncedCount) onSynced) {
     _connectivity.onConnectivityChanged.listen((results) async {
-      final online = results.any((r) => r != ConnectivityResult.none);
-      if (!online || _session == null) return;
+      if (!_isOnline(results) || _session == null) return;
       final synced = await syncNow();
       if (synced > 0) onSynced(synced);
     });

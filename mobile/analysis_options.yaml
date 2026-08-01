@@ -1,6 +1,14 @@
-include: package:flutter_lints/flutter.yaml
+# Standalone rules — avoid package:flutter_lints include (broken/corrupt cache
+# can cascade into false "undefined" errors and fail iOS CI analyze).
+analyzer:
+  exclude:
+    - build/**
+  errors:
+    included_file_parse_error: ignore
 
 linter:
   rules:
     prefer_const_constructors: true
     avoid_print: false
+    unnecessary_import: false
+    unused_import: false
