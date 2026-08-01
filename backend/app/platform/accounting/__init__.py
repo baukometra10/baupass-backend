@@ -52,6 +52,7 @@ def register_accounting_blueprint(flask_app) -> None:
         prepare_payroll_batch,
         push_payroll_batch_to_lohn,
         reject_batch,
+        reject_period_handoff,
         request_period_handoff,
     )
 
@@ -1067,7 +1068,7 @@ def register_accounting_blueprint(flask_app) -> None:
         user = g.current_user
         data = request.get_json(silent=True) or {}
         company_scope = None if user["role"] == "superadmin" else user.get("company_id")
-        result = repo.reject_period_request(
+        result = reject_period_handoff(
             get_db(),
             request_id=request_id,
             actor_user_id=str(user.get("id") or ""),

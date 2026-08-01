@@ -794,6 +794,22 @@ async function api(path, options = {}) {
   return data;
 }
 
+/** Soft API call: never block the UI longer than timeoutMs (slow SQLite / cold endpoints). */
+function withTimeout(promise, timeoutMs, fallback) {
+  let timer;
+  const timed = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(fallback), Math.max(500, Number(timeoutMs) || 8000));
+  });
+  return Promise.race([
+    Promise.resolve(promise).finally(() => clearTimeout(timer)),
+    timed,
+  ]);
+}
+
+function apiSoft(path, fallback = null, timeoutMs = 8000, options = {}) {
+  return withTimeout(api(path, options).catch(() => fallback), timeoutMs, fallback);
+}
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -2469,19 +2485,21 @@ async function loadPlatform() {
         <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
       </div>`;
 
+    // Cap each call — one slow SQLite/wallet/billing probe used to freeze this panel 1–2 min.
+    const softMs = 7000;
     const [ent, aiSt, wallet, pushSt, mobileDist, autopilot, backups, billingOv, revenue, lohnLinkPayload] = await Promise.all([
-      api("/api/platform/entitlements").catch(() => null),
-      api("/api/ai/status").catch(() => ({ configured: false })),
-      api("/api/admin/wallet/runtime-status").catch(() => null),
-      api("/api/platform/push/status").catch(() => null),
-      api(`/api/v2/mobile/distribution`).catch(() => null),
+      apiSoft("/api/platform/entitlements", null, softMs),
+      apiSoft("/api/ai/status", { configured: false }, softMs),
+      apiSoft("/api/admin/wallet/runtime-status", null, softMs),
+      apiSoft("/api/platform/push/status", null, softMs),
+      apiSoft("/api/v2/mobile/distribution", null, softMs),
       cid
-        ? api(`/api/platform/autopilot/settings${companyQuery()}`).catch(() => ({ settings: {} }))
+        ? apiSoft(`/api/platform/autopilot/settings${companyQuery()}`, { settings: {} }, softMs)
         : Promise.resolve({ settings: {} }),
-      api("/api/admin/database/backups").catch(() => ({ items: [] })),
-      cid ? fetchBillingOverviewCached(cid) : Promise.resolve(null),
-      api("/api/v2/billing/revenue-metrics").catch(() => null),
-      api("/api/payroll/accounting/platform-link").catch(() => null),
+      apiSoft("/api/admin/database/backups", { items: [] }, softMs),
+      cid ? withTimeout(fetchBillingOverviewCached(cid), softMs, null) : Promise.resolve(null),
+      apiSoft("/api/v2/billing/revenue-metrics", null, softMs),
+      apiSoft("/api/payroll/accounting/platform-link", null, softMs),
     ]);
     const lohnLink = lohnLinkPayload?.link || {};
     const lohnEnabled = Boolean(lohnLink.enabled || lohnLink.configured);
@@ -4248,10 +4266,19 @@ async function loadOperations() {
   }
 
   try {
-    const summaryP = api(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`).catch(() => null);
-    const overviewP = api(`/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`);
-    const rtP = api("/api/v1/realtime/status").catch(() => null);
-    const chatP = api(`/api/chat/threads${q ? q : ""}`).catch(() => ({ threads: [] }));
+    const summaryP = apiSoft(
+      `/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`,
+      null,
+      6000,
+    );
+    // Full overview builds many layers on SQLite — soft-timeout so UI stays usable.
+    const overviewP = apiSoft(
+      `/api/ops-os/overview?company_id=${encodeURIComponent(cid)}`,
+      null,
+      12000,
+    );
+    const rtP = apiSoft("/api/v1/realtime/status", null, 5000);
+    const chatP = apiSoft(`/api/chat/threads${q ? q : ""}`, { threads: [] }, 5000);
 
     // First paint from summary (or cache), then upgrade with full overview.
     if (!cacheHit?.layers) {
@@ -4271,7 +4298,10 @@ async function loadOperations() {
     }
 
     const [data, rt, chatResp, features] = await Promise.all([overviewP, rtP, chatP, featuresP]);
-    _opsOverviewCache = { cid, at: Date.now(), data };
+    if (data?.layers) {
+      _opsOverviewCache = { cid, at: Date.now(), data };
+    }
+    const layers = data?.layers || cacheHit?.layers || (await summaryP)?.layers || {};
     const rtLabel = rt?.websocket?.enabled
       ? `<span class="badge badge-ok">${t("ops.websocketLive")}</span>`
       : rt
@@ -4280,9 +4310,9 @@ async function loadOperations() {
     renderOperationsShell(panel, {
       cid,
       q,
-      layers: data.layers || {},
+      layers,
       rtLabel,
-      chatThreads: chatResp.threads || [],
+      chatThreads: chatResp?.threads || [],
       features,
       mapEager: false,
     });
@@ -5867,21 +5897,21 @@ async function loadOverview() {
     <div class="card card-skeleton"><span class="muted">${t("overview.onSite")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
-  const overviewP = api(`/api/v2/admin/overview${q}`);
-  const billingP = loadBillingSummaryPanel(cid);
+  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, null, 10000);
+  const billingP = withTimeout(loadBillingSummaryPanel(cid), 8000, null);
   const secondaryP = Promise.all([
-    fetchInboxCountsCached(q),
-    api(`/api/dashboard/role${q}`).catch(() => null),
+    withTimeout(fetchInboxCountsCached(q), 6000, { counts: {} }),
+    apiSoft(`/api/dashboard/role${q}`, null, 6000),
     cid
-      ? api(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`).catch(() => null)
+      ? apiSoft(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`, null, 6000)
       : Promise.resolve(null),
-    api(`/api/operations/snapshot${q}`).catch(() => null),
-    api(`/api/integrations/cameras${q}`).catch(() => ({ cameras: [] })),
+    apiSoft(`/api/operations/snapshot${q}`, null, 6000),
+    apiSoft(`/api/integrations/cameras${q}`, { cameras: [] }, 6000),
     cid
-      ? api(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`).catch(() => null)
+      ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 8000)
       : Promise.resolve(null),
   ]);
-  const overview = await overviewP;
+  const overview = (await overviewP) || {};
   const wfEarly = overview.workforce || {};
   $("statCards").innerHTML = `
     <div class="card card-metric"><span class="muted">${t("overview.onSite")}</span><strong>${wfEarly.onSite ?? 0}</strong></div>

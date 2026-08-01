@@ -447,10 +447,18 @@ def test_period_handoff_requires_confirmation(monkeypatch):
     assert req["status"] == "pending_confirmation"
     assert req["request"]["employeeCount"] == 1
     assert service.period_handoff_gate(db, company_id="c1", period="2026-06")
+    assert (req.get("inbox") or {}).get("ok") is True
+
+    from backend.app.platform.accounting import messages_inbox
+
+    pending_before = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
+    assert any(
+        m.get("kind") == "period_request" and m.get("period") == "2026-06" for m in pending_before
+    )
 
     posts = []
 
-    def _fake_post(link, *, path, body, event):
+    def _fake_post(link, *, path, body, event, **_kwargs):
         posts.append({"path": path, "event": event, "body": body})
         return {"ok": True, "status": 200, "body": "{}"}
 
@@ -463,8 +471,14 @@ def test_period_handoff_requires_confirmation(monkeypatch):
     assert out["ok"] is True
     assert out["status"] == "delivered"
     assert service.period_handoff_gate(db, company_id="c1", period="2026-06") is None
-    assert posts and posts[0]["path"] == "/v1/payroll/batch"
-    assert posts[0]["body"]["employees"][0]["employeeId"] == "w1"
+    batch_posts = [p for p in posts if p["path"] == "/v1/payroll/batch"]
+    assert batch_posts
+    assert batch_posts[0]["body"]["employees"][0]["employeeId"] == "w1"
+    assert int((out.get("inboxCleared") or {}).get("cleared") or 0) >= 1
+    pending_after = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
+    assert not any(
+        m.get("kind") == "period_request" and m.get("period") == "2026-06" for m in pending_after
+    )
 
 
 def test_push_payroll_batch_to_lohn(monkeypatch):

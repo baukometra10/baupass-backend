@@ -435,6 +435,73 @@ def dismiss_all_message_banners(
     return {"ok": True, "dismissed": dismissed, "pending": len(pending)}
 
 
+# Inbox kinds created for "please confirm period handoff" — cleared after Ops confirm/reject.
+PERIOD_HANDOFF_MESSAGE_KINDS = frozenset(
+    {
+        "period_request",
+        "payroll.month.requested",
+        "employees.list.requested",
+        "payroll_month_requested",
+        "employees_list_requested",
+        "payroll.requested",
+        "payroll.batch.requested",
+        "hours.requested",
+        "abrechnung.requested",
+    }
+)
+
+
+def clear_period_handoff_messages(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    actor_user_id: str = "",
+) -> dict[str, Any]:
+    """
+    After Ops confirms or rejects a period handoff, ack matching inbox messages
+    so toasts / unread noise disappear (missing_data / payslip messages stay).
+    """
+    ensure_accounting_schema(db)
+    company_id = str(company_id or "").strip()
+    period = str(period or "").strip()[:7]
+    if not company_id or not period:
+        return {"ok": False, "error": "company_period_required", "cleared": 0, "ids": []}
+
+    rows = db.execute(
+        """
+        SELECT id, kind, subject, period
+        FROM accounting_messages
+        WHERE company_id = ? AND status = 'pending' AND period = ?
+        """,
+        (company_id, period),
+    ).fetchall()
+
+    cleared: list[str] = []
+    for row in rows:
+        kind = str(row["kind"] or "").strip().lower()
+        subject = str(row["subject"] or "")
+        is_handoff = kind in PERIOD_HANDOFF_MESSAGE_KINDS or subject.startswith("Lohn-Anfrage")
+        if not is_handoff:
+            continue
+        out = ack_message_to_lohn(
+            db,
+            message_id=str(row["id"]),
+            actor_user_id=actor_user_id,
+            company_id=company_id,
+        )
+        if out.get("ok"):
+            cleared.append(str(row["id"]))
+
+    return {
+        "ok": True,
+        "companyId": company_id,
+        "period": period,
+        "cleared": len(cleared),
+        "ids": cleared,
+    }
+
+
 def dismiss_related_data_alerts_for_message(
     db,
     *,

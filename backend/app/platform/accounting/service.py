@@ -527,12 +527,27 @@ def confirm_period_handoff(
             or str((delivery.get("payrollBatchPush") or {}).get("error") or "")
             or ""
         )
+
+    inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
+    try:
+        from .messages_inbox import clear_period_handoff_messages
+
+        inbox_clear = clear_period_handoff_messages(
+            db,
+            company_id=str(company_id),
+            period=str(period),
+            actor_user_id=str(actor_user_id or ""),
+        )
+    except Exception as exc:
+        inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
+
     return {
         "ok": delivered_ok,
         "status": (final or {}).get("status") or "confirmed",
         "request": final,
         "employeesPush": employees_push,
         "delivery": delivery,
+        "inboxCleared": inbox_clear,
         "employees": {
             "employeeCount": (employees or {}).get("employeeCount"),
             "payrollReadyCount": (employees or {}).get("payrollReadyCount"),
@@ -555,6 +570,39 @@ def confirm_period_handoff(
             "payrollBatch": f"/api/v2/accounting/payroll-batch?period={period}",
         },
     }
+
+
+def reject_period_handoff(
+    db,
+    *,
+    request_id: str,
+    actor_user_id: str = "",
+    company_id: str | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
+    """Reject period handoff and clear matching Lohn request inbox messages."""
+    result = repo.reject_period_request(
+        db,
+        request_id=request_id,
+        actor_user_id=actor_user_id,
+        company_id=company_id,
+        reason=reason,
+    )
+    if not result.get("ok"):
+        return result
+    inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
+    try:
+        from .messages_inbox import clear_period_handoff_messages
+
+        inbox_clear = clear_period_handoff_messages(
+            db,
+            company_id=str(result.get("companyId") or ""),
+            period=str(result.get("period") or ""),
+            actor_user_id=str(actor_user_id or ""),
+        )
+    except Exception as exc:
+        inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
+    return {**result, "inboxCleared": inbox_clear}
 
 
 def period_handoff_gate(db, *, company_id: str, period: str) -> dict[str, Any] | None:
