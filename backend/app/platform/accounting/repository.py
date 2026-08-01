@@ -634,3 +634,299 @@ def dismiss_lohn_data_alert(
     )
     db.commit()
     return {"ok": True, "id": alert_id, "status": "dismissed"}
+
+
+def _period_request_dict(row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "companyId": row["company_id"],
+        "period": row["period"],
+        "status": row["status"],
+        "source": row["source"],
+        "wantEmployees": bool(int(row["want_employees"] or 0)),
+        "wantPayroll": bool(int(row["want_payroll"] or 0)),
+        "note": row["note"] or "",
+        "externalRef": row["external_ref"] or "",
+        "employeeCount": int(row["employee_count"] or 0),
+        "totalHours": float(row["total_hours"] or 0),
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+        "confirmedAt": row["confirmed_at"],
+        "confirmedByUserId": row["confirmed_by_user_id"],
+        "rejectedAt": row["rejected_at"],
+        "rejectedByUserId": row["rejected_by_user_id"],
+        "rejectReason": row["reject_reason"] or "",
+        "deliveredAt": row["delivered_at"],
+        "deliveryError": row["delivery_error"] or "",
+    }
+
+
+def get_period_request(db, *, company_id: str, period: str) -> dict[str, Any] | None:
+    ensure_accounting_schema(db)
+    row = db.execute(
+        """
+        SELECT * FROM lohn_period_requests
+        WHERE company_id = ? AND period = ?
+        LIMIT 1
+        """,
+        (company_id, period),
+    ).fetchone()
+    return _period_request_dict(row) if row else None
+
+
+def get_period_request_by_id(db, request_id: str) -> dict[str, Any] | None:
+    ensure_accounting_schema(db)
+    row = db.execute("SELECT * FROM lohn_period_requests WHERE id = ?", (request_id,)).fetchone()
+    return _period_request_dict(row) if row else None
+
+
+def is_period_confirmed_for_lohn(db, *, company_id: str, period: str) -> bool:
+    """True when platform confirmed handoff for this company/period (pull allowed)."""
+    req = get_period_request(db, company_id=company_id, period=period)
+    if not req:
+        return False
+    return str(req.get("status") or "") in {"confirmed", "delivered"}
+
+
+def upsert_period_request(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    source: str = "lohn",
+    want_employees: bool = True,
+    want_payroll: bool = True,
+    note: str = "",
+    external_ref: str = "",
+    employee_count: int = 0,
+    total_hours: float = 0.0,
+) -> dict[str, Any]:
+    """
+    Lohn or platform asks for employees + Abrechnung inputs for a month.
+    Already confirmed/delivered periods are returned as-is (idempotent).
+    """
+    ensure_accounting_schema(db)
+    company_id = str(company_id or "").strip()
+    period = str(period or "").strip()[:7]
+    now = _now()
+    existing = get_period_request(db, company_id=company_id, period=period)
+    if existing and str(existing.get("status") or "") in {"confirmed", "delivered"}:
+        return {**existing, "ok": True, "alreadyReleased": True}
+    if existing and str(existing.get("status") or "") == "pending_confirmation":
+        db.execute(
+            """
+            UPDATE lohn_period_requests
+            SET want_employees = ?, want_payroll = ?, note = ?, external_ref = ?,
+                employee_count = ?, total_hours = ?, source = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                1 if want_employees else 0,
+                1 if want_payroll else 0,
+                (note or "")[:500],
+                (external_ref or "")[:120],
+                int(employee_count or 0),
+                float(total_hours or 0),
+                (source or "lohn")[:40],
+                now,
+                existing["id"],
+            ),
+        )
+        db.commit()
+        out = get_period_request_by_id(db, existing["id"]) or existing
+        return {**out, "ok": True, "created": False}
+    # Re-open rejected → pending, or create new
+    if existing and str(existing.get("status") or "") == "rejected":
+        db.execute(
+            """
+            UPDATE lohn_period_requests
+            SET status = 'pending_confirmation', want_employees = ?, want_payroll = ?,
+                note = ?, external_ref = ?, employee_count = ?, total_hours = ?,
+                source = ?, rejected_at = NULL, rejected_by_user_id = NULL,
+                reject_reason = '', updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                1 if want_employees else 0,
+                1 if want_payroll else 0,
+                (note or "")[:500],
+                (external_ref or "")[:120],
+                int(employee_count or 0),
+                float(total_hours or 0),
+                (source or "lohn")[:40],
+                now,
+                existing["id"],
+            ),
+        )
+        db.commit()
+        out = get_period_request_by_id(db, existing["id"]) or existing
+        return {**out, "ok": True, "created": True, "reopened": True}
+
+    request_id = f"lpr-{uuid.uuid4().hex[:12]}"
+    db.execute(
+        """
+        INSERT INTO lohn_period_requests
+        (id, company_id, period, status, source, want_employees, want_payroll, note, external_ref,
+         employee_count, total_hours, created_at, updated_at)
+        VALUES (?, ?, ?, 'pending_confirmation', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            request_id,
+            company_id,
+            period,
+            (source or "lohn")[:40],
+            1 if want_employees else 0,
+            1 if want_payroll else 0,
+            (note or "")[:500],
+            (external_ref or "")[:120],
+            int(employee_count or 0),
+            float(total_hours or 0),
+            now,
+            now,
+        ),
+    )
+    db.commit()
+    out = get_period_request_by_id(db, request_id)
+    return {**(out or {}), "ok": True, "created": True}
+
+
+def list_period_requests(
+    db,
+    *,
+    company_id: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    ensure_accounting_schema(db)
+    limit = max(1, min(200, int(limit or 50)))
+    status = str(status or "").strip()
+    if company_id and status:
+        rows = db.execute(
+            """
+            SELECT * FROM lohn_period_requests
+            WHERE company_id = ? AND status = ?
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (company_id, status, limit),
+        ).fetchall()
+    elif company_id:
+        rows = db.execute(
+            """
+            SELECT * FROM lohn_period_requests
+            WHERE company_id = ?
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (company_id, limit),
+        ).fetchall()
+    elif status:
+        rows = db.execute(
+            """
+            SELECT * FROM lohn_period_requests
+            WHERE status = ?
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (status, limit),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """
+            SELECT * FROM lohn_period_requests
+            ORDER BY updated_at DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [_period_request_dict(r) for r in rows]
+
+
+def confirm_period_request(
+    db,
+    *,
+    request_id: str,
+    actor_user_id: str = "",
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    ensure_accounting_schema(db)
+    row = get_period_request_by_id(db, request_id)
+    if not row:
+        return {"ok": False, "error": "not_found"}
+    if company_id and str(row["companyId"]) != str(company_id):
+        return {"ok": False, "error": "forbidden_company"}
+    if str(row.get("status") or "") in {"confirmed", "delivered"}:
+        return {**row, "ok": True, "already": True}
+    if str(row.get("status") or "") == "rejected":
+        return {"ok": False, "error": "already_rejected", **row}
+    now = _now()
+    db.execute(
+        """
+        UPDATE lohn_period_requests
+        SET status = 'confirmed', confirmed_at = ?, confirmed_by_user_id = ?,
+            updated_at = ?, delivery_error = ''
+        WHERE id = ?
+        """,
+        (now, str(actor_user_id or "")[:80], now, request_id),
+    )
+    db.commit()
+    out = get_period_request_by_id(db, request_id) or row
+    return {**out, "ok": True}
+
+
+def mark_period_request_delivered(
+    db,
+    *,
+    request_id: str,
+    error: str = "",
+) -> dict[str, Any]:
+    ensure_accounting_schema(db)
+    now = _now()
+    if error:
+        db.execute(
+            """
+            UPDATE lohn_period_requests
+            SET delivery_error = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (str(error)[:200], now, request_id),
+        )
+    else:
+        db.execute(
+            """
+            UPDATE lohn_period_requests
+            SET status = 'delivered', delivered_at = ?, delivery_error = '', updated_at = ?
+            WHERE id = ?
+            """,
+            (now, now, request_id),
+        )
+    db.commit()
+    out = get_period_request_by_id(db, request_id)
+    return {**(out or {}), "ok": True}
+
+
+def reject_period_request(
+    db,
+    *,
+    request_id: str,
+    actor_user_id: str = "",
+    company_id: str | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
+    ensure_accounting_schema(db)
+    row = get_period_request_by_id(db, request_id)
+    if not row:
+        return {"ok": False, "error": "not_found"}
+    if company_id and str(row["companyId"]) != str(company_id):
+        return {"ok": False, "error": "forbidden_company"}
+    if str(row.get("status") or "") in {"confirmed", "delivered"}:
+        return {"ok": False, "error": "already_released", **row}
+    now = _now()
+    db.execute(
+        """
+        UPDATE lohn_period_requests
+        SET status = 'rejected', rejected_at = ?, rejected_by_user_id = ?,
+            reject_reason = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (now, str(actor_user_id or "")[:80], (reason or "")[:500], now, request_id),
+    )
+    db.commit()
+    out = get_period_request_by_id(db, request_id) or row
+    return {**out, "ok": True}

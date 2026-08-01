@@ -467,6 +467,12 @@ def provision_company_for_lohn(
             else "/api/v2/accounting/employees"
         ),
         "employeesCapability": "platform.employees.v1",
+        "periodRequestUrl": (
+            f"{platform_url}/api/v2/accounting/period-request"
+            if platform_url
+            else "/api/v2/accounting/period-request"
+        ),
+        "periodRequestCapability": "platform.period.request.v1",
         "payrollBatchUrl": (
             f"{platform_url}/api/v2/accounting/payroll-batch"
             if platform_url

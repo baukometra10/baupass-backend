@@ -44,12 +44,15 @@ def register_accounting_blueprint(flask_app) -> None:
     from .schema import ensure_accounting_schema
     from .service import (
         approve_batch,
+        confirm_period_handoff,
         ingest_statements,
         notify_hours_ready,
+        period_handoff_gate,
         prepare_hour_export,
         prepare_payroll_batch,
         push_payroll_batch_to_lohn,
         reject_batch,
+        request_period_handoff,
     )
 
     def _auth_accounting():
@@ -95,7 +98,7 @@ def register_accounting_blueprint(flask_app) -> None:
 
     @accounting_bp.get("/v2/accounting/employees")
     def accounting_pull_employees():
-        """platform.employees.v1 — Lohn pulls full employee master for the company."""
+        """platform.employees.v1 — full master; with ?period= only after platform confirmation."""
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
@@ -104,11 +107,81 @@ def register_accounting_blueprint(flask_app) -> None:
         blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
         if blocked:
             return jsonify(blocked), 403
+        period = (request.args.get("period") or "").strip()
+        if period:
+            try:
+                gate = period_handoff_gate(get_db(), company_id=integ["company_id"], period=period)
+            except ValueError:
+                return jsonify({"error": "invalid_period"}), 400
+            if gate:
+                return jsonify(gate), 409
         try:
             payload = build_employee_master_list(get_db(), company_id=integ["company_id"])
         except ValueError:
             return jsonify({"error": "company_id_required"}), 400
+        if period:
+            payload["period"] = period
+            payload["handoffStatus"] = "confirmed"
         return jsonify(payload), 200
+
+    @accounting_bp.post("/v2/accounting/period-request")
+    @accounting_bp.get("/v2/accounting/period-request")
+    def accounting_period_request():
+        """
+        Lohn asks for employees + Abrechnung inputs for a company/period.
+        Platform holds data until Ops confirms handoff.
+        """
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        data = request.get_json(silent=True) or {}
+        period = (
+            (request.args.get("period") or "").strip()
+            or str(data.get("period") or "").strip()
+        )
+        if not period:
+            from .monthly_job import previous_period
+
+            period = previous_period()
+        body_company = str(
+            data.get("companyId") or data.get("company_id") or (data.get("company") or {}).get("id") or ""
+        ).strip()
+        if body_company and body_company != integ["company_id"]:
+            return jsonify({"error": "company_id_mismatch"}), 403
+        if request.method == "GET":
+            req = repo.get_period_request(get_db(), company_id=integ["company_id"], period=period)
+            if not req:
+                return jsonify(
+                    {
+                        "ok": True,
+                        "status": "missing",
+                        "period": period,
+                        "companyId": integ["company_id"],
+                        "message": "No request yet — POST /api/v2/accounting/period-request",
+                    }
+                ), 200
+            return jsonify({"ok": True, "request": req, "status": req.get("status"), "period": period}), 200
+        try:
+            result = request_period_handoff(
+                get_db(),
+                company_id=integ["company_id"],
+                period=period,
+                source="lohn",
+                note=str(data.get("note") or data.get("message") or "")[:500],
+                external_ref=str(data.get("externalRef") or "")[:120],
+            )
+        except ValueError as exc:
+            code = "company_id_required" if "company" in str(exc) else "invalid_period"
+            return jsonify({"error": code}), 400
+        status_code = 200 if result.get("ok") else 400
+        if result.get("status") == "pending_confirmation":
+            status_code = 202
+        return jsonify(result), status_code
 
     @accounting_bp.get("/v2/accounting/hours")
     def accounting_pull_hours():
@@ -126,6 +199,12 @@ def register_accounting_blueprint(flask_app) -> None:
 
             period = previous_period()
         try:
+            gate = period_handoff_gate(get_db(), company_id=integ["company_id"], period=period)
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        if gate:
+            return jsonify(gate), 409
+        try:
             payload = prepare_hour_export(
                 get_db(),
                 company_id=integ["company_id"],
@@ -135,12 +214,13 @@ def register_accounting_blueprint(flask_app) -> None:
         except ValueError as exc:
             code = "company_id_required" if "company" in str(exc) else "invalid_period"
             return jsonify({"error": code}), 400
+        payload["handoffStatus"] = "confirmed"
         return jsonify(payload), 200
 
     @accounting_bp.get("/v2/accounting/payroll-batch")
     @accounting_bp.post("/v2/accounting/payroll-batch")
     def accounting_payroll_batch():
-        """platform.payroll.batch.v1 — Lohn pulls { companyId, period } with full master + hours."""
+        """platform.payroll.batch.v1 — only after platform confirmed the period handoff."""
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
@@ -164,6 +244,12 @@ def register_accounting_blueprint(flask_app) -> None:
 
             period = previous_period()
         try:
+            gate = period_handoff_gate(get_db(), company_id=integ["company_id"], period=period)
+        except ValueError:
+            return jsonify({"error": "invalid_period"}), 400
+        if gate:
+            return jsonify(gate), 409
+        try:
             payload = prepare_payroll_batch(
                 get_db(),
                 company_id=integ["company_id"],
@@ -173,6 +259,7 @@ def register_accounting_blueprint(flask_app) -> None:
         except ValueError as exc:
             code = "company_id_required" if "company" in str(exc) else "invalid_period"
             return jsonify({"error": code}), 400
+        payload["handoffStatus"] = "confirmed"
         return jsonify(payload), 200
 
     @accounting_bp.get("/v2/accounting/statements")
@@ -915,10 +1002,66 @@ def register_accounting_blueprint(flask_app) -> None:
         code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
         return jsonify(result), code
 
+    @accounting_bp.get("/payroll/accounting/period-requests")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_list_period_requests():
+        user = g.current_user
+        company_id = None if user["role"] == "superadmin" else user.get("company_id")
+        if user["role"] == "superadmin" and request.args.get("company_id"):
+            company_id = request.args.get("company_id")
+        status = (request.args.get("status") or "pending_confirmation").strip()
+        if status in {"all", "*"}:
+            status = None
+        rows = repo.list_period_requests(get_db(), company_id=company_id, status=status)
+        return jsonify({"ok": True, "requests": rows, "count": len(rows)}), 200
+
+    @accounting_bp.post("/payroll/accounting/period-requests/<request_id>/confirm")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_confirm_period_request(request_id: str):
+        """Bestätigen: Mitarbeiter + Abrechnungsdaten an WorkPass Lohn übergeben."""
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = confirm_period_handoff(
+            get_db(),
+            request_id=request_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        if result.get("error") == "not_found":
+            return jsonify(result), 404
+        if result.get("error") == "forbidden_company":
+            return jsonify(result), 403
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/period-requests/<request_id>/reject")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_reject_period_request(request_id: str):
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = repo.reject_period_request(
+            get_db(),
+            request_id=request_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+            reason=str(data.get("reason") or ""),
+        )
+        if result.get("error") == "not_found":
+            return jsonify(result), 404
+        if result.get("error") == "forbidden_company":
+            return jsonify(result), 403
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
+
     @accounting_bp.post("/payroll/accounting/export-now")
     @require_auth
     @require_roles("superadmin", "company-admin")
     def admin_export_now():
+        """Bestätigen & übergeben: Mitarbeiter + Abrechnung an WorkPass Lohn."""
         user = g.current_user
         data = request.get_json(silent=True) or {}
         company_id = user.get("company_id") if user["role"] != "superadmin" else (
@@ -927,34 +1070,38 @@ def register_accounting_blueprint(flask_app) -> None:
         if not company_id:
             return jsonify({"error": "company_id_required"}), 400
         period = str(data.get("period") or "").strip()
-        notify = bool(data.get("notify", True))
-        try:
-            if notify:
-                from .monthly_job import previous_period
+        if not period:
+            from .monthly_job import previous_period
 
-                result = notify_hours_ready(
-                    get_db(),
-                    company_id=str(company_id),
-                    period=period or previous_period(),
-                )
-            else:
-                if not period:
-                    from .monthly_job import previous_period
-
-                    period = previous_period()
+            period = previous_period()
+        # Preview only (no handoff)
+        if data.get("previewOnly") is True or data.get("confirm") is False:
+            try:
                 payload = prepare_payroll_batch(
                     get_db(), company_id=str(company_id), period=period, mark_sent=False
                 )
-                result = {"ok": True, "capability": "platform.payroll.batch.v1", "payload": payload}
+                return jsonify(
+                    {"ok": True, "preview": True, "capability": "platform.payroll.batch.v1", "payload": payload}
+                ), 200
+            except ValueError:
+                return jsonify({"error": "invalid_period"}), 400
+        try:
+            result = confirm_period_handoff(
+                get_db(),
+                company_id=str(company_id),
+                period=period,
+                actor_user_id=str(user.get("id") or ""),
+            )
         except ValueError:
             return jsonify({"error": "invalid_period"}), 400
-        return jsonify(result), 200
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
 
     @accounting_bp.post("/payroll/accounting/push-payroll-batch")
     @require_auth
     @require_roles("superadmin", "company-admin")
     def admin_push_payroll_batch():
-        """Force platform → Lohn POST /v1/payroll/batch for a company/period."""
+        """Bestätigen (falls nötig) und Batch erneut an Lohn übergeben."""
         user = g.current_user
         data = request.get_json(silent=True) or {}
         company_id = user.get("company_id") if user["role"] != "superadmin" else (
@@ -968,8 +1115,11 @@ def register_accounting_blueprint(flask_app) -> None:
 
             period = previous_period()
         try:
-            result = push_payroll_batch_to_lohn(
-                get_db(), company_id=str(company_id), period=period
+            result = confirm_period_handoff(
+                get_db(),
+                company_id=str(company_id),
+                period=period,
+                actor_user_id=str(user.get("id") or ""),
             )
         except ValueError:
             return jsonify({"error": "invalid_period"}), 400

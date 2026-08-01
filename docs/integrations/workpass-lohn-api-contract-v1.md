@@ -158,6 +158,40 @@ Legacy alias accepted: `X-Company-Id` (prefer `X-WorkPass-Company-Id`).
 
 ## 3) Endpoints WorkPass Lohn must call
 
+### 3.0a Request monthly handoff (employees + Abrechnung inputs)
+
+```http
+POST /api/v2/accounting/period-request
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+Content-Type: application/json
+
+{ "companyId": "<FIRMA-ID>", "period": "2026-07" }
+```
+
+Response `202`:
+```json
+{
+  "ok": true,
+  "status": "pending_confirmation",
+  "message": "Warte auf Bestätigung der Plattform — danach werden Mitarbeiter und Abrechnungsdaten übergeben"
+}
+```
+
+Until Ops confirms, pulls for that period return `409 period_not_confirmed`.
+
+After confirmation the platform pushes `platform.payroll.batch.v1` (employees + hours) and opens:
+
+- `GET /api/v2/accounting/employees?period=2026-07`
+- `GET /api/v2/accounting/hours?period=2026-07`
+- `GET|POST /api/v2/accounting/payroll-batch?period=2026-07`
+
+Status check:
+
+```http
+GET /api/v2/accounting/period-request?period=2026-07
+```
+
 ### 3.0 Pull employee master (full Stammdaten)
 
 ```http
@@ -169,6 +203,8 @@ X-Accounting-Key: acc_live_…
 Returns `format: platform.employees.v1` with every active worker and payroll fields:
 `iban`, `taxId`, `insuranceNumber`, `birthDate`, `email`, `phone`, `address`, `nationality`,
 `gender`, `jobTitle`, `hourlyRate`, `salaryGrossMonthly`, `missingFields`, `payrollReady`.
+
+With `?period=YYYY-MM` the pull is allowed **only after** platform confirmation for that period.
 
 ### 3.1 Pull monthly hours (+ master on each row)
 

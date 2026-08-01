@@ -127,6 +127,32 @@ def ensure_accounting_schema(db) -> None:
         )
         """,
         "CREATE INDEX IF NOT EXISTS idx_accounting_messages_company_status ON accounting_messages(company_id, status)",
+        """
+        CREATE TABLE IF NOT EXISTS lohn_period_requests (
+            id TEXT PRIMARY KEY,
+            company_id TEXT NOT NULL,
+            period TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending_confirmation',
+            source TEXT NOT NULL DEFAULT 'lohn',
+            want_employees INTEGER NOT NULL DEFAULT 1,
+            want_payroll INTEGER NOT NULL DEFAULT 1,
+            note TEXT NOT NULL DEFAULT '',
+            external_ref TEXT NOT NULL DEFAULT '',
+            employee_count INTEGER NOT NULL DEFAULT 0,
+            total_hours REAL NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            confirmed_at TEXT,
+            confirmed_by_user_id TEXT,
+            rejected_at TEXT,
+            rejected_by_user_id TEXT,
+            reject_reason TEXT NOT NULL DEFAULT '',
+            delivered_at TEXT,
+            delivery_error TEXT NOT NULL DEFAULT '',
+            UNIQUE(company_id, period)
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_lohn_period_requests_company_status ON lohn_period_requests(company_id, status)",
     )
     for sql in statements:
         db.execute(sql)

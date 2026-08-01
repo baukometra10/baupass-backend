@@ -311,6 +311,205 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
     }
 
 
+def request_period_handoff(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    source: str = "lohn",
+    note: str = "",
+    external_ref: str = "",
+    notify_inbox: bool = True,
+) -> dict[str, Any]:
+    """
+    WorkPass Lohn asks: employees + Abrechnung inputs for company/period.
+    Data is NOT released until a human confirms on the platform.
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .hours_service import aggregate_company_hours, build_employee_master_list
+
+    company_id = require_company_id(company_id)
+    period = normalize_period(period)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled"}
+
+    employees = build_employee_master_list(db, company_id=company_id)
+    hours = aggregate_company_hours(db, company_id=company_id, period=period)
+    req = repo.upsert_period_request(
+        db,
+        company_id=company_id,
+        period=period,
+        source=source,
+        want_employees=True,
+        want_payroll=True,
+        note=note,
+        external_ref=external_ref,
+        employee_count=int(employees.get("employeeCount") or 0),
+        total_hours=float(hours.get("totalHours") or 0),
+    )
+    if req.get("alreadyReleased"):
+        return {
+            "ok": True,
+            "status": req.get("status"),
+            "request": req,
+            "alreadyReleased": True,
+            "message": "Period already confirmed — pull employees/hours/payroll-batch",
+            "pull": {
+                "employees": "/api/v2/accounting/employees",
+                "hours": f"/api/v2/accounting/hours?period={period}",
+                "payrollBatch": f"/api/v2/accounting/payroll-batch?period={period}",
+            },
+        }
+
+    inbox = None
+    if notify_inbox and (req.get("created") or req.get("reopened")):
+        try:
+            from .messages_inbox import create_test_accounting_message
+
+            inbox = create_test_accounting_message(
+                db,
+                company_id=company_id,
+                subject=f"Lohn-Anfrage: Mitarbeiter & Abrechnung {period}",
+                body=(
+                    f"WorkPass Lohn möchte für Periode {period} die Mitarbeiterstammdaten "
+                    f"und Abrechnungsdaten ({int(employees.get('employeeCount') or 0)} MA, "
+                    f"{float(hours.get('totalHours') or 0)} Std.). "
+                    "Bitte im Ops Center bestätigen — erst dann werden die Daten übergeben."
+                ),
+                period=period,
+                kind="period_request",
+            )
+        except Exception as exc:
+            inbox = {"ok": False, "error": str(exc)[:120]}
+
+    return {
+        "ok": True,
+        "status": "pending_confirmation",
+        "request": req,
+        "preview": {
+            "employeeCount": employees.get("employeeCount"),
+            "payrollReadyCount": employees.get("payrollReadyCount"),
+            "incompleteCount": employees.get("incompleteCount"),
+            "totalHours": hours.get("totalHours"),
+            "totalGrossEstimate": hours.get("totalGrossEstimate"),
+        },
+        "message": "Warte auf Bestätigung der Plattform — danach werden Mitarbeiter und Abrechnungsdaten übergeben",
+        "inbox": inbox,
+    }
+
+
+def confirm_period_handoff(
+    db,
+    *,
+    company_id: str | None = None,
+    period: str | None = None,
+    request_id: str | None = None,
+    actor_user_id: str = "",
+) -> dict[str, Any]:
+    """
+    Human confirmation: release employees + payroll batch for the period to WorkPass Lohn.
+    """
+    scope = str(company_id or "").strip() or None
+    if request_id:
+        req = repo.get_period_request_by_id(db, request_id)
+        if not req:
+            return {"ok": False, "error": "not_found"}
+        if scope and str(req["companyId"]) != str(scope):
+            return {"ok": False, "error": "forbidden_company"}
+        company_id = str(req["companyId"])
+        period = str(req["period"])
+    else:
+        company_id = require_company_id(company_id or "")
+        period = normalize_period(period or "")
+        # Ensure a request row exists (platform-initiated confirm)
+        req = repo.upsert_period_request(
+            db,
+            company_id=company_id,
+            period=period,
+            source="platform",
+            note="Confirmed from platform Ops",
+        )
+        request_id = str(req.get("id") or "")
+
+    confirmed = repo.confirm_period_request(
+        db,
+        request_id=str(request_id),
+        actor_user_id=actor_user_id,
+        company_id=None,
+    )
+    if not confirmed.get("ok"):
+        return confirmed
+
+    # Deliver full package to Lohn (employees embedded in payroll-batch + hours)
+    delivery = notify_hours_ready(db, company_id=str(company_id), period=str(period))
+    if delivery.get("ok"):
+        repo.mark_period_request_delivered(db, request_id=str(request_id))
+    else:
+        repo.mark_period_request_delivered(
+            db,
+            request_id=str(request_id),
+            error=str(delivery.get("error") or "delivery_failed"),
+        )
+
+    employees = None
+    try:
+        from .hours_service import build_employee_master_list
+
+        employees = build_employee_master_list(db, company_id=str(company_id))
+    except Exception:
+        employees = None
+
+    final = repo.get_period_request_by_id(db, str(request_id))
+    return {
+        "ok": bool(delivery.get("ok")),
+        "status": (final or {}).get("status") or "confirmed",
+        "request": final,
+        "delivery": delivery,
+        "employees": {
+            "employeeCount": (employees or {}).get("employeeCount"),
+            "payrollReadyCount": (employees or {}).get("payrollReadyCount"),
+        }
+        if employees
+        else None,
+        "message": "Bestätigt — Mitarbeiter und Abrechnungsdaten an WorkPass Lohn übergeben",
+        "pull": {
+            "employees": "/api/v2/accounting/employees",
+            "hours": f"/api/v2/accounting/hours?period={period}",
+            "payrollBatch": f"/api/v2/accounting/payroll-batch?period={period}",
+        },
+    }
+
+
+def period_handoff_gate(db, *, company_id: str, period: str) -> dict[str, Any] | None:
+    """
+    Return error payload if Lohn must not pull yet; None if pull allowed.
+    """
+    period = normalize_period(period)
+    company_id = require_company_id(company_id)
+    if repo.is_period_confirmed_for_lohn(db, company_id=company_id, period=period):
+        return None
+    req = repo.get_period_request(db, company_id=company_id, period=period)
+    if req and str(req.get("status") or "") == "rejected":
+        return {
+            "error": "period_rejected",
+            "status": "rejected",
+            "period": period,
+            "companyId": company_id,
+            "requestId": req.get("id"),
+            "message": "Plattform hat die Übergabe für diese Periode abgelehnt",
+            "hint": "POST /api/v2/accounting/period-request erneut senden",
+        }
+    return {
+        "error": "period_not_confirmed",
+        "status": (req or {}).get("status") or "missing",
+        "period": period,
+        "companyId": company_id,
+        "requestId": (req or {}).get("id"),
+        "message": "Warte auf Bestätigung der Plattform — danach werden Mitarbeiter und Abrechnungsdaten übergeben",
+        "hint": "POST /api/v2/accounting/period-request then wait for Ops confirm",
+    }
+
+
 def _storage_dir(company_id: str, period: str) -> Path:
     try:
         from backend.server import DOCS_UPLOAD_DIR

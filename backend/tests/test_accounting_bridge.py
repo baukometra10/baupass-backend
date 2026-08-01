@@ -424,6 +424,49 @@ def test_list_company_statement_batches_empty():
     assert repository.list_company_statement_batches(db, company_id="c1") == []
 
 
+def test_period_handoff_requires_confirmation(monkeypatch):
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+    from backend.app.platform.accounting import platform_link
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+
+    gate = service.period_handoff_gate(db, company_id="c1", period="2026-06")
+    assert gate and gate["error"] == "period_not_confirmed"
+
+    req = service.request_period_handoff(db, company_id="c1", period="2026-06", source="lohn")
+    assert req["ok"] is True
+    assert req["status"] == "pending_confirmation"
+    assert req["request"]["employeeCount"] == 1
+    assert service.period_handoff_gate(db, company_id="c1", period="2026-06")
+
+    posts = []
+
+    def _fake_post(link, *, path, body, event):
+        posts.append({"path": path, "event": event, "body": body})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    monkeypatch.setattr(service, "_post_webhook", lambda *a, **k: {"ok": True, "skipped": True})
+
+    out = service.confirm_period_handoff(
+        db, request_id=req["request"]["id"], actor_user_id="admin-1"
+    )
+    assert out["ok"] is True
+    assert out["status"] == "delivered"
+    assert service.period_handoff_gate(db, company_id="c1", period="2026-06") is None
+    assert posts and posts[0]["path"] == "/v1/payroll/batch"
+    assert posts[0]["body"]["employees"][0]["employeeId"] == "w1"
+
+
 def test_push_payroll_batch_to_lohn(monkeypatch):
     from backend.app.platform.accounting import platform_link
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled

@@ -1,4 +1,4 @@
-"""Monthly accounting hours export job (safe; no auto-approve of statements)."""
+"""Monthly accounting handoff job (request only — human confirms before delivery)."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -6,7 +6,7 @@ from typing import Any
 
 from . import repository as repo
 from .hours_service import normalize_period
-from .service import notify_hours_ready
+from .service import request_period_handoff
 
 
 def previous_period(reference: datetime | None = None) -> str:
@@ -25,8 +25,8 @@ def run_monthly_accounting_exports(
     period: str | None = None,
 ) -> dict[str, Any]:
     """
-    On run_day (per company), prepare previous month's payroll batch and push/notify Lohn.
-    Does NOT release payslips to workers.
+    On run_day (per company), open a pending period handoff request for Ops confirmation.
+    Does NOT auto-deliver employees/hours to Lohn and does NOT auto-approve payslips.
     """
     now = reference_date or datetime.now(timezone.utc)
     target_period = normalize_period(period) if period else previous_period(now)
@@ -38,14 +38,29 @@ def run_monthly_accounting_exports(
         if not force and int(now.day) != run_day:
             results.append({"companyId": company_id, "skipped": "not_run_day", "runDay": run_day})
             continue
-        if not force and str(integ.get("last_export_period") or "") == target_period:
-            existing = repo.get_hour_export(db, company_id=company_id, period=target_period)
-            if existing and existing.get("status") in {"sent", "acked", "queued"}:
-                results.append({"companyId": company_id, "skipped": "already_exported", "period": target_period})
-                continue
+        existing = repo.get_period_request(db, company_id=company_id, period=target_period)
+        if not force and existing and str(existing.get("status") or "") in {
+            "pending_confirmation",
+            "confirmed",
+            "delivered",
+        }:
+            results.append(
+                {
+                    "companyId": company_id,
+                    "skipped": "already_requested",
+                    "period": target_period,
+                    "status": existing.get("status"),
+                }
+            )
+            continue
         try:
-            # notify_hours_ready: prepare platform.payroll.batch.v1, webhook + POST /v1/payroll/batch
-            out = notify_hours_ready(db, company_id=company_id, period=target_period)
+            out = request_period_handoff(
+                db,
+                company_id=company_id,
+                period=target_period,
+                source="monthly_job",
+                note="Monatlicher Lauf — bitte Bestätigung für Übergabe an WorkPass Lohn",
+            )
             results.append({"companyId": company_id, **out})
         except Exception as exc:
             results.append({"companyId": company_id, "ok": False, "error": str(exc)[:200]})
@@ -54,4 +69,5 @@ def run_monthly_accounting_exports(
         "period": target_period,
         "companies": len(integrations),
         "results": results,
+        "note": "Handoff waits for human confirmation in Ops — no auto delivery",
     }
