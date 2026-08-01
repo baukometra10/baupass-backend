@@ -2433,10 +2433,8 @@ function bindAutopilotPanel(host, settings) {
   host.querySelector("#autopilotRunBtn")?.addEventListener("click", async () => {
     const q = companyQuery();
     try {
-      const res = await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
-      const tot = res.totals || res;
-      const msg = `${t("autopilot.ran")} ${JSON.stringify(tot).slice(0, 120)}`;
-      showActionToast(msg, false);
+      await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
+      showActionToast(t("autopilot.ran"), false);
     } catch (e) {
       showActionToast(e.message, true);
     }
@@ -4657,15 +4655,115 @@ function renderInboxFilters(bySource = {}) {
   });
 }
 
+function inboxSeverityLabel(severity) {
+  const s = String(severity || "").trim().toLowerCase();
+  if (!s) return "—";
+  const key = `inbox.severity.${s}`;
+  const label = t(key);
+  return label && label !== key ? label : s;
+}
+
+function inboxSourceLabel(source) {
+  const s = String(source || "").trim().toLowerCase();
+  const map = {
+    security: "inbox.filterSecurity",
+    attendance: "inbox.filterAttendance",
+    chat: "inbox.filterChat",
+    leave: "inbox.filterLeave",
+    document: "inbox.filterDocument",
+    system: "inbox.filterSystem",
+    deployment: "inbox.filterDeployment",
+  };
+  const key = map[s];
+  if (key) {
+    const label = t(key);
+    if (label && label !== key) return label;
+  }
+  return s || "—";
+}
+
+function inboxActionLabel(a) {
+  const action = a || {};
+  const type = String(action.type || "").trim().toLowerCase();
+  if (type === "resolve" || type === "ack") return t("inbox.done");
+  if (type === "prompt") return t("inbox.aiAnalyze");
+  if (type === "open") return t("inbox.openAction");
+  if (type === "execute") {
+    const act = String(action.action || "").trim();
+    const key = `inbox.exec.${act}`;
+    const localized = t(key);
+    if (localized && localized !== key) return localized;
+    return t("inbox.openAction");
+  }
+  if (type === "navigate") {
+    const url = String(action.url || "");
+    const tab = String(action.tab || "").trim();
+    if (tab === "audit" || /tab=audit/i.test(url)) return t("inbox.nav.audit");
+    if (/docs\.html/i.test(url)) return t("inbox.nav.docs");
+    if (/source=leave/i.test(url) || tab === "inbox") {
+      if (/source=leave/i.test(url)) return t("inbox.nav.leave");
+      if (/source=document/i.test(url)) return t("inbox.nav.docs");
+      if (/source=attendance/i.test(url)) return t("inbox.nav.attendance");
+      if (/source=security/i.test(url)) return t("inbox.nav.security");
+    }
+    if (/ai-command-center/i.test(url)) return t("inbox.aiAnalyze");
+    if (/deployment|einsatzplan/i.test(url)) return t("inbox.nav.deployment");
+    const raw = String(action.label || "").trim();
+    // Prefer human labels; never show snake_case action ids
+    if (raw && !/^[a-z][a-z0-9_.-]*$/i.test(raw)) return raw;
+    return t("inbox.openAction");
+  }
+  const raw = String(action.label || "").trim();
+  if (raw && !/^[a-z][a-z0-9_.-]*$/i.test(raw)) return raw;
+  return t("inbox.openAction");
+}
+
+function inboxTitleForCode(code, fallback) {
+  const c = String(code || "").trim();
+  const keyMap = {
+    outside_hours_checkin_attempt: "inbox.alert.outsideHours.title",
+    repeated_late_checkin: "inbox.alert.repeatedLate.title",
+    tomorrow_attendance_forecast: "inbox.alert.tomorrowForecast.title",
+    deployment_worker_declined: "inbox.alert.deploymentDeclined.title",
+    shift_swap_accepted: "inbox.alert.shiftSwap.title",
+    "docs.review": "inbox.alert.docsReview.title",
+    "docs.review.stale": "inbox.alert.docsReviewStale.title",
+    "docs.published": "inbox.alert.docsPublished.title",
+    "autopilot.leave_queue": "inbox.alert.autopilotLeave.title",
+    "autopilot.docs_review": "inbox.alert.autopilotDocs.title",
+    "autopilot.missing_expected": "inbox.alert.autopilotMissing.title",
+    "autopilot.security_open": "inbox.alert.autopilotSecurity.title",
+    "autopilot.ops_digest": "inbox.alert.autopilotDigest.title",
+  };
+  if (c.startsWith("sensitive_attempt")) {
+    const k = "inbox.alert.sensitive.title";
+    const label = t(k);
+    return label && label !== k ? label : fallback || c;
+  }
+  const key = keyMap[c];
+  if (key) {
+    const label = t(key);
+    if (label && label !== key) return label;
+  }
+  const fb = String(fallback || "").trim();
+  // Never show raw snake_case codes as titles
+  if (fb && !/^[a-z][a-z0-9_.-]*$/i.test(fb)) return fb;
+  return t("inbox.alert.generic.title");
+}
+
 function localizeInboxItem(it) {
   const item = it || {};
   const code = String(item.code || "").trim();
   const details = item.details && typeof item.details === "object" ? item.details : {};
   if (code === "outside_hours_checkin_attempt" || details.i18nKey === "outside_hours_checkin_attempt") {
     const channelKey = String(details.channel || "gps").trim().toLowerCase() || "gps";
-    const channel = t(`inbox.alert.outsideHours.channel.${channelKey}`) || channelKey;
+    const channel = t(`inbox.alert.outsideHours.channel.${channelKey}`);
+    const channelLabel = channel && !channel.startsWith("inbox.alert.") ? channel : channelKey.toUpperCase();
     const gateRaw = String(details.gate || "").trim();
-    const gate = gateRaw ? ` (${gateRaw})` : "";
+    // Hide technical gate ids; show only human gate names (letters/spaces)
+    const gateHuman = gateRaw && /[a-zA-Z\u0600-\u06FF]{2,}/.test(gateRaw) && !/^[a-z0-9_]+$/i.test(gateRaw)
+      ? ` (${gateRaw})`
+      : "";
     const start = String(details.shiftStart || "").trim().slice(0, 5);
     const end = String(details.shiftEnd || "").trim().slice(0, 5);
     const windowBit = start && end ? t("inbox.alert.outsideHours.window", { start, end }) : "";
@@ -4675,8 +4773,8 @@ function localizeInboxItem(it) {
       title: t("inbox.alert.outsideHours.title"),
       message: t("inbox.alert.outsideHours.body", {
         name,
-        channel,
-        gate,
+        channel: channelLabel,
+        gate: gateHuman,
         window: windowBit,
       }),
     };
@@ -4712,7 +4810,10 @@ function localizeInboxItem(it) {
   if (code === "shift_swap_accepted") {
     return { ...item, title: t("inbox.alert.shiftSwap.title") };
   }
-  return item;
+  return {
+    ...item,
+    title: inboxTitleForCode(code, item.title),
+  };
 }
 
 async function loadInbox() {
@@ -4788,9 +4889,8 @@ async function loadInbox() {
     });
     complianceCard.querySelector("#complianceRunAutopilotBtn")?.addEventListener("click", async () => {
       try {
-        const res = await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
-        const tot = res?.totals || res?.summary || res || {};
-        showActionToast(`${t("autopilot.ran")} ${JSON.stringify(tot).slice(0, 140)}`, false);
+        await api(`/api/platform/autopilot/run${q}`, { method: "POST", body: "{}" });
+        showActionToast(t("autopilot.ran"), false);
         await loadInbox();
       } catch (e) {
         showActionToast(e.message || String(e), true);
@@ -4853,19 +4953,22 @@ async function loadInbox() {
               : "—";
       const acts = (it.actions || [])
         .map((a) => {
+          const label = inboxActionLabel(a);
           if (a.type === "resolve" || a.type === "ack")
-            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${escapeHtml(a.label || t("inbox.done"))}</button>`;
+            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${escapeHtml(label)}</button>`;
           if (a.type === "execute" && a.action)
-            return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${a.action}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${a.label || a.action}</button>`;
+            return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${escapeAttr(a.action)}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${escapeHtml(label)}</button>`;
           if (a.type === "navigate") {
-            const label = a.label || t("inbox.openAction");
             const url = String(a.url || "");
             const isAiCenter = /ai-command-center\.html/i.test(url);
             if (isAiCenter) {
               const prompt =
                 a.prompt ||
-                `Analysiere Inbox-Eintrag „${it.title || ""}“: ${it.message || ""}. Kurze Empfehlung für den Arbeitgeber.`;
-              return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`;
+                t("inbox.aiPromptDefault", {
+                  title: it.title || "",
+                  message: it.message || "",
+                });
+              return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
             }
             const isDeployment =
               String(it.id || "").startsWith("depdecl:") ||
@@ -4875,7 +4978,7 @@ async function loadInbox() {
               const workerName = String(it.message || "")
                 .split("·")[0]
                 .trim();
-              return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeAttr(label)}</button>`;
+              return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeHtml(label)}</button>`;
             }
             const tabTarget = String(a.tab || "").trim() || (() => {
               try {
@@ -4885,25 +4988,32 @@ async function loadInbox() {
               }
             })();
             if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
-              return `<button type="button" class="btn-link inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeAttr(label)}</button>`;
+              return `<button type="button" class="btn-link inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeHtml(label)}</button>`;
             }
             if (window.parent !== window && url.startsWith("/")) {
-              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeAttr(label)}</button>`;
+              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
             }
-            return `<a class="btn-link" href="${url}${q}">${label}</a>`;
+            return `<a class="btn-link" href="${escapeAttr(url)}${q}">${escapeHtml(label)}</a>`;
           }
           if (a.type === "prompt")
-            return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`;
+            return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
           if (a.type === "open")
-            return `<button type="button" class="btn-link inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(a.label || t("inbox.openAction"))}</button>`;
+            return `<button type="button" class="btn-link inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(label)}</button>`;
           return "";
         })
         .join(" · ");
-      return `<tr class="${it.severity === "critical" ? "row-critical" : ""} inbox-row" data-inbox-id="${escapeAttr(it.id)}" tabindex="0">
-        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge badge-warn">${it.severity || ""}</span></td>
+      const sev = String(it.severity || "").toLowerCase();
+      const sevBadge =
+        sev === "critical" || sev === "high"
+          ? "badge-warn"
+          : sev === "info" || sev === "low"
+            ? "badge-ok"
+            : "badge-warn";
+      return `<tr class="${sev === "critical" ? "row-critical" : ""} inbox-row" data-inbox-id="${escapeAttr(it.id)}" tabindex="0">
+        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge ${sevBadge}">${escapeHtml(inboxSeverityLabel(it.severity))}</span></td>
         <td class="inbox-row-main"><strong>${escapeHtml(it.title || "")}</strong><br><span class="muted small">${escapeHtml(it.message || "")}</span></td>
         <td class="${slaCls}">${slaLabel}</td>
-        <td>${it.source || ""}</td>
+        <td>${escapeHtml(inboxSourceLabel(it.source))}</td>
         <td>${acts}</td></tr>`;
     })
     .join("")}</tbody></table>`;
@@ -4947,6 +5057,43 @@ async function loadInbox() {
     }
 
     if (panel) {
+      const code = String(it.code || details.i18nKey || "").trim();
+      const facts = [];
+      const pushFact = (label, value) => {
+        if (value === undefined || value === null || value === "") return;
+        facts.push(
+          `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(String(value))}</td></tr>`,
+        );
+      };
+      if (code === "outside_hours_checkin_attempt") {
+        pushFact(t("inbox.detail.worker"), details.workerName);
+        const chKey = String(details.channel || "").trim().toLowerCase();
+        const chLabel = chKey ? t(`inbox.alert.outsideHours.channel.${chKey}`) : "";
+        pushFact(
+          t("inbox.detail.channel"),
+          chLabel && !chLabel.startsWith("inbox.alert.") ? chLabel : details.channel,
+        );
+        const gate = String(details.gate || "").trim();
+        if (gate && !/^[a-z0-9_]+$/i.test(gate)) pushFact(t("inbox.detail.gate"), gate);
+        const start = String(details.shiftStart || "").trim().slice(0, 5);
+        const end = String(details.shiftEnd || "").trim().slice(0, 5);
+        if (start && end) pushFact(t("inbox.detail.shiftWindow"), `${start}–${end}`);
+        if (details.attemptedAt || details.at || it.createdAt) {
+          pushFact(
+            t("inbox.detail.when"),
+            String(details.attemptedAt || details.at || it.createdAt || "").slice(0, 19).replace("T", " "),
+          );
+        }
+      }
+      if (code === "repeated_late_checkin") {
+        pushFact(t("inbox.detail.worker"), details.workerName);
+        if (details.streak != null) pushFact(t("inbox.detail.streak"), details.streak);
+      }
+      pushFact(t("inbox.colSource"), inboxSourceLabel(it.source));
+      pushFact(t("inbox.colSeverity") || t("inbox.critical"), inboxSeverityLabel(it.severity));
+      const factsHtml = facts.length
+        ? `<table class="inbox-detail-facts"><tbody>${facts.join("")}</tbody></table>`
+        : "";
       panel.classList.remove("hidden");
       panel.innerHTML = `
       <div class="inbox-detail-head">
@@ -4954,6 +5101,7 @@ async function loadInbox() {
         <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
       </div>
       <p>${escapeHtml(it.message || "")}</p>
+      ${factsHtml}
       ${reason ? `<p><strong>${t("inbox.reasonLabel")}</strong> ${escapeHtml(reason)}</p>` : ""}
       ${eventHtml}
       <div class="inbox-detail-actions">
@@ -4961,7 +5109,7 @@ async function loadInbox() {
           .filter((a) => a.type === "prompt")
           .map(
             (a) =>
-              `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(a.label || t("inbox.aiAnalyze"))}</button>`,
+              `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(inboxActionLabel(a))}</button>`,
           )
           .join("")}
       </div>
@@ -6876,7 +7024,7 @@ async function loadAudit() {
       },
       {
         label: t("section.audit.what"),
-        render: (r) => escapeHtml(r.eventType || r.event_type || "—"),
+        render: (r) => escapeHtml(humanizeAuditEventType(r.eventType || r.event_type || "")),
       },
       {
         label: t("section.audit.message"),
@@ -6956,29 +7104,95 @@ function closeAuditDetailModal() {
   document.getElementById("auditDetailModal")?.remove();
 }
 
+function humanizeAuditEventType(eventType) {
+  const raw = String(eventType || "").trim();
+  if (!raw) return "—";
+  const key = `section.audit.event.${raw}`;
+  const localized = t(key);
+  if (localized && localized !== key) return localized;
+  // contract.create → Contract create
+  return raw
+    .replace(/[._]+/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase());
+}
+
 function openAuditDetailModal(row) {
   closeAuditDetailModal();
+  const when = String(row.createdAt || row.created_at || "").slice(0, 19).replace("T", " ");
+  const whoName =
+    row.actorName || row.actor_name || row.actorUserId || row.actor_user_id || "—";
+  const whoRole = row.actorRole || row.actor_role || "";
+  const eventType = row.eventType || row.event_type || "";
+  const companyId = row.companyId || row.company_id || "";
+  const nameById = $("auditCompanyFilter")?._nameById || {};
+  const companyLabel = nameById[companyId] || companyId || "";
+  const targetType = row.targetType || row.target_type || "";
+  const targetId = row.targetId || row.target_id || "";
+  const message = String(row.message || "").trim();
+  const reason = String(row.reason || "").trim();
+  const detailsObj =
+    row.details && typeof row.details === "object"
+      ? row.details
+      : (() => {
+          try {
+            const parsed = JSON.parse(row.details || "{}");
+            return typeof parsed === "object" && parsed ? parsed : {};
+          } catch {
+            return {};
+          }
+        })();
+
+  const rows = [];
+  const push = (label, value) => {
+    if (value === undefined || value === null || value === "") return;
+    rows.push(
+      `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(String(value))}</td></tr>`,
+    );
+  };
+  push(t("section.audit.when"), when);
+  push(t("section.audit.who"), whoRole ? `${whoName} (${whoRole})` : whoName);
+  push(t("section.audit.what"), humanizeAuditEventType(eventType));
+  if (companyLabel && isSuperadminUser()) push(t("section.audit.company"), companyLabel);
+  push(t("section.audit.message"), message);
+  push(t("section.audit.why"), reason);
+  if (targetType || targetId) {
+    push(
+      t("section.audit.target"),
+      [targetType, targetId].filter(Boolean).join(" · "),
+    );
+  }
+  // A few common detail fields in plain language (skip nested objects / ids)
+  for (const [k, v] of Object.entries(detailsObj)) {
+    if (v == null || typeof v === "object") continue;
+    if (/^(id|userId|workerId|companyId|token|password|key)$/i.test(k)) continue;
+    if (String(v).length > 160) continue;
+    const label = k.replace(/[._]+/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase());
+    push(label, v);
+    if (rows.length >= 12) break;
+  }
+
   const payload = {
     id: row.id,
-    eventType: row.eventType || row.event_type,
+    eventType,
     when: row.createdAt || row.created_at,
     who: {
       id: row.actorUserId || row.actor_user_id,
       name: row.actorName || row.actor_name,
-      role: row.actorRole || row.actor_role,
+      role: whoRole,
       ip: row.ipAddress || row.ip_address,
     },
-    companyId: row.companyId || row.company_id,
-    target: { type: row.targetType || row.target_type, id: row.targetId || row.target_id },
-    message: row.message,
-    reason: row.reason,
-    details: row.details || {},
+    companyId,
+    target: { type: targetType, id: targetId },
+    message,
+    reason,
+    details: detailsObj,
   };
   const pretty = JSON.stringify(payload, null, 2);
+  const showTech = isSuperadminUser();
   const inline = $("auditDetail");
   if (inline) {
-    inline.classList.remove("hidden");
-    inline.textContent = pretty;
+    inline.classList.add("hidden");
+    inline.textContent = "";
   }
   const modal = document.createElement("div");
   modal.id = "auditDetailModal";
@@ -6991,10 +7205,18 @@ function openAuditDetailModal(row) {
         <h3>${escapeHtml(t("section.audit.details") || "Details")}</h3>
         <button type="button" class="ghost small" data-audit-close aria-label="${escapeAttr(t("common.close") || "Schließen")}">×</button>
       </div>
-      <p class="muted small">${escapeHtml(String(payload.eventType || "—"))} · ${escapeHtml(String(payload.when || "—").slice(0, 19))}</p>
-      <pre class="audit-detail-pre">${escapeHtml(pretty)}</pre>
+      <p class="muted small">${escapeHtml(humanizeAuditEventType(eventType))} · ${escapeHtml(when || "—")}</p>
+      <table class="audit-detail-facts"><tbody>${rows.join("") || `<tr><td class="muted">${escapeHtml(t("ops.noDetailData"))}</td></tr>`}</tbody></table>
+      ${
+        showTech
+          ? `<details class="audit-tech-details">
+        <summary>${escapeHtml(t("section.audit.techDetails"))}</summary>
+        <pre class="audit-detail-pre">${escapeHtml(pretty)}</pre>
+      </details>`
+          : ""
+      }
       <div class="audit-detail-modal-actions">
-        <button type="button" class="ghost" data-audit-copy>${escapeHtml(t("section.audit.copy") || "Kopieren")}</button>
+        ${showTech ? `<button type="button" class="ghost" data-audit-copy>${escapeHtml(t("section.audit.copy") || "Kopieren")}</button>` : ""}
         <button type="button" data-audit-close>${escapeHtml(t("common.close") || "Schließen")}</button>
       </div>
     </div>
