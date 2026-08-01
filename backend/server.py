@@ -16062,6 +16062,37 @@ def worker_app_sync_offline_events():
             results.append(leave_result)
             continue
 
+        if event_type == "manual_gps_attendance":
+            location = event.get("location") if isinstance(event.get("location"), dict) else None
+            if distance_meters is not None and location is not None:
+                location = dict(location)
+                location["distanceMeters"] = distance_meters
+            attendance_result = record_worker_app_manual_attendance(
+                db,
+                worker,
+                direction_requested=event.get("direction") or "auto",
+                location=location,
+                gate=event.get("gate") or "Mitarbeiter-App (GPS offline)",
+                note=event.get("note") or "Manual GPS attendance via offline sync",
+                timestamp_value=occurred_at,
+                client_event_id=client_event_id,
+            )
+            attendance_result["type"] = event_type
+            if client_event_id:
+                attendance_result["clientEventId"] = client_event_id
+            results.append(attendance_result)
+            if attendance_result.get("ok"):
+                stored_count += 1
+                if not attendance_result.get("duplicate") and not attendance_result.get("replay"):
+                    log_audit(
+                        "worker_app.manual_gps_attendance_offline",
+                        f"Offline GPS {attendance_result.get('direction')} replayed at {occurred_at}",
+                        target_type="worker",
+                        target_id=worker["id"],
+                        company_id=worker["company_id"],
+                    )
+            continue
+
         if event_type == "nfc_attendance":
             location = event.get("location") if isinstance(event.get("location"), dict) else None
             if distance_meters is not None and location is not None:

@@ -29,6 +29,7 @@ import 'services/tasks_repository.dart';
 import 'services/usage_repository.dart';
 import 'services/worker_cache.dart';
 import 'core/worker_auth_errors.dart';
+import 'widgets/boot_splash.dart';
 
 class WorkerApp extends StatefulWidget {
   const WorkerApp({super.key});
@@ -254,6 +255,7 @@ class _WorkerAppState extends State<WorkerApp> {
     });
     _offlineSync.syncNow();
     _push.initializeAfterLogin(session);
+    unawaited(_location.warmAttendanceGps());
   }
 
   void _onSessionExpired() {
@@ -392,21 +394,14 @@ class _WorkerAppState extends State<WorkerApp> {
       supportedLocales: const [Locale('en')],
       localeResolutionCallback: (_, __) => const Locale('en'),
       builder: (context, child) {
-        final content = child ??
-            const Scaffold(
-              backgroundColor: Color(0xFFF8FAFC),
-              body: Center(child: CircularProgressIndicator()),
-            );
+        final content = child ?? BootSplash(branding: _appBranding);
         return Directionality(
           textDirection: rtl ? TextDirection.rtl : TextDirection.ltr,
           child: content,
         );
       },
       home: _bootstrapping
-          ? const Scaffold(
-              backgroundColor: Color(0xFFF8FAFC),
-              body: Center(child: CircularProgressIndicator()),
-            )
+          ? BootSplash(branding: _appBranding)
           : _session != null
               ? WorkerShell(
                   key: _shellKey,

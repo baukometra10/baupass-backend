@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../services/attendance_repository.dart';
 import 'timesheets_screen.dart';
@@ -60,10 +64,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       final todayMin = (data['todayWorkMinutes'] as num?)?.toInt() ?? 0;
       final open = data['attendanceOpen'] == true;
       if (!mounted) return;
+      final hours = _formatMinutes(todayMin);
       setState(() {
         _timesheetSummary = open
-            ? 'Heute: ${_formatMinutes(todayMin)} (eingestempelt)'
-            : 'Heute: ${_formatMinutes(todayMin)}';
+            ? t('todayHoursOpen').replaceAll('{h}', hours)
+            : t('todayHours').replaceAll('{h}', hours);
       });
     } catch (_) {
       // optional summary — ignore transient errors
@@ -80,6 +85,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     await _refreshPendingCount();
     await _loadProfile();
     await _loadTimesheetSummary();
+    // Warm GPS so the first tap resolves from cache in ≤1s.
+    unawaited(widget.location.warmAttendanceGps());
     await widget.offlineSync.syncNow();
     await _refreshPendingCount();
   }
@@ -101,16 +108,34 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _profile = cached;
         if (cached != null) {
-          _status = 'Offline — zwischengespeichertes Profil.';
+          _status = t('offlineProfile');
         }
       });
     }
   }
 
-  String _resolveDirectionForQueue() {
-    final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
-    final open = siteAccess?['openCheckInToday'] == true;
-    return open ? 'check-out' : 'check-in';
+  Future<void> _queueOfflineGps(
+    String direction, {
+    required Map<String, dynamic> location,
+  }) async {
+    final clientEventId =
+        'gps-${DateTime.now().toUtc().millisecondsSinceEpoch}-${direction.hashCode.abs()}';
+    await widget.offlineStore.enqueue(<String, dynamic>{
+      'type': 'manual_gps_attendance',
+      'clientEventId': clientEventId,
+      'direction': direction,
+      'occurredAt': DateTime.now().toUtc().toIso8601String(),
+      'location': location,
+    });
+    await widget.workerCache.setOpenCheckInToday(direction != 'check-out');
+    await _refreshPendingCount();
+    if (!mounted) return;
+    final msg = t('offlineQueued').replaceAll('{dir}', direction);
+    setState(() {
+      _lastDirection = direction;
+      _status = msg;
+    });
+    _showFeedback(msg);
   }
 
   Future<void> _queueOfflineAttendance(
@@ -133,7 +158,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     if (!mounted) return;
     setState(() {
       _lastDirection = direction;
-      _status = 'Offline gespeichert ($direction) — wird synchronisiert.';
+      _status = t('offlineQueued').replaceAll('{dir}', direction);
     });
   }
 
@@ -152,21 +177,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   String _attendanceErrorMessage(ApiException e) {
     switch (e.errorCode) {
       case 'outside_geofence':
-        return 'Außerhalb der Baustelle — Check-in nur vor Ort möglich.';
+        return t('errOutsideGeofence');
       case 'site_location_unavailable':
-        return 'Baustelle hat keinen GPS-Standort — Admin muss Standort in Firmeneinstellungen setzen.';
+        return t('errSiteLocationUnavailable');
       case 'worker_geolocation_inaccurate':
-        return 'GPS zu ungenau — kurz warten und erneut versuchen.';
+        return t('errGpsInaccurate');
       case 'worker_geolocation_required':
-        return 'GPS erforderlich — Standortfreigabe für die App aktivieren.';
+        return t('gpsRequired');
       case 'nfc_card_not_enrolled':
-        return 'NFC-Karte nicht hinterlegt — Admin muss die Karte dem Mitarbeiter zuweisen.';
+        return t('errNfcNotEnrolled');
       case 'nfc_uid_mismatch':
-        return 'Falsche NFC-Karte — bitte die zugewiesene Mitarbeiterkarte verwenden.';
+        return t('errNfcMismatch');
       case 'device_not_bound':
-        return 'Gerät nicht freigegeben — bitte erneut anmelden.';
+        return t('errDeviceNotBound');
       case 'network_error':
-        return 'Keine Verbindung zum Server — Internet prüfen.';
+        return t('errNetwork');
+      case 'already_checked_in':
+        return t('errAlreadyCheckedIn');
+      case 'not_checked_in':
+        return t('errNotCheckedIn');
       default:
         return e.message ?? e.toString();
     }
@@ -175,41 +204,48 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _tapManualGps(String direction) async {
     setState(() {
       _busy = true;
-      _status = 'Standort wird ermittelt…';
+      _status = t('locating');
     });
     try {
       final location = await widget.location.captureForAttendance();
       if (location == null) {
-        _showFeedback('GPS erforderlich — Standortfreigabe aktivieren.', isError: true);
+        _showFeedback(t('gpsRequired'), isError: true);
         return;
       }
       final clientEventId =
           'gps-${DateTime.now().toUtc().millisecondsSinceEpoch}-${direction.hashCode.abs()}';
-      final result = await widget.attendance.recordManualGpsAttendance(
-        session: widget.session,
-        direction: direction,
-        location: location,
-        clientEventId: clientEventId,
-      );
-      if (!mounted) return;
-      final recordedDirection = result['direction'] as String? ?? direction;
-      final open = result['openCheckInToday'] == true || result['attendanceOpen'] == true;
-      await widget.workerCache.setOpenCheckInToday(open);
-      setState(() {
-        _lastDirection = recordedDirection;
-        _status = result['duplicate'] == true
-            ? 'Bereits erfasst ($recordedDirection).'
-            : 'Anwesenheit gespeichert: $recordedDirection';
-      });
-      _showFeedback(_status!);
-      await _loadTimesheetSummary();
+      try {
+        final result = await widget.attendance.recordManualGpsAttendance(
+          session: widget.session,
+          direction: direction,
+          location: location,
+          clientEventId: clientEventId,
+        );
+        if (!mounted) return;
+        final recordedDirection = result['direction'] as String? ?? direction;
+        final open = result['openCheckInToday'] == true || result['attendanceOpen'] == true;
+        await widget.workerCache.setOpenCheckInToday(open);
+        final msg = result['duplicate'] == true
+            ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
+            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
+        setState(() {
+          _lastDirection = recordedDirection;
+          _status = msg;
+        });
+        _showFeedback(msg);
+        await _loadTimesheetSummary();
+      } on ApiException catch (e) {
+        if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {
+          await _queueOfflineGps(direction, location: location);
+          return;
+        }
+        _showFeedback(_attendanceErrorMessage(e), isError: true);
+      }
     } on LocationCaptureException catch (e) {
       if (e.openSettings) {
         await Geolocator.openLocationSettings();
       }
-      _showFeedback(e.message, isError: true);
-    } on ApiException catch (e) {
-      _showFeedback(_attendanceErrorMessage(e), isError: true);
+      _showFeedback(t(e.messageKey), isError: true);
     } catch (e) {
       _showFeedback(e.toString(), isError: true);
     } finally {
@@ -220,29 +256,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   Future<void> _tapAttendance() async {
     setState(() {
       _busy = true;
-      _status = 'NFC-Karte ans Handy halten…';
+      _status = t('holdNfc');
     });
     try {
       final available = await widget.nfc.isAvailable();
       if (!available) {
-        throw NfcUnavailableException('NFC nicht verfügbar — in den Einstellungen aktivieren.');
+        throw NfcUnavailableException(t('nfcUnavailable'));
       }
       final scan = await widget.nfc.scanTag();
       const direction = 'auto';
       final clientEventId =
           'nfc-${DateTime.now().toUtc().millisecondsSinceEpoch}-${scan.uid.hashCode.abs()}';
 
-      setState(() => _status = 'Standort wird ermittelt…');
+      setState(() => _status = t('locating'));
       Map<String, dynamic>? location;
       try {
         location = await widget.location.captureForAttendance();
       } on LocationCaptureException catch (e) {
         if (e.openSettings) await Geolocator.openLocationSettings();
-        _showFeedback(e.message, isError: true);
+        _showFeedback(t(e.messageKey), isError: true);
         return;
       }
 
-      setState(() => _status = 'Check-in wird gesendet…');
+      setState(() => _status = t('sendingCheckin'));
       try {
         final result = await widget.attendance.recordNfcAttendance(
           session: widget.session,
@@ -256,13 +292,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final duplicate = result['duplicate'] == true;
         final open = result['openCheckInToday'] == true;
         await widget.workerCache.setOpenCheckInToday(open);
+        final msg = duplicate
+            ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
+            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
         setState(() {
           _lastDirection = recordedDirection;
-          _status = duplicate
-              ? 'Bereits erfasst ($recordedDirection).'
-              : 'Anwesenheit gespeichert: $recordedDirection';
+          _status = msg;
         });
-        _showFeedback(_status!);
+        _showFeedback(msg);
         await _loadTimesheetSummary();
       } on ApiException catch (e) {
         if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {
@@ -270,11 +307,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           return;
         }
         if (e.errorCode == 'worker_geolocation_required' && location == null) {
-          _showFeedback('GPS erforderlich — Standortfreigabe aktivieren.', isError: true);
+          _showFeedback(t('gpsRequired'), isError: true);
           return;
         }
         if (e.errorCode == 'device_not_bound') {
-          _showFeedback('Gerät nicht freigegeben — bitte erneut anmelden.', isError: true);
+          _showFeedback(t('errDeviceNotBound'), isError: true);
           return;
         }
         _showFeedback(_attendanceErrorMessage(e), isError: true);
@@ -291,172 +328,187 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final worker = _profile?['worker'] as Map<String, dynamic>?;
-    final name = worker != null
-        ? '${worker['firstName'] ?? ''} ${worker['lastName'] ?? ''}'.trim()
-        : '';
-    final badgeId = widget.workerCache.badgeIdFromProfile(_profile);
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final worker = _profile?['worker'] as Map<String, dynamic>?;
+        final name = worker != null
+            ? '${worker['firstName'] ?? ''} ${worker['lastName'] ?? ''}'.trim()
+            : '';
+        final badgeId = widget.workerCache.badgeIdFromProfile(_profile);
 
-    return Scaffold(
-      appBar: widget.embedded
-          ? AppBar(
-              title: const Text('Check-in'),
-              automaticallyImplyLeading: false,
-              actions: [
-                if (_pendingOffline > 0)
-                  Center(
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: Chip(
-                        label: Text('$_pendingOffline offline'),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                  ),
-                IconButton(
-                  icon: const Icon(Icons.sync),
-                  onPressed: _busy
-                      ? null
-                      : () async {
-                          await widget.offlineSync.syncNow();
-                          await _refreshPendingCount();
-                          await _loadProfile();
-                        },
-                  tooltip: 'Offline-Sync',
-                ),
-              ],
-            )
-          : AppBar(title: const Text('Check-in')),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (name.isNotEmpty)
-                      Text('Hallo, $name', style: Theme.of(context).textTheme.titleLarge),
-                    if (_timesheetSummary != null) ...[
-                      const SizedBox(height: 8),
-                      Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) => TimesheetsScreen(
-                                  session: widget.session,
-                                  attendance: widget.attendance,
-                                ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.schedule),
-                          label: const Text('Stundennachweis öffnen'),
+        return Scaffold(
+          appBar: widget.embedded
+              ? AppBar(
+                  title: Text(t('navCheckin')),
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    if (_pendingOffline > 0)
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Chip(
+                            label: Text('$_pendingOffline offline'),
+                            visualDensity: VisualDensity.compact,
+                          ),
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('GPS ohne NFC', style: Theme.of(context).textTheme.titleSmall),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Manuell ein- oder ausstempeln, wenn Sie bereits auf der Baustelle sind '
-                              '(ohne NFC-Karte am Gate).',
+                    IconButton(
+                      icon: const Icon(Icons.sync),
+                      onPressed: _busy
+                          ? null
+                          : () async {
+                              await widget.offlineSync.syncNow();
+                              await _refreshPendingCount();
+                              await _loadProfile();
+                            },
+                      tooltip: t('offlineSync'),
+                    ),
+                  ],
+                )
+              : AppBar(title: Text(t('navCheckin'))),
+          body: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (name.isNotEmpty)
+                          Text(
+                            t('helloName').replaceAll('{name}', name),
+                            style: Theme.of(context).textTheme.titleLarge,
+                          ),
+                        if (_timesheetSummary != null) ...[
+                          const SizedBox(height: 8),
+                          Text(_timesheetSummary!, style: Theme.of(context).textTheme.bodyMedium),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => TimesheetsScreen(
+                                      session: widget.session,
+                                      attendance: widget.attendance,
+                                    ),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.schedule),
+                              label: Text(t('openTimesheet')),
                             ),
-                            const SizedBox(height: 12),
-                            Row(
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: _busy ? null : () => _tapManualGps('check-in'),
-                                    icon: const Icon(Icons.login),
-                                    label: const Text('Ein'),
+                                Text(t('gpsNoNfcTitle'), style: Theme.of(context).textTheme.titleSmall),
+                                const SizedBox(height: 8),
+                                Text(t('gpsNoNfcHint')),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 48,
+                                  child: FilledButton.icon(
+                                    onPressed: _busy ? null : () => _tapManualGps('auto'),
+                                    icon: const Icon(Icons.my_location),
+                                    label: Text(t('gpsCheckinAuto')),
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: OutlinedButton.icon(
-                                    onPressed: _busy ? null : () => _tapManualGps('check-out'),
-                                    icon: const Icon(Icons.logout),
-                                    label: const Text('Aus'),
-                                  ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: _busy ? null : () => _tapManualGps('check-in'),
+                                        icon: const Icon(Icons.login),
+                                        label: Text(t('gpsIn')),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: _busy ? null : () => _tapManualGps('check-out'),
+                                        icon: const Icon(Icons.logout),
+                                        label: Text(t('gpsOut')),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('NFC am Bauzaun', style: Theme.of(context).textTheme.titleSmall),
-                            const SizedBox(height: 8),
-                            const Text(
-                              '1. Physische Karte am Gate-Reader (empfohlen bei schlechtem Netz).\n'
-                              '2. Oder NFC hier scannen — offline zwischengespeichert, später synchronisiert.',
+                        const SizedBox(height: 12),
+                        Card(
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(t('nfcGateTitle'), style: Theme.of(context).textTheme.titleSmall),
+                                const SizedBox(height: 8),
+                                Text(t('nfcGateHint')),
+                                if (badgeId != null && badgeId.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    t('badgeIdLabel').replaceAll('{id}', badgeId),
+                                    style: const TextStyle(fontFamily: 'monospace'),
+                                  ),
+                                ],
+                              ],
                             ),
-                            if (badgeId != null && badgeId.isNotEmpty) ...[
-                              const SizedBox(height: 8),
-                              Text('Badge-ID: $badgeId', style: const TextStyle(fontFamily: 'monospace')),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
+                        if (_lastDirection != null) ...[
+                          const SizedBox(height: 8),
+                          Text(t('lastAction').replaceAll('{dir}', _lastDirection!)),
+                        ],
+                      ],
                     ),
-                    if (_lastDirection != null) ...[
-                      const SizedBox(height: 8),
-                      Text('Letzte Aktion: $_lastDirection'),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton.icon(
+                      onPressed: _busy ? null : _tapAttendance,
+                      icon: _busy
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.nfc, size: 28),
+                      label: Text(_busy ? t('scanning') : t('nfcScanButton')),
+                      style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 16)),
+                    ),
+                  ),
+                ),
+                if (_status != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Text(
+                      _status!,
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton.icon(
-                  onPressed: _busy ? null : _tapAttendance,
-                  icon: _busy
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Icon(Icons.nfc, size: 28),
-                  label: Text(_busy ? 'Scanne…' : 'NFC — Check-in/out'),
-                  style: FilledButton.styleFrom(textStyle: const TextStyle(fontSize: 16)),
-                ),
-              ),
-            ),
-            if (_status != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Text(
-                  _status!,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

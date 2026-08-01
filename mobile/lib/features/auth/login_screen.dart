@@ -4,6 +4,7 @@ import '../../core/app_strings.dart';
 import '../../core/auth_repository.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/locale_controller.dart';
 import '../../core/worker_auth_errors.dart';
 import '../../core/branding_store.dart';
 import '../../core/qr_activation_parser.dart';
@@ -241,31 +242,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    try {
-      return _buildLogin(context);
-    } catch (e) {
-      return Scaffold(
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Login-Fehler: $e'),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => setState(() {
-                    _manualMode = true;
-                    _error = null;
-                  }),
-                  child: const Text('Manuell versuchen'),
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        try {
+          return _buildLogin(context);
+        } catch (e) {
+          return Scaffold(
+            body: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('Login-Fehler: $e'),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () => setState(() {
+                        _manualMode = true;
+                        _error = null;
+                      }),
+                      child: const Text('Manuell versuchen'),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      );
-    }
+          );
+        }
+      },
+    );
   }
 
   Widget _buildLogin(BuildContext context) {

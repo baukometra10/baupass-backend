@@ -32,7 +32,7 @@ class LanguagePickerTile extends StatelessWidget {
               children: LocaleController.supported.map((code) {
                 final selected = code == current;
                 return ChoiceChip(
-                  label: Text(code.toUpperCase()),
+                  label: Text(ctrl.labelFor(code)),
                   selected: selected,
                   onSelected: (_) {
                     if (!selected) unawaited(ctrl.setLang(code));

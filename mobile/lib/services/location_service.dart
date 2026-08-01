@@ -5,6 +5,9 @@ import 'package:geolocator/geolocator.dart';
 /// Captures GPS for site-based geofence attendance (site_app mode).
 class LocationService {
   static const maxAccuracyMeters = 200.0;
+  /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
+  static const _freshCacheMaxAge = Duration(seconds: 90);
+  static const _fastFixTimeout = Duration(milliseconds: 900);
 
   static const _foregroundNotification = ForegroundNotificationConfig(
     notificationTitle: 'SUPPIX Anwesenheit',
@@ -36,23 +39,22 @@ class LocationService {
     );
   }
 
-  LocationSettings _captureSettings() {
+  LocationSettings _fastCaptureSettings() {
     if (Platform.isAndroid) {
-      // One-shot GPS: no foreground service — avoids silent failures on some devices.
       return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 25),
+        accuracy: LocationAccuracy.medium,
+        timeLimit: _fastFixTimeout,
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 25),
+        accuracy: LocationAccuracy.medium,
+        timeLimit: _fastFixTimeout,
       );
     }
     return const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 25),
+      accuracy: LocationAccuracy.medium,
+      timeLimit: _fastFixTimeout,
     );
   }
 
@@ -84,47 +86,82 @@ class LocationService {
     return Geolocator.getPositionStream(locationSettings: _watchSettings());
   }
 
-  /// Returns null when GPS unavailable; throws [LocationCaptureException] with user hint.
+  bool _usable(Position? position, {required Duration maxAge}) {
+    if (position == null) return false;
+    if (position.accuracy > maxAccuracyMeters) return false;
+    final age = DateTime.now().difference(position.timestamp);
+    if (age.isNegative) return true;
+    return age <= maxAge;
+  }
+
+  /// Warm GPS cache so the next check-in can resolve in under a second.
+  Future<void> warmAttendanceGps() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return;
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      await Geolocator.getCurrentPosition(locationSettings: _fastCaptureSettings());
+    } catch (_) {
+      /* best-effort warm-up */
+    }
+  }
+
+  /// Returns null when GPS unavailable; throws [LocationCaptureException] with i18n key.
+  /// Target: resolve in ≤1s via last-known / medium-accuracy fast fix.
   Future<Map<String, dynamic>?> captureForAttendance() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      throw LocationCaptureException(
-        'GPS ist am Handy aus — bitte Standort aktivieren.',
-        openSettings: true,
-      );
+      throw LocationCaptureException('gpsOff', openSettings: true);
     }
 
     final permission = await requestLocationPermission();
     if (permission == LocationPermission.denied) {
-      throw LocationCaptureException(
-        'Standortfreigabe fehlt — bitte „Beim Verwenden der App“ erlauben.',
-      );
+      throw LocationCaptureException('gpsPermissionDenied');
     }
     if (permission == LocationPermission.deniedForever) {
-      throw LocationCaptureException(
-        'Standort dauerhaft blockiert — in Android-Einstellungen für SUPPIX erlauben.',
-        openSettings: true,
-      );
+      throw LocationCaptureException('gpsPermissionForever', openSettings: true);
     }
 
     try {
-      final position = await Geolocator.getCurrentPosition(
-        locationSettings: _captureSettings(),
-      );
-      return _positionPayload(position);
+      Position? lastKnown;
+      try {
+        lastKnown = await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        lastKnown = null;
+      }
+      if (_usable(lastKnown, maxAge: _freshCacheMaxAge)) {
+        return _positionPayload(lastKnown!);
+      }
+
+      try {
+        final fresh = await Geolocator.getCurrentPosition(
+          locationSettings: _fastCaptureSettings(),
+        );
+        if (fresh.accuracy <= maxAccuracyMeters) {
+          return _positionPayload(fresh);
+        }
+      } catch (_) {
+        /* fall through to older cache / error */
+      }
+
+      // Accept a slightly older cached fix rather than blocking the worker.
+      if (_usable(lastKnown, maxAge: const Duration(minutes: 10))) {
+        return _positionPayload(lastKnown!);
+      }
+
+      throw LocationCaptureException('gpsSlowOrInaccurate');
+    } on LocationCaptureException {
+      rethrow;
     } on LocationServiceDisabledException {
-      throw LocationCaptureException(
-        'GPS ist aus — bitte Standortdienst aktivieren.',
-        openSettings: true,
-      );
+      throw LocationCaptureException('gpsOff', openSettings: true);
     } on PermissionDeniedException {
-      throw LocationCaptureException(
-        'Standortfreigabe verweigert — bitte erneut erlauben.',
-      );
-    } catch (e) {
-      throw LocationCaptureException(
-        'Standort konnte nicht ermittelt werden: $e',
-      );
+      throw LocationCaptureException('gpsPermissionDenied');
+    } catch (_) {
+      throw LocationCaptureException('gpsCaptureFailed');
     }
   }
 
@@ -133,17 +170,19 @@ class LocationService {
       'latitude': position.latitude,
       'longitude': position.longitude,
       'accuracyMeters': position.accuracy,
+      'accuracy': position.accuracy,
       'capturedAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
 }
 
 class LocationCaptureException implements Exception {
-  LocationCaptureException(this.message, {this.openSettings = false});
+  LocationCaptureException(this.messageKey, {this.openSettings = false});
 
-  final String message;
+  /// Key for [t] in app_strings.dart
+  final String messageKey;
   final bool openSettings;
 
   @override
-  String toString() => message;
+  String toString() => messageKey;
 }
