@@ -176,7 +176,12 @@
     .lohn-item-title { font-weight: 650; font-size: 0.84rem; color: var(--text); }
     .lohn-item-body { margin-top: 0.2rem; font-size: 0.74rem; color: var(--muted); line-height: 1.35; }
     .lohn-item-meta { margin-top: 0.3rem; font-size: 0.66rem; color: #94a3b8; }
-    .lohn-item-actions { display: flex; flex-direction: column; gap: 0.3rem; }
+    .lohn-item-actions { display: flex; flex-direction: column; gap: 0.3rem; min-width: 8.5rem; }
+    .lohn-item-actions button:disabled { opacity: 0.55; cursor: wait; }
+    .lohn-item-status {
+      margin-top: 0.35rem; font-size: 0.72rem; color: var(--accent); line-height: 1.35;
+    }
+    .lohn-item-status.err { color: var(--danger); }
     .lohn-link-row { font-size: 0.78rem; color: var(--muted); }
     .lohn-link-row strong { color: var(--text); }
     .lohn-link-row a { color: #fbbf24; }
@@ -245,7 +250,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260801lohn7"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -341,8 +346,11 @@
         lohnPeriodReject: "Ablehnen",
         lohnPeriodConfirmOk: "Übergeben an WorkPass Lohn.",
         lohnPeriodRejectOk: "Anfrage abgelehnt.",
+        lohnPeriodWorking: "Übergabe läuft… bitte warten",
+        lohnPeriodNoId: "Anfrage-ID fehlt — bitte Seite neu laden (Strg+F5).",
+        lohnPeriodBusy: "Bitte warten — Übergabe läuft noch.",
         lohnEmployeesLabel: "Mitarbeiter für Lohn",
-        lohnEmployeesHint: "Das liefert die Plattform, wenn Lohn Mitarbeiter oder den Monats-Batch abfragt — nach Bestätigung.",
+        lohnEmployeesHint: "Vorschau der Daten, die nach Bestätigung an Lohn gehen.",
         lohnEmployeesNone: "Keine Mitarbeiter in dieser Firma.",
         lohnEmployeesReady: "{n} bereit",
         lohnEmployeesIncomplete: "{n} unvollständig",
@@ -352,11 +360,11 @@
         lohnBatchSend: "Bestätigen & übergeben",
         lohnBatchPush: "Erneut übergeben",
         lohnBatchPreview: "Vorschau laden",
-        lohnBatchHint: "Nach Bestätigung erhält Lohn alle Mitarbeiter inkl. IBAN/Steuer-ID sowie Stunden für den Monat. Payslips bleiben manuell freizugeben.",
+        lohnBatchHint: "Nach Bestätigung erhält Lohn Mitarbeiter + Stunden. Payslips bleiben manuell freizugeben.",
         lohnBatchNeedCompany: "Bitte zuerst eine Firma wählen.",
         lohnBatchOk: "Batch an Lohn gesendet.",
         lohnBatchOkDetail: "Übergeben: {n} MA · {h} Std. · {ready} bereit · {inc} unvollständig",
-        lohnBatchFailed: "Batch-Versand fehlgeschlagen",
+        lohnBatchFailed: "Übergabe fehlgeschlagen",
         lohnFieldTaxId: "Steuer-ID",
         lohnFieldIban: "IBAN",
         lohnFieldInsurance: "RV-Nummer",
@@ -476,8 +484,11 @@
         lohnPeriodReject: "Reject",
         lohnPeriodConfirmOk: "Handed off to WorkPass Lohn.",
         lohnPeriodRejectOk: "Request rejected.",
+        lohnPeriodWorking: "Handing off… please wait",
+        lohnPeriodNoId: "Missing request id — reload the page (Ctrl+F5).",
+        lohnPeriodBusy: "Please wait — handoff still running.",
         lohnEmployeesLabel: "Employees for Lohn",
-        lohnEmployeesHint: "What the platform returns when Lohn asks for employees or the monthly batch — after confirmation.",
+        lohnEmployeesHint: "Preview of data sent to Lohn after confirmation.",
         lohnEmployeesNone: "No employees in this company.",
         lohnEmployeesReady: "{n} ready",
         lohnEmployeesIncomplete: "{n} incomplete",
@@ -487,11 +498,11 @@
         lohnBatchSend: "Confirm & hand off",
         lohnBatchPush: "Hand off again",
         lohnBatchPreview: "Load preview",
-        lohnBatchHint: "After confirmation Lohn receives all employees with IBAN/tax ID plus hours. Payslips stay manually approved.",
+        lohnBatchHint: "After confirmation Lohn receives employees + hours. Payslips stay manually approved.",
         lohnBatchNeedCompany: "Select a company first.",
         lohnBatchOk: "Batch sent to Lohn.",
         lohnBatchOkDetail: "Handed off: {n} employees · {h} h · {ready} ready · {inc} incomplete",
-        lohnBatchFailed: "Batch send failed",
+        lohnBatchFailed: "Handoff failed",
         lohnFieldTaxId: "Tax ID",
         lohnFieldIban: "IBAN",
         lohnFieldInsurance: "Social security no.",
@@ -610,8 +621,11 @@
         lohnPeriodReject: "رفض",
         lohnPeriodConfirmOk: "تم التسليم إلى WorkPass Lohn.",
         lohnPeriodRejectOk: "تم رفض الطلب.",
+        lohnPeriodWorking: "جاري التسليم… انتظر",
+        lohnPeriodNoId: "معرّف الطلب مفقود — أعد تحميل الصفحة.",
+        lohnPeriodBusy: "انتظر — التسليم ما زال جارياً.",
         lohnEmployeesLabel: "الموظفون لـ Lohn",
-        lohnEmployeesHint: "ما تقدمه المنصة بعد التأكيد عندما يطلب Lohn الموظفين أو الدفعة.",
+        lohnEmployeesHint: "معاينة البيانات بعد التأكيد.",
         lohnEmployeesNone: "لا يوجد موظفون في هذه الشركة.",
         lohnEmployeesReady: "{n} جاهز",
         lohnEmployeesIncomplete: "{n} ناقص",
@@ -625,7 +639,7 @@
         lohnBatchNeedCompany: "اختر شركة أولاً.",
         lohnBatchOk: "تم إرسال الدفعة إلى Lohn.",
         lohnBatchOkDetail: "تم التسليم: {n} موظف · {h} س · {ready} جاهز · {inc} ناقص",
-        lohnBatchFailed: "فشل إرسال الدفعة",
+        lohnBatchFailed: "فشل التسليم",
         lohnFieldTaxId: "الرقم الضريبي",
         lohnFieldIban: "IBAN",
         lohnFieldInsurance: "رقم التأمين",
@@ -1030,6 +1044,21 @@
       }
     }
 
+    function humanizeLohnText(raw) {
+      let text = String(raw || "").replace(/\s+/g, " ").trim();
+      if (!text) return "";
+      text = text
+        .replace(/https?:\/\/\S+/gi, "")
+        .replace(/POST\s+\/?\S+/gi, "")
+        .replace(/Body:\s*\{[\s\S]*$/i, "")
+        .replace(/platform\.payroll\.batch\.v1[^.…]*/gi, "Monatsdaten")
+        .replace(/companyId\s*=\s*["']?[\w-]+["']?/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      if (text.length > 180) text = `${text.slice(0, 177)}…`;
+      return text;
+    }
+
     function renderLohnPeriodRequestsSection(requests) {
       const list = Array.isArray(requests) ? requests : [];
       const head = list.length
@@ -1041,15 +1070,16 @@
         const company = String(r.companyId || "");
         const n = r.employeeCount != null ? r.employeeCount : "—";
         const h = r.totalHours != null ? r.totalHours : "—";
-        return `<div class="lohn-item unread" data-period-req="${escapeLohnHtml(id)}">
+        return `<div class="lohn-item unread" data-period-row="${escapeLohnHtml(id)}">
           <div>
             <div class="lohn-item-title">${escapeLohnHtml(period)} · ${escapeLohnHtml(String(n))} MA</div>
             <div class="lohn-item-body">${escapeLohnHtml(tr("lohnPeriodRequestsHint"))}</div>
-            <div class="lohn-item-meta">${escapeLohnHtml(company || "—")} · ${escapeLohnHtml(String(h))} Std. · ${escapeLohnHtml(r.source || "")}</div>
+            <div class="lohn-item-meta">${escapeLohnHtml(company || "—")} · ${escapeLohnHtml(String(h))} Std.</div>
+            <div class="lohn-item-status" data-period-status="${escapeLohnHtml(id)}" hidden></div>
           </div>
           <div class="lohn-item-actions">
-            <button type="button" class="primary" data-period-req="confirm" data-id="${escapeLohnHtml(id)}">${tr("lohnPeriodConfirm")}</button>
-            <button type="button" data-period-req="reject" data-id="${escapeLohnHtml(id)}">${tr("lohnPeriodReject")}</button>
+            <button type="button" class="primary" data-lohn-action="period-confirm" data-id="${escapeLohnHtml(id)}" data-period="${escapeLohnHtml(period)}">${tr("lohnPeriodConfirm")}</button>
+            <button type="button" data-lohn-action="period-reject" data-id="${escapeLohnHtml(id)}">${tr("lohnPeriodReject")}</button>
           </div>
         </div>`;
       }).join("") || `<div class="lohn-empty">${tr("lohnPeriodRequestsNone")}</div>`;
@@ -1141,7 +1171,7 @@
         const company = String(a.companyId || "");
         const fields = Array.isArray(a.missingFields) ? a.missingFields : [];
         const fieldsJoined = fields.join(", ");
-        const msg = String(a.message || "").trim();
+        const msg = humanizeLohnText(a.message || "");
         const detail = fieldsJoined
           ? tr("dataAlertsFields", { fields: fieldsJoined })
           : (msg || "—");
@@ -1181,8 +1211,8 @@
         : tr("lohnMessagesNone");
       const rows = list.slice(0, 20).map((m) => {
         const id = String(m.id || "");
-        const subject = escapeLohnHtml(m.subject || m.kind || "—");
-        const body = escapeLohnHtml(String(m.body || "").trim());
+        const subject = escapeLohnHtml(humanizeLohnText(m.subject || m.kind || "—") || "—");
+        const body = escapeLohnHtml(humanizeLohnText(m.body || ""));
         const period = escapeLohnHtml(m.period || "");
         const company = escapeLohnHtml(m.companyId || "");
         const name = escapeLohnHtml([m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim()
@@ -1845,7 +1875,6 @@
       wireDataAlertActions();
       wireLohnMessageActions();
       wireLohnBatchActions();
-      wireLohnPeriodRequestActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
     }
@@ -1884,50 +1913,118 @@
       }
     }
 
-    function wireLohnPeriodRequestActions() {
-      document.querySelectorAll("[data-period-req='confirm']").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          if (!id) return;
-          btn.disabled = true;
-          try {
-            const res = await api(`/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/confirm`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: "{}",
-            });
-            if (res && res.ok === false) throw new Error(res.error || tr("lohnBatchFailed"));
-            setLohnBatchStatus(res.message || tr("lohnPeriodConfirmOk"), false);
-            await load();
-          } catch (e) {
-            alert(e.message || tr("lohnBatchFailed"));
-          } finally {
-            btn.disabled = false;
-          }
-        });
-      });
-      document.querySelectorAll("[data-period-req='reject']").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.getAttribute("data-id");
-          if (!id) return;
-          btn.disabled = true;
-          try {
-            const res = await api(`/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/reject`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ reason: "" }),
-            });
-            if (res && res.ok === false) throw new Error(res.error || tr("lohnBatchFailed"));
-            setLohnBatchStatus(tr("lohnPeriodRejectOk"), false);
-            await load();
-          } catch (e) {
-            alert(e.message || tr("lohnBatchFailed"));
-          } finally {
-            btn.disabled = false;
-          }
-        });
-      });
+    let lohnActionBusy = false;
+    let lohnPollTimer = null;
+
+    function setPeriodRowStatus(id, text, isError) {
+      const el = document.querySelector(`[data-period-status="${CSS.escape(String(id || ""))}"]`);
+      if (!el) {
+        setLohnBatchStatus(text, isError);
+        return;
+      }
+      if (!text) {
+        el.hidden = true;
+        el.textContent = "";
+        el.classList.remove("err");
+        return;
+      }
+      el.hidden = false;
+      el.textContent = text;
+      el.classList.toggle("err", !!isError);
+      setLohnBatchStatus(text, isError);
     }
+
+    async function confirmPeriodRequestById(id, btn) {
+      if (lohnActionBusy) {
+        alert(tr("lohnPeriodBusy"));
+        return;
+      }
+      if (!id) {
+        alert(tr("lohnPeriodNoId"));
+        return;
+      }
+      lohnActionBusy = true;
+      if (btn) btn.disabled = true;
+      const row = document.querySelector(`[data-period-row="${CSS.escape(id)}"]`);
+      row?.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+      setPeriodRowStatus(id, tr("lohnPeriodWorking"), false);
+      try {
+        const res = await api(`/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/confirm`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (res && res.ok === false) {
+          throw new Error(res.message || res.error || tr("lohnBatchFailed"));
+        }
+        const detail = res?.message || tr("lohnPeriodConfirmOk");
+        setPeriodRowStatus(id, detail, false);
+        // Optimistic remove so UI feels instant even if reload is slow
+        row?.remove();
+        await load();
+      } catch (e) {
+        const msg = e?.payload?.message || e?.message || tr("lohnBatchFailed");
+        setPeriodRowStatus(id, msg, true);
+        alert(msg);
+        row?.querySelectorAll("button").forEach((b) => { b.disabled = false; });
+      } finally {
+        lohnActionBusy = false;
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function rejectPeriodRequestById(id, btn) {
+      if (lohnActionBusy) {
+        alert(tr("lohnPeriodBusy"));
+        return;
+      }
+      if (!id) {
+        alert(tr("lohnPeriodNoId"));
+        return;
+      }
+      lohnActionBusy = true;
+      if (btn) btn.disabled = true;
+      setPeriodRowStatus(id, "…", false);
+      try {
+        const res = await api(`/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/reject`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason: "" }),
+        });
+        if (res && res.ok === false) throw new Error(res.error || tr("lohnBatchFailed"));
+        setPeriodRowStatus(id, tr("lohnPeriodRejectOk"), false);
+        document.querySelector(`[data-period-row="${CSS.escape(id)}"]`)?.remove();
+        await load();
+      } catch (e) {
+        const msg = e.message || tr("lohnBatchFailed");
+        setPeriodRowStatus(id, msg, true);
+        alert(msg);
+      } finally {
+        lohnActionBusy = false;
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    function wireLohnPeriodRequestActions() {
+      // Kept for compatibility — real wiring is document delegation below.
+    }
+
+    // Stable click wiring (survives 15s poll re-renders)
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target?.closest?.("[data-lohn-action]");
+      if (!btn) return;
+      const action = btn.getAttribute("data-lohn-action");
+      const id = String(btn.getAttribute("data-id") || "").trim();
+      if (action === "period-confirm") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        confirmPeriodRequestById(id, btn);
+      } else if (action === "period-reject") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        rejectPeriodRequestById(id, btn);
+      }
+    });
 
     async function loadLohnEmployeePreview(periodOverride) {
       try {
@@ -1942,6 +2039,7 @@
     }
 
     async function load() {
+      if (lohnActionBusy) return; // don't wipe buttons mid-handoff
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
       try {
@@ -2040,7 +2138,10 @@
         // optional branding
       }
       load();
-      setInterval(load, 15000);
+      if (lohnPollTimer) clearInterval(lohnPollTimer);
+      lohnPollTimer = setInterval(() => {
+        if (!lohnActionBusy) load();
+      }, 20000);
     })();
 
     (async () => {

@@ -172,6 +172,7 @@ def push_payroll_batch_to_lohn(
         path=PAYROLL_BATCH_PATH,
         body=body,
         event="payroll.batch",
+        timeout=12,
     )
     if not result.get("ok"):
         db.execute(
@@ -315,6 +316,7 @@ def push_employees_to_lohn(
     db,
     *,
     company_id: str,
+    timeout: float = 12,
 ) -> dict[str, Any]:
     """Platform → Lohn POST /v1/employees/import with full employee master."""
     from .company_opt_in import is_workpass_lohn_enabled
@@ -344,6 +346,7 @@ def push_employees_to_lohn(
         path="/v1/employees/import",
         body=body,
         event="employees.import",
+        timeout=timeout,
     )
     return {
         "ok": bool(result.get("ok")),
@@ -484,16 +487,21 @@ def confirm_period_handoff(
         return confirmed
 
     # Deliver full package to Lohn (employees import + payroll batch)
-    employees_push = push_employees_to_lohn(db, company_id=str(company_id))
+    employees_push = push_employees_to_lohn(db, company_id=str(company_id), timeout=12)
     delivery = notify_hours_ready(db, company_id=str(company_id), period=str(period))
-    delivered_ok = bool(delivery.get("ok") or employees_push.get("ok"))
+    push_ok = bool(
+        employees_push.get("ok")
+        or (delivery.get("payrollBatchPush") or {}).get("ok")
+    )
+    # Fall back: local export ready still counts if outbound host unreachable
+    delivered_ok = push_ok or bool(delivery.get("ok") and delivery.get("export"))
     if delivered_ok:
         repo.mark_period_request_delivered(db, request_id=str(request_id))
     else:
         err = (
-            str(delivery.get("error") or "")
+            str((employees_push.get("push") or {}).get("error") or employees_push.get("error") or "")
             or str((delivery.get("payrollBatchPush") or {}).get("error") or "")
-            or str((employees_push.get("push") or {}).get("error") or "")
+            or str(delivery.get("error") or "")
             or "delivery_failed"
         )
         repo.mark_period_request_delivered(
@@ -511,6 +519,14 @@ def confirm_period_handoff(
         employees = None
 
     final = repo.get_period_request_by_id(db, str(request_id))
+    err_hint = ""
+    if not push_ok:
+        err_hint = (
+            str((employees_push.get("push") or {}).get("error") or employees_push.get("error") or "")
+            or str(((delivery.get("payrollBatchPush") or {}).get("push") or {}).get("error") or "")
+            or str((delivery.get("payrollBatchPush") or {}).get("error") or "")
+            or ""
+        )
     return {
         "ok": delivered_ok,
         "status": (final or {}).get("status") or "confirmed",
@@ -523,7 +539,16 @@ def confirm_period_handoff(
         }
         if employees
         else None,
-        "message": "Bestätigt — Mitarbeiter und Abrechnungsdaten an WorkPass Lohn übergeben",
+        "message": (
+            "Bestätigt — Mitarbeiter und Abrechnungsdaten an WorkPass Lohn übergeben"
+            if push_ok
+            else (
+                f"Bestätigt, aber Lohn antwortet nicht: {err_hint[:160]}"
+                if err_hint
+                else "Bestätigt — Daten bereit (Lohn-Push prüfen)"
+            )
+        ),
+        "error": None if push_ok else ("lohn_push_failed" if err_hint else None),
         "pull": {
             "employees": "/api/v2/accounting/employees",
             "hours": f"/api/v2/accounting/hours?period={period}",
