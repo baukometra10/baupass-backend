@@ -696,22 +696,73 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
     if not isinstance(items, list):
         items = []
     stored = upsert_accounting_messages(db, items, default_company=company_id or "")
+    # Poll-fallback: turn Lohn request messages/events into period handoff requests
+    handoffs: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        ev = str(item.get("event") or item.get("type") or item.get("kind") or "").strip().lower()
+        cid = str(
+            item.get("companyId") or item.get("company_id") or company_id or ""
+        ).strip()
+        per = str(item.get("period") or item.get("month") or "").strip()[:7]
+        if not cid or not per:
+            continue
+        if ev in {
+            "payroll.month.requested",
+            "employees.list.requested",
+            "period_request",
+            "payroll_month_requested",
+            "employees_list_requested",
+            "payroll.requested",
+        }:
+            try:
+                from .service import request_period_handoff
+
+                handoffs.append(
+                    request_period_handoff(
+                        db,
+                        company_id=cid,
+                        period=per,
+                        source="lohn_poll",
+                        note=str(item.get("subject") or item.get("body") or ev)[:500],
+                        external_ref=str(item.get("id") or item.get("messageId") or "")[:120],
+                        notify_inbox=False,
+                    )
+                )
+            except Exception as exc:
+                handoffs.append({"ok": False, "error": str(exc)[:120], "companyId": cid, "period": per})
     return {
         "ok": True,
         "pulled": len(items),
         "path": MESSAGES_PENDING_PATH,
         "store": stored,
+        "periodRequests": handoffs,
         "pull": {"status": fetched.get("status"), "url": fetched.get("url")},
     }
 
 
 def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "") -> dict[str, Any]:
     """
-    WORKPASS_PLATFORM_WEBHOOK_URL handler.
-    On accounting.message: store payload and/or pull /v1/messages/pending.
+    WORKPASS_PLATFORM_WEBHOOK_URL handler (also /api/workpass/webhooks/accounting).
+
+    Events:
+    - employees.list.requested → queue/create period request; push /v1/employees/import when already confirmed
+      or when no period (master sync)
+    - payroll.month.requested → create pending period request (human confirms, then push batch)
+    - payslip.released → ingest statements for human approval / worker visibility path
+    - accounting.message → store + pull pending messages
     """
+    from .hours_service import normalize_period
+    from .service import (
+        ingest_statements,
+        push_employees_to_lohn,
+        push_payroll_batch_to_lohn,
+        request_period_handoff,
+    )
+
     data = data if isinstance(data, dict) else {}
-    event = str(data.get("event") or data.get("type") or "").strip() or EVENT_ACCOUNTING_MESSAGE
+    event = str(data.get("event") or data.get("type") or data.get("action") or "").strip()
     company_id = str(
         company_id
         or data.get("companyId")
@@ -719,6 +770,178 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         or (data.get("company") or {}).get("id")
         or ""
     ).strip()
+    period = str(data.get("period") or data.get("month") or "").strip()[:7]
+    if period:
+        try:
+            period = normalize_period(period)
+        except ValueError:
+            period = str(data.get("period") or data.get("month") or "").strip()[:7]
+
+    replies: dict[str, Any] = {}
+
+    # ── employees.list.requested ──────────────────────────────────────
+    if event in {
+        "employees.list.requested",
+        "employees.requested",
+        "employee.list.requested",
+        "employees.list",
+    }:
+        if period:
+            req = request_period_handoff(
+                db,
+                company_id=company_id,
+                period=period,
+                source="lohn_webhook",
+                note=str(data.get("note") or data.get("message") or "employees.list.requested")[:500],
+                external_ref=str(data.get("id") or data.get("requestId") or data.get("externalRef") or "")[:120],
+            )
+            replies["periodRequest"] = req
+            if req.get("alreadyReleased"):
+                replies["employeesImport"] = push_employees_to_lohn(db, company_id=company_id)
+                replies["payrollBatch"] = push_payroll_batch_to_lohn(
+                    db, company_id=company_id, period=period
+                )
+        elif company_id:
+            # Master sync without month — push immediately
+            replies["employeesImport"] = push_employees_to_lohn(db, company_id=company_id)
+        messages = [data] if data.get("subject") or data.get("body") or data.get("id") else []
+        store = upsert_accounting_messages(db, messages, default_company=company_id) if messages else {
+            "ok": True,
+            "createdCount": 0,
+            "updatedCount": 0,
+            "ids": [],
+        }
+        return {
+            "ok": True,
+            "event": event,
+            "companyId": company_id or None,
+            "period": period or None,
+            "status": (replies.get("periodRequest") or {}).get("status")
+            or ("delivered" if replies.get("employeesImport", {}).get("ok") else "accepted"),
+            "replies": replies,
+            "webhookStore": store,
+            "message": (
+                "Period request queued — confirm in Ops to hand off"
+                if (replies.get("periodRequest") or {}).get("status") == "pending_confirmation"
+                else "Employees reply processed"
+            ),
+        }
+
+    # ── payroll.month.requested ───────────────────────────────────────
+    if event in {
+        "payroll.month.requested",
+        "payroll.requested",
+        "payroll.batch.requested",
+        "hours.requested",
+        "abrechnung.requested",
+    }:
+        if not company_id:
+            return {"ok": False, "error": "company_id_required", "event": event} 
+        if not period:
+            from .monthly_job import previous_period
+
+            period = previous_period()
+        req = request_period_handoff(
+            db,
+            company_id=company_id,
+            period=period,
+            source="lohn_webhook",
+            note=str(data.get("note") or data.get("message") or "payroll.month.requested")[:500],
+            external_ref=str(data.get("id") or data.get("requestId") or data.get("externalRef") or "")[:120],
+        )
+        replies["periodRequest"] = req
+        if req.get("alreadyReleased"):
+            replies["employeesImport"] = push_employees_to_lohn(db, company_id=company_id)
+            replies["payrollBatch"] = push_payroll_batch_to_lohn(
+                db, company_id=company_id, period=period
+            )
+        # Always store as inbox message for Ops visibility
+        store = upsert_accounting_messages(
+            db,
+            [
+                {
+                    **data,
+                    "event": EVENT_ACCOUNTING_MESSAGE,
+                    "kind": "period_request",
+                    "subject": data.get("subject")
+                    or f"Lohn-Anfrage: Mitarbeiter & Abrechnung {period}",
+                    "body": data.get("body")
+                    or (
+                        f"WorkPass Lohn möchte Periode {period}. "
+                        "Bitte Bestätigen & übergeben im Ops Center."
+                    ),
+                    "companyId": company_id,
+                    "period": period,
+                    "id": data.get("id") or data.get("requestId") or f"period-{company_id}-{period}",
+                }
+            ],
+            default_company=company_id,
+        )
+        return {
+            "ok": True,
+            "event": event,
+            "companyId": company_id,
+            "period": period,
+            "status": req.get("status"),
+            "replies": replies,
+            "webhookStore": store,
+            "message": req.get("message")
+            or "Period request accepted — waiting for platform confirmation",
+        }
+
+    # ── payslip.released ──────────────────────────────────────────────
+    if event in {"payslip.released", "payslips.released", "statement.released", "statements.released"}:
+        statements = data.get("statements") or data.get("items") or data.get("payslips") or []
+        if isinstance(data.get("statement"), dict):
+            statements = [data["statement"]]
+        ingest_result: dict[str, Any] = {"skipped": "no_statements"}
+        if company_id and isinstance(statements, list) and statements:
+            if not period:
+                period = str((statements[0] or {}).get("period") or "").strip()[:7]
+            try:
+                if period:
+                    normalize_period(period)
+                ingest_result = ingest_statements(
+                    db,
+                    company_id=company_id,
+                    period=period or previous_period_safe(),
+                    statements=statements,
+                    external_ref=str(data.get("externalRef") or data.get("id") or ""),
+                    notes=str(data.get("notes") or "payslip.released webhook"),
+                )
+            except Exception as exc:
+                ingest_result = {"ok": False, "error": str(exc)[:200]}
+        store = upsert_accounting_messages(
+            db,
+            [
+                {
+                    **data,
+                    "event": EVENT_ACCOUNTING_MESSAGE,
+                    "kind": "payslip_released",
+                    "subject": data.get("subject") or f"Lohnabrechnung bereit {period or ''}".strip(),
+                    "body": data.get("body")
+                    or "Lohnabrechnung eingegangen — Freigabe auf der Plattform prüfen (kein Auto-Approve).",
+                    "companyId": company_id,
+                    "period": period,
+                    "id": data.get("id") or data.get("externalRef") or f"payslip-{company_id}-{period}",
+                }
+            ],
+            default_company=company_id,
+        ) if company_id else {"ok": True, "createdCount": 0, "updatedCount": 0, "ids": []}
+        return {
+            "ok": True,
+            "event": event,
+            "companyId": company_id or None,
+            "period": period or None,
+            "ingest": ingest_result,
+            "webhookStore": store,
+            "message": "Payslips ingested as pending_approval — human approve to show worker",
+            "note": "Never auto-approve payslips to employees",
+        }
+
+    # ── default: accounting.message inbox ─────────────────────────────
+    if not event:
+        event = EVENT_ACCOUNTING_MESSAGE
 
     messages: list[dict[str, Any]] = []
     if isinstance(data.get("messages"), list):
@@ -727,6 +950,39 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         messages = [data["message"]]
     elif event == EVENT_ACCOUNTING_MESSAGE or data.get("subject") or data.get("body") or data.get("id"):
         messages = [data]
+
+    # Convert known request kinds embedded in messages into period requests
+    for msg in messages:
+        kind = str((msg or {}).get("kind") or (msg or {}).get("event") or "").strip().lower()
+        msg_company = str(
+            (msg or {}).get("companyId")
+            or (msg or {}).get("company_id")
+            or company_id
+            or ""
+        ).strip()
+        msg_period = str((msg or {}).get("period") or period or "").strip()[:7]
+        if msg_company and msg_period and kind in {
+            "period_request",
+            "payroll.month.requested",
+            "employees.list.requested",
+            "payroll_month_requested",
+            "employees_list_requested",
+        }:
+            try:
+                replies.setdefault("fromMessages", [])
+                replies["fromMessages"].append(
+                    request_period_handoff(
+                        db,
+                        company_id=msg_company,
+                        period=msg_period,
+                        source="lohn_message",
+                        note=str((msg or {}).get("subject") or (msg or {}).get("body") or "")[:500],
+                        external_ref=str((msg or {}).get("id") or "")[:120],
+                        notify_inbox=False,
+                    )
+                )
+            except Exception as exc:
+                replies.setdefault("fromMessages", []).append({"ok": False, "error": str(exc)[:120]})
 
     store = {"ok": True, "createdCount": 0, "updatedCount": 0, "ids": []}
     if messages:
@@ -744,7 +1000,19 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         "companyId": company_id or None,
         "webhookStore": store,
         "pull": pull,
+        "replies": replies,
     }
+
+
+def previous_period_safe() -> str:
+    from .monthly_job import previous_period
+
+    return previous_period()
+
+
+def platform_webhook_public_path() -> str:
+    """Canonical path for WORKPASS_PLATFORM_WEBHOOK_URL on this platform."""
+    return "/api/workpass/webhooks/accounting"
 
 
 def ack_message_to_lohn(
@@ -874,7 +1142,7 @@ def ack_message_to_lohn(
 
 def platform_webhook_public_path() -> str:
     """Canonical path for WORKPASS_PLATFORM_WEBHOOK_URL on this platform."""
-    return "/api/v2/accounting/webhook"
+    return "/api/workpass/webhooks/accounting"
 
 
 def create_test_accounting_message(

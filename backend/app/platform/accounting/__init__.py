@@ -430,10 +430,14 @@ def register_accounting_blueprint(flask_app) -> None:
 
     @accounting_bp.post("/v2/accounting/webhook")
     @accounting_bp.post("/v2/accounting/hooks/lohn")
+    @accounting_bp.post("/workpass/webhooks/accounting")
     def accounting_platform_webhook():
         """
         Inbound WORKPASS_PLATFORM_WEBHOOK_URL target.
-        Lohn posts accounting.message here; platform stores + pulls /v1/messages/pending.
+        Canonical (Lohn v2.6+): POST /api/workpass/webhooks/accounting
+        Legacy: /api/v2/accounting/webhook
+        Handles employees.list.requested, payroll.month.requested, payslip.released,
+        and accounting.message (store + pull /v1/messages/pending).
         """
         db = get_db()
         ensure_accounting_schema(db)
@@ -459,7 +463,15 @@ def register_accounting_blueprint(flask_app) -> None:
             data=data if isinstance(data, dict) else {},
             company_id=str(auth.get("companyId") or company_hint or ""),
         )
+        # Never return a tuple accidentally from handler
+        if isinstance(result, tuple):
+            result = result[0] if result else {"ok": False, "error": "handler_error"}
         result["webhookPath"] = platform_webhook_public_path()
+        result["webhookPaths"] = [
+            "/api/workpass/webhooks/accounting",
+            "/api/v2/accounting/webhook",
+            "/api/v2/accounting/hooks/lohn",
+        ]
         return jsonify(result), 200
 
     @accounting_bp.get("/v2/accounting/company")
@@ -578,8 +590,14 @@ def register_accounting_blueprint(flask_app) -> None:
         safe = {k: v for k, v in link.items() if k != "master_api_key"}
         platform_url = str(link.get("platform_public_url") or "").rstrip("/")
         safe["platformWebhookUrl"] = (
-            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook"
+            f"{platform_url}{platform_webhook_public_path()}"
+            if platform_url
+            else platform_webhook_public_path()
         )
+        safe["platformWebhookUrls"] = [
+            f"{platform_url}/api/workpass/webhooks/accounting" if platform_url else "/api/workpass/webhooks/accounting",
+            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook",
+        ]
         safe["platformWebhookEnv"] = "WORKPASS_PLATFORM_WEBHOOK_URL"
         return jsonify({"ok": True, "link": safe}), 200
 
@@ -602,8 +620,14 @@ def register_accounting_blueprint(flask_app) -> None:
         safe = {k: v for k, v in link.items() if k != "master_api_key"}
         platform_url = str(link.get("platform_public_url") or "").rstrip("/")
         safe["platformWebhookUrl"] = (
-            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook"
+            f"{platform_url}{platform_webhook_public_path()}"
+            if platform_url
+            else platform_webhook_public_path()
         )
+        safe["platformWebhookUrls"] = [
+            f"{platform_url}/api/workpass/webhooks/accounting" if platform_url else "/api/workpass/webhooks/accounting",
+            f"{platform_url}/api/v2/accounting/webhook" if platform_url else "/api/v2/accounting/webhook",
+        ]
         safe["platformWebhookEnv"] = "WORKPASS_PLATFORM_WEBHOOK_URL"
         return jsonify({"ok": True, "link": safe}), 200
 

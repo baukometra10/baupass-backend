@@ -311,6 +311,49 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
     }
 
 
+def push_employees_to_lohn(
+    db,
+    *,
+    company_id: str,
+) -> dict[str, Any]:
+    """Platform → Lohn POST /v1/employees/import with full employee master."""
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .hours_service import build_employee_master_list
+    from .platform_link import _post_lohn_json, get_platform_link
+
+    company_id = require_company_id(company_id)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
+    link = get_platform_link(db)
+    if not link.get("enabled") or not str(link.get("base_url") or "").strip():
+        return {
+            "ok": False,
+            "error": "platform_link_disabled",
+            "hint": "Admin → WorkPass Lohn Plattform-Link prüfen",
+            "skipped": True,
+        }
+    employees = build_employee_master_list(db, company_id=company_id)
+    body = {
+        **employees,
+        "event": "employees.import",
+        "companyId": company_id,
+        "id": company_id,
+    }
+    result = _post_lohn_json(
+        link,
+        path="/v1/employees/import",
+        body=body,
+        event="employees.import",
+    )
+    return {
+        "ok": bool(result.get("ok")),
+        "path": "/v1/employees/import",
+        "push": result,
+        "employeeCount": employees.get("employeeCount"),
+        "companyId": company_id,
+    }
+
+
 def request_period_handoff(
     db,
     *,
@@ -440,15 +483,23 @@ def confirm_period_handoff(
     if not confirmed.get("ok"):
         return confirmed
 
-    # Deliver full package to Lohn (employees embedded in payroll-batch + hours)
+    # Deliver full package to Lohn (employees import + payroll batch)
+    employees_push = push_employees_to_lohn(db, company_id=str(company_id))
     delivery = notify_hours_ready(db, company_id=str(company_id), period=str(period))
-    if delivery.get("ok"):
+    delivered_ok = bool(delivery.get("ok") or employees_push.get("ok"))
+    if delivered_ok:
         repo.mark_period_request_delivered(db, request_id=str(request_id))
     else:
+        err = (
+            str(delivery.get("error") or "")
+            or str((delivery.get("payrollBatchPush") or {}).get("error") or "")
+            or str((employees_push.get("push") or {}).get("error") or "")
+            or "delivery_failed"
+        )
         repo.mark_period_request_delivered(
             db,
             request_id=str(request_id),
-            error=str(delivery.get("error") or "delivery_failed"),
+            error=err,
         )
 
     employees = None
@@ -461,9 +512,10 @@ def confirm_period_handoff(
 
     final = repo.get_period_request_by_id(db, str(request_id))
     return {
-        "ok": bool(delivery.get("ok")),
+        "ok": delivered_ok,
         "status": (final or {}).get("status") or "confirmed",
         "request": final,
+        "employeesPush": employees_push,
         "delivery": delivery,
         "employees": {
             "employeeCount": (employees or {}).get("employeeCount"),
