@@ -61,7 +61,10 @@ def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool =
         "periodStart": hours.get("periodStart"),
         "periodEnd": hours.get("periodEnd"),
         "rowCount": hours.get("rowCount") or len(employees),
-        "employeeCount": len(employees),
+        "employeeCount": hours.get("employeeCount") or len(employees),
+        "payrollReadyCount": hours.get("payrollReadyCount"),
+        "incompleteCount": hours.get("incompleteCount"),
+        "incompleteEmployees": hours.get("incompleteEmployees") or [],
         "totalHours": hours.get("totalHours"),
         "totalGrossEstimate": hours.get("totalGrossEstimate"),
         "currency": hours.get("currency") or "EUR",
@@ -72,7 +75,8 @@ def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool =
         "rows": hours.get("rows") or [],
         "employees": employees,
         "hoursFormat": "suppix_workpass_lohn_hours_v1",
-        "note": "grossEstimate is platform hint only; WorkPass Lohn computes official payroll",
+        "includesMasterData": True,
+        "note": "Full employee master + hours for period. grossEstimate is platform hint only; WorkPass Lohn computes official payroll",
     }
 
 
@@ -152,6 +156,16 @@ def push_payroll_batch_to_lohn(
             if platform_url
             else f"/api/v2/accounting/hours?period={batch['period']}"
         ),
+        "employeesPullUrl": (
+            f"{platform_url}/api/v2/accounting/employees"
+            if platform_url
+            else "/api/v2/accounting/employees"
+        ),
+        "statementsStatusUrl": (
+            f"{platform_url}/api/v2/accounting/statements?period={batch['period']}"
+            if platform_url
+            else f"/api/v2/accounting/statements?period={batch['period']}"
+        ),
     }
     result = _post_lohn_json(
         link,
@@ -180,7 +194,10 @@ def push_payroll_batch_to_lohn(
             "exportId": batch.get("exportId"),
             "fingerprint": batch.get("fingerprint"),
             "employeeCount": batch.get("employeeCount"),
+            "payrollReadyCount": batch.get("payrollReadyCount"),
+            "incompleteCount": batch.get("incompleteCount"),
             "totalHours": batch.get("totalHours"),
+            "totalGrossEstimate": batch.get("totalGrossEstimate"),
         },
     }
 
@@ -233,9 +250,16 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
             "fingerprint": batch.get("fingerprint"),
             "rowCount": batch.get("rowCount"),
             "employeeCount": batch.get("employeeCount"),
+            "payrollReadyCount": batch.get("payrollReadyCount"),
+            "incompleteCount": batch.get("incompleteCount"),
             "totalHours": batch.get("totalHours"),
             "pullUrl": hours_pull,
             "payrollBatchPullUrl": payroll_pull,
+            "employeesPullUrl": (
+                f"{platform_url}/api/v2/accounting/employees"
+                if platform_url
+                else "/api/v2/accounting/employees"
+            ),
             "tenantIsolation": "companyId::employeeId::period",
         }
         webhook_result = _post_webhook(
@@ -269,6 +293,21 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
         "payrollBatchPullUrl": payroll_pull,
         "export": {"id": batch.get("exportId"), "period": period_norm},
         "capability": PAYROLL_BATCH_FORMAT,
+        "batch": {
+            "companyId": company_id,
+            "period": period_norm,
+            "exportId": batch.get("exportId"),
+            "fingerprint": batch.get("fingerprint"),
+            "employeeCount": batch.get("employeeCount"),
+            "payrollReadyCount": batch.get("payrollReadyCount"),
+            "incompleteCount": batch.get("incompleteCount"),
+            "totalHours": batch.get("totalHours"),
+            "totalGrossEstimate": batch.get("totalGrossEstimate"),
+        },
+        "employeeCount": batch.get("employeeCount"),
+        "payrollReadyCount": batch.get("payrollReadyCount"),
+        "incompleteCount": batch.get("incompleteCount"),
+        "totalHours": batch.get("totalHours"),
     }
 
 

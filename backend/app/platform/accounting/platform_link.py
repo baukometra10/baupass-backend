@@ -461,6 +461,12 @@ def provision_company_for_lohn(
     bridge = {
         "baseUrl": platform_url,
         "hoursUrl": f"{platform_url}/api/v2/accounting/hours" if platform_url else "/api/v2/accounting/hours",
+        "employeesUrl": (
+            f"{platform_url}/api/v2/accounting/employees"
+            if platform_url
+            else "/api/v2/accounting/employees"
+        ),
+        "employeesCapability": "platform.employees.v1",
         "payrollBatchUrl": (
             f"{platform_url}/api/v2/accounting/payroll-batch"
             if platform_url
@@ -482,6 +488,7 @@ def provision_company_for_lohn(
         "messagesPendingPath": "/v1/messages/pending",
         "messagesAckPath": "/v1/messages/ack",
         "statementsUrl": f"{platform_url}/api/v2/accounting/statements" if platform_url else "/api/v2/accounting/statements",
+        "statementsStatusCapability": "platform.statements.status.v1",
         "companyUpsertUrl": f"{platform_url}/api/v2/accounting/company/upsert" if platform_url else "/api/v2/accounting/company/upsert",
         "accessUrl": f"{platform_url}/api/v2/accounting/company/access" if platform_url else "/api/v2/accounting/company/access",
         "loginSyncPath": "/v1/company/login-sync",

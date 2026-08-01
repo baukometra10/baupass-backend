@@ -99,31 +99,68 @@
     .lohn-toast-actions button.ghost { color: var(--muted); }
     .lohn-hub {
       grid-column: 1 / -1 !important;
-      border: 1px solid rgba(75, 227, 209, 0.45) !important;
-      background: linear-gradient(180deg, rgba(18, 28, 38, 0.98), rgba(10, 16, 22, 0.98)) !important;
-      border-radius: 16px; padding: 0;
+      border: 1px solid rgba(75, 227, 209, 0.4) !important;
+      background:
+        radial-gradient(1200px 280px at 8% -20%, rgba(75, 227, 209, 0.16), transparent 55%),
+        linear-gradient(165deg, rgba(16, 26, 36, 0.99), rgba(8, 12, 18, 0.99)) !important;
+      border-radius: 18px; padding: 0;
       overflow: hidden;
       min-height: 8rem;
       position: relative;
       z-index: 5;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
     }
     .lohn-hub-head {
       display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center;
-      padding: 0.85rem 1rem; border-bottom: 1px solid var(--border);
-      background: rgba(75, 227, 209, 0.1);
+      padding: 1rem 1.1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+      background: linear-gradient(90deg, rgba(75, 227, 209, 0.12), rgba(75, 227, 209, 0.03));
     }
-    .lohn-hub-title { font-weight: 700; color: #eaf3ff !important; font-size: 1.05rem; }
-    .lohn-hub-sub { color: var(--muted); font-size: 0.72rem; margin-top: 0.15rem; }
+    .lohn-hub-title { font-weight: 750; color: #f1f7ff !important; font-size: 1.12rem; letter-spacing: -0.01em; }
+    .lohn-hub-sub { color: var(--muted); font-size: 0.74rem; margin-top: 0.2rem; max-width: 42rem; line-height: 1.4; }
     .lohn-hub-pills { display: flex; flex-wrap: wrap; gap: 0.35rem; }
     .lohn-pill {
-      font-size: 0.68rem; padding: 0.2rem 0.5rem; border-radius: 999px;
+      font-size: 0.68rem; padding: 0.22rem 0.55rem; border-radius: 999px;
       border: 1px solid var(--border); color: var(--muted);
+      background: rgba(8, 14, 20, 0.45);
     }
-    .lohn-pill.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); }
-    .lohn-pill.ok { color: var(--accent); border-color: rgba(75, 227, 209, 0.35); }
-    .lohn-hub-body { display: grid; gap: 0; }
-    .lohn-section { padding: 0.85rem 1rem; border-bottom: 1px solid var(--border); }
+    .lohn-pill.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
+    .lohn-pill.ok { color: var(--accent); border-color: rgba(75, 227, 209, 0.35); background: rgba(75, 227, 209, 0.08); }
+    .lohn-hub-body {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+    @media (min-width: 980px) {
+      .lohn-hub-body {
+        grid-template-columns: 1.15fr 0.85fr;
+      }
+      .lohn-section-span {
+        grid-column: 1 / -1;
+      }
+    }
+    .lohn-section { padding: 0.95rem 1.1rem; border-bottom: 1px solid rgba(148, 163, 184, 0.14); }
     .lohn-section:last-child { border-bottom: 0; }
+    .lohn-stat-row {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+      gap: 0.45rem; margin: 0.45rem 0 0.2rem;
+    }
+    .lohn-stat {
+      padding: 0.55rem 0.65rem; border-radius: 12px;
+      border: 1px solid rgba(148, 163, 184, 0.18);
+      background: rgba(8, 14, 20, 0.55);
+    }
+    .lohn-stat-label { font-size: 0.64rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .lohn-stat-value { margin-top: 0.15rem; font-size: 1.05rem; font-weight: 700; color: #eaf3ff; }
+    .lohn-stat-value.warn { color: #fbbf24; }
+    .lohn-stat-value.ok { color: var(--accent); }
+    .lohn-emp-row {
+      display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center;
+      padding: 0.45rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+      font-size: 0.76rem;
+    }
+    .lohn-emp-row:last-child { border-bottom: 0; }
+    .lohn-emp-name { color: var(--text); font-weight: 600; }
+    .lohn-emp-meta { color: var(--muted); font-size: 0.68rem; margin-top: 0.1rem; }
     .lohn-section-head {
       display: flex; justify-content: space-between; gap: 0.5rem; align-items: center; margin-bottom: 0.55rem;
     }
@@ -208,7 +245,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260705b"></script>
-  <script src="/ops-center-i18n-extra.js?v=20260731lohn5"></script>
+  <script src="/ops-center-i18n-extra.js?v=20260801lohn6"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
@@ -294,15 +331,23 @@
         lohnMessagesMinutesAgo: "vor {n} Min.",
         lohnMessagesHoursAgo: "vor {n} Std.",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Mitteilungen · Posteingang · Freigaben · Monats-Batch",
+        lohnHubSub: "Vollständige Mitarbeiterdaten & Abrechnungs-Batch · Mitteilungen · Freigaben",
         lohnLiveUpdating: "Live · aktualisiert",
-        lohnBatchLabel: "Monats-Batch an WorkPass Lohn",
+        lohnEmployeesLabel: "Mitarbeiter für Lohn",
+        lohnEmployeesHint: "Das liefert die Plattform, wenn Lohn Mitarbeiter oder den Monats-Batch abfragt.",
+        lohnEmployeesNone: "Keine Mitarbeiter in dieser Firma.",
+        lohnEmployeesReady: "{n} bereit",
+        lohnEmployeesIncomplete: "{n} unvollständig",
+        lohnEmployeesHours: "{h} Std.",
+        lohnBatchLabel: "Monats-Batch / Abrechnung",
         lohnBatchPeriod: "Periode",
-        lohnBatchSend: "Stunden an Lohn senden",
-        lohnBatchPush: "Batch erneut pushen",
-        lohnBatchHint: "Sendet Stunden/Stammdaten an WorkPass Lohn. Lohnabrechnungen werden nie automatisch freigegeben — Freigabe bleibt manuell.",
+        lohnBatchSend: "An Lohn senden",
+        lohnBatchPush: "Erneut pushen",
+        lohnBatchPreview: "Vorschau laden",
+        lohnBatchHint: "Sendet alle Mitarbeiter inkl. IBAN, Steuer-ID, Stunden und Sätze. Abrechnungen (Payslips) werden nie automatisch freigegeben.",
         lohnBatchNeedCompany: "Bitte zuerst eine Firma wählen.",
         lohnBatchOk: "Batch an Lohn gesendet.",
+        lohnBatchOkDetail: "Gesendet: {n} MA · {h} Std. · {ready} bereit · {inc} unvollständig",
         lohnBatchFailed: "Batch-Versand fehlgeschlagen",
         lohnFieldTaxId: "Steuer-ID",
         lohnFieldIban: "IBAN",
@@ -413,15 +458,23 @@
         lohnMessagesMinutesAgo: "{n} min ago",
         lohnMessagesHoursAgo: "{n} h ago",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "Alerts · inbox · approvals · monthly batch",
+        lohnHubSub: "Full employee master & payroll batch · messages · approvals",
         lohnLiveUpdating: "Live · refreshed",
-        lohnBatchLabel: "Monthly batch to WorkPass Lohn",
+        lohnEmployeesLabel: "Employees for Lohn",
+        lohnEmployeesHint: "What the platform returns when Lohn asks for employees or the monthly batch.",
+        lohnEmployeesNone: "No employees in this company.",
+        lohnEmployeesReady: "{n} ready",
+        lohnEmployeesIncomplete: "{n} incomplete",
+        lohnEmployeesHours: "{h} h",
+        lohnBatchLabel: "Monthly batch / payroll",
         lohnBatchPeriod: "Period",
-        lohnBatchSend: "Send hours to Lohn",
-        lohnBatchPush: "Re-push batch",
-        lohnBatchHint: "Sends hours/master data to WorkPass Lohn. Payslips are never auto-approved — approval stays manual.",
+        lohnBatchSend: "Send to Lohn",
+        lohnBatchPush: "Re-push",
+        lohnBatchPreview: "Load preview",
+        lohnBatchHint: "Sends all employees with IBAN, tax ID, hours and rates. Payslips are never auto-approved.",
         lohnBatchNeedCompany: "Select a company first.",
         lohnBatchOk: "Batch sent to Lohn.",
+        lohnBatchOkDetail: "Sent: {n} employees · {h} h · {ready} ready · {inc} incomplete",
         lohnBatchFailed: "Batch send failed",
         lohnFieldTaxId: "Tax ID",
         lohnFieldIban: "IBAN",
@@ -531,15 +584,23 @@
         lohnMessagesMinutesAgo: "منذ {n} د",
         lohnMessagesHoursAgo: "منذ {n} س",
         lohnHubTitle: "WorkPass Lohn",
-        lohnHubSub: "إشعارات · بريد · موافقات · دفعة شهرية",
+        lohnHubSub: "بيانات الموظفين الكاملة ودفعة الرواتب · رسائل · موافقات",
         lohnLiveUpdating: "مباشر · محدّث",
-        lohnBatchLabel: "دفعة شهرية إلى WorkPass Lohn",
+        lohnEmployeesLabel: "الموظفون لـ Lohn",
+        lohnEmployeesHint: "ما تقدمه المنصة عندما يطلب Lohn الموظفين أو الدفعة الشهرية.",
+        lohnEmployeesNone: "لا يوجد موظفون في هذه الشركة.",
+        lohnEmployeesReady: "{n} جاهز",
+        lohnEmployeesIncomplete: "{n} ناقص",
+        lohnEmployeesHours: "{h} س",
+        lohnBatchLabel: "دفعة شهرية / كشف رواتب",
         lohnBatchPeriod: "الفترة",
-        lohnBatchSend: "إرسال الساعات إلى Lohn",
-        lohnBatchPush: "إعادة دفع الدفعة",
-        lohnBatchHint: "يرسل الساعات/البيانات إلى WorkPass Lohn. كشوف الأجور لا تُعتمد تلقائياً — الاعتماد يبقى يدوياً.",
+        lohnBatchSend: "إرسال إلى Lohn",
+        lohnBatchPush: "إعادة الدفع",
+        lohnBatchPreview: "تحميل المعاينة",
+        lohnBatchHint: "يرسل كل الموظفين مع IBAN والضريبة والساعات. كشوف الأجور لا تُعتمد تلقائياً.",
         lohnBatchNeedCompany: "اختر شركة أولاً.",
         lohnBatchOk: "تم إرسال الدفعة إلى Lohn.",
+        lohnBatchOkDetail: "أُرسل: {n} موظف · {h} س · {ready} جاهز · {inc} ناقص",
         lohnBatchFailed: "فشل إرسال الدفعة",
         lohnFieldTaxId: "الرقم الضريبي",
         lohnFieldIban: "IBAN",
@@ -818,7 +879,7 @@
           </div>
         </div>`;
       }).join("") || `<div class="lohn-empty">${tr("payrollNone")}</div>`;
-      return `<div class="lohn-section" id="payrollCard">
+      return `<div class="lohn-section lohn-section-span" id="payrollCard">
         <div class="lohn-section-head">
           <div class="lohn-section-title">${tr("payrollLabel")}</div>
           <div class="lohn-section-hint">${head}</div>
@@ -945,9 +1006,52 @@
       }
     }
 
+    function renderLohnEmployeesSection(preview) {
+      const data = preview && typeof preview === "object" ? preview : null;
+      const employees = Array.isArray(data?.employees) ? data.employees : [];
+      const ready = Number(data?.payrollReadyCount || 0);
+      const incomplete = Number(data?.incompleteCount || 0);
+      const hours = data?.totalHours != null ? Number(data.totalHours) : null;
+      const rows = employees.slice(0, 8).map((e) => {
+        const name = [e.firstName, e.lastName].filter(Boolean).join(" ").trim() || e.employeeId || "—";
+        const fields = Array.isArray(e.missingFields) ? e.missingFields : [];
+        const hrs = e.hours != null ? tr("lohnEmployeesHours", { h: e.hours }) : "";
+        const openBtn = stammdatenButtonHtml(
+          e.companyId || data?.companyId,
+          e.workerId || e.employeeId,
+          fields,
+          "lohnMessagesOpenWorker",
+          fields.join(" "),
+        );
+        return `<div class="lohn-emp-row">
+          <div>
+            <div class="lohn-emp-name">${escapeLohnHtml(name)}</div>
+            <div class="lohn-emp-meta">${escapeLohnHtml([hrs, e.payrollReady ? tr("lohnEmployeesReady", { n: "✓" }) : fields.join(", ")].filter(Boolean).join(" · "))}</div>
+            ${renderLohnFieldChips(fields)}
+          </div>
+          <div class="lohn-item-actions">${fields.length ? openBtn : ""}</div>
+        </div>`;
+      }).join("") || `<div class="lohn-empty">${tr("lohnEmployeesNone")}</div>`;
+      return `<div class="lohn-section" id="lohnEmployeesCard">
+        <div class="lohn-section-head">
+          <div>
+            <div class="lohn-section-title">${tr("lohnEmployeesLabel")}</div>
+            <div class="lohn-section-hint">${tr("lohnEmployeesHint")}</div>
+          </div>
+        </div>
+        <div class="lohn-stat-row">
+          <div class="lohn-stat"><div class="lohn-stat-label">MA</div><div class="lohn-stat-value">${employees.length}</div></div>
+          <div class="lohn-stat"><div class="lohn-stat-label">OK</div><div class="lohn-stat-value ok">${ready}</div></div>
+          <div class="lohn-stat"><div class="lohn-stat-label">!</div><div class="lohn-stat-value ${incomplete ? "warn" : ""}">${incomplete}</div></div>
+          ${hours != null ? `<div class="lohn-stat"><div class="lohn-stat-label">Σ h</div><div class="lohn-stat-value">${hours}</div></div>` : ""}
+        </div>
+        ${rows}
+      </div>`;
+    }
+
     function renderLohnBatchSection() {
       const period = defaultLohnPeriod();
-      return `<div class="lohn-section" id="lohnBatchCard">
+      return `<div class="lohn-section lohn-section-span" id="lohnBatchCard">
         <div class="lohn-section-head">
           <div>
             <div class="lohn-section-title">${tr("lohnBatchLabel")}</div>
@@ -958,6 +1062,7 @@
           <label>${tr("lohnBatchPeriod")}
             <input type="month" id="lohnBatchPeriod" value="${escapeLohnHtml(period)}" />
           </label>
+          <button type="button" id="lohnBatchPreviewBtn">${tr("lohnBatchPreview")}</button>
           <button type="button" class="primary" id="lohnBatchSendBtn">${tr("lohnBatchSend")}</button>
           <button type="button" id="lohnBatchPushBtn">${tr("lohnBatchPush")}</button>
         </div>
@@ -1170,9 +1275,9 @@
       return `${m}#${a}`;
     }
 
-    function renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches) {
+    function renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview) {
       try {
-        return renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches);
+        return renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview);
       } catch (err) {
         console.error("lohn hub render failed", err);
         return `<div class="lohn-hub" id="lohnHub">
@@ -1187,7 +1292,7 @@
       }
     }
 
-    function renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches) {
+    function renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview) {
       const msgCount = Array.isArray(lohnMessages) ? lohnMessages.length : 0;
       const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
       const batchCount = Array.isArray(payrollBatches) ? payrollBatches.length : 0;
@@ -1209,6 +1314,7 @@
         <div class="lohn-hub-body">
           ${renderLohnMessagesSection(lohnMessages)}
           ${renderDataAlertsSection(dataAlerts)}
+          ${renderLohnEmployeesSection(employeePreview)}
           ${renderLohnBatchSection()}
           ${renderPayrollCard(payrollBatches)}
           ${renderLohnLinkSection(lohnLink)}
@@ -1452,6 +1558,41 @@
         const raw = String(document.getElementById("lohnBatchPeriod")?.value || "").trim();
         return raw || defaultLohnPeriod();
       };
+      const formatBatchDetail = (res) => {
+        const payload = res?.payload || res?.batch || res || {};
+        const n = payload.employeeCount ?? payload.rowCount ?? (payload.employees || []).length;
+        const h = payload.totalHours ?? "—";
+        const ready = payload.payrollReadyCount ?? "—";
+        const inc = payload.incompleteCount ?? "—";
+        if (n == null || n === "") return tr("lohnBatchOk");
+        return tr("lohnBatchOkDetail", { n, h, ready, inc });
+      };
+      document.getElementById("lohnBatchPreviewBtn")?.addEventListener("click", async () => {
+        const cid = resolveCompany();
+        if (!cid) {
+          alert(tr("lohnBatchNeedCompany"));
+          return;
+        }
+        const btn = document.getElementById("lohnBatchPreviewBtn");
+        if (btn) btn.disabled = true;
+        setLohnBatchStatus("…");
+        try {
+          const period = periodValue();
+          let url = `/api/payroll/accounting/employees?company_id=${encodeURIComponent(cid)}&period=${encodeURIComponent(period)}`;
+          const preview = await api(url);
+          const card = document.getElementById("lohnEmployeesCard");
+          if (card) {
+            card.outerHTML = renderLohnEmployeesSection(preview);
+            wireDataAlertActions();
+            wireLohnMessageActions();
+          }
+          setLohnBatchStatus(formatBatchDetail(preview), false);
+        } catch (e) {
+          setLohnBatchStatus(e.message || tr("lohnBatchFailed"), true);
+        } finally {
+          if (btn) btn.disabled = false;
+        }
+      });
       document.getElementById("lohnBatchSendBtn")?.addEventListener("click", async () => {
         const cid = resolveCompany();
         if (!cid) {
@@ -1470,7 +1611,7 @@
           if (res && res.ok === false) {
             throw new Error(res.error || tr("lohnBatchFailed"));
           }
-          setLohnBatchStatus(tr("lohnBatchOk"), false);
+          setLohnBatchStatus(formatBatchDetail(res), false);
           await load();
         } catch (e) {
           setLohnBatchStatus(e.message || tr("lohnBatchFailed"), true);
@@ -1497,7 +1638,7 @@
           if (res && res.ok === false) {
             throw new Error(res.error || tr("lohnBatchFailed"));
           }
-          setLohnBatchStatus(tr("lohnBatchOk"), false);
+          setLohnBatchStatus(formatBatchDetail(res), false);
           await load();
         } catch (e) {
           setLohnBatchStatus(e.message || tr("lohnBatchFailed"), true);
@@ -1552,7 +1693,7 @@
       }
     }
 
-    function render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages) {
+    function render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview) {
       const guardian = guardianBundle?.status || guardianBundle;
       const guardianHistory = guardianBundle?.history || [];
       lastPayload = data;
@@ -1583,7 +1724,7 @@
         lastLohnSig = sig;
       }
       grid.innerHTML = `
-        ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches)}
+        ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview)}
         ${renderGuardianCard(guardian, guardianHistory)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
@@ -1670,6 +1811,18 @@
       }
     }
 
+    async function loadLohnEmployeePreview(periodOverride) {
+      try {
+        if (!companyId) return null;
+        const period = periodOverride || defaultLohnPeriod();
+        let url = `/api/payroll/accounting/employees?company_id=${encodeURIComponent(companyId)}`;
+        if (period) url += `&period=${encodeURIComponent(period)}`;
+        return await api(url);
+      } catch {
+        return null;
+      }
+    }
+
     async function load() {
       const status = document.getElementById("status");
       const grid = document.getElementById("grid");
@@ -1677,7 +1830,7 @@
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
         await loadMe();
-        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages] = await Promise.all([
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview] = await Promise.all([
           api(url),
           loadForecast(),
           loadGuardianBundle(),
@@ -1685,8 +1838,9 @@
           loadLohnPlatformLink(),
           loadDataAlerts(),
           loadLohnMessages(),
+          loadLohnEmployeePreview(),
         ]);
-        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages);
+        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview);
       } catch (e) {
         status.textContent = "";
         grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;

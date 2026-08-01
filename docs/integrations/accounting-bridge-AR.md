@@ -59,12 +59,17 @@ Rechtliches لكل شركة: `PUT /api/companies/<id>/legal` (Impressum/Datensch
 ## مسارات المنصة
 
 ```http
+GET  /api/v2/accounting/employees
 GET  /api/v2/accounting/hours?period=2026-06
+GET|POST /api/v2/accounting/payroll-batch?period=2026-06
 POST /api/v2/accounting/hours/ack
 POST /api/v2/accounting/statements
+GET  /api/v2/accounting/statements?period=2026-06
 GET  /api/v2/accounting/company
 POST /api/v2/accounting/company/upsert
 ```
+
+عند طلب الموظفين أو الدفعة: الصفوف تتضمن IBAN / Steuer-ID / ساعات / أسعار (`missingFields`, `payrollReady`).
 
 ### صف ساعات (مثال)
 

@@ -19,7 +19,7 @@ def register_accounting_blueprint(flask_app) -> None:
     from . import repository as repo
     from .auth import authenticate_accounting_request
     from .company_sync import company_upsert_payload
-    from .hours_service import normalize_period
+    from .hours_service import build_employee_master_list, normalize_period
     from .monthly_job import run_monthly_accounting_exports
     from .platform_link import (
         get_platform_link,
@@ -93,6 +93,23 @@ def register_accounting_blueprint(flask_app) -> None:
             return None, ({"error": "company_scope_mismatch"}, 403)
         return integ, None
 
+    @accounting_bp.get("/v2/accounting/employees")
+    def accounting_pull_employees():
+        """platform.employees.v1 — Lohn pulls full employee master for the company."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        try:
+            payload = build_employee_master_list(get_db(), company_id=integ["company_id"])
+        except ValueError:
+            return jsonify({"error": "company_id_required"}), 400
+        return jsonify(payload), 200
+
     @accounting_bp.get("/v2/accounting/hours")
     def accounting_pull_hours():
         integ, err = _auth_accounting()
@@ -123,7 +140,7 @@ def register_accounting_blueprint(flask_app) -> None:
     @accounting_bp.get("/v2/accounting/payroll-batch")
     @accounting_bp.post("/v2/accounting/payroll-batch")
     def accounting_payroll_batch():
-        """platform.payroll.batch.v1 — Lohn pulls { companyId, period }."""
+        """platform.payroll.batch.v1 — Lohn pulls { companyId, period } with full master + hours."""
         integ, err = _auth_accounting()
         if err:
             return jsonify(err[0]), err[1]
@@ -157,6 +174,75 @@ def register_accounting_blueprint(flask_app) -> None:
             code = "company_id_required" if "company" in str(exc) else "invalid_period"
             return jsonify({"error": code}), 400
         return jsonify(payload), 200
+
+    @accounting_bp.get("/v2/accounting/statements")
+    def accounting_list_statements():
+        """Lohn pulls Abrechnung batch status (pending_approval / approved / rejected)."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        period = (request.args.get("period") or "").strip()
+        if period:
+            try:
+                normalize_period(period)
+            except ValueError:
+                return jsonify({"error": "invalid_period"}), 400
+        batches = repo.list_company_statement_batches(
+            get_db(),
+            company_id=integ["company_id"],
+            period=period or None,
+            limit=int(request.args.get("limit") or 50),
+        )
+        out_batches = []
+        for b in batches:
+            statements = repo.list_batch_statements(get_db(), b["id"])
+            out_batches.append(
+                {
+                    "batchId": b.get("id"),
+                    "companyId": b.get("company_id"),
+                    "period": b.get("period"),
+                    "status": b.get("status"),
+                    "createdAt": b.get("created_at"),
+                    "approvedAt": b.get("approved_at"),
+                    "rejectedAt": b.get("rejected_at"),
+                    "externalRef": b.get("external_ref"),
+                    "notes": b.get("notes"),
+                    "statementCount": len(statements),
+                    "statements": [
+                        {
+                            "id": s.get("id"),
+                            "employeeId": s.get("worker_id"),
+                            "workerId": s.get("worker_id"),
+                            "firstName": s.get("first_name"),
+                            "lastName": s.get("last_name"),
+                            "badgeId": s.get("badge_id"),
+                            "gross": s.get("gross"),
+                            "net": s.get("net"),
+                            "currency": s.get("currency") or "EUR",
+                            "released": bool(s.get("released_at")),
+                            "filename": s.get("filename"),
+                        }
+                        for s in statements
+                    ],
+                }
+            )
+        return jsonify(
+            {
+                "ok": True,
+                "format": "platform.statements.status.v1",
+                "product": "WorkPass Lohn",
+                "companyId": integ["company_id"],
+                "period": period or None,
+                "batchCount": len(out_batches),
+                "batches": out_batches,
+                "note": "Push new Abrechnungen via POST /api/v2/accounting/statements; approval stays human on platform",
+            }
+        ), 200
 
     @accounting_bp.post("/v2/accounting/hours/ack")
     def accounting_ack_hours():
@@ -574,6 +660,46 @@ def register_accounting_blueprint(flask_app) -> None:
             company_id = request.args.get("company_id")
         batches = repo.list_pending_batches(get_db(), company_id=company_id)
         return jsonify({"ok": True, "batches": batches}), 200
+
+    @accounting_bp.get("/payroll/accounting/employees")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_list_employees_for_lohn():
+        """Session preview: what Lohn receives for employee master / payroll readiness."""
+        user = g.current_user
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"error": "forbidden"}), 403
+        try:
+            payload = build_employee_master_list(get_db(), company_id=str(company_id))
+        except ValueError:
+            return jsonify({"error": "company_id_required"}), 400
+        period = (request.args.get("period") or "").strip()
+        if period:
+            try:
+                hours = prepare_hour_export(
+                    get_db(), company_id=str(company_id), period=period, mark_sent=False
+                )
+                payload["period"] = hours.get("period")
+                payload["totalHours"] = hours.get("totalHours")
+                payload["totalGrossEstimate"] = hours.get("totalGrossEstimate")
+                payload["incompleteEmployees"] = hours.get("incompleteEmployees") or []
+                # Merge period hours onto employees for Ops preview
+                by_id = {str(r.get("employeeId")): r for r in (hours.get("rows") or [])}
+                for emp in payload.get("employees") or []:
+                    row = by_id.get(str(emp.get("employeeId")))
+                    if row:
+                        emp["hours"] = row.get("hours")
+                        emp["grossEstimate"] = row.get("grossEstimate")
+                        emp["missingFields"] = row.get("missingFields") or emp.get("missingFields")
+                        emp["payrollReady"] = row.get("payrollReady")
+            except ValueError:
+                return jsonify({"error": "invalid_period"}), 400
+        return jsonify(payload), 200
 
     @accounting_bp.get("/payroll/accounting/data-alerts")
     @require_auth

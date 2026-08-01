@@ -361,6 +361,41 @@ def list_pending_batches(db, *, company_id: str | None = None, limit: int = 50) 
     return [dict(r) for r in rows]
 
 
+def list_company_statement_batches(
+    db,
+    *,
+    company_id: str,
+    period: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """All recent Abrechnung batches for a company (any status) — for Lohn pull."""
+    ensure_accounting_schema(db)
+    company_id = str(company_id or "").strip()
+    if not company_id:
+        return []
+    limit = max(1, min(200, int(limit or 50)))
+    period = str(period or "").strip()[:7]
+    if period:
+        rows = db.execute(
+            """
+            SELECT * FROM payroll_statement_batches
+            WHERE company_id = ? AND period = ?
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (company_id, period, limit),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            """
+            SELECT * FROM payroll_statement_batches
+            WHERE company_id = ?
+            ORDER BY created_at DESC LIMIT ?
+            """,
+            (company_id, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_batch(db, batch_id: str) -> dict[str, Any] | None:
     ensure_accounting_schema(db)
     row = db.execute("SELECT * FROM payroll_statement_batches WHERE id = ?", (batch_id,)).fetchone()

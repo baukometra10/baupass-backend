@@ -367,7 +367,61 @@ def test_prepare_payroll_batch_v1():
     assert batch["employeeCount"] == 1
     assert batch["employees"][0]["employeeId"] == "w1"
     assert batch["employees"][0]["hours"] == 8.0
+    assert batch["employees"][0]["hourlyRate"] == 15.0
+    assert "iban" in batch["employees"][0]
+    assert "taxId" in batch["employees"][0]
+    assert "missingFields" in batch["employees"][0]
+    assert batch.get("includesMasterData") is True
     assert batch["fingerprint"]
+
+
+def test_employee_master_includes_contract_fields():
+    db = _db()
+    db.execute(
+        """
+        UPDATE employment_contracts
+        SET input_json = ?
+        WHERE id = 'ctr1'
+        """,
+        (
+            json.dumps(
+                {
+                    "form": {
+                        "hourly_rate": "18.50",
+                        "employee_iban": "DE89 3704 0044 0532 0130 00",
+                        "employee_tax_id": "12 345 678 901",
+                        "employee_birth_date": "1990-05-01",
+                        "employee_email": "ali@example.com",
+                        "job_title": "Maurer",
+                    }
+                }
+            ),
+        ),
+    )
+    db.commit()
+    master = hours_service.build_employee_master_list(db, company_id="c1")
+    assert master["format"] == "platform.employees.v1"
+    assert master["employeeCount"] == 1
+    emp = master["employees"][0]
+    assert emp["iban"] == "DE89370400440532013000"
+    assert emp["taxId"] == "12 345 678 901"
+    assert emp["birthDate"] == "1990-05-01"
+    assert emp["email"] == "ali@example.com"
+    assert emp["hourlyRate"] == 18.5
+    assert emp["payrollReady"] is False  # insurance still missing
+    assert "insuranceNumber" in emp["missingFields"]
+
+    hours = hours_service.aggregate_company_hours(db, company_id="c1", period="2026-06")
+    row = hours["rows"][0]
+    assert row["iban"] == "DE89370400440532013000"
+    assert row["taxId"] == "12 345 678 901"
+    assert row["hourlyRate"] == 18.5
+    assert hours["incompleteCount"] == 1
+
+
+def test_list_company_statement_batches_empty():
+    db = _db()
+    assert repository.list_company_statement_batches(db, company_id="c1") == []
 
 
 def test_push_payroll_batch_to_lohn(monkeypatch):

@@ -158,7 +158,19 @@ Legacy alias accepted: `X-Company-Id` (prefer `X-WorkPass-Company-Id`).
 
 ## 3) Endpoints WorkPass Lohn must call
 
-### 3.1 Pull monthly hours
+### 3.0 Pull employee master (full Stammdaten)
+
+```http
+GET /api/v2/accounting/employees
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+```
+
+Returns `format: platform.employees.v1` with every active worker and payroll fields:
+`iban`, `taxId`, `insuranceNumber`, `birthDate`, `email`, `phone`, `address`, `nationality`,
+`gender`, `jobTitle`, `hourlyRate`, `salaryGrossMonthly`, `missingFields`, `payrollReady`.
+
+### 3.1 Pull monthly hours (+ master on each row)
 
 ```http
 GET /api/v2/accounting/hours?period=2026-06
@@ -177,35 +189,25 @@ Example response:
   "company": { "id": "<FIRMA-ID>", "name": "Demo GmbH" },
   "period": "2026-06",
   "periodStart": "2026-06-01T00:00:00",
-  "periodEnd": "2026-06-30T23:59:59",
-  "rowCount": 1,
-  "totalHours": 160,
-  "totalGrossEstimate": 2400,
-  "currency": "EUR",
-  "tenantIsolation": "companyId::employeeId::period",
-  "exportId": "phe-…",
-  "fingerprint": "…",
+  "includesMasterData": true,
+  "payrollReadyCount": 1,
+  "incompleteCount": 0,
   "rows": [
     {
-      "companyId": "<FIRMA-ID>",
-      "company": { "id": "<FIRMA-ID>" },
-      "employeeId": "w-1001",
-      "workerId": "w-1001",
-      "storageKey": "<FIRMA-ID>::w-1001::2026-06",
-      "badgeId": "B1",
-      "firstName": "Ali",
-      "lastName": "Hassan",
-      "period": "2026-06",
+      "employeeId": "w1",
       "hours": 160,
       "hourlyRate": 15,
-      "salaryGrossMonthly": 0,
-      "grossEstimate": 2400,
-      "payBasis": "hourly",
-      "currency": "EUR"
+      "iban": "DE…",
+      "taxId": "…",
+      "missingFields": [],
+      "payrollReady": true
     }
   ]
 }
 ```
+
+Each hours / payroll-batch employee row includes the **same master fields** as `/employees`
+so Lohn never needs a second round-trip for IBAN/Steuer-ID when pulling Abrechnung inputs.
 
 Notes:
 - `grossEstimate` is a **hint only** — WorkPass Lohn computes official payroll.
@@ -361,6 +363,23 @@ POST /api/payroll/accounting/messages/test
 ```
 
 ### 3.3 Push payslip batch (PDF)
+
+```http
+POST /api/v2/accounting/statements
+```
+
+### 3.3b Pull Abrechnung status
+
+```http
+GET /api/v2/accounting/statements?period=2026-06
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Accounting-Key: acc_live_…
+```
+
+Returns `format: platform.statements.status.v1` with batches (`pending_approval` / approved / rejected)
+and per-statement release flags. Approval stays human on the platform — never auto-approve.
+
+Body for POST:
 
 ```http
 POST /api/v2/accounting/statements
