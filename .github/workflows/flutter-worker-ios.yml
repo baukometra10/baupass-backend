@@ -39,20 +39,31 @@ jobs:
             mobile/analysis_options.yaml \
             mobile/test
 
-      - name: Apply NFC entitlements to Xcode project
+      - name: Apply NFC entitlements + iOS 15.5 deployment target
         working-directory: mobile
         run: |
           gem install xcodeproj --no-document
+          # mobile_scanner requires iOS >= 15.5
+          if [ -f ios/Podfile ]; then
+            sed -i '' "s/^platform :ios,.*/platform :ios, '15.5'/" ios/Podfile || true
+            grep -q "platform :ios" ios/Podfile || sed -i '' "1i\\
+          platform :ios, '15.5'\\
+          " ios/Podfile
+          fi
           ruby <<'RUBY'
           require 'xcodeproj'
           project = Xcodeproj::Project.open('ios/Runner.xcodeproj')
           target = project.targets.find { |t| t.name == 'Runner' }
           raise 'Runner target not found' unless target
+          project.build_configurations.each do |config|
+            config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
+          end
           target.build_configurations.each do |config|
             config.build_settings['CODE_SIGN_ENTITLEMENTS'] = 'Runner/Runner.entitlements'
+            config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.5'
           end
           project.save
-          puts 'Runner.entitlements linked'
+          puts 'Runner.entitlements linked; deployment target 15.5'
           RUBY
 
       - name: Resolve dependencies
