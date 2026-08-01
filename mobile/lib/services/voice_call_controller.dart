@@ -808,10 +808,14 @@ class VoiceCallController extends ChangeNotifier {
   void _onRtcState(String state) {
     if (state == 'connected') {
       _clearRingTimeout();
+      final wasConnected = _phase == VoiceCallUiPhase.connected;
       _phase = VoiceCallUiPhase.connected;
       _statusNote = 'Sicher verbunden';
-      _connectedAt = DateTime.now();
-      _startDurationTimer();
+      // Do not reset the call timer on renegotiation (camera on/off).
+      if (!wasConnected || _connectedAt == null) {
+        _connectedAt = DateTime.now();
+        _startDurationTimer();
+      }
       _stopRingFeedback();
       final callId = (_call?['id'] ?? _call?['callId'] ?? '').toString();
       unawaited(_callKit.dismissNativeUi(callId: callId));
@@ -824,6 +828,11 @@ class VoiceCallController extends ChangeNotifier {
         });
       }
     } else if (state == 'accepted' || state == 'connecting') {
+      // Camera renegotiation emits "connecting" again — keep video UI if already connected.
+      if (_phase == VoiceCallUiPhase.connected) {
+        notifyListeners();
+        return;
+      }
       _clearRingTimeout();
       _stopRingFeedback();
       _phase = VoiceCallUiPhase.connecting;

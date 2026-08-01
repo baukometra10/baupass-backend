@@ -157,6 +157,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return 'Baustelle hat keinen GPS-Standort — Admin muss Standort in Firmeneinstellungen setzen.';
       case 'worker_geolocation_inaccurate':
         return 'GPS zu ungenau — kurz warten und erneut versuchen.';
+      case 'worker_geolocation_required':
+        return 'GPS erforderlich — Standortfreigabe für die App aktivieren.';
+      case 'nfc_card_not_enrolled':
+        return 'NFC-Karte nicht hinterlegt — Admin muss die Karte dem Mitarbeiter zuweisen.';
+      case 'nfc_uid_mismatch':
+        return 'Falsche NFC-Karte — bitte die zugewiesene Mitarbeiterkarte verwenden.';
       case 'device_not_bound':
         return 'Gerät nicht freigegeben — bitte erneut anmelden.';
       case 'network_error':
@@ -256,6 +262,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ? 'Bereits erfasst ($recordedDirection).'
               : 'Anwesenheit gespeichert: $recordedDirection';
         });
+        _showFeedback(_status!);
         await _loadTimesheetSummary();
       } on ApiException catch (e) {
         if (e.statusCode == 0 || e.errorCode == 'network_error' || e.statusCode >= 500) {

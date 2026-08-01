@@ -196,8 +196,26 @@ class E2eCryptoService {
 
   Future<String> decryptUtf8(String storedBody, String entityType, String entityId) async {
     if (!isE2eEnvelope(storedBody)) return storedBody;
+    try {
+      return await _decryptUtf8WithPrivateKey(
+        storedBody,
+        await _loadPrivateKey(entityType, entityId),
+      );
+    } catch (_) {
+      final archived = await _loadArchivedPrivateKeys(entityType, entityId);
+      for (final privateKey in archived) {
+        try {
+          return await _decryptUtf8WithPrivateKey(storedBody, privateKey);
+        } catch (_) {
+          /* try next archive */
+        }
+      }
+      rethrow;
+    }
+  }
+
+  Future<String> _decryptUtf8WithPrivateKey(String storedBody, SimpleKeyPair privateKey) async {
     final parsed = jsonDecode(storedBody);
-    final privateKey = await _loadPrivateKey(entityType, entityId);
     if (parsed is Map && parsed['multi'] == true && parsed['envelopes'] is List) {
       for (final item in parsed['envelopes'] as List) {
         try {
@@ -207,6 +225,38 @@ class E2eCryptoService {
       throw StateError('e2e_decrypt_failed');
     }
     return _openEnvelope(Map<String, dynamic>.from(parsed as Map), privateKey);
+  }
+
+  String _archivePrefix(String entityType, String entityId) =>
+      'suppix-e2e:$entityType:$entityId:archived:';
+
+  Future<List<SimpleKeyPair>> _loadArchivedPrivateKeys(String entityType, String entityId) async {
+    final prefix = _archivePrefix(entityType, entityId);
+    final out = <SimpleKeyPair>[];
+    try {
+      final all = await _storage.readAll();
+      final keys = all.keys.where((k) => k.startsWith(prefix)).toList()..sort();
+      for (final key in keys.reversed) {
+        final raw = all[key];
+        if (raw == null || raw.isEmpty) continue;
+        try {
+          final parsed = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          final pubRaw = publicKeySpkiOrRawToBytes(parsed['publicKeySpkiB64'] as String);
+          out.add(
+            SimpleKeyPairData(
+              base64Decode(parsed['privateKeyBytes'] as String),
+              type: KeyPairType.x25519,
+              publicKey: SimplePublicKey(pubRaw, type: KeyPairType.x25519),
+            ),
+          );
+        } catch (_) {
+          /* skip corrupt archive */
+        }
+      }
+    } catch (_) {
+      /* secure storage readAll unsupported on some platforms */
+    }
+    return out;
   }
 
   Future<Map<String, dynamic>> encryptBlob(

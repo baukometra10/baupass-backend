@@ -232,7 +232,8 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
     final peerBanner = widget.controller.peerCameraBanner;
     final incomingImage = widget.controller.incomingImageDataUrl;
 
-    final showVideo = _showVideoStage && isConnected;
+    final showVideo = _showVideoStage &&
+        (isConnected || isConnecting || widget.controller.cameraOn || widget.controller.cameraPreviewing);
     final previewing = widget.controller.cameraPreviewing;
     final remoteOnMain = showVideo && _remoteHasVideo && !previewing;
     final mirrorMain = showVideo && !remoteOnMain && (widget.controller.cameraOn || previewing);
@@ -242,7 +243,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
         widget.controller.cameraOn &&
         _localRenderer != null &&
         _localRendererReady &&
-        remoteOnMain;
+        (remoteOnMain || _remoteHasVideo);
 
     return SizedBox.expand(
       child: Material(

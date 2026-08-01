@@ -1200,7 +1200,8 @@ class WorkerVoiceCallSession {
       );
       // Admin camera renegotiation often delivers tracks via receivers, not only onTrack.
       await _syncReceiversIntoRemoteStream(pc);
-      onState('connecting');
+      // Stay/return to connected — "connecting" would collapse the video UI on the worker.
+      onState('connected');
     } else if (type == 'answer') {
       if (pc.signalingState == RTCSignalingState.RTCSignalingStateStable) {
         return; // stale answer after glare rollback
@@ -1213,7 +1214,7 @@ class WorkerVoiceCallSession {
       );
       await _flushPendingIce(pc);
       await _syncReceiversIntoRemoteStream(pc);
-      onState('connecting');
+      onState('connected');
     } else if (type == 'ice-candidate') {
       final hasRemote = (await pc.getRemoteDescription()) != null;
       if (!hasRemote) {

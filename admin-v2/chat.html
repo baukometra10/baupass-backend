@@ -2246,7 +2246,7 @@
       } catch {
         // ignore
       }
-      if (!adminKeys.length) {
+      if (!adminKeys.length || !workerKeys.length) {
         return [];
       }
       const merged = [...new Set([...adminKeys, ...workerKeys])];

@@ -119,17 +119,16 @@ class ChatRepository {
     }
     if (adminKeys.isEmpty) return <String>[];
     final workerId = _workerId ?? '';
-    if (workerId.isEmpty) return adminKeys;
-    try {
-      final identity = await _e2e.ensureLocalIdentity(entityType: 'worker', entityId: workerId);
-      final selfKey = (identity['publicKeySpkiB64'] ?? '').toString().trim();
-      if (selfKey.isNotEmpty) {
-        return <String>[...adminKeys, selfKey];
-      }
-    } catch (_) {
-      // Admin keys alone are enough to send.
+    if (workerId.isEmpty) {
+      throw StateError('e2e_keys_missing');
     }
-    return adminKeys;
+    // Must include self-key so the worker can decrypt own outgoing messages later.
+    final identity = await _e2e.ensureLocalIdentity(entityType: 'worker', entityId: workerId);
+    final selfKey = (identity['publicKeySpkiB64'] ?? '').toString().trim();
+    if (selfKey.isEmpty) {
+      throw StateError('e2e_keys_missing');
+    }
+    return <String>[...adminKeys, selfKey];
   }
 
   Future<void> ensureE2eReady(WorkerSession session) async {
@@ -139,7 +138,8 @@ class ChatRepository {
     try {
       await bootstrapE2e(session, workerId: workerId);
     } catch (_) {
-      // Identity upload is best-effort; chat may still work with plaintext fallback.
+      if (_e2eChatRequired()) rethrow;
+      // Identity upload is best-effort when E2E is optional.
     }
   }
 
@@ -328,7 +328,7 @@ class ChatRepository {
     await ensureE2eReady(session);
     final prepared = await _prepareOutboundBody(session, body);
     try {
-      return await _postMessage(
+      final res = await _postMessage(
         session: session,
         threadId: threadId,
         outbound: prepared.outbound,
@@ -336,11 +336,12 @@ class ChatRepository {
         replyToMessageId: replyToMessageId,
         sourceLang: sourceLang,
       );
+      return _withPlaintextMessageBody(res, body);
     } on ApiException catch (e) {
       if (e.errorCode == 'thread_not_found' || e.errorCode == 'chat_send_failed') {
         _cachedThreadId = null;
         final freshThreadId = await resolveThread(session, forceRefresh: true);
-        return _postMessage(
+        final res = await _postMessage(
           session: session,
           threadId: freshThreadId,
           outbound: prepared.outbound,
@@ -348,9 +349,22 @@ class ChatRepository {
           replyToMessageId: replyToMessageId,
           sourceLang: sourceLang,
         );
+        return _withPlaintextMessageBody(res, body);
       }
       rethrow;
     }
+  }
+
+  /// Server returns the E2E envelope as `message.body` — keep plaintext for the sender UI.
+  Map<String, dynamic> _withPlaintextMessageBody(Map<String, dynamic> res, String plaintext) {
+    final raw = res['message'];
+    if (raw is! Map) return res;
+    final message = Map<String, dynamic>.from(raw);
+    final stored = message['body']?.toString() ?? '';
+    if (plaintext.trim().isNotEmpty && _e2e.isE2eEnvelope(stored)) {
+      message['body'] = plaintext;
+    }
+    return {...res, 'message': message};
   }
 
   Future<Map<String, dynamic>> translateMessage({
