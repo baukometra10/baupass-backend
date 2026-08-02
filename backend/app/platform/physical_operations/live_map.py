@@ -17,9 +17,17 @@ from .location_trail import (
     normalize_zone_kind,
     resolve_containing_zone,
 )
+from .map_intelligence import (
+    compute_zone_stats,
+    display_status,
+    evaluate_map_anomalies,
+    normalize_activity,
+    persist_map_anomalies,
+    zone_dwell_averages,
+)
 
 
-def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
+def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> dict[str, Any]:
     cid = str(company_id or "").strip()
     today = today_prefix()
     geofences = list_active_geofences(db, cid)
@@ -34,16 +42,17 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         lng = float(coords["lng"])
         zone = resolve_containing_zone(lat, lng, geofences)
         inside = zone is not None
-        # If company has no geofences, treat as on-site when present in list_on_site_workers
         if not geofences:
             inside = True
         position_source = str(coords.get("source") or "anchor")
-        status = derive_worker_map_status(
+        geo_status = derive_worker_map_status(
             position_source=position_source,
             last_location_at=w.get("last_location_at"),
             inside_zone=inside,
             has_open_session=True,
         )
+        activity = normalize_activity(w.get("activity"))
+        status = display_status(geo_status=geo_status, activity=activity)
         if status in status_counts:
             status_counts[status] += 1
         workers.append(
@@ -51,13 +60,17 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
                 "id": w.get("id"),
                 "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
                 "badgeId": w.get("badge_id") or "",
+                "role": w.get("role") or "",
                 "site": w.get("site"),
                 "gate": w.get("gate"),
                 "lastAccess": w.get("last_access"),
                 "lastLocationAt": w.get("last_location_at") or None,
                 "positionSource": position_source,
+                "geoStatus": geo_status,
                 "status": status,
-                "activity": None,  # Wave 2: on_break / on_task
+                "activity": activity,
+                "activityNote": w.get("activity_note") or "",
+                "taskRef": w.get("task_ref") or "",
                 "currentZone": (
                     {
                         "id": zone.get("id"),
@@ -216,6 +229,21 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     except Exception:
         missing_expected = 0
 
+    zone_stats = compute_zone_stats(zones_out, workers)
+    dwell = zone_dwell_averages(db, cid, [str(z.get("id") or "") for z in zones_out])
+    for zs in zone_stats:
+        zid = str(zs.get("zoneId") or "")
+        if zid and zid in dwell:
+            zs["avgDwellMinutes"] = dwell[zid]
+
+    anomalies = evaluate_map_anomalies(company_id=cid, workers=workers, zone_stats=zone_stats)
+    anomaly_ids: list[str] = []
+    if emit_anomalies and anomalies:
+        try:
+            anomaly_ids = persist_map_anomalies(db, anomalies)
+        except Exception:
+            anomaly_ids = []
+
     return {
         "companyId": cid,
         "date": today,
@@ -232,6 +260,17 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         "alerts": alerts,
         "autoDial": False,
         "statusCounts": status_counts,
+        "zoneStats": zone_stats,
+        "mapAnomalies": [
+            {
+                "code": a.get("code"),
+                "severity": a.get("severity"),
+                "message": a.get("message"),
+                "details": a.get("details"),
+            }
+            for a in anomalies[:20]
+        ],
+        "anomaliesEmitted": anomaly_ids,
         "zoneKinds": sorted(ZONE_KIND_COLORS.keys()),
         "counts": {
             "zones": len(zones_out),
@@ -239,10 +278,13 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
             "working": status_counts["working"],
             "offSite": status_counts["off_site"],
             "stale": status_counts["stale"],
+            "onBreak": status_counts["on_break"],
+            "onTask": status_counts["on_task"],
             "gates": len(gates),
             "cameras": len(cameras),
             "cameraAlerts": sum(1 for c in cameras if c.get("alert")),
             "missingExpected": missing_expected,
             "security": len(alerts),
+            "mapAnomalies": len(anomalies),
         },
     }

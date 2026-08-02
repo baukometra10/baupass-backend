@@ -1741,5 +1741,21 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="051",
+        name="smart_map_worker_activity",
+        up_sql="""
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS activity TEXT NOT NULL DEFAULT 'working';
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS activity_note TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS activity_updated_at TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS task_ref TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_presence_company_activity
+                ON worker_presence_state(company_id, activity);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_presence_company_activity;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

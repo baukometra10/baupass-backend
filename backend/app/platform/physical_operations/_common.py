@@ -620,6 +620,43 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
             f"""
             SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                    w.site_latitude, w.site_longitude,
+                   COALESCE(w.role, '') AS role,
+                   COALESCE(latest.gate, '') AS gate,
+                   COALESCE(latest.timestamp, '') AS last_access,
+                   COALESCE(latest.note, '') AS last_note,
+                   wps.last_lat AS last_lat,
+                   wps.last_lng AS last_lng,
+                   wps.last_accuracy_m AS last_accuracy_m,
+                   COALESCE(wps.last_location_at, '') AS last_location_at,
+                   COALESCE(wps.activity, 'working') AS activity,
+                   COALESCE(wps.activity_note, '') AS activity_note,
+                   COALESCE(wps.activity_updated_at, '') AS activity_updated_at,
+                   COALESCE(wps.task_ref, '') AS task_ref
+            FROM workers w
+            LEFT JOIN worker_presence_state wps ON wps.worker_id = w.id
+            LEFT JOIN (
+                SELECT al.worker_id, al.direction, al.gate, al.timestamp, al.note
+                FROM access_logs al
+                WHERE al.timestamp LIKE ?
+                  AND al.timestamp = (
+                      SELECT MAX(al2.timestamp) FROM access_logs al2
+                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                  )
+            ) latest ON latest.worker_id = w.id
+            WHERE w.company_id = ? AND w.deleted_at IS NULL
+              AND {_present_on_site_sql_body(worker_ref="w.id")}
+            ORDER BY last_access DESC
+            """,
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        try:
+            rows = db.execute(
+                f"""
+            SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
+                   w.site_latitude, w.site_longitude,
+                   COALESCE(w.role, '') AS role,
                    COALESCE(latest.gate, '') AS gate,
                    COALESCE(latest.timestamp, '') AS last_access,
                    COALESCE(latest.note, '') AS last_note,
@@ -642,12 +679,12 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
               AND {_present_on_site_sql_body(worker_ref="w.id")}
             ORDER BY last_access DESC
             """,
-            params,
-        ).fetchall()
-        return [dict(r) for r in rows]
-    except Exception:
-        rows = db.execute(
-            f"""
+                params,
+            ).fetchall()
+            return [dict(r) for r in rows]
+        except Exception:
+            rows = db.execute(
+                f"""
             SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                    w.site_latitude, w.site_longitude,
                    COALESCE(latest.gate, '') AS gate,
@@ -667,6 +704,6 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
               AND {_present_on_site_sql_body(worker_ref="w.id")}
             ORDER BY last_access DESC
             """,
-            params,
-        ).fetchall()
-        return [dict(r) for r in rows]
+                params,
+            ).fetchall()
+            return [dict(r) for r in rows]

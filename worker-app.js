@@ -8488,6 +8488,27 @@ function ensureSiteGpsStatusBar() {
   return bar;
 }
 
+async function setWorkerActivity(activity) {
+  if (!workerToken) return;
+  try {
+    await fetchJson(`${API_BASE}/activity`, {
+      method: "POST",
+      headers: buildWorkerAuthHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify({ activity }),
+    });
+    showWorkerNotice(
+      activity === "on_break"
+        ? (t("activityBreakSet") || "Pause gemeldet")
+        : activity === "on_task"
+          ? (t("activityTaskSet") || "Aufgabe gemeldet")
+          : (t("activityWorkingSet") || "Wieder bei der Arbeit")
+    );
+  } catch (error) {
+    workerDebug("[activity]", error);
+    showWorkerNotice(error?.message || t("commonError") || "Fehler");
+  }
+}
+
 function updateSiteGpsStatusBar({ cfg, preview, phase, blockedMessage } = {}) {
   const bar = ensureSiteGpsStatusBar();
   const server = workerApiHostLabel();
@@ -8515,12 +8536,36 @@ function updateSiteGpsStatusBar({ cfg, preview, phase, blockedMessage } = {}) {
     return;
   }
   if (preview?.onSite) {
-    bar.textContent = tf("siteGpsStatusOnSite", {
+    bar.dataset.tone = "ok";
+    bar.innerHTML = "";
+    const text = document.createElement("span");
+    text.textContent = tf("siteGpsStatusOnSite", {
       distance: preview.distanceMeters ?? "—",
       allowed: preview.allowedRadiusMeters ?? cfg.radiusMeters ?? 80,
       server,
     });
-    bar.dataset.tone = "ok";
+    bar.appendChild(text);
+    const actions = document.createElement("span");
+    actions.style.marginInlineStart = "0.5rem";
+    actions.style.display = "inline-flex";
+    actions.style.gap = "0.25rem";
+    [
+      ["working", t("activityWorking") || "Arbeit"],
+      ["on_break", t("activityBreak") || "Pause"],
+      ["on_task", t("activityTask") || "Aufgabe"],
+    ].forEach(([act, label]) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "btn-link";
+      btn.style.fontSize = "0.75rem";
+      btn.textContent = label;
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        void setWorkerActivity(act);
+      });
+      actions.appendChild(btn);
+    });
+    bar.appendChild(actions);
     return;
   }
   if (typeof preview?.distanceMeters === "number") {

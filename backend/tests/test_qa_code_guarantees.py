@@ -28,6 +28,7 @@ def test_live_map_single_click_opens_targets():
     assert "chat.html" in html
     assert "workerSearch" in html
     assert "showWorkerTrail" in html
+    assert "nearest-workers" in html or "nearestBtn" in html
     assert "autoDial" in (ROOT / "backend" / "app" / "platform" / "physical_operations" / "live_map.py").read_text(
         encoding="utf-8"
     )
@@ -36,6 +37,12 @@ def test_live_map_single_click_opens_targets():
     ).read_text(encoding="utf-8")
     assert "maybe_record_location_sample" in trail
     assert "derive_worker_map_status" in trail
+    intel = (
+        ROOT / "backend" / "app" / "platform" / "physical_operations" / "map_intelligence.py"
+    ).read_text(encoding="utf-8")
+    assert "find_nearest_workers" in intel
+    assert "evaluate_map_anomalies" in intel
+    assert "compute_zone_stats" in intel
 
 
 def test_lagebild_embeds_live_map():

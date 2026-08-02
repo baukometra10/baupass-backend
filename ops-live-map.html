@@ -68,6 +68,8 @@
     .ops-map-pin-worker-working { color: #5eead4; }
     .ops-map-pin-worker-off_site { color: #fb923c; }
     .ops-map-pin-worker-stale { color: #94a3b8; }
+    .ops-map-pin-worker-on_break { color: #38bdf8; }
+    .ops-map-pin-worker-on_task { color: #a78bfa; }
     .ops-map-pin-worker-shift_ended { color: #64748b; }
     .ops-map-pin-camera { color: #a78bfa; }
     .ops-map-pin-camera-alert { color: #f87171; }
@@ -104,6 +106,14 @@
       border: 1px solid var(--border); background: transparent; color: #94a3b8; cursor: pointer;
     }
     .status-filters button.active { background: #1e293b; color: #e2e8f0; border-color: #64748b; }
+    .nearest-box { display: flex; flex-direction: column; gap: 0.3rem; }
+    .nearest-box .btn-link, #nearestBtn {
+      font-size: 0.75rem; padding: 0.3rem 0.45rem; border-radius: 6px;
+      border: 1px solid var(--border); background: #122033; color: #e2e8f0; cursor: pointer; text-align: start;
+    }
+    .zone-stats { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); font-size: 0.72rem; color: #94a3b8; }
+    .zone-stats strong { color: #e2e8f0; }
+    .anomaly-list { padding: 0.35rem 0.65rem; border-bottom: 1px solid var(--border); font-size: 0.72rem; color: #fbbf24; }
     .side-body { flex: 1; overflow: auto; }
     .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
     .worker-row { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); cursor: pointer; }
@@ -112,6 +122,8 @@
     .status-dot.working { background: #5eead4; }
     .status-dot.off_site { background: #fb923c; }
     .status-dot.stale { background: #94a3b8; }
+    .status-dot.on_break { background: #38bdf8; }
+    .status-dot.on_task { background: #a78bfa; }
     .trail-panel {
       border-top: 1px solid var(--border); padding: 0.55rem 0.65rem; max-height: 34%;
       overflow: auto; background: #0b1220;
@@ -169,8 +181,14 @@
         <div class="status-filters" id="statusFilters">
           <button type="button" data-status="all" class="active">Alle</button>
           <button type="button" data-status="working">Arbeitet</button>
+          <button type="button" data-status="on_break">Pause</button>
+          <button type="button" data-status="on_task">Aufgabe</button>
           <button type="button" data-status="off_site">Außerhalb</button>
           <button type="button" data-status="stale">Offline/Stale</button>
+        </div>
+        <div class="nearest-box">
+          <button type="button" id="nearestBtn" class="btn-link">Nächste MA (Kartenmitte)</button>
+          <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" />
         </div>
       </div>
       <div class="side-body" id="workerList"></div>
@@ -243,6 +261,8 @@
         off_site: "statusOffSite",
         stale: "statusStale",
         shift_ended: "statusShiftEnded",
+        on_break: "statusOnBreak",
+        on_task: "statusOnTask",
       })[status] || "statusWorking";
       return window.opsMapT(key) || status;
     }
@@ -415,6 +435,20 @@
       const cid = companyId || data.companyId || "";
       const list = document.getElementById("workerList");
       const workers = (data.workersOnSite || []).filter(workerMatchesFilters);
+      const zoneStats = data.zoneStats || [];
+      const anomalies = data.mapAnomalies || [];
+      const statsHtml = zoneStats.length
+        ? `<div class="zone-stats"><strong>${escapeHtml(window.opsMapT("zoneStatsTitle") || "Zonen")}</strong><br>` +
+          zoneStats.slice(0, 8).map((z) => {
+            const dwell = z.avgDwellMinutes != null ? ` · Ø ${z.avgDwellMinutes}m` : "";
+            return `${escapeHtml(z.name || z.zoneId)}: <strong>${z.headcount || 0}</strong>${dwell}`;
+          }).join("<br>") + `</div>`
+        : "";
+      const anomalyHtml = anomalies.length
+        ? `<div class="anomaly-list"><strong>${escapeHtml(window.opsMapT("anomaliesTitle") || "Hinweise")}</strong><br>` +
+          anomalies.slice(0, 5).map((a) => escapeHtml(a.message || a.code || "")).join("<br>") +
+          `</div>`
+        : "";
       const workerRows = workers.map((w) => {
         const active = String(w.id) === selectedWorkerId ? " active" : "";
         const zone = w.currentZone?.name || w.site || "";
@@ -431,6 +465,8 @@
         </div>`;
       }).join("");
       list.innerHTML =
+        statsHtml +
+        anomalyHtml +
         `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
         (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
         `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
@@ -531,6 +567,8 @@
         working: data.counts?.working ?? data.statusCounts?.working ?? 0,
         offSite: data.counts?.offSite ?? data.statusCounts?.off_site ?? 0,
         stale: data.counts?.stale ?? data.statusCounts?.stale ?? 0,
+        onBreak: data.counts?.onBreak ?? data.statusCounts?.on_break ?? 0,
+        onTask: data.counts?.onTask ?? data.statusCounts?.on_task ?? 0,
         missing,
         cameras: data.counts?.cameras ?? 0,
         cameraAlerts: camAlerts,
@@ -639,6 +677,36 @@
       statusFilter = btn.dataset.status || "all";
       document.querySelectorAll("#statusFilters button").forEach((b) => b.classList.toggle("active", b === btn));
       if (lastMapData) renderMap(lastMapData);
+    });
+    document.getElementById("nearestBtn")?.addEventListener("click", async () => {
+      if (!companyId || !map) return;
+      const c = map.getCenter();
+      const role = document.getElementById("nearestRole")?.value || "";
+      try {
+        const q = new URLSearchParams({
+          company_id: companyId,
+          lat: String(c.lat),
+          lng: String(c.lng),
+          limit: "5",
+        });
+        if (role.trim()) q.set("role", role.trim());
+        const data = await api(`/api/ops-os/nearest-workers?${q.toString()}`);
+        const workers = data.workers || [];
+        if (!workers.length) {
+          alert(window.opsMapT("nearestEmpty") || "Keine Mitarbeiter in der Nähe");
+          return;
+        }
+        const top = workers[0];
+        map.setView([top.lat, top.lng], 17);
+        const lines = workers.map((w, i) =>
+          `${i + 1}. ${w.name || w.id} · ${w.distanceMeters}m · ${statusLabel(w.status)}`
+        ).join("\n");
+        alert(`${window.opsMapT("nearestTitle") || "Nächste Mitarbeiter"}\n${lines}`);
+        const full = (lastMapData?.workersOnSite || []).find((x) => String(x.id) === String(top.id));
+        if (full) showWorkerTrail(full);
+      } catch (e) {
+        alert(e.message || "nearest failed");
+      }
     });
     window.initOpsMapLangSync?.();
     boot();

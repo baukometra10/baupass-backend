@@ -15482,6 +15482,43 @@ def worker_app_site_presence():
 
 
 @require_worker_session
+def worker_app_activity():
+    """Set operational activity while checked in: working | on_break | on_task."""
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    activity = payload.get("activity") if isinstance(payload, dict) else None
+    note = payload.get("note") or payload.get("activityNote") or ""
+    task_ref = payload.get("taskRef") or payload.get("task_ref") or ""
+    if not worker_has_open_checkin_today(db, worker["id"]) and not worker_has_open_site_app_session_today(
+        db, worker["id"]
+    ):
+        return jsonify({"error": "not_on_duty", "message": "Nur während aktiver Anmeldung möglich."}), 409
+    from backend.app.platform.workforce.presence_state import normalize_activity, upsert_worker_activity
+
+    act = normalize_activity(activity)
+    ok = upsert_worker_activity(
+        db,
+        worker_id=worker["id"],
+        company_id=worker["company_id"],
+        activity=act,
+        note=str(note or ""),
+        task_ref=str(task_ref or ""),
+    )
+    if not ok:
+        return jsonify({"error": "activity_update_failed"}), 500
+    db.commit()
+    return jsonify(
+        {
+            "ok": True,
+            "activity": act,
+            "note": str(note or "").strip()[:240],
+            "taskRef": str(task_ref or "").strip()[:120],
+        }
+    )
+
+
+@require_worker_session
 def worker_app_site_leave():
     """Check-out attendance when the worker leaves the site geofence (app session stays active)."""
     worker = g.worker

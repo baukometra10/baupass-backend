@@ -479,6 +479,42 @@ def register_physical_operations(flask_app) -> None:
             )
         )
 
+    @ops_os_bp.get("/ops-os/nearest-workers")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_nearest_workers():
+        from backend.app.platform.physical_operations.map_intelligence import find_nearest_workers
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
+        try:
+            lat = float(request.args.get("lat"))
+            lng = float(request.args.get("lng"))
+        except (TypeError, ValueError):
+            return jsonify({"error": "lat_lng_required"}), 400
+        limit = int(request.args.get("limit", "5") or 5)
+        role_q = str(request.args.get("role") or request.args.get("skills") or "").strip()
+        # Reuse live map worker positions (without re-emitting anomalies)
+        data = build_live_ops_map(get_db(), cid, emit_anomalies=False)
+        nearest = find_nearest_workers(
+            data.get("workersOnSite") or [],
+            lat=lat,
+            lng=lng,
+            limit=limit,
+            role_query=role_q,
+        )
+        return jsonify(
+            {
+                "companyId": cid,
+                "lat": lat,
+                "lng": lng,
+                "roleQuery": role_q,
+                "count": len(nearest),
+                "workers": nearest,
+            }
+        )
+
     @ops_os_bp.get("/ops-os/events/stream")
     @require_auth
     @require_roles("superadmin", "company-admin")

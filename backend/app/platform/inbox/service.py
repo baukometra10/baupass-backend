@@ -351,6 +351,10 @@ def build_operations_inbox(
                 "autopilot.missing_expected": "Fehlende MA (Hinweis)",
                 "autopilot.security_open": "Security offen (Hinweis)",
                 "autopilot.ops_digest": "Tages-Digest (Hinweis)",
+                "map.zone_crowd": "Karten-Alarm: Zonen-Ansammlung",
+                "map.off_site_dwell": "Karten-Alarm: Länger außerhalb",
+                "map.stale_presence": "Karten-Hinweis: Kein frisches GPS",
+                "map.wrong_zone_dwell": "Karten-Alarm: Ungewöhnliche Zone",
             }
             if code.startswith("sensitive_attempt"):
                 title_map[code] = "Sensibler Zugriff blockiert"

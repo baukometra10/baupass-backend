@@ -74,24 +74,47 @@ def upsert_presence_after_access(
             if checkout_at:
                 keep_out = checkout_at
             if clear_live:
-                db.execute(
-                    """
-                    UPDATE worker_presence_state
-                    SET company_id = ?, open_direction = ?, last_checkin_at = ?,
-                        last_checkout_at = ?, updated_at = ?,
-                        last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
-                        last_location_at = ''
-                    WHERE worker_id = ?
-                    """,
-                    (
-                        str(company_id),
-                        open_direction,
-                        keep_in,
-                        keep_out,
-                        timestamp_iso,
-                        str(worker_id),
-                    ),
-                )
+                try:
+                    db.execute(
+                        """
+                        UPDATE worker_presence_state
+                        SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                            last_checkout_at = ?, updated_at = ?,
+                            last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
+                            last_location_at = '',
+                            activity = 'working', activity_note = '', activity_updated_at = ?,
+                            task_ref = ''
+                        WHERE worker_id = ?
+                        """,
+                        (
+                            str(company_id),
+                            open_direction,
+                            keep_in,
+                            keep_out,
+                            timestamp_iso,
+                            timestamp_iso,
+                            str(worker_id),
+                        ),
+                    )
+                except Exception:
+                    db.execute(
+                        """
+                        UPDATE worker_presence_state
+                        SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                            last_checkout_at = ?, updated_at = ?,
+                            last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
+                            last_location_at = ''
+                        WHERE worker_id = ?
+                        """,
+                        (
+                            str(company_id),
+                            open_direction,
+                            keep_in,
+                            keep_out,
+                            timestamp_iso,
+                            str(worker_id),
+                        ),
+                    )
             else:
                 db.execute(
                     """
@@ -195,3 +218,78 @@ def resolve_auto_direction(db, worker_id: str) -> str:
     """Next tap direction when client asks for auto/toggle."""
     open_dir = get_presence_open_direction(db, worker_id)
     return "check-out" if open_dir == "check-in" else "check-in"
+
+
+ACTIVITIES = frozenset({"working", "on_break", "on_task"})
+
+
+def normalize_activity(value) -> str:
+    act = str(value or "working").strip().lower()
+    if act in {"break", "pause", "paused"}:
+        return "on_break"
+    if act in {"task", "mission", "job"}:
+        return "on_task"
+    return act if act in ACTIVITIES else "working"
+
+
+def upsert_worker_activity(
+    db,
+    *,
+    worker_id: str,
+    company_id: str,
+    activity: str,
+    note: str = "",
+    task_ref: str = "",
+    at: str | None = None,
+) -> bool:
+    """Set operational activity (working / on_break / on_task) while on duty."""
+    act = normalize_activity(activity)
+    stamp = str(at or "").strip() or _now_iso()
+    note_s = str(note or "").strip()[:240]
+    task_s = str(task_ref or "").strip()[:120]
+    wid = str(worker_id)
+    cid = str(company_id)
+    try:
+        existing = db.execute(
+            "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+            (wid,),
+        ).fetchone()
+        if existing:
+            db.execute(
+                """
+                UPDATE worker_presence_state
+                SET company_id = ?, activity = ?, activity_note = ?,
+                    activity_updated_at = ?, task_ref = ?, updated_at = ?
+                WHERE worker_id = ?
+                """,
+                (cid, act, note_s, stamp, task_s, stamp, wid),
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO worker_presence_state (
+                    worker_id, company_id, open_direction,
+                    last_checkin_at, last_checkout_at, updated_at,
+                    activity, activity_note, activity_updated_at, task_ref
+                ) VALUES (?, ?, '', '', '', ?, ?, ?, ?, ?)
+                """,
+                (wid, cid, stamp, act, note_s, stamp, task_s),
+            )
+        return True
+    except Exception:
+        return False
+
+
+def clear_worker_activity_on_checkout(db, *, worker_id: str, timestamp_iso: str) -> None:
+    try:
+        db.execute(
+            """
+            UPDATE worker_presence_state
+            SET activity = 'working', activity_note = '', activity_updated_at = ?,
+                task_ref = '', updated_at = ?
+            WHERE worker_id = ?
+            """,
+            (timestamp_iso, timestamp_iso, str(worker_id)),
+        )
+    except Exception:
+        pass
