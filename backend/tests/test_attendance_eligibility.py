@@ -315,7 +315,7 @@ def test_intentional_app_checkin_hard_blocks_leave(db_conn):
     db_conn.execute(
         """
         INSERT INTO leave_requests (id, worker_id, status, start_date, end_date)
-        VALUES ('lv-1', 'wrk-1', 'approved', '2026-06-09', '2026-06-09')
+        VALUES ('lv-1', 'wrk-1', 'genehmigt', '2026-06-09', '2026-06-09')
         """
     )
     db_conn.commit()
