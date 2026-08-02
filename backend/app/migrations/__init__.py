@@ -1711,5 +1711,35 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="050",
+        name="smart_workforce_map_zones_and_trail",
+        up_sql="""
+            ALTER TABLE geofences ADD COLUMN IF NOT EXISTS zone_kind TEXT NOT NULL DEFAULT 'site';
+            ALTER TABLE geofences ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT '';
+
+            CREATE TABLE IF NOT EXISTS worker_location_samples (
+                id TEXT PRIMARY KEY,
+                worker_id TEXT NOT NULL,
+                company_id TEXT NOT NULL,
+                lat REAL NOT NULL,
+                lng REAL NOT NULL,
+                accuracy_m REAL,
+                geofence_id TEXT NOT NULL DEFAULT '',
+                zone_kind TEXT NOT NULL DEFAULT '',
+                recorded_at TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_worker_location_samples_worker_time
+                ON worker_location_samples(worker_id, recorded_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_worker_location_samples_company_time
+                ON worker_location_samples(company_id, recorded_at DESC);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_worker_location_samples_company_time;
+            DROP INDEX IF EXISTS idx_worker_location_samples_worker_time;
+            DROP TABLE IF EXISTS worker_location_samples;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

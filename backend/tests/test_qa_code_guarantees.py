@@ -26,9 +26,16 @@ def test_live_map_single_click_opens_targets():
     assert 'marker.on("click"' in html
     assert "camera-watch.html" in html
     assert "chat.html" in html
+    assert "workerSearch" in html
+    assert "showWorkerTrail" in html
     assert "autoDial" in (ROOT / "backend" / "app" / "platform" / "physical_operations" / "live_map.py").read_text(
         encoding="utf-8"
     )
+    trail = (
+        ROOT / "backend" / "app" / "platform" / "physical_operations" / "location_trail.py"
+    ).read_text(encoding="utf-8")
+    assert "maybe_record_location_sample" in trail
+    assert "derive_worker_map_status" in trail
 
 
 def test_lagebild_embeds_live_map():

@@ -15338,6 +15338,7 @@ def worker_app_site_presence():
     site_leave_result = None
     session_token = str(getattr(g, "worker_token", "") or "")
     location_saved = False
+    trail_saved = False
 
     # Persist live GPS so Command Center map can show movement inside the object.
     open_session = (
@@ -15347,6 +15348,11 @@ def worker_app_site_presence():
     if open_session or on_site:
         try:
             from backend.app.platform.workforce.presence_state import upsert_live_location
+            from backend.app.platform.physical_operations.location_trail import (
+                list_active_geofences,
+                maybe_record_location_sample,
+                resolve_containing_zone,
+            )
 
             device_lat = measured.get("deviceLatitude")
             device_lng = measured.get("deviceLongitude")
@@ -15359,8 +15365,27 @@ def worker_app_site_presence():
                     lng=float(device_lng),
                     accuracy_m=measured.get("accuracyMeters"),
                 )
+                if open_session:
+                    zones = list_active_geofences(db, worker["company_id"])
+                    zone = resolve_containing_zone(float(device_lat), float(device_lng), zones)
+                    trail_saved = maybe_record_location_sample(
+                        db,
+                        worker_id=worker["id"],
+                        company_id=worker["company_id"],
+                        lat=float(device_lat),
+                        lng=float(device_lng),
+                        accuracy_m=measured.get("accuracyMeters"),
+                        geofence_id=str(
+                            (zone or {}).get("id")
+                            or measured.get("geofenceId")
+                            or active_geofence_id
+                            or ""
+                        ),
+                        zone_kind=str((zone or {}).get("zone_kind") or ""),
+                    )
         except Exception:
             location_saved = False
+            trail_saved = False
 
     if site_cfg["accessMode"] == "site_app" and not on_site_for_leave:
         site_leave_result = _sync_off_site_polls_and_maybe_leave(
@@ -15409,11 +15434,11 @@ def worker_app_site_presence():
                     schedule_outside_hours_checkin_notify(
                         worker, login_eligibility, channel="gps"
                     )
-        if auto_checkin_log_id or site_login_log_id or leave_applied or location_saved or (
+        if auto_checkin_log_id or site_login_log_id or leave_applied or location_saved or trail_saved or (
             site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0
         ):
             db.commit()
-    elif leave_applied or location_saved or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
+    elif leave_applied or location_saved or trail_saved or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
         db.commit()
 
     if leave_applied:
@@ -15444,6 +15469,7 @@ def worker_app_site_presence():
             "attendanceBlocked": attendance_blocked,
             "siteLeaveApplied": leave_applied,
             "locationSaved": location_saved,
+            "trailSaved": trail_saved,
             "offSitePolls": int((site_leave_result or {}).get("offSitePolls") or 0),
             "offSitePollsRequired": int(
                 (site_leave_result or {}).get("offSitePollsRequired") or SITE_LEAVE_OFF_SITE_POLLS_REQUIRED

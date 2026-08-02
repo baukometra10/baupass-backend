@@ -4502,6 +4502,15 @@ async function loadTools() {
           </div>
           <span id="geofenceGpsStatus" class="muted small"></span>
           <input name="radius_meters" type="number" value="100" min="20" max="500" placeholder="${t("tools.radius")}" />
+          <select name="zone_kind" title="${t("tools.zoneKind") || "Zonentyp"}">
+            <option value="site">${t("tools.zoneKindSite") || "Standort"}</option>
+            <option value="production">${t("tools.zoneKindProduction") || "Produktion"}</option>
+            <option value="warehouse">${t("tools.zoneKindWarehouse") || "Lager"}</option>
+            <option value="admin">${t("tools.zoneKindAdmin") || "Verwaltung"}</option>
+            <option value="maintenance">${t("tools.zoneKindMaintenance") || "Wartung"}</option>
+            <option value="lab">${t("tools.zoneKindLab") || "Labor"}</option>
+            <option value="other">${t("tools.zoneKindOther") || "Sonstiges"}</option>
+          </select>
           <button type="submit">${t("tools.addZone")}</button>
         </form>
         <div class="table-wrap" id="geofenceTable"></div>
@@ -4527,6 +4536,7 @@ async function loadTools() {
       { label: t("table.site"), render: (r) => r.site_name || "-" },
       { label: t("table.coords"), render: (r) => `${r.latitude}, ${r.longitude}` },
       { label: t("table.radius"), render: (r) => `${r.radius_meters}m` },
+      { label: t("tools.zoneKind") || "Typ", render: (r) => r.zone_kind || r.zoneKind || "site" },
       { label: t("table.active"), render: (r) => yn(r.active) },
     ]);
     renderTable($("automationTable"), ruleRows, [
@@ -4609,6 +4619,7 @@ async function loadTools() {
             latitude,
             longitude,
             radius_meters: parseInt(fd.get("radius_meters") || "100", 10),
+            zone_kind: String(fd.get("zone_kind") || "site"),
           }),
         });
         ev.target.reset();

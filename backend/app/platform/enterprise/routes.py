@@ -133,15 +133,34 @@ def register_enterprise_routes(flask_app):
         radius = max(5, min(radius, 5000))
 
         gf_id = f"gf-{uuid.uuid4().hex[:10]}"
-        db.execute(
-            """
-            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, ?)
-            """,
-            (gf_id, cid, site_name, lat, lng, radius, _now_iso()),
+        from backend.app.platform.physical_operations.location_trail import (
+            ZONE_KIND_COLORS,
+            normalize_zone_kind,
         )
+
+        zone_kind = normalize_zone_kind(data.get("zone_kind") or data.get("zoneKind") or "site")
+        color = str(data.get("color") or "").strip() or ZONE_KIND_COLORS.get(zone_kind, "")
+        try:
+            db.execute(
+                """
+                INSERT INTO geofences (
+                    id, company_id, site_name, latitude, longitude, radius_meters,
+                    active, created_at, zone_kind, color
+                )
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                """,
+                (gf_id, cid, site_name, lat, lng, radius, _now_iso(), zone_kind, color),
+            )
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+                """,
+                (gf_id, cid, site_name, lat, lng, radius, _now_iso()),
+            )
         db.commit()
-        return jsonify({"id": gf_id}), 201
+        return jsonify({"id": gf_id, "zone_kind": zone_kind, "color": color}), 201
 
     @enterprise_bp.put("/geofences/admin/<gf_id>")
     @require_auth
@@ -170,26 +189,66 @@ def register_enterprise_routes(flask_app):
             except (TypeError, ValueError):
                 return jsonify({"error": "invalid_radius", "message": "Ungültiger Radius."}), 400
 
-        db.execute(
-            """
-            UPDATE geofences
-            SET site_name = COALESCE(?, site_name),
-                latitude = COALESCE(?, latitude),
-                longitude = COALESCE(?, longitude),
-                radius_meters = COALESCE(?, radius_meters),
-                active = COALESCE(?, active)
-            WHERE id = ? AND company_id = ?
-            """,
-            (
-                data.get("site_name"),
-                lat,
-                lng,
-                radius,
-                data.get("active"),
-                gf_id,
-                cid,
-            ),
+        from backend.app.platform.physical_operations.location_trail import (
+            ZONE_KIND_COLORS,
+            normalize_zone_kind,
         )
+
+        zone_kind = None
+        color = None
+        if "zone_kind" in data or "zoneKind" in data:
+            zone_kind = normalize_zone_kind(data.get("zone_kind") or data.get("zoneKind"))
+        if "color" in data:
+            color = str(data.get("color") or "").strip()
+            if not color and zone_kind:
+                color = ZONE_KIND_COLORS.get(zone_kind, "")
+
+        try:
+            db.execute(
+                """
+                UPDATE geofences
+                SET site_name = COALESCE(?, site_name),
+                    latitude = COALESCE(?, latitude),
+                    longitude = COALESCE(?, longitude),
+                    radius_meters = COALESCE(?, radius_meters),
+                    active = COALESCE(?, active),
+                    zone_kind = COALESCE(?, zone_kind),
+                    color = COALESCE(?, color)
+                WHERE id = ? AND company_id = ?
+                """,
+                (
+                    data.get("site_name"),
+                    lat,
+                    lng,
+                    radius,
+                    data.get("active"),
+                    zone_kind,
+                    color,
+                    gf_id,
+                    cid,
+                ),
+            )
+        except Exception:
+            db.execute(
+                """
+                UPDATE geofences
+                SET site_name = COALESCE(?, site_name),
+                    latitude = COALESCE(?, latitude),
+                    longitude = COALESCE(?, longitude),
+                    radius_meters = COALESCE(?, radius_meters),
+                    active = COALESCE(?, active)
+                WHERE id = ? AND company_id = ?
+                """,
+                (
+                    data.get("site_name"),
+                    lat,
+                    lng,
+                    radius,
+                    data.get("active"),
+                    gf_id,
+                    cid,
+                ),
+            )
         db.commit()
         return jsonify({"ok": True})
 

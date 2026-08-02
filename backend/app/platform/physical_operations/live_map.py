@@ -4,49 +4,72 @@ from __future__ import annotations
 from typing import Any
 
 from ._common import (
-    geofence_site_index,
     list_on_site_workers,
     resolve_map_coordinates,
     resolve_worker_map_coordinates,
     today_prefix,
+)
+from .location_trail import (
+    ZONE_KIND_COLORS,
+    cameras_for_zone,
+    derive_worker_map_status,
+    list_active_geofences,
+    normalize_zone_kind,
+    resolve_containing_zone,
 )
 
 
 def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     cid = str(company_id or "").strip()
     today = today_prefix()
-    geofences: list[dict[str, Any]] = []
-    try:
-        rows = db.execute(
-            """
-            SELECT id, site_name, latitude, longitude, radius_meters, active
-            FROM geofences WHERE company_id = ? AND active = 1
-            ORDER BY site_name
-            """,
-            (cid,),
-        ).fetchall()
-        geofences = [dict(r) for r in rows]
-    except Exception:
-        pass
-
-    site_coords = geofence_site_index(db, cid)
+    geofences = list_active_geofences(db, cid)
 
     workers: list[dict[str, Any]] = []
+    status_counts = {"working": 0, "off_site": 0, "stale": 0, "on_break": 0, "on_task": 0}
     for w in list_on_site_workers(db, cid, today):
         coords = resolve_worker_map_coordinates(db, cid, w)
         if not coords:
             continue
+        lat = float(coords["lat"])
+        lng = float(coords["lng"])
+        zone = resolve_containing_zone(lat, lng, geofences)
+        inside = zone is not None
+        # If company has no geofences, treat as on-site when present in list_on_site_workers
+        if not geofences:
+            inside = True
+        position_source = str(coords.get("source") or "anchor")
+        status = derive_worker_map_status(
+            position_source=position_source,
+            last_location_at=w.get("last_location_at"),
+            inside_zone=inside,
+            has_open_session=True,
+        )
+        if status in status_counts:
+            status_counts[status] += 1
         workers.append(
             {
                 "id": w.get("id"),
                 "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
+                "badgeId": w.get("badge_id") or "",
                 "site": w.get("site"),
                 "gate": w.get("gate"),
                 "lastAccess": w.get("last_access"),
                 "lastLocationAt": w.get("last_location_at") or None,
-                "positionSource": coords.get("source") or "anchor",
-                "lat": coords["lat"],
-                "lng": coords["lng"],
+                "positionSource": position_source,
+                "status": status,
+                "activity": None,  # Wave 2: on_break / on_task
+                "currentZone": (
+                    {
+                        "id": zone.get("id"),
+                        "name": zone.get("site_name"),
+                        "kind": zone.get("zone_kind"),
+                        "color": zone.get("color"),
+                    }
+                    if zone
+                    else None
+                ),
+                "lat": lat,
+                "lng": lng,
             }
         )
 
@@ -118,7 +141,6 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
             lat = cam.get("latitude")
             lng = cam.get("longitude")
             if lat is None or lng is None:
-                # Fall back to site/geofence coords so cameras still appear on the map.
                 coords = resolve_map_coordinates(
                     db,
                     cid,
@@ -159,9 +181,28 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
     except Exception:
         cameras = []
 
+    zones_out: list[dict[str, Any]] = []
+    for z in geofences:
+        kind = normalize_zone_kind(z.get("zone_kind"))
+        zone_payload = {
+            "id": z.get("id"),
+            "site_name": z.get("site_name"),
+            "latitude": z.get("latitude"),
+            "longitude": z.get("longitude"),
+            "radius_meters": z.get("radius_meters"),
+            "active": z.get("active"),
+            "zone_kind": kind,
+            "color": z.get("color") or ZONE_KIND_COLORS.get(kind, "#38bdf8"),
+        }
+        zone_payload["cameras"] = [
+            {"id": c["id"], "name": c["name"], "href": c["href"], "alert": c.get("alert")}
+            for c in cameras_for_zone(cameras, zone_payload)
+        ]
+        zones_out.append(zone_payload)
+
     center = None
-    if geofences:
-        center = {"lat": float(geofences[0]["latitude"]), "lng": float(geofences[0]["longitude"])}
+    if zones_out:
+        center = {"lat": float(zones_out[0]["latitude"]), "lng": float(zones_out[0]["longitude"])}
     elif cameras:
         center = {"lat": float(cameras[0]["lat"]), "lng": float(cameras[0]["lng"])}
     elif workers:
@@ -179,8 +220,9 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         "companyId": cid,
         "date": today,
         "center": center,
-        "mapConfigured": bool(geofences) or bool(cameras),
-        "geofences": geofences,
+        "mapConfigured": bool(zones_out) or bool(cameras),
+        "geofences": zones_out,
+        "smartZones": zones_out,
         "workersOnSite": workers,
         "gates": gates,
         "cameras": cameras,
@@ -189,9 +231,14 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
         "missingExpected": missing_expected,
         "alerts": alerts,
         "autoDial": False,
+        "statusCounts": status_counts,
+        "zoneKinds": sorted(ZONE_KIND_COLORS.keys()),
         "counts": {
-            "zones": len(geofences),
+            "zones": len(zones_out),
             "onSite": len(workers),
+            "working": status_counts["working"],
+            "offSite": status_counts["off_site"],
+            "stale": status_counts["stale"],
             "gates": len(gates),
             "cameras": len(cameras),
             "cameraAlerts": sum(1 for c in cameras if c.get("alert")),

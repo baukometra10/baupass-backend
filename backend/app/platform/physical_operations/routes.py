@@ -449,6 +449,36 @@ def register_physical_operations(flask_app) -> None:
             return jsonify({"error": "company_required"}), 400
         return jsonify(build_live_ops_map(get_db(), cid))
 
+    @ops_os_bp.get("/ops-os/workers/<worker_id>/trail")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_worker_trail(worker_id: str):
+        from backend.app.platform.physical_operations.location_trail import get_worker_trail
+
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
+        wid = str(worker_id or "").strip()
+        if not wid:
+            return jsonify({"error": "worker_required"}), 400
+        # Ensure worker belongs to company
+        row = get_db().execute(
+            "SELECT id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL LIMIT 1",
+            (wid, cid),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "worker_not_found"}), 404
+        return jsonify(
+            get_worker_trail(
+                get_db(),
+                company_id=cid,
+                worker_id=wid,
+                from_iso=request.args.get("from"),
+                to_iso=request.args.get("to"),
+                limit=int(request.args.get("limit", "500") or 500),
+            )
+        )
+
     @ops_os_bp.get("/ops-os/events/stream")
     @require_auth
     @require_roles("superadmin", "company-admin")

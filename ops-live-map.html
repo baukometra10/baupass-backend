@@ -65,6 +65,10 @@
       display: block;
     }
     .ops-map-pin-worker { color: #5eead4; }
+    .ops-map-pin-worker-working { color: #5eead4; }
+    .ops-map-pin-worker-off_site { color: #fb923c; }
+    .ops-map-pin-worker-stale { color: #94a3b8; }
+    .ops-map-pin-worker-shift_ended { color: #64748b; }
     .ops-map-pin-camera { color: #a78bfa; }
     .ops-map-pin-camera-alert { color: #f87171; }
     .ops-map-pin-geofence { color: #38bdf8; }
@@ -85,29 +89,52 @@
       text-overflow: ellipsis;
     }
     .side {
-      width: 280px; max-width: 40vw; border-inline-start: 1px solid var(--border);
+      width: 300px; max-width: 42vw; border-inline-start: 1px solid var(--border);
       background: var(--panel); overflow: auto; font-size: 0.8rem;
+      display: flex; flex-direction: column;
     }
+    .side-tools { padding: 0.55rem 0.65rem; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 0.4rem; }
+    .side-tools input, .side-tools select {
+      width: 100%; font-size: 0.78rem; padding: 0.35rem 0.45rem;
+      border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: var(--text);
+    }
+    .status-filters { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .status-filters button {
+      font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 999px;
+      border: 1px solid var(--border); background: transparent; color: #94a3b8; cursor: pointer;
+    }
+    .status-filters button.active { background: #1e293b; color: #e2e8f0; border-color: #64748b; }
+    .side-body { flex: 1; overflow: auto; }
     .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
     .worker-row { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); cursor: pointer; }
-    .worker-row:hover { background: #14202c; }
+    .worker-row:hover, .worker-row.active { background: #14202c; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-inline-end: 4px; }
+    .status-dot.working { background: #5eead4; }
+    .status-dot.off_site { background: #fb923c; }
+    .status-dot.stale { background: #94a3b8; }
+    .trail-panel {
+      border-top: 1px solid var(--border); padding: 0.55rem 0.65rem; max-height: 34%;
+      overflow: auto; background: #0b1220;
+    }
+    .trail-panel h4 { margin: 0 0 0.35rem; font-size: 0.8rem; }
+    .trail-panel ol { margin: 0; padding-inline-start: 1.1rem; color: #94a3b8; font-size: 0.72rem; }
     #status { font-size: 0.8rem; color: #94a3b8; }
     @media (max-width: 800px) {
       .side {
-        display: block;
+        display: flex;
         position: absolute;
         left: 0;
         right: 0;
         bottom: 0;
         width: 100%;
         max-width: none;
-        max-height: 36vh;
+        max-height: 42vh;
         border-inline-start: none;
         border-top: 1px solid var(--border);
         z-index: 600;
         box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.35);
       }
-      .legend { bottom: calc(36vh + 12px); }
+      .legend { bottom: calc(42vh + 12px); }
       #map { padding-bottom: 0; }
     }
   </style>
@@ -117,7 +144,7 @@
     <div style="display:flex;align-items:center;gap:0.65rem;">
       <img data-tenant-logo class="tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="Suppix AI" />
       <div>
-        <strong id="opsMapTitle">Live Ops Map</strong>
+        <strong id="opsMapTitle">Smart Workforce Map</strong>
         <span id="status">Laden…</span>
       </div>
     </div>
@@ -136,16 +163,32 @@
   </header>
   <div class="wrap">
     <div id="map"></div>
-    <aside class="side" id="workerList"></aside>
+    <aside class="side" id="sidePanel">
+      <div class="side-tools">
+        <input type="search" id="workerSearch" placeholder="Mitarbeiter suchen…" autocomplete="off" />
+        <div class="status-filters" id="statusFilters">
+          <button type="button" data-status="all" class="active">Alle</button>
+          <button type="button" data-status="working">Arbeitet</button>
+          <button type="button" data-status="off_site">Außerhalb</button>
+          <button type="button" data-status="stale">Offline/Stale</button>
+        </div>
+      </div>
+      <div class="side-body" id="workerList"></div>
+      <div class="trail-panel" id="trailPanel" hidden>
+        <h4 id="trailTitle"></h4>
+        <ol id="trailList"></ol>
+      </div>
+    </aside>
     <div class="legend">
-      <div class="legend-row"><span class="legend-pin ops-map-pin-worker"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendOnSite">Auf Baustelle</span></div>
-      <div class="legend-row"><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendGeofence">Geofence</span></div>
-      <div class="legend-row"><span class="legend-pin ops-map-pin-gate"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendGate">Gate (heute)</span></div>
+      <div class="legend-row"><span class="legend-pin ops-map-pin-worker-working"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendWorking">Arbeitet</span></div>
+      <div class="legend-row"><span class="legend-pin ops-map-pin-worker-off_site"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendOffSite">Außerhalb</span></div>
+      <div class="legend-row"><span class="legend-pin ops-map-pin-worker-stale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendStale">Letzter Standort</span></div>
+      <div class="legend-row"><span class="legend-pin ops-map-pin-geofence"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendGeofence">Smart Zone</span></div>
       <div class="legend-row"><span class="legend-pin ops-map-pin-camera"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendCamera">Kameras</span></div>
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260705g"></script>
+  <script src="/ops-live-map-i18n.js?v=20260802swm1"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
@@ -160,10 +203,15 @@
 
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
-    let map, layers = { zones: [], workers: [], gates: [], cameras: [] };
+    let map, layers = { zones: [], workers: [], gates: [], cameras: [], trail: [] };
     const workerMarkersById = new Map();
     let mapFittedOnce = false;
     let livePollTimer = 0;
+    let lastMapData = null;
+    let statusFilter = "all";
+    let searchQuery = "";
+    let selectedWorkerId = "";
+    let trailPolyline = null;
     const LIVE_POLL_MS = 8000;
 
     async function api(path) {
@@ -189,6 +237,29 @@
         .replace(/"/g, "&quot;");
     }
 
+    function statusLabel(status) {
+      const key = ({
+        working: "statusWorking",
+        off_site: "statusOffSite",
+        stale: "statusStale",
+        shift_ended: "statusShiftEnded",
+      })[status] || "statusWorking";
+      return window.opsMapT(key) || status;
+    }
+
+    function zoneKindLabel(kind) {
+      const key = `zoneKind_${kind || "site"}`;
+      return window.opsMapT(key) || kind || "site";
+    }
+
+    function workerMatchesFilters(w) {
+      if (statusFilter !== "all" && String(w.status || "") !== statusFilter) return false;
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      const hay = `${w.name || ""} ${w.badgeId || ""} ${w.site || ""} ${(w.currentZone && w.currentZone.name) || ""}`.toLowerCase();
+      return hay.includes(q);
+    }
+
     const PIN_SVG =
       '<svg viewBox="0 0 24 24" class="ops-map-pin-svg" aria-hidden="true">' +
       '<path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="currentColor"/>' +
@@ -209,28 +280,76 @@
       });
     }
 
-    function addPinMarker(lat, lng, kind, label, popupHtml, openHref) {
+    function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick) {
       const marker = L.marker([lat, lng], {
         icon: mapPinIcon(kind, label),
         title: label || "",
         zIndexOffset:
-          kind === "camera-alert" ? 400 : kind === "worker" ? 300 : kind === "camera" ? 250 : kind === "gate" ? 200 : 100,
+          kind.startsWith("worker") ? 300 : kind === "camera-alert" ? 400 : kind === "camera" ? 250 : kind === "gate" ? 200 : 100,
       }).addTo(map);
       if (popupHtml) marker.bindPopup(popupHtml);
-      if (openHref) {
-        marker.on("click", (ev) => {
-          try { L.DomEvent.stopPropagation(ev); } catch (_) {}
-          const embed = new URLSearchParams(location.search).get("embed") === "1";
-          if (embed && window.top && window.top !== window) {
-            try {
-              window.top.open(openHref, "_blank", "noopener");
-              return;
-            } catch (_) { /* fall through */ }
-          }
-          window.open(openHref, "_blank", "noopener");
-        });
-      }
+      marker.on("click", (ev) => {
+        try { L.DomEvent.stopPropagation(ev); } catch (_) {}
+        if (typeof onClick === "function") {
+          onClick(ev);
+          return;
+        }
+        if (!openHref) return;
+        const embed = new URLSearchParams(location.search).get("embed") === "1";
+        if (embed && window.top && window.top !== window) {
+          try {
+            window.top.open(openHref, "_blank", "noopener");
+            return;
+          } catch (_) { /* fall through */ }
+        }
+        window.open(openHref, "_blank", "noopener");
+      });
       return marker;
+    }
+
+    function clearTrail() {
+      if (trailPolyline) {
+        try { map.removeLayer(trailPolyline); } catch (_) {}
+        trailPolyline = null;
+      }
+      clearLayers("trail");
+      const panel = document.getElementById("trailPanel");
+      if (panel) panel.hidden = true;
+    }
+
+    async function showWorkerTrail(worker) {
+      if (!companyId || !worker?.id) return;
+      selectedWorkerId = String(worker.id);
+      try {
+        const trail = await api(
+          `/api/ops-os/workers/${encodeURIComponent(worker.id)}/trail?company_id=${encodeURIComponent(companyId)}`
+        );
+        clearTrail();
+        const pts = (trail.points || []).map((p) => [p.lat, p.lng]);
+        if (pts.length >= 2) {
+          trailPolyline = L.polyline(pts, { color: "#5eead4", weight: 3, opacity: 0.85 }).addTo(map);
+          layers.trail.push(trailPolyline);
+          map.fitBounds(trailPolyline.getBounds(), { padding: [30, 30], maxZoom: 18 });
+        } else if (worker.lat != null) {
+          map.setView([worker.lat, worker.lng], 17);
+        }
+        const panel = document.getElementById("trailPanel");
+        const title = document.getElementById("trailTitle");
+        const list = document.getElementById("trailList");
+        title.textContent = `${window.opsMapT("trailTitle") || "Bewegung"} · ${worker.name || ""}`;
+        const recent = (trail.points || []).slice(-40).reverse();
+        list.innerHTML = recent.length
+          ? recent.map((p) => {
+              const t = String(p.at || "").slice(11, 19);
+              const zk = p.zoneKind ? ` · ${zoneKindLabel(p.zoneKind)}` : "";
+              return `<li>${escapeHtml(t)}${escapeHtml(zk)}</li>`;
+            }).join("")
+          : `<li>${escapeHtml(window.opsMapT("trailEmpty") || "Keine Spurpunkte")}</li>`;
+        panel.hidden = false;
+        renderSidebar(lastMapData || { workersOnSite: [], cameras: [] });
+      } catch (e) {
+        console.warn("[trail]", e);
+      }
     }
 
     function renderWorkerMarkers(data) {
@@ -240,31 +359,45 @@
       (data.workersOnSite || []).forEach((w) => {
         const id = String(w.id || "");
         if (!id || w.lat == null || w.lng == null) return;
+        if (!workerMatchesFilters(w)) return;
         nextIds.add(id);
         bounds.push([w.lat, w.lng]);
         const label = w.name || "MA";
+        const status = w.status || "working";
+        const pinKind = `worker-${status}`;
         const chatHref = cid
           ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(id)}`
           : "";
-        const liveHint = w.positionSource === "live"
-          ? `<br><small>${escapeHtml(window.opsMapT("livePosition") || "Live-GPS")}</small>`
-          : "";
+        const zoneName = w.currentZone?.name || "";
         const popup =
-          `<b>${escapeHtml(w.name)}</b><br>${escapeHtml(w.site || "")}` +
-          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>` +
-          liveHint +
+          `<b>${escapeHtml(w.name)}</b>` +
+          `<br><span class="status-dot ${escapeHtml(status)}"></span>${escapeHtml(statusLabel(status))}` +
+          (zoneName ? `<br>${escapeHtml(zoneKindLabel(w.currentZone?.kind))}: ${escapeHtml(zoneName)}` : "") +
+          `<br><small>${escapeHtml((w.lastLocationAt || w.lastAccess || "").slice(0, 19))}</small>` +
+          (w.positionSource === "live"
+            ? `<br><small>${escapeHtml(window.opsMapT("livePosition") || "Live-GPS")}</small>`
+            : w.status === "stale"
+              ? `<br><small>${escapeHtml(window.opsMapT("lastKnown") || "Letzter Standort")}</small>`
+              : "") +
+          `<br><button type="button" class="btn-link" data-trail="${escapeHtml(id)}">${escapeHtml(window.opsMapT("showTrail") || "Spur zeigen")}</button>` +
           (chatHref
-            ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>` +
-              `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>`
+            ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>`
             : "");
         const existing = workerMarkersById.get(id);
+        const onClick = () => showWorkerTrail(w);
         if (existing) {
           existing.setLatLng([w.lat, w.lng]);
-          existing.setIcon(mapPinIcon("worker", label));
+          existing.setIcon(mapPinIcon(pinKind, label));
           existing.setPopupContent(popup);
           existing.options.title = label;
+          existing.off("click");
+          existing.on("click", (ev) => {
+            try { L.DomEvent.stopPropagation(ev); } catch (_) {}
+            onClick();
+            existing.openPopup();
+          });
         } else {
-          const m = addPinMarker(w.lat, w.lng, "worker", label, popup, chatHref || null);
+          const m = addPinMarker(w.lat, w.lng, pinKind, label, popup, null, onClick);
           workerMarkersById.set(id, m);
           layers.workers.push(m);
         }
@@ -278,7 +411,47 @@
       return bounds;
     }
 
+    function renderSidebar(data) {
+      const cid = companyId || data.companyId || "";
+      const list = document.getElementById("workerList");
+      const workers = (data.workersOnSite || []).filter(workerMatchesFilters);
+      const workerRows = workers.map((w) => {
+        const active = String(w.id) === selectedWorkerId ? " active" : "";
+        const zone = w.currentZone?.name || w.site || "";
+        return `<div class="worker-row${active}" data-worker-id="${escapeHtml(w.id)}" data-lat="${w.lat}" data-lng="${w.lng}">
+          <strong><span class="status-dot ${escapeHtml(w.status || "working")}"></span>${escapeHtml(w.name || "")}</strong>
+          <br><span style="color:#94a3b8">${escapeHtml(statusLabel(w.status))} · ${escapeHtml(zone)}</span>
+        </div>`;
+      }).join("");
+      const camRows = (data.cameras || []).map((cam) => {
+        const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
+        return `<div class="worker-row" data-lat="${cam.lat}" data-lng="${cam.lng}" data-open="${escapeHtml(href)}">
+          <strong>${escapeHtml(cam.name || "Kamera")}</strong>${cam.alert ? " · ⚠" : ""}<br>
+          <span style="color:#94a3b8">${escapeHtml(cam.zone || "")}</span>
+        </div>`;
+      }).join("");
+      list.innerHTML =
+        `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
+        (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
+        `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
+        (camRows || `<p style='padding:0.65rem;color:#94a3b8'>${window.opsMapT("noCameras")}</p>`);
+      list.querySelectorAll(".worker-row[data-worker-id]").forEach((row) => {
+        row.onclick = () => {
+          const w = (data.workersOnSite || []).find((x) => String(x.id) === row.dataset.workerId);
+          if (w) showWorkerTrail(w);
+          else map.setView([+row.dataset.lat, +row.dataset.lng], 17);
+        };
+      });
+      list.querySelectorAll(".worker-row[data-open]").forEach((row) => {
+        row.onclick = () => {
+          map.setView([+row.dataset.lat, +row.dataset.lng], 17);
+          if (row.dataset.open) window.open(row.dataset.open, "_blank", "noopener");
+        };
+      });
+    }
+
     function renderMap(data) {
+      lastMapData = data;
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
         map = L.map("map").setView([c.lat, c.lng], 15);
@@ -293,21 +466,35 @@
       const cid = companyId || data.companyId || "";
       (data.geofences || []).forEach((z) => {
         if (z.latitude == null) return;
+        const color = z.color || "#38bdf8";
         const circle = L.circle([z.latitude, z.longitude], {
           radius: z.radius_meters || 50,
-          color: "#38bdf8",
+          color,
           weight: 2,
-          fillColor: "#38bdf8",
-          fillOpacity: 0.16,
-        }).addTo(map).bindPopup(`<b>${escapeHtml(z.site_name)}</b><br>${z.radius_meters}m`);
+          fillColor: color,
+          fillOpacity: 0.14,
+        }).addTo(map);
+        const cams = z.cameras || [];
+        const camLinks = cams.length
+          ? `<br><b>${escapeHtml(window.opsMapT("zoneCameras") || "Kameras")}</b><br>` +
+            cams.map((c) =>
+              `<a class="btn-link" href="${escapeHtml(c.href || "#")}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a>`
+            ).join("<br>")
+          : `<br><small>${escapeHtml(window.opsMapT("noCameras") || "")}</small>`;
+        const siteLabel = z.site_name || "Zone";
+        circle.bindPopup(
+          `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))} · ${z.radius_meters || 50}m` + camLinks
+        );
+        circle.on("click", () => circle.openPopup());
         layers.zones.push(circle);
-        const siteLabel = z.site_name || "Geofence";
         const pin = addPinMarker(
           z.latitude,
           z.longitude,
           "geofence",
           siteLabel,
-          `<b>${escapeHtml(siteLabel)}</b><br>${z.radius_meters || 50}m Radius`,
+          `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))}${camLinks}`,
+          null,
+          () => circle.openPopup(),
         );
         layers.zones.push(pin);
         bounds.push([z.latitude, z.longitude]);
@@ -326,9 +513,7 @@
         const popup =
           `<b>${escapeHtml(label)}</b><br>${escapeHtml(cam.zone || "")}` +
           `<br>${cam.alert ? escapeHtml(window.opsMapT("cameraAlert")) : escapeHtml(window.opsMapT("cameraOk"))}` +
-          `<br><a class="btn-link" href="${escapeHtml(href)}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openCameraWatch"))}</strong></a>` +
-          `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>` +
-          `<br><small>${escapeHtml(window.opsMapT("noAutodial"))}</small>`;
+          `<br><a class="btn-link" href="${escapeHtml(href)}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openCameraWatch"))}</strong></a>`;
         const m = addPinMarker(cam.lat, cam.lng, kind, label, popup, href !== "#" ? href : null);
         layers.cameras.push(m);
         bounds.push([cam.lat, cam.lng]);
@@ -341,45 +526,18 @@
       const camAlerts = data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0;
       const security = data.openSecurityAlerts ?? data.counts?.security ?? 0;
       const statusEl = document.getElementById("status");
-      statusEl.textContent = window.opsMapT("statusLine", {
+      statusEl.textContent = window.opsMapT("statusLineSmart", {
         onSite: data.counts?.onSite ?? 0,
+        working: data.counts?.working ?? data.statusCounts?.working ?? 0,
+        offSite: data.counts?.offSite ?? data.statusCounts?.off_site ?? 0,
+        stale: data.counts?.stale ?? data.statusCounts?.stale ?? 0,
         missing,
-        zones: data.counts?.zones ?? 0,
-        security,
         cameras: data.counts?.cameras ?? 0,
         cameraAlerts: camAlerts,
+        security,
       });
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
-      const list = document.getElementById("workerList");
-      const workerRows = (data.workersOnSite || []).map((w) => {
-        const chatHref = cid && w.id
-          ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(w.id)}`
-          : "";
-        const liveBadge = w.positionSource === "live"
-          ? ` · <span style="color:#5eead4">${escapeHtml(window.opsMapT("livePosition") || "Live")}</span>`
-          : "";
-        return `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}" ${chatHref ? `data-open="${escapeHtml(chatHref)}"` : ""}>
-          <strong>${escapeHtml(w.name || "")}</strong>${liveBadge}<br>
-          <span style="color:#94a3b8">${escapeHtml(w.site || "")} · ${escapeHtml(w.gate || "")}</span>
-          ${chatHref ? `<br><a class="btn-link" href="${chatHref}" onclick="event.stopPropagation()" target="_blank" rel="noopener">${escapeHtml(window.opsMapT("openChat"))}</a>` : ""}
-        </div>`;
-      }).join("");
-      const camRows = (data.cameras || []).map((cam) => {
-        const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
-        return `<div class="worker-row" data-lat="${cam.lat}" data-lng="${cam.lng}" data-open="${escapeHtml(href)}">
-          <strong>${escapeHtml(cam.name || "Kamera")}</strong>${cam.alert ? " · ⚠" : ""}<br>
-          <span style="color:#94a3b8">${escapeHtml(cam.zone || "")}</span>
-          <br><a class="btn-link" href="${escapeHtml(href)}" onclick="event.stopPropagation()" target="_blank" rel="noopener">${escapeHtml(window.opsMapT("openCameraWatch"))}</a>
-        </div>`;
-      }).join("");
-      list.innerHTML =
-        `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
-        (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
-        `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
-        (camRows || `<p style='padding:0.65rem;color:#94a3b8'>${window.opsMapT("noCameras")}</p>`);
-      list.querySelectorAll(".worker-row").forEach((row) => {
-        row.onclick = () => map.setView([+row.dataset.lat, +row.dataset.lng], 17);
-      });
+      renderSidebar(data);
     }
 
     async function load() {
@@ -424,6 +582,8 @@
           sel.onchange = () => {
             companyId = sel.value;
             mapFittedOnce = false;
+            selectedWorkerId = "";
+            clearTrail();
             workerMarkersById.forEach((m) => { try { map?.removeLayer(m); } catch (_) {} });
             workerMarkersById.clear();
             layers.workers = [];
@@ -469,6 +629,17 @@
     document.getElementById("refreshBtn")?.addEventListener("click", () =>
       load().catch((e) => alert(e.message)),
     );
+    document.getElementById("workerSearch")?.addEventListener("input", (ev) => {
+      searchQuery = ev.target.value || "";
+      if (lastMapData) renderMap(lastMapData);
+    });
+    document.getElementById("statusFilters")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-status]");
+      if (!btn) return;
+      statusFilter = btn.dataset.status || "all";
+      document.querySelectorAll("#statusFilters button").forEach((b) => b.classList.toggle("active", b === btn));
+      if (lastMapData) renderMap(lastMapData);
+    });
     window.initOpsMapLangSync?.();
     boot();
   </script>
