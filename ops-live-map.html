@@ -225,12 +225,16 @@
     const workerMarkersById = new Map();
     let mapFittedOnce = false;
     let livePollTimer = 0;
+    let livePollInFlight = false;
     let lastMapData = null;
     let statusFilter = "all";
     let searchQuery = "";
     let selectedWorkerId = "";
     let trailPolyline = null;
-    const LIVE_POLL_MS = 8000;
+    const workerMarkerAnimations = new Map();
+    const LIVE_POLL_MS_VISIBLE = 2000;
+    const LIVE_POLL_MS_HIDDEN = 8000;
+    const MARKER_MOVE_ANIM_MS = 900;
 
     async function api(path) {
       const headers = window.BaupassAuth
@@ -327,6 +331,54 @@
       return marker;
     }
 
+    function cancelWorkerMarkerAnimation(workerId) {
+      const id = String(workerId || "");
+      const prev = workerMarkerAnimations.get(id);
+      if (!prev) return;
+      try { window.cancelAnimationFrame(prev.rafId); } catch (_) {}
+      workerMarkerAnimations.delete(id);
+    }
+
+    function animateWorkerMarkerMove(workerId, marker, nextLat, nextLng) {
+      if (!marker || nextLat == null || nextLng == null) return;
+      const id = String(workerId || "");
+      const current = marker.getLatLng?.();
+      if (!current) {
+        marker.setLatLng([nextLat, nextLng]);
+        return;
+      }
+      const latDelta = Math.abs(Number(current.lat) - Number(nextLat));
+      const lngDelta = Math.abs(Number(current.lng) - Number(nextLng));
+      if (latDelta < 0.000001 && lngDelta < 0.000001) {
+        marker.setLatLng([nextLat, nextLng]);
+        return;
+      }
+
+      cancelWorkerMarkerAnimation(id);
+      const fromLat = Number(current.lat);
+      const fromLng = Number(current.lng);
+      const toLat = Number(nextLat);
+      const toLng = Number(nextLng);
+      const start = performance.now();
+
+      const step = (now) => {
+        const t = Math.max(0, Math.min(1, (now - start) / MARKER_MOVE_ANIM_MS));
+        const eased = 1 - Math.pow(1 - t, 3);
+        const lat = fromLat + (toLat - fromLat) * eased;
+        const lng = fromLng + (toLng - fromLng) * eased;
+        marker.setLatLng([lat, lng]);
+        if (t < 1 && workerMarkersById.get(id) === marker) {
+          const rafId = window.requestAnimationFrame(step);
+          workerMarkerAnimations.set(id, { rafId });
+          return;
+        }
+        workerMarkerAnimations.delete(id);
+      };
+
+      const rafId = window.requestAnimationFrame(step);
+      workerMarkerAnimations.set(id, { rafId });
+    }
+
     function clearTrail() {
       if (trailPolyline) {
         try { map.removeLayer(trailPolyline); } catch (_) {}
@@ -406,7 +458,7 @@
         const existing = workerMarkersById.get(id);
         const onClick = () => showWorkerTrail(w);
         if (existing) {
-          existing.setLatLng([w.lat, w.lng]);
+          animateWorkerMarkerMove(id, existing, w.lat, w.lng);
           existing.setIcon(mapPinIcon(pinKind, label));
           existing.setPopupContent(popup);
           existing.options.title = label;
@@ -424,6 +476,7 @@
       });
       for (const [id, marker] of [...workerMarkersById.entries()]) {
         if (nextIds.has(id)) continue;
+        cancelWorkerMarkerAnimation(id);
         try { map.removeLayer(marker); } catch (_) {}
         workerMarkersById.delete(id);
       }
@@ -588,10 +641,28 @@
     }
 
     function startLivePolling() {
-      if (livePollTimer) window.clearInterval(livePollTimer);
-      livePollTimer = window.setInterval(() => {
-        load().catch(() => {});
-      }, LIVE_POLL_MS);
+      if (livePollTimer) window.clearTimeout(livePollTimer);
+      const nextInterval = () => (
+        document.visibilityState === "visible"
+          ? LIVE_POLL_MS_VISIBLE
+          : LIVE_POLL_MS_HIDDEN
+      );
+      const tick = async () => {
+        if (livePollInFlight) {
+          livePollTimer = window.setTimeout(tick, nextInterval());
+          return;
+        }
+        livePollInFlight = true;
+        try {
+          await load();
+        } catch (_) {
+          // keep polling
+        } finally {
+          livePollInFlight = false;
+          livePollTimer = window.setTimeout(tick, nextInterval());
+        }
+      };
+      livePollTimer = window.setTimeout(tick, nextInterval());
     }
 
     async function applyOpsMapBranding() {
@@ -707,6 +778,10 @@
       } catch (e) {
         alert(e.message || "nearest failed");
       }
+    });
+    document.addEventListener("visibilitychange", () => {
+      // Re-arm polling so visible tabs switch quickly to fast live cadence.
+      startLivePolling();
     });
     window.initOpsMapLangSync?.();
     boot();

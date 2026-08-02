@@ -4,34 +4,7 @@
 		{
 			"label": "Starte Backend-Server",
 			"type": "shell",
-			"command": "python backend/server.py",
-			"args": [],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
-		},
-		{
-			"label": "Starte Backend-Server",
-			"type": "shell",
-			"command": "python backend/server.py",
-			"args": [],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
-		},
-		{
-			"label": "Starte Backend-Server",
-			"type": "shell",
-			"command": "python backend/server.py",
-			"args": [],
-			"isBackground": false,
-			"problemMatcher": [],
-			"group": "build"
-		},
-		{
-			"label": "Starte Backend-Server",
-			"type": "shell",
-			"command": "c:/Users/u4363/Desktop/baustelle/.venv/Scripts/python.exe backend/server.py",
+			"command": "c:/Users/u4363/Desktop/baustelle/.venv/Scripts/python.exe backend/run_prod.py",
 			"args": [],
 			"isBackground": false,
 			"problemMatcher": [],
