@@ -15337,6 +15337,30 @@ def worker_app_site_presence():
     attendance_blocked = None
     site_leave_result = None
     session_token = str(getattr(g, "worker_token", "") or "")
+    location_saved = False
+
+    # Persist live GPS so Command Center map can show movement inside the object.
+    open_session = (
+        worker_has_open_checkin_today(db, worker["id"])
+        or worker_has_open_site_app_session_today(db, worker["id"])
+    )
+    if open_session or on_site:
+        try:
+            from backend.app.platform.workforce.presence_state import upsert_live_location
+
+            device_lat = measured.get("deviceLatitude")
+            device_lng = measured.get("deviceLongitude")
+            if device_lat is not None and device_lng is not None:
+                location_saved = upsert_live_location(
+                    db,
+                    worker_id=worker["id"],
+                    company_id=worker["company_id"],
+                    lat=float(device_lat),
+                    lng=float(device_lng),
+                    accuracy_m=measured.get("accuracyMeters"),
+                )
+        except Exception:
+            location_saved = False
 
     if site_cfg["accessMode"] == "site_app" and not on_site_for_leave:
         site_leave_result = _sync_off_site_polls_and_maybe_leave(
@@ -15385,11 +15409,11 @@ def worker_app_site_presence():
                     schedule_outside_hours_checkin_notify(
                         worker, login_eligibility, channel="gps"
                     )
-        if auto_checkin_log_id or site_login_log_id or leave_applied or (
+        if auto_checkin_log_id or site_login_log_id or leave_applied or location_saved or (
             site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0
         ):
             db.commit()
-    elif leave_applied or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
+    elif leave_applied or location_saved or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
         db.commit()
 
     if leave_applied:
@@ -15419,6 +15443,7 @@ def worker_app_site_presence():
             "siteLoginLogId": site_login_log_id,
             "attendanceBlocked": attendance_blocked,
             "siteLeaveApplied": leave_applied,
+            "locationSaved": location_saved,
             "offSitePolls": int((site_leave_result or {}).get("offSitePolls") or 0),
             "offSitePollsRequired": int(
                 (site_leave_result or {}).get("offSitePollsRequired") or SITE_LEAVE_OFF_SITE_POLLS_REQUIRED

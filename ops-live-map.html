@@ -161,6 +161,10 @@
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
     let map, layers = { zones: [], workers: [], gates: [], cameras: [] };
+    const workerMarkersById = new Map();
+    let mapFittedOnce = false;
+    let livePollTimer = 0;
+    const LIVE_POLL_MS = 8000;
 
     async function api(path) {
       const headers = window.BaupassAuth
@@ -229,6 +233,51 @@
       return marker;
     }
 
+    function renderWorkerMarkers(data) {
+      const cid = companyId || data.companyId || "";
+      const nextIds = new Set();
+      const bounds = [];
+      (data.workersOnSite || []).forEach((w) => {
+        const id = String(w.id || "");
+        if (!id || w.lat == null || w.lng == null) return;
+        nextIds.add(id);
+        bounds.push([w.lat, w.lng]);
+        const label = w.name || "MA";
+        const chatHref = cid
+          ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(id)}`
+          : "";
+        const liveHint = w.positionSource === "live"
+          ? `<br><small>${escapeHtml(window.opsMapT("livePosition") || "Live-GPS")}</small>`
+          : "";
+        const popup =
+          `<b>${escapeHtml(w.name)}</b><br>${escapeHtml(w.site || "")}` +
+          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>` +
+          liveHint +
+          (chatHref
+            ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>` +
+              `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>`
+            : "");
+        const existing = workerMarkersById.get(id);
+        if (existing) {
+          existing.setLatLng([w.lat, w.lng]);
+          existing.setIcon(mapPinIcon("worker", label));
+          existing.setPopupContent(popup);
+          existing.options.title = label;
+        } else {
+          const m = addPinMarker(w.lat, w.lng, "worker", label, popup, chatHref || null);
+          workerMarkersById.set(id, m);
+          layers.workers.push(m);
+        }
+      });
+      for (const [id, marker] of [...workerMarkersById.entries()]) {
+        if (nextIds.has(id)) continue;
+        try { map.removeLayer(marker); } catch (_) {}
+        workerMarkersById.delete(id);
+      }
+      layers.workers = [...workerMarkersById.values()];
+      return bounds;
+    }
+
     function renderMap(data) {
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
@@ -238,7 +287,6 @@
         }).addTo(map);
       }
       clearLayers("zones");
-      clearLayers("workers");
       clearLayers("gates");
       clearLayers("cameras");
       const bounds = [];
@@ -264,22 +312,7 @@
         layers.zones.push(pin);
         bounds.push([z.latitude, z.longitude]);
       });
-      (data.workersOnSite || []).forEach((w) => {
-        const label = w.name || "MA";
-        const chatHref = cid && w.id
-          ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(w.id)}`
-          : "";
-        const popup =
-          `<b>${escapeHtml(w.name)}</b><br>${escapeHtml(w.site || "")}` +
-          `<br>${escapeHtml(w.gate || "")}<br><small>${escapeHtml((w.lastAccess || "").slice(0, 19))}</small>` +
-          (chatHref
-            ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>` +
-              `<br><small>${escapeHtml(window.opsMapT("clickOpen"))}</small>`
-            : "");
-        const m = addPinMarker(w.lat, w.lng, "worker", label, popup, chatHref || null);
-        layers.workers.push(m);
-        bounds.push([w.lat, w.lng]);
-      });
+      bounds.push(...renderWorkerMarkers(data));
       (data.gates || []).forEach((g) => {
         const label = g.name || "Gate";
         const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
@@ -300,7 +333,10 @@
         layers.cameras.push(m);
         bounds.push([cam.lat, cam.lng]);
       });
-      if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40] });
+      if (!mapFittedOnce && bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+        mapFittedOnce = true;
+      }
       const missing = data.counts?.missingExpected ?? data.missingExpected ?? 0;
       const camAlerts = data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0;
       const security = data.openSecurityAlerts ?? data.counts?.security ?? 0;
@@ -319,8 +355,11 @@
         const chatHref = cid && w.id
           ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(w.id)}`
           : "";
+        const liveBadge = w.positionSource === "live"
+          ? ` · <span style="color:#5eead4">${escapeHtml(window.opsMapT("livePosition") || "Live")}</span>`
+          : "";
         return `<div class="worker-row" data-lat="${w.lat}" data-lng="${w.lng}" ${chatHref ? `data-open="${escapeHtml(chatHref)}"` : ""}>
-          <strong>${escapeHtml(w.name || "")}</strong><br>
+          <strong>${escapeHtml(w.name || "")}</strong>${liveBadge}<br>
           <span style="color:#94a3b8">${escapeHtml(w.site || "")} · ${escapeHtml(w.gate || "")}</span>
           ${chatHref ? `<br><a class="btn-link" href="${chatHref}" onclick="event.stopPropagation()" target="_blank" rel="noopener">${escapeHtml(window.opsMapT("openChat"))}</a>` : ""}
         </div>`;
@@ -352,6 +391,13 @@
       renderMap(data);
     }
 
+    function startLivePolling() {
+      if (livePollTimer) window.clearInterval(livePollTimer);
+      livePollTimer = window.setInterval(() => {
+        load().catch(() => {});
+      }, LIVE_POLL_MS);
+    }
+
     async function applyOpsMapBranding() {
       try {
         if (window.BaupassAuth?.resolveTenantBranding) {
@@ -377,11 +423,16 @@
             `<option value="${c.id}" ${c.id === companyId ? "selected" : ""}>${c.name}</option>`).join("");
           sel.onchange = () => {
             companyId = sel.value;
+            mapFittedOnce = false;
+            workerMarkersById.forEach((m) => { try { map?.removeLayer(m); } catch (_) {} });
+            workerMarkersById.clear();
+            layers.workers = [];
             applyOpsMapBranding().finally(() => load().catch(e => alert(e.message)));
           };
         }
         await applyOpsMapBranding();
         await load();
+        startLivePolling();
         if (window.SUPPIXOpsRealtime) {
           await window.SUPPIXOpsRealtime.start({
             companyId,

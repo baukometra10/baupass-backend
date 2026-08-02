@@ -548,31 +548,125 @@ def resolve_map_coordinates(
     return None
 
 
+LIVE_LOCATION_MAX_AGE_SECONDS = 20 * 60
+
+
+def _parse_iso_timestamp(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        if text.endswith("Z"):
+            text = text[:-1] + "+00:00"
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def is_fresh_live_location(location_at: Any, *, max_age_seconds: int = LIVE_LOCATION_MAX_AGE_SECONDS) -> bool:
+    dt = _parse_iso_timestamp(location_at)
+    if not dt:
+        return False
+    age = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
+    return 0 <= age <= float(max_age_seconds)
+
+
+def resolve_worker_map_coordinates(
+    db,
+    company_id: str,
+    worker: dict[str, Any],
+    *,
+    max_age_seconds: int = LIVE_LOCATION_MAX_AGE_SECONDS,
+) -> dict[str, float] | None:
+    """Prefer fresh live GPS from site-presence; fall back to check-in/geofence anchors."""
+    live_lat = worker.get("last_lat")
+    live_lng = worker.get("last_lng")
+    if is_usable_map_coordinate(live_lat, live_lng) and is_fresh_live_location(
+        worker.get("last_location_at"),
+        max_age_seconds=max_age_seconds,
+    ):
+        return {"lat": float(live_lat), "lng": float(live_lng), "source": "live"}
+
+    last_note = str(worker.get("last_note") or "")
+    device_coords = parse_device_coords_from_note(last_note)
+    if device_coords:
+        return {"lat": device_coords["lat"], "lng": device_coords["lng"], "source": "checkin"}
+
+    coords = resolve_map_coordinates(
+        db,
+        company_id,
+        lat=worker.get("site_latitude"),
+        lng=worker.get("site_longitude"),
+        site=str(worker.get("site") or ""),
+        geofence_id=parse_geofence_id_from_note(last_note),
+        access_note="",
+        seed=str(worker.get("id") or ""),
+    )
+    if coords:
+        return {**coords, "source": "anchor"}
+    return None
+
+
 def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[dict]:
     today = today or today_prefix()
     cid = _cid_param(company_id)
     prefix, p2, p3, p4, p5 = _present_on_site_params(today)
-    rows = db.execute(
-        f"""
-        SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
-               w.site_latitude, w.site_longitude,
-               COALESCE(latest.gate, '') AS gate,
-               COALESCE(latest.timestamp, '') AS last_access,
-               COALESCE(latest.note, '') AS last_note
-        FROM workers w
-        LEFT JOIN (
-            SELECT al.worker_id, al.direction, al.gate, al.timestamp, al.note
-            FROM access_logs al
-            WHERE al.timestamp LIKE ?
-              AND al.timestamp = (
-                  SELECT MAX(al2.timestamp) FROM access_logs al2
-                  WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
-              )
-        ) latest ON latest.worker_id = w.id
-        WHERE w.company_id = ? AND w.deleted_at IS NULL
-          AND {_present_on_site_sql_body(worker_ref="w.id")}
-        ORDER BY last_access DESC
-        """,
-        (prefix, prefix, cid, prefix, p2, p3, p4, p5),
-    ).fetchall()
-    return [dict(r) for r in rows]
+    params = (prefix, prefix, cid, prefix, p2, p3, p4, p5)
+    try:
+        rows = db.execute(
+            f"""
+            SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
+                   w.site_latitude, w.site_longitude,
+                   COALESCE(latest.gate, '') AS gate,
+                   COALESCE(latest.timestamp, '') AS last_access,
+                   COALESCE(latest.note, '') AS last_note,
+                   wps.last_lat AS last_lat,
+                   wps.last_lng AS last_lng,
+                   wps.last_accuracy_m AS last_accuracy_m,
+                   COALESCE(wps.last_location_at, '') AS last_location_at
+            FROM workers w
+            LEFT JOIN worker_presence_state wps ON wps.worker_id = w.id
+            LEFT JOIN (
+                SELECT al.worker_id, al.direction, al.gate, al.timestamp, al.note
+                FROM access_logs al
+                WHERE al.timestamp LIKE ?
+                  AND al.timestamp = (
+                      SELECT MAX(al2.timestamp) FROM access_logs al2
+                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                  )
+            ) latest ON latest.worker_id = w.id
+            WHERE w.company_id = ? AND w.deleted_at IS NULL
+              AND {_present_on_site_sql_body(worker_ref="w.id")}
+            ORDER BY last_access DESC
+            """,
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]
+    except Exception:
+        rows = db.execute(
+            f"""
+            SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
+                   w.site_latitude, w.site_longitude,
+                   COALESCE(latest.gate, '') AS gate,
+                   COALESCE(latest.timestamp, '') AS last_access,
+                   COALESCE(latest.note, '') AS last_note
+            FROM workers w
+            LEFT JOIN (
+                SELECT al.worker_id, al.direction, al.gate, al.timestamp, al.note
+                FROM access_logs al
+                WHERE al.timestamp LIKE ?
+                  AND al.timestamp = (
+                      SELECT MAX(al2.timestamp) FROM access_logs al2
+                      WHERE al2.worker_id = al.worker_id AND al2.timestamp LIKE ?
+                  )
+            ) latest ON latest.worker_id = w.id
+            WHERE w.company_id = ? AND w.deleted_at IS NULL
+              AND {_present_on_site_sql_body(worker_ref="w.id")}
+            ORDER BY last_access DESC
+            """,
+            params,
+        ).fetchall()
+        return [dict(r) for r in rows]

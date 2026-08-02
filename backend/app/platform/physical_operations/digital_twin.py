@@ -8,6 +8,7 @@ from ._common import (
     geofence_site_index,
     list_on_site_workers,
     resolve_map_coordinates,
+    resolve_worker_map_coordinates,
     today_prefix,
 )
 
@@ -117,16 +118,12 @@ def build_digital_twin(db, company_id: str) -> dict[str, Any]:
             "status": w.get("status"),
             "movement": "on_site",
         }
-        coords = resolve_map_coordinates(
-            db,
-            company_id,
-            lat=w.get("site_latitude"),
-            lng=w.get("site_longitude"),
-            site=site,
-            seed=str(w.get("id") or ""),
-        )
+        coords = resolve_worker_map_coordinates(db, company_id, w)
         if coords:
-            ent["map"] = coords
+            ent["map"] = {"lat": coords["lat"], "lng": coords["lng"]}
+            ent["positionSource"] = coords.get("source") or "anchor"
+            if w.get("last_location_at"):
+                ent["lastLocationAt"] = w.get("last_location_at")
         workers_entities.append(ent)
     recent = db.execute(
         """

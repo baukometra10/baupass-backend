@@ -6,8 +6,8 @@ from typing import Any
 from ._common import (
     geofence_site_index,
     list_on_site_workers,
-    parse_geofence_id_from_note,
     resolve_map_coordinates,
+    resolve_worker_map_coordinates,
     today_prefix,
 )
 
@@ -33,17 +33,7 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
 
     workers: list[dict[str, Any]] = []
     for w in list_on_site_workers(db, cid, today):
-        last_note = str(w.get("last_note") or "")
-        coords = resolve_map_coordinates(
-            db,
-            cid,
-            lat=w.get("site_latitude"),
-            lng=w.get("site_longitude"),
-            site=str(w.get("site") or ""),
-            geofence_id=parse_geofence_id_from_note(last_note),
-            access_note=last_note,
-            seed=str(w.get("id") or ""),
-        )
+        coords = resolve_worker_map_coordinates(db, cid, w)
         if not coords:
             continue
         workers.append(
@@ -53,6 +43,8 @@ def build_live_ops_map(db, company_id: str) -> dict[str, Any]:
                 "site": w.get("site"),
                 "gate": w.get("gate"),
                 "lastAccess": w.get("last_access"),
+                "lastLocationAt": w.get("last_location_at") or None,
+                "positionSource": coords.get("source") or "anchor",
                 "lat": coords["lat"],
                 "lng": coords["lng"],
             }

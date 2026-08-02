@@ -1695,5 +1695,21 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="049",
+        name="worker_presence_live_location",
+        up_sql="""
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_lat REAL;
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_lng REAL;
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_accuracy_m REAL;
+            ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_location_at TEXT NOT NULL DEFAULT '';
+            CREATE INDEX IF NOT EXISTS idx_presence_company_location
+                ON worker_presence_state(company_id, last_location_at);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_presence_company_location;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

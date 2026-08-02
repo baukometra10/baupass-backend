@@ -1,7 +1,12 @@
 """Cached open check-in / check-out state for fast gate auto-toggle."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def get_presence_open_direction(db, worker_id: str) -> str:
@@ -55,6 +60,7 @@ def upsert_presence_after_access(
     open_direction = "check-in" if direction_l == "check-in" else ""
     checkin_at = timestamp_iso if direction_l == "check-in" else ""
     checkout_at = timestamp_iso if direction_l == "check-out" else ""
+    clear_live = direction_l == "check-out"
     try:
         existing = db.execute(
             "SELECT worker_id, last_checkin_at, last_checkout_at FROM worker_presence_state WHERE worker_id = ?",
@@ -67,22 +73,42 @@ def upsert_presence_after_access(
                 keep_in = checkin_at
             if checkout_at:
                 keep_out = checkout_at
-            db.execute(
-                """
-                UPDATE worker_presence_state
-                SET company_id = ?, open_direction = ?, last_checkin_at = ?,
-                    last_checkout_at = ?, updated_at = ?
-                WHERE worker_id = ?
-                """,
-                (
-                    str(company_id),
-                    open_direction,
-                    keep_in,
-                    keep_out,
-                    timestamp_iso,
-                    str(worker_id),
-                ),
-            )
+            if clear_live:
+                db.execute(
+                    """
+                    UPDATE worker_presence_state
+                    SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                        last_checkout_at = ?, updated_at = ?,
+                        last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
+                        last_location_at = ''
+                    WHERE worker_id = ?
+                    """,
+                    (
+                        str(company_id),
+                        open_direction,
+                        keep_in,
+                        keep_out,
+                        timestamp_iso,
+                        str(worker_id),
+                    ),
+                )
+            else:
+                db.execute(
+                    """
+                    UPDATE worker_presence_state
+                    SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                        last_checkout_at = ?, updated_at = ?
+                    WHERE worker_id = ?
+                    """,
+                    (
+                        str(company_id),
+                        open_direction,
+                        keep_in,
+                        keep_out,
+                        timestamp_iso,
+                        str(worker_id),
+                    ),
+                )
         else:
             db.execute(
                 """
@@ -103,6 +129,66 @@ def upsert_presence_after_access(
     except Exception:
         # Table may not exist yet on very old DBs; ignore.
         pass
+
+
+def upsert_live_location(
+    db,
+    *,
+    worker_id: str,
+    company_id: str,
+    lat: float,
+    lng: float,
+    accuracy_m: float | None = None,
+    at: str | None = None,
+) -> bool:
+    """Persist latest device GPS for live ops map (site-presence heartbeat)."""
+    try:
+        la = float(lat)
+        ln = float(lng)
+    except (TypeError, ValueError):
+        return False
+    if not (-90.0 <= la <= 90.0 and -180.0 <= ln <= 180.0):
+        return False
+    if abs(la) < 0.0001 and abs(ln) < 0.0001:
+        return False
+    stamp = str(at or "").strip() or _now_iso()
+    acc = None
+    if accuracy_m is not None:
+        try:
+            acc = float(accuracy_m)
+        except (TypeError, ValueError):
+            acc = None
+    wid = str(worker_id)
+    cid = str(company_id)
+    try:
+        existing = db.execute(
+            "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+            (wid,),
+        ).fetchone()
+        if existing:
+            db.execute(
+                """
+                UPDATE worker_presence_state
+                SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
+                    last_location_at = ?, updated_at = ?
+                WHERE worker_id = ?
+                """,
+                (cid, la, ln, acc, stamp, stamp, wid),
+            )
+        else:
+            db.execute(
+                """
+                INSERT INTO worker_presence_state (
+                    worker_id, company_id, open_direction,
+                    last_checkin_at, last_checkout_at, updated_at,
+                    last_lat, last_lng, last_accuracy_m, last_location_at
+                ) VALUES (?, ?, '', '', '', ?, ?, ?, ?, ?)
+                """,
+                (wid, cid, stamp, la, ln, acc, stamp),
+            )
+        return True
+    except Exception:
+        return False
 
 
 def resolve_auto_direction(db, worker_id: str) -> str:
