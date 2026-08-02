@@ -10,6 +10,8 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
   <link rel="stylesheet" href="/design-tokens.css" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
@@ -90,6 +92,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .ops-map-pin.is-selected .ops-map-pin-label {
+      border-color: rgba(45, 212, 191, 0.9);
+      box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.5);
+      color: #ccfbf1;
+    }
     .side {
       width: 300px; max-width: 42vw; border-inline-start: 1px solid var(--border);
       background: var(--panel); overflow: auto; font-size: 0.8rem;
@@ -110,6 +117,36 @@
     .nearest-box .btn-link, #nearestBtn {
       font-size: 0.75rem; padding: 0.3rem 0.45rem; border-radius: 6px;
       border: 1px solid var(--border); background: #122033; color: #e2e8f0; cursor: pointer; text-align: start;
+    }
+    .map-view-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.45rem;
+      font-size: 0.72rem;
+      color: #cbd5e1;
+    }
+    .map-view-controls label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: pointer;
+    }
+    .map-view-controls input[type="checkbox"] {
+      accent-color: #22d3ee;
+      cursor: pointer;
+    }
+    .map-view-controls button {
+      font-size: 0.72rem;
+      padding: 0.22rem 0.42rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #11243a;
+      color: #e2e8f0;
+      cursor: pointer;
+      white-space: nowrap;
     }
     .zone-stats { padding: 0.45rem 0.65rem; border-bottom: 1px solid var(--border); font-size: 0.72rem; color: #94a3b8; }
     .zone-stats strong { color: #e2e8f0; }
@@ -190,6 +227,23 @@
           <button type="button" id="nearestBtn" class="btn-link">Nächste MA (Kartenmitte)</button>
           <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" />
         </div>
+        <div class="map-view-controls">
+          <label>
+            <input type="checkbox" id="compactLabelsToggle" checked />
+            <span id="compactLabelsText">Kompakte Labels</span>
+          </label>
+          <button type="button" id="recenterWorkersBtn">Auf MA zoomen</button>
+        </div>
+        <div class="map-view-controls">
+          <label>
+            <input type="checkbox" id="clusterWorkersToggle" checked />
+            <span>Cluster</span>
+          </label>
+          <label>
+            <input type="checkbox" id="liveTrailToggle" />
+            <span>Live Spur folgen</span>
+          </label>
+        </div>
       </div>
       <div class="side-body" id="workerList"></div>
       <div class="trail-panel" id="trailPanel" hidden>
@@ -208,6 +262,7 @@
   <script src="/embed-helpers.js?v=20260609csrf"></script>
   <script src="/ops-live-map-i18n.js?v=20260802swm1"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script>
@@ -222,6 +277,7 @@
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
     let map, layers = { zones: [], workers: [], gates: [], cameras: [], trail: [] };
+    let workerClusterLayer = null;
     const workerMarkersById = new Map();
     let mapFittedOnce = false;
     let livePollTimer = 0;
@@ -230,7 +286,12 @@
     let statusFilter = "all";
     let searchQuery = "";
     let selectedWorkerId = "";
+    let compactLabels = true;
+    let clusterWorkers = true;
+    let liveTrailEnabled = false;
     let trailPolyline = null;
+    let mapZoomSyncBound = false;
+    let trailRefreshInFlight = false;
     const workerMarkerAnimations = new Map();
     const LIVE_POLL_MS_VISIBLE = 2000;
     const LIVE_POLL_MS_HIDDEN = 8000;
@@ -290,27 +351,32 @@
       '<circle cx="12" cy="9" r="2.6" fill="#fff"/>' +
       "</svg>";
 
-    function mapPinIcon(kind, label) {
+    function mapPinIcon(kind, label, options = {}) {
+      const showLabel = options.showLabel !== false;
+      const selected = !!options.selected;
       const safeLabel = escapeHtml(label);
-      const labelHtml = safeLabel
+      const labelHtml = showLabel && safeLabel
         ? `<span class="ops-map-pin-label">${safeLabel}</span>`
         : "";
+      const selClass = selected ? " is-selected" : "";
       return L.divIcon({
         className: "ops-map-pin-wrap",
-        html: `<div class="ops-map-pin ops-map-pin-${kind}" role="img" aria-label="${safeLabel}">${PIN_SVG}${labelHtml}</div>`,
+        html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}" role="img" aria-label="${safeLabel}">${PIN_SVG}${labelHtml}</div>`,
         iconSize: [36, safeLabel ? 52 : 36],
         iconAnchor: [18, safeLabel ? 50 : 34],
         popupAnchor: [0, safeLabel ? -48 : -32],
       });
     }
 
-    function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick) {
+    function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick, targetLayer = null) {
       const marker = L.marker([lat, lng], {
         icon: mapPinIcon(kind, label),
         title: label || "",
         zIndexOffset:
           kind.startsWith("worker") ? 300 : kind === "camera-alert" ? 400 : kind === "camera" ? 250 : kind === "gate" ? 200 : 100,
-      }).addTo(map);
+      });
+      if (targetLayer && typeof targetLayer.addLayer === "function") targetLayer.addLayer(marker);
+      else marker.addTo(map);
       if (popupHtml) marker.bindPopup(popupHtml);
       marker.on("click", (ev) => {
         try { L.DomEvent.stopPropagation(ev); } catch (_) {}
@@ -329,6 +395,22 @@
         window.open(openHref, "_blank", "noopener");
       });
       return marker;
+    }
+
+    function getWorkerLayerTarget() {
+      if (!clusterWorkers || !workerClusterLayer) return map;
+      return workerClusterLayer;
+    }
+
+    function removeWorkerMarker(marker) {
+      if (!marker || !map) return;
+      try {
+        if (workerClusterLayer && workerClusterLayer.hasLayer(marker)) {
+          workerClusterLayer.removeLayer(marker);
+          return;
+        }
+      } catch (_) { /* ignore */ }
+      try { map.removeLayer(marker); } catch (_) { /* ignore */ }
     }
 
     function cancelWorkerMarkerAnimation(workerId) {
@@ -389,8 +471,9 @@
       if (panel) panel.hidden = true;
     }
 
-    async function showWorkerTrail(worker) {
+    async function showWorkerTrail(worker, options = {}) {
       if (!companyId || !worker?.id) return;
+      const keepView = !!options.keepView;
       selectedWorkerId = String(worker.id);
       try {
         const trail = await api(
@@ -401,8 +484,8 @@
         if (pts.length >= 2) {
           trailPolyline = L.polyline(pts, { color: "#5eead4", weight: 3, opacity: 0.85 }).addTo(map);
           layers.trail.push(trailPolyline);
-          map.fitBounds(trailPolyline.getBounds(), { padding: [30, 30], maxZoom: 18 });
-        } else if (worker.lat != null) {
+          if (!keepView) map.fitBounds(trailPolyline.getBounds(), { padding: [30, 30], maxZoom: 18 });
+        } else if (!keepView && worker.lat != null) {
           map.setView([worker.lat, worker.lng], 17);
         }
         const panel = document.getElementById("trailPanel");
@@ -424,8 +507,18 @@
       }
     }
 
+    function refreshSelectedTrail() {
+      if (!liveTrailEnabled || !selectedWorkerId || trailRefreshInFlight) return;
+      const worker = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === selectedWorkerId);
+      if (!worker) return;
+      trailRefreshInFlight = true;
+      Promise.resolve(showWorkerTrail(worker, { keepView: true }))
+        .finally(() => { trailRefreshInFlight = false; });
+    }
+
     function renderWorkerMarkers(data) {
       const cid = companyId || data.companyId || "";
+      const workerLayerTarget = getWorkerLayerTarget();
       const nextIds = new Set();
       const bounds = [];
       (data.workersOnSite || []).forEach((w) => {
@@ -437,6 +530,8 @@
         const label = w.name || "MA";
         const status = w.status || "working";
         const pinKind = `worker-${status}`;
+        const markerSelected = id === selectedWorkerId;
+        const showPersistentLabel = !compactLabels || markerSelected || (map && map.getZoom() >= 17);
         const chatHref = cid
           ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(id)}`
           : "";
@@ -458,8 +553,16 @@
         const existing = workerMarkersById.get(id);
         const onClick = () => showWorkerTrail(w);
         if (existing) {
+          const isInCluster = !!(workerClusterLayer && workerClusterLayer.hasLayer(existing));
+          if (workerLayerTarget === map && isInCluster) {
+            try { workerClusterLayer.removeLayer(existing); } catch (_) {}
+            try { map.addLayer(existing); } catch (_) {}
+          } else if (workerLayerTarget === workerClusterLayer && !isInCluster) {
+            try { map.removeLayer(existing); } catch (_) {}
+            try { workerClusterLayer.addLayer(existing); } catch (_) {}
+          }
           animateWorkerMarkerMove(id, existing, w.lat, w.lng);
-          existing.setIcon(mapPinIcon(pinKind, label));
+          existing.setIcon(mapPinIcon(pinKind, label, { showLabel: showPersistentLabel, selected: markerSelected }));
           existing.setPopupContent(popup);
           existing.options.title = label;
           existing.off("click");
@@ -469,7 +572,8 @@
             existing.openPopup();
           });
         } else {
-          const m = addPinMarker(w.lat, w.lng, pinKind, label, popup, null, onClick);
+          const m = addPinMarker(w.lat, w.lng, pinKind, label, popup, null, onClick, workerLayerTarget);
+          m.setIcon(mapPinIcon(pinKind, label, { showLabel: showPersistentLabel, selected: markerSelected }));
           workerMarkersById.set(id, m);
           layers.workers.push(m);
         }
@@ -477,7 +581,7 @@
       for (const [id, marker] of [...workerMarkersById.entries()]) {
         if (nextIds.has(id)) continue;
         cancelWorkerMarkerAnimation(id);
-        try { map.removeLayer(marker); } catch (_) {}
+        removeWorkerMarker(marker);
         workerMarkersById.delete(id);
       }
       layers.workers = [...workerMarkersById.values()];
@@ -547,6 +651,26 @@
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
           maxZoom: 19, attribution: "© OSM",
         }).addTo(map);
+      }
+      if (!workerClusterLayer && typeof L.markerClusterGroup === "function") {
+        workerClusterLayer = L.markerClusterGroup({
+          disableClusteringAtZoom: 17,
+          spiderfyOnMaxZoom: true,
+          chunkedLoading: true,
+          maxClusterRadius: 55,
+        });
+        if (clusterWorkers) map.addLayer(workerClusterLayer);
+      }
+      if (workerClusterLayer) {
+        if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
+        if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
+      }
+      if (map && !mapZoomSyncBound) {
+        mapZoomSyncBound = true;
+        map.on("zoomend", () => {
+          if (!compactLabels || !lastMapData) return;
+          renderMap(lastMapData);
+        });
       }
       clearLayers("zones");
       clearLayers("gates");
@@ -629,6 +753,7 @@
       });
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
       renderSidebar(data);
+      refreshSelectedTrail();
     }
 
     async function load() {
@@ -693,7 +818,7 @@
             mapFittedOnce = false;
             selectedWorkerId = "";
             clearTrail();
-            workerMarkersById.forEach((m) => { try { map?.removeLayer(m); } catch (_) {} });
+            workerMarkersById.forEach((m) => { removeWorkerMarker(m); });
             workerMarkersById.clear();
             layers.workers = [];
             applyOpsMapBranding().finally(() => load().catch(e => alert(e.message)));
@@ -778,6 +903,38 @@
       } catch (e) {
         alert(e.message || "nearest failed");
       }
+    });
+    document.getElementById("compactLabelsToggle")?.addEventListener("change", (ev) => {
+      compactLabels = !!ev.target?.checked;
+      if (lastMapData) renderMap(lastMapData);
+    });
+    document.getElementById("recenterWorkersBtn")?.addEventListener("click", () => {
+      if (!map || !lastMapData) return;
+      const pts = (lastMapData.workersOnSite || [])
+        .filter(workerMatchesFilters)
+        .filter((w) => w?.lat != null && w?.lng != null)
+        .map((w) => [w.lat, w.lng]);
+      if (!pts.length) {
+        alert(window.opsMapT("nobodyCheckedIn") || "Niemand eingecheckt");
+        return;
+      }
+      if (pts.length === 1) {
+        map.setView(pts[0], 17);
+        return;
+      }
+      map.fitBounds(pts, { padding: [36, 36], maxZoom: 18 });
+    });
+    document.getElementById("clusterWorkersToggle")?.addEventListener("change", (ev) => {
+      clusterWorkers = !!ev.target?.checked;
+      if (workerClusterLayer && map) {
+        if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
+        if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
+      }
+      if (lastMapData) renderMap(lastMapData);
+    });
+    document.getElementById("liveTrailToggle")?.addEventListener("change", (ev) => {
+      liveTrailEnabled = !!ev.target?.checked;
+      if (liveTrailEnabled) refreshSelectedTrail();
     });
     document.addEventListener("visibilitychange", () => {
       // Re-arm polling so visible tabs switch quickly to fast live cadence.
