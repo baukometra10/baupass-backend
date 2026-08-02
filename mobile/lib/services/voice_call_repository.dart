@@ -581,15 +581,11 @@ class WorkerVoiceCallSession {
       // Prefer a dedicated RecvOnly/SendRecv video slot. Do not bail just because
       // two transceivers exist (e.g. failed/partial setup without remote video).
       for (final tx in existing) {
-        final direction = tx.direction;
         final sk = tx.sender.track?.kind;
         final rk = tx.receiver.track?.kind;
         final isVideo = sk == 'video' || rk == 'video';
         if (!isVideo) continue;
-        if (direction == TransceiverDirection.RecvOnly ||
-            direction == TransceiverDirection.SendRecv) {
-          return;
-        }
+        return;
       }
       await pc.addTransceiver(
         kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,

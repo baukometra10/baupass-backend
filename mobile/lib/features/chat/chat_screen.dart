@@ -1475,14 +1475,18 @@ class _ChatScreenState extends State<ChatScreen> {
                                                 mainAxisAlignment: MainAxisAlignment.end,
                                                 children: [
                                                   if (pinned)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.push_pin, size: 14, color: Theme.of(context).colorScheme.primary),
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(right: 4),
+                                                      child: Icon(
+                                                        Icons.push_pin,
+                                                        size: 14,
+                                                        color: Theme.of(context).colorScheme.primary,
+                                                      ),
                                                     ),
                                                   if (starred)
-                                                    const Padding(
-                                                      padding: EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
+                                                    Padding(
+                                                      padding: const EdgeInsets.only(right: 4),
+                                                      child: const Icon(Icons.star, size: 14, color: Color(0xFFF59E0B)),
                                                     ),
                                                   if (timeLabel.isNotEmpty)
                                                     Text(

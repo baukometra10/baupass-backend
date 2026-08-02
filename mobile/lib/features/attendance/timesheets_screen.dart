@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../core/worker_datetime_format.dart';
 import '../../services/attendance_repository.dart';
