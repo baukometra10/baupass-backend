@@ -284,6 +284,51 @@ def test_blocks_outside_shift_at_night(db_conn):
     assert result["reason"] == "outside_shift_window"
 
 
+def test_intentional_app_checkin_allows_outside_shift(db_conn):
+    from backend.app.platform.workforce.attendance_eligibility import (
+        evaluate_intentional_app_checkin,
+    )
+
+    db_conn.execute(
+        """
+        INSERT INTO worker_deployment_days (company_id, worker_id, work_date, location_label, shift_start, shift_end)
+        VALUES ('co-1', 'wrk-1', '2026-06-09', 'Frühschicht', '06:00', '14:00')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    decision = evaluate_intentional_app_checkin(
+        db_conn,
+        worker,
+        now=__import__("datetime").datetime(2026, 6, 9, 0, 27),
+    )
+    assert decision["ok"] is True
+    assert decision["outsideHours"] is True
+    assert decision["reason"] == "outside_shift_window"
+
+
+def test_intentional_app_checkin_hard_blocks_leave(db_conn):
+    from backend.app.platform.workforce.attendance_eligibility import (
+        evaluate_intentional_app_checkin,
+    )
+
+    db_conn.execute(
+        """
+        INSERT INTO leave_requests (id, worker_id, status, start_date, end_date)
+        VALUES ('lv-1', 'wrk-1', 'approved', '2026-06-09', '2026-06-09')
+        """
+    )
+    db_conn.commit()
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    decision = evaluate_intentional_app_checkin(
+        db_conn,
+        worker,
+        now=__import__("datetime").datetime(2026, 6, 9, 9, 0),
+    )
+    assert decision["ok"] is False
+    assert decision["reason"] == "on_approved_leave"
+
+
 def test_allows_inside_company_work_hours(db_conn):
     worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
     result = worker_may_auto_attend_today(

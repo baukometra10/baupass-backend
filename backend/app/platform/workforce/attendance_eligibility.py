@@ -448,3 +448,64 @@ def worker_may_auto_attend_today(
         "shiftStart": shift_start or work_start,
         "shiftEnd": shift_end or work_end,
     }
+
+
+# Hard blocks for intentional GPS/NFC button check-in (leave / declined / visitor).
+# Time-window reasons still notify the employer but must not block on-site manual punch.
+INTENTIONAL_APP_HARD_BLOCK_REASONS = frozenset(
+    {
+        "on_approved_leave",
+        "deployment_declined",
+        "visitor_not_eligible",
+    }
+)
+
+
+def evaluate_intentional_app_checkin(
+    db,
+    worker: Any,
+    *,
+    lang: str = "de",
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """
+    Explicit GPS/NFC check-in from the employee app (geofence already validated).
+
+    Automatic proximity still uses worker_may_auto_attend_today as a hard gate.
+    Intentional punches allow outside-shift / free-day punches and alert the employer.
+    """
+    current = now or datetime.now()
+    attendance = worker_may_auto_attend_today(
+        db,
+        worker,
+        lang=lang,
+        now=current,
+        target_date=current.date(),
+    )
+    if attendance.get("ok"):
+        return {
+            "ok": True,
+            "outsideHours": False,
+            "attendance": attendance,
+            "reason": str(attendance.get("reason") or ""),
+            "message": "",
+        }
+
+    reason = str(attendance.get("reason") or "attendance_blocked").strip()
+    message = str(attendance.get("message") or "Check-in nicht erlaubt.")
+    if reason in INTENTIONAL_APP_HARD_BLOCK_REASONS:
+        return {
+            "ok": False,
+            "outsideHours": False,
+            "attendance": attendance,
+            "reason": reason,
+            "message": message,
+        }
+
+    return {
+        "ok": True,
+        "outsideHours": True,
+        "attendance": attendance,
+        "reason": reason,
+        "message": message,
+    }

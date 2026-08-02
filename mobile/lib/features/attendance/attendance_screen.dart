@@ -203,6 +203,20 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return t('errAlreadyCheckedIn');
       case 'not_checked_in':
         return t('errNotCheckedIn');
+      case 'on_approved_leave':
+        return t('errOnLeave');
+      case 'deployment_declined':
+        return t('errDeploymentDeclined');
+      case 'outside_shift_window':
+      case 'outside_work_hours':
+      case 'not_scheduled_today':
+      case 'not_a_workday':
+      case 'shift_times_required':
+      case 'attendance_blocked':
+        // Backend should allow intentional GPS now; keep fallback if an old server responds.
+        return e.message?.trim().isNotEmpty == true
+            ? e.message!
+            : t('errOutsideGeofence');
       default:
         return e.message ?? e.toString();
     }
@@ -232,9 +246,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final recordedDirection = result['direction'] as String? ?? direction;
         final open = result['openCheckInToday'] == true || result['attendanceOpen'] == true;
         await widget.workerCache.setOpenCheckInToday(open);
+        final outsideHours = result['outsideHours'] == true;
         final msg = result['duplicate'] == true
             ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
-            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
+            : outsideHours
+                ? t('attendanceOutsideHoursOk')
+                : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
         setState(() {
           _lastDirection = recordedDirection;
           _status = msg;
@@ -299,9 +316,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final duplicate = result['duplicate'] == true;
         final open = result['openCheckInToday'] == true;
         await widget.workerCache.setOpenCheckInToday(open);
+        final outsideHours = result['outsideHours'] == true;
         final msg = duplicate
             ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
-            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
+            : outsideHours
+                ? t('attendanceOutsideHoursOk')
+                : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
         setState(() {
           _lastDirection = recordedDirection;
           _status = msg;

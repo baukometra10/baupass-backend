@@ -15677,17 +15677,35 @@ def record_worker_app_nfc_attendance(
             }
 
     if direction == "check-in":
-        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+        from backend.app.platform.workforce.attendance_eligibility import (
+            evaluate_intentional_app_checkin,
+        )
 
-        attendance = worker_may_auto_attend_today(db, worker)
-        if not attendance.get("ok"):
+        decision = evaluate_intentional_app_checkin(db, worker)
+        attendance = decision.get("attendance") or {}
+        if not decision.get("ok"):
             schedule_outside_hours_checkin_notify(worker, attendance, channel="nfc")
             return {
                 "ok": False,
-                "error": str(attendance.get("reason") or "attendance_blocked"),
+                "error": str(decision.get("reason") or "attendance_blocked"),
                 "status": 403,
-                "message": str(attendance.get("message") or "Check-in nicht erlaubt."),
+                "message": str(decision.get("message") or "Check-in nicht erlaubt."),
             }
+        if decision.get("outsideHours"):
+            schedule_outside_hours_checkin_notify(worker, attendance, channel="nfc")
+            outside_hours = True
+            eligibility_reason = str(decision.get("reason") or "")
+            outside_hours_note = (
+                f" | outsideHours={eligibility_reason or 'outside_hours'}"
+            )
+        else:
+            outside_hours = False
+            eligibility_reason = ""
+            outside_hours_note = ""
+    else:
+        outside_hours = False
+        eligibility_reason = ""
+        outside_hours_note = ""
 
     gate_label = str(gate or "Mitarbeiter-App (NFC)").strip() or "Mitarbeiter-App (NFC)"
     if offline_sync:
@@ -15695,6 +15713,8 @@ def record_worker_app_nfc_attendance(
     note_text = str(note or "NFC attendance via employee app").strip()
     if offline_sync:
         note_text = f"{note_text} | offline sync"
+    if outside_hours_note:
+        note_text = f"{note_text}{outside_hours_note}"
     if client_event_id:
         note_text = f"{note_text} | clientEventId={client_event_id}"
     if isinstance(location, dict):
@@ -15749,6 +15769,8 @@ def record_worker_app_nfc_attendance(
         "timestamp": timestamp_value or now_iso(),
         "gate": gate_label,
         "clientEventId": client_event_id,
+        "outsideHours": outside_hours,
+        "eligibilityReason": eligibility_reason,
     }
 
 
@@ -15827,20 +15849,38 @@ def record_worker_app_manual_attendance(
         return {"ok": False, "error": "not_checked_in", "status": 409}
 
     if direction == "check-in":
-        from backend.app.platform.workforce.attendance_eligibility import worker_may_auto_attend_today
+        from backend.app.platform.workforce.attendance_eligibility import (
+            evaluate_intentional_app_checkin,
+        )
 
-        attendance = worker_may_auto_attend_today(db, worker)
-        if not attendance.get("ok"):
+        decision = evaluate_intentional_app_checkin(db, worker)
+        attendance = decision.get("attendance") or {}
+        if not decision.get("ok"):
             schedule_outside_hours_checkin_notify(worker, attendance, channel="manual")
             return {
                 "ok": False,
-                "error": str(attendance.get("reason") or "attendance_blocked"),
+                "error": str(decision.get("reason") or "attendance_blocked"),
                 "status": 403,
-                "message": str(attendance.get("message") or "Check-in nicht erlaubt."),
+                "message": str(decision.get("message") or "Check-in nicht erlaubt."),
             }
+        outside_hours = bool(decision.get("outsideHours"))
+        eligibility_reason = str(decision.get("reason") or "") if outside_hours else ""
+        if outside_hours:
+            schedule_outside_hours_checkin_notify(worker, attendance, channel="manual")
+            outside_hours_note = (
+                f" | outsideHours={eligibility_reason or 'outside_hours'}"
+            )
+        else:
+            outside_hours_note = ""
+    else:
+        outside_hours = False
+        eligibility_reason = ""
+        outside_hours_note = ""
 
     gate_label = str(gate or "Mitarbeiter-App (GPS manuell)").strip() or "Mitarbeiter-App (GPS manuell)"
     note_text = str(note or "Manual GPS attendance via employee app").strip()
+    if outside_hours_note:
+        note_text = f"{note_text}{outside_hours_note}"
     if client_event_id:
         note_text = f"{note_text} | clientEventId={client_event_id}"
     geofence_id = measured.get("geofenceId")
@@ -15894,6 +15934,8 @@ def record_worker_app_manual_attendance(
         "timestamp": timestamp_value or now_iso(),
         "gate": gate_label,
         "clientEventId": client_event_id,
+        "outsideHours": outside_hours,
+        "eligibilityReason": eligibility_reason,
     }
 
 
