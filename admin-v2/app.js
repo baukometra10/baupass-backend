@@ -299,7 +299,76 @@ async function adoptControlPassTokenIfValid() {
 
 function notifyTabError(err) {
   if (isAuthError(err)) return;
-  showActionToast(err?.message || String(err), true);
+  showActionToast(humanizeUserError(err), true);
+}
+
+function humanizeUserError(err) {
+  if (err == null) return t("common.error");
+  const data = err?.data && typeof err.data === "object" ? err.data : {};
+  const code = String(data.error || data.code || err?.code || "")
+    .trim()
+    .toLowerCase();
+  const raw = String(err?.message || err || "").trim();
+  const rawLower = raw.toLowerCase();
+  const status = Number(err?.status || data.status || 0) || 0;
+
+  const known = {
+    export_failed: "error.exportFailed",
+    login_failed: "error.loginFailed",
+    invalid_json: "error.serverUnexpected",
+    network_error: "error.network",
+    failed_to_fetch: "error.network",
+    timeout: "error.timeout",
+    company_required: "common.selectCompany",
+    company_id_required: "common.selectCompany",
+    forbidden: "error.forbidden",
+    forbidden_company: "error.forbidden",
+    not_found: "error.notFound",
+    unauthorized: "login.sessionExpired",
+    invalid_session: "login.sessionExpired",
+    session_expired: "login.sessionExpired",
+    openai_quota_exceeded: "error.aiUnavailable",
+    feature_not_available: "error.featureUnavailable",
+    database_not_ready: "error.dbNotReady",
+    missing_fields: "error.missingFields",
+  };
+  if (code && known[code]) {
+    const label = t(known[code]);
+    if (label && label !== known[code]) return label;
+  }
+  for (const [needle, key] of Object.entries(known)) {
+    if (rawLower === needle || rawLower.includes(needle)) {
+      const label = t(key);
+      if (label && label !== key) return label;
+    }
+  }
+  if (/api nicht erreichbar|unerwartete server-antwort|invalid_json/i.test(raw)) {
+    return t("error.serverUnexpected");
+  }
+  if (status === 404 || status === 405) return t("error.notFound");
+  if (status === 403) return t("error.forbidden");
+  if (status === 401) return t("login.sessionExpired");
+  if (status >= 500) return t("error.serverUnexpected");
+  // Hide snake_case / http_### codes from end users
+  if (/^[a-z][a-z0-9_.-]*$/i.test(raw) || /^http_\d{3}$/i.test(raw)) {
+    return t("common.error");
+  }
+  if (raw.length > 180) return `${raw.slice(0, 160)}…`;
+  return raw || t("common.error");
+}
+
+function summarizeIntegrationResult(res) {
+  if (!res || typeof res !== "object") return t("common.done");
+  if (res.ok === false) return humanizeUserError({ message: res.message || res.error, data: res });
+  const synced = res.synced ?? res.imported ?? res.updated ?? res.count;
+  const skipped = res.skipped ?? res.skippedCount;
+  const parts = [];
+  if (synced != null) parts.push(t("tools.resultSynced", { n: synced }));
+  if (skipped != null) parts.push(t("tools.resultSkipped", { n: skipped }));
+  if (res.dryRun) parts.push(t("tools.resultDryRun"));
+  if (parts.length) return parts.join(" · ");
+  if (res.message && !/^[a-z][a-z0-9_.-]*$/i.test(String(res.message))) return String(res.message);
+  return t("common.done");
 }
 
 async function applyTenantBrandingFromApi() {
@@ -762,15 +831,9 @@ async function api(path, options = {}) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    const snippet = text.replace(/\s+/g, " ").trim().slice(0, 100);
-    const pathHint = String(path || "").split("?")[0];
     data = {
       error: "invalid_json",
-      message:
-        res.status === 404 || res.status === 405
-          ? `API nicht erreichbar (${pathHint}, HTTP ${res.status}). Bitte Seite neu laden — ggf. läuft noch ein Server-Update.`
-          : `Unerwartete Server-Antwort (${pathHint}, HTTP ${res.status}).`,
-      detail: snippet,
+      message: t("error.serverUnexpected"),
     };
   }
   if (!res.ok) {
@@ -786,7 +849,13 @@ async function api(path, options = {}) {
       err.data = data;
       throw err;
     }
-    const err = new Error(data.message || data.error || res.statusText);
+    const err = new Error(
+      humanizeUserError({
+        message: data.message || data.error || res.statusText,
+        status: res.status,
+        data,
+      }),
+    );
     err.status = res.status;
     err.data = data;
     throw err;
@@ -984,12 +1053,13 @@ function showActionToast(message, isError) {
   const el =
     document.getElementById("globalToast") ||
     document.getElementById("inboxToast");
+  const text = isError ? humanizeUserError({ message }) : String(message ?? "");
   if (!el) {
-    alert(message);
+    alert(text);
     return;
   }
   const baseClass = el.id === "globalToast" ? "global-toast" : "inbox-toast";
-  el.textContent = message;
+  el.textContent = text;
   el.className = isError ? `${baseClass} err` : `${baseClass} ok`;
   el.classList.remove("hidden");
   clearTimeout(showActionToast._t);
@@ -3015,7 +3085,7 @@ function summarizeOpsLayer(key, val) {
       });
       lines.push(
         t("ops.stat.newFindings", { n: v.newFindings ?? 0 }),
-        (v.capabilities || []).slice(0, 2).join(", ") || t("ops.stat.analysisActive"),
+        t("ops.stat.analysisActive"),
       );
       tone = (v.openAlertCount ?? (v.openAlerts || []).length) > 0 ? "warn" : "ok";
       break;
@@ -3034,26 +3104,32 @@ function summarizeOpsLayer(key, val) {
       stat = v.active ? t("ops.stat.emergencyActive") : t("ops.stat.noEmergency");
       tone = v.active ? "danger" : "ok";
       if (v.active) {
-        lines.push(`ID ${v.emergencyId || v.id || "—"}`, t("ops.stat.inside", { n: v.insideCount ?? "—" }));
+        lines.push(t("ops.stat.inside", { n: v.insideCount ?? "—" }));
       }
       break;
     case "6_camera_ai":
       stat = t("ops.stat.events24h", { n: v.events24h ?? 0 });
+      lines.push(
+        t("ops.stat.camerasOnline", {
+          n: v.camerasOnline ?? 0,
+          total: v.camerasTotal ?? 0,
+        }),
+      );
       break;
     case "7_iot":
-      stat = t("ops.stat.devices", { n: (v.devices || []).length });
-      lines.push(v.status || "Registry");
+      stat = t("ops.stat.devices", { n: (v.devices || []).length || Number(v.deviceCount || 0) });
+      lines.push(t("ops.stat.registryReady"));
       break;
     case "8_command_center":
       stat = t("ops.stat.totalWorkers", { n: v.totalOnSite ?? v.workersOnSite ?? 0 });
       lines.push(
         t("ops.stat.emergencies", { n: v.openEmergencies ?? v.activeEmergencies ?? 0 }),
-        `${v.openSecurity ?? 0} Security`,
+        t("ops.stat.securityOpenCount", { n: v.openSecurity ?? 0 }),
       );
       break;
     case "9_autonomous":
       stat = t("ops.stat.rules", { n: v.enabledRules ?? v.ruleCount ?? 0 });
-      lines.push(v.api || "/api/automation/rules");
+      lines.push(t("ops.stat.automationHint"));
       break;
     case "10_workforce_graph":
       stat = t("ops.stat.nodes", { n: (v.nodes || v.workers || []).length });
@@ -3061,15 +3137,15 @@ function summarizeOpsLayer(key, val) {
       break;
     case "11_identity":
       stat = t("ops.stat.identityHub");
-      lines.push((v.apis?.gates || "Gates API").toString().slice(0, 40));
+      lines.push(t("ops.stat.identityHint"));
       break;
     case "12_copilot":
       stat = v.configured ? t("ops.stat.aiReady") : t("ops.stat.notConfigured");
-      lines.push(v.endpoint || "POST /api/ops-os/copilot");
+      lines.push(v.configured ? t("ops.stat.copilotReadyHint") : t("ops.stat.copilotSetupHint"));
       tone = v.configured ? "ok" : "warn";
       break;
     default:
-      stat = v.status || v.layer || t("ops.stat.active");
+      stat = t("ops.stat.active");
       break;
   }
   return { stat, lines: lines.filter(Boolean).slice(0, 3), tone };
@@ -3078,7 +3154,7 @@ function summarizeOpsLayer(key, val) {
 function renderOpsLayerCard(key, title, icon, val) {
   const sum = summarizeOpsLayer(key, val);
   const num = String(key).replace(/\D/g, "").padStart(2, "0") || "—";
-  const meta = sum.lines.map((l) => `<li>${l}</li>`).join("");
+  const meta = sum.lines.map((l) => `<li>${escapeHtml(l)}</li>`).join("");
   return `
     <article class="ops-layer-card ops-tone-${sum.tone}" data-layer="${key}" role="button" tabindex="0" title="${t("ops.showDetails")}">
       <div class="ops-layer-head">
@@ -3093,44 +3169,75 @@ function renderOpsLayerCard(key, title, icon, val) {
   `;
 }
 
-function formatOpsLayerDetailRows(val) {
+function formatOpsLayerDetailRows(val, layerKey = "") {
   const rows = [];
   const push = (label, value) => {
     if (value === undefined || value === null || value === "") return;
-    rows.push(`<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`);
+    rows.push(
+      `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(String(value))}</td></tr>`,
+    );
   };
   const v = val && typeof val === "object" ? val : {};
-  if (v.layer) push(t("ops.detail.layer"), v.layer);
-  if (v.status) push(t("ops.detail.status"), v.status);
-  if (v.date) push(t("ops.detail.date"), v.date);
-  if (v.company_id || v.companyId) push(t("ops.detail.company"), v.company_id || v.companyId);
-  if (v.summary && typeof v.summary === "object") {
-    for (const [sk, sv] of Object.entries(v.summary)) push(sk, sv);
+  const sum = v.summary && typeof v.summary === "object" ? v.summary : {};
+
+  // Curated human fields only — never dump raw keys / API paths for end users.
+  push(t("ops.detail.status"), v.status && !/^[a-z0-9_]+$/i.test(String(v.status)) ? v.status : null);
+  push(t("ops.detail.date"), v.date);
+  if (sum.workersOnSite != null) push(t("ops.detail.onSite"), sum.workersOnSite);
+  if (sum.gatesActive != null) push(t("ops.detail.gatesActive"), sum.gatesActive);
+  if (sum.hazardZones != null) push(t("ops.detail.hazardZones"), sum.hazardZones);
+  if (v.openAlertCount != null || Array.isArray(v.openAlerts)) {
+    push(t("ops.detail.openSecurity"), v.openAlertCount ?? v.openAlerts.length);
   }
-  if (Array.isArray(v.openAlerts)) push(t("ops.detail.openSecurity"), v.openAlerts.length);
   if (v.newFindings != null) push(t("ops.detail.newFindings"), v.newFindings);
   if (v.averageScore != null) push(t("ops.detail.reputationAvg"), Number(v.averageScore).toFixed(1));
+  if (Array.isArray(v.leaderboard) || Array.isArray(v.workers)) {
+    push(t("ops.detail.rankedWorkers"), (v.leaderboard || v.workers || []).length);
+  }
   if (v.active != null) push(t("ops.detail.emergencyActive"), yn(v.active));
-  if (v.events24h != null) push(t("ops.detail.cameraEvents"), v.events24h);
+  if (v.insideCount != null) push(t("ops.detail.insideCount"), v.insideCount);
+  if (v.events24h != null || v.totalEvents24h != null) {
+    push(t("ops.detail.cameraEvents"), v.events24h ?? v.totalEvents24h);
+  }
+  if (v.camerasTotal != null) {
+    push(t("ops.detail.cameras"), `${v.camerasOnline ?? 0} / ${v.camerasTotal}`);
+  }
   if (v.totalOnSite != null) push(t("ops.detail.onSite"), v.totalOnSite);
   if (v.openEmergencies != null) push(t("ops.detail.openEmergencies"), v.openEmergencies);
   if (v.openSecurity != null) push(t("ops.detail.openSecurityShort"), v.openSecurity);
-  if (v.enabledRules != null) push(t("ops.detail.automationRules"), v.enabledRules);
-  if (Array.isArray(v.devices)) push(t("ops.detail.iotDevices"), v.devices.length);
-  if (Array.isArray(v.busiestGates)) push(t("ops.detail.topGates"), v.busiestGates.length);
-  if (v.configured != null) push(t("ops.detail.copilot"), v.configured ? t("ops.stat.aiReady") : t("ops.stat.notConfigured"));
-  if (v.endpoint) push(t("ops.detail.api"), v.endpoint);
-  if (rows.length < 4) {
-    for (const [k, raw] of Object.entries(v)) {
-      if (["entities", "liveMovement", "findings", "leaderboard", "workers"].includes(k)) {
-        push(k, Array.isArray(raw) ? t("ops.detail.entries", { n: raw.length }) : t("ops.detail.object"));
-        continue;
+  if (v.enabledRules != null || v.ruleCount != null) {
+    push(t("ops.detail.automationRules"), v.enabledRules ?? v.ruleCount);
+  }
+  if (Array.isArray(v.devices) || v.deviceCount != null) {
+    push(t("ops.detail.iotDevices"), Array.isArray(v.devices) ? v.devices.length : v.deviceCount);
+  }
+  if (Array.isArray(v.busiestGates)) {
+    push(t("ops.detail.topGates"), v.busiestGates.length);
+    v.busiestGates.slice(0, 3).forEach((g, i) => {
+      const name = typeof g === "string" ? g : g.name || g.gate || g.id;
+      if (name && !/^[a-z0-9_-]+$/i.test(String(name))) {
+        push(`${t("ops.detail.gate")} ${i + 1}`, name);
+      } else if (name) {
+        push(`${t("ops.detail.gate")} ${i + 1}`, name);
       }
-      if (typeof raw === "object" && raw !== null) continue;
-      push(k, raw);
-      if (rows.length >= 14) break;
+    });
+  }
+  if (Array.isArray(v.nodes)) push(t("ops.detail.graphNodes"), v.nodes.length);
+  if (Array.isArray(v.edges)) push(t("ops.detail.graphEdges"), v.edges.length);
+  if (v.configured != null) {
+    push(t("ops.detail.copilot"), v.configured ? t("ops.stat.aiReady") : t("ops.stat.notConfigured"));
+  }
+  if (layerKey === "13_daily_brief" || v.headlines || v.priorities) {
+    const headlines = v.headlines || v.priorities || [];
+    if (Array.isArray(headlines) && headlines.length) {
+      push(t("ops.detail.briefItems"), headlines.length);
     }
   }
+
+  if (isSuperadminUser() && (v.endpoint || v.api)) {
+    push(t("ops.detail.api"), v.endpoint || v.api);
+  }
+
   return rows.join("") || `<tr><td colspan="2" class="muted">${t("ops.noDetailData")}</td></tr>`;
 }
 
@@ -3142,7 +3249,7 @@ function openOpsLayerModal(layerKey) {
   const sum = summarizeOpsLayer(layerKey, val);
   $("opsLayerModalTitle").textContent = title;
   $("opsLayerModalStat").textContent = sum.stat;
-  $("opsLayerModalBody").innerHTML = formatOpsLayerDetailRows(val);
+  $("opsLayerModalBody").innerHTML = formatOpsLayerDetailRows(val, layerKey);
   $("opsLayerModal").classList.remove("hidden");
 }
 
@@ -4547,9 +4654,9 @@ async function loadTools() {
         const provider = btn.getAttribute("data-sync");
         try {
           const res = await api(`/api/integrations/${provider}/sync${q}`, { method: "POST", body: "{}" });
-          alert(JSON.stringify(res, null, 2).slice(0, 800));
+          showActionToast(summarizeIntegrationResult(res), false);
         } catch (e) {
-          alert(e.message);
+          showActionToast(humanizeUserError(e), true);
         }
       });
     });
@@ -4558,9 +4665,9 @@ async function loadTools() {
         const provider = btn.getAttribute("data-export-preview");
         try {
           const res = await api(`/api/integrations/${provider}/export-preview${q}`);
-          alert(JSON.stringify(res, null, 2).slice(0, 1200));
+          showActionToast(summarizeIntegrationResult(res), false);
         } catch (e) {
-          alert(e.message);
+          showActionToast(humanizeUserError(e), true);
         }
       });
     });
@@ -4569,7 +4676,7 @@ async function loadTools() {
         method: "POST",
         body: JSON.stringify({ dryRun: Boolean(dryRun) }),
       });
-      alert(JSON.stringify(res, null, 2).slice(0, 1200));
+      showActionToast(summarizeIntegrationResult(res), false);
     }
     panel.querySelectorAll("[data-export-push]").forEach((btn) => {
       btn.addEventListener("click", async () => {
@@ -4578,7 +4685,7 @@ async function loadTools() {
         try {
           await runErpExport(provider, false);
         } catch (e) {
-          alert(e.message);
+          showActionToast(humanizeUserError(e), true);
         }
       });
     });
@@ -4588,7 +4695,7 @@ async function loadTools() {
         try {
           await runErpExport(provider, true);
         } catch (e) {
-          alert(e.message);
+          showActionToast(humanizeUserError(e), true);
         }
       });
     });
@@ -5026,14 +5133,21 @@ async function loadInbox() {
     const details = it.details || {};
     const events = Array.isArray(details.lateEvents) ? details.lateEvents : [];
     const eventHtml = events.length
-      ? `<ul class="muted small">${events
-          .map(
-            (ev) =>
-              `<li>${escapeHtml(ev.day || "")} ${escapeHtml(ev.time || "")} · ${escapeHtml(ev.gate || "—")}${
-                ev.note ? ` · ${escapeHtml(ev.note)}` : ""
-              }</li>`,
-          )
-          .join("")}</ul>`
+      ? `<div class="inbox-late-events">
+          <p class="muted small"><strong>${escapeHtml(t("inbox.detail.lateHistory"))}</strong></p>
+          <ul class="muted small">${events
+            .map((ev) => {
+              const day = escapeHtml(ev.day || ev.date || "");
+              const time = escapeHtml(String(ev.time || ev.at || "").slice(0, 5));
+              const gateRaw = String(ev.gate || "").trim();
+              const gate =
+                gateRaw && !/^[a-z0-9_]+$/i.test(gateRaw) ? escapeHtml(gateRaw) : "";
+              const note = ev.note ? escapeHtml(ev.note) : "";
+              const bits = [day, time, gate, note].filter(Boolean);
+              return `<li>${bits.join(" · ") || "—"}</li>`;
+            })
+            .join("")}</ul>
+        </div>`
       : "";
     const reason = String(details.reasonSummary || "").trim();
     const shouldAutoAck =
@@ -5052,7 +5166,7 @@ async function loadInbox() {
         showActionToast(t("inbox.ackedOnOpen"), false);
         await refreshInboxBadgeOnly();
       } catch (e) {
-        showActionToast(e.message, true);
+        showActionToast(humanizeUserError(e), true);
       }
     }
 
@@ -5073,24 +5187,53 @@ async function loadInbox() {
           t("inbox.detail.channel"),
           chLabel && !chLabel.startsWith("inbox.alert.") ? chLabel : details.channel,
         );
-        const gate = String(details.gate || "").trim();
+        const gate = String(details.gate || details.gateName || details.siteName || "").trim();
         if (gate && !/^[a-z0-9_]+$/i.test(gate)) pushFact(t("inbox.detail.gate"), gate);
-        const start = String(details.shiftStart || "").trim().slice(0, 5);
-        const end = String(details.shiftEnd || "").trim().slice(0, 5);
+        else if (details.siteName) pushFact(t("inbox.detail.site"), details.siteName);
+        const start = String(details.shiftStart || details.workStart || "").trim().slice(0, 5);
+        const end = String(details.shiftEnd || details.workEnd || "").trim().slice(0, 5);
         if (start && end) pushFact(t("inbox.detail.shiftWindow"), `${start}–${end}`);
-        if (details.attemptedAt || details.at || it.createdAt) {
+        if (details.attemptedAt || details.at || details.timestamp || it.createdAt) {
           pushFact(
             t("inbox.detail.when"),
-            String(details.attemptedAt || details.at || it.createdAt || "").slice(0, 19).replace("T", " "),
+            String(details.attemptedAt || details.at || details.timestamp || it.createdAt || "")
+              .slice(0, 19)
+              .replace("T", " "),
+          );
+        }
+        if (details.minutesOutside != null || details.deltaMinutes != null) {
+          pushFact(
+            t("inbox.detail.minutesOutside"),
+            details.minutesOutside ?? details.deltaMinutes,
+          );
+        }
+        const lat = details.lat ?? details.latitude;
+        const lng = details.lng ?? details.longitude;
+        if (lat != null && lng != null) {
+          pushFact(t("inbox.detail.location"), `${Number(lat).toFixed(5)}, ${Number(lng).toFixed(5)}`);
+        }
+        if (details.distanceMeters != null || details.distance_m != null) {
+          pushFact(
+            t("inbox.detail.distance"),
+            `${Math.round(Number(details.distanceMeters ?? details.distance_m))} m`,
           );
         }
       }
       if (code === "repeated_late_checkin") {
         pushFact(t("inbox.detail.worker"), details.workerName);
         if (details.streak != null) pushFact(t("inbox.detail.streak"), details.streak);
+        if (details.windowDays != null) {
+          pushFact(t("inbox.detail.windowDays"), details.windowDays);
+        }
+        if (it.createdAt) {
+          pushFact(
+            t("inbox.detail.when"),
+            String(it.createdAt).slice(0, 19).replace("T", " "),
+          );
+        }
       }
       pushFact(t("inbox.colSource"), inboxSourceLabel(it.source));
-      pushFact(t("inbox.colSeverity") || t("inbox.critical"), inboxSeverityLabel(it.severity));
+      pushFact(t("inbox.colSeverity"), inboxSeverityLabel(it.severity));
       const factsHtml = facts.length
         ? `<table class="inbox-detail-facts"><tbody>${facts.join("")}</tbody></table>`
         : "";
@@ -6892,7 +7035,7 @@ async function loadAccess() {
           a.click();
           URL.revokeObjectURL(url);
         })
-        .catch((err) => alert(err.message || "export_failed"));
+        .catch((err) => alert(humanizeUserError(err)));
     };
   }
   const data = await api(`/api/v2/access/live${q}`);
@@ -7084,7 +7227,7 @@ async function loadAudit() {
             a.click();
             URL.revokeObjectURL(url);
           })
-          .catch((err) => alert(err.message || "export_failed"));
+          .catch((err) => alert(humanizeUserError(err)));
       };
     }
   } catch (e) {
