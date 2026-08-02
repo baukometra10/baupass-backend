@@ -75,7 +75,9 @@ class _LoginScreenState extends State<LoginScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PublicLegalScreen(
-          title: privacy ? 'Datenschutz' : 'Impressum',
+          title: privacy
+              ? t('legalPrivacy', 'Datenschutz')
+              : t('legalImprint', 'Impressum'),
           body: privacy ? _legal.datenschutzText : _legal.impressumText,
           controller: privacy ? _legal.controller : _legal.controller,
         ),

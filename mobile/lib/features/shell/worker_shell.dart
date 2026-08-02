@@ -511,7 +511,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                     elevation: 0,
                     onTap: (i) {
                       setState(() => _index = i);
-                      if (i == 1) _refreshBadges();
+                      if (i == 0 || i == 1 || i == 3) _refreshBadges();
                       widget.usage.trackTab(
                         tabIndex: i,
                         bearerToken: widget.session.bearer,

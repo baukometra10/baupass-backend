@@ -140,13 +140,25 @@ class _HomeScreenState extends State<HomeScreen> {
         onOpenDocuments: () {
           widget.onOpenTasks?.call();
         },
+        onOpenChat: () {
+          widget.onOpenChat?.call();
+        },
       ),
-    ).then((_) => _refreshNotifications());
+    ).then((_) {
+      _refreshNotifications();
+      unawaited(_refreshMorningBrief());
+    });
   }
 
   void _openChatFullScreen() {
     if (widget.onOpenChat != null) {
       widget.onOpenChat!();
+      // Chat screen marks thread + chat notifications read; refresh bell shortly after.
+      Future<void>.delayed(const Duration(milliseconds: 800), () {
+        if (!mounted) return;
+        unawaited(_refreshNotifications());
+        unawaited(_refreshMorningBrief());
+      });
       return;
     }
     Navigator.of(context).push(
@@ -238,7 +250,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final worker = _profile?['worker'] as Map<String, dynamic>?;
     final subcompany = _profile?['subcompany'] as Map<String, dynamic>?;
     final siteAccess = _profile?['siteAccess'] as Map<String, dynamic>?;
-    final branding = TenantBranding.fromMePayload(_profile);
+    final scoped = TenantBrandingScope.of(context);
+    final fromMe = TenantBranding.fromMePayload(_profile);
+    final branding = TenantBranding(
+      displayName: fromMe.displayName.isNotEmpty &&
+              fromMe.displayName != TenantBranding.fallback.displayName
+          ? fromMe.displayName
+          : (scoped.displayName.isNotEmpty ? scoped.displayName : fromMe.displayName),
+      logoData: (fromMe.logoData != null && fromMe.logoData!.isNotEmpty)
+          ? fromMe.logoData
+          : scoped.logoData,
+      accentColor: fromMe.accentColor ?? scoped.accentColor,
+    );
     final brandLabel = branding.displayName;
     final openCheckIn = siteAccess?['openCheckInToday'] == true;
     final status = worker?['status'] as String? ?? 'aktiv';
@@ -334,7 +357,34 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             if (worker != null) ...[
+              Builder(
+                builder: (context) {
+                  try {
+                    return DigitalPassCard(
+                      firstName: worker['firstName'] as String? ?? '',
+                      lastName: worker['lastName'] as String? ?? '',
+                      role: worker['role'] as String? ?? '',
+                      badgeId: worker['badgeId'] as String? ?? '-',
+                      companyName: brandLabel,
+                      subcompany: subcompany?['name'] as String?,
+                      validUntil: worker['validUntil'] as String? ?? '-',
+                      status: status,
+                      photoData: (worker['photoData'] ?? worker['photo_data'] ?? worker['photo'])?.toString(),
+                      dynamicQr: _dynamicQr,
+                      branding: branding,
+                    );
+                  } catch (e) {
+                    return Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text('${t('navPass')}: $e'),
+                      ),
+                    );
+                  }
+                },
+              ),
               if (_morningBrief != null) ...[
+                const SizedBox(height: 12),
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
@@ -377,34 +427,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 10),
               ],
-              Builder(
-                builder: (context) {
-                  try {
-                    return DigitalPassCard(
-                      firstName: worker['firstName'] as String? ?? '',
-                      lastName: worker['lastName'] as String? ?? '',
-                      role: worker['role'] as String? ?? '',
-                      badgeId: worker['badgeId'] as String? ?? '-',
-                      companyName: brandLabel,
-                      subcompany: subcompany?['name'] as String?,
-                      validUntil: worker['validUntil'] as String? ?? '-',
-                      status: status,
-                      photoData: (worker['photoData'] ?? worker['photo_data'] ?? worker['photo'])?.toString(),
-                      dynamicQr: _dynamicQr,
-                      branding: branding,
-                    );
-                  } catch (e) {
-                    return Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text('${t('navPass')}: $e'),
-                      ),
-                    );
-                  }
-                },
-              ),
               const SizedBox(height: 10),
               Text(
                 t('walletHint'),

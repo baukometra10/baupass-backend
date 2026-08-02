@@ -13,6 +13,7 @@ import '../../core/app_strings.dart';
 import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../core/tenant_branding.dart';
+import '../../core/worker_datetime_format.dart';
 import '../../services/chat_repository.dart';
 import '../../services/conference_repository.dart';
 import '../../services/voice_call_controller.dart';
@@ -791,14 +792,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return read ? '✓✓ Gelesen' : '✓ Zugestellt';
   }
 
-  String _formatTime(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return '';
-    final date = DateTime.tryParse(raw);
-    if (date == null) return '';
-    final h = date.hour.toString().padLeft(2, '0');
-    final m = date.minute.toString().padLeft(2, '0');
-    return '$h:$m';
-  }
+  String _formatTime(String? raw) => formatTimeLocal(raw);
 
   bool _shouldShowCallLogToWorker(Map<String, String> meta) {
     final audience = (meta['audience'] ?? 'both').toLowerCase();
@@ -893,7 +887,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return FilledButton(
         onPressed: _sending ? null : _send,
         style: FilledButton.styleFrom(
-          backgroundColor: const Color(0xFF00A884),
+          backgroundColor: Theme.of(context).colorScheme.primary,
           minimumSize: const Size(52, 52),
           padding: EdgeInsets.zero,
           shape: const CircleBorder(),
@@ -904,7 +898,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return FilledButton(
       onPressed: (_sending || _voiceComposing) ? null : _startVoiceCompose,
       style: FilledButton.styleFrom(
-        backgroundColor: const Color(0xFF00A884),
+        backgroundColor: Theme.of(context).colorScheme.primary,
         minimumSize: const Size(52, 52),
         padding: EdgeInsets.zero,
         shape: const CircleBorder(),
@@ -1019,9 +1013,9 @@ class _ChatScreenState extends State<ChatScreen> {
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: const Color(0xFF00A884).withValues(alpha: 0.08),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF00A884).withValues(alpha: 0.2)),
+        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1030,7 +1024,7 @@ class _ChatScreenState extends State<ChatScreen> {
             'Angeheftet',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF00A884),
+                  color: Theme.of(context).colorScheme.primary,
                 ),
           ),
           const SizedBox(height: 6),
@@ -1186,7 +1180,7 @@ class _ChatScreenState extends State<ChatScreen> {
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(10),
-        border: const Border(left: BorderSide(color: Color(0xFF00A884), width: 3)),
+        border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1357,7 +1351,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                           ),
                                           border: Border.all(
                                             color: pinned
-                                                ? const Color(0xFF00A884).withValues(alpha: 0.55)
+                                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.55)
                                                 : (isWorker
                                                     ? const Color(0xFF93C5FD)
                                                     : Theme.of(context).colorScheme.outlineVariant),
@@ -1483,7 +1477,7 @@ class _ChatScreenState extends State<ChatScreen> {
                                                   if (pinned)
                                                     const Padding(
                                                       padding: EdgeInsets.only(right: 4),
-                                                      child: Icon(Icons.push_pin, size: 14, color: Color(0xFF00A884)),
+                                                      child: Icon(Icons.push_pin, size: 14, color: Theme.of(context).colorScheme.primary),
                                                     ),
                                                   if (starred)
                                                     const Padding(

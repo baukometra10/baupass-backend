@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/api_client.dart';
 import '../../core/app_strings.dart';
 import '../../core/session_store.dart';
+import '../../core/worker_datetime_format.dart';
 import '../../services/tasks_repository.dart';
 
 class ShiftsTab extends StatefulWidget {
@@ -153,6 +154,8 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
   }
 
   String _fmt(String? iso) {
+    final local = formatShortDateTimeLocal(iso);
+    if (local.isNotEmpty) return local;
     if (iso == null || iso.isEmpty) return '—';
     return iso.length >= 16 ? iso.substring(0, 16).replaceFirst('T', ' ') : iso;
   }
@@ -161,9 +164,12 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
     final coworkers = _coworkers.where((c) => (c['id'] ?? '').toString().isNotEmpty).toList();
     if (coworkers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Keine Kollegen für Tausch verfügbar. Bitte später erneut laden oder Admin prüfen.',
+            t(
+              'shiftsNoCoworkers',
+              'Keine Kollegen für Tausch verfügbar. Bitte später erneut laden oder Admin prüfen.',
+            ),
           ),
         ),
       );
@@ -269,8 +275,8 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         SnackBar(
           content: Text(
             targetAssignmentId == null || targetAssignmentId!.isEmpty
-                ? 'Tausch-Anfrage gesendet (Abgabe)'
-                : 'Tausch-Anfrage gesendet (Gegenschicht)',
+                ? t('shiftsSwapSentGive', 'Tausch-Anfrage gesendet (Abgabe)')
+                : t('shiftsSwapSentTrade', 'Tausch-Anfrage gesendet (Gegenschicht)'),
           ),
         ),
       );
@@ -351,7 +357,18 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
           controller: _tabs,
           tabs: [
             Tab(text: t('shiftsMine', 'Meine Schichten')),
-            Tab(text: t('shiftsSwapTab', 'Tausch')),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(t('shiftsSwapTab', 'Tausch')),
+                  if (_pendingSwaps.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    Badge(label: Text('${_pendingSwaps.length}')),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
         Expanded(
@@ -373,9 +390,9 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 80),
-            Center(child: Text('Keine anstehenden Schichten')),
+          children: [
+            const SizedBox(height: 80),
+            Center(child: Text(t('shiftsNoneUpcoming', 'Keine anstehenden Schichten'))),
           ],
         ),
       );
@@ -398,7 +415,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
               subtitle: Text(sub),
               trailing: IconButton(
                 icon: const Icon(Icons.swap_horiz),
-                tooltip: 'Abgeben / tauschen',
+                tooltip: t('shiftsSwapTooltip', 'Abgeben / tauschen'),
                 onPressed: () => _proposeSwap(a),
               ),
               isThreeLine: notes.isNotEmpty,
@@ -418,8 +435,30 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
         padding: const EdgeInsets.all(12),
         children: [
           if (empty) ...[
-            const SizedBox(height: 80),
-            const Center(child: Text('Noch keine Tausch-Anfragen')),
+            const SizedBox(height: 48),
+            Center(child: Text(t('shiftsSwapEmpty', 'Noch keine Tausch-Anfragen'))),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                t(
+                  'shiftsSwapEmptyHint',
+                  'Tippen Sie bei „Meine Schichten“ auf das Tausch-Symbol neben einer Schicht, um eine Anfrage zu stellen.',
+                ),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: FilledButton.tonalIcon(
+                onPressed: () => _tabs.animateTo(0),
+                icon: const Icon(Icons.schedule),
+                label: Text(t('shiftsMine', 'Meine Schichten')),
+              ),
+            ),
           ],
           if (_pendingSwaps.isNotEmpty) ...[
             Text('Offen für dich', style: Theme.of(context).textTheme.titleMedium),

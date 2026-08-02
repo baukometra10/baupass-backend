@@ -578,13 +578,19 @@ class WorkerVoiceCallSession {
   Future<void> _ensureRecvVideoTransceiver(RTCPeerConnection pc) async {
     try {
       final existing = await pc.getTransceivers();
+      // Prefer a dedicated RecvOnly/SendRecv video slot. Do not bail just because
+      // two transceivers exist (e.g. failed/partial setup without remote video).
       for (final tx in existing) {
+        final direction = tx.direction;
         final sk = tx.sender.track?.kind;
         final rk = tx.receiver.track?.kind;
-        if (sk == 'video' || rk == 'video') return;
+        final isVideo = sk == 'video' || rk == 'video';
+        if (!isVideo) continue;
+        if (direction == TransceiverDirection.RecvOnly ||
+            direction == TransceiverDirection.SendRecv) {
+          return;
+        }
       }
-      // Audio-only call starts with one transceiver; a second slot is our video reserve.
-      if (existing.length >= 2) return;
       await pc.addTransceiver(
         kind: RTCRtpMediaType.RTCRtpMediaTypeVideo,
         init: RTCRtpTransceiverInit(direction: TransceiverDirection.RecvOnly),

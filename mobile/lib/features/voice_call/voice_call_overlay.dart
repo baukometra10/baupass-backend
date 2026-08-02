@@ -82,11 +82,7 @@ class _VoiceCallOverlayState extends State<VoiceCallOverlay> with TickerProvider
   MediaStream? _boundLocalStream;
 
   Future<void> _bindRenderer(RTCVideoRenderer renderer, MediaStream? stream) async {
-    // Re-bind when track set changes — srcObject identity alone is not enough
-    // after late video tracks are added to an existing MediaStream.
-    if (identical(renderer.srcObject, stream) && stream != null) {
-      // Force refresh by toggling when video track count changed.
-    }
+    // Always toggle srcObject so late-added video tracks repaint on Android.
     renderer.srcObject = null;
     renderer.srcObject = stream;
   }

@@ -27,11 +27,12 @@ class SimpleTextField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.55),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
@@ -43,14 +44,14 @@ class SimpleTextField extends StatelessWidget {
           textCapitalization: textCapitalization,
           minLines: minLines,
           maxLines: maxLines,
-          style: const TextStyle(color: Color(0xFF0F172A), fontSize: 16),
-          cursorColor: const Color(0xFF0F766E),
+          style: TextStyle(color: scheme.onSurface, fontSize: 16),
+          cursorColor: scheme.primary,
           inputFormatters: keyboardType == TextInputType.number
               ? [FilteringTextInputFormatter.digitsOnly]
               : null,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: Color(0xFF64748B), fontSize: 15),
+            hintStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 15),
             border: InputBorder.none,
             enabledBorder: InputBorder.none,
             focusedBorder: InputBorder.none,

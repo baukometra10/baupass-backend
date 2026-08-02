@@ -175,6 +175,19 @@ class TenantBranding {
           backgroundColor: scheme.primary,
           foregroundColor: onAccentColor,
         ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: scheme.primary,
+            foregroundColor: onAccentColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: scheme.primary,
+            side: BorderSide(color: scheme.primary.withOpacity(0.45)),
+          ),
+        ),
         progressIndicatorTheme: ProgressIndicatorThemeData(color: scheme.primary),
         chipTheme: ChipThemeData(
           // ignore: deprecated_member_use
@@ -194,6 +207,16 @@ class TenantBranding {
       inputDecorationTheme: inputTheme,
       appBarTheme: appBar,
       elevatedButtonTheme: elevated,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: scheme.primary,
+          foregroundColor: onAccentColor,
+        ),
+      ),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: onAccentColor,
+      ),
     );
   }
 

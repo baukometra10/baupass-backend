@@ -63,7 +63,7 @@ class DigitalPassCard extends StatelessWidget {
     final name = '$firstName $lastName'.trim();
     final qrValue = dynamicQr?.qrToken ?? badgeId;
     final remaining = dynamicQr?.remainingSec ?? 0;
-    final palette = _WalletPalette.fromBranding(tenant.accentColor);
+    final palette = _WalletPalette.fromBranding(tenant.accentColor ?? tenant.effectiveSeed);
     final active = _isActiveStatus(status);
 
     return LayoutBuilder(
@@ -72,8 +72,8 @@ class DigitalPassCard extends StatelessWidget {
         if (maxW < 48) {
           return const SizedBox(height: 48, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
         }
-        // ID-1 proportions, displayed larger on phone (use nearly full width).
-        final cardW = math.min(maxW, 480.0).clamp(200.0, 480.0);
+        // ID-1 proportions — nearly full width for a balanced phone pass.
+        final cardW = math.min(maxW * 0.98, 520.0).clamp(220.0, 520.0);
         final cardH = cardW / _cardAspect;
 
         return Center(
@@ -455,6 +455,7 @@ class _MiddleRow extends StatelessWidget {
     final photoW = photoH * 0.76;
 
     return Row(
+      textDirection: Directionality.of(context),
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         _PhotoTile(width: photoW, height: photoH, photoData: photoData),
@@ -635,14 +636,14 @@ class _BottomSection extends StatelessWidget {
       name.isEmpty ? t('cardEmployeeName', 'Mitarbeiter') : name,
     );
     final arabicName = RegExp(r'[\u0600-\u06FF]').hasMatch(displayName);
-    final longName = displayName.length > (arabicName ? 18 : 22);
-    // Arabic glyphs need less letter-spacing and a smaller size to avoid overflow.
-    final nameSize = (cardW * (arabicName ? (longName ? 0.038 : 0.044) : (longName ? 0.048 : 0.056)))
-        .clamp(arabicName ? 12.0 : 15.0, arabicName ? 16.5 : 20.0);
-    final roleSize = (cardW * 0.034).clamp(10.5, 13.0);
-    final labelSize = (cardW * 0.026).clamp(8.5, 10.5);
-    final valueSize = (cardW * 0.033).clamp(11.0, 13.0);
-    final badgeSize = (cardW * 0.04).clamp(12.0, 14.5);
+    final longName = displayName.length > (arabicName ? 16 : 20);
+    // Keep name secondary to photo/QR — closer to PWA .wc-name scale.
+    final nameSize = (cardW * (arabicName ? (longName ? 0.032 : 0.038) : (longName ? 0.036 : 0.042)))
+        .clamp(arabicName ? 11.0 : 12.0, arabicName ? 15.0 : 16.0);
+    final roleSize = (cardW * 0.032).clamp(10.0, 12.5);
+    final labelSize = (cardW * 0.025).clamp(8.5, 10.0);
+    final valueSize = (cardW * 0.032).clamp(10.5, 12.5);
+    final badgeSize = (cardW * 0.038).clamp(11.5, 14.0);
     final roleLine = DigitalPassCard._displayMeta(role.isEmpty ? (subcompany ?? '') : role);
     final statusLabel = active ? t('cardActive', 'AKTIV') : DigitalPassCard._displayMeta(status);
     final nameAlign = rtl ? TextAlign.right : TextAlign.left;

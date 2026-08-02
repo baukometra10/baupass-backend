@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../services/legal_repository.dart';
 import 'legal_document_screen.dart';
@@ -53,7 +55,7 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message ?? 'Rechtstexte konnten nicht geladen werden.';
+        _error = e.message ?? t('legalLoadError', 'Rechtstexte konnten nicht geladen werden.');
         _loading = false;
       });
     } catch (e) {
@@ -98,8 +100,8 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
         SnackBar(
           content: Text(
             type == 'erasure'
-                ? 'Löschanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.'
-                : 'Auskunftsanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.',
+                ? t('legalErasureSent', 'Löschanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.')
+                : t('legalAccessSent', 'Auskunftsanfrage gesendet. Ihr Arbeitgeber bearbeitet sie.'),
           ),
         ),
       );
@@ -119,7 +121,7 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
     if (!await launchUrl(uri)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('E-Mail an $email konnte nicht geöffnet werden.')),
+        SnackBar(content: Text(t('legalMailFailed', 'E-Mail an {email} konnte nicht geöffnet werden.').replaceAll('{email}', email))),
       );
     }
   }
@@ -129,141 +131,149 @@ class _LegalHubScreenState extends State<LegalHubScreen> {
     if (!await launchUrl(uri)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Anruf an $phone fehlgeschlagen.')),
+        SnackBar(content: Text(t('legalCallFailed', 'Anruf an {phone} fehlgeschlagen.').replaceAll('{phone}', phone))),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final content = _content;
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final scheme = Theme.of(context).colorScheme;
+        final content = _content;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rechtliches'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loading ? null : _load,
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(t('legalHubTitle', 'Rechtliches')),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loading ? null : _load,
+              ),
+            ],
           ),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                children: [
-                  if (_error != null) ...[
-                    Material(
-                      color: scheme.errorContainer,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Text(_error!, style: TextStyle(color: scheme.onErrorContainer)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  Text(
-                    content?.sectionEyebrow ?? 'Rechtliches',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: scheme.primary,
-                          letterSpacing: 0.6,
-                        ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    content?.sectionTitle ?? 'Impressum & Datenschutz',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Hier finden Sie die vom Arbeitgeber hinterlegten Angaben '
-                    'gemäß TMG/DDV und DSGVO (Art. 13).',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
-                  const SizedBox(height: 20),
-                  _LegalTile(
-                    icon: Icons.gavel_outlined,
-                    title: 'Impressum',
-                    subtitle: content?.hasImpressum == true
-                        ? 'Anbieterkennzeichnung lesen'
-                        : 'Noch kein Text hinterlegt',
-                    enabled: content != null,
-                    onTap: () => _openDocument(LegalDocumentKind.impressum),
-                  ),
-                  const SizedBox(height: 10),
-                  _LegalTile(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'Datenschutz',
-                    subtitle: content?.hasDatenschutz == true
-                        ? 'Datenschutzerklärung & Kontakt'
-                        : 'Erklärung fehlt — Kontakt unten',
-                    enabled: content != null,
-                    onTap: () => _openDocument(LegalDocumentKind.datenschutz),
-                  ),
-                  const SizedBox(height: 20),
-                  Text('Ihre Rechte (DSGVO)', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Art. 15 Auskunft · Art. 17 Löschung — Anfrage an Ihren Arbeitgeber.',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+          body: _loading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                     children: [
-                      OutlinedButton.icon(
-                        onPressed: _submittingGdpr ? null : () => _submitGdpr('access'),
-                        icon: const Icon(Icons.folder_shared_outlined, size: 18),
-                        label: const Text('Auskunft anfordern'),
+                      if (_error != null) ...[
+                        Material(
+                          color: scheme.errorContainer,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Text(_error!, style: TextStyle(color: scheme.onErrorContainer)),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      Text(
+                        content?.sectionEyebrow ?? t('legalHubTitle', 'Rechtliches'),
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                              color: scheme.primary,
+                              letterSpacing: 0.6,
+                            ),
                       ),
-                      OutlinedButton.icon(
-                        onPressed: _submittingGdpr ? null : () => _submitGdpr('erasure'),
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        label: const Text('Löschung anfordern'),
+                      const SizedBox(height: 4),
+                      Text(
+                        content?.sectionTitle ?? t('legalHubSectionTitle', 'Impressum & Datenschutz'),
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        t(
+                          'legalHubIntro',
+                          'Hier finden Sie die vom Arbeitgeber hinterlegten Angaben '
+                              'gemäß TMG/DDV und DSGVO (Art. 13).',
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 20),
+                      _LegalTile(
+                        icon: Icons.gavel_outlined,
+                        title: t('legalImprint', 'Impressum'),
+                        subtitle: content?.hasImpressum == true
+                            ? t('legalImprintSubtitle', 'Anbieterkennzeichnung lesen')
+                            : t('legalImprintMissing', 'Noch kein Text hinterlegt'),
+                        enabled: content != null,
+                        onTap: () => _openDocument(LegalDocumentKind.impressum),
+                      ),
+                      const SizedBox(height: 10),
+                      _LegalTile(
+                        icon: Icons.privacy_tip_outlined,
+                        title: t('legalPrivacy', 'Datenschutz'),
+                        subtitle: content?.hasDatenschutz == true
+                            ? t('legalPrivacySubtitle', 'Datenschutzerklärung & Kontakt')
+                            : t('legalPrivacyMissing', 'Erklärung fehlt — Kontakt unten'),
+                        enabled: content != null,
+                        onTap: () => _openDocument(LegalDocumentKind.datenschutz),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(t('legalYourRights', 'Ihre Rechte (DSGVO)'), style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 8),
+                      Text(
+                        t('legalYourRightsHint', 'Art. 15 Auskunft · Art. 17 Löschung — Anfrage an Ihren Arbeitgeber.'),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _submittingGdpr ? null : () => _submitGdpr('access'),
+                            icon: const Icon(Icons.folder_shared_outlined, size: 18),
+                            label: Text(t('legalRequestAccess', 'Auskunft anfordern')),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: _submittingGdpr ? null : () => _submitGdpr('erasure'),
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            label: Text(t('legalRequestErasure', 'Löschung anfordern')),
+                          ),
+                        ],
+                      ),
+                      if (content?.controller?.hasAny == true) ...[
+                        const SizedBox(height: 24),
+                        Text(
+                          t('legalControllerTitle', 'Verantwortlicher (Arbeitgeber)'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        _ContactCard(
+                          contact: content!.controller!,
+                          onMail: _mail,
+                          onCall: _call,
+                        ),
+                      ],
+                      if (content?.operator?.hasAny == true) ...[
+                        const SizedBox(height: 16),
+                        Text(
+                          t('legalOperatorTitle', 'Plattform-Betreiber'),
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        _ContactCard(
+                          contact: content!.operator!,
+                          onMail: _mail,
+                          onCall: _call,
+                        ),
+                      ],
                     ],
                   ),
-                  if (content?.controller?.hasAny == true) ...[
-                    const SizedBox(height: 24),
-                    Text(
-                      'Verantwortlicher (Arbeitgeber)',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    _ContactCard(
-                      contact: content!.controller!,
-                      onMail: _mail,
-                      onCall: _call,
-                    ),
-                  ],
-                  if (content?.operator?.hasAny == true) ...[
-                    const SizedBox(height: 16),
-                    Text(
-                      'Plattform-Betreiber',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 8),
-                    _ContactCard(
-                      contact: content!.operator!,
-                      onMail: _mail,
-                      onCall: _call,
-                    ),
-                  ],
-                ],
-              ),
-            ),
+                ),
+        );
+      },
     );
   }
 }

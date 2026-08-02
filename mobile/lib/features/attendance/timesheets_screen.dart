@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/app_strings.dart';
-import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
+import '../../core/worker_datetime_format.dart';
 import '../../services/attendance_repository.dart';
 
 class TimesheetsScreen extends StatefulWidget {
@@ -200,7 +200,7 @@ class _TimesheetsScreenState extends State<TimesheetsScreen> {
                                 title: Text(_directionLabel(direction)),
                                 subtitle: Text(
                                   [
-                                    if (ts.isNotEmpty) ts.replaceFirst('T', ' ').substring(0, 16),
+                                    if (ts.isNotEmpty) formatShortDateTimeLocal(ts),
                                     if (gate.isNotEmpty) gate,
                                     if (note.isNotEmpty) note,
                                   ].join(' · '),

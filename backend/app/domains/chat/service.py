@@ -1262,6 +1262,30 @@ class ChatService:
                 "UPDATE chat_threads SET last_worker_read_at = ?, updated_at = ? WHERE id = ? AND company_id = ?",
                 (now, now, thread_id, company_id),
             )
+            # Opening chat clears chat-related bell items automatically.
+            row = self.db.execute(
+                "SELECT worker_id FROM chat_threads WHERE id = ? AND company_id = ? LIMIT 1",
+                (thread_id, company_id),
+            ).fetchone()
+            worker_id = str(row["worker_id"] or "") if row else ""
+            if worker_id:
+                try:
+                    self.db.execute(
+                        """
+                        UPDATE notifications
+                        SET read_at = ?
+                        WHERE worker_id = ?
+                          AND read_at IS NULL
+                          AND (
+                            type LIKE '%chat%'
+                            OR type = 'worker_chat_admin'
+                            OR COALESCE(action_url, '') LIKE '%chat%'
+                          )
+                        """,
+                        (now, worker_id),
+                    )
+                except Exception:
+                    pass
         else:
             self.db.execute(
                 "UPDATE chat_threads SET last_admin_read_at = ?, updated_at = ? WHERE id = ? AND company_id = ?",
