@@ -904,6 +904,15 @@ def build_operations_inbox(
     if sf:
         items = [i for i in items if str(i.get("source") or "").lower() == sf]
 
+    # Sector vocabulary (e.g. security: Einsatzkräfte / Objekt / Kontrollpunkt)
+    if cid:
+        try:
+            from backend.app.platform.ai.sector_copy import apply_sector_to_inbox_items
+
+            items = apply_sector_to_inbox_items(db, cid, items, lang="de")
+        except Exception as exc:
+            _inbox_soft_fail("sector_copy", exc)
+
     open_count = sum(1 for i in items if i.get("status") == "open")
     critical_count = sum(1 for i in items if i.get("status") == "open" and i.get("severity") == "critical")
 

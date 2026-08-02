@@ -35,6 +35,17 @@ const SECTOR_I18N_MAP = {
   "sector.termWorkers": "termWorkers",
   "sector.termSite": "termSite",
   "sector.termGate": "termGate",
+  "table.worker": "termWorker",
+  "table.gate": "termGate",
+  "access.lateCheckIns": "accessLateCheckIns",
+  "access.checkIns": "accessCheckIns",
+  "access.recentBookings": "accessRecentBookings",
+  "lage.outsideHours": "lageOutsideHours",
+  "lage.onSite": "lageOnSite",
+  "inbox.filterAttendance": "inboxFilterAttendance",
+  "section.workers.title": "sectionWorkersTitle",
+  "section.access.title": "sectionAccessTitle",
+  "section.access.desc": "sectionAccessDesc",
 };
 
 export { STRINGS };

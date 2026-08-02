@@ -57,10 +57,33 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("Terminal", air.get("termSite", ""))
         self.assertEqual(air.get("tabWorkers"), "Berechtigte")
 
-    def test_sector_noun_helper(self):
-        air = sector_config("aviation", lang="de")["terms"]
-        self.assertEqual(sector_noun(air, "termSite", "Standort"), "Terminal")
-        self.assertEqual(sector_noun({}, "termSite", "Standort"), "Standort")
+    # Sector vocabulary in inbox copy (e.g. security: Einsatzkräfte / Objekt)
+    def test_apply_sector_text_security_de(self):
+        from backend.app.platform.ai.sector_copy import apply_sector_text
+
+        out = apply_sector_text(
+            "Mitarbeiter auf der Baustelle am Tor",
+            workers="Einsatzkräfte",
+            site="Objekt",
+            gate="Kontrollpunkt",
+            lang="de",
+        )
+        self.assertIn("Einsatzkräfte", out)
+        self.assertIn("Objekt", out)
+        self.assertIn("Kontrollpunkt", out)
+        self.assertNotIn("Baustelle", out)
+        self.assertNotIn("Mitarbeiter", out)
+
+    def test_security_admin_access_terms(self):
+        cfg = sector_config("security", lang="de")
+        terms = cfg["terms"]
+        self.assertEqual(terms.get("termWorkers"), "Einsatzkräfte")
+        self.assertEqual(terms.get("termSite"), "Objekt")
+        self.assertEqual(terms.get("termGate"), "Kontrollpunkt")
+        self.assertIn("Objekt", terms.get("accessRecentBookings", "") + terms.get("sectionAccessDesc", ""))
+        self.assertNotIn("Baustelle", terms.get("sectionAccessDesc", ""))
+        self.assertEqual(terms.get("tabWorkers"), "Einsatzkräfte")
+
 
     def test_guidance_uses_sector_terms(self):
         from backend.app.platform.reports.guidance import build_operational_guidance

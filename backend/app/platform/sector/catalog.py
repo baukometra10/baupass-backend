@@ -202,6 +202,31 @@ SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
 }
 
 
+def _admin_access_pack(
+    *,
+    late: dict[str, str],
+    checkins: dict[str, str],
+    recent: dict[str, str],
+    outside: dict[str, str],
+    on_site: dict[str, str],
+    attendance_filter: dict[str, str],
+    workers_title: dict[str, str],
+    access_title: dict[str, str],
+    access_desc: dict[str, str],
+) -> dict[str, dict[str, str]]:
+    return {
+        "accessLateCheckIns": late,
+        "accessCheckIns": checkins,
+        "accessRecentBookings": recent,
+        "lageOutsideHours": outside,
+        "lageOnSite": on_site,
+        "inboxFilterAttendance": attendance_filter,
+        "sectionWorkersTitle": workers_title,
+        "sectionAccessTitle": access_title,
+        "sectionAccessDesc": access_desc,
+    }
+
+
 # Admin-v2 / Betrieb dashboard strings overridden per operating sector
 ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
     "construction": {
@@ -225,6 +250,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Terminology: Construction — labels follow the operating sector.",
             "المصطلحات: البناء — تتغير حسب القطاع التشغيلي.",
         ),
+        **_admin_access_pack(
+            late=_t("Verspätete Check-ins heute", "Late check-ins today", "تسجيلات متأخرة اليوم"),
+            checkins=_t("Check-ins heute", "Check-ins today", "تسجيلات الدخول اليوم"),
+            recent=_t("Letzte Buchungen", "Recent bookings", "آخر التسجيلات"),
+            outside=_t("Außerhalb Arbeitszeit", "Outside working hours", "خارج ساعات العمل"),
+            on_site=_t("Auf Baustelle", "On site", "على الموقع"),
+            attendance_filter=_t("Anwesenheit", "Attendance", "الحضور"),
+            workers_title=_t("Mitarbeiter", "Workers", "العمال"),
+            access_title=_t("Anwesenheit & Zutritt", "Attendance & access", "الحضور والدخول"),
+            access_desc=_t(
+                "Check-ins, Verspätungen und Tore auf der Baustelle.",
+                "Check-ins, lateness and gates on site.",
+                "تسجيل الدخول والتأخر والبوابات في الموقع.",
+            ),
+        ),
     },
     "manufacturing": {
         "overviewOnSite": _t("Jetzt im Werk", "In plant now", "في المنشأة الآن"),
@@ -246,6 +286,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Fachsprache: Industrie & Produktion — Begriffe folgen dem Betriebssektor.",
             "Terminology: Manufacturing — labels follow the operating sector.",
             "المصطلحات: الصناعة — تتغير حسب القطاع التشغيلي.",
+        ),
+        **_admin_access_pack(
+            late=_t("Verspätete Schicht-Check-ins", "Late shift check-ins", "تسجيلات وردية متأخرة"),
+            checkins=_t("Check-ins heute", "Check-ins today", "تسجيلات الدخول اليوم"),
+            recent=_t("Letzte Werksbuchungen", "Recent plant bookings", "آخر تسجيلات المنشأة"),
+            outside=_t("Außerhalb Schichtzeit", "Outside shift hours", "خارج وقت الوردية"),
+            on_site=_t("Im Werk", "In plant", "في المنشأة"),
+            attendance_filter=_t("Schicht-Zutritt", "Shift access", "دخول الوردية"),
+            workers_title=_t("Mitarbeiter", "Employees", "الموظفون"),
+            access_title=_t("Schicht-Zutritt", "Shift access", "دخول الوردية"),
+            access_desc=_t(
+                "Check-ins, Verspätungen und Werkstore.",
+                "Check-ins, lateness and plant gates.",
+                "تسجيل الدخول والتأخر وبوابات المصنع.",
+            ),
         ),
     },
     "aviation": {
@@ -269,6 +324,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Terminology: Aviation — labels follow the operating sector.",
             "المصطلحات: الطيران — تتغير حسب القطاع التشغيلي.",
         ),
+        **_admin_access_pack(
+            late=_t("Verspätete Zutritte heute", "Late access today", "دخول متأخر اليوم"),
+            checkins=_t("Zutritte heute", "Access events today", "أحداث الدخول اليوم"),
+            recent=_t("Letzte Zutritte", "Recent access", "آخر عمليات الدخول"),
+            outside=_t("Außerhalb Dienstzeit", "Outside duty hours", "خارج وقت الخدمة"),
+            on_site=_t("Im Terminal", "In terminal", "في المبنى"),
+            attendance_filter=_t("Zutritt", "Access", "الدخول"),
+            workers_title=_t("Berechtigte", "Authorized staff", "المصرّح لهم"),
+            access_title=_t("Terminal-Zutritt", "Terminal access", "دخول المطار"),
+            access_desc=_t(
+                "Zutritte, Verspätungen und Kontrollpunkte im Terminal.",
+                "Access, lateness and checkpoints in the terminal.",
+                "الدخول والتأخر ونقاط التفتيش في المبنى.",
+            ),
+        ),
     },
     "logistics": {
         "overviewOnSite": _t("Jetzt im Hub", "At hub now", "في المركز الآن"),
@@ -290,6 +360,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Fachsprache: Logistik — Begriffe folgen dem Betriebssektor.",
             "Terminology: Logistics — labels follow the operating sector.",
             "المصطلحات: اللوجستيات — تتغير حسب القطاع التشغيلي.",
+        ),
+        **_admin_access_pack(
+            late=_t("Verspätete Tor-Check-ins", "Late gate check-ins", "تسجيلات بوابة متأخرة"),
+            checkins=_t("Tor-Events heute", "Gate events today", "أحداث البوابة اليوم"),
+            recent=_t("Letzte Tor-Buchungen", "Recent gate bookings", "آخر تسجيلات البوابة"),
+            outside=_t("Außerhalb Schicht", "Outside shift", "خارج الوردية"),
+            on_site=_t("Im Hub", "At hub", "في المركز"),
+            attendance_filter=_t("Tor-Events", "Gate events", "أحداث البوابة"),
+            workers_title=_t("Personal", "Staff", "الطاقم"),
+            access_title=_t("Tor-Events & Anwesenheit", "Gate events & attendance", "أحداث البوابة والحضور"),
+            access_desc=_t(
+                "Check-ins, Verspätungen und Rampen im Depot.",
+                "Check-ins, lateness and docks at the depot.",
+                "تسجيل الدخول والتأخر والأرصفة في المستودع.",
+            ),
         ),
     },
     "security": {
@@ -313,6 +398,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Terminology: Security — labels follow the operating sector.",
             "المصطلحات: الأمن — تتغير حسب القطاع التشغيلي.",
         ),
+        **_admin_access_pack(
+            late=_t("Verspätete Antritte heute", "Late starts today", "بدايات متأخرة اليوم"),
+            checkins=_t("Antritte heute", "Check-ins today", "تسجيلات اليوم"),
+            recent=_t("Letzte Kontrollpunkt-Buchungen", "Recent checkpoint bookings", "آخر تسجيلات نقطة التفتيش"),
+            outside=_t("Außerhalb Dienstzeit", "Outside duty hours", "خارج وقت الخدمة"),
+            on_site=_t("Im Einsatz", "On assignment", "في المهمة"),
+            attendance_filter=_t("Dienst / Anwesenheit", "Duty / attendance", "الخدمة / الحضور"),
+            workers_title=_t("Einsatzkräfte", "Officers", "العناصر"),
+            access_title=_t("Kontrollpunkte & Dienst", "Checkpoints & duty", "نقاط التفتيش والخدمة"),
+            access_desc=_t(
+                "Antritte, Verspätungen und Kontrollpunkte am Objekt.",
+                "Check-ins, lateness and checkpoints on site.",
+                "التسجيل والتأخر ونقاط التفتيش في المنشأة.",
+            ),
+        ),
     },
     "public_sector": {
         "overviewOnSite": _t("Jetzt am Standort", "At facility now", "في المنشأة الآن"),
@@ -335,6 +435,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Terminology: Public sector — labels follow the operating sector.",
             "المصطلحات: القطاع العام — تتغير حسب القطاع التشغيلي.",
         ),
+        **_admin_access_pack(
+            late=_t("Verspätete Anmeldungen heute", "Late sign-ins today", "تسجيلات متأخرة اليوم"),
+            checkins=_t("Anmeldungen heute", "Sign-ins today", "تسجيلات اليوم"),
+            recent=_t("Letzte Zutritte", "Recent access", "آخر عمليات الدخول"),
+            outside=_t("Außerhalb Dienstzeit", "Outside service hours", "خارج وقت الخدمة"),
+            on_site=_t("Am Standort", "At facility", "في المنشأة"),
+            attendance_filter=_t("Zutritt", "Access", "الدخول"),
+            workers_title=_t("Mitarbeitende", "Staff", "الموظفون"),
+            access_title=_t("Zutrittsprotokoll", "Access log", "سجل الدخول"),
+            access_desc=_t(
+                "Anmeldungen, Verspätungen und Eingänge am Standort.",
+                "Sign-ins, lateness and entrances at the facility.",
+                "التسجيل والتأخر والمداخل في المنشأة.",
+            ),
+        ),
     },
     "government": {
         "overviewOnSite": _t("Jetzt in der Dienststelle", "At office now", "في الدائرة الآن"),
@@ -356,6 +471,21 @@ ADMIN_V2_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
             "Fachsprache: Behörden — Begriffe folgen dem Betriebssektor.",
             "Terminology: Government — labels follow the operating sector.",
             "المصطلحات: الجهات الحكومية — تتغير حسب القطاع التشغيلي.",
+        ),
+        **_admin_access_pack(
+            late=_t("Verspätete Anmeldungen heute", "Late sign-ins today", "تسجيلات متأخرة اليوم"),
+            checkins=_t("Anmeldungen heute", "Sign-ins today", "تسجيلات اليوم"),
+            recent=_t("Letzte Zutritte", "Recent access", "آخر عمليات الدخول"),
+            outside=_t("Außerhalb Dienstzeit", "Outside office hours", "خارج وقت الدوام"),
+            on_site=_t("In der Dienststelle", "At office", "في الدائرة"),
+            attendance_filter=_t("Zutritt", "Access", "الدخول"),
+            workers_title=_t("Berechtigte", "Authorized persons", "المصرّح لهم"),
+            access_title=_t("Zutrittskontrolle", "Access control", "التحكم بالدخول"),
+            access_desc=_t(
+                "Anmeldungen, Verspätungen und Zugangspunkte in der Dienststelle.",
+                "Sign-ins, lateness and access points at the office.",
+                "التسجيل والتأخر ونقاط الدخول في الدائرة.",
+            ),
         ),
     },
 }
