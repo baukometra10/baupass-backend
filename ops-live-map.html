@@ -128,9 +128,32 @@
       filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px currentColor);
       pointer-events: auto;
       animation: markerPulse 2s ease-in-out infinite;
-      transition: transform 0.3s ease;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s ease;
+      cursor: pointer;
+      position: relative;
     }
-    .ops-map-pin:hover { transform: scale(1.15); filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 16px currentColor); }
+    .ops-map-pin::before {
+      content: '';
+      position: absolute;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34, 211, 238, 0.15) 0%, transparent 70%);
+      animation: pinRing 2.5s ease-out infinite;
+      opacity: 0;
+    }
+    @keyframes pinRing {
+      0% { width: 44px; height: 44px; opacity: 1; }
+      100% { width: 80px; height: 80px; opacity: 0; }
+    }
+    .ops-map-pin:hover {
+      transform: scale(1.2);
+      filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 20px currentColor);
+      z-index: 1000;
+    }
+    .ops-map-pin.is-selected {
+      animation: markerPulse 1s ease-in-out infinite;
+    }
     @keyframes markerPulse {
       0%, 100% { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px currentColor); }
       50% { filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 16px currentColor); }
@@ -165,19 +188,27 @@
       max-width: 128px;
       overflow: hidden;
       text-overflow: ellipsis;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 8px rgba(34, 211, 238, 0.1);
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      backdrop-filter: blur(4px);
     }
     .ops-map-pin:hover .ops-map-pin-label {
       background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(8, 12, 18, 0.95) 100%);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 0 12px rgba(34, 211, 238, 0.2);
+      border-color: rgba(34, 211, 238, 0.5);
+      transform: scale(1.05);
     }
     .ops-map-pin.is-selected .ops-map-pin-label {
       border-color: rgba(45, 212, 191, 0.9);
-      box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.4), 0 4px 16px rgba(45, 212, 191, 0.3);
+      box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.4), 0 4px 16px rgba(45, 212, 191, 0.4), 0 0 12px rgba(34, 211, 238, 0.3);
       color: #ccfbf1;
       background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(20, 30, 48, 0.95) 100%);
-      transform: scale(1.05);
+      transform: scale(1.1);
+      animation: labelPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes labelPulse {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.4), 0 4px 16px rgba(45, 212, 191, 0.4), 0 0 12px rgba(34, 211, 238, 0.3); }
+      50% { box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.5), 0 6px 20px rgba(45, 212, 191, 0.5), 0 0 20px rgba(34, 211, 238, 0.4); }
     }
     .side {
       width: 300px;
@@ -207,21 +238,55 @@
       background: linear-gradient(135deg, #0f172a 0%, #1a2d3a 100%);
       color: var(--text);
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    }
+    .side-tools input::before, .side-tools select::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent 0%, rgba(34, 211, 238, 0.4) 50%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
     .side-tools input:focus, .side-tools select:focus {
       outline: none;
-      border-color: rgba(34, 211, 238, 0.6);
-      box-shadow: 0 0 12px rgba(34, 211, 238, 0.3), inset 0 1px 2px rgba(255,255,255,0.05);
+      border-color: rgba(34, 211, 238, 0.8);
+      box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.2), 0 0 16px rgba(34, 211, 238, 0.3), inset 0 1px 2px rgba(255,255,255,0.05), inset 0 0 8px rgba(34, 211, 238, 0.05);
       background: linear-gradient(135deg, #1a2d3a 0%, #244356 100%);
+      transform: translateY(-1px);
+    }
+    .side-tools input:focus::before, .side-tools select:focus::before {
+      opacity: 1;
     }
     .side-tools input::placeholder {
       color: rgba(148, 163, 184, 0.6);
+      transition: color 0.3s ease;
+    }
+    .side-tools input:focus::placeholder {
+      color: rgba(148, 163, 184, 0.8);
     }
     .status-filters { display: flex; flex-wrap: wrap; gap: 0.25rem; }
     .status-filters button {
       font-size: 0.7rem; padding: 0.2rem 0.4rem; border-radius: 999px;
       border: 1px solid var(--border); background: rgba(51, 65, 85, 0.3); color: #94a3b8; cursor: pointer;
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .status-filters button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
+      transition: left 0.5s ease;
     }
     .status-filters button:hover {
       background: rgba(51, 65, 85, 0.6);
@@ -229,12 +294,20 @@
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
+    .status-filters button:hover::before {
+      left: 100%;
+    }
     .status-filters button.active {
       background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
       color: #e2e8f0;
       border-color: #64748b;
-      box-shadow: 0 0 12px rgba(34, 211, 238, 0.3);
+      box-shadow: 0 0 12px rgba(34, 211, 238, 0.3), inset 0 0 8px rgba(34, 211, 238, 0.1);
       transform: scale(1.05);
+      animation: buttonGlow 2s ease-in-out infinite;
+    }
+    @keyframes buttonGlow {
+      0%, 100% { box-shadow: 0 0 12px rgba(34, 211, 238, 0.3), inset 0 0 8px rgba(34, 211, 238, 0.1); }
+      50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.5), inset 0 0 12px rgba(34, 211, 238, 0.2); }
     }
     .nearest-box { display: flex; flex-direction: column; gap: 0.3rem; }
     .nearest-box .btn-link, #nearestBtn {
@@ -247,12 +320,27 @@
       cursor: pointer;
       text-align: start;
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .nearest-box .btn-link::before, #nearestBtn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(ellipse at center, rgba(34, 211, 238, 0.2) 0%, transparent 70%);
+      transition: left 0.6s ease;
     }
     .nearest-box .btn-link:hover, #nearestBtn:hover {
       background: linear-gradient(135deg, #1a2d3a 0%, #2a3d4a 100%);
-      border-color: rgba(34, 211, 238, 0.4);
-      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.2), inset 0 1px 2px rgba(255,255,255,0.1);
-      transform: translateY(-1px);
+      border-color: rgba(34, 211, 238, 0.6);
+      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.3), inset 0 1px 2px rgba(255,255,255,0.1), 0 0 16px rgba(34, 211, 238, 0.2);
+      transform: translateY(-2px);
+    }
+    .nearest-box .btn-link:hover::before, #nearestBtn:hover::before {
+      left: 100%;
     }
     .nearest-box .btn-link:active, #nearestBtn:active {
       transform: translateY(0);
@@ -265,6 +353,13 @@
       gap: 0.45rem;
       font-size: 0.72rem;
       color: #cbd5e1;
+      padding: 0.25rem 0;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
+    .map-view-controls:hover {
+      background: rgba(34, 211, 238, 0.05);
+      padding: 0.35rem 0.2rem;
     }
     .map-view-controls label {
       display: inline-flex;
@@ -273,10 +368,44 @@
       -webkit-user-select: none;
       user-select: none;
       cursor: pointer;
+      transition: all 0.3s ease;
+      padding: 0.1rem 0.2rem;
+      border-radius: 4px;
+    }
+    .map-view-controls label:hover {
+      color: #22d3ee;
+      background: rgba(34, 211, 238, 0.08);
+      transform: translateX(2px);
     }
     .map-view-controls input[type="checkbox"] {
       accent-color: #22d3ee;
       cursor: pointer;
+      transition: all 0.3s ease;
+      width: 16px;
+      height: 16px;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      border: 1px solid rgba(34, 211, 238, 0.4);
+      border-radius: 3px;
+      background: linear-gradient(135deg, #0f172a 0%, #1a2d3a 100%);
+      cursor: pointer;
+      position: relative;
+    }
+    .map-view-controls input[type="checkbox"]:checked {
+      background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 100%);
+      border-color: #22d3ee;
+      box-shadow: 0 0 8px rgba(34, 211, 238, 0.5);
+    }
+    .map-view-controls input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
     }
     .map-view-controls button {
       font-size: 0.72rem;
@@ -288,12 +417,28 @@
       cursor: pointer;
       white-space: nowrap;
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .map-view-controls button::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      opacity: 0;
+      transition: opacity 0.4s ease;
     }
     .map-view-controls button:hover {
       background: linear-gradient(135deg, #1a3347 0%, #244356 100%);
-      border-color: rgba(34, 211, 238, 0.4);
-      box-shadow: 0 3px 10px rgba(34, 211, 238, 0.15);
-      transform: translateY(-1px);
+      border-color: rgba(34, 211, 238, 0.6);
+      box-shadow: 0 3px 10px rgba(34, 211, 238, 0.25), 0 0 12px rgba(34, 211, 238, 0.15);
+      transform: translateY(-2px);
+    }
+    .map-view-controls button:hover::before {
+      opacity: 1;
     }
     .map-view-controls button:active {
       transform: translateY(0);
@@ -310,18 +455,42 @@
       cursor: pointer;
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       border-inline-start: 3px solid transparent;
+      position: relative;
+      overflow: hidden;
+      border-radius: 4px;
+      margin: 2px 4px;
+    }
+    .worker-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, transparent 100%);
+      opacity: 0;
+      transition: opacity 0.3s ease;
+      pointer-events: none;
     }
     .worker-row:hover {
-      background: linear-gradient(90deg, rgba(34, 211, 238, 0.1) 0%, rgba(51, 65, 85, 0.3) 100%);
-      border-inline-start-color: rgba(34, 211, 238, 0.6);
-      transform: translateX(2px);
-      box-shadow: inset 4px 0 8px rgba(34, 211, 238, 0.1);
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.12) 0%, rgba(51, 65, 85, 0.3) 100%);
+      border-inline-start-color: rgba(34, 211, 238, 0.7);
+      transform: translateX(3px);
+      box-shadow: inset 4px 0 12px rgba(34, 211, 238, 0.15), 0 2px 6px rgba(34, 211, 238, 0.1);
+    }
+    .worker-row:hover::before {
+      opacity: 1;
     }
     .worker-row.active {
-      background: linear-gradient(90deg, rgba(34, 211, 238, 0.15) 0%, rgba(51, 65, 85, 0.4) 100%);
+      background: linear-gradient(90deg, rgba(34, 211, 238, 0.18) 0%, rgba(51, 65, 85, 0.4) 100%);
       border-inline-start-color: #22d3ee;
-      box-shadow: inset 4px 0 12px rgba(34, 211, 238, 0.2), 0 2px 8px rgba(34, 211, 238, 0.15);
-      border-bottom-color: rgba(34, 211, 238, 0.3);
+      box-shadow: inset 4px 0 16px rgba(34, 211, 238, 0.25), 0 2px 8px rgba(34, 211, 238, 0.2), 0 0 12px rgba(34, 211, 238, 0.15);
+      border-bottom-color: rgba(34, 211, 238, 0.4);
+      animation: rowPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes rowPulse {
+      0%, 100% { box-shadow: inset 4px 0 16px rgba(34, 211, 238, 0.25), 0 2px 8px rgba(34, 211, 238, 0.2), 0 0 12px rgba(34, 211, 238, 0.15); }
+      50% { box-shadow: inset 4px 0 20px rgba(34, 211, 238, 0.35), 0 4px 12px rgba(34, 211, 238, 0.3), 0 0 20px rgba(34, 211, 238, 0.25); }
     }
     .status-dot {
       display: inline-block;
@@ -417,34 +586,34 @@
     <div id="map"></div>
     <aside class="side" id="sidePanel">
       <div class="side-tools">
-        <input type="search" id="workerSearch" placeholder="Mitarbeiter suchen…" autocomplete="off" />
+        <input type="search" id="workerSearch" placeholder="Mitarbeiter suchen…" data-omapi18n="searchWorkers" autocomplete="off" />
         <div class="status-filters" id="statusFilters">
-          <button type="button" data-status="all" class="active">Alle</button>
-          <button type="button" data-status="working">Arbeitet</button>
-          <button type="button" data-status="on_break">Pause</button>
-          <button type="button" data-status="on_task">Aufgabe</button>
-          <button type="button" data-status="off_site">Außerhalb</button>
-          <button type="button" data-status="stale">Offline/Stale</button>
+          <button type="button" data-status="all" class="active" data-omapi18n="allStatuses">Alle</button>
+          <button type="button" data-status="working" data-omapi18n="statusWorking">Arbeitet</button>
+          <button type="button" data-status="on_break" data-omapi18n="statusOnBreak">Pause</button>
+          <button type="button" data-status="on_task" data-omapi18n="statusOnTask">Aufgabe</button>
+          <button type="button" data-status="off_site" data-omapi18n="statusOffSite">Außerhalb</button>
+          <button type="button" data-status="stale" data-omapi18n="offlineStatus">Offline/Stale</button>
         </div>
         <div class="nearest-box">
-          <button type="button" id="nearestBtn" class="btn-link">Nächste MA (Kartenmitte)</button>
-          <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" />
+          <button type="button" id="nearestBtn" class="btn-link" data-omapi18n="nearestWorkers">Nächste MA (Kartenmitte)</button>
+          <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" data-omapi18n="filterRole" />
         </div>
         <div class="map-view-controls">
           <label>
             <input type="checkbox" id="compactLabelsToggle" checked />
-            <span id="compactLabelsText">Kompakte Labels</span>
+            <span id="compactLabelsText" data-omapi18n="compactLabels">Kompakte Labels</span>
           </label>
-          <button type="button" id="recenterWorkersBtn">Auf MA zoomen</button>
+          <button type="button" id="recenterWorkersBtn" data-omapi18n="zoomWorkers">Auf MA zoomen</button>
         </div>
         <div class="map-view-controls">
           <label>
             <input type="checkbox" id="clusterWorkersToggle" checked />
-            <span>Cluster</span>
+            <span data-omapi18n="clusterMarkers">Cluster</span>
           </label>
           <label>
             <input type="checkbox" id="liveTrailToggle" />
-            <span>Live Spur folgen</span>
+            <span data-omapi18n="liveTrail">Live Spur folgen</span>
           </label>
         </div>
       </div>

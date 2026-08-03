@@ -111,14 +111,14 @@ window.OpsLiveMapI18n = {
     uiLang: "Language",
   },
   ar: {
-    title: "خريطة العمليات المباشرة",
+    title: "خريطة العمليات الذكية",
     loading: "جارٍ التحميل…",
     refresh: "تحديث",
     navCommand: "مركز القيادة",
-    navAi: "ذكاء اصطناعي",
+    navAi: "الذكاء الاصطناعي",
     navAdmin: "العمليات",
     legendOnSite: "على الموقع",
-    legendGeofence: "سياج جغرافي",
+    legendGeofence: "منطقة ذكية",
     legendGate: "بوابة (اليوم)",
     legendCamera: "كاميرات",
     statusLine: "{onSite} على الموقع · {zones} مناطق · {security} أمن",
@@ -164,6 +164,17 @@ window.OpsLiveMapI18n = {
     authRequired: "تسجيل الدخول مطلوب",
     companyPlaceholder: "— الشركة —",
     uiLang: "اللغة",
+    searchWorkers: "البحث عن الموظفين…",
+    filterRole: "مرشح الدور/المهارة…",
+    nearestWorkers: "أقرب موظف (وسط الخريطة)",
+    compactLabels: "تسميات مدمجة",
+    zoomWorkers: "تكبير الموظفين",
+    clusterMarkers: "تجميع العلامات",
+    liveTrail: "متابعة المسار الحي",
+    workerSearch: "بحث الموظفين",
+    allStatuses: "الكل",
+    allWorkers: "جميع الموظفين",
+    offlineStatus: "غير متصل / قديم",
   },
   tr: {
     title: "Canli ops haritasi",
@@ -285,11 +296,31 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
   if (titleEl) titleEl.textContent = window.opsMapT("title");
   const refreshBtn = document.getElementById("refreshBtn");
   if (refreshBtn) refreshBtn.textContent = window.opsMapT("refresh");
+
+  // Apply translations to elements with data-omapi18n attribute
   document.querySelectorAll("[data-omapi18n]").forEach((el) => {
     const key = el.getAttribute("data-omapi18n");
     if (!key) return;
-    el.textContent = window.opsMapT(key);
+    const translated = window.opsMapT(key);
+
+    // For input placeholders
+    if (el.tagName === "INPUT" && el.hasAttribute("placeholder")) {
+      el.setAttribute("placeholder", translated || key);
+    } else if (el.tagName === "SELECT" && el.hasAttribute("aria-label")) {
+      el.setAttribute("aria-label", translated || key);
+    } else if (el.tagName === "BUTTON") {
+      // For buttons, update textContent but preserve any child elements
+      const text = el.childNodes[0];
+      if (text && text.nodeType === Node.TEXT_NODE) {
+        text.textContent = translated || key;
+      } else if (!el.querySelector("svg")) {
+        el.textContent = translated || key;
+      }
+    } else {
+      el.textContent = translated || key;
+    }
   });
+
   const sel = document.getElementById("opsMapLangSelect");
   if (sel) {
     sel.value = lang;
