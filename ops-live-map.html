@@ -16,6 +16,22 @@
   <link rel="stylesheet" href="/embed-shell.css?v=20260531shell2" />
   <link rel="stylesheet" href="/ops-shell.css" />
   <style>
+    :root {
+      --theme-bg: #f8fafc;
+      --theme-text: #1e293b;
+      --theme-panel: #ffffff;
+      --theme-border: #e2e8f0;
+      --theme-accent: #0ea5e9;
+      --theme-shadow: rgba(0, 0, 0, 0.1);
+    }
+    html.dark-mode {
+      --theme-bg: #0f172a;
+      --theme-text: #f1f5f9;
+      --theme-panel: #1e293b;
+      --theme-border: #334155;
+      --theme-accent: #38bdf8;
+      --theme-shadow: rgba(0, 0, 0, 0.4);
+    }
     * { box-sizing: border-box; }
     body {
       margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text);
@@ -579,6 +595,7 @@
         <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
         <option value="it">IT</option><option value="pl">PL</option>
       </select>
+      <button type="button" id="themeToggleBtn" title="Dunkelmodus / Hellmodus" style="margin-inline-start:8px;padding:0.3rem 0.55rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;font-size:0.85rem;font-weight:600;">🌙</button>
       <button type="button" id="refreshBtn" style="margin-inline-start:8px">Aktualisieren</button>
     </nav>
   </header>
@@ -1313,6 +1330,23 @@
       startLivePolling();
     });
     window.initOpsMapLangSync?.();
+
+    // Dark Mode Toggle
+    const initDarkMode = () => {
+      const isDark = localStorage.getItem('baupass-ui-darkmode') === 'true';
+      if (isDark) document.documentElement.classList.add('dark-mode');
+      const btn = document.getElementById('themeToggleBtn');
+      if (btn) {
+        btn.textContent = isDark ? '☀️' : '🌙';
+        btn.addEventListener('click', () => {
+          const isCurrentlyDark = document.documentElement.classList.toggle('dark-mode');
+          localStorage.setItem('baupass-ui-darkmode', isCurrentlyDark);
+          btn.textContent = isCurrentlyDark ? '☀️' : '🌙';
+        });
+      }
+    };
+    initDarkMode();
+
     boot();
   </script>
 </body>

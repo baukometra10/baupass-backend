@@ -64,6 +64,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Alle",
     allWorkers: "Alle Arbeitskräfte",
     offlineStatus: "Offline / Veraltet",
+    darkMode: "Dunkelmodus",
+    lightMode: "Hellmodus",
   },
   en: {
     title: "Smart Workforce Map",
@@ -129,6 +131,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "All",
     allWorkers: "All workers",
     offlineStatus: "Offline / Stale",
+    darkMode: "Dark Mode",
+    lightMode: "Light Mode",
   },
   ar: {
     title: "خريطة العمل الذكية",
@@ -194,6 +198,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "الكل",
     allWorkers: "جميع العمال",
     offlineStatus: "غير متصل / قديم",
+    darkMode: "الوضع الليلي",
+    lightMode: "الوضع الفاتح",
   },
   tr: {
     title: "Akıllı İşçi Haritası",
@@ -259,6 +265,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Tümü",
     allWorkers: "Tüm işçiler",
     offlineStatus: "Çevrimdışı / Eski",
+    darkMode: "Koyu Mod",
+    lightMode: "Açık Mod",
   },
   fr: {
     title: "Carte d'effectifs intelligente",
@@ -324,6 +332,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Tous",
     allWorkers: "Tous les effectifs",
     offlineStatus: "Hors ligne / Ancien",
+    darkMode: "Mode Sombre",
+    lightMode: "Mode Clair",
   },
   es: {
     title: "Mapa inteligente de personal",
@@ -389,6 +399,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Todos",
     allWorkers: "Todo el personal",
     offlineStatus: "Desconectado / Antiguo",
+    darkMode: "Modo Oscuro",
+    lightMode: "Modo Claro",
   },
   it: {
     title: "Mappa intelligente del personale",
@@ -454,6 +466,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Tutti",
     allWorkers: "Tutto il personale",
     offlineStatus: "Offline / Non aggiornato",
+    darkMode: "Modalità Scura",
+    lightMode: "Modalità Chiara",
   },
   pl: {
     title: "Inteligentna mapa pracowników",
@@ -519,6 +533,8 @@ window.OpsLiveMapI18n = {
     allStatuses: "Wszyscy",
     allWorkers: "Wszyscy pracownicy",
     offlineStatus: "Offline / Nieaktualny",
+    darkMode: "Tryb Ciemny",
+    lightMode: "Tryb Jasny",
   },
 };
 
