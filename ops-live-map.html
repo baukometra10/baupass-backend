@@ -766,11 +766,30 @@
       const headers = window.BaupassAuth
         ? window.BaupassAuth.authHeaders({ Accept: "application/json" })
         : { Accept: "application/json" };
-      const r = await fetch(path, { credentials: "include", headers });
-      const d = await r.json().catch(() => ({}));
-      if (r.status === 401) throw new Error("auth");
-      if (!r.ok) throw new Error(d.error || d.hint || r.statusText);
-      return d;
+      try {
+        const r = await fetch(path, { credentials: "include", headers });
+        const d = await r.json().catch(() => ({}));
+        if (r.status === 401) throw new Error("auth");
+        if (!r.ok) throw new Error(d.error || d.hint || r.statusText);
+        return d;
+      } catch (e) {
+        if (e instanceof TypeError && e.message.includes('fetch')) {
+          throw new Error(window.opsMapT('errorNetwork') || "Network error");
+        }
+        throw e;
+      }
+    }
+
+    function showLocalizedError(errorCode) {
+      const errorMap = {
+        'auth': 'errorAuth',
+        'network': 'errorNetwork',
+        'timeout': 'errorTimeout',
+        'notfound': 'errorNotFound',
+        'server': 'errorServer'
+      };
+      const key = errorMap[errorCode?.toLowerCase?.()] || 'errorGeneric';
+      return window.opsMapT(key) || `Error: ${errorCode}`;
     }
 
     function clearLayers(key) {
