@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUPPIX Live Worker Map</title>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        .sidebar {
+            width: 320px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #334155;
+            background: #0f172a;
+        }
+
+        .sidebar-header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #10b981;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .worker-item {
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #334155;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .worker-item:hover {
+            background: #475569;
+        }
+
+        .worker-item.active {
+            background: #0e7490;
+            border-left-color: #06b6d4;
+        }
+
+        .worker-name {
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .worker-status {
+            font-size: 11px;
+            color: #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .battery {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .battery-bar {
+            width: 20px;
+            height: 8px;
+            background: #1e293b;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .battery-fill {
+            height: 100%;
+            background: #10b981;
+            transition: width 0.3s;
+        }
+
+        .battery-fill.low {
+            background: #f59e0b;
+        }
+
+        .battery-fill.critical {
+            background: #ef4444;
+        }
+
+        .stats {
+            padding: 16px;
+            border-top: 1px solid #334155;
+            background: #0f172a;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .top-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            right: 16px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .search-box {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 8px 12px;
+            color: #e2e8f0;
+            font-size: 12px;
+            flex: 1;
+            max-width: 200px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        button {
+            background: #0e7490;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background: #155e75;
+        }
+
+        .offline-indicator {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: #f59e0b;
+            border-radius: 50%;
+            margin-right: 4px;
+        }
+
+        .offline-indicator.online {
+            background: #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Map -->
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="top-bar">
+                <input type="text" class="search-box" placeholder="Search workers...">
+                <div class="controls">
+                    <button onclick="toggleTracking()">Auto Track</button>
+                    <button onclick="centerMap()">Center</button>
+                    <button onclick="toggleOfflineMode()">Offline Mode</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>Workers</h1>
+                <div class="status-indicator">
+                    <div id="connectionStatus" class="status-dot"></div>
+                    <span id="connectionText">Connecting...</span>
+                </div>
+            </div>
+
+            <div class="sidebar-content" id="workerList">
+                <!-- Workers populated by JS -->
+            </div>
+
+            <div class="stats">
+                <div class="stat-row">
+                    <span>Active Workers:</span>
+                    <span class="stat-value" id="activeWorkers">0</span>
+                </div>
+                <div class="stat-row">
+                    <span>Offline Cache:</span>
+                    <span class="stat-value" id="offlineCache">0 records</span>
+                </div>
+                <div class="stat-row">
+                    <span>Avg Battery:</span>
+                    <span class="stat-value" id="avgBattery">--</span>
+                </div>
+                <div class="stat-row">
+                    <span>Last Update:</span>
+                    <span class="stat-value" id="lastUpdate">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([40.7128, -74.0060], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // State
+        const state = {
+            workers: new Map(),
+            markers: new Map(),
+            isOnline: false,
+            isTracking: false,
+            selectedWorker: null,
+            offlineMode: false
+        };
+
+        // WebSocket connection simulation
+        function initWebSocket() {
+            console.log('Initializing WebSocket connection...');
+
+            // Simulate connection
+            setTimeout(() => {
+                state.isOnline = true;
+                updateConnectionStatus();
+                console.log('WebSocket connected');
+
+                // Simulate receiving worker locations
+                simulateWorkerUpdates();
+            }, 500);
+        }
+
+        function updateConnectionStatus() {
+            const status = document.getElementById('connectionStatus');
+            const text = document.getElementById('connectionText');
+
+            if (state.isOnline) {
+                status.classList.add('connected');
+                text.textContent = 'Connected';
+                text.style.color = '#10b981';
+            } else {
+                status.classList.remove('connected');
+                text.textContent = 'Offline';
+                text.style.color = '#f59e0b';
+            }
+        }
+
+        function simulateWorkerUpdates() {
+            // Demo data
+            const workers = [
+                { id: 'w-001', name: 'Alex Mueller', lat: 40.7128, lng: -74.0060, battery: 85, status: 'active' },
+                { id: 'w-002', name: 'Sarah Schmidt', lat: 40.7150, lng: -74.0080, battery: 72, status: 'active' },
+                { id: 'w-003', name: 'John Smith', lat: 40.7100, lng: -74.0040, battery: 45, status: 'active' },
+                { id: 'w-004', name: 'Maria Garcia', lat: 40.7180, lng: -74.0100, battery: 95, status: 'offline' },
+            ];
+
+            workers.forEach(worker => {
+                updateWorker(worker);
+            });
+
+            // Simulate continuous updates
+            setInterval(() => {
+                workers.forEach(worker => {
+                    if (state.isOnline && worker.status === 'active') {
+                        worker.lat += (Math.random() - 0.5) * 0.0005;
+                        worker.lng += (Math.random() - 0.5) * 0.0005;
+                        worker.battery = Math.max(0, worker.battery - Math.random() * 0.5);
+                        updateWorker(worker);
+                    }
+                });
+            }, 3000);
+        }
+
+        function updateWorker(worker) {
+            state.workers.set(worker.id, worker);
+
+            // Update or create marker
+            if (state.markers.has(worker.id)) {
+                const marker = state.markers.get(worker.id);
+                marker.setLatLng([worker.lat, worker.lng]);
+            } else {
+                const marker = L.circleMarker([worker.lat, worker.lng], {
+                    radius: 8,
+                    fillColor: worker.status === 'offline' ? '#f59e0b' : '#10b981',
+                    color: '#0f172a',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                }).addTo(map);
+
+                marker.bindPopup(`<strong>${worker.name}</strong><br/>Battery: ${Math.round(worker.battery)}%`);
+                marker.on('click', () => selectWorker(worker.id));
+
+                state.markers.set(worker.id, marker);
+            }
+
+            // Update sidebar
+            updateWorkerList();
+            updateStats();
+        }
+
+        function updateWorkerList() {
+            const list = document.getElementById('workerList');
+            list.innerHTML = '';
+
+            state.workers.forEach((worker, id) => {
+                const div = document.createElement('div');
+                div.className = 'worker-item' + (state.selectedWorker === id ? ' active' : '');
+
+                const batteryClass = worker.battery > 50 ? '' : worker.battery > 20 ? 'low' : 'critical';
+
+                div.innerHTML = `
+                    <div class="worker-name">
+                        <span class="offline-indicator ${worker.status === 'online' ? 'online' : ''}"></span>
+                        ${worker.name}
+                    </div>
+                    <div class="worker-status">
+                        <span>${worker.status === 'offline' ? 'Offline' : 'Active'}</span>
+                        <div class="battery">
+                            <span>${Math.round(worker.battery)}%</span>
+                            <div class="battery-bar">
+                                <div class="battery-fill ${batteryClass}" style="width: ${worker.battery}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                div.onclick = () => selectWorker(id);
+                list.appendChild(div);
+            });
+        }
+
+        function updateStats() {
+            const active = Array.from(state.workers.values()).filter(w => w.status === 'active').length;
+            document.getElementById('activeWorkers').textContent = active;
+
+            const avgBattery = Array.from(state.workers.values())
+                .reduce((sum, w) => sum + w.battery, 0) / state.workers.size || 0;
+            document.getElementById('avgBattery').textContent = Math.round(avgBattery) + '%';
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function selectWorker(workerId) {
+            state.selectedWorker = workerId;
+            const worker = state.workers.get(workerId);
+            if (worker) {
+                map.setView([worker.lat, worker.lng], 15);
+                updateWorkerList();
+            }
+        }
+
+        function toggleTracking() {
+            state.isTracking = !state.isTracking;
+            console.log('Tracking:', state.isTracking);
+        }
+
+        function centerMap() {
+            if (state.selectedWorker) {
+                selectWorker(state.selectedWorker);
+            } else {
+                map.setView([40.7128, -74.0060], 13);
+            }
+        }
+
+        function toggleOfflineMode() {
+            state.offlineMode = !state.offlineMode;
+            if (state.offlineMode) {
+                console.log('Offline mode enabled - syncing cached records');
+            } else {
+                console.log('Offline mode disabled');
+            }
+        }
+
+        // Initialize
+        initWebSocket();
+    </script>
+</body>
+</html>
