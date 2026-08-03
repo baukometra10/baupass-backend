@@ -700,7 +700,34 @@
 
     const qs = new URLSearchParams(location.search);
     let companyId = qs.get("company_id") || "";
-    let map, layers = { zones: [], workers: [], gates: [], cameras: [], trail: [] };
+    function getTileLayerConfig() {
+      const isDarkMode = document.documentElement.classList.contains('dark-mode');
+      if (isDarkMode) {
+        // Dark mode: CartoDB Positron Dark with cyan accents
+        return {
+          url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+          attribution: '© OpenStreetMap © CartoDB',
+          maxZoom: 19,
+        };
+      } else {
+        // Light mode: CartoDB Positron (clean, light)
+        return {
+          url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
+          attribution: '© OpenStreetMap © CartoDB',
+          maxZoom: 19,
+        };
+      }
+    }
+
+    let tileLayer = null;
+
+    function updateMapTiles() {
+      if (!map) return;
+      if (tileLayer) map.removeLayer(tileLayer);
+      const config = getTileLayerConfig();
+      tileLayer = L.tileLayer(config.url, config);
+      tileLayer.addTo(map);
+    }
     let workerClusterLayer = null;
     const workerMarkersById = new Map();
     let mapFittedOnce = false;
@@ -1132,9 +1159,7 @@
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
         map = L.map("map").setView([c.lat, c.lng], 15);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19, attribution: "© OSM",
-        }).addTo(map);
+        updateMapTiles();
       }
       if (!workerClusterLayer && typeof L.markerClusterGroup === "function") {
         workerClusterLayer = L.markerClusterGroup({
@@ -1437,6 +1462,7 @@
           const isCurrentlyDark = document.documentElement.classList.toggle('dark-mode');
           localStorage.setItem('baupass-ui-darkmode', isCurrentlyDark);
           btn.textContent = isCurrentlyDark ? '☀️' : '🌙';
+          updateMapTiles();
         });
       }
     };
