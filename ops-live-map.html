@@ -722,11 +722,15 @@
     let tileLayer = null;
 
     function updateMapTiles() {
-      if (!map) return;
-      if (tileLayer) map.removeLayer(tileLayer);
+      if (!map || typeof map.removeLayer !== 'function') return;
+      if (tileLayer && typeof map.removeLayer === 'function') {
+        try { map.removeLayer(tileLayer); } catch (_) {}
+      }
       const config = getTileLayerConfig();
       tileLayer = L.tileLayer(config.url, config);
-      tileLayer.addTo(map);
+      if (typeof tileLayer.addTo === 'function') {
+        tileLayer.addTo(map);
+      }
     }
     let workerClusterLayer = null;
     const workerMarkersById = new Map();
@@ -1242,7 +1246,7 @@
         });
         if (clusterWorkers) map.addLayer(workerClusterLayer);
       }
-      if (workerClusterLayer) {
+      if (workerClusterLayer && map && typeof map.hasLayer === 'function') {
         if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
         if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
       }
@@ -1536,7 +1540,7 @@
     });
     document.getElementById("clusterWorkersToggle")?.addEventListener("change", (ev) => {
       clusterWorkers = !!ev.target?.checked;
-      if (workerClusterLayer && map) {
+      if (workerClusterLayer && map && typeof map.hasLayer === 'function') {
         if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
         if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
       }
