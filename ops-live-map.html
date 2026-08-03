@@ -758,6 +758,14 @@
     }
     let workerClusterLayer = null;
     const workerMarkersById = new Map();
+    let map = null;
+    const layers = {
+      zones: [],
+      gates: [],
+      cameras: [],
+      workers: [],
+      trail: [],
+    };
     let mapFittedOnce = false;
     let livePollTimer = 0;
     let livePollInFlight = false;
@@ -1382,32 +1390,16 @@
         document.getElementById("status").textContent = window.opsMapT("selectCompany");
         return;
       }
-      // Always use demo data (no backend required)
-      const data = {
-        companyId,
-        center: { lat: 52.52, lng: 13.405 },
-        workersOnSite: [
-          { id: 1, name: "Max Mueller", lat: 52.5198, lng: 13.4035, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
-          { id: 2, name: "Anna Schmidt", lat: 52.5215, lng: 13.4065, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
-          { id: 3, name: "Peter Koch", lat: 52.523, lng: 13.408, status: "on-break", currentZone: { name: "Zone B", kind: "rest" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
-          { id: 4, name: "Lisa Wagner", lat: 52.518, lng: 13.402, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" }
-        ],
-        geofences: [
-          { id: 1, name: "Zone A", latitude: 52.52, longitude: 13.405, radius_meters: 200, color: "#38bdf8" },
-          { id: 2, name: "Zone B", latitude: 52.523, longitude: 13.408, radius_meters: 150, color: "#10b981" }
-        ],
-        cameras: [
-          { id: 1, name: "Gate 1", lat: 52.516, lng: 13.401, zone: "Entrance", alert: false, href: "" },
-          { id: 2, name: "Gate 2", lat: 52.525, lng: 13.41, zone: "Exit", alert: false, href: "" }
-        ],
-        zoneStats: [
-          { zoneId: "zone-a", name: "Zone A", headcount: 3, avgDwellMinutes: 45 },
-          { zoneId: "zone-b", name: "Zone B", headcount: 1, avgDwellMinutes: 12 }
-        ],
-        mapAnomalies: [],
-        counts: { onSite: 4, working: 3, offSite: 0, stale: 0, onBreak: 1, onTask: 0, cameras: 2 }
-      };
-      renderMap(data);
+      try {
+        const data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
+        renderMap(data);
+      } catch (error) {
+        const statusEl = document.getElementById("status");
+        if (statusEl) {
+          statusEl.textContent = showLocalizedError(error?.message || "server");
+        }
+        throw error;
+      }
     }
 
     function startLivePolling() {

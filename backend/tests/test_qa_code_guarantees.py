@@ -51,6 +51,14 @@ def test_lagebild_embeds_live_map():
     assert "ops-live-map.html" in app and "embed=1" in app
 
 
+def test_live_map_uses_backend_data():
+    html = (ROOT / "ops-live-map.html").read_text(encoding="utf-8")
+    assert "let map = null;" in html
+    assert "const layers = {" in html
+    assert "Always use demo data" not in html
+    assert "api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`)" in html
+
+
 def test_no_autodial_in_camera_escalation_defaults():
     brief = (ROOT / "backend" / "app" / "platform" / "physical_operations" / "daily_brief.py").read_text(
         encoding="utf-8"
