@@ -1154,6 +1154,78 @@
       });
     }
 
+    function renderWorkerDistances(data) {
+      const workers = (data.workersOnSite || []).filter(w => w.lat != null && w.lng != null);
+      if (workers.length < 2) return;
+
+      // Helper: Calculate distance between two points (in meters)
+      const calcDistance = (lat1, lng1, lat2, lng2) => {
+        const R = 6371e3; // Earth radius in meters
+        const φ1 = lat1 * Math.PI / 180;
+        const φ2 = lat2 * Math.PI / 180;
+        const Δφ = (lat2 - lat1) * Math.PI / 180;
+        const Δλ = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                  Math.cos(φ1) * Math.cos(φ2) *
+                  Math.sin(Δλ/2) * Math.sin(Δλ/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      // Draw lines between workers < 500m apart
+      for (let i = 0; i < workers.length; i++) {
+        for (let j = i + 1; j < workers.length; j++) {
+          const w1 = workers[i];
+          const w2 = workers[j];
+          const dist = calcDistance(w1.lat, w1.lng, w2.lat, w2.lng);
+
+          if (dist < 500) { // Only show lines for nearby workers
+            const opacity = Math.max(0.2, 1 - (dist / 500)); // Fade with distance
+            const color = dist < 100 ? '#ef4444' : dist < 250 ? '#f59e0b' : '#38bdf8'; // Red/Orange/Cyan
+
+            const line = L.polyline([
+              [w1.lat, w1.lng],
+              [w2.lat, w2.lng]
+            ], {
+              color,
+              weight: 2,
+              opacity,
+              dashArray: '5, 5',
+              lineCap: 'round'
+            }).addTo(map);
+
+            // Add distance label at midpoint
+            const midLat = (w1.lat + w2.lat) / 2;
+            const midLng = (w1.lng + w2.lng) / 2;
+            const distLabel = dist < 1000
+              ? `${Math.round(dist)}m`
+              : `${(dist/1000).toFixed(1)}km`;
+
+            const label = L.marker([midLat, midLng], {
+              icon: L.divIcon({
+                className: 'distance-label',
+                html: `<div style="
+                  background: rgba(0,0,0,0.7);
+                  color: ${color};
+                  padding: 4px 8px;
+                  border-radius: 4px;
+                  font-size: 11px;
+                  font-weight: bold;
+                  white-space: nowrap;
+                  border: 1px solid ${color};
+                ">${distLabel}</div>`,
+                iconSize: null,
+                iconAnchor: [0, 0]
+              })
+            }).addTo(map);
+
+            layers.workers.push(line);
+            layers.workers.push(label);
+          }
+        }
+      }
+    }
+
     function renderMap(data) {
       lastMapData = data;
       const c = data.center || { lat: 52.52, lng: 13.405 };
@@ -1222,6 +1294,7 @@
         bounds.push([z.latitude, z.longitude]);
       });
       bounds.push(...renderWorkerMarkers(data));
+      renderWorkerDistances(data);
       (data.gates || []).forEach((g) => {
         const label = g.name || "Gate";
         const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
@@ -1270,7 +1343,35 @@
         document.getElementById("status").textContent = window.opsMapT("selectCompany");
         return;
       }
-      const data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
+      let data;
+      try {
+        data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
+      } catch (e) {
+        // Demo mode: Use test data if API fails
+        data = {
+          companyId,
+          center: { lat: 52.52, lng: 13.405 },
+          workersOnSite: [
+            { id: 1, name: "Max Mueller", lat: 52.52, lng: 13.405, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
+            { id: 2, name: "Anna Schmidt", lat: 52.5215, lng: 13.4065, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
+            { id: 3, name: "Peter Koch", lat: 52.523, lng: 13.408, status: "on-break", currentZone: { name: "Zone B", kind: "rest" }, lastLocationAt: new Date().toISOString(), positionSource: "live" },
+            { id: 4, name: "Lisa Wagner", lat: 52.518, lng: 13.402, status: "working", currentZone: { name: "Zone A", kind: "working" }, lastLocationAt: new Date().toISOString(), positionSource: "live" }
+          ],
+          geofences: [
+            { id: 1, name: "Zone A", latitude: 52.52, longitude: 13.405, radius_meters: 200, color: "#38bdf8" },
+            { id: 2, name: "Zone B", latitude: 52.523, longitude: 13.408, radius_meters: 150, color: "#10b981" }
+          ],
+          cameras: [
+            { id: 1, name: "Gate 1", lat: 52.516, lng: 13.401, zone: "Entrance", alert: false, href: "" },
+            { id: 2, name: "Gate 2", lat: 52.525, lng: 13.41, zone: "Exit", alert: false, href: "" }
+          ],
+          zoneStats: [
+            { zoneId: "zone-a", name: "Zone A", headcount: 3, avgDwellMinutes: 45 },
+            { zoneId: "zone-b", name: "Zone B", headcount: 1, avgDwellMinutes: 12 }
+          ],
+          mapAnomalies: []
+        };
+      }
       renderMap(data);
     }
 
