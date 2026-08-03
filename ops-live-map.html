@@ -682,6 +682,47 @@
     let mapZoomSyncBound = false;
     let trailRefreshInFlight = false;
     const workerMarkerAnimations = new Map();
+
+    // Locale-aware formatters
+    const localeFormatters = {
+      getLocale() {
+        const lang = window.getOpsMapLang?.() || 'de';
+        const localeMap = { de: 'de-DE', en: 'en-US', ar: 'ar-SA', tr: 'tr-TR', fr: 'fr-FR', es: 'es-ES', it: 'it-IT', pl: 'pl-PL' };
+        return localeMap[lang] || 'de-DE';
+      },
+      formatTime(isoString) {
+        if (!isoString) return '';
+        const locale = this.getLocale();
+        const date = new Date(isoString);
+        return new Intl.DateTimeFormat(locale, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(date);
+      },
+      formatDate(isoString) {
+        if (!isoString) return '';
+        const locale = this.getLocale();
+        const date = new Date(isoString);
+        return new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+      },
+      formatDateTime(isoString) {
+        if (!isoString) return '';
+        const locale = this.getLocale();
+        const date = new Date(isoString);
+        return new Intl.DateTimeFormat(locale, {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit'
+        }).format(date);
+      },
+      formatNumber(num, decimals = 2) {
+        if (num === null || num === undefined) return '';
+        const locale = this.getLocale();
+        return new Intl.NumberFormat(locale, { maximumFractionDigits: decimals, minimumFractionDigits: 0 }).format(num);
+      },
+      formatDistance(meters) {
+        const locale = this.getLocale();
+        if (meters < 1000) return meters.toFixed(0) + ' m';
+        const km = meters / 1000;
+        return new Intl.NumberFormat(locale, { maximumFractionDigits: 2, minimumFractionDigits: 1 }).format(km) + ' km';
+      }
+    };
     const LIVE_POLL_MS_VISIBLE = 2000;
     const LIVE_POLL_MS_HIDDEN = 8000;
     const MARKER_MOVE_ANIM_MS = 900;
@@ -884,7 +925,7 @@
         const recent = (trail.points || []).slice(-40).reverse();
         list.innerHTML = recent.length
           ? recent.map((p) => {
-              const t = String(p.at || "").slice(11, 19);
+              const t = localeFormatters.formatTime(p.at);
               const zk = p.zoneKind ? ` · ${zoneKindLabel(p.zoneKind)}` : "";
               return `<li>${escapeHtml(t)}${escapeHtml(zk)}</li>`;
             }).join("")
