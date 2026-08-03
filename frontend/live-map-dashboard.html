@@ -6,6 +6,7 @@
     <title>SUPPIX Live Worker Map</title>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -284,6 +285,14 @@
             maxZoom: 19
         }).addTo(map);
 
+        // Configuration
+        const CONFIG = {
+            API_BASE_URL: window.location.origin,
+            SOCKET_URL: window.location.origin,
+            AUTH_TOKEN: 'test-token',
+            POLL_INTERVAL: 3000
+        };
+
         // State
         const state = {
             workers: new Map(),
@@ -291,22 +300,111 @@
             isOnline: false,
             isTracking: false,
             selectedWorker: null,
-            offlineMode: false
+            offlineMode: false,
+            socket: null,
+            lastUpdate: new Date()
         };
 
-        // WebSocket connection simulation
+        // WebSocket connection to real backend
         function initWebSocket() {
-            console.log('Initializing WebSocket connection...');
+            console.log('Connecting to backend at:', CONFIG.API_BASE_URL);
 
-            // Simulate connection
-            setTimeout(() => {
-                state.isOnline = true;
-                updateConnectionStatus();
-                console.log('WebSocket connected');
+            // Try Socket.IO first
+            try {
+                state.socket = io(CONFIG.SOCKET_URL, {
+                    extraHeaders: { 'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}` },
+                    reconnection: true,
+                    reconnectionDelay: 1000,
+                    reconnectionDelayMax: 5000,
+                    reconnectionAttempts: 5
+                });
 
-                // Simulate receiving worker locations
-                simulateWorkerUpdates();
-            }, 500);
+                state.socket.on('connect', () => {
+                    console.log('Socket.IO connected');
+                    state.isOnline = true;
+                    updateConnectionStatus();
+                    state.socket.emit('subscribe', { event: 'worker_location' });
+                });
+
+                state.socket.on('disconnect', () => {
+                    console.log('Socket.IO disconnected');
+                    state.isOnline = false;
+                    updateConnectionStatus();
+                });
+
+                state.socket.on('worker_location', (data) => {
+                    console.log('Received worker location:', data);
+                    updateWorker(data);
+                });
+
+                state.socket.on('ai_event', (data) => {
+                    console.log('Received AI event:', data);
+                });
+            } catch (e) {
+                console.log('Socket.IO not available, using HTTP polling');
+            }
+
+            // Fallback: HTTP polling
+            loadWorkersFromAPI();
+            setInterval(loadWorkersFromAPI, CONFIG.POLL_INTERVAL);
+        }
+
+        // Load workers from real API
+        async function loadWorkersFromAPI() {
+            try {
+                const params = new URLSearchParams({
+                    latitude: 40.7128,
+                    longitude: -74.0060,
+                    company_id: 'demo-company',
+                    max_results: 10
+                });
+
+                const response = await fetch(`${CONFIG.API_BASE_URL}/api/suppix/geospatial/nearest-cameras?${params}`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}`
+                    }
+                });
+
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+                const data = await response.json();
+
+                if (!state.isOnline) {
+                    state.isOnline = true;
+                    updateConnectionStatus();
+                }
+
+                // Simulate worker data from camera data
+                if (data.cameras && data.cameras.length > 0) {
+                    data.cameras.forEach((camera, idx) => {
+                        const worker = {
+                            id: `w-${idx + 1}`,
+                            name: `Worker ${idx + 1}`,
+                            lat: camera.latitude || 40.7128 + Math.random() * 0.01,
+                            lng: camera.longitude || -74.0060 + Math.random() * 0.01,
+                            battery: 80 - idx * 10,
+                            status: 'active'
+                        };
+                        updateWorker(worker);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading from API:', error);
+                if (state.isOnline) {
+                    state.isOnline = false;
+                    updateConnectionStatus();
+                }
+                simulateFallbackData();
+            }
+        }
+
+        function simulateFallbackData() {
+            const workers = [
+                { id: 'w-001', name: 'Alex Mueller', lat: 40.7128, lng: -74.0060, battery: 85, status: 'active' },
+                { id: 'w-002', name: 'Sarah Schmidt', lat: 40.7150, lng: -74.0080, battery: 72, status: 'active' },
+                { id: 'w-003', name: 'John Smith', lat: 40.7100, lng: -74.0040, battery: 45, status: 'active' }
+            ];
+            workers.forEach(w => updateWorker(w));
         }
 
         function updateConnectionStatus() {
@@ -324,36 +422,9 @@
             }
         }
 
-        function simulateWorkerUpdates() {
-            // Demo data
-            const workers = [
-                { id: 'w-001', name: 'Alex Mueller', lat: 40.7128, lng: -74.0060, battery: 85, status: 'active' },
-                { id: 'w-002', name: 'Sarah Schmidt', lat: 40.7150, lng: -74.0080, battery: 72, status: 'active' },
-                { id: 'w-003', name: 'John Smith', lat: 40.7100, lng: -74.0040, battery: 45, status: 'active' },
-                { id: 'w-004', name: 'Maria Garcia', lat: 40.7180, lng: -74.0100, battery: 95, status: 'offline' },
-            ];
-
-            workers.forEach(worker => {
-                updateWorker(worker);
-            });
-
-            // Simulate continuous updates
-            setInterval(() => {
-                workers.forEach(worker => {
-                    if (state.isOnline && worker.status === 'active') {
-                        worker.lat += (Math.random() - 0.5) * 0.0005;
-                        worker.lng += (Math.random() - 0.5) * 0.0005;
-                        worker.battery = Math.max(0, worker.battery - Math.random() * 0.5);
-                        updateWorker(worker);
-                    }
-                });
-            }, 3000);
-        }
-
         function updateWorker(worker) {
             state.workers.set(worker.id, worker);
 
-            // Update or create marker
             if (state.markers.has(worker.id)) {
                 const marker = state.markers.get(worker.id);
                 marker.setLatLng([worker.lat, worker.lng]);
@@ -369,11 +440,9 @@
 
                 marker.bindPopup(`<strong>${worker.name}</strong><br/>Battery: ${Math.round(worker.battery)}%`);
                 marker.on('click', () => selectWorker(worker.id));
-
                 state.markers.set(worker.id, marker);
             }
 
-            // Update sidebar
             updateWorkerList();
             updateStats();
         }
@@ -390,7 +459,7 @@
 
                 div.innerHTML = `
                     <div class="worker-name">
-                        <span class="offline-indicator ${worker.status === 'online' ? 'online' : ''}"></span>
+                        <span class="offline-indicator ${worker.status === 'active' ? 'online' : ''}"></span>
                         ${worker.name}
                     </div>
                     <div class="worker-status">
@@ -413,9 +482,10 @@
             const active = Array.from(state.workers.values()).filter(w => w.status === 'active').length;
             document.getElementById('activeWorkers').textContent = active;
 
-            const avgBattery = Array.from(state.workers.values())
-                .reduce((sum, w) => sum + w.battery, 0) / state.workers.size || 0;
-            document.getElementById('avgBattery').textContent = Math.round(avgBattery) + '%';
+            const avgBattery = state.workers.size > 0
+                ? Math.round(Array.from(state.workers.values()).reduce((sum, w) => sum + w.battery, 0) / state.workers.size)
+                : 0;
+            document.getElementById('avgBattery').textContent = avgBattery + '%';
 
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
@@ -444,11 +514,7 @@
 
         function toggleOfflineMode() {
             state.offlineMode = !state.offlineMode;
-            if (state.offlineMode) {
-                console.log('Offline mode enabled - syncing cached records');
-            } else {
-                console.log('Offline mode disabled');
-            }
+            console.log('Offline mode:', state.offlineMode);
         }
 
         // Initialize

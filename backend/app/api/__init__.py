@@ -29,6 +29,9 @@ from . import (  # noqa: F401, E402
     health_routes,
 )
 
+# ── SUPPIX Platform Routes ────────────────────────────────────────────────────
+from . import platform  # noqa: F401
+
 # Future migration: add additional route modules here as handlers are moved from server.py.
 # Existing legacy bridge modules live under backend/app/api/worker_app_routes.py and backend/app/api/shift_routes.py.
 

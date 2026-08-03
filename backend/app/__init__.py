@@ -130,6 +130,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(public_bp,      url_prefix=f"{prefix}/public")
     app.register_blueprint(health_bp,      url_prefix=prefix)
     app.register_blueprint(platform_bp,    url_prefix=f"{prefix}/suppix")
+    logger.info(f"[SUPPIX] Platform blueprint registered with {len(platform_bp.deferred_functions)} routes")
 
 
 def _register_startup_hooks(app: Flask) -> None:

@@ -1,0 +1,43 @@
+[baupass] WARNING: admin IP startup policy skipped: Working outside of application context.
+
+This typically means that you attempted to use functionality that needed
+the current application. To solve this, set up an application context
+with app.app_context(). See the documentation for more information.
+[baupass] Runtime ready (rate_limiter=memory, task_queues=sync, security=True)
+[baupass] Auto-migrated chat uploads from C:\Users\u4363\Desktop\baustelle\backend\uploads\chat to \data\uploads\chat
+[baupass] Worker-app blueprint registered (43 routes)
+[baupass] Shift blueprint registered (9 routes)
+[baupass] api/openapi: GET /api/v1/openapi.json
+[baupass] domain/auth: login, logout, bootstrap, me, 2fa, password-reset, emergency-2fa + v2
+[baupass] domain/runtime: health, system, public, qr
+[baupass] domain/settings: global config routes
+[baupass] domain/rbac: roles, role-assignments, audit-trail
+[baupass] domain/e2e: public-key identity routes registered
+[baupass] domain/companies: all /api/companies/* routes on companies_core_bp
+[baupass] domain/workers: all /api/workers/* routes on workers_core_bp
+[baupass] domain/contracts: templates, drafts, contracts, pdf, sign routes registered
+[baupass] domain/docs: editor documents /api/v2/docs*
+[baupass] domain/access: geofences, access-logs*, gates/* + v2 live/zones
+[baupass] domain/devices: register, heartbeat, scan, worker-app hooks
+[baupass] domain/workforce: foreman, analytics, sync
+[baupass] domain/operations: snapshot, messages, incidents, media-evidence
+[baupass] domain/compliance: overview, expiring-docs, reports
+[baupass] domain/chat: worker-company chat routes registered
+[baupass] domain/documents: inbox, imap, payroll export
+[baupass] domain/billing: /api/invoices/* + /api/v2/billing/* registered
+[baupass] domain/reporting: 9 routes registered
+[baupass] domain/notifications: core + v2 routes registered
+[baupass] domain/admin: all /api/admin/* routes on admin_core_bp
+[baupass] domain/http: SPA + static (registered last)
+[baupass] Domains: all 22 blueprints registered
+[baupass] platform/support_assist: spectator routes registered
+[baupass] Modular blueprints: all groups registered
+[baupass] patched API route ['GET'] /api/geocode/reverse
+[baupass] Blueprint retries disabled for local startup
+ * Serving Flask app 'server'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8080
+ * Running on http://172.20.10.3:8080
+Press CTRL+C to quit
