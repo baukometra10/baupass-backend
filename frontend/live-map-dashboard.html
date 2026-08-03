@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUPPIX Live Worker Map</title>
+    <title>SUPPIX Live Worker Map - Advanced</title>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,6 +19,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: #0f172a;
             color: #e2e8f0;
+            direction: rtl;
         }
 
         .container {
@@ -36,27 +38,29 @@
         }
 
         .sidebar {
-            width: 320px;
-            background: #1e293b;
-            border-right: 1px solid #334155;
+            width: 380px;
+            background: #1a1f3a;
+            border-left: 2px solid #0e7490;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
         }
 
         .sidebar-header {
-            padding: 20px;
-            border-bottom: 1px solid #334155;
-            background: #0f172a;
+            padding: 16px;
+            border-bottom: 2px solid #0e7490;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
         }
 
         .sidebar-header h1 {
             font-size: 18px;
-            font-weight: 600;
+            font-weight: 700;
             margin-bottom: 8px;
+            color: #06b6d4;
         }
 
-        .status-indicator {
+        .connection-indicator {
             display: flex;
             align-items: center;
             gap: 8px;
@@ -65,15 +69,17 @@
         }
 
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: #ef4444;
             animation: pulse 2s infinite;
+            box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
         }
 
         .status-dot.connected {
             background: #10b981;
+            box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
         }
 
         @keyframes pulse {
@@ -84,94 +90,278 @@
         .sidebar-content {
             flex: 1;
             overflow-y: auto;
-            padding: 16px;
+            padding: 12px;
+        }
+
+        /* Search and Filter Section */
+        .search-section {
+            margin-bottom: 16px;
+        }
+
+        .search-box {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            padding: 10px 12px;
+            color: #e2e8f0;
+            font-size: 13px;
+            margin-bottom: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #06b6d4;
+            box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+        }
+
+        .filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .chip {
+            padding: 6px 10px;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chip:hover {
+            background: #475569;
+            border-color: #06b6d4;
+        }
+
+        .chip.active {
+            background: #06b6d4;
+            border-color: #0891b2;
+            color: #0f172a;
+        }
+
+        /* Analytics Dashboard */
+        .analytics-section {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #334155;
+        }
+
+        .analytics-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #06b6d4;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .metric-card {
+            background: #1e293b;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #334155;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 4px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #10b981;
+        }
+
+        .metric-value.warning {
+            color: #f59e0b;
+        }
+
+        .metric-value.critical {
+            color: #ef4444;
+        }
+
+        /* Worker List */
+        .worker-list-section {
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #06b6d4;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            padding: 0 4px;
         }
 
         .worker-item {
             padding: 12px;
             margin-bottom: 8px;
-            background: #334155;
-            border-radius: 6px;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-radius: 8px;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.3s;
             border-left: 3px solid transparent;
+            border: 1px solid #334155;
         }
 
         .worker-item:hover {
-            background: #475569;
+            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+            border-color: #06b6d4;
+            transform: translateX(-4px);
         }
 
         .worker-item.active {
-            background: #0e7490;
+            background: linear-gradient(135deg, #0e7490 0%, #06b6d4 100%);
             border-left-color: #06b6d4;
+            border-color: #0891b2;
+        }
+
+        .worker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
         }
 
         .worker-name {
             font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .worker-status {
-            font-size: 11px;
-            color: #cbd5e1;
-            display: flex;
-            justify-content: space-between;
-        }
-
-        .battery {
+            font-weight: 600;
+            color: #e2e8f0;
             display: flex;
             align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
             gap: 4px;
+            font-size: 10px;
+            padding: 2px 6px;
+            background: rgba(16, 185, 129, 0.2);
+            border-radius: 12px;
+            color: #10b981;
+        }
+
+        .status-badge.offline {
+            background: rgba(245, 158, 11, 0.2);
+            color: #f59e0b;
+        }
+
+        .worker-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #cbd5e1;
+            margin-bottom: 6px;
+        }
+
+        .battery-section {
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         .battery-bar {
-            width: 20px;
-            height: 8px;
-            background: #1e293b;
-            border-radius: 2px;
+            width: 30px;
+            height: 6px;
+            background: #0f172a;
+            border-radius: 3px;
             overflow: hidden;
+            border: 1px solid #334155;
         }
 
         .battery-fill {
             height: 100%;
-            background: #10b981;
+            background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
             transition: width 0.3s;
         }
 
         .battery-fill.low {
-            background: #f59e0b;
+            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
         }
 
         .battery-fill.critical {
-            background: #ef4444;
+            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+            animation: blink 1s infinite;
         }
 
-        .stats {
-            padding: 16px;
-            border-top: 1px solid #334155;
-            background: #0f172a;
-            font-size: 12px;
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .distance-info {
+            font-size: 10px;
             color: #94a3b8;
+            background: rgba(6, 182, 212, 0.1);
+            padding: 4px 6px;
+            border-radius: 4px;
         }
 
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
+        /* Alerts Section */
+        .alerts-section {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+            border: 1px solid #334155;
+            max-height: 150px;
+            overflow-y: auto;
         }
 
-        .stat-value {
-            color: #e2e8f0;
-            font-weight: 500;
+        .alert-item {
+            padding: 8px;
+            margin-bottom: 6px;
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 3px solid #ef4444;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #fca5a5;
         }
 
+        .alert-item.warning {
+            background: rgba(245, 158, 11, 0.1);
+            border-left-color: #f59e0b;
+            color: #fcd34d;
+        }
+
+        .alert-item.info {
+            background: rgba(6, 182, 212, 0.1);
+            border-left-color: #06b6d4;
+            color: #a5f3fc;
+        }
+
+        .alert-time {
+            font-size: 10px;
+            color: #64748b;
+            display: block;
+            margin-top: 2px;
+        }
+
+        /* Top Bar Controls */
         .top-bar {
             position: absolute;
             top: 16px;
             left: 16px;
             right: 16px;
-            background: rgba(15, 23, 42, 0.9);
+            background: rgba(15, 23, 42, 0.95);
             backdrop-filter: blur(8px);
             padding: 12px 16px;
             border-radius: 8px;
@@ -180,17 +370,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-
-        .search-box {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 6px;
-            padding: 8px 12px;
-            color: #e2e8f0;
-            font-size: 12px;
-            flex: 1;
-            max-width: 200px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }
 
         .controls {
@@ -199,31 +379,74 @@
         }
 
         button {
-            background: #0e7490;
+            background: linear-gradient(135deg, #0e7490 0%, #06b6d4 100%);
             color: white;
             border: none;
             padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
-            transition: background 0.2s;
+            font-weight: 500;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
         }
 
         button:hover {
-            background: #155e75;
+            background: linear-gradient(135deg, #155e75 0%, #0891b2 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
         }
 
-        .offline-indicator {
-            display: inline-block;
+        button.secondary {
+            background: #334155;
+        }
+
+        button.secondary:hover {
+            background: #475569;
+        }
+
+        /* Scrollbar Styling */
+        .sidebar-content::-webkit-scrollbar {
             width: 6px;
-            height: 6px;
-            background: #f59e0b;
-            border-radius: 50%;
-            margin-right: 4px;
         }
 
-        .offline-indicator.online {
-            background: #10b981;
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        /* Heat Map Legend */
+        .legend {
+            background: rgba(15, 23, 42, 0.95);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #334155;
+            font-size: 11px;
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 999;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
         }
     </style>
 </head>
@@ -232,12 +455,32 @@
         <!-- Map -->
         <div class="map-container">
             <div id="map"></div>
+
+            <!-- Top Bar Controls -->
             <div class="top-bar">
-                <input type="text" class="search-box" placeholder="Search workers...">
+                <input type="text" id="searchBox" class="search-box" style="flex: 1; max-width: 200px;" placeholder="ابحث عن موظف...">
                 <div class="controls">
-                    <button onclick="toggleTracking()">Auto Track</button>
-                    <button onclick="centerMap()">Center</button>
-                    <button onclick="toggleOfflineMode()">Offline Mode</button>
+                    <button id="heatmapBtn" title="خريطة الحرارة">🔥 Heatmap</button>
+                    <button id="trackingBtn" title="متابعة تلقائية">📍 Track</button>
+                    <button id="centerBtn" title="توسيط الخريطة">🎯 Center</button>
+                    <button id="refreshBtn" title="تحديث البيانات">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="legend" id="legend">
+                <div style="font-weight: 600; margin-bottom: 8px; color: #06b6d4;">وسيلة التوضيح</div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #10b981;"></div>
+                    <span>أون لاين - نشط</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #f59e0b;"></div>
+                    <span>بأوز</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ef4444;"></div>
+                    <span>أوفلاين</span>
                 </div>
             </div>
         </div>
@@ -245,50 +488,78 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <h1>Workers</h1>
-                <div class="status-indicator">
+                <h1>📊 لوحة التحكم الحية</h1>
+                <div class="connection-indicator">
                     <div id="connectionStatus" class="status-dot"></div>
-                    <span id="connectionText">Connecting...</span>
+                    <span id="connectionText">جاري الاتصال...</span>
                 </div>
             </div>
 
-            <div class="sidebar-content" id="workerList">
-                <!-- Workers populated by JS -->
-            </div>
+            <div class="sidebar-content">
+                <!-- Search and Filter -->
+                <div class="search-section">
+                    <input type="text" id="filterSearch" class="search-box" placeholder="بحث متقدم...">
+                    <div class="filter-chips">
+                        <div class="chip active" data-filter="all">الكل</div>
+                        <div class="chip" data-filter="active">🟢 نشط</div>
+                        <div class="chip" data-filter="pause">🟡 بأوز</div>
+                        <div class="chip" data-filter="offline">⚫ أوفلاين</div>
+                        <div class="chip" data-filter="lowbattery">🔋 بطارية منخفضة</div>
+                    </div>
+                </div>
 
-            <div class="stats">
-                <div class="stat-row">
-                    <span>Active Workers:</span>
-                    <span class="stat-value" id="activeWorkers">0</span>
+                <!-- Analytics Dashboard -->
+                <div class="analytics-section">
+                    <div class="analytics-title">📈 الإحصائيات الفورية</div>
+                    <div class="metric-grid">
+                        <div class="metric-card">
+                            <div class="metric-label">موظفين نشطين</div>
+                            <div class="metric-value" id="activeCount">0</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">متوسط البطارية</div>
+                            <div class="metric-value" id="avgBattery">--%</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">بأوز</div>
+                            <div class="metric-value" id="pauseCount">0</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-label">أوفلاين</div>
+                            <div class="metric-value critical" id="offlineCount">0</div>
+                        </div>
+                    </div>
+                    <div style="font-size: 10px; color: #64748b; text-align: center;">
+                        آخر تحديث: <span id="lastUpdate">--:--:--</span>
+                    </div>
                 </div>
-                <div class="stat-row">
-                    <span>Offline Cache:</span>
-                    <span class="stat-value" id="offlineCache">0 records</span>
+
+                <!-- Alerts Section -->
+                <div class="alerts-section" id="alertsSection" style="display: none;">
+                    <div class="analytics-title">🚨 التنبيهات</div>
+                    <div id="alertsList"></div>
                 </div>
-                <div class="stat-row">
-                    <span>Avg Battery:</span>
-                    <span class="stat-value" id="avgBattery">--</span>
-                </div>
-                <div class="stat-row">
-                    <span>Last Update:</span>
-                    <span class="stat-value" id="lastUpdate">--</span>
+
+                <!-- Worker List -->
+                <div class="worker-list-section">
+                    <div class="section-title">👷 الموظفون</div>
+                    <div id="workerList"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Initialize map
-        const map = L.map('map').setView([40.7128, -74.0060], 13);
+        // Initialize Map
+        const map = L.map('map').setView([52.52, 13.405], 12);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
+            attribution: '© OpenStreetMap',
             maxZoom: 19
         }).addTo(map);
 
         // Configuration
         const CONFIG = {
             API_BASE_URL: window.location.origin,
-            SOCKET_URL: window.location.origin,
             AUTH_TOKEN: 'test-token',
             POLL_INTERVAL: 3000
         };
@@ -300,96 +571,86 @@
             isOnline: false,
             isTracking: false,
             selectedWorker: null,
-            offlineMode: false,
-            socket: null,
+            heatmapEnabled: false,
+            currentFilter: 'all',
+            alerts: [],
             lastUpdate: new Date()
         };
 
-        // WebSocket connection to real backend
+        // Initialize WebSocket
         function initWebSocket() {
-            console.log('Connecting to backend at:', CONFIG.API_BASE_URL);
-
-            // Try Socket.IO first
             try {
-                state.socket = io(CONFIG.SOCKET_URL, {
+                state.socket = io(CONFIG.API_BASE_URL, {
                     extraHeaders: { 'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}` },
                     reconnection: true,
                     reconnectionDelay: 1000,
-                    reconnectionDelayMax: 5000,
                     reconnectionAttempts: 5
                 });
 
                 state.socket.on('connect', () => {
-                    console.log('Socket.IO connected');
                     state.isOnline = true;
                     updateConnectionStatus();
+                    addAlert('✅ متصل بالخادم', 'info');
                     state.socket.emit('subscribe', { event: 'worker_location' });
                 });
 
                 state.socket.on('disconnect', () => {
-                    console.log('Socket.IO disconnected');
                     state.isOnline = false;
                     updateConnectionStatus();
+                    addAlert('⚠️ فقدان الاتصال', 'warning');
                 });
 
                 state.socket.on('worker_location', (data) => {
-                    console.log('Received worker location:', data);
                     updateWorker(data);
                 });
-
-                state.socket.on('ai_event', (data) => {
-                    console.log('Received AI event:', data);
-                });
             } catch (e) {
-                console.log('Socket.IO not available, using HTTP polling');
+                console.log('WebSocket not available');
             }
 
-            // Fallback: HTTP polling
             loadWorkersFromAPI();
             setInterval(loadWorkersFromAPI, CONFIG.POLL_INTERVAL);
         }
 
-        // Load workers from real API
+        // Load from API
         async function loadWorkersFromAPI() {
             try {
                 const params = new URLSearchParams({
-                    latitude: 40.7128,
-                    longitude: -74.0060,
-                    company_id: 'demo-company',
-                    max_results: 10
+                    latitude: 52.52,
+                    longitude: 13.405,
+                    company_id: 'demo',
+                    max_results: 20
                 });
 
-                const response = await fetch(`${CONFIG.API_BASE_URL}/api/suppix/geospatial/nearest-cameras?${params}`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}`
-                    }
-                });
+                const response = await fetch(
+                    `${CONFIG.API_BASE_URL}/api/suppix/geospatial/nearest-cameras?${params}`,
+                    { headers: { 'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}` } }
+                );
 
-                if (!response.ok) throw new Error(`API error: ${response.status}`);
+                if (!response.ok) throw new Error('API error');
                 const data = await response.json();
 
-                if (!state.isOnline) {
+                if (!state.isOnline && response.ok) {
                     state.isOnline = true;
                     updateConnectionStatus();
                 }
 
-                // Simulate worker data from camera data
+                // Simulate workers from camera data
                 if (data.cameras && data.cameras.length > 0) {
                     data.cameras.forEach((camera, idx) => {
                         const worker = {
                             id: `w-${idx + 1}`,
-                            name: `Worker ${idx + 1}`,
-                            lat: camera.latitude || 40.7128 + Math.random() * 0.01,
-                            lng: camera.longitude || -74.0060 + Math.random() * 0.01,
-                            battery: 80 - idx * 10,
-                            status: 'active'
+                            name: `عامل ${idx + 1}`,
+                            lat: camera.latitude || 52.52 + Math.random() * 0.05,
+                            lng: camera.longitude || 13.405 + Math.random() * 0.05,
+                            battery: 100 - Math.random() * 60,
+                            status: Math.random() > 0.3 ? 'active' : (Math.random() > 0.5 ? 'pause' : 'offline'),
+                            distance: Math.random() * 5
                         };
                         updateWorker(worker);
                     });
                 }
             } catch (error) {
-                console.error('Error loading from API:', error);
+                console.error('API Error:', error);
                 if (state.isOnline) {
                     state.isOnline = false;
                     updateConnectionStatus();
@@ -398,11 +659,13 @@
             }
         }
 
+        // Simulate Data
         function simulateFallbackData() {
             const workers = [
-                { id: 'w-001', name: 'Alex Mueller', lat: 40.7128, lng: -74.0060, battery: 85, status: 'active' },
-                { id: 'w-002', name: 'Sarah Schmidt', lat: 40.7150, lng: -74.0080, battery: 72, status: 'active' },
-                { id: 'w-003', name: 'John Smith', lat: 40.7100, lng: -74.0040, battery: 45, status: 'active' }
+                { id: 'w-001', name: 'أحمد محمد', lat: 52.52, lng: 13.405, battery: 85, status: 'active', distance: 0.2 },
+                { id: 'w-002', name: 'فاطمة علي', lat: 52.53, lng: 13.41, battery: 72, status: 'active', distance: 1.5 },
+                { id: 'w-003', name: 'محمود حسن', lat: 52.51, lng: 13.4, battery: 45, status: 'pause', distance: 0.8 },
+                { id: 'w-004', name: 'سارة ياسين', lat: 52.525, lng: 13.415, battery: 20, status: 'offline', distance: 2.1 }
             ];
             workers.forEach(w => updateWorker(w));
         }
@@ -413,11 +676,11 @@
 
             if (state.isOnline) {
                 status.classList.add('connected');
-                text.textContent = 'Connected';
+                text.textContent = '✅ متصل';
                 text.style.color = '#10b981';
             } else {
                 status.classList.remove('connected');
-                text.textContent = 'Offline';
+                text.textContent = '⚠️ أوفلاين';
                 text.style.color = '#f59e0b';
             }
         }
@@ -429,65 +692,100 @@
                 const marker = state.markers.get(worker.id);
                 marker.setLatLng([worker.lat, worker.lng]);
             } else {
+                const colors = {
+                    'active': '#10b981',
+                    'pause': '#f59e0b',
+                    'offline': '#ef4444'
+                };
+
                 const marker = L.circleMarker([worker.lat, worker.lng], {
-                    radius: 8,
-                    fillColor: worker.status === 'offline' ? '#f59e0b' : '#10b981',
+                    radius: Math.max(6, worker.battery / 15),
+                    fillColor: colors[worker.status] || '#06b6d4',
                     color: '#0f172a',
                     weight: 2,
                     opacity: 1,
                     fillOpacity: 0.8
                 }).addTo(map);
 
-                marker.bindPopup(`<strong>${worker.name}</strong><br/>Battery: ${Math.round(worker.battery)}%`);
+                const popupContent = `
+                    <strong>${worker.name}</strong><br/>
+                    البطارية: ${Math.round(worker.battery)}%<br/>
+                    الحالة: ${worker.status}<br/>
+                    المسافة: ${worker.distance?.toFixed(2) || 'N/A'} km
+                `;
+
+                marker.bindPopup(popupContent);
                 marker.on('click', () => selectWorker(worker.id));
                 state.markers.set(worker.id, marker);
             }
 
             updateWorkerList();
             updateStats();
+            applyFilter();
         }
 
         function updateWorkerList() {
             const list = document.getElementById('workerList');
             list.innerHTML = '';
 
-            state.workers.forEach((worker, id) => {
+            const sortedWorkers = Array.from(state.workers.values()).sort(
+                (a, b) => (b.battery || 0) - (a.battery || 0)
+            );
+
+            sortedWorkers.forEach((worker) => {
                 const div = document.createElement('div');
-                div.className = 'worker-item' + (state.selectedWorker === id ? ' active' : '');
+                div.className = 'worker-item' + (state.selectedWorker === worker.id ? ' active' : '');
 
                 const batteryClass = worker.battery > 50 ? '' : worker.battery > 20 ? 'low' : 'critical';
+                const statusEmoji = { active: '🟢', pause: '🟡', offline: '⚫' }[worker.status] || '❓';
 
                 div.innerHTML = `
-                    <div class="worker-name">
-                        <span class="offline-indicator ${worker.status === 'active' ? 'online' : ''}"></span>
-                        ${worker.name}
+                    <div class="worker-header">
+                        <div class="worker-name">
+                            ${statusEmoji} ${worker.name}
+                        </div>
+                        <span class="status-badge ${worker.status === 'offline' ? 'offline' : ''}">
+                            ${worker.status === 'active' ? 'نشط' : worker.status === 'pause' ? 'بأوز' : 'أوفلاين'}
+                        </span>
                     </div>
-                    <div class="worker-status">
-                        <span>${worker.status === 'offline' ? 'Offline' : 'Active'}</span>
-                        <div class="battery">
+                    <div class="worker-info">
+                        <div class="battery-section">
                             <span>${Math.round(worker.battery)}%</span>
                             <div class="battery-bar">
                                 <div class="battery-fill ${batteryClass}" style="width: ${worker.battery}%"></div>
                             </div>
                         </div>
+                        <div class="distance-info">${worker.distance?.toFixed(1) || '0'} km</div>
                     </div>
                 `;
 
-                div.onclick = () => selectWorker(id);
+                div.onclick = () => selectWorker(worker.id);
                 list.appendChild(div);
+
+                if (worker.battery < 20) {
+                    addAlert(`🔋 بطارية ${worker.name} منخفضة جداً (${Math.round(worker.battery)}%)`, 'critical');
+                }
             });
         }
 
         function updateStats() {
             const active = Array.from(state.workers.values()).filter(w => w.status === 'active').length;
-            document.getElementById('activeWorkers').textContent = active;
+            const pause = Array.from(state.workers.values()).filter(w => w.status === 'pause').length;
+            const offline = Array.from(state.workers.values()).filter(w => w.status === 'offline').length;
+
+            document.getElementById('activeCount').textContent = active;
+            document.getElementById('pauseCount').textContent = pause;
+            document.getElementById('offlineCount').textContent = offline;
 
             const avgBattery = state.workers.size > 0
-                ? Math.round(Array.from(state.workers.values()).reduce((sum, w) => sum + w.battery, 0) / state.workers.size)
+                ? Math.round(Array.from(state.workers.values()).reduce((sum, w) => sum + (w.battery || 0), 0) / state.workers.size)
                 : 0;
-            document.getElementById('avgBattery').textContent = avgBattery + '%';
+            const batteryEl = document.getElementById('avgBattery');
+            batteryEl.textContent = avgBattery + '%';
+            batteryEl.className = 'metric-value' + (avgBattery < 30 ? ' critical' : avgBattery < 50 ? ' warning' : '');
 
-            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar-SA');
+            state.lastUpdate = new Date();
         }
 
         function selectWorker(workerId) {
@@ -496,26 +794,87 @@
             if (worker) {
                 map.setView([worker.lat, worker.lng], 15);
                 updateWorkerList();
+                addAlert(`📍 تم تحديد ${worker.name}`, 'info');
             }
         }
 
-        function toggleTracking() {
-            state.isTracking = !state.isTracking;
-            console.log('Tracking:', state.isTracking);
+        function addAlert(message, type = 'info') {
+            const alert = { message, type, time: new Date() };
+            state.alerts.unshift(alert);
+            if (state.alerts.length > 10) state.alerts.pop();
+
+            const alertsSection = document.getElementById('alertsSection');
+            alertsSection.style.display = 'block';
+
+            const alertsList = document.getElementById('alertsList');
+            alertsList.innerHTML = state.alerts.map(a => `
+                <div class="alert-item ${a.type}">
+                    ${a.message}
+                    <span class="alert-time">${a.time.toLocaleTimeString('ar-SA')}</span>
+                </div>
+            `).join('');
         }
 
-        function centerMap() {
+        function applyFilter() {
+            if (state.currentFilter === 'all') return;
+
+            state.workers.forEach(worker => {
+                const marker = state.markers.get(worker.id);
+                if (!marker) return;
+
+                let show = false;
+                if (state.currentFilter === 'active') show = worker.status === 'active';
+                else if (state.currentFilter === 'pause') show = worker.status === 'pause';
+                else if (state.currentFilter === 'offline') show = worker.status === 'offline';
+                else if (state.currentFilter === 'lowbattery') show = worker.battery < 30;
+
+                marker.setOpacity(show ? 1 : 0.2);
+            });
+        }
+
+        // Event Listeners
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+                chip.classList.add('active');
+                state.currentFilter = chip.dataset.filter;
+                applyFilter();
+            });
+        });
+
+        document.getElementById('heatmapBtn').addEventListener('click', () => {
+            state.heatmapEnabled = !state.heatmapEnabled;
+            document.getElementById('heatmapBtn').style.opacity = state.heatmapEnabled ? '1' : '0.6';
+            addAlert(state.heatmapEnabled ? '🔥 تفعيل خريطة الحرارة' : '❌ إيقاف خريطة الحرارة', 'info');
+        });
+
+        document.getElementById('trackingBtn').addEventListener('click', () => {
+            state.isTracking = !state.isTracking;
+            document.getElementById('trackingBtn').style.opacity = state.isTracking ? '1' : '0.6';
+            addAlert(state.isTracking ? '📍 تفعيل المتابعة التلقائية' : '❌ إيقاف المتابعة', 'info');
+        });
+
+        document.getElementById('centerBtn').addEventListener('click', () => {
             if (state.selectedWorker) {
                 selectWorker(state.selectedWorker);
             } else {
-                map.setView([40.7128, -74.0060], 13);
+                map.setView([52.52, 13.405], 12);
             }
-        }
+        });
 
-        function toggleOfflineMode() {
-            state.offlineMode = !state.offlineMode;
-            console.log('Offline mode:', state.offlineMode);
-        }
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            loadWorkersFromAPI();
+            addAlert('🔄 تم تحديث البيانات', 'info');
+        });
+
+        // Search
+        document.getElementById('filterSearch').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.worker-item').forEach(item => {
+                const name = item.textContent.toLowerCase();
+                item.style.display = name.includes(query) ? '' : 'none';
+            });
+        });
 
         // Initialize
         initWebSocket();
