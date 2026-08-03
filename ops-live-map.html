@@ -52,12 +52,41 @@
       text-align: right;
     }
     header {
-      padding: 0.65rem 1rem; border-bottom: 1px solid var(--border);
+      padding: 0.45rem 0.85rem; border-bottom: 1px solid var(--border);
       background: linear-gradient(180deg, var(--panel) 0%, rgba(0,0,0,0.2) 100%);
       display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; justify-content: space-between;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+      -webkit-backdrop-filter: blur(8px);
       backdrop-filter: blur(8px);
       transition: all 0.3s ease-out;
+    }
+    .ops-header-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+    .ops-header-brand-copy {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.06rem;
+    }
+    .ops-header-brand-copy strong {
+      display: block;
+      font-size: 0.95rem;
+      line-height: 1.15;
+    }
+    .ops-header-brand-copy #status {
+      display: block;
+      font-size: 0.78rem;
+      color: var(--muted, #94a3b8);
+      line-height: 1.2;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: min(56vw, 520px);
     }
     html[dir="rtl"] header {
       direction: rtl;
@@ -86,6 +115,54 @@
     html[dir="rtl"] header a {
       margin-inline-start: 0;
       margin-inline-end: 0.75rem;
+    }
+    .ops-header [data-tenant-logo],
+    .ops-header .tenant-logo-chip {
+      width: 42px !important;
+      height: 42px !important;
+      max-width: 42px !important;
+      max-height: 42px !important;
+      min-width: 42px;
+      min-height: 42px;
+      object-fit: contain;
+      flex-shrink: 0;
+      display: block;
+      border-radius: 10px;
+      padding: 3px;
+      background: rgba(15, 23, 42, 0.28);
+      border: 1px solid rgba(148, 163, 184, 0.26);
+    }
+    .ops-header nav {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    #companySelect {
+      display: none;
+    }
+    #opsMapLangSelect {
+      font-size: 0.78rem;
+      padding: 0.2rem 0.35rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+    }
+    #themeToggleBtn {
+      margin-inline-start: 8px;
+      padding: 0.3rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    #refreshBtn {
+      margin-inline-start: 8px;
     }
     #map {
       flex: 1;
@@ -120,6 +197,7 @@
       font-size: 0.78rem;
       min-width: 9.5rem;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(34, 211, 238, 0.15);
+      -webkit-backdrop-filter: blur(12px);
       backdrop-filter: blur(12px);
       transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
       animation: legendSlideIn 0.6s ease-out;
@@ -261,6 +339,7 @@
       text-overflow: ellipsis;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6), 0 0 8px rgba(34, 211, 238, 0.1);
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      -webkit-backdrop-filter: blur(4px);
       backdrop-filter: blur(4px);
     }
     .ops-map-pin:hover .ops-map-pin-label {
@@ -458,9 +537,9 @@
       transition: all 0.3s ease;
       width: 16px;
       height: 16px;
-      appearance: none;
       -webkit-appearance: none;
       -moz-appearance: none;
+      appearance: none;
       border: 1px solid rgba(34, 211, 238, 0.4);
       border-radius: 3px;
       background: linear-gradient(135deg, #0f172a 0%, #1a2d3a 100%);
@@ -637,25 +716,25 @@
 </head>
 <body class="ops-app">
   <header class="ops-header">
-    <div style="display:flex;align-items:center;gap:0.65rem;">
+    <div class="ops-header-brand">
       <img data-tenant-logo class="tenant-logo-chip" src="/branding/suppix-ai-mark.svg" alt="Suppix AI" />
-      <div>
+      <div class="ops-header-brand-copy">
         <strong id="opsMapTitle">Smart Workforce Map</strong>
         <span id="status">Laden…</span>
       </div>
     </div>
     <nav>
-      <select id="companySelect" style="display:none"></select>
+      <select id="companySelect"></select>
       <a href="/ops-command-center.html" data-omapi18n="navCommand">Command Center</a>
       <a href="/ai-command-center.html" data-omapi18n="navAi">KI</a>
       <a href="/admin-v2/index.html" data-omapi18n="navAdmin">Admin</a>
-      <select id="opsMapLangSelect" aria-label="Sprache" style="font-size:0.78rem;padding:0.2rem 0.35rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);">
+      <select id="opsMapLangSelect" aria-label="Sprache">
         <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
         <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
         <option value="it">IT</option><option value="pl">PL</option>
       </select>
-      <button type="button" id="themeToggleBtn" title="Dunkelmodus / Hellmodus" style="margin-inline-start:8px;padding:0.3rem 0.55rem;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--text);cursor:pointer;font-size:0.85rem;font-weight:600;">🌙</button>
-      <button type="button" id="refreshBtn" style="margin-inline-start:8px">Aktualisieren</button>
+      <button type="button" id="themeToggleBtn" title="Dunkelmodus / Hellmodus">🌙</button>
+      <button type="button" id="refreshBtn">Aktualisieren</button>
     </nav>
   </header>
   <div class="wrap">
@@ -727,10 +806,11 @@
     function getTileLayerConfig() {
       const isDarkMode = document.documentElement.classList.contains('dark-mode');
       if (isDarkMode) {
-        // Dark mode: Stamen Toner Lite (dark with clear street names)
+        // Dark mode: CartoDB Dark Matter (reliable dark basemap with road lines + labels)
         return {
-          url: "https://stamen-tiles-{s}.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}{r}.png",
-          attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a> — Map data © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+          subdomains: "abcd",
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
           maxZoom: 19,
         };
       } else {
@@ -744,16 +824,54 @@
     }
 
     let tileLayer = null;
+    let darkTileFallbackApplied = false;
+
+    const OSM_FALLBACK_TILE = {
+      url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    };
 
     function updateMapTiles() {
       if (!map || typeof map.removeLayer !== 'function') return;
       if (tileLayer && typeof map.removeLayer === 'function') {
         try { map.removeLayer(tileLayer); } catch (_) {}
       }
+      const isDarkMode = document.documentElement.classList.contains('dark-mode');
+      if (!isDarkMode) darkTileFallbackApplied = false;
       const config = getTileLayerConfig();
       tileLayer = L.tileLayer(config.url, config);
+
+      if (isDarkMode) {
+        let darkTileErrorCount = 0;
+        tileLayer.on("tileerror", () => {
+          darkTileErrorCount += 1;
+          if (darkTileFallbackApplied || darkTileErrorCount < 2) return;
+          darkTileFallbackApplied = true;
+          try { map.removeLayer(tileLayer); } catch (_) {}
+          tileLayer = L.tileLayer(OSM_FALLBACK_TILE.url, OSM_FALLBACK_TILE);
+          if (typeof tileLayer.addTo === 'function') {
+            tileLayer.addTo(map);
+          }
+        });
+      }
+
       if (typeof tileLayer.addTo === 'function') {
         tileLayer.addTo(map);
+      }
+    }
+
+    function ensureBaseMapInitialized() {
+      if (map) return;
+      try {
+        map = L.map("map").setView([52.52, 13.405], 12);
+        if (typeof map.addLayer !== 'function') {
+          console.error("Map object does not have addLayer method. Leaflet may not be loaded properly.");
+          return;
+        }
+        updateMapTiles();
+      } catch (e) {
+        console.error("Failed to initialize base map:", e);
       }
     }
     let workerClusterLayer = null;
@@ -1360,9 +1478,16 @@
         layers.cameras.push(m);
         bounds.push([cam.lat, cam.lng]);
       });
-      if (!mapFittedOnce && bounds.length > 1) {
-        map.fitBounds(bounds, { padding: [40, 40] });
-        mapFittedOnce = true;
+      if (!mapFittedOnce) {
+        if (bounds.length > 1) {
+          map.fitBounds(bounds, { padding: [40, 40] });
+          mapFittedOnce = true;
+        } else if (bounds.length === 1) {
+          map.setView(bounds[0], 16);
+          mapFittedOnce = true;
+        } else if (c?.lat != null && c?.lng != null) {
+          map.setView([c.lat, c.lng], 14);
+        }
       }
       const missing = data.counts?.missingExpected ?? data.missingExpected ?? 0;
       const camAlerts = data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0;
@@ -1595,6 +1720,7 @@
       }
     };
     initDarkMode();
+    ensureBaseMapInitialized();
 
     // Accessibility enhancements (WCAG 2.1 AA)
     const initAccessibility = () => {
