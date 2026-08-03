@@ -3,9 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SUPPIX Live Worker Map - Advanced</title>
+    <title>خريطة عمال SUPPIX المباشرة - متقدمة</title>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/heatmap.js@2.0.5/build/heatmap.js"></script>
+    <script src="https://unpkg.com/leaflet-heatmap@1.0.0/leaflet-heatmap.js"></script>
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <style>
@@ -16,10 +21,11 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #0f172a;
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1a1f3a 100%);
             color: #e2e8f0;
             direction: rtl;
+            overflow: hidden;
         }
 
         .container {
@@ -30,34 +36,89 @@
         .map-container {
             flex: 1;
             position: relative;
+            overflow: hidden;
         }
 
         #map {
             width: 100%;
             height: 100%;
+            z-index: 1;
+        }
+
+        .map-overlay {
+            position: absolute;
+            top: 0;
+            right: 0;
+            z-index: 400;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px;
+            border: 1px solid rgba(14, 116, 144, 0.3);
+            min-width: 200px;
+        }
+
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 400;
+            background: rgba(15, 23, 42, 0.95);
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(14, 116, 144, 0.5);
+            backdrop-filter: blur(10px);
+            min-width: 200px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .legend-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #06b6d4;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+            padding-bottom: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
         }
 
         .sidebar {
             width: 380px;
-            background: #1a1f3a;
+            background: linear-gradient(180deg, #1a1f3a 0%, #0f172a 100%);
             border-left: 2px solid #0e7490;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: -2px 0 8px rgba(0, 0, 0, 0.3);
+            box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
         }
 
         .sidebar-header {
             padding: 16px;
             border-bottom: 2px solid #0e7490;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            background: linear-gradient(135deg, #0e7490 0%, #0a5a6f 100%);
         }
 
         .sidebar-header h1 {
             font-size: 18px;
             font-weight: 700;
             margin-bottom: 8px;
-            color: #06b6d4;
+            color: #ffffff;
         }
 
         .connection-indicator {
@@ -74,17 +135,17 @@
             border-radius: 50%;
             background: #ef4444;
             animation: pulse 2s infinite;
-            box-shadow: 0 0 4px rgba(239, 68, 68, 0.5);
+            box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
         }
 
         .status-dot.connected {
             background: #10b981;
-            box-shadow: 0 0 4px rgba(16, 185, 129, 0.5);
+            box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; box-shadow: 0 0 6px currentColor; }
+            50% { opacity: 0.6; box-shadow: 0 0 12px currentColor; }
         }
 
         .sidebar-content {
@@ -93,7 +154,23 @@
             padding: 12px;
         }
 
-        /* Search and Filter Section */
+        .sidebar-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: #0e7490;
+            border-radius: 3px;
+        }
+
+        .sidebar-content::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+
         .search-section {
             margin-bottom: 16px;
         }
@@ -107,13 +184,14 @@
             color: #e2e8f0;
             font-size: 13px;
             margin-bottom: 8px;
-            transition: border-color 0.2s;
+            transition: all 0.3s ease;
         }
 
         .search-box:focus {
             outline: none;
             border-color: #06b6d4;
-            box-shadow: 0 0 8px rgba(6, 182, 212, 0.2);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+            background: #1e293b;
         }
 
         .filter-chips {
@@ -124,65 +202,75 @@
         }
 
         .chip {
-            padding: 6px 10px;
+            padding: 6px 12px;
             background: #334155;
             border: 1px solid #475569;
             border-radius: 20px;
             font-size: 11px;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s ease;
+            white-space: nowrap;
         }
 
         .chip:hover {
             background: #475569;
             border-color: #06b6d4;
+            transform: translateY(-2px);
         }
 
         .chip.active {
-            background: #06b6d4;
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
             border-color: #0891b2;
-            color: #0f172a;
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.3);
         }
 
-        /* Analytics Dashboard */
         .analytics-section {
-            background: #0f172a;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid #334155;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 14px;
+            border: 1px solid rgba(14, 116, 144, 0.3);
+            backdrop-filter: blur(10px);
         }
 
         .analytics-title {
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
             color: #06b6d4;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .metric-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 8px;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
         .metric-card {
-            background: #1e293b;
-            padding: 10px;
-            border-radius: 6px;
-            border: 1px solid #334155;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(14, 116, 144, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .metric-card:hover {
+            border-color: rgba(6, 182, 212, 0.4);
+            box-shadow: 0 4px 12px rgba(6, 182, 212, 0.1);
         }
 
         .metric-label {
             font-size: 11px;
             color: #94a3b8;
-            margin-bottom: 4px;
+            margin-bottom: 6px;
         }
 
         .metric-value {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             color: #10b981;
         }
@@ -195,689 +283,819 @@
             color: #ef4444;
         }
 
-        /* Worker List */
+        .chart-container {
+            position: relative;
+            height: 200px;
+            margin-top: 10px;
+        }
+
         .worker-list-section {
             margin-bottom: 12px;
         }
 
-        .section-title {
+        .worker-list-title {
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
             color: #06b6d4;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             text-transform: uppercase;
-            padding: 0 4px;
         }
 
         .worker-item {
-            padding: 12px;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(14, 116, 144, 0.2);
             border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
             cursor: pointer;
-            transition: all 0.3s;
-            border-left: 3px solid transparent;
-            border: 1px solid #334155;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
         }
 
         .worker-item:hover {
-            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
-            border-color: #06b6d4;
-            transform: translateX(-4px);
-        }
-
-        .worker-item.active {
-            background: linear-gradient(135deg, #0e7490 0%, #06b6d4 100%);
-            border-left-color: #06b6d4;
-            border-color: #0891b2;
+            background: rgba(6, 182, 212, 0.1);
+            border-color: rgba(6, 182, 212, 0.4);
+            transform: translateX(4px);
         }
 
         .worker-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }
 
         .worker-name {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             color: #e2e8f0;
+        }
+
+        .worker-status {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
+            font-size: 11px;
         }
 
         .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 10px;
-            padding: 2px 6px;
-            background: rgba(16, 185, 129, 0.2);
-            border-radius: 12px;
-            color: #10b981;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .status-badge.active {
+            background: #10b981;
+        }
+
+        .status-badge.pause {
+            background: #f59e0b;
         }
 
         .status-badge.offline {
-            background: rgba(245, 158, 11, 0.2);
-            color: #f59e0b;
+            background: #ef4444;
         }
 
-        .worker-info {
+        .worker-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .detail-item {
             display: flex;
             justify-content: space-between;
-            font-size: 11px;
-            color: #cbd5e1;
-            margin-bottom: 6px;
+            color: #94a3b8;
         }
 
-        .battery-section {
-            display: flex;
-            align-items: center;
-            gap: 6px;
+        .detail-value {
+            color: #10b981;
+            font-weight: 600;
         }
 
         .battery-bar {
-            width: 30px;
-            height: 6px;
-            background: #0f172a;
-            border-radius: 3px;
+            width: 100%;
+            height: 4px;
+            background: #1e293b;
+            border-radius: 2px;
             overflow: hidden;
-            border: 1px solid #334155;
+            margin-top: 6px;
         }
 
         .battery-fill {
             height: 100%;
             background: linear-gradient(90deg, #10b981 0%, #06b6d4 100%);
-            transition: width 0.3s;
+            transition: width 0.3s ease;
+            border-radius: 2px;
         }
 
-        .battery-fill.low {
-            background: linear-gradient(90deg, #f59e0b 0%, #d97706 100%);
+        .battery-fill.warning {
+            background: linear-gradient(90deg, #f59e0b 0%, #ff6b1b 100%);
         }
 
         .battery-fill.critical {
-            background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
-            animation: blink 1s infinite;
+            background: linear-gradient(90deg, #ef4444 0%, #c71f1f 100%);
         }
 
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        .distance-info {
-            font-size: 10px;
-            color: #94a3b8;
-            background: rgba(6, 182, 212, 0.1);
-            padding: 4px 6px;
-            border-radius: 4px;
-        }
-
-        /* Alerts Section */
-        .alerts-section {
-            background: #0f172a;
-            border-radius: 8px;
+        .alert-section {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 10px;
             padding: 12px;
-            margin-bottom: 12px;
-            border: 1px solid #334155;
-            max-height: 150px;
-            overflow-y: auto;
+            border: 1px solid rgba(14, 116, 144, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .alert-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #06b6d4;
+            margin-bottom: 8px;
+            text-transform: uppercase;
         }
 
         .alert-item {
+            font-size: 11px;
             padding: 8px;
             margin-bottom: 6px;
-            background: rgba(239, 68, 68, 0.1);
-            border-left: 3px solid #ef4444;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #fca5a5;
-        }
-
-        .alert-item.warning {
-            background: rgba(245, 158, 11, 0.1);
-            border-left-color: #f59e0b;
-            color: #fcd34d;
-        }
-
-        .alert-item.info {
             background: rgba(6, 182, 212, 0.1);
-            border-left-color: #06b6d4;
-            color: #a5f3fc;
+            border-left: 3px solid #06b6d4;
+            border-radius: 4px;
+            color: #e2e8f0;
         }
 
         .alert-time {
             font-size: 10px;
-            color: #64748b;
-            display: block;
+            color: #94a3b8;
             margin-top: 2px;
         }
 
-        /* Top Bar Controls */
-        .top-bar {
+        .top-controls {
             position: absolute;
-            top: 16px;
-            left: 16px;
-            right: 16px;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(8px);
-            padding: 12px 16px;
+            top: 20px;
+            left: 20px;
+            z-index: 400;
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            width: 44px;
+            height: 44px;
             border-radius: 8px;
-            border: 1px solid #334155;
-            z-index: 1000;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(14, 116, 144, 0.3);
+            color: #06b6d4;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn:hover {
+            background: rgba(6, 182, 212, 0.2);
+            border-color: rgba(6, 182, 212, 0.5);
+            transform: scale(1.05);
+        }
+
+        .control-btn.active {
+            background: rgba(6, 182, 212, 0.3);
+            box-shadow: 0 0 12px rgba(6, 182, 212, 0.3);
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: rgba(15, 23, 42, 0.95) !important;
+            border: 1px solid rgba(14, 116, 144, 0.3) !important;
+            border-radius: 8px !important;
+            backdrop-filter: blur(10px) !important;
+        }
+
+        .leaflet-popup-content {
+            color: #e2e8f0 !important;
+            font-size: 12px !important;
+        }
+
+        .leaflet-popup-tip {
+            background: rgba(15, 23, 42, 0.95) !important;
+            border: 1px solid rgba(14, 116, 144, 0.3) !important;
+        }
+
+        .worker-popup {
+            padding: 8px;
+        }
+
+        .worker-popup-title {
+            font-weight: 700;
+            color: #06b6d4;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(6, 182, 212, 0.3);
+            padding-bottom: 4px;
+        }
+
+        .worker-popup-item {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            margin-bottom: 4px;
         }
 
-        .controls {
-            display: flex;
-            gap: 8px;
+        .worker-popup-label {
+            color: #94a3b8;
         }
 
-        button {
-            background: linear-gradient(135deg, #0e7490 0%, #06b6d4 100%);
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.2s;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        .worker-popup-value {
+            color: #10b981;
+            font-weight: 600;
         }
 
-        button:hover {
-            background: linear-gradient(135deg, #155e75 0%, #0891b2 100%);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 320px;
+            }
 
-        button.secondary {
-            background: #334155;
-        }
-
-        button.secondary:hover {
-            background: #475569;
-        }
-
-        /* Scrollbar Styling */
-        .sidebar-content::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .sidebar-content::-webkit-scrollbar-track {
-            background: #0f172a;
-        }
-
-        .sidebar-content::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 3px;
-        }
-
-        .sidebar-content::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
-
-        /* Heat Map Legend */
-        .legend {
-            background: rgba(15, 23, 42, 0.95);
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #334155;
-            font-size: 11px;
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            z-index: 999;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 6px;
-        }
-
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
+            .map-legend {
+                min-width: 150px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- Map -->
         <div class="map-container">
             <div id="map"></div>
 
-            <!-- Top Bar Controls -->
-            <div class="top-bar">
-                <input type="text" id="searchBox" class="search-box" style="flex: 1; max-width: 200px;" placeholder="ابحث عن موظف...">
-                <div class="controls">
-                    <button id="heatmapBtn" title="خريطة الحرارة">🔥 Heatmap</button>
-                    <button id="trackingBtn" title="متابعة تلقائية">📍 Track</button>
-                    <button id="centerBtn" title="توسيط الخريطة">🎯 Center</button>
-                    <button id="refreshBtn" title="تحديث البيانات">🔄 Refresh</button>
-                </div>
+            <div class="top-controls">
+                <button class="control-btn" id="heatmapBtn" title="عرض خريطة الحرارة">🔥</button>
+                <button class="control-btn" id="trackBtn" title="تتبع تلقائي">🎯</button>
+                <button class="control-btn" id="centerBtn" title="توسيط الخريطة">📍</button>
+                <button class="control-btn" id="refreshBtn" title="تحديث">🔄</button>
             </div>
 
-            <!-- Legend -->
-            <div class="legend" id="legend">
-                <div style="font-weight: 600; margin-bottom: 8px; color: #06b6d4;">وسيلة التوضيح</div>
+            <div class="map-legend">
+                <div class="legend-title">وسيلة إيضاح الخريطة</div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #10b981;"></div>
-                    <span>أون لاين - نشط</span>
+                    <span>عامل نشط</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #f59e0b;"></div>
-                    <span>بأوز</span>
+                    <span>موقوف</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color" style="background: #ef4444;"></div>
-                    <span>أوفلاين</span>
+                    <span>غير متصل</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ec4899;"></div>
+                    <span>بطارية منخفضة</span>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar -->
         <div class="sidebar">
             <div class="sidebar-header">
-                <h1>📊 لوحة التحكم الحية</h1>
+                <h1>خريطة عمال SUPPIX</h1>
                 <div class="connection-indicator">
-                    <div id="connectionStatus" class="status-dot"></div>
-                    <span id="connectionText">جاري الاتصال...</span>
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="connectionStatus">جاري الاتصال...</span>
                 </div>
             </div>
 
             <div class="sidebar-content">
-                <!-- Search and Filter -->
                 <div class="search-section">
-                    <input type="text" id="filterSearch" class="search-box" placeholder="بحث متقدم...">
+                    <input type="text" class="search-box" id="searchBox" placeholder="ابحث عن العامل...">
                     <div class="filter-chips">
                         <div class="chip active" data-filter="all">الكل</div>
-                        <div class="chip" data-filter="active">🟢 نشط</div>
-                        <div class="chip" data-filter="pause">🟡 بأوز</div>
-                        <div class="chip" data-filter="offline">⚫ أوفلاين</div>
-                        <div class="chip" data-filter="lowbattery">🔋 بطارية منخفضة</div>
+                        <div class="chip" data-filter="active">نشط</div>
+                        <div class="chip" data-filter="pause">توقف</div>
+                        <div class="chip" data-filter="offline">غير متصل</div>
+                        <div class="chip" data-filter="low-battery">بطارية منخفضة</div>
                     </div>
                 </div>
 
-                <!-- Analytics Dashboard -->
                 <div class="analytics-section">
-                    <div class="analytics-title">📈 الإحصائيات الفورية</div>
+                    <div class="analytics-title">إحصائيات مباشرة</div>
                     <div class="metric-grid">
                         <div class="metric-card">
-                            <div class="metric-label">موظفين نشطين</div>
-                            <div class="metric-value" id="activeCount">0</div>
+                            <div class="metric-label">العمال النشطين</div>
+                            <div class="metric-value" id="activeWorkers">0</div>
                         </div>
                         <div class="metric-card">
                             <div class="metric-label">متوسط البطارية</div>
-                            <div class="metric-value" id="avgBattery">--%</div>
+                            <div class="metric-value" id="avgBattery">0%</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">بأوز</div>
-                            <div class="metric-value" id="pauseCount">0</div>
+                            <div class="metric-label">الموقوفون</div>
+                            <div class="metric-value warning" id="pausedWorkers">0</div>
                         </div>
                         <div class="metric-card">
-                            <div class="metric-label">أوفلاين</div>
-                            <div class="metric-value critical" id="offlineCount">0</div>
+                            <div class="metric-label">غير المتصلين</div>
+                            <div class="metric-value critical" id="offlineWorkers">0</div>
                         </div>
                     </div>
-                    <div style="font-size: 10px; color: #64748b; text-align: center;">
-                        آخر تحديث: <span id="lastUpdate">--:--:--</span>
+                    <div class="chart-container">
+                        <canvas id="batteryChart"></canvas>
                     </div>
                 </div>
 
-                <!-- Alerts Section -->
-                <div class="alerts-section" id="alertsSection" style="display: none;">
-                    <div class="analytics-title">🚨 التنبيهات</div>
-                    <div id="alertsList"></div>
-                </div>
-
-                <!-- Worker List -->
                 <div class="worker-list-section">
-                    <div class="section-title">👷 الموظفون</div>
+                    <div class="worker-list-title">قائمة العمال</div>
                     <div id="workerList"></div>
+                </div>
+
+                <div class="alert-section">
+                    <div class="alert-title">سجل الأحداث</div>
+                    <div id="alertsList"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Initialize Map
-        const map = L.map('map').setView([52.52, 13.405], 12);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 19
-        }).addTo(map);
+        // Translations
+        const TRANSLATIONS = {
+            searching: 'جاري البحث...',
+            connected: 'متصل',
+            disconnected: 'غير متصل',
+            active: 'نشط',
+            paused: 'موقوف',
+            offline: 'غير متصل',
+            battery: 'البطارية',
+            distance: 'المسافة',
+            lastUpdate: 'آخر تحديث',
+            error: 'خطأ في التحديث',
+            heatmapToggle: 'تبديل خريطة الحرارة',
+            autoTrack: 'تتبع تلقائي',
+            centerMap: 'توسيط الخريطة',
+            refresh: 'تحديث البيانات'
+        };
 
         // Configuration
-        const CONFIG = {
-            API_BASE_URL: window.location.origin,
-            AUTH_TOKEN: 'test-token',
-            POLL_INTERVAL: 3000
-        };
+        const API_BASE_URL = window.location.origin;
+        const AUTH_TOKEN = localStorage.getItem('auth_token') || 'test-token';
 
-        // State
-        const state = {
-            workers: new Map(),
-            markers: new Map(),
-            isOnline: false,
-            isTracking: false,
-            selectedWorker: null,
-            heatmapEnabled: false,
-            currentFilter: 'all',
-            alerts: [],
-            lastUpdate: new Date()
-        };
+        let map, markerClusterGroup, heatmapLayer, workers = {}, alerts = [], batteryChart = null;
+        let currentFilter = 'all', searchQuery = '', heatmapVisible = false, autoTrackEnabled = false;
+        const workerTrails = new Map();
+        const maxTrailPoints = 15;
 
-        // Initialize WebSocket
-        function initWebSocket() {
-            try {
-                state.socket = io(CONFIG.API_BASE_URL, {
-                    extraHeaders: { 'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}` },
-                    reconnection: true,
-                    reconnectionDelay: 1000,
-                    reconnectionAttempts: 5
-                });
+        // Initialize Map
+        function initMap() {
+            map = L.map('map').setView([40.7128, -74.0060], 13);
 
-                state.socket.on('connect', () => {
-                    state.isOnline = true;
-                    updateConnectionStatus();
-                    addAlert('✅ متصل بالخادم', 'info');
-                    state.socket.emit('subscribe', { event: 'worker_location' });
-                });
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            }).addTo(map);
 
-                state.socket.on('disconnect', () => {
-                    state.isOnline = false;
-                    updateConnectionStatus();
-                    addAlert('⚠️ فقدان الاتصال', 'warning');
-                });
+            markerClusterGroup = L.markerClusterGroup({
+                maxClusterRadius: 60,
+                iconCreateFunction: createClusterIcon
+            });
+            map.addLayer(markerClusterGroup);
 
-                state.socket.on('worker_location', (data) => {
-                    updateWorker(data);
-                });
-            } catch (e) {
-                console.log('WebSocket not available');
-            }
-
-            loadWorkersFromAPI();
-            setInterval(loadWorkersFromAPI, CONFIG.POLL_INTERVAL);
+            // Heatmap Layer
+            heatmapLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap'
+            });
         }
 
-        // Load from API
-        async function loadWorkersFromAPI() {
-            try {
-                const params = new URLSearchParams({
-                    latitude: 52.52,
-                    longitude: 13.405,
-                    company_id: 'demo',
-                    max_results: 20
-                });
+        function createClusterIcon(cluster) {
+            const count = cluster.getChildCount();
+            const size = count > 100 ? 'large' : count > 50 ? 'medium' : 'small';
+            const colors = {
+                small: '#10b981',
+                medium: '#f59e0b',
+                large: '#ef4444'
+            };
 
-                const response = await fetch(
-                    `${CONFIG.API_BASE_URL}/api/suppix/geospatial/nearest-cameras?${params}`,
-                    { headers: { 'Authorization': `Bearer ${CONFIG.AUTH_TOKEN}` } }
-                );
+            return L.divIcon({
+                html: `<div style="
+                    background: ${colors[size]};
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                    border: 2px solid rgba(255,255,255,0.3);
+                ">${count}</div>`,
+                iconSize: [40, 40],
+                className: 'cluster-icon'
+            });
+        }
 
-                if (!response.ok) throw new Error('API error');
-                const data = await response.json();
+        function createWorkerMarker(worker) {
+            const colors = {
+                active: '#10b981',
+                pause: '#f59e0b',
+                offline: '#ef4444',
+                'low-battery': '#ec4899'
+            };
 
-                if (!state.isOnline && response.ok) {
-                    state.isOnline = true;
-                    updateConnectionStatus();
+            const status = getWorkerStatus(worker);
+            const color = colors[status];
+
+            const html = `
+                <div style="
+                    background: ${color};
+                    width: 28px;
+                    height: 28px;
+                    border-radius: 50%;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    border: 3px solid white;
+                    box-shadow: 0 0 12px ${color}66, 0 2px 8px rgba(0,0,0,0.3);
+                    font-size: 14px;
+                    animation: pulse 2s infinite;
+                    position: relative;
+                ">
+                    👤
+                    <div style="
+                        position: absolute;
+                        width: 36px;
+                        height: 36px;
+                        border: 2px solid ${color}44;
+                        border-radius: 50%;
+                        animation: expandPulse 2s infinite;
+                    "></div>
+                </div>
+            `;
+
+            const marker = L.marker(
+                [worker.latitude, worker.longitude],
+                {
+                    icon: L.divIcon({
+                        html: html,
+                        iconSize: [36, 36],
+                        className: 'worker-marker'
+                    })
                 }
-
-                // Simulate workers from camera data
-                if (data.cameras && data.cameras.length > 0) {
-                    data.cameras.forEach((camera, idx) => {
-                        const worker = {
-                            id: `w-${idx + 1}`,
-                            name: `عامل ${idx + 1}`,
-                            lat: camera.latitude || 52.52 + Math.random() * 0.05,
-                            lng: camera.longitude || 13.405 + Math.random() * 0.05,
-                            battery: 100 - Math.random() * 60,
-                            status: Math.random() > 0.3 ? 'active' : (Math.random() > 0.5 ? 'pause' : 'offline'),
-                            distance: Math.random() * 5
-                        };
-                        updateWorker(worker);
-                    });
-                }
-            } catch (error) {
-                console.error('API Error:', error);
-                if (state.isOnline) {
-                    state.isOnline = false;
-                    updateConnectionStatus();
-                }
-                simulateFallbackData();
-            }
-        }
-
-        // Simulate Data
-        function simulateFallbackData() {
-            const workers = [
-                { id: 'w-001', name: 'أحمد محمد', lat: 52.52, lng: 13.405, battery: 85, status: 'active', distance: 0.2 },
-                { id: 'w-002', name: 'فاطمة علي', lat: 52.53, lng: 13.41, battery: 72, status: 'active', distance: 1.5 },
-                { id: 'w-003', name: 'محمود حسن', lat: 52.51, lng: 13.4, battery: 45, status: 'pause', distance: 0.8 },
-                { id: 'w-004', name: 'سارة ياسين', lat: 52.525, lng: 13.415, battery: 20, status: 'offline', distance: 2.1 }
-            ];
-            workers.forEach(w => updateWorker(w));
-        }
-
-        function updateConnectionStatus() {
-            const status = document.getElementById('connectionStatus');
-            const text = document.getElementById('connectionText');
-
-            if (state.isOnline) {
-                status.classList.add('connected');
-                text.textContent = '✅ متصل';
-                text.style.color = '#10b981';
-            } else {
-                status.classList.remove('connected');
-                text.textContent = '⚠️ أوفلاين';
-                text.style.color = '#f59e0b';
-            }
-        }
-
-        function updateWorker(worker) {
-            state.workers.set(worker.id, worker);
-
-            if (state.markers.has(worker.id)) {
-                const marker = state.markers.get(worker.id);
-                marker.setLatLng([worker.lat, worker.lng]);
-            } else {
-                const colors = {
-                    'active': '#10b981',
-                    'pause': '#f59e0b',
-                    'offline': '#ef4444'
-                };
-
-                const marker = L.circleMarker([worker.lat, worker.lng], {
-                    radius: Math.max(6, worker.battery / 15),
-                    fillColor: colors[worker.status] || '#06b6d4',
-                    color: '#0f172a',
-                    weight: 2,
-                    opacity: 1,
-                    fillOpacity: 0.8
-                }).addTo(map);
-
-                const popupContent = `
-                    <strong>${worker.name}</strong><br/>
-                    البطارية: ${Math.round(worker.battery)}%<br/>
-                    الحالة: ${worker.status}<br/>
-                    المسافة: ${worker.distance?.toFixed(2) || 'N/A'} km
-                `;
-
-                marker.bindPopup(popupContent);
-                marker.on('click', () => selectWorker(worker.id));
-                state.markers.set(worker.id, marker);
-            }
-
-            updateWorkerList();
-            updateStats();
-            applyFilter();
-        }
-
-        function updateWorkerList() {
-            const list = document.getElementById('workerList');
-            list.innerHTML = '';
-
-            const sortedWorkers = Array.from(state.workers.values()).sort(
-                (a, b) => (b.battery || 0) - (a.battery || 0)
             );
 
-            sortedWorkers.forEach((worker) => {
-                const div = document.createElement('div');
-                div.className = 'worker-item' + (state.selectedWorker === worker.id ? ' active' : '');
+            const popupContent = createWorkerPopup(worker);
+            marker.bindPopup(popupContent);
 
-                const batteryClass = worker.battery > 50 ? '' : worker.battery > 20 ? 'low' : 'critical';
-                const statusEmoji = { active: '🟢', pause: '🟡', offline: '⚫' }[worker.status] || '❓';
+            marker.on('click', () => {
+                updateWorkerDetails(worker);
+            });
 
-                div.innerHTML = `
-                    <div class="worker-header">
-                        <div class="worker-name">
-                            ${statusEmoji} ${worker.name}
-                        </div>
-                        <span class="status-badge ${worker.status === 'offline' ? 'offline' : ''}">
-                            ${worker.status === 'active' ? 'نشط' : worker.status === 'pause' ? 'بأوز' : 'أوفلاين'}
-                        </span>
+            return marker;
+        }
+
+        function createWorkerPopup(worker) {
+            const status = getWorkerStatus(worker);
+            const statusText = {
+                active: 'نشط ✓',
+                pause: 'موقوف ⏸',
+                offline: 'غير متصل ✗',
+                'low-battery': 'بطارية منخفضة ⚠'
+            }[status];
+
+            return `
+                <div class="worker-popup">
+                    <div class="worker-popup-title">${worker.id}</div>
+                    <div class="worker-popup-item">
+                        <span class="worker-popup-label">الحالة:</span>
+                        <span class="worker-popup-value">${statusText}</span>
                     </div>
-                    <div class="worker-info">
-                        <div class="battery-section">
-                            <span>${Math.round(worker.battery)}%</span>
-                            <div class="battery-bar">
-                                <div class="battery-fill ${batteryClass}" style="width: ${worker.battery}%"></div>
-                            </div>
-                        </div>
-                        <div class="distance-info">${worker.distance?.toFixed(1) || '0'} km</div>
+                    <div class="worker-popup-item">
+                        <span class="worker-popup-label">البطارية:</span>
+                        <span class="worker-popup-value">${worker.battery_level.toFixed(0)}%</span>
                     </div>
-                `;
+                    <div class="worker-popup-item">
+                        <span class="worker-popup-label">المسافة:</span>
+                        <span class="worker-popup-value">${(worker.distance || 0).toFixed(1)} م</span>
+                    </div>
+                    <div class="worker-popup-item">
+                        <span class="worker-popup-label">آخر تحديث:</span>
+                        <span class="worker-popup-value">${new Date(worker.timestamp).toLocaleTimeString('ar-SA')}</span>
+                    </div>
+                </div>
+            `;
+        }
 
-                div.onclick = () => selectWorker(worker.id);
-                list.appendChild(div);
+        function getWorkerStatus(worker) {
+            if (worker.battery_level < 20) return 'low-battery';
+            if (!worker.is_online) return 'offline';
+            if (worker.is_paused) return 'pause';
+            return 'active';
+        }
 
-                if (worker.battery < 20) {
-                    addAlert(`🔋 بطارية ${worker.name} منخفضة جداً (${Math.round(worker.battery)}%)`, 'critical');
+        function updateWorkerDetails(worker) {
+            // Add trail for worker
+            if (!workerTrails.has(worker.id)) {
+                workerTrails.set(worker.id, []);
+            }
+            const trail = workerTrails.get(worker.id);
+            trail.push([worker.latitude, worker.longitude]);
+            if (trail.length > maxTrailPoints) trail.shift();
+
+            // Draw trail if has multiple points
+            if (trail.length > 1) {
+                const existingTrail = document.getElementById(`trail-${worker.id}`);
+                if (existingTrail) existingTrail.remove();
+
+                L.polyline(trail, {
+                    color: '#06b6d4',
+                    weight: 2,
+                    opacity: 0.6,
+                    dashArray: '5, 5',
+                    className: `trail-line`
+                }).addTo(map).setElement({id: `trail-${worker.id}`});
+            }
+        }
+
+        // Load workers from API
+        async function loadWorkersFromAPI() {
+            try {
+                const url = `${API_BASE_URL}/api/suppix/geospatial/nearest-cameras?latitude=40.7128&longitude=-74.0060&company_id=test&max_results=100`;
+
+                const response = await fetch(url, {
+                    headers: { 'Authorization': `Bearer ${AUTH_TOKEN}` }
+                });
+
+                if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+                const data = await response.json();
+                const cameras = data.cameras || [];
+
+                // Simulate workers from cameras data
+                cameras.forEach((camera, index) => {
+                    const workerId = `عامل-${index + 1}`;
+                    workers[workerId] = {
+                        id: workerId,
+                        latitude: camera.latitude + (Math.random() - 0.5) * 0.01,
+                        longitude: camera.longitude + (Math.random() - 0.5) * 0.01,
+                        battery_level: 30 + Math.random() * 70,
+                        is_online: Math.random() > 0.15,
+                        is_paused: Math.random() > 0.85,
+                        distance: Math.random() * 5000,
+                        timestamp: new Date().toISOString()
+                    };
+                });
+
+                updateMapAndUI();
+                addAlert(`تم تحميل ${cameras.length} عامل بنجاح`, 'success');
+            } catch (error) {
+                console.error('API Error:', error);
+                simulateWorkers();
+                addAlert('استخدام بيانات محاكاة', 'warning');
+            }
+        }
+
+        function simulateWorkers() {
+            for (let i = 0; i < 8; i++) {
+                const workerId = `عامل-${i + 1}`;
+                workers[workerId] = {
+                    id: workerId,
+                    latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
+                    longitude: -74.0060 + (Math.random() - 0.5) * 0.1,
+                    battery_level: 20 + Math.random() * 80,
+                    is_online: Math.random() > 0.15,
+                    is_paused: Math.random() > 0.85,
+                    distance: Math.random() * 5000,
+                    timestamp: new Date().toISOString()
+                };
+            }
+        }
+
+        function updateMapAndUI() {
+            markerClusterGroup.clearLayers();
+            updateWorkerList();
+            updateAnalytics();
+            updateChart();
+
+            Object.values(workers).forEach(worker => {
+                const status = getWorkerStatus(worker);
+                if (shouldShowWorker(status)) {
+                    const marker = createWorkerMarker(worker);
+                    markerClusterGroup.addLayer(marker);
+                    updateWorkerDetails(worker);
                 }
             });
         }
 
-        function updateStats() {
-            const active = Array.from(state.workers.values()).filter(w => w.status === 'active').length;
-            const pause = Array.from(state.workers.values()).filter(w => w.status === 'pause').length;
-            const offline = Array.from(state.workers.values()).filter(w => w.status === 'offline').length;
-
-            document.getElementById('activeCount').textContent = active;
-            document.getElementById('pauseCount').textContent = pause;
-            document.getElementById('offlineCount').textContent = offline;
-
-            const avgBattery = state.workers.size > 0
-                ? Math.round(Array.from(state.workers.values()).reduce((sum, w) => sum + (w.battery || 0), 0) / state.workers.size)
-                : 0;
-            const batteryEl = document.getElementById('avgBattery');
-            batteryEl.textContent = avgBattery + '%';
-            batteryEl.className = 'metric-value' + (avgBattery < 30 ? ' critical' : avgBattery < 50 ? ' warning' : '');
-
-            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('ar-SA');
-            state.lastUpdate = new Date();
+        function shouldShowWorker(status) {
+            if (currentFilter === 'all') return true;
+            return status === currentFilter;
         }
 
-        function selectWorker(workerId) {
-            state.selectedWorker = workerId;
-            const worker = state.workers.get(workerId);
-            if (worker) {
-                map.setView([worker.lat, worker.lng], 15);
-                updateWorkerList();
-                addAlert(`📍 تم تحديد ${worker.name}`, 'info');
-            }
+        function updateWorkerList() {
+            const listContainer = document.getElementById('workerList');
+            listContainer.innerHTML = '';
+
+            Object.values(workers)
+                .filter(w => !searchQuery || w.id.includes(searchQuery))
+                .forEach(worker => {
+                    const status = getWorkerStatus(worker);
+                    const statusIcons = {
+                        active: '🟢',
+                        pause: '🟡',
+                        offline: '⚫',
+                        'low-battery': '⚠️'
+                    };
+
+                    const statusLabels = {
+                        active: 'نشط',
+                        pause: 'موقوف',
+                        offline: 'غير متصل',
+                        'low-battery': 'بطارية منخفضة'
+                    };
+
+                    const batteryPercentage = worker.battery_level;
+                    let batteryClass = '';
+                    if (batteryPercentage < 20) batteryClass = 'critical';
+                    else if (batteryPercentage < 50) batteryClass = 'warning';
+
+                    const html = `
+                        <div class="worker-item" onclick="centerMapOnWorker(${worker.latitude}, ${worker.longitude})">
+                            <div class="worker-header">
+                                <span class="worker-name">${worker.id}</span>
+                                <span class="worker-status">
+                                    <span>${statusIcons[status]}</span>
+                                    <span>${statusLabels[status]}</span>
+                                </span>
+                            </div>
+                            <div class="worker-details">
+                                <div class="detail-item">
+                                    <span>البطارية:</span>
+                                    <span class="detail-value">${batteryPercentage.toFixed(0)}%</span>
+                                </div>
+                                <div class="detail-item">
+                                    <span>المسافة:</span>
+                                    <span class="detail-value">${(worker.distance / 1000).toFixed(1)} كم</span>
+                                </div>
+                            </div>
+                            <div class="battery-bar">
+                                <div class="battery-fill ${batteryClass}" style="width: ${batteryPercentage}%"></div>
+                            </div>
+                        </div>
+                    `;
+                    listContainer.innerHTML += html;
+                });
+        }
+
+        function updateAnalytics() {
+            const workersList = Object.values(workers);
+            const activeCount = workersList.filter(w => w.is_online && !w.is_paused).length;
+            const pausedCount = workersList.filter(w => w.is_paused).length;
+            const offlineCount = workersList.filter(w => !w.is_online).length;
+            const avgBattery = workersList.length > 0
+                ? (workersList.reduce((sum, w) => sum + w.battery_level, 0) / workersList.length)
+                : 0;
+
+            document.getElementById('activeWorkers').textContent = activeCount;
+            document.getElementById('pausedWorkers').textContent = pausedCount;
+            document.getElementById('offlineWorkers').textContent = offlineCount;
+            document.getElementById('avgBattery').textContent = avgBattery.toFixed(0) + '%';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('batteryChart');
+            if (!ctx) return;
+
+            const batteries = Object.values(workers).map(w => w.battery_level);
+            const ranges = [
+                { label: '0-20%', count: batteries.filter(b => b <= 20).length },
+                { label: '20-40%', count: batteries.filter(b => b > 20 && b <= 40).length },
+                { label: '40-60%', count: batteries.filter(b => b > 40 && b <= 60).length },
+                { label: '60-80%', count: batteries.filter(b => b > 60 && b <= 80).length },
+                { label: '80-100%', count: batteries.filter(b => b > 80).length }
+            ];
+
+            if (batteryChart) batteryChart.destroy();
+
+            batteryChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ranges.map(r => r.label),
+                    datasets: [{
+                        data: ranges.map(r => r.count),
+                        backgroundColor: ['#ef4444', '#f59e0b', '#eab308', '#84cc16', '#10b981'],
+                        borderColor: 'rgba(15, 23, 42, 0.8)',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: { color: '#94a3b8', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
         }
 
         function addAlert(message, type = 'info') {
-            const alert = { message, type, time: new Date() };
-            state.alerts.unshift(alert);
-            if (state.alerts.length > 10) state.alerts.pop();
-
-            const alertsSection = document.getElementById('alertsSection');
-            alertsSection.style.display = 'block';
+            const now = new Date().toLocaleTimeString('ar-SA');
+            alerts.unshift({ message, type, time: now });
+            if (alerts.length > 10) alerts.pop();
 
             const alertsList = document.getElementById('alertsList');
-            alertsList.innerHTML = state.alerts.map(a => `
-                <div class="alert-item ${a.type}">
-                    ${a.message}
-                    <span class="alert-time">${a.time.toLocaleTimeString('ar-SA')}</span>
+            alertsList.innerHTML = alerts.map(alert => `
+                <div class="alert-item">
+                    ${alert.message}
+                    <div class="alert-time">${alert.time}</div>
                 </div>
             `).join('');
         }
 
-        function applyFilter() {
-            if (state.currentFilter === 'all') return;
-
-            state.workers.forEach(worker => {
-                const marker = state.markers.get(worker.id);
-                if (!marker) return;
-
-                let show = false;
-                if (state.currentFilter === 'active') show = worker.status === 'active';
-                else if (state.currentFilter === 'pause') show = worker.status === 'pause';
-                else if (state.currentFilter === 'offline') show = worker.status === 'offline';
-                else if (state.currentFilter === 'lowbattery') show = worker.battery < 30;
-
-                marker.setOpacity(show ? 1 : 0.2);
-            });
+        function centerMapOnWorker(lat, lon) {
+            map.setView([lat, lon], 16);
         }
 
         // Event Listeners
+        document.getElementById('searchBox').addEventListener('input', (e) => {
+            searchQuery = e.target.value;
+            updateWorkerList();
+        });
+
         document.querySelectorAll('.chip').forEach(chip => {
-            chip.addEventListener('click', () => {
+            chip.addEventListener('click', (e) => {
                 document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-                chip.classList.add('active');
-                state.currentFilter = chip.dataset.filter;
-                applyFilter();
+                e.target.classList.add('active');
+                currentFilter = e.target.dataset.filter;
+                updateMapAndUI();
             });
         });
 
-        document.getElementById('heatmapBtn').addEventListener('click', () => {
-            state.heatmapEnabled = !state.heatmapEnabled;
-            document.getElementById('heatmapBtn').style.opacity = state.heatmapEnabled ? '1' : '0.6';
-            addAlert(state.heatmapEnabled ? '🔥 تفعيل خريطة الحرارة' : '❌ إيقاف خريطة الحرارة', 'info');
+        document.getElementById('heatmapBtn').addEventListener('click', (e) => {
+            e.target.classList.toggle('active');
+            heatmapVisible = !heatmapVisible;
+            if (heatmapVisible) {
+                const points = Object.values(workers).map(w => ({
+                    lat: w.latitude,
+                    lng: w.longitude,
+                    value: w.battery_level
+                }));
+                // Heatmap would render here
+            }
         });
 
-        document.getElementById('trackingBtn').addEventListener('click', () => {
-            state.isTracking = !state.isTracking;
-            document.getElementById('trackingBtn').style.opacity = state.isTracking ? '1' : '0.6';
-            addAlert(state.isTracking ? '📍 تفعيل المتابعة التلقائية' : '❌ إيقاف المتابعة', 'info');
+        document.getElementById('trackBtn').addEventListener('click', (e) => {
+            e.target.classList.toggle('active');
+            autoTrackEnabled = !autoTrackEnabled;
         });
 
         document.getElementById('centerBtn').addEventListener('click', () => {
-            if (state.selectedWorker) {
-                selectWorker(state.selectedWorker);
-            } else {
-                map.setView([52.52, 13.405], 12);
-            }
+            map.setView([40.7128, -74.0060], 13);
         });
 
         document.getElementById('refreshBtn').addEventListener('click', () => {
             loadWorkersFromAPI();
-            addAlert('🔄 تم تحديث البيانات', 'info');
         });
 
-        // Search
-        document.getElementById('filterSearch').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase();
-            document.querySelectorAll('.worker-item').forEach(item => {
-                const name = item.textContent.toLowerCase();
-                item.style.display = name.includes(query) ? '' : 'none';
-            });
-        });
+        // Update status indicator
+        function updateConnectionStatus() {
+            const dot = document.getElementById('statusDot');
+            const status = document.getElementById('connectionStatus');
+            const isConnected = Object.values(workers).some(w => w.is_online);
+
+            if (isConnected) {
+                dot.classList.add('connected');
+                status.textContent = 'متصل';
+            } else {
+                dot.classList.remove('connected');
+                status.textContent = 'غير متصل';
+            }
+        }
 
         // Initialize
-        initWebSocket();
+        initMap();
+        loadWorkersFromAPI();
+
+        // Auto-update every 5 seconds
+        setInterval(() => {
+            Object.keys(workers).forEach(id => {
+                workers[id].latitude += (Math.random() - 0.5) * 0.0001;
+                workers[id].longitude += (Math.random() - 0.5) * 0.0001;
+                workers[id].battery_level = Math.max(0, workers[id].battery_level - Math.random() * 0.1);
+            });
+            updateMapAndUI();
+            updateConnectionStatus();
+        }, 5000);
+
+        updateConnectionStatus();
+
+        // Add custom CSS for animations
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes expandPulse {
+                0% { width: 36px; height: 36px; opacity: 1; }
+                100% { width: 56px; height: 56px; opacity: 0; }
+            }
+            .worker-marker { filter: drop-shadow(0 0 8px rgba(6, 182, 212, 0.5)); }
+        `;
+        document.head.appendChild(style);
     </script>
 </body>
 </html>
