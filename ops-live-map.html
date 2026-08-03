@@ -33,6 +33,15 @@
       --theme-shadow: rgba(0, 0, 0, 0.4);
     }
     * { box-sizing: border-box; }
+    button, a, input, select, textarea {
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      appearance: none;
+    }
+    *:focus-visible {
+      outline: 2px solid var(--theme-accent);
+      outline-offset: 2px;
+    }
     html {
       transition: direction 0.4s ease-out, text-align 0.3s ease-out;
     }
@@ -64,11 +73,17 @@
       transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
       padding: 0.3rem 0.6rem;
       border-radius: 6px;
+      outline: 2px solid transparent;
+      outline-offset: 2px;
     }
     header a:hover {
       background: rgba(34, 211, 238, 0.15);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(34, 211, 238, 0.2);
+    }
+    header a:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
     }
     header a:active { transform: translateY(0); }
     html[dir="rtl"] header a {
@@ -325,6 +340,10 @@
       border-color: rgba(148, 163, 184, 0.5);
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    .status-filters button:focus-visible {
+      outline: 2px solid var(--theme-accent);
+      outline-offset: 1px;
     }
     .status-filters button:hover::before {
       left: 100%;
@@ -1403,6 +1422,42 @@
       }
     };
     initDarkMode();
+
+    // Accessibility enhancements (WCAG 2.1 AA)
+    const initAccessibility = () => {
+      // Add ARIA labels to all filter buttons
+      document.querySelectorAll('.status-filters button').forEach((btn) => {
+        const status = btn.getAttribute('data-status');
+        const text = btn.textContent || btn.getAttribute('data-omapi18n') || status;
+        const label = `${window.opsMapT('filter') || 'Filter'}: ${text}`;
+        if (!btn.getAttribute('aria-label')) btn.setAttribute('aria-label', label);
+      });
+      // Enhance main buttons with aria-labels
+      const mainButtons = {
+        'nearestBtn': 'Find nearest workers from map center',
+        'recenterWorkersBtn': 'Zoom and center view to active workers',
+        'clusterWorkersToggle': 'Toggle worker marker clustering',
+        'liveTrailToggle': 'Toggle live trail tracking',
+        'refreshBtn': 'Refresh map data',
+        'themeToggleBtn': 'Toggle dark/light theme'
+      };
+      Object.entries(mainButtons).forEach(([id, defaultLabel]) => {
+        const el = document.getElementById(id);
+        if (el && !el.getAttribute('aria-label')) {
+          const translated = window.opsMapT(id.replace('Btn', '').replace('Toggle', '')) || defaultLabel;
+          el.setAttribute('aria-label', translated);
+        }
+      });
+      // Ensure all search inputs have proper labels
+      const searchInputs = document.querySelectorAll('input[type="search"]');
+      searchInputs.forEach((inp, i) => {
+        if (!inp.getAttribute('aria-label')) {
+          const label = inp.getAttribute('placeholder') || `Search ${i + 1}`;
+          inp.setAttribute('aria-label', label);
+        }
+      });
+    };
+    initAccessibility();
 
     boot();
   </script>
