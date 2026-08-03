@@ -20,6 +20,7 @@ admin_bp       = Blueprint("admin",       __name__)
 public_bp      = Blueprint("public",      __name__)
 health_bp      = Blueprint("health",      __name__)
 worker_app_bp  = Blueprint("worker_app",  __name__)
+platform_bp    = Blueprint("platform",    __name__)
 
 # ── Route Registrations ───────────────────────────────────────────────────────
 # Imported هنا لتفعيل route handlers
@@ -40,4 +41,5 @@ __all__ = [
     "public_bp",
     "health_bp",
     "worker_app_bp",
+    "platform_bp",
 ]

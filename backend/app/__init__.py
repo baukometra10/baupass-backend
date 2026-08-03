@@ -90,6 +90,15 @@ def create_app(config_name: Optional[str] = None) -> Flask:
     except Exception as exc:
         logger.warning("AI operator FAB inject skipped: %s", exc)
 
+    # ── WebSocket (Socket.IO) ─────────────────────────────────────────────────
+    try:
+        from .realtime.socketio_integration import init_websocket
+        redis_url = app.config.get("REDIS_URL") or os.getenv("REDIS_URL")
+        init_websocket(app, redis_url=redis_url)
+        logger.info("Socket.IO WebSocket initialized")
+    except Exception as exc:
+        logger.warning("WebSocket initialization skipped: %s", exc)
+
     # ── Blueprints (routes) ───────────────────────────────────────────────────
     _register_blueprints(app)
 
@@ -109,6 +118,7 @@ def _register_blueprints(app: Flask) -> None:
         admin_bp,
         public_bp,
         health_bp,
+        platform_bp,
     )
 
     prefix = "/api"
@@ -119,6 +129,7 @@ def _register_blueprints(app: Flask) -> None:
     app.register_blueprint(admin_bp,       url_prefix=prefix)
     app.register_blueprint(public_bp,      url_prefix=f"{prefix}/public")
     app.register_blueprint(health_bp,      url_prefix=prefix)
+    app.register_blueprint(platform_bp,    url_prefix=f"{prefix}/suppix")
 
 
 def _register_startup_hooks(app: Flask) -> None:

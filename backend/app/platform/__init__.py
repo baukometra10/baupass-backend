@@ -83,6 +83,16 @@ def register_platform_blueprints(flask_app: Flask) -> None:
             fromlist=["register_physical_operations"],
         ).register_physical_operations(flask_app),
     )
+    _step(
+        "suppix",
+        lambda: (
+            __import__("backend.app.api.platform", fromlist=["find_nearest_cameras"]),
+            flask_app.register_blueprint(
+                __import__("backend.app.api", fromlist=["platform_bp"]).platform_bp,
+                url_prefix="/api/suppix"
+            )
+        )[1],
+    )
     _step("inbox", lambda: __import__("backend.app.platform.inbox", fromlist=["register_inbox_blueprint"]).register_inbox_blueprint(flask_app))
     _step(
         "dashboards",

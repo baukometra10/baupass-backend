@@ -1,0 +1,174 @@
+{
+  "dashboard": {
+    "title": "SUPPIX Platform Monitoring",
+    "description": "Complete monitoring for all 5 SUPPIX architecture points",
+    "tags": ["suppix", "platform", "monitoring"],
+    "timezone": "UTC",
+    "panels": [
+      {
+        "title": "Active WebSocket Connections",
+        "targets": [
+          {
+            "expr": "sum(websocket_connections_active)"
+          }
+        ],
+        "type": "gauge"
+      },
+      {
+        "title": "Geospatial Query Performance (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, geospatial_query_duration_seconds)"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Cache Hit Rate",
+        "targets": [
+          {
+            "expr": "rate(geospatial_cache_hits_total[5m]) / rate(geospatial_queries_total[5m]) * 100"
+          }
+        ],
+        "type": "gauge"
+      },
+      {
+        "title": "Offline Sync Success Rate",
+        "targets": [
+          {
+            "expr": "rate(offline_sync_operations{status='success'}[5m]) / rate(offline_sync_operations_total[5m]) * 100"
+          }
+        ],
+        "type": "gauge"
+      },
+      {
+        "title": "Pending Offline Records by Device",
+        "targets": [
+          {
+            "expr": "offline_cache_records{sync_status='PENDING'}"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Battery Levels by Worker",
+        "targets": [
+          {
+            "expr": "battery_level"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Battery in Emergency Mode",
+        "targets": [
+          {
+            "expr": "sum(battery_emergency_mode)"
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "title": "Edge AI Inference Latency (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, edge_ai_inference_time_ms)"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Edge AI FPS by Gateway",
+        "targets": [
+          {
+            "expr": "edge_ai_fps"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Edge AI Detections Last Hour",
+        "targets": [
+          {
+            "expr": "sum(rate(edge_ai_detections_total[1h]))"
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "title": "Webhook Delivery Rate",
+        "targets": [
+          {
+            "expr": "rate(edge_ai_webhook_deliveries{status='success'}[5m]) / rate(edge_ai_webhook_deliveries_total[5m]) * 100"
+          }
+        ],
+        "type": "gauge"
+      },
+      {
+        "title": "Platform API Response Time (p95)",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, platform_api_latency_ms)"
+          }
+        ],
+        "type": "graph"
+      },
+      {
+        "title": "Data Availability",
+        "targets": [
+          {
+            "expr": "platform_data_availability_percent"
+          }
+        ],
+        "type": "gauge",
+        "unit": "percent"
+      },
+      {
+        "title": "Workers Online",
+        "targets": [
+          {
+            "expr": "sum(platform_workers_online_count)"
+          }
+        ],
+        "type": "stat"
+      },
+      {
+        "title": "Motion State Distribution",
+        "targets": [
+          {
+            "expr": "rate(motion_state_changes_total[1h])"
+          }
+        ],
+        "type": "piechart"
+      },
+      {
+        "title": "Conflicts Resolved by Strategy",
+        "targets": [
+          {
+            "expr": "sum by (strategy) (rate(offline_conflict_resolutions_total[1h]))"
+          }
+        ],
+        "type": "piechart"
+      },
+      {
+        "title": "Edge AI Model Performance",
+        "targets": [
+          {
+            "expr": "avg by (model_name) (edge_ai_fps)"
+          }
+        ],
+        "type": "table"
+      },
+      {
+        "title": "Bandwidth Saved by Edge AI",
+        "targets": [
+          {
+            "expr": "avg(edge_ai_bandwidth_saved_percent)"
+          }
+        ],
+        "type": "gauge",
+        "unit": "percent"
+      }
+    ]
+  }
+}
