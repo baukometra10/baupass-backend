@@ -17,20 +17,20 @@
   <link rel="stylesheet" href="/ops-shell.css" />
   <style>
     :root {
-      --theme-bg: #f8fafc;
-      --theme-text: #1e293b;
-      --theme-panel: #ffffff;
-      --theme-border: #e2e8f0;
-      --theme-accent: #0ea5e9;
-      --theme-shadow: rgba(0, 0, 0, 0.1);
+      --bg: #f8fafc;
+      --text: #1e293b;
+      --panel: #ffffff;
+      --border: #e2e8f0;
+      --accent: #0ea5e9;
+      --shadow: rgba(0, 0, 0, 0.1);
     }
     html.dark-mode {
-      --theme-bg: #0f172a;
-      --theme-text: #f1f5f9;
-      --theme-panel: #1e293b;
-      --theme-border: #334155;
-      --theme-accent: #38bdf8;
-      --theme-shadow: rgba(0, 0, 0, 0.4);
+      --bg: #0f172a;
+      --text: #f1f5f9;
+      --panel: #1e293b;
+      --border: #334155;
+      --accent: #38bdf8;
+      --shadow: rgba(0, 0, 0, 0.4);
     }
     * { box-sizing: border-box; }
     button, a, input, select, textarea {
@@ -39,7 +39,7 @@
       appearance: none;
     }
     *:focus-visible {
-      outline: 2px solid var(--theme-accent);
+      outline: 2px solid var(--accent);
       outline-offset: 2px;
     }
     html {
