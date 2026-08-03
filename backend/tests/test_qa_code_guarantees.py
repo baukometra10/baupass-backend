@@ -55,8 +55,16 @@ def test_live_map_uses_backend_data():
     html = (ROOT / "ops-live-map.html").read_text(encoding="utf-8")
     assert "let map = null;" in html
     assert "const layers = {" in html
+    assert ".ops-header [data-tenant-logo]," in html
     assert "Always use demo data" not in html
     assert "api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`)" in html
+
+
+def test_admin_sidebar_branding_is_compact():
+    css = (ROOT / "admin-v2" / "styles.css").read_text(encoding="utf-8")
+    assert ".sidebar-logo {" in css
+    assert "width: 36px;" in css
+    assert "height: 36px;" in css
 
 
 def test_no_autodial_in_camera_escalation_defaults():
