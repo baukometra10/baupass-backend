@@ -1234,8 +1234,17 @@
       lastMapData = data;
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
-        map = L.map("map").setView([c.lat, c.lng], 15);
-        updateMapTiles();
+        try {
+          map = L.map("map").setView([c.lat, c.lng], 15);
+          if (typeof map.addLayer !== 'function') {
+            console.error("Map object does not have addLayer method. Leaflet may not be loaded properly.");
+            return;
+          }
+          updateMapTiles();
+        } catch (e) {
+          console.error("Failed to initialize map:", e);
+          return;
+        }
       }
       if (!workerClusterLayer && typeof L.markerClusterGroup === "function") {
         workerClusterLayer = L.markerClusterGroup({
@@ -1244,9 +1253,11 @@
           chunkedLoading: true,
           maxClusterRadius: 55,
         });
-        if (clusterWorkers) map.addLayer(workerClusterLayer);
+        if (clusterWorkers && map && typeof map.addLayer === 'function') {
+          map.addLayer(workerClusterLayer);
+        }
       }
-      if (workerClusterLayer && map && typeof map.hasLayer === 'function') {
+      if (workerClusterLayer && map && typeof map.hasLayer === 'function' && typeof map.addLayer === 'function') {
         if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
         if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
       }
@@ -1540,7 +1551,7 @@
     });
     document.getElementById("clusterWorkersToggle")?.addEventListener("change", (ev) => {
       clusterWorkers = !!ev.target?.checked;
-      if (workerClusterLayer && map && typeof map.hasLayer === 'function') {
+      if (workerClusterLayer && map && typeof map.hasLayer === 'function' && typeof map.addLayer === 'function') {
         if (clusterWorkers && !map.hasLayer(workerClusterLayer)) map.addLayer(workerClusterLayer);
         if (!clusterWorkers && map.hasLayer(workerClusterLayer)) map.removeLayer(workerClusterLayer);
       }
