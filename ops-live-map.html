@@ -714,6 +714,28 @@
     .zone-stats strong { color: #e2e8f0; }
     .anomaly-list { padding: 0.35rem 0.65rem; border-bottom: 1px solid var(--border); font-size: 0.72rem; color: #fbbf24; }
     .side-body { flex: 1; overflow: auto; }
+    .worker-list-meta {
+      margin: 0.35rem 0.65rem;
+      font-size: 0.7rem;
+      color: #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.45rem;
+    }
+    .worker-list-more {
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: rgba(15, 23, 42, 0.45);
+      color: #bae6fd;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      padding: 0.15rem 0.45rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .worker-list-more:hover {
+      background: rgba(30, 58, 89, 0.65);
+    }
     .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
     .worker-row {
       padding: 0.45rem 0.65rem;
@@ -970,6 +992,14 @@
       border-bottom-color: #d6e0eb;
       color: #1f2937;
     }
+    html:not(.dark-mode) .worker-list-meta {
+      color: #64748b;
+    }
+    html:not(.dark-mode) .worker-list-more {
+      border-color: rgba(14, 116, 144, 0.3);
+      background: rgba(186, 230, 253, 0.5);
+      color: #0f4f68;
+    }
     html:not(.dark-mode) .worker-row:hover {
       background: linear-gradient(90deg, rgba(59, 130, 246, 0.12) 0%, rgba(255, 255, 255, 0.9) 100%);
       border-inline-start-color: #3b82f6;
@@ -1217,6 +1247,14 @@
     let mapCenterPoint = null;
     let mapCursorPoint = null;
     let mapLastPoint = null;
+    let realtimeMode = "polling";
+    let wsReconnectCount = 0;
+    let weakNetwork = false;
+    let lastLoadDurationMs = 0;
+    let loadDurationEmaMs = 0;
+    let eventRefreshTimer = 0;
+    let sidebarShowAllWorkers = false;
+    let sidebarFilterKey = "";
     const workerMarkerAnimations = new Map();
 
     function formatCoordPair(lat, lng) {
@@ -1275,7 +1313,7 @@
     async function runManualRefresh() {
       try {
         setRefreshBusy(true);
-        await load();
+        await load({ force: true, lite: false });
       } finally {
         setRefreshBusy(false);
       }
@@ -1351,6 +1389,32 @@
     const LIVE_POLL_MS_VISIBLE = 2000;
     const LIVE_POLL_MS_HIDDEN = 8000;
     const MARKER_MOVE_ANIM_MS = 900;
+    const EVENT_REFRESH_THROTTLE_MS = 1200;
+    const WEAK_NETWORK_THRESHOLD_MS = 1800;
+    const WORKER_LIST_SOFT_CAP = 180;
+    const WORKER_LIST_CAP_TRIGGER = 260;
+
+    function modeLabel(mode) {
+      if (mode === "websocket") return window.opsMapT("modeWebsocket") || "Realtime";
+      if (mode === "sse") return window.opsMapT("modeSse") || "Stream";
+      return window.opsMapT("modePolling") || "Polling";
+    }
+
+    function runtimeStatusSuffix() {
+      const parts = [modeLabel(realtimeMode)];
+      if (weakNetwork) parts.push(window.opsMapT("netWeak") || "Weak network");
+      if (wsReconnectCount > 0) parts.push(window.opsMapT("netReconnects", { count: wsReconnectCount }));
+      if (lastLoadDurationMs > 0) parts.push(window.opsMapT("netLatency", { ms: Math.round(lastLoadDurationMs) }));
+      return parts.filter(Boolean).join(" · ");
+    }
+
+    function scheduleRealtimeRefresh() {
+      if (eventRefreshTimer) return;
+      eventRefreshTimer = window.setTimeout(() => {
+        eventRefreshTimer = 0;
+        load().catch(() => {});
+      }, EVENT_REFRESH_THROTTLE_MS);
+    }
 
     async function api(path) {
       const headers = window.BaupassAuth
@@ -1668,6 +1732,11 @@
       const cid = companyId || data.companyId || "";
       const list = document.getElementById("workerList");
       const workers = (data.workersOnSite || []).filter(workerMatchesFilters);
+      const filterKey = `${statusFilter}|${(searchQuery || "").trim().toLowerCase()}`;
+      if (filterKey !== sidebarFilterKey) {
+        sidebarFilterKey = filterKey;
+        sidebarShowAllWorkers = false;
+      }
       const zoneStats = data.zoneStats || [];
       const anomalies = data.mapAnomalies || [];
       const statsHtml = zoneStats.length
@@ -1682,7 +1751,9 @@
           anomalies.slice(0, 5).map((a) => escapeHtml(a.message || a.code || "")).join("<br>") +
           `</div>`
         : "";
-      const workerRows = workers.map((w) => {
+      const shouldCapWorkers = !sidebarShowAllWorkers && workers.length > WORKER_LIST_CAP_TRIGGER;
+      const renderedWorkers = shouldCapWorkers ? workers.slice(0, WORKER_LIST_SOFT_CAP) : workers;
+      const workerRows = renderedWorkers.map((w) => {
         const active = String(w.id) === selectedWorkerId ? " active" : "";
         const zone = w.currentZone?.name || w.site || "";
         return `<div class="worker-row${active}" data-worker-id="${escapeHtml(w.id)}" data-lat="${w.lat}" data-lng="${w.lng}">
@@ -1690,6 +1761,9 @@
           <br><span style="color:#94a3b8">${escapeHtml(statusLabel(w.status))} · ${escapeHtml(zone)}</span>
         </div>`;
       }).join("");
+      const workerMeta = shouldCapWorkers
+        ? `<div class="worker-list-meta"><span>${escapeHtml(window.opsMapT("listWindowSummary", { shown: renderedWorkers.length, total: workers.length }))}</span><button type="button" class="worker-list-more" id="workerListShowAll">${escapeHtml(window.opsMapT("listShowAll"))}</button></div>`
+        : "";
       const camRows = (data.cameras || []).map((cam) => {
         const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
         return `<div class="worker-row" data-lat="${cam.lat}" data-lng="${cam.lng}" data-open="${escapeHtml(href)}">
@@ -1701,9 +1775,17 @@
         statsHtml +
         anomalyHtml +
         `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
+        workerMeta +
         (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
         `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
         (camRows || `<p style='padding:0.65rem;color:#94a3b8'>${window.opsMapT("noCameras")}</p>`);
+      const showAllBtn = document.getElementById("workerListShowAll");
+      if (showAllBtn) {
+        showAllBtn.onclick = () => {
+          sidebarShowAllWorkers = true;
+          renderSidebar(data);
+        };
+      }
       list.querySelectorAll(".worker-row[data-worker-id]").forEach((row) => {
         row.onclick = () => {
           const w = (data.workersOnSite || []).find((x) => String(x.id) === row.dataset.workerId);
@@ -1906,7 +1988,7 @@
       const camAlerts = data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0;
       const security = data.openSecurityAlerts ?? data.counts?.security ?? 0;
       const statusEl = document.getElementById("status");
-      statusEl.textContent = window.opsMapT("statusLineSmart", {
+      const baseStatusText = window.opsMapT("statusLineSmart", {
         onSite: data.counts?.onSite ?? 0,
         working: data.counts?.working ?? data.statusCounts?.working ?? 0,
         offSite: data.counts?.offSite ?? data.statusCounts?.off_site ?? 0,
@@ -1918,20 +2000,34 @@
         cameraAlerts: camAlerts,
         security,
       });
+      const suffix = runtimeStatusSuffix();
+      statusEl.textContent = suffix ? `${baseStatusText} · ${suffix}` : baseStatusText;
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
       renderSidebar(data);
       refreshSelectedTrail();
     }
 
-    async function load() {
+    async function load(options = {}) {
       if (!companyId) {
         document.getElementById("status").textContent = window.opsMapT("selectCompany");
         return;
       }
+      const force = !!options.force;
+      const lite = options.lite !== false;
+      const startedAt = performance.now();
       try {
-        const data = await api(`/api/ops-os/live-map?company_id=${encodeURIComponent(companyId)}`);
+        const qp = new URLSearchParams({ company_id: String(companyId) });
+        if (lite) qp.set("lite", "1");
+        if (force) qp.set("refresh", "1");
+        const data = await api(`/api/ops-os/live-map?${qp.toString()}`);
+        lastLoadDurationMs = performance.now() - startedAt;
+        loadDurationEmaMs = loadDurationEmaMs > 0
+          ? (loadDurationEmaMs * 0.75 + lastLoadDurationMs * 0.25)
+          : lastLoadDurationMs;
+        weakNetwork = loadDurationEmaMs >= WEAK_NETWORK_THRESHOLD_MS;
         renderMap(data);
       } catch (error) {
+        weakNetwork = true;
         const statusEl = document.getElementById("status");
         if (statusEl) {
           statusEl.textContent = showLocalizedError(error?.message || "server");
@@ -1942,11 +2038,16 @@
 
     function startLivePolling() {
       if (livePollTimer) window.clearTimeout(livePollTimer);
-      const nextInterval = () => (
-        document.visibilityState === "visible"
-          ? LIVE_POLL_MS_VISIBLE
-          : LIVE_POLL_MS_HIDDEN
-      );
+      const nextInterval = () => {
+        const visible = document.visibilityState === "visible";
+        if (realtimeMode === "websocket") {
+          return visible ? 7000 : 15000;
+        }
+        if (weakNetwork) {
+          return visible ? 4500 : 10000;
+        }
+        return visible ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_HIDDEN;
+      };
       const tick = async () => {
         if (livePollInFlight) {
           livePollTimer = window.setTimeout(tick, nextInterval());
@@ -2007,23 +2108,29 @@
             companyId,
             feedEl: null,
             onMode: (mode) => {
-              const st = document.getElementById("status");
-              if (!st || !mode) return;
-              const base = st.textContent.split(" · ")[0].trim();
-              if (mode === "websocket" || mode === "sse") {
-                st.textContent = `${base} · ${mode}`;
+              if (!mode) return;
+              const previousMode = realtimeMode;
+              if (mode === previousMode) return;
+              if (previousMode === "websocket" && mode !== "websocket") {
+                wsReconnectCount += 1;
+              }
+              realtimeMode = mode;
+              startLivePolling();
+              if (lastMapData) {
+                renderMap(lastMapData);
               }
             },
-            onEvent: () => load().catch(() => {}),
+            onEvent: () => scheduleRealtimeRefresh(),
           });
         } else {
+          realtimeMode = "sse";
           let url = "/api/ops-os/events/stream";
           if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
           const es = new EventSource(url, { withCredentials: true });
           es.onmessage = (ev) => {
             try {
               const p = JSON.parse(ev.data);
-              if (p.type === "events") load().catch(() => {});
+              if (p.type === "events") scheduleRealtimeRefresh();
             } catch { /* ignore */ }
           };
         }

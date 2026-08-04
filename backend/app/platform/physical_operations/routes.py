@@ -12,6 +12,10 @@ ops_os_bp = Blueprint("physical_operations", __name__)
 
 _OVERVIEW_CACHE: dict[str, tuple[float, dict]] = {}
 _OVERVIEW_TTL_SEC = 25.0
+_LIVE_MAP_CACHE: dict[str, tuple[float, dict]] = {}
+_LIVE_MAP_TTL_SEC = 3.0
+_COMMAND_CENTER_CACHE: dict[str, tuple[float, dict]] = {}
+_COMMAND_CENTER_TTL_SEC = 5.0
 
 
 def register_physical_operations(flask_app) -> None:
@@ -427,7 +431,20 @@ def register_physical_operations(flask_app) -> None:
         cid = _cid() if role != "superadmin" or request.args.get("company_id") else None
         if role == "superadmin" and request.args.get("company_id"):
             cid = str(request.args.get("company_id", "") or "").strip()
-        return jsonify(build_command_center(get_db(), company_id=cid, role=role))
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{role}:{cid or '-'}"
+        now = time.monotonic()
+        if not force:
+            hit = _COMMAND_CENTER_CACHE.get(cache_key)
+            if hit and now - hit[0] < _COMMAND_CENTER_TTL_SEC:
+                return jsonify(hit[1])
+        payload = build_command_center(get_db(), company_id=cid, role=role)
+        _COMMAND_CENTER_CACHE[cache_key] = (now, payload)
+        if len(_COMMAND_CENTER_CACHE) > 80:
+            oldest = sorted(_COMMAND_CENTER_CACHE.items(), key=lambda kv: kv[1][0])[:20]
+            for key, _ in oldest:
+                _COMMAND_CENTER_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/predictions/tomorrow")
     @require_auth
@@ -447,7 +464,22 @@ def register_physical_operations(flask_app) -> None:
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_required"}), 400
-        return jsonify(build_live_ops_map(get_db(), cid))
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        lite = str(request.args.get("lite") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{cid}:{1 if lite else 0}"
+        now = time.monotonic()
+        if not force:
+            hit = _LIVE_MAP_CACHE.get(cache_key)
+            if hit and now - hit[0] < _LIVE_MAP_TTL_SEC:
+                return jsonify(hit[1])
+
+        payload = build_live_ops_map(get_db(), cid, emit_anomalies=not lite)
+        _LIVE_MAP_CACHE[cache_key] = (now, payload)
+        if len(_LIVE_MAP_CACHE) > 80:
+            oldest = sorted(_LIVE_MAP_CACHE.items(), key=lambda kv: kv[1][0])[:20]
+            for key, _ in oldest:
+                _LIVE_MAP_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/workers/<worker_id>/trail")
     @require_auth
