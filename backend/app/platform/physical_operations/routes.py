@@ -3,6 +3,7 @@ Physical Operations OS — all 12 capabilities under /api/ops-os/*
 """
 from __future__ import annotations
 
+import json
 import time
 import uuid
 
@@ -35,12 +36,19 @@ def _micro_cache_get_or_build(
     force: bool = False,
     max_items: int = 300,
     trim_count: int = 60,
+    stats: dict[str, int] | None = None,
 ):
     now = time.monotonic()
     if not force:
         hit = cache.get(key)
         if hit and now - hit[0] < ttl_sec:
+            if stats is not None:
+                stats["hits"] = int(stats.get("hits", 0)) + 1
             return hit[1]
+        if stats is not None:
+            stats["misses"] = int(stats.get("misses", 0)) + 1
+    elif stats is not None:
+        stats["forced"] = int(stats.get("forced", 0)) + 1
     payload = builder()
     cache[key] = (now, payload)
     if len(cache) > max_items:
@@ -51,7 +59,7 @@ def _micro_cache_get_or_build(
 
 
 def register_physical_operations(flask_app) -> None:
-    from backend.server import require_auth, require_roles, get_db, log_audit
+    from backend.server import emit_structured_log, require_auth, require_roles, get_db, log_audit
 
     from ._common import company_id_from_user, count_on_site, now_iso, today_prefix
     from .digital_twin import build_digital_twin
@@ -66,6 +74,23 @@ def register_physical_operations(flask_app) -> None:
     from .workforce_graph import build_workforce_graph
     from .identity_hub import build_identity_hub
     from .copilot import copilot_query, build_copilot_context
+
+    def _payload_bytes(payload) -> int:
+        try:
+            packed = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
+            return len(packed.encode("utf-8"))
+        except Exception:
+            return 0
+
+    def _emit_ops_perf(endpoint: str, t0: float, payload=None, **fields) -> None:
+        duration_ms = max(1, int(round((time.monotonic() - t0) * 1000)))
+        event_fields = {"endpoint": endpoint, "durationMs": duration_ms, **fields}
+        if payload is not None:
+            event_fields["payloadBytes"] = _payload_bytes(payload)
+        try:
+            emit_structured_log("ops_endpoint_perf", **event_fields)
+        except Exception:
+            pass
 
     def _cid() -> str:
         cid = company_id_from_user(g.current_user, request.args)
@@ -156,6 +181,7 @@ def register_physical_operations(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def ops_overview():
+        t0 = time.monotonic()
         cid = _cid()
         if not cid and g.current_user.get("role") != "superadmin":
             return jsonify({"error": "company_required"}), 400
@@ -172,15 +198,27 @@ def register_physical_operations(flask_app) -> None:
         if not force:
             hit = _OVERVIEW_CACHE.get(cache_key)
             if hit and now - hit[0] < _OVERVIEW_TTL_SEC:
+                payload = hit[1]
+                _emit_ops_perf(
+                    "ops_overview",
+                    t0,
+                    payload,
+                    cacheStatus="hit",
+                    cacheAgeMs=int(round((now - hit[0]) * 1000)),
+                    force=force,
+                    deepRefresh=deep_force,
+                )
                 return jsonify(hit[1])
         from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
 
+        layer_cache_stats = {"hits": 0, "misses": 0, "forced": 0}
         daily = _micro_cache_get_or_build(
             _OVERVIEW_LAYER_CACHE,
             f"daily:{cid}:{role}",
             _OVERVIEW_LAYER_TTL_SEC,
             lambda: build_daily_ops_brief(db, cid),
             force=layer_force,
+            stats=layer_cache_stats,
         )
         payload = {
             "physicalOperationsOS": True,
@@ -193,6 +231,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_digital_twin(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "2_ai_security": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -200,6 +239,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: analyze_security(db, cid, persist=False),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "3_site_intelligence": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -207,6 +247,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_site_intelligence(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 # Keep leaderboard small — full ranking is available via /reputation
                 "4_reputation": _micro_cache_get_or_build(
@@ -215,6 +256,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_reputation_leaderboard(db, cid, limit=12),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "5_emergency": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -222,6 +264,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: _active_emergency_summary(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "6_camera_ai": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -229,6 +272,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: _camera_summary(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "7_iot": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -236,6 +280,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_iot_overview(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "8_command_center": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -243,6 +288,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_command_center(db, company_id=cid, role=role),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "9_autonomous": _autonomous_summary(db, cid),
                 "10_workforce_graph": _micro_cache_get_or_build(
@@ -251,6 +297,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_workforce_graph(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "11_identity": _micro_cache_get_or_build(
                     _OVERVIEW_LAYER_CACHE,
@@ -258,6 +305,7 @@ def register_physical_operations(flask_app) -> None:
                     _OVERVIEW_LAYER_TTL_SEC,
                     lambda: build_identity_hub(db, cid),
                     force=layer_force,
+                    stats=layer_cache_stats,
                 ),
                 "12_copilot": _copilot_layer_summary(),
                 "13_daily_brief": daily,
@@ -268,6 +316,17 @@ def register_physical_operations(flask_app) -> None:
             oldest = sorted(_OVERVIEW_CACHE.items(), key=lambda kv: kv[1][0])[:12]
             for key, _ in oldest:
                 _OVERVIEW_CACHE.pop(key, None)
+        _emit_ops_perf(
+            "ops_overview",
+            t0,
+            payload,
+            cacheStatus="miss" if not force else "refresh",
+            force=force,
+            deepRefresh=deep_force,
+            layerCacheHits=int(layer_cache_stats.get("hits", 0)),
+            layerCacheMisses=int(layer_cache_stats.get("misses", 0)),
+            layerCacheForced=int(layer_cache_stats.get("forced", 0)),
+        )
         return jsonify(payload)
 
     def _active_emergency_summary(db, cid):
@@ -335,6 +394,7 @@ def register_physical_operations(flask_app) -> None:
     def ops_daily_brief():
         from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
 
+        t0 = time.monotonic()
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
@@ -345,6 +405,15 @@ def register_physical_operations(flask_app) -> None:
         if not force:
             hit = _DAILY_BRIEF_CACHE.get(cache_key)
             if hit and now - hit[0] < _DAILY_BRIEF_TTL_SEC:
+                payload = hit[1]
+                _emit_ops_perf(
+                    "ops_daily_brief",
+                    t0,
+                    payload,
+                    cacheStatus="hit",
+                    cacheAgeMs=int(round((now - hit[0]) * 1000)),
+                    force=force,
+                )
                 return jsonify(hit[1])
         payload = build_daily_ops_brief(get_db(), cid)
         _DAILY_BRIEF_CACHE[cache_key] = (now, payload)
@@ -352,6 +421,13 @@ def register_physical_operations(flask_app) -> None:
             oldest = sorted(_DAILY_BRIEF_CACHE.items(), key=lambda kv: kv[1][0])[:30]
             for key, _ in oldest:
                 _DAILY_BRIEF_CACHE.pop(key, None)
+        _emit_ops_perf(
+            "ops_daily_brief",
+            t0,
+            payload,
+            cacheStatus="miss" if not force else "refresh",
+            force=force,
+        )
         return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/digital-twin")
@@ -575,6 +651,7 @@ def register_physical_operations(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def ops_live_map():
+        t0 = time.monotonic()
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_required"}), 400
@@ -585,6 +662,16 @@ def register_physical_operations(flask_app) -> None:
         if not force:
             hit = _LIVE_MAP_CACHE.get(cache_key)
             if hit and now - hit[0] < _LIVE_MAP_TTL_SEC:
+                payload = hit[1]
+                _emit_ops_perf(
+                    "ops_live_map",
+                    t0,
+                    payload,
+                    cacheStatus="hit",
+                    cacheAgeMs=int(round((now - hit[0]) * 1000)),
+                    force=force,
+                    lite=lite,
+                )
                 return jsonify(hit[1])
 
         payload = build_live_ops_map(get_db(), cid, emit_anomalies=not lite)
@@ -593,6 +680,14 @@ def register_physical_operations(flask_app) -> None:
             oldest = sorted(_LIVE_MAP_CACHE.items(), key=lambda kv: kv[1][0])[:20]
             for key, _ in oldest:
                 _LIVE_MAP_CACHE.pop(key, None)
+        _emit_ops_perf(
+            "ops_live_map",
+            t0,
+            payload,
+            cacheStatus="miss" if not force else "refresh",
+            force=force,
+            lite=lite,
+        )
         return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/workers/<worker_id>/trail")
@@ -681,6 +776,7 @@ def register_physical_operations(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def workforce_graph():
+        t0 = time.monotonic()
         cid = _cid()
         days = int(request.args.get("days", "14"))
         role = g.current_user.get("role", "")
@@ -690,6 +786,16 @@ def register_physical_operations(flask_app) -> None:
         if not force:
             hit = _WORKFORCE_GRAPH_CACHE.get(cache_key)
             if hit and now - hit[0] < _WORKFORCE_GRAPH_TTL_SEC:
+                payload = hit[1]
+                _emit_ops_perf(
+                    "ops_workforce_graph",
+                    t0,
+                    payload,
+                    cacheStatus="hit",
+                    cacheAgeMs=int(round((now - hit[0]) * 1000)),
+                    force=force,
+                    days=days,
+                )
                 return jsonify(hit[1])
         payload = build_workforce_graph(get_db(), cid, days=days)
         _WORKFORCE_GRAPH_CACHE[cache_key] = (now, payload)
@@ -697,6 +803,14 @@ def register_physical_operations(flask_app) -> None:
             oldest = sorted(_WORKFORCE_GRAPH_CACHE.items(), key=lambda kv: kv[1][0])[:30]
             for key, _ in oldest:
                 _WORKFORCE_GRAPH_CACHE.pop(key, None)
+        _emit_ops_perf(
+            "ops_workforce_graph",
+            t0,
+            payload,
+            cacheStatus="miss" if not force else "refresh",
+            force=force,
+            days=days,
+        )
         return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/identity")
@@ -724,6 +838,7 @@ def register_physical_operations(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def copilot_context():
+        t0 = time.monotonic()
         cid = _cid()
         role = g.current_user.get("role", "")
         force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
@@ -732,6 +847,15 @@ def register_physical_operations(flask_app) -> None:
         if not force:
             hit = _COPILOT_CONTEXT_CACHE.get(cache_key)
             if hit and now - hit[0] < _COPILOT_CONTEXT_TTL_SEC:
+                payload = hit[1]
+                _emit_ops_perf(
+                    "ops_copilot_context",
+                    t0,
+                    payload,
+                    cacheStatus="hit",
+                    cacheAgeMs=int(round((now - hit[0]) * 1000)),
+                    force=force,
+                )
                 return jsonify(hit[1])
         payload = build_copilot_context(get_db(), cid, role)
         _COPILOT_CONTEXT_CACHE[cache_key] = (now, payload)
@@ -739,6 +863,13 @@ def register_physical_operations(flask_app) -> None:
             oldest = sorted(_COPILOT_CONTEXT_CACHE.items(), key=lambda kv: kv[1][0])[:30]
             for key, _ in oldest:
                 _COPILOT_CONTEXT_CACHE.pop(key, None)
+        _emit_ops_perf(
+            "ops_copilot_context",
+            t0,
+            payload,
+            cacheStatus="miss" if not force else "refresh",
+            force=force,
+        )
         return jsonify(payload)
 
     # ── Site assets CRUD ──────────────────────────────────────────────────────
