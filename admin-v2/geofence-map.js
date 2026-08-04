@@ -129,6 +129,73 @@ export function refreshGeofenceMap() {
   map?._baupassInvalidate?.();
 }
 
+/** Geocode a place query and move geofence map + marker to the first result. */
+export async function searchGeofencePlace(query, mapEl, latInput, lngInput, { onStatus, language } = {}) {
+  const raw = String(query || "").trim();
+  if (!raw) {
+    onStatus?.("empty");
+    return null;
+  }
+  const map = mapEl?._baupassLeafletMap || document.getElementById("geofenceMap")?._baupassLeafletMap;
+  if (!map) {
+    onStatus?.("failed");
+    return null;
+  }
+
+  onStatus?.("loading");
+  try {
+    const lang = String(language || "en").slice(0, 8);
+    const params = new URLSearchParams({
+      q: raw,
+      format: "jsonv2",
+      limit: "5",
+      addressdetails: "1",
+      "accept-language": lang,
+    });
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
+      headers: {
+        Accept: "application/json",
+      },
+    });
+    if (!res.ok) {
+      onStatus?.("failed");
+      return null;
+    }
+    const rows = await res.json();
+    const list = Array.isArray(rows)
+      ? rows
+        .map((r) => ({
+          label: String(r?.display_name || "").trim(),
+          lat: Number(r?.lat),
+          lng: Number(r?.lon),
+        }))
+        .filter((r) => r.label && Number.isFinite(r.lat) && Number.isFinite(r.lng))
+      : [];
+    const hit = list[0] || null;
+    const lat = Number(hit?.lat);
+    const lng = Number(hit?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      onStatus?.("notFound");
+      return null;
+    }
+
+    if (map?._baupassApplyCoords) {
+      map._baupassApplyCoords(lat, lng, { center: true });
+    } else {
+      if (latInput) latInput.value = lat.toFixed(6);
+      if (lngInput) lngInput.value = lng.toFixed(6);
+      map.setView([lat, lng], Math.max(map.getZoom(), 15));
+    }
+
+    const label = String(hit?.label || raw).trim();
+    onStatus?.("ok", { label, lat, lng, count: list.length });
+    return { label, lat, lng, results: list };
+  } catch {
+    onStatus?.("failed");
+    return null;
+  }
+}
+
 /** Fill lat/lng from browser geolocation and center the map. */
 export async function useGeofenceCurrentLocation(latInput, lngInput, mapEl, { onStatus } = {}) {
   const map = mapEl?._baupassLeafletMap || document.getElementById("geofenceMap")?._baupassLeafletMap;

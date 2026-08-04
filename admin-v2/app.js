@@ -1,5 +1,5 @@
 import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
-import { mountGeofenceMapWhenReady, refreshGeofenceMap, useGeofenceCurrentLocation } from "./geofence-map.js";
+import { mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
 const WP = window.WorkPassStorage;
@@ -4492,6 +4492,12 @@ async function loadTools() {
       <div class="panel-block">
         <h3>${t("tools.geofence")}</h3>
         <p class="muted small">${t("tools.mapHint")}</p>
+        <div class="geofence-search-row">
+          <input id="geofenceSearchInput" type="text" placeholder="${t("tools.searchPlacePlaceholder")}" autocomplete="street-address" />
+          <button type="button" id="geofenceSearchBtn" class="btn-link">🔎 ${t("tools.searchPlaceBtn")}</button>
+        </div>
+        <div id="geofenceSearchResults" class="geofence-search-results" hidden></div>
+        <span id="geofenceSearchStatus" class="muted small"></span>
         <div id="geofenceMap"></div>
         <form id="geofenceForm" class="tool-form">
           <input name="site_name" placeholder="${t("tools.sitePlaceholder")}" required />
@@ -4574,6 +4580,90 @@ async function loadTools() {
     const latIn = gfForm.querySelector('[name="latitude"]');
     const lngIn = gfForm.querySelector('[name="longitude"]');
     mountGeofenceMapWhenReady($("geofenceMap"), latIn, lngIn, gfRows);
+    const geofenceSearchInput = $("geofenceSearchInput");
+    const geofenceSearchStatus = $("geofenceSearchStatus");
+    const geofenceSearchResults = $("geofenceSearchResults");
+    const mapEl = $("geofenceMap");
+    const setGeofenceSearchResults = (items = []) => {
+      if (!geofenceSearchResults) return;
+      const rows = Array.isArray(items) ? items.filter((r) => Number.isFinite(Number(r?.lat)) && Number.isFinite(Number(r?.lng))) : [];
+      if (!rows.length) {
+        geofenceSearchResults.hidden = true;
+        geofenceSearchResults.innerHTML = "";
+        return;
+      }
+      geofenceSearchResults.hidden = false;
+      geofenceSearchResults.innerHTML = rows
+        .map((row, idx) => {
+          const label = escapeHtml(String(row.label || "").trim() || `#${idx + 1}`);
+          const lat = Number(row.lat);
+          const lng = Number(row.lng);
+          return `<button type="button" class="geofence-search-item" data-lat="${lat}" data-lng="${lng}" title="${label}">${label}</button>`;
+        })
+        .join("");
+    };
+    geofenceSearchResults?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button.geofence-search-item");
+      if (!btn) return;
+      const lat = Number(btn.getAttribute("data-lat"));
+      const lng = Number(btn.getAttribute("data-lng"));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      if (mapEl?._baupassLeafletMap?._baupassApplyCoords) {
+        mapEl._baupassLeafletMap._baupassApplyCoords(lat, lng, { center: true });
+      } else {
+        latIn.value = lat.toFixed(6);
+        lngIn.value = lng.toFixed(6);
+      }
+      if (geofenceSearchStatus) {
+        geofenceSearchStatus.textContent = t("tools.searchMoved").replace("{place}", btn.textContent || "");
+      }
+      const siteInput = gfForm.querySelector('[name="site_name"]');
+      if (siteInput && !String(siteInput.value || "").trim()) {
+        const firstPart = String(btn.textContent || "").split(",")[0]?.trim();
+        if (firstPart) siteInput.value = firstPart;
+      }
+    });
+    const runGeofenceSearch = async () => {
+      const raw = String(geofenceSearchInput?.value || "").trim();
+      const result = await searchGeofencePlace(raw, mapEl, latIn, lngIn, {
+        language: getLang(),
+        onStatus: (state, details = {}) => {
+          if (!geofenceSearchStatus) return;
+          if (state === "loading") {
+            geofenceSearchStatus.textContent = t("tools.searching");
+            setGeofenceSearchResults([]);
+          } else if (state === "empty") {
+            geofenceSearchStatus.textContent = t("tools.searchEmpty");
+            setGeofenceSearchResults([]);
+          } else if (state === "notFound") {
+            geofenceSearchStatus.textContent = t("tools.searchNoResult");
+            setGeofenceSearchResults([]);
+          } else if (state === "failed") {
+            geofenceSearchStatus.textContent = t("tools.searchFailed");
+            setGeofenceSearchResults([]);
+          }
+          else if (state === "ok") geofenceSearchStatus.textContent = t("tools.searchMoved").replace("{place}", details.label || raw);
+        },
+      });
+      if (!result) return;
+      setGeofenceSearchResults(result.results || []);
+      if (Array.isArray(result.results) && result.results.length > 1 && geofenceSearchStatus) {
+        geofenceSearchStatus.textContent = t("tools.searchChooseResult").replace("{count}", String(result.results.length));
+      }
+      const siteInput = gfForm.querySelector('[name="site_name"]');
+      if (siteInput && !String(siteInput.value || "").trim()) {
+        const firstPart = String(result.label || "").split(",")[0]?.trim();
+        if (firstPart) siteInput.value = firstPart;
+      }
+    };
+    $("geofenceSearchBtn")?.addEventListener("click", () => {
+      runGeofenceSearch();
+    });
+    geofenceSearchInput?.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter") return;
+      ev.preventDefault();
+      runGeofenceSearch();
+    });
     const gpsStatus = $("geofenceGpsStatus");
     $("geofenceGpsBtn")?.addEventListener("click", () => {
       useGeofenceCurrentLocation(latIn, lngIn, $("geofenceMap"), {
