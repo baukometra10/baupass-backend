@@ -16,6 +16,12 @@ _LIVE_MAP_CACHE: dict[str, tuple[float, dict]] = {}
 _LIVE_MAP_TTL_SEC = 3.0
 _COMMAND_CENTER_CACHE: dict[str, tuple[float, dict]] = {}
 _COMMAND_CENTER_TTL_SEC = 5.0
+_DAILY_BRIEF_CACHE: dict[str, tuple[float, dict]] = {}
+_DAILY_BRIEF_TTL_SEC = 6.0
+_COPILOT_CONTEXT_CACHE: dict[str, tuple[float, dict]] = {}
+_COPILOT_CONTEXT_TTL_SEC = 8.0
+_WORKFORCE_GRAPH_CACHE: dict[str, tuple[float, dict]] = {}
+_WORKFORCE_GRAPH_TTL_SEC = 8.0
 
 
 def register_physical_operations(flask_app) -> None:
@@ -238,7 +244,21 @@ def register_physical_operations(flask_app) -> None:
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
-        return jsonify(build_daily_ops_brief(get_db(), cid))
+        role = g.current_user.get("role", "")
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{role}:{cid}"
+        now = time.monotonic()
+        if not force:
+            hit = _DAILY_BRIEF_CACHE.get(cache_key)
+            if hit and now - hit[0] < _DAILY_BRIEF_TTL_SEC:
+                return jsonify(hit[1])
+        payload = build_daily_ops_brief(get_db(), cid)
+        _DAILY_BRIEF_CACHE[cache_key] = (now, payload)
+        if len(_DAILY_BRIEF_CACHE) > 120:
+            oldest = sorted(_DAILY_BRIEF_CACHE.items(), key=lambda kv: kv[1][0])[:30]
+            for key, _ in oldest:
+                _DAILY_BRIEF_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/digital-twin")
     @require_auth
@@ -569,7 +589,21 @@ def register_physical_operations(flask_app) -> None:
     def workforce_graph():
         cid = _cid()
         days = int(request.args.get("days", "14"))
-        return jsonify(build_workforce_graph(get_db(), cid, days=days))
+        role = g.current_user.get("role", "")
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{role}:{cid}:{days}"
+        now = time.monotonic()
+        if not force:
+            hit = _WORKFORCE_GRAPH_CACHE.get(cache_key)
+            if hit and now - hit[0] < _WORKFORCE_GRAPH_TTL_SEC:
+                return jsonify(hit[1])
+        payload = build_workforce_graph(get_db(), cid, days=days)
+        _WORKFORCE_GRAPH_CACHE[cache_key] = (now, payload)
+        if len(_WORKFORCE_GRAPH_CACHE) > 120:
+            oldest = sorted(_WORKFORCE_GRAPH_CACHE.items(), key=lambda kv: kv[1][0])[:30]
+            for key, _ in oldest:
+                _WORKFORCE_GRAPH_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @ops_os_bp.get("/ops-os/identity")
     @require_auth
@@ -597,7 +631,21 @@ def register_physical_operations(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def copilot_context():
         cid = _cid()
-        return jsonify(build_copilot_context(get_db(), cid, g.current_user.get("role", "")))
+        role = g.current_user.get("role", "")
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{role}:{cid}"
+        now = time.monotonic()
+        if not force:
+            hit = _COPILOT_CONTEXT_CACHE.get(cache_key)
+            if hit and now - hit[0] < _COPILOT_CONTEXT_TTL_SEC:
+                return jsonify(hit[1])
+        payload = build_copilot_context(get_db(), cid, role)
+        _COPILOT_CONTEXT_CACHE[cache_key] = (now, payload)
+        if len(_COPILOT_CONTEXT_CACHE) > 120:
+            oldest = sorted(_COPILOT_CONTEXT_CACHE.items(), key=lambda kv: kv[1][0])[:30]
+            for key, _ in oldest:
+                _COPILOT_CONTEXT_CACHE.pop(key, None)
+        return jsonify(payload)
 
     # ── Site assets CRUD ──────────────────────────────────────────────────────
     @ops_os_bp.get("/ops-os/equipment")
