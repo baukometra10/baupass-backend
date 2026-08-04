@@ -70,6 +70,81 @@ body.docs-page.theme-white .titlebar {
   color: var(--ink);
 }
 
+body.docs-page.theme-black .stage-caption,
+body.docs-page.theme-black .doc-outline,
+body.docs-page.theme-black .doc-comments,
+body.docs-page.theme-black .sel-bubble,
+body.docs-page.theme-black .img-size-bar,
+body.docs-page.theme-black .shortcuts-panel,
+body.docs-page.theme-black .print-preview-panel,
+body.docs-page.theme-black .preflight-panel,
+body.docs-page.theme-black .slash-menu,
+body.docs-page.theme-black .docs-empty-card,
+body.docs-page.theme-black .focus-exit-chip,
+body.docs-page.theme-black .oo-bar {
+  background: rgba(15, 23, 42, 0.94);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.docs-page.theme-white .stage-caption,
+body.docs-page.theme-white .doc-outline,
+body.docs-page.theme-white .doc-comments,
+body.docs-page.theme-white .sel-bubble,
+body.docs-page.theme-white .img-size-bar,
+body.docs-page.theme-white .shortcuts-panel,
+body.docs-page.theme-white .print-preview-panel,
+body.docs-page.theme-white .preflight-panel,
+body.docs-page.theme-white .slash-menu,
+body.docs-page.theme-white .docs-empty-card,
+body.docs-page.theme-white .focus-exit-chip,
+body.docs-page.theme-white .oo-bar {
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  border-color: rgba(203, 213, 225, 0.95);
+}
+
+body.docs-page.theme-white .doc-outline-title,
+body.docs-page.theme-white .doc-outline-empty,
+body.docs-page.theme-white .doc-comments-title,
+body.docs-page.theme-white .doc-comments-empty,
+body.docs-page.theme-white .print-preview-meta,
+body.docs-page.theme-white .img-size-label,
+body.docs-page.theme-white .shortcuts-row span,
+body.docs-page.theme-white .stage-caption,
+body.docs-page.theme-white .focus-exit-chip,
+body.docs-page.theme-white .slash-item,
+body.docs-page.theme-white .preflight-item,
+body.docs-page.theme-white .docs-empty-card p {
+  color: #475569;
+}
+
+body.docs-page.theme-white .doc-outline-item,
+body.docs-page.theme-white .doc-comments-reply,
+body.docs-page.theme-white .shortcuts-panel,
+body.docs-page.theme-white .preflight-panel,
+body.docs-page.theme-white .print-preview-panel,
+body.docs-page.theme-white .slash-menu,
+body.docs-page.theme-white .docs-empty-card h2,
+body.docs-page.theme-white .docs-empty-card {
+  color: #0f172a;
+}
+
+body.docs-page.theme-white .print-preview-body {
+  background:
+    radial-gradient(ellipse at top, rgba(56, 189, 248, 0.06), transparent 55%),
+    linear-gradient(180deg, #e2e8f0, #cbd5e1);
+}
+
+body.docs-page.theme-white .doc-comments-thread,
+body.docs-page.theme-white .doc-comments-item,
+body.docs-page.theme-white .preflight-item,
+body.docs-page.theme-white .merge-preview-list li,
+body.docs-page.theme-white .diff-plain {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(203, 213, 225, 0.95);
+}
+
 body.docs-page.theme-black .version-preview-pane {
   background:
     radial-gradient(ellipse 70% 40% at 50% 0%, rgba(148, 163, 184, 0.14), transparent 55%),
@@ -115,11 +190,11 @@ body.docs-page.theme-black #quillToolbar .ql-picker-item::before {
 
 body.docs-page.theme-black .brand-card img,
 body.docs-page.theme-black .sign-canvas {
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--paper, #ffffff);
 }
 
 body.docs-page.theme-white .table-picker {
-  background: #ffffff;
+  background: var(--paper, #ffffff);
   border-color: rgba(203, 213, 225, 0.95);
   color: #0f172a;
 }
@@ -130,8 +205,16 @@ body.docs-page.theme-white .table-picker-cell {
 }
 
 body.docs-page.theme-white #quillToolbar .ql-picker-options {
-  background: #ffffff !important;
+  background: var(--paper, #ffffff) !important;
   border-color: rgba(203, 213, 225, 0.95) !important;
+}
+
+body.docs-page.theme-white .sel-bubble-btn.is-active {
+  color: #0f172a;
+}
+
+body.docs-page.theme-white .sel-bubble-sep {
+  background: rgba(15, 23, 42, 0.12);
 }
 
 .docs-shell {
@@ -464,6 +547,7 @@ a.back::before { content: "← "; opacity: 0.7; }
   padding: 0.55rem 1.1rem 0.65rem;
   background: var(--panel);
   border-bottom: 1px solid var(--rail-line);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   /* Keep "Mehr"-dropdown above toolbar + paper stage (sibling paint order). */
   position: relative;
@@ -846,6 +930,7 @@ body.theme-white #quillToolbar .wp-ico-svg { color: #1e293b; }
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.94);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   color: #f8fafc;
   pointer-events: auto;
@@ -897,6 +982,7 @@ body.theme-white #quillToolbar .wp-ico-svg { color: #1e293b; }
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.55);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .cmd-palette-panel {
@@ -1212,6 +1298,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(15, 23, 42, 0.55);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   color: #e2e8f0;
 }
@@ -1264,6 +1351,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   border-radius: 12px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   background: rgba(15, 23, 42, 0.55);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   color: #e2e8f0;
 }
@@ -1375,6 +1463,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.62);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .print-preview-panel {
@@ -1547,6 +1636,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.6);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
 }
 .diff-modal-panel {
@@ -1569,7 +1659,7 @@ body.docs-page.theme-black .diff-modal-panel {
 }
 
 body.docs-page.theme-white .diff-modal-panel {
-  background: #ffffff;
+  background: var(--paper, #ffffff);
   border-color: rgba(203, 213, 225, 0.95);
   color: #0f172a;
 }
@@ -1809,6 +1899,7 @@ body.docs-page.theme-white .version-preview-paper {
   color: rgba(100, 116, 139, 0.06);
   transform: rotate(-38deg);
   pointer-events: none;
+  -webkit-user-select: none;
   user-select: none;
   z-index: 1;
 }
@@ -1846,6 +1937,7 @@ body.docs-page.theme-white .version-preview-paper {
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.55);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
 .preflight-panel {
@@ -2060,6 +2152,7 @@ body.hide-footer .docs-footer-band { display: none; }
   line-height: 0;
   font-size: 0;
   pointer-events: none;
+  -webkit-user-select: none;
   user-select: none;
   background: transparent;
 }
@@ -2291,6 +2384,7 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.55);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
 .shortcuts-panel {
@@ -2609,8 +2703,8 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   font-weight: 650;
   font-size: 0.92em;
   letter-spacing: 0.01em;
-  box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 #quillEditor .ql-editor .wp-ph-chip,
 .docs-hf .wp-ph-chip {
@@ -2623,8 +2717,8 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   font: 650 0.86em/1.35 var(--ui);
   letter-spacing: 0.01em;
   white-space: nowrap;
-  box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 body.theme-black #quillEditor .ql-editor .wp-ph-chip,
 body.theme-black .docs-hf .wp-ph-chip {
@@ -2975,6 +3069,7 @@ body.docs-fullscreen .tpl-edit-banner { display: none !important; }
   background: rgba(15, 23, 42, 0.82);
   color: #e2e8f0;
   font: 650 0.78rem/1 var(--ui);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   cursor: pointer;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
@@ -3191,6 +3286,7 @@ body.page-a1 @page { size: A1; }
   position: absolute;
   inset: 0;
   background: rgba(2, 6, 23, 0.55);
+  -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
 }
 .share-panel {
@@ -3396,6 +3492,7 @@ body.docs-page.theme-black .share-url {
   z-index: 8;
   padding: 1.5rem;
   background: color-mix(in srgb, var(--bg, #0b1220) 72%, transparent);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
 }
 .docs-empty-state.is-on { display: grid; }
@@ -3629,6 +3726,7 @@ body.docs-review-mode #quillEditor .ql-editor {
   opacity: 0.45;
   min-width: 2.2rem;
   text-align: right;
+  -webkit-user-select: none;
   user-select: none;
 }
 .diff-modal-body.diff-unified-only .diff-col { display: none; }

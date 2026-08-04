@@ -5,25 +5,38 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex,nofollow" />
   <title>Dokument · Freigabe</title>
+  <script src="/workpass-storage.js?v=20260624storage1"></script>
   <style>
     :root {
-      --bg: #eef2f7; --paper: #fff; --ink: #0f172a; --muted: #64748b;
+      --bg: #eef2f7; --paper: #fff; --ink: #0f172a; --chrome-ink: #0f172a; --muted: #64748b;
       --line: #e2e8f0; --accent: #0ea5e9;
       --ui: "Segoe UI", system-ui, sans-serif;
       --serif: Georgia, "Times New Roman", serif;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0; min-height: 100vh; font-family: var(--ui); color: var(--ink);
+      margin: 0; min-height: 100vh; font-family: var(--ui); color: var(--chrome-ink);
       background:
         radial-gradient(1200px 600px at 10% -10%, rgba(14, 165, 233, 0.12), transparent 55%),
         linear-gradient(180deg, #f8fafc, var(--bg));
     }
+    body.theme-black {
+      --bg: #0b1220; --paper: #ffffff; --ink: #0f172a; --chrome-ink: #e5eef8; --muted: #9fb1c7; --line: rgba(120,156,255,0.18);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(14, 165, 233, 0.18), transparent 55%),
+        linear-gradient(180deg, #050816, #0b1220);
+    }
+    body.theme-white {
+      --bg: #eef2f7; --paper: #ffffff; --ink: #0f172a; --chrome-ink: #0f172a; --muted: #64748b; --line: #e2e8f0;
+    }
     .bar {
       display: flex; align-items: center; justify-content: space-between; gap: 1rem;
       padding: 0.85rem 1.25rem; border-bottom: 1px solid var(--line);
-      background: rgba(255,255,255,.86); backdrop-filter: blur(8px);
+      background: rgba(255,255,255,.86); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
       position: sticky; top: 0; z-index: 2;
+    }
+    body.theme-black .bar {
+      background: rgba(10,16,30,.92);
     }
     .brand { font: 750 0.95rem/1.2 var(--ui); }
     .brand span { color: var(--accent); }
@@ -38,11 +51,16 @@
       padding: 1.5rem; border-radius: 12px; background: #fff; border: 1px solid var(--line);
       color: var(--muted); text-align: center;
     }
+    body.theme-black .status {
+      background: rgba(10,16,30,.94);
+      color: var(--muted);
+    }
     .status.err { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
     .paper {
       background: var(--paper); border: 1px solid var(--line);
       box-shadow: 0 18px 50px rgba(15, 23, 42, 0.08); border-radius: 2px;
       padding: clamp(1.5rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3.25rem); min-height: 60vh;
+      color: var(--ink);
     }
     .paper h1.title { margin: 0 0 1.25rem; font: 700 1.65rem/1.25 var(--serif); }
     .body { font: 400 1.05rem/1.7 var(--serif); }
@@ -53,13 +71,36 @@
       max-width: 360px; margin: 2rem auto; padding: 1.25rem; background: #fff;
       border: 1px solid var(--line); border-radius: 12px; text-align: left;
     }
+    body.theme-black .lock {
+      background: rgba(10,16,30,.94);
+      color: var(--ink);
+    }
     .lock label { display: grid; gap: 0.35rem; font: 600 0.82rem/1.2 var(--ui); margin-bottom: 0.85rem; }
     .lock input {
       border: 1px solid var(--line); border-radius: 8px; padding: 0.55rem 0.65rem; font: 500 0.95rem/1.2 var(--ui);
     }
+    body.theme-black .lock input,
+    body.theme-black button {
+      background: rgba(15,23,42,.9);
+      color: var(--ink);
+      border-color: var(--line);
+    }
     .badge {
       display: inline-flex; padding: 0.2rem 0.5rem; border-radius: 999px; background: #f1f5f9;
       color: var(--muted); font: 650 0.7rem/1 var(--ui); letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    body.theme-black .badge {
+      background: rgba(255,255,255,.08);
+      color: var(--muted);
+    }
+    .lock-help {
+      margin: 0 0 0.75rem;
+      color: var(--muted);
+      font: 500 0.9rem/1.4 var(--ui);
+    }
+    .lock-error {
+      color: #b91c1c;
+      margin-top: 0.65rem;
     }
     @media print {
       body { background: #fff; }
@@ -83,18 +124,19 @@
   <main class="wrap">
     <div class="status" id="loading">Dokument wird geladen…</div>
     <form class="lock" id="lockForm" hidden>
-      <p style="margin:0 0 0.75rem;color:var(--muted);font:500 0.9rem/1.4 var(--ui)">Dieses Dokument ist passwortgeschützt.</p>
+      <p class="lock-help">Dieses Dokument ist passwortgeschützt.</p>
       <label>Passwort
         <input type="password" id="pwdInput" autocomplete="current-password" required />
       </label>
       <button type="submit" class="primary">Öffnen</button>
-      <p class="meta" id="lockErr" style="color:#b91c1c;margin-top:0.65rem" hidden></p>
+      <p class="meta lock-error" id="lockErr" hidden></p>
     </form>
     <article class="paper" id="paper" hidden>
       <h1 class="title" id="title"></h1>
       <div class="body" id="body"></div>
     </article>
   </main>
+  <script src="/control-pass-theme.js?v=20260705a"></script>
   <script>
     (function () {
       const params = new URLSearchParams(location.search);

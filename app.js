@@ -27295,8 +27295,8 @@ async function openCompanyPlanModal(companyId, company) {
   const planCards = PLANS.map((p) => {
     const isCurrent = p.key === currentPlan;
     const perWorkerLine = p.perWorker
-      ? `<div style="font-size:11px;color:#777;margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro MA (ab ${Number(p.workersIncluded || 0) + 1}.)</div>`
-      : `<div style="font-size:11px;color:#777;margin-top:3px;">alle Mitarbeiter inklusive</div>`;
+      ? `<div style="font-size:11px;color:var(--text-muted,#777);margin-top:3px;">+ ${escapeHtml(p.perWorker)} pro MA (ab ${Number(p.workersIncluded || 0) + 1}.)</div>`
+      : `<div style="font-size:11px;color:var(--text-muted,#777);margin-top:3px;">alle Mitarbeiter inklusive</div>`;
     return `
       <label style="cursor:pointer;display:block;border:2px solid ${isCurrent ? p.color : "var(--border,#ccc)"};border-radius:8px;padding:10px 14px;background:${isCurrent ? "rgba(99,102,241,0.05)" : "transparent"};transition:border-color 0.15s;" class="plan-card-label">
         <input type="radio" name="companyPlanChoice" value="${escapeHtml(p.key)}" ${isCurrent ? "checked" : ""} style="accent-color:${p.color};margin-right:8px;">
@@ -27315,7 +27315,7 @@ async function openCompanyPlanModal(companyId, company) {
   modal.innerHTML = `
     <div class="admin-modal-card" style="max-width:780px;width:96%;">
       <h3 class="admin-modal-title">📦 Paket / Plan – ${escapeHtml(company.name || companyId)}</h3>
-      <p style="font-size:13px;color:#555;margin-bottom:16px;">
+      <p style="font-size:13px;color:var(--text-muted,#555);margin-bottom:16px;">
         Aktuelles Paket: <strong>${escapeHtml(PLAN_LABELS[currentPlan] || currentPlan)}</strong>
       </p>
 
@@ -27340,7 +27340,7 @@ async function openCompanyPlanModal(companyId, company) {
         </div>
       </details>
 
-      <div id="companyPlanChangeNote" style="min-height:20px;font-size:12px;color:#555;margin-bottom:12px;"></div>
+      <div id="companyPlanChangeNote" style="min-height:20px;font-size:12px;color:var(--text-muted,#555);margin-bottom:12px;"></div>
 
       <div class="admin-modal-actions">
         <button type="button" class="primary-button" id="companyPlanSaveBtn">Paket speichern</button>
@@ -27362,9 +27362,9 @@ async function openCompanyPlanModal(companyId, company) {
     const selRank = PLAN_RANK[selected] ?? 0;
     const curRank = PLAN_RANK[currentPlan] ?? 0;
     if (selRank > curRank) {
-      note.innerHTML = `<span style="color:#166534;">⬆ Upgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – neue Features werden sofort freigeschaltet.</span>`;
+      note.innerHTML = `<span style="color:var(--success-text,#166534);">⬆ Upgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – neue Features werden sofort freigeschaltet.</span>`;
     } else {
-      note.innerHTML = `<span style="color:#991b1b;">⬇ Downgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – Features oberhalb dieses Pakets werden deaktiviert.</span>`;
+      note.innerHTML = `<span style="color:var(--danger-text,#991b1b);">⬇ Downgrade auf <strong>${escapeHtml(PLAN_LABELS[selected] || selected)}</strong> – Features oberhalb dieses Pakets werden deaktiviert.</span>`;
     }
     // Update border styles on plan cards
     modal.querySelectorAll("input[name=companyPlanChoice]").forEach((radio) => {
@@ -28146,7 +28146,7 @@ function renderAdminSettingsForm() {
   if (brevoKeyHint) {
     const hasBrevoKey = !!(state.settings.brevoApiKey);
     brevoKeyHint.textContent = hasBrevoKey ? `✓ ${runtimeText("brevoApiKeyStored")}` : runtimeText("brevoNoApiKeyStored");
-    brevoKeyHint.style.color = hasBrevoKey ? "#16a34a" : "#9ca3af";
+    brevoKeyHint.style.color = hasBrevoKey ? "var(--success-accent,#16a34a)" : "var(--text-muted,#9ca3af)";
   }
   if (elements.invoiceLogoData) {
     elements.invoiceLogoData.value = state.settings.invoiceLogoData || "";
@@ -31434,7 +31434,7 @@ async function saveAndTestBrevo() {
   }
 
   if (key || fromEmail) {
-    if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoSaving")}`; resultEl.style.color = "#6b7280"; }
+    if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoSaving")}`; resultEl.style.color = "var(--text-muted,#6b7280)"; }
     try {
       const brevoSaveBody = { ...getCurrentSmtpSettingsFromForm(), brevoFromEmail: fromEmail };
       if (key) brevoSaveBody.brevoApiKey = key;
@@ -31457,13 +31457,13 @@ async function saveAndTestBrevo() {
 
   if (hintEl) { hintEl.textContent = `✓ ${runtimeText("brevoApiKeyStored")}`; hintEl.style.color = "#16a34a"; }
   if (keyEl) keyEl.value = "";
-  if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoTesting")}`; resultEl.style.color = "#6b7280"; }
+  if (resultEl) { resultEl.textContent = `⏳ ${runtimeText("brevoTesting")}`; resultEl.style.color = "var(--text-muted,#6b7280)"; }
   // Test via resend-test endpoint (uses API fallback: Resend/Brevo)
   let data = await runResendDirectTest("", "brevo");
   if (data?.error === "missing_recipient") {
     const addr = window.prompt(runtimeText("brevoPromptRecipient"));
     if (!addr || !addr.includes("@")) {
-      if (resultEl) { resultEl.textContent = runtimeText("operationCanceled"); resultEl.style.color = "#9ca3af"; }
+      if (resultEl) { resultEl.textContent = runtimeText("operationCanceled"); resultEl.style.color = "var(--text-muted,#9ca3af)"; }
       return;
     }
     data = await runResendDirectTest(addr, "brevo");
@@ -31476,10 +31476,10 @@ async function saveAndTestBrevo() {
     if (freeWarn) {
       resultEl.textContent =
         "⚠ Brevo hat angenommen — aber Gmail/Free-Mail als Absender verursacht oft „Fehler“ in den Logs und keine Zustellung. Bitte noreply@deine-firma.de + Domain in Brevo authentifizieren.";
-      resultEl.style.color = "#b45309";
+      resultEl.style.color = "var(--warn-accent,#b45309)";
     } else {
       resultEl.textContent = `✓ ${runtimeText("brevoMailSent")}`;
-      resultEl.style.color = "#16a34a";
+      resultEl.style.color = "var(--success-accent,#16a34a)";
     }
   } else {
     const detail = data?.detail ? ` → ${data.detail}` : "";
@@ -31492,7 +31492,7 @@ async function saveAndTestBrevo() {
       error: data?.error || runtimeText("invoiceErrorLabel"),
       detail,
     })}${ipHint}`;
-    resultEl.style.color = "#dc2626";
+    resultEl.style.color = "var(--danger,#dc2626)";
   }
 }
 
@@ -35171,7 +35171,7 @@ function renderTwofaPanel() {
       <div style="margin-bottom:10px">
         <span class="status-pill status-ok">${escapeHtml(uiT("tfaStatusActive"))}</span>
       </div>
-      <p style="margin:0 0 8px;font-size:0.88rem;color:#555">${escapeHtml(currentEmail || "–")}</p>
+      <p style="margin:0 0 8px;font-size:0.88rem;color:var(--text-muted,#555)">${escapeHtml(currentEmail || "–")}</p>
       <div class="button-row">
         <button type="button" class="danger-button" onclick="disableTwofa()">${escapeHtml(uiT("tfaBtnDisable"))}</button>
       </div>

@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725watch4" />
   <style>
+    body { background: var(--bg); color: var(--text); }
     .cw-wrap { max-width: 1240px; margin: 0 auto; padding: 1rem 1.1rem 2.5rem; }
     .cw-top { display: flex; justify-content: space-between; gap: 0.75rem; align-items: flex-start; margin-bottom: 0.85rem; flex-wrap: wrap; }
     .cw-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.55rem; margin-bottom: 0.85rem; }
@@ -58,6 +59,74 @@
     .cw-filter button { font-size: 0.75rem; }
     details.cw-acc { border: 1px solid var(--border); border-radius: 12px; padding: 0.55rem 0.75rem; margin-top: 0.65rem; }
     details.cw-acc > summary { cursor: pointer; font-weight: 650; }
+
+    body.theme-black .cw-card,
+    body.theme-black .cw-kpi,
+    body.theme-black .cw-list li,
+    body.theme-black details.cw-acc {
+      background: linear-gradient(180deg, rgba(13, 20, 38, 0.96), rgba(8, 13, 26, 0.98));
+      border-color: rgba(120, 156, 255, 0.16);
+      color: var(--text);
+    }
+
+    body.theme-white .cw-card,
+    body.theme-white .cw-kpi,
+    body.theme-white .cw-list li,
+    body.theme-white details.cw-acc {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 252, 0.99));
+      border-color: rgba(15, 23, 42, 0.12);
+      color: var(--text);
+    }
+
+    body.theme-black .cw-tab.active {
+      border-color: var(--warn-border, #f59e0b);
+      background: rgba(245,158,11,.12);
+      color: #fde68a;
+    }
+
+    body.theme-white .cw-tab.active {
+      border-color: var(--warn-border, #d97706);
+      background: rgba(245,158,11,.12);
+      color: #92400e;
+    }
+
+    body.theme-white .cw-badge {
+      background: rgba(245,158,11,.14);
+      color: #92400e;
+    }
+
+    body.theme-white .cw-badge.off { color: #475569; }
+    body.theme-white .cw-badge.ok { color: #166534; }
+
+    body.theme-white #cwMap,
+    body.theme-white #cwMap .leaflet-container {
+      background: #e2e8f0;
+    }
+
+    .cw-headline { margin: 0.35rem 0 0.15rem; }
+    .cw-subtitle { margin: 0; }
+    .cw-top-status { text-align: right; }
+    .cw-status-line { margin-top: 0.35rem; font-size: 0.78rem; }
+    .cw-actions-end { margin-top: 0.45rem; justify-content: flex-end; }
+    .cw-auto-refresh-label { font-size: 0.75rem; display: flex; gap: 0.3rem; align-items: center; }
+    .cw-card-note { margin: 0; font-size: 0.78rem; }
+    .cw-summary { margin: 0 0 0.55rem; font-size: 0.84rem; }
+    .cw-msg { margin: 0.5rem 0 0; font-size: 0.78rem; }
+    .cw-privacy-banner { margin-top: 0.65rem; padding: 0.65rem; border-color: rgba(148,163,184,.35); }
+    .cw-privacy-text { margin: 0.35rem 0 0; font-size: 0.78rem; white-space: pre-wrap; }
+    .cw-detail-meta { font-size: 0.78rem; }
+    .cw-detail-card { margin-top: 0.65rem; padding: 0.65rem; }
+    .cw-detail-text { margin: 0.35rem 0 0; }
+    .cw-detail-footnote { margin: 0.35rem 0 0; font-size: 0.72rem; }
+    .cw-history-box { margin-top: 0.65rem; }
+    .cw-cam-edit { margin-top: 0.75rem; padding: 0.75rem; }
+    .cw-no-top-margin { margin-top: 0; }
+    .cw-wizard-list { margin: 0.35rem 0 0.55rem; padding-left: 1.2rem; font-size: 0.78rem; line-height: 1.45; }
+    .cw-actions-tight { margin-bottom: 0.45rem; }
+    .cw-wizard-hint { margin: 0 0 0.45rem; font-size: 0.75rem; }
+    .cw-wizard-code { margin: 0; font-size: 0.68rem; white-space: pre-wrap; overflow: auto; }
+    .cw-override-list { margin-top: 0.55rem; }
+    .cw-site-list { margin-top: 0.7rem; }
   </style>
 </head>
 <body>
@@ -65,15 +134,15 @@
     <div class="cw-top">
       <div>
         <a href="/admin-v2/index.html" id="cwBack">← Betrieb</a>
-        <h1 style="margin:0.35rem 0 0.15rem">Kamera-Wächter</h1>
-        <p class="muted" style="margin:0" id="cwSubtitle">Ops-Konsole · Nachtschicht · Kette · Export · Karte — kein Auto-Notruf</p>
+        <h1 class="cw-headline">Kamera-Wächter</h1>
+        <p class="muted cw-subtitle" id="cwSubtitle">Ops-Konsole · Nachtschicht · Kette · Export · Karte — kein Auto-Notruf</p>
       </div>
-      <div style="text-align:right">
+      <div class="cw-top-status">
         <span class="cw-badge" id="cwWatchBadge">…</span>
-        <div class="muted" id="cwStatusLine" style="margin-top:0.35rem;font-size:0.78rem"></div>
-        <div class="cw-actions" style="margin-top:0.45rem;justify-content:flex-end">
+        <div class="muted cw-status-line" id="cwStatusLine"></div>
+        <div class="cw-actions cw-actions-end">
           <button type="button" class="ghost" id="cwRefresh">Aktualisieren</button>
-          <label class="muted" style="font-size:0.75rem;display:flex;gap:0.3rem;align-items:center">
+          <label class="muted cw-auto-refresh-label">
             <input type="checkbox" id="cwAutoRefresh" checked /> Auto 30s
           </label>
           <a class="ghost" id="cwDevicesLink" href="/index.html">Kameras / Bridge</a>
@@ -90,7 +159,7 @@
       <div class="cw-kpi" id="kpiSites"><span>Standorte</span><strong>—</strong></div>
     </div>
 
-    <div class="cw-tabs" role="tablist">
+    <div class="cw-tabs" aria-label="Kamera-Wächter Bereiche">
       <button type="button" class="cw-tab active" data-tab="lage">Lage</button>
       <button type="button" class="cw-tab" data-tab="esc">Eskalationen</button>
       <button type="button" class="cw-tab" data-tab="cams">Kameras</button>
@@ -102,22 +171,22 @@
       <div class="cw-grid">
         <section class="cw-card">
           <h2>Lagekarte</h2>
-          <p class="muted" style="margin:0;font-size:0.78rem">Grün = Kamera online · Orange = offene Eskalation · kein Auto-Notruf</p>
+          <p class="muted cw-card-note">Grün = Kamera online · Orange = offene Eskalation · kein Auto-Notruf</p>
           <div id="cwMap"></div>
         </section>
         <section class="cw-card">
           <h2>Schnelllage</h2>
-          <p class="muted" id="cwLageSummary" style="margin:0 0 0.55rem;font-size:0.84rem"></p>
+          <p class="muted cw-summary" id="cwLageSummary"></p>
           <ul class="cw-list" id="cwLageEscList"></ul>
           <div class="cw-actions">
             <button type="button" class="primary" id="cwTestAlarm">Test-Alarm</button>
             <button type="button" class="ghost" id="cwTestWebhook">Test-Webhook</button>
             <button type="button" class="ghost" id="cwAuditExport">Audit-Export</button>
           </div>
-          <p class="muted" id="cwCompanyMsg" style="margin:0.5rem 0 0;font-size:0.78rem"></p>
-          <div id="cwPrivacyBanner" class="cw-card" hidden style="margin-top:0.65rem;padding:0.65rem;border-color:rgba(148,163,184,.35)">
+          <p class="muted cw-msg" id="cwCompanyMsg"></p>
+          <div id="cwPrivacyBanner" class="cw-card cw-privacy-banner" hidden>
             <strong>Datenschutzhinweis</strong>
-            <p class="muted" id="cwPrivacyText" style="margin:0.35rem 0 0;font-size:0.78rem;white-space:pre-wrap"></p>
+            <p class="muted cw-privacy-text" id="cwPrivacyText"></p>
           </div>
         </section>
       </div>
@@ -139,13 +208,13 @@
           <div id="cwDetail" hidden>
             <h2 id="cwDetailTitle">Detail</h2>
             <p class="muted" id="cwDetailMeta"></p>
-            <p class="muted" id="cwDetailSla" style="font-size:0.78rem"></p>
-            <p class="muted" id="cwAckBadge" style="font-size:0.78rem"></p>
+            <p class="muted cw-detail-meta" id="cwDetailSla"></p>
+            <p class="muted cw-detail-meta" id="cwAckBadge"></p>
             <div class="cw-media" id="cwMedia"></div>
-            <div class="cw-card" style="margin-top:0.65rem;padding:0.65rem">
+            <div class="cw-card cw-detail-card">
               <strong>Polizei-Vorschlag</strong>
-              <p class="muted" id="cwPolice" style="margin:0.35rem 0 0"></p>
-              <p class="muted" style="margin:0.35rem 0 0;font-size:0.72rem">Kein automatischer Notruf — menschliche Entscheidung erforderlich.</p>
+              <p class="muted cw-detail-text" id="cwPolice"></p>
+              <p class="muted cw-detail-footnote">Kein automatischer Notruf — menschliche Entscheidung erforderlich.</p>
             </div>
             <div class="cw-actions">
               <button type="button" class="primary" id="cwAck">Bestätigen / Security informiert</button>
@@ -154,8 +223,8 @@
               <a class="ghost" id="cwExportPdf" href="#">Export PDF</a>
               <a class="ghost" id="cwCamLink" href="#">Kamera-Snapshot</a>
             </div>
-            <div class="cw-history" id="cwHistory" style="margin-top:0.65rem"></div>
-            <p class="muted" id="cwDetailMsg" style="margin:0.45rem 0 0;font-size:0.78rem"></p>
+            <div class="cw-history cw-history-box" id="cwHistory"></div>
+            <p class="muted cw-msg" id="cwDetailMsg"></p>
           </div>
           <p class="muted" id="cwDetailEmpty">Eskalation links auswählen.</p>
         </section>
@@ -166,10 +235,10 @@
     <div class="cw-pane" id="pane-cams">
       <section class="cw-card">
         <h2>Kameras & Zonen</h2>
-        <p class="muted" style="margin:0 0 0.55rem;font-size:0.78rem">Online-Status, Zone, Koordinaten — Speichern aktualisiert die Kamera für Watch/Karte.</p>
+        <p class="muted cw-card-note">Online-Status, Zone, Koordinaten — Speichern aktualisiert die Kamera für Watch/Karte.</p>
         <ul class="cw-list" id="cwCamList"></ul>
-        <div id="cwCamEdit" class="cw-card" hidden style="margin-top:0.75rem;padding:0.75rem">
-          <h2 style="margin-top:0">Kamera bearbeiten</h2>
+        <div id="cwCamEdit" class="cw-card cw-cam-edit" hidden>
+          <h2 class="cw-no-top-margin">Kamera bearbeiten</h2>
           <form id="cwCamForm" class="cw-fields">
             <label class="full"><span>Name</span><input name="name" /></label>
             <label><span>Standort / Site-Key</span><input name="location" placeholder="yard-north" /></label>
@@ -186,7 +255,7 @@
             <button type="button" class="primary" id="cwSaveCam">Kamera speichern</button>
             <button type="button" class="ghost" id="cwCamSnapshot">Live-Snapshot</button>
           </div>
-          <p class="muted" id="cwCamMsg" style="margin:0.45rem 0 0;font-size:0.78rem"></p>
+          <p class="muted cw-msg" id="cwCamMsg"></p>
         </div>
       </section>
     </div>
@@ -238,18 +307,18 @@
 
         <details class="cw-acc" open>
           <summary>Webhook-Wizard (Teams / Slack / Wachdienst)</summary>
-          <ol class="muted" style="margin:0.35rem 0 0.55rem;padding-left:1.2rem;font-size:0.78rem;line-height:1.45">
+          <ol class="muted cw-wizard-list">
             <li>Incoming-Webhook in Teams/Slack erstellen (URL kopieren).</li>
             <li>URL unten in „Security-Webhook (Firma)“ einfügen — optional Secret.</li>
             <li>Firma speichern → „Test-Webhook“ — Payload enthält <code>autoDial:false</code>.</li>
           </ol>
-          <div class="cw-actions" style="margin-bottom:0.45rem">
+          <div class="cw-actions cw-actions-tight">
             <button type="button" class="ghost" id="cwWebhookPresetTeams">Teams-Hinweis</button>
             <button type="button" class="ghost" id="cwWebhookPresetSlack">Slack-Hinweis</button>
             <button type="button" class="primary" id="cwTestWebhookInline">Test-Webhook</button>
           </div>
-          <p id="cwWebhookWizardHint" class="muted" style="margin:0 0 0.45rem;font-size:0.75rem"></p>
-          <pre id="cwWebhookCurl" class="muted" style="margin:0;font-size:0.68rem;white-space:pre-wrap;overflow:auto"></pre>
+          <p id="cwWebhookWizardHint" class="muted cw-wizard-hint"></p>
+          <pre id="cwWebhookCurl" class="muted cw-wizard-code"></pre>
         </details>
 
         <h2 class="cw-section-title">Sonderzeiten / Feiertage</h2>
@@ -271,7 +340,7 @@
         <div class="cw-actions">
           <button type="button" class="primary" id="cwSaveOverride">Override speichern</button>
         </div>
-        <ul class="cw-list" id="cwOverrideList" style="margin-top:0.55rem"></ul>
+        <ul class="cw-list cw-override-list" id="cwOverrideList"></ul>
 
         <h2 class="cw-section-title">Standort / Site</h2>
         <form id="cwSiteForm" class="cw-fields">
@@ -292,12 +361,13 @@
           <button type="button" class="primary" id="cwSaveSite">Standort speichern</button>
           <button type="button" class="ghost" id="cwDeleteSite">Standort löschen</button>
         </div>
-        <ul class="cw-list" id="cwSiteList" style="margin-top:0.7rem"></ul>
+        <ul class="cw-list cw-site-list" id="cwSiteList"></ul>
       </section>
     </div>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
+  <script src="/control-pass-theme.js?v=20260705a"></script>
   <script src="/admin-v2/camera-watch-app.js?v=20260725watch4"></script>
 </body>
 </html>
