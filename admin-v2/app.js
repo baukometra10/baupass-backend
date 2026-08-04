@@ -4538,11 +4538,21 @@ async function loadTools() {
         <h3>${t("tools.integrations")}</h3>
         <div class="layer-grid" id="integrationCards"></div>
       </div>`;
+    const zoneKindLabel = (value) => {
+      const kind = String(value || "site").trim().toLowerCase();
+      if (kind === "production") return t("tools.zoneKindProduction") || "Production";
+      if (kind === "warehouse") return t("tools.zoneKindWarehouse") || "Warehouse";
+      if (kind === "admin") return t("tools.zoneKindAdmin") || "Administration";
+      if (kind === "maintenance") return t("tools.zoneKindMaintenance") || "Maintenance";
+      if (kind === "lab") return t("tools.zoneKindLab") || "Laboratory";
+      if (kind === "other") return t("tools.zoneKindOther") || "Other";
+      return t("tools.zoneKindSite") || "Site";
+    };
     renderTable($("geofenceTable"), gfRows, [
       { label: t("table.site"), render: (r) => r.site_name || "-" },
       { label: t("table.coords"), render: (r) => `${r.latitude}, ${r.longitude}` },
       { label: t("table.radius"), render: (r) => `${r.radius_meters}m` },
-      { label: t("tools.zoneKind") || "Typ", render: (r) => r.zone_kind || r.zoneKind || "site" },
+      { label: t("tools.zoneKind") || "Typ", render: (r) => zoneKindLabel(r.zone_kind || r.zoneKind || "site") },
       { label: t("table.active"), render: (r) => yn(r.active) },
     ]);
     renderTable($("automationTable"), ruleRows, [
