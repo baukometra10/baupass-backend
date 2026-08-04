@@ -1980,10 +1980,10 @@ body.embed-mode.admin-v2-embed .hub-embed-frame {
 
 .table-wrap {
   overflow-x: auto;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 252, 0.98));
-  border: 1px solid rgba(120, 156, 255, 0.14);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-card);
 }
 
 table {
@@ -1996,13 +1996,14 @@ th,
 td {
   text-align: right;
   padding: 0.72rem 0.9rem;
-  border-bottom: 1px solid rgba(120, 156, 255, 0.12);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
 }
 
 th {
-  color: #5b6e87;
+  color: var(--muted);
   font-weight: 600;
-  background: rgba(56, 189, 248, 0.04);
+  background: var(--panel-2);
 }
 
 h2 {
