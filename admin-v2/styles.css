@@ -1348,6 +1348,11 @@ body.theme-white .feature-card {
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
 
+.platform-banner-enterprise-link {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 .panel-block h3 {
   margin: 0 0 0.75rem;
   font-size: 1rem;
@@ -1999,6 +2004,61 @@ h2 {
   display: grid;
   gap: 0.75rem;
   box-shadow: 0 20px 52px rgba(15, 23, 42, 0.18);
+}
+
+body.theme-black .modal-card,
+body.theme-black .join-modal-card {
+  background: linear-gradient(180deg, rgba(10, 16, 30, 0.98), rgba(8, 13, 26, 0.98));
+  border-color: rgba(120, 156, 255, 0.18);
+  color: var(--text);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.35);
+}
+
+body.theme-white .modal-card,
+body.theme-white .join-modal-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 252, 0.99));
+  border-color: rgba(120, 156, 255, 0.14);
+  color: #0f172a;
+}
+
+body.theme-black .join-qr-wrap,
+body.theme-black .deployment-pdf-preview-frame,
+body.theme-black .brand-card img,
+body.theme-black .chat-thread-card {
+  background: rgba(10, 16, 30, 0.96);
+  border-color: rgba(120, 156, 255, 0.16);
+}
+
+body.theme-white .join-qr-wrap,
+body.theme-white .deployment-pdf-preview-frame,
+body.theme-white .brand-card img,
+body.theme-white .chat-thread-card {
+  background: #fff;
+  border-color: rgba(120, 156, 255, 0.14);
+}
+
+body.theme-black .join-modal-header {
+  background: linear-gradient(160deg, rgba(15, 76, 92, 0.35), transparent);
+}
+
+body.theme-white .join-modal-header {
+  background: linear-gradient(160deg, rgba(56, 189, 248, 0.12), transparent);
+}
+
+body.theme-black .deployment-modal-declined-meta {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+body.theme-black .worker-action-btn {
+  background: rgba(15, 23, 42, 0.9);
+  color: var(--text);
+}
+
+body.theme-black .worker-action-btn-ghost {
+  background: transparent;
+  color: var(--accent-hover, #7dd3fc);
 }
 
 .modal-card h2 {

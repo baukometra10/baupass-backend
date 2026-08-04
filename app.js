@@ -20362,8 +20362,8 @@ async function openInboxMailDetail(inboxId, cardEl) {
                 ${sizeKb ? `<div style="font-size:0.75em;color:var(--muted,#888);">${escapeHtml(sizeKb)}</div>` : ""}
               </div>
               ${isAssigned
-                ? `<span style="font-size:0.75em;background:#d1fae5;color:#065f46;border-radius:20px;padding:2px 9px;white-space:nowrap;">✓ ${escapeHtml(assignedName)}</span>`
-                : `<span style="font-size:0.75em;background:#fef3c7;color:#92400e;border-radius:20px;padding:2px 9px;white-space:nowrap;">${escapeHtml(runtimeText("notAssignedBadge"))}</span>`}
+                ? `<span style="font-size:0.75em;background:var(--success-surface,#d1fae5);color:var(--success-text,#065f46);border-radius:20px;padding:2px 9px;white-space:nowrap;">✓ ${escapeHtml(assignedName)}</span>`
+                : `<span style="font-size:0.75em;background:var(--warn-surface,#fef3c7);color:var(--warn-text,#92400e);border-radius:20px;padding:2px 9px;white-space:nowrap;">${escapeHtml(runtimeText("notAssignedBadge"))}</span>`}
             </div>
             ${isAssigned ? "" : `
               <div class="doc-att-assign-form" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;">
@@ -21263,7 +21263,7 @@ function loadTtsVoiceList() {
   if (!window.speechSynthesis) {
     panel.innerHTML = `
       <p style="color:#dc2626;font-size:0.88rem">⚠️ ${runtimeText("ttsUnsupportedTitle")}</p>
-      <p style="color:#555;font-size:0.83rem;margin-top:6px">${runtimeText("ttsUnsupportedBrowserHint")}</p>`;
+      <p style="color:var(--text-muted,#555);font-size:0.83rem;margin-top:6px">${runtimeText("ttsUnsupportedBrowserHint")}</p>`;
     return;
   }
 
@@ -21271,16 +21271,16 @@ function loadTtsVoiceList() {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) {
       panel.innerHTML = `
-        <div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:6px;padding:12px;font-size:0.85rem">
-          <p style="margin:0 0 8px;font-weight:600;color:#92400e">⚠️ ${runtimeText("ttsNoVoicesTitle")}</p>
-          <p style="margin:0 0 6px;color:#555">${runtimeText("ttsNoVoicesCauses")}</p>
-          <ul style="margin:0 0 10px;padding-left:18px;color:#555;line-height:1.7">
+        <div style="background:var(--warn-surface,#fff8e1);border:1px solid var(--warn-border,#f59e0b);border-radius:6px;padding:12px;font-size:0.85rem">
+          <p style="margin:0 0 8px;font-weight:600;color:var(--warn-text,#92400e)">⚠️ ${runtimeText("ttsNoVoicesTitle")}</p>
+          <p style="margin:0 0 6px;color:var(--text-muted,#555)">${runtimeText("ttsNoVoicesCauses")}</p>
+          <ul style="margin:0 0 10px;padding-left:18px;color:var(--text-muted,#555);line-height:1.7">
             <li>${runtimeText("ttsNoVoicesWindows")}</li>
             <li>${runtimeText("ttsNoVoicesChrome")}</li>
             <li>${runtimeText("ttsNoVoicesFirefox")}</li>
             <li>${runtimeText("ttsNoVoicesServer")}</li>
           </ul>
-          <p style="margin:0;color:#555">${runtimeText("ttsNoVoicesJingleHint")}</p>
+          <p style="margin:0;color:var(--text-muted,#555)">${runtimeText("ttsNoVoicesJingleHint")}</p>
           <button type="button" class="ghost-button" style="margin-top:10px" onclick="loadTtsVoiceList()">🔄 ${runtimeText("ttsRetryBtn")}</button>
         </div>`;
       return;
@@ -21296,7 +21296,7 @@ function loadTtsVoiceList() {
     const langKeys = Object.keys(byLang).sort();
     const highlighted = ["de", "ar", "tr", "en", "fr", "es", "it", "pl"];
 
-    let html = `<p style="font-size:0.82rem;color:#555;margin:0 0 10px">${runtimeTextTemplate("ttsVoicesAvailable", { count: voices.length })}</p>`;
+    let html = `<p style="font-size:0.82rem;color:var(--text-muted,#555);margin:0 0 10px">${runtimeTextTemplate("ttsVoicesAvailable", { count: voices.length })}</p>`;
 
     // Warnung wenn wichtige Sprachen fehlen
     const missingLangs = [];
@@ -21315,24 +21315,24 @@ function loadTtsVoiceList() {
       if (!availPrefixes.has(code)) missingLangs.push({ code, label });
     }
     if (missingLangs.length) {
-      html += `<div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:0.83rem">`;
-      html += `<p style="margin:0 0 4px;font-weight:600;color:#92400e">⚠️ ${runtimeTextTemplate("ttsMissingLanguages", { languages: missingLangs.map((l) => l.label).join(", ") })}</p>`;
-      html += `<p style="margin:0 0 6px;color:#555">${runtimeText("ttsInstallWindows")}</p>`;
-      html += `<ol style="margin:0 0 6px;padding-left:18px;color:#555;line-height:1.75">`;
+      html += `<div style="background:var(--warn-surface,#fff8e1);border:1px solid var(--warn-border,#f59e0b);border-radius:6px;padding:10px 12px;margin-bottom:10px;font-size:0.83rem">`;
+      html += `<p style="margin:0 0 4px;font-weight:600;color:var(--warn-text,#92400e)">⚠️ ${runtimeTextTemplate("ttsMissingLanguages", { languages: missingLangs.map((l) => l.label).join(", ") })}</p>`;
+      html += `<p style="margin:0 0 6px;color:var(--text-muted,#555)">${runtimeText("ttsInstallWindows")}</p>`;
+      html += `<ol style="margin:0 0 6px;padding-left:18px;color:var(--text-muted,#555);line-height:1.75">`;
       html += `<li>${runtimeText("ttsInstallStep1")}</li>`;
       html += `<li>${runtimeText("ttsInstallStep2")}</li>`;
       html += `<li>${runtimeText("ttsInstallStep3")}</li>`;
       html += `<li>${runtimeText("ttsInstallStep4")}</li>`;
       html += `<li>${runtimeText("ttsInstallStep5")}</li>`;
       html += `</ol>`;
-      html += `<p style="margin:0;color:#555">${runtimeText("ttsFallbackEnglish")}</p>`;
+      html += `<p style="margin:0;color:var(--text-muted,#555)">${runtimeText("ttsFallbackEnglish")}</p>`;
       html += `</div>`;
     }
     html += `<div style="max-height:400px;overflow-y:auto;font-size:0.83rem">`;
     for (const lang of langKeys) {
       const prefix = lang.split("-")[0].toLowerCase();
       const isHighlighted = highlighted.includes(prefix);
-      const color = isHighlighted ? "#06b6d4" : "#555";
+      const color = isHighlighted ? "var(--accent,#06b6d4)" : "var(--text-muted,#555)";
       const weight = isHighlighted ? "600" : "400";
       const voiceCountLabel = byLang[lang].length === 1
         ? runtimeTextTemplate("ttsVoiceCountOne", { count: byLang[lang].length })
@@ -25473,14 +25473,14 @@ function renderCompanyList() {
             </div>
           </details>
           ${company.survey_prompt_enabled ? `
-          <div class="meta-box" style="background:rgba(219,234,254,0.55);border-color:#3b82f6;margin-top:8px;">
+          <div class="meta-box" style="background:var(--info-surface,rgba(219,234,254,0.55));border-color:var(--info-border,#3b82f6);margin-top:8px;">
             <p>System-Bewertung aktiv — Firmen-Admins sehen die Bewertungsmaske direkt im Dashboard.</p>
-            <p style="font-size:0.8em;word-break:break-all;color:#555;margin:4px 0;">${window.location.origin}/satisfaction-survey.html</p>
+            <p style="font-size:0.8em;word-break:break-all;color:var(--text-muted,#555);margin:4px 0;">${window.location.origin}/satisfaction-survey.html</p>
           </div>` : ""}
           ${company.review_enabled && company.review_token ? `
-          <div class="meta-box" style="background:rgba(253,251,210,0.6);border-color:#d4ac0d;margin-top:8px;">
+          <div class="meta-box" style="background:var(--warn-surface,rgba(253,251,210,0.6));border-color:var(--warn-border,#d4ac0d);margin-top:8px;">
             <p>${escapeHtml(runtimeText("companyReviewLinkActive"))}</p>
-            <p style="font-size:0.8em;word-break:break-all;color:#555;margin:4px 0;">${window.location.origin}/review.html?token=${escapeHtml(company.review_token)}</p>
+            <p style="font-size:0.8em;word-break:break-all;color:var(--text-muted,#555);margin:4px 0;">${window.location.origin}/review.html?token=${escapeHtml(company.review_token)}</p>
             <button type="button" class="ghost-button small-button" data-company-review-copy="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnCopyLink"))}</button>
           </div>` : ""}
         </article>
@@ -33886,7 +33886,7 @@ function renderInvoiceManagementList() {
                   <p style="margin: 0;">${escapeHtml(inv.invoice_period || "–")}</p>
                 </div>
               </div>
-              <div style="background: #f9f9f9; padding: 16px; border-radius: 8px; margin-top: 24px;">
+              <div style="background: var(--panel-2,#f9f9f9); padding: 16px; border-radius: 8px; margin-top: 24px;">
                 <p style="margin: 0 0 8px 0; font-weight: bold;">${escapeHtml(runtimeText("invoiceLineItemsTitle"))}</p>
                 <p style="margin: 0; white-space: pre-wrap;">${escapeHtml(inv.line_items_description || runtimeText("invoiceDetailsUnavailable"))}</p>
               </div>
@@ -34477,7 +34477,7 @@ function showLoginSecurityLockScreen() {
       <h2 style="margin:10px 0 8px;font-size:clamp(1.8rem,4vw,3rem);line-height:1.1;">${escapeHtml(uiT("loginSecurityTitle"))}</h2>
       <p style="margin:0 0 12px;font-size:1.1rem;line-height:1.5;">${escapeHtml(uiT("loginSecurityHint"))}</p>
       <p style="margin:0 0 8px;font-size:1rem;opacity:0.95;">${escapeHtml(uiT("loginSecurityCallPrefix"))}</p>
-      <a href="tel:${telPhone}" style="display:inline-block;margin:4px 0 14px;padding:12px 18px;border-radius:10px;background:#fff;color:#900;text-decoration:none;font-weight:800;font-size:1.2rem;">${safePhone}</a>
+      <a href="tel:${telPhone}" style="display:inline-block;margin:4px 0 14px;padding:12px 18px;border-radius:10px;background:var(--panel,#fff);color:var(--danger,#900);text-decoration:none;font-weight:800;font-size:1.2rem;">${safePhone}</a>
       <p style="margin:0 0 8px;font-size:0.95rem;opacity:0.95;">${escapeHtml(uiT("alertTooManyAttempts"))}</p>
       <p style="margin:0 0 4px;font-size:0.95rem;opacity:0.95;">${escapeHtml(uiT("loginSecurityFooter"))}</p>
       <p style="margin:8px 0 0;font-size:0.9rem;opacity:0.8;">Lock aktiv: <span id="loginSecurityCountdown"></span></p>
@@ -36554,32 +36554,21 @@ function showImportDryRunDialog(summary) {
     const formatBadge = (value, mode) => {
       const numeric = Number(value || 0);
       const text = escapeHtml(String(numeric));
-      let bg = "#eef2f7";
-      let color = "#1f2937";
+      let bg = "var(--bg-secondary,#eef2f7)";
+      let color = "var(--text,#1f2937)";
 
       if (mode === "accepted") {
         if (numeric > 0) {
-          bg = "#dcfce7";
-          color = "#166534";
+          bg = "var(--success-surface,#dcfce7)";
+          color = "var(--success-text,#166534)";
         }
-      } else if (mode === "conflict") {
-        if (numeric > 5) {
-          bg = "#fee2e2";
-          color = "#991b1b";
-        } else if (numeric > 0) {
-          bg = "#fef3c7";
-          color = "#92400e";
-        } else {
-          bg = "#dcfce7";
-          color = "#166534";
-        }
-      } else if (mode === "skip") {
+      } else if (mode === "conflict" || mode === "skip") {
         if (numeric > 0) {
-          bg = "#fef3c7";
-          color = "#92400e";
+          bg = "var(--warn-surface,#fef3c7)";
+          color = "var(--warn-text,#92400e)";
         } else {
-          bg = "#dcfce7";
-          color = "#166534";
+          bg = "var(--success-surface,#dcfce7)";
+          color = "var(--success-text,#166534)";
         }
       }
 
@@ -36598,7 +36587,7 @@ function showImportDryRunDialog(summary) {
     panel.style.width = "min(860px, 94vw)";
     panel.style.maxHeight = "80vh";
     panel.style.overflow = "auto";
-    panel.style.background = "#ffffff";
+    panel.style.background = "var(--panel,#ffffff)";
     panel.style.borderRadius = "14px";
     panel.style.padding = "18px";
     panel.style.boxShadow = "0 12px 38px rgba(0,0,0,0.22)";
@@ -36606,33 +36595,32 @@ function showImportDryRunDialog(summary) {
     panel.innerHTML = `
       <h3 style="margin:0 0 8px;">${escapeHtml(runtimeText("importPreviewTitle"))}</h3>
       <p class="helper-text" style="margin:0 0 12px;">${escapeHtml(runtimeText("importPreviewCheckHint"))}</p>
-      <p class="helper-text" style="margin:0 0 12px; color:#475569;">${escapeHtml(runtimeTextTemplate("importPreviewModeLine", { mode: importOnlyChanges ? runtimeText("importPreviewModeChanges") : runtimeText("importPreviewModeAll"), count: unchangedCount }))}</p>
+      <p class="helper-text" style="margin:0 0 12px; color:var(--muted,#475569);">${escapeHtml(runtimeTextTemplate("importPreviewModeLine", { mode: importOnlyChanges ? runtimeText("importPreviewModeChanges") : runtimeText("importPreviewModeAll"), count: unchangedCount }))}</p>
       
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px; padding:10px; background:#f9fafb; border-radius:8px; border:1px solid #e5e7eb;">
+      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; margin-bottom:14px; padding:10px; background:var(--bg-secondary,#f9fafb); border-radius:8px; border:1px solid var(--line,#e5e7eb);">
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#dcfce7; color:#166534; font-weight:700; font-size:0.8rem;">✓</span>
-          <span style="color:#16a34a;">${escapeHtml(runtimeText("importPreviewLegendGreen"))}</span>
+          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:var(--success-surface,#dcfce7); color:var(--success-text,#166534); font-weight:700; font-size:0.8rem;">✓</span>
+          <span style="color:var(--success-accent,#16a34a);">${escapeHtml(runtimeText("importPreviewLegendGreen"))}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#fef3c7; color:#92400e; font-weight:700; font-size:0.8rem;">⚠</span>
-          <span style="color:#b45309;">${escapeHtml(runtimeText("importPreviewLegendYellow"))}</span>
+          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:var(--warn-surface,#fef3c7); color:var(--warn-text,#92400e); font-weight:700; font-size:0.8rem;">⚠</span>
+          <span style="color:var(--warn-accent,#b45309);">${escapeHtml(runtimeText("importPreviewLegendYellow"))}</span>
         </div>
         <div style="display:flex; align-items:center; gap:6px; font-size:0.85rem;">
-          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:#fee2e2; color:#991b1b; font-weight:700; font-size:0.8rem;">✕</span>
-          <span style="color:#dc2626;">${escapeHtml(runtimeText("importPreviewLegendRed"))}</span>
+          <span style="display:inline-flex; min-width:24px; height:24px; justify-content:center; align-items:center; padding:2px 6px; border-radius:999px; background:var(--danger-surface,#fee2e2); color:var(--danger-text,#991b1b); font-weight:700; font-size:0.8rem;">✕</span>
+          <span style="color:var(--danger,#dc2626);">${escapeHtml(runtimeText("importPreviewLegendRed"))}</span>
         </div>
       </div>
 
       <table style="width:100%; border-collapse:collapse; font-size:0.95rem; margin-bottom:12px;">
         <thead>
-          <tr style="background:#f5f7fa; text-align:left;">
+          <tr style="background:var(--bg-secondary,#f5f7fa); text-align:left;">
             <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAreaHeader"))}</th>
             <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAcceptedHeader"))}</th>
             <th style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewConflictsHeader"))}</th>
           </tr>
         </thead>
         <tbody>
-              <p class="meta-text">${formatCurrency(inv.total_amount)}</p>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewSubcompanies"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.subcompanies, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.subcompanies, "conflict")}</td></tr>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewWorkers"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.workers, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.workers, "conflict")}</td></tr>
           <tr><td style="padding:8px; border:1px solid #d8dee8;">${escapeHtml(runtimeText("importPreviewAccessLogs"))}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(accepted.accessLogs, "accepted")}</td><td style="padding:8px; border:1px solid #d8dee8;">${formatBadge(conflicts.accessLogs, "conflict")}</td></tr>
@@ -36640,9 +36628,9 @@ function showImportDryRunDialog(summary) {
         </tbody>
       </table>
 
-      <div style="padding:8px 10px; background:#fef3c7; border-radius:6px; border-left:4px solid #b45309; margin-bottom:14px;">
-        <p style="margin:0 0 6px; font-weight:600; color:#92400e; font-size:0.9rem;">⚠ ${escapeHtml(runtimeText("importPreviewSkippedTitle"))}</p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem; color:#78350f;">
+      <div style="padding:8px 10px; background:var(--warn-surface,#fef3c7); border-radius:6px; border-left:4px solid var(--warn-border,#b45309); margin-bottom:14px;">
+        <p style="margin:0 0 6px; font-weight:600; color:var(--warn-text,#92400e); font-size:0.9rem;">⚠ ${escapeHtml(runtimeText("importPreviewSkippedTitle"))}</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.85rem; color:var(--warn-accent,#78350f);">
           <div><strong>${escapeHtml(runtimeText("importPreviewSkippedForbidden"))}</strong> ${formatBadge(skipped.forbidden, "skip")}</div>
           <div><strong>${escapeHtml(runtimeText("importPreviewSkippedInvalid"))}</strong> ${formatBadge(skipped.invalid, "skip")}</div>
         </div>

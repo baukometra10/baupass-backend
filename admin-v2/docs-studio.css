@@ -50,6 +50,90 @@ body.docs-page.theme-white {
   background: #eef2f6;
 }
 
+body.docs-page.theme-black .docs-sidebar,
+body.docs-page.theme-black .docs-rail,
+body.docs-page.theme-black .toolbar-bar,
+body.docs-page.theme-black .footer-bar,
+body.docs-page.theme-black .titlebar {
+  background: rgba(15, 23, 42, 0.94);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: var(--text);
+}
+
+body.docs-page.theme-white .docs-sidebar,
+body.docs-page.theme-white .docs-rail,
+body.docs-page.theme-white .toolbar-bar,
+body.docs-page.theme-white .footer-bar,
+body.docs-page.theme-white .titlebar {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(226, 232, 240, 0.9);
+  color: var(--ink);
+}
+
+body.docs-page.theme-black .version-preview-pane {
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(148, 163, 184, 0.14), transparent 55%),
+    linear-gradient(168deg, #1f2a3b 0%, #172032 50%, #121926 100%);
+}
+
+body.docs-page.theme-white .version-preview-pane {
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(148, 163, 184, 0.10), transparent 55%),
+    linear-gradient(168deg, #f8fafc 0%, #eef2f6 50%, #e2e8f0 100%);
+}
+
+body.docs-page.theme-black .table-picker {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: var(--text);
+}
+
+body.docs-page.theme-black .table-picker-cell {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+body.docs-page.theme-black .table-picker-cell.is-hot {
+  background: rgba(14, 165, 233, 0.28);
+  border-color: #38bdf8;
+}
+
+body.docs-page.theme-black .table-picker-label {
+  color: var(--muted);
+}
+
+body.docs-page.theme-black #quillToolbar .ql-picker-options {
+  background: rgba(15, 23, 42, 0.98) !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.42) !important;
+}
+
+body.docs-page.theme-black #quillToolbar .ql-picker-item,
+body.docs-page.theme-black #quillToolbar .ql-picker-item::before {
+  color: #e2e8f0 !important;
+}
+
+body.docs-page.theme-black .brand-card img,
+body.docs-page.theme-black .sign-canvas {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+body.docs-page.theme-white .table-picker {
+  background: #ffffff;
+  border-color: rgba(203, 213, 225, 0.95);
+  color: #0f172a;
+}
+
+body.docs-page.theme-white .table-picker-cell {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+body.docs-page.theme-white #quillToolbar .ql-picker-options {
+  background: #ffffff !important;
+  border-color: rgba(203, 213, 225, 0.95) !important;
+}
+
 .docs-shell {
   display: grid;
   grid-template-columns: var(--side-w) minmax(0, 1fr) var(--rail-w);
@@ -825,6 +909,18 @@ body.theme-white #quillToolbar .wp-ico-svg { color: #1e293b; }
   overflow: hidden;
   color: var(--text);
 }
+
+body.docs-page.theme-black .cmd-palette-panel {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: var(--text);
+}
+
+body.docs-page.theme-white .cmd-palette-panel {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(203, 213, 225, 0.95);
+  color: #0f172a;
+}
 .cmd-palette-head {
   display: flex;
   align-items: center;
@@ -896,7 +992,7 @@ body.theme-white #quillToolbar .wp-ico-svg { color: #1e293b; }
   padding: 0.55rem;
   border-radius: 10px;
   border: 1px solid #cbd5e1;
-  background: #fff;
+  background: var(--paper, #fff);
   box-shadow: 0 14px 32px rgba(15, 23, 42, 0.22);
   color: #0f172a;
 }
@@ -910,7 +1006,7 @@ body.theme-white #quillToolbar .wp-ico-svg { color: #1e293b; }
   height: 18px;
   border: 1px solid #94a3b8;
   border-radius: 2px;
-  background: #f8fafc;
+  background: color-mix(in srgb, var(--paper, #fff) 96%, #e2e8f0 4%);
   padding: 0;
   cursor: pointer;
   transition: background 0.08s ease, border-color 0.08s ease, transform 0.08s ease;
@@ -988,7 +1084,7 @@ body.theme-white #quillToolbar .ql-fill { fill: #334155; }
   overflow: auto;
   border: 1px solid #cbd5e1 !important;
   border-radius: 10px !important;
-  background: #ffffff !important;
+  background: var(--paper, #ffffff) !important;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22) !important;
 }
 #quillToolbar .ql-picker-item {
@@ -1466,6 +1562,17 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   overflow: hidden;
   color: var(--text);
 }
+
+body.docs-page.theme-black .diff-modal-panel {
+  background: rgba(15, 23, 42, 0.96);
+  border-color: rgba(148, 163, 184, 0.24);
+}
+
+body.docs-page.theme-white .diff-modal-panel {
+  background: #ffffff;
+  border-color: rgba(203, 213, 225, 0.95);
+  color: #0f172a;
+}
 .diff-modal-head {
   display: flex;
   align-items: center;
@@ -1516,11 +1623,21 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   max-width: 720px;
   min-height: 280px;
   padding: 1.25rem 1.4rem 1.5rem;
-  background: #fff;
+  background: var(--paper, #fff);
   color: #0f172a;
   border-radius: 2px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.35);
   font: 400 0.92rem/1.5 "Segoe UI", Calibri, sans-serif;
+}
+
+body.docs-page.theme-black .version-preview-paper {
+  background: var(--paper, #ffffff);
+  color: #0f172a;
+}
+
+body.docs-page.theme-white .version-preview-paper {
+  background: var(--paper, #ffffff);
+  color: #0f172a;
 }
 .version-preview-header {
   margin-bottom: 0.85rem;
@@ -2136,8 +2253,8 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   width: max-content;
   margin: -0.55rem auto 0;
   padding: 0 0.4rem;
-  background: #fff;
-  color: #94a3b8;
+  background: var(--paper, #fff);
+  color: var(--paper-mute, #94a3b8);
   font: 500 0.62rem/1 var(--ui);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2417,7 +2534,7 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   max-height: 42px;
   max-width: 88px;
   object-fit: contain;
-  background: #fff;
+  background: var(--paper, #fff);
   border-radius: 4px;
   border: 1px solid var(--rail-line);
   padding: 3px;
@@ -3087,6 +3204,18 @@ body.page-a1 @page { size: A1; }
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
   overflow: hidden;
 }
+
+body.docs-page.theme-black .share-panel {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+body.docs-page.theme-white .share-panel {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(203, 213, 225, 0.95);
+}
 .share-head, .share-actions {
   display: flex;
   align-items: center;
@@ -3111,6 +3240,20 @@ body.page-a1 @page { size: A1; }
   color: #e2e8f0;
   padding: 0.5rem 0.55rem;
   font: 500 0.82rem/1.4 var(--ui);
+}
+
+body.docs-page.theme-white .share-body textarea,
+body.docs-page.theme-white .share-url {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: rgba(203, 213, 225, 0.95);
+}
+
+body.docs-page.theme-black .share-body textarea,
+body.docs-page.theme-black .share-url {
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  border-color: rgba(148, 163, 184, 0.3);
 }
 .share-body .check { display: flex; align-items: center; gap: 0.45rem; font: 550 0.82rem/1.3 var(--ui); }
 .share-url {
@@ -3162,7 +3305,7 @@ body.page-a1 @page { size: A1; }
   height: 180px;
   border-radius: 10px;
   border: 1px dashed rgba(148, 163, 184, 0.45);
-  background: #fff;
+  background: var(--paper, #fff);
   touch-action: none;
   cursor: crosshair;
 }
@@ -3505,6 +3648,14 @@ body.docs-review-mode #quillEditor .ql-editor {
   background: #525659;
 }
 .versions-panel summary {
+  color: #7dd3fc;
+}
+
+body.docs-page.theme-white .versions-panel summary {
+  color: #0284c7;
+}
+
+body.docs-page.theme-black .versions-panel summary {
   color: #7dd3fc;
 }
 #quillEditor .ql-editor .wp-ph-chip {

@@ -1753,7 +1753,7 @@ async function loadPlatformBanner() {
         <span class="muted small">${level}</span>
       </div>
       <div>${t("platform.banner.database")}: <strong>${runtime}</strong> ${statusBadge(dbOk)}</div>
-      <a href="/enterprise-hub.html?v=20260527e" class="btn-link platform-banner-enterprise-link" style="color:#fbbf24;font-weight:700">${t("platform.banner.enterpriseLink")}</a>
+      <a href="/enterprise-hub.html?v=20260527e" class="btn-link platform-banner-enterprise-link">${t("platform.banner.enterpriseLink")}</a>
       <button type="button" class="btn-link" data-goto-tab="platform">${t("platform.banner.details")}</button>
     `;
     el.classList.remove("hidden");
@@ -3577,7 +3577,7 @@ function renderBillingSummaryHtml(overview, usage) {
         <div class="metric"><span>${t("billing.monthlyNet")}</span><strong>${formatEur(workers.totalNetEur)}</strong></div>
         <div class="metric"><span>${t("billing.workers")}</span><strong>${activeWorkers}</strong></div>
         <div class="metric"><span>${t("billing.perWorker")}</span><strong>${perWorker}</strong></div>
-        <div class="metric"><span>${t("billing.openInvoices")}</span><strong style="color:${openCount > 0 ? "#fbbf24" : "inherit"}">${openCount} · ${formatEur(openInv.totalEur)}</strong></div>
+        <div class="metric"><span>${t("billing.openInvoices")}</span><strong style="color:${openCount > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${openCount} · ${formatEur(openInv.totalEur)}</strong></div>
       </div>
       <p class="muted small" style="margin:0.35rem 0 0">
         ${t("billing.status")}: <strong>${escapeHtml(subStatus)}</strong>
@@ -6238,7 +6238,7 @@ async function loadOverview() {
     <div class="card card-metric"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wf.totalActive ?? 0}</strong></div>
     <div class="card card-metric"><span class="muted">${t("overview.geofenceZones")}</span><strong>${overview.zonesCount ?? 0}</strong></div>
     <button type="button" class="card card-metric" data-goto-tab="inbox" style="cursor:pointer;text-align:start;border:1px solid var(--border)">
-      <span class="muted">${t("overview.inbox")}</span><strong style="color:${openInbox > 0 ? "#fbbf24" : "inherit"}">${openInbox}</strong>
+      <span class="muted">${t("overview.inbox")}</span><strong style="color:${openInbox > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${openInbox}</strong>
       <small class="muted">${t("overview.inboxHint")}</small>
     </button>
     ${extraCards}
@@ -6268,7 +6268,7 @@ async function loadOverview() {
           .join("")}</ul>`
       : "";
     const lateHtml = repeatedLate.length
-      ? `<div class="card forecast-card" style="margin-top:0.75rem;border-color:#b45309">
+      ? `<div class="card forecast-card" style="margin-top:0.75rem;border-color:var(--warn-border,#b45309)">
           <div class="forecast-head">
             <span class="muted">${t("overview.repeatedLateTitle")}</span>
             <span class="badge">${repeatedLate.length}</span>
@@ -6483,13 +6483,13 @@ async function loadOverview() {
         <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
         <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
         <div class="lage-kpi"><span>${t("lage.expectedToday")}</span><strong>${expectedToday}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.missingToday")}</span><strong style="color:${missingToday > 0 ? "#fbbf24" : "inherit"}">${missingToday}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.missingToday")}</span><strong style="color:${missingToday > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${missingToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.lateToday")}</span><strong>${lateToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.outsideHours")}</span><strong>${outsideToday}</strong></div>
         <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
         <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.chatOpen")}</span><strong style="color:${chatOpen > 0 ? "#fbbf24" : "inherit"}">${chatOpen}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.hrOpen")}</span><strong style="color:${hrOpen > 0 ? "#fbbf24" : "inherit"}">${hrOpen}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.chatOpen")}</span><strong style="color:${chatOpen > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${chatOpen}</strong></div>
+        <div class="lage-kpi"><span>${t("lage.hrOpen")}</span><strong style="color:${hrOpen > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${hrOpen}</strong></div>
         <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
       </div>
       <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
@@ -6540,7 +6540,7 @@ async function loadOverview() {
         <p class="muted small" style="margin:0.25rem 0 0">${t("lage.hrHint")}</p>
         <p class="muted small" style="margin:0.2rem 0 0">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong>
           · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong>
-          · ${t("lage.hrReview")}: <strong style="color:${inReviewDocs > 0 ? "#fbbf24" : "inherit"}">${inReviewDocs}</strong></p>
+          · ${t("lage.hrReview")}: <strong style="color:${inReviewDocs > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${inReviewDocs}</strong></p>
         ${
           hrItems
             ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${hrItems}</ul>`
