@@ -227,7 +227,7 @@ body.docs-page.theme-white .sel-bubble-sep {
 /* ——— Left archive ——— */
 .docs-sidebar {
   background: color-mix(in srgb, var(--panel) 94%, #0b1220 6%);
-  border-right: 1px solid color-mix(in srgb, var(--rail-line) 80%, transparent);
+  border-right: 1px solid var(--rail-line);
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr);
   min-width: 0;
@@ -276,10 +276,10 @@ body.docs-page.theme-white .sel-bubble-sep {
   cursor: pointer;
   letter-spacing: -0.01em;
 }
-.side-tab:hover { color: var(--text); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.side-tab:hover { color: var(--text); border-color: var(--accent); }
 .side-tab.active {
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-color: var(--accent);
   color: var(--text);
   box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 70%, transparent);
 }
@@ -385,12 +385,12 @@ body.docs-page.theme-white .sel-bubble-sep {
   line-height: 1.2;
 }
 .tpl-topic:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-color: var(--accent);
   color: var(--text);
 }
 .tpl-topic.active {
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-color: var(--accent);
   color: var(--text);
 }
 .tpl-groups { display: flex; flex-direction: column; gap: 0.65rem; }
@@ -461,7 +461,7 @@ body.docs-page.theme-white .sel-bubble-sep {
   width: 100%;
 }
 .tpl-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: var(--accent);
   background: var(--accent-soft);
 }
 .tpl-card:active { transform: scale(0.992); }
@@ -598,19 +598,19 @@ a.back::before { content: "← "; opacity: 0.7; }
 .workflow-badge[data-status="draft"] .workflow-badge-dot { background: #94a3b8; }
 .workflow-badge[data-status="in_review"] {
   color: #fbbf24;
-  border-color: color-mix(in srgb, #fbbf24 35%, transparent);
+  border-color: #fbbf24;
   background: color-mix(in srgb, #fbbf24 12%, var(--panel));
 }
 .workflow-badge[data-status="in_review"] .workflow-badge-dot { background: #fbbf24; }
 .workflow-badge[data-status="approved"] {
   color: #34d399;
-  border-color: color-mix(in srgb, #34d399 35%, transparent);
+  border-color: #34d399;
   background: color-mix(in srgb, #34d399 12%, var(--panel));
 }
 .workflow-badge[data-status="approved"] .workflow-badge-dot { background: #34d399; }
 .workflow-badge[data-status="archived"] {
   color: #a78bfa;
-  border-color: color-mix(in srgb, #a78bfa 35%, transparent);
+  border-color: #a78bfa;
 }
 .workflow-badge[data-status="archived"] .workflow-badge-dot { background: #a78bfa; }
 .workflow-panel { margin: 0.35rem 0 0.55rem; }
@@ -641,7 +641,7 @@ a.back::before { content: "← "; opacity: 0.7; }
   color: var(--text);
   cursor: pointer;
   font: inherit;
-  min-height: auto;
+  min-height: 0;
 }
 .workflow-steps button span {
   width: 1.35rem;
@@ -663,7 +663,7 @@ a.back::before { content: "← "; opacity: 0.7; }
   background: color-mix(in srgb, #34d399 70%, #0f172a);
 }
 .workflow-steps li.is-current button {
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--rail-line));
+  border-color: var(--accent);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .workflow-steps li.is-current button span {
@@ -1267,7 +1267,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--muted) 75%, #fff 25%);
+  color: var(--muted);
   background: rgba(15, 23, 42, 0.35);
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
@@ -1576,7 +1576,7 @@ body.theme-black #quillToolbar .ql-picker:not(.ql-expanded) .ql-picker-label::be
 #quillEditor .ql-editor img.wp-img-lg { max-width: 78%; }
 #quillEditor .ql-editor img.wp-img-full { max-width: 100%; }
 #quillEditor .ql-editor img.wp-img-active {
-  outline: 2px solid color-mix(in srgb, var(--accent) 70%, #fff);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
 #quillEditor .ql-editor mark.wp-comment {
@@ -1686,7 +1686,7 @@ body.docs-page.theme-white .diff-modal-panel {
 }
 .diff-mode-tab.is-active {
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  border-color: var(--accent);
   color: var(--text);
   font-weight: 700;
 }
@@ -1783,7 +1783,7 @@ body.docs-page.theme-white .version-preview-paper {
 .diff-mark { opacity: 0.7; font-weight: 700; }
 .diff-line.is-add { background: rgba(34, 197, 94, 0.14); color: #bbf7d0; }
 .diff-line.is-del { background: rgba(239, 68, 68, 0.14); color: #fecaca; }
-.diff-line.is-same { color: color-mix(in srgb, var(--text) 75%, transparent); }
+.diff-line.is-same { color: var(--muted); }
 .diff-modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -2137,7 +2137,8 @@ body.hide-footer .docs-footer-band { display: none; }
   color: #152033;
   letter-spacing: 0.005em;
   background: transparent;
-  text-wrap: wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
   hyphens: manual;
   caret-color: #2563eb;
   -webkit-font-smoothing: antialiased;
@@ -2205,7 +2206,7 @@ body.hide-footer .docs-footer-band { display: none; }
 #quillEditor .ql-editor .wp-toc a:hover { text-decoration: underline; }
 #quillEditor .ql-editor h2 { font-size: 1.2em; border-bottom: 1px solid #e8eef5; padding-bottom: 0.1em; margin-top: 0.75em; }
 #quillEditor .ql-editor h3 { font-size: 1.08em; }
-#quillEditor .ql-editor p { margin: 0 0 0.28em; orphans: 3; widows: 3; }
+#quillEditor .ql-editor p { margin: 0 0 0.28em; }
 #quillEditor .ql-editor ol,
 #quillEditor .ql-editor ul { margin: 0.15em 0 0.4em; padding-inline-start: 1.35em; }
 #quillEditor .ql-editor li { margin: 0.05em 0; }
@@ -2453,7 +2454,7 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   max-width: min(920px, 94vw);
   padding: 0.65rem 0.85rem;
   border-radius: 12px;
-  border: 1px solid color-mix(in srgb, #f59e0b 40%, transparent);
+  border: 1px solid #f59e0b;
   background: rgba(15, 23, 42, 0.94);
   color: #fde68a;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
@@ -2505,7 +2506,7 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
 /* ——— Right inspector: ONE continuous column, not card stack ——— */
 .docs-rail {
   background: color-mix(in srgb, var(--panel) 94%, #0b1220 6%);
-  border-left: 1px solid color-mix(in srgb, var(--rail-line) 80%, transparent);
+  border-left: 1px solid var(--rail-line);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-width: 0;
@@ -2675,7 +2676,7 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
-  border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--rail-line));
+  border: 1px solid rgba(245, 158, 11, 0.45);
   background: color-mix(in srgb, #f59e0b 10%, var(--input-bg));
   color: var(--text);
   border-radius: 8px;
@@ -2745,7 +2746,7 @@ button.chip {
   padding: 0.28rem 0.55rem;
   font: 650 0.68rem/1 var(--ui);
   cursor: pointer;
-  min-height: auto;
+  min-height: 0;
 }
 .chip:hover { border-color: var(--accent); background: var(--accent-soft); }
 
@@ -2831,7 +2832,7 @@ select:focus,
 input[type="number"]:focus {
   outline: none;
   box-shadow: var(--ring);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: var(--accent);
 }
 
 .cmd,
@@ -2856,7 +2857,7 @@ input[type="number"]:focus {
 .cmd:hover,
 .btn:hover,
 .more-menu button:hover {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-color: var(--accent);
   background: var(--accent-soft);
 }
 .cmd:focus-visible,
@@ -2891,7 +2892,7 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
 .cmd.accent,
 #publishBtn {
   background: color-mix(in srgb, var(--accent) 16%, var(--input-bg));
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-color: var(--accent);
   color: var(--accent);
 }
 .cmd.icon {
@@ -2902,7 +2903,7 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
 #deleteBtn,
 .more-menu .danger {
   color: var(--danger);
-  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  border-color: var(--danger);
 }
 
 .more-wrap { position: relative; z-index: 1; }
@@ -2947,18 +2948,18 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
   border-radius: 8px;
   background: transparent;
   border: 1px solid transparent;
-  min-height: auto;
+  min-height: 0;
   color: var(--text);
   font: inherit;
   cursor: pointer;
 }
 .docs-list button:hover {
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: var(--accent);
 }
 .docs-list button.active {
   background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+  border-color: var(--accent);
   box-shadow: inset 2px 0 0 var(--accent);
 }
 .doc-title {
@@ -3556,7 +3557,7 @@ body.docs-page.theme-black .share-url {
   height: 1.35rem;
   margin-inline-end: -0.28rem;
   border-radius: 999px;
-  border: 1.5px solid color-mix(in srgb, var(--panel) 70%, #fff 30%);
+  border: 1.5px solid var(--panel);
   background: var(--peer, #0ea5e9);
   color: #fff;
   font: 750 0.55rem/1 var(--ui);
