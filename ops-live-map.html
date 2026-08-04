@@ -47,10 +47,6 @@
       height: 100vh; display: flex; flex-direction: column;
       background: linear-gradient(135deg, var(--bg) 0%, rgba(0,0,0,0.05) 100%);
     }
-    html[dir="rtl"] body {
-      direction: rtl;
-      text-align: right;
-    }
     header {
       padding: 0.45rem 0.85rem; border-bottom: 1px solid var(--border);
       background: linear-gradient(180deg, var(--panel) 0%, rgba(0,0,0,0.2) 100%);
@@ -88,10 +84,6 @@
       overflow: hidden;
       max-width: min(56vw, 520px);
     }
-    html[dir="rtl"] header {
-      direction: rtl;
-      text-align: right;
-    }
     header a {
       color: var(--accent);
       font-size: 0.85rem;
@@ -112,10 +104,6 @@
       outline-offset: 2px;
     }
     header a:active { transform: translateY(0); }
-    html[dir="rtl"] header a {
-      margin-inline-start: 0;
-      margin-inline-end: 0.75rem;
-    }
     .ops-header [data-tenant-logo],
     .ops-header .tenant-logo-chip {
       width: 42px !important;
@@ -204,20 +192,6 @@
       animation: legendSlideIn 0.6s ease-out;
       color: var(--text);
     }
-    html[dir="rtl"] .legend {
-      left: auto;
-      right: 14px;
-      text-align: right;
-      animation: legendSlideInRtl 0.6s ease-out;
-    }
-    html[dir="rtl"] .leaflet-bottom.leaflet-right {
-      right: auto;
-      left: 10px;
-    }
-    html[dir="rtl"] .leaflet-bottom.leaflet-left {
-      left: auto;
-      right: 10px;
-    }
     html.dark-mode .legend {
       background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
       border-color: rgba(56, 189, 248, 0.4);
@@ -261,9 +235,6 @@
       transition: all 0.2s ease;
       padding: 0.1rem 0;
     }
-    html[dir="rtl"] .legend-row {
-      flex-direction: row-reverse;
-    }
     html.dark-mode .leaflet-control {
       background: rgba(30, 41, 59, 0.9);
       border: 1px solid rgba(56, 189, 248, 0.3);
@@ -292,10 +263,6 @@
       border-radius: 0;
       margin-inline-end: 6px;
       vertical-align: middle;
-    }
-    html[dir="rtl"] .legend .legend-pin {
-      margin-inline-end: 0;
-      margin-inline-start: 6px;
     }
     .legend .legend-pin svg { width: 16px; height: 16px; display: block; }
     .ops-map-pin-wrap {
@@ -403,16 +370,6 @@
       flex-direction: column;
       box-shadow: inset 1px 0 0 rgba(255,255,255,0.05);
     }
-    html[dir="rtl"] .wrap {
-      direction: ltr;
-    }
-    html[dir="rtl"] .side {
-      direction: rtl;
-      text-align: right;
-      border-inline-start: none;
-      border-inline-end: 1px solid var(--border);
-      box-shadow: inset -1px 0 0 rgba(255,255,255,0.05);
-    }
     .side-tools {
       padding: 0.55rem 0.65rem;
       border-bottom: 1px solid var(--border);
@@ -420,12 +377,6 @@
       flex-direction: column;
       gap: 0.4rem;
       background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
-    }
-    html[dir="rtl"] .side-tools input,
-    html[dir="rtl"] .side-tools select,
-    html[dir="rtl"] .nearest-box .btn-link,
-    html[dir="rtl"] #nearestBtn {
-      text-align: right;
     }
     .side-tools input, .side-tools select {
       width: 100%;
@@ -579,9 +530,6 @@
       background: rgba(34, 211, 238, 0.08);
       transform: translateX(2px);
     }
-    html[dir="rtl"] .map-view-controls label:hover {
-      transform: translateX(-2px);
-    }
     .map-view-controls input[type="checkbox"] {
       accent-color: #22d3ee;
       cursor: pointer;
@@ -683,9 +631,6 @@
       transform: translateX(3px);
       box-shadow: inset 4px 0 12px rgba(34, 211, 238, 0.15), 0 2px 6px rgba(34, 211, 238, 0.1);
     }
-    html[dir="rtl"] .worker-row:hover {
-      transform: translateX(-3px);
-    }
     .worker-row:hover::before {
       opacity: 1;
     }
@@ -779,11 +724,6 @@
       border-inline-start-color: #d6e0eb;
       box-shadow: inset 1px 0 0 rgba(255,255,255,0.85);
       color: #1f2937;
-    }
-    html:not(.dark-mode)[dir="rtl"] .side {
-      border-inline-start-color: transparent;
-      border-inline-end: 1px solid #d6e0eb;
-      box-shadow: inset -1px 0 0 rgba(255,255,255,0.85);
     }
     html:not(.dark-mode) .side-tools {
       border-bottom-color: #d6e0eb;
