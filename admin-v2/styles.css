@@ -2192,99 +2192,134 @@ body.theme-black .worker-action-btn-ghost {
 .geofence-search-row {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 0.5rem;
+  gap: 0.62rem;
   align-items: center;
-  margin: 0.35rem 0 0.5rem;
+  margin: 0.4rem 0 0.58rem;
 }
 
 .geofence-search-row input {
   min-width: 0;
-  min-height: 42px;
-  border-radius: 12px;
+  min-height: 46px;
+  border-radius: 14px;
   border: 1px solid var(--border);
-  background: color-mix(in srgb, var(--input-bg) 92%, #ffffff 8%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.01)),
+    var(--input-bg);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 8px 18px rgba(2, 6, 23, 0.14);
+  padding-inline: 0.78rem;
+  font-weight: 600;
 }
 
 #geofenceSearchBtn,
 #geofenceGpsBtn {
   appearance: none;
-  min-height: 42px;
-  border-radius: 12px;
+  min-height: 46px;
+  border-radius: 14px;
   border: 1px solid transparent;
-  padding: 0 0.9rem;
-  font-size: 0.84rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
+  padding: 0 1.02rem;
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.012em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.35rem;
+  gap: 0.42rem;
   line-height: 1;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.22);
   transition:
-    transform 0.12s ease,
-    box-shadow 0.16s ease,
-    background 0.16s ease,
-    border-color 0.16s ease,
-    color 0.16s ease;
+    transform 0.16s ease,
+    box-shadow 0.22s ease,
+    background 0.22s ease,
+    border-color 0.22s ease,
+    filter 0.22s ease;
+}
+
+#geofenceSearchBtn::before,
+#geofenceGpsBtn::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.32) 28%, rgba(255, 255, 255, 0) 55%);
+  transform: translateX(-120%);
+  transition: transform 0.55s ease;
+  z-index: -1;
 }
 
 #geofenceSearchBtn {
-  color: #f8fbff;
-  border-color: var(--accent);
+  color: #ffffff;
+  border-color: rgba(125, 211, 252, 0.88);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 78%, #38bdf8 22%), color-mix(in srgb, var(--accent) 64%, #0ea5e9 36%));
+    radial-gradient(circle at 20% 16%, rgba(186, 230, 253, 0.42), rgba(186, 230, 253, 0) 36%),
+    linear-gradient(138deg, #0ea5e9 0%, #0284c7 54%, #0369a1 100%);
   box-shadow:
-    0 10px 24px rgba(14, 165, 233, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 14px 28px rgba(2, 132, 199, 0.38),
+    0 2px 0 rgba(125, 211, 252, 0.42) inset,
+    0 -2px 0 rgba(12, 74, 110, 0.58) inset;
 }
 
 #geofenceGpsBtn {
-  color: #fef3c7;
-  border-color: rgba(251, 191, 36, 0.5);
+  color: #fff9ec;
+  border-color: rgba(253, 186, 116, 0.86);
   background:
-    linear-gradient(135deg, rgba(245, 158, 11, 0.26), rgba(217, 119, 6, 0.36));
+    radial-gradient(circle at 22% 15%, rgba(254, 243, 199, 0.46), rgba(254, 243, 199, 0) 40%),
+    linear-gradient(138deg, #f59e0b 0%, #ea580c 56%, #c2410c 100%);
   box-shadow:
-    0 10px 24px rgba(245, 158, 11, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 14px 30px rgba(194, 65, 12, 0.34),
+    0 2px 0 rgba(254, 215, 170, 0.45) inset,
+    0 -2px 0 rgba(124, 45, 18, 0.54) inset;
 }
 
 #geofenceSearchBtn:hover,
 #geofenceGpsBtn:hover {
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.015);
+  filter: saturate(1.08) brightness(1.03);
+}
+
+#geofenceSearchBtn:hover::before,
+#geofenceGpsBtn:hover::before {
+  transform: translateX(120%);
 }
 
 #geofenceSearchBtn:hover {
-  border-color: #7dd3fc;
+  border-color: #bae6fd;
   box-shadow:
-    0 14px 30px rgba(14, 165, 233, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+    0 20px 36px rgba(3, 105, 161, 0.42),
+    0 2px 0 rgba(186, 230, 253, 0.52) inset,
+    0 -2px 0 rgba(8, 47, 73, 0.65) inset;
 }
 
 #geofenceGpsBtn:hover {
-  border-color: rgba(251, 191, 36, 0.75);
+  border-color: rgba(255, 237, 213, 0.9);
   box-shadow:
-    0 14px 30px rgba(245, 158, 11, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+    0 20px 36px rgba(154, 52, 18, 0.4),
+    0 2px 0 rgba(255, 237, 213, 0.56) inset,
+    0 -2px 0 rgba(124, 45, 18, 0.65) inset;
 }
 
 #geofenceSearchBtn:focus-visible,
 #geofenceGpsBtn:focus-visible {
   outline: none;
   box-shadow:
-    0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent),
-    0 12px 28px rgba(8, 47, 73, 0.3);
+    0 0 0 3px rgba(56, 189, 248, 0.4),
+    0 0 0 7px rgba(56, 189, 248, 0.18),
+    0 16px 30px rgba(8, 47, 73, 0.32);
 }
 
 #geofenceSearchBtn:active,
 #geofenceGpsBtn:active {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.985);
+  filter: saturate(0.98);
 }
 
 body.theme-white #geofenceGpsBtn {
-  color: #78350f;
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(245, 158, 11, 0.34));
+  color: #ffffff;
 }
 
 body.theme-white #geofenceSearchBtn {
@@ -2295,6 +2330,15 @@ body.theme-black #geofenceSearchBtn,
 body.theme-black #geofenceGpsBtn {
   -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #geofenceSearchBtn,
+  #geofenceGpsBtn,
+  #geofenceSearchBtn::before,
+  #geofenceGpsBtn::before {
+    transition: none !important;
+  }
 }
 
 .geofence-search-results {

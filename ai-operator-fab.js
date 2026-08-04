@@ -19,6 +19,7 @@
   const COMPANY_ENABLED_KEY = "baupass-aio-company-enabled";
   const RECENT_PROMPTS_KEY = "baupass-aio-recent-prompts";
   const URGENCY_TOAST_KEY = "baupass-aio-urgency-toast";
+  const FAB_POS_KEY = "baupass-aio-fab-pos-v1";
   let lastUserQuestion = "";
   /** Spoken-language override for this browser tab (Whisper / heuristic). */
   let sessionLangOverride = "";
@@ -689,6 +690,7 @@
   let sectorTerms = { termSite: "", termWorkers: "", sectorLabel: "" };
   let lastReminderPrompt = "";
   let _lastPulseProbe = 0;
+  let suppressFabClickUntil = 0;
 
   function t(key) {
     const lang = detectLang();
@@ -941,6 +943,164 @@
     if (voiceEnabled() && !voiceReady && !voiceLibsPromise) {
       ensureVoiceStack().catch(() => {});
     }
+  }
+
+  function readStoredFabPos() {
+    try {
+      const raw = String(global.localStorage?.getItem(FAB_POS_KEY) || "").trim();
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      const x = Number(data?.x);
+      const y = Number(data?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y };
+    } catch {
+      return null;
+    }
+  }
+
+  function storeFabPos(x, y) {
+    try {
+      global.localStorage?.setItem(FAB_POS_KEY, JSON.stringify({ x: Number(x), y: Number(y) }));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clearFabPos() {
+    try {
+      global.localStorage?.removeItem(FAB_POS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function clampFabPos(x, y) {
+    const root = els.root;
+    if (!root) return { x: 0, y: 0 };
+    const margin = 8;
+    const vw = Math.max(320, Number(global.innerWidth) || 0);
+    const vh = Math.max(320, Number(global.innerHeight) || 0);
+    const w = Math.max(42, root.offsetWidth || 56);
+    const h = Math.max(42, root.offsetHeight || 56);
+    const minX = margin;
+    const minY = margin;
+    const maxX = Math.max(minX, vw - w - margin);
+    const maxY = Math.max(minY, vh - h - margin);
+    return {
+      x: Math.min(maxX, Math.max(minX, Number(x) || 0)),
+      y: Math.min(maxY, Math.max(minY, Number(y) || 0)),
+    };
+  }
+
+  function applyFabPos(x, y, { persist = false } = {}) {
+    if (!els.root) return;
+    const p = clampFabPos(x, y);
+    els.root.style.inset = "auto";
+    els.root.style.left = `${p.x}px`;
+    els.root.style.top = `${p.y}px`;
+    els.root.style.right = "auto";
+    els.root.style.bottom = "auto";
+    els.root.dataset.aioFabPinned = "1";
+    if (persist) storeFabPos(p.x, p.y);
+  }
+
+  function restoreFabPos() {
+    if (!els.root) return;
+    const p = readStoredFabPos();
+    if (!p) return;
+    applyFabPos(p.x, p.y, { persist: false });
+  }
+
+  function clampCurrentFabPos({ persist = true } = {}) {
+    if (!els.root || els.root.dataset.aioFabPinned !== "1") return;
+    const x = Number.parseFloat(els.root.style.left || "");
+    const y = Number.parseFloat(els.root.style.top || "");
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      clearFabPos();
+      delete els.root.dataset.aioFabPinned;
+      els.root.style.left = "";
+      els.root.style.top = "";
+      els.root.style.right = "";
+      els.root.style.bottom = "";
+      els.root.style.inset = "";
+      return;
+    }
+    applyFabPos(x, y, { persist });
+  }
+
+  function bindFabDragOnce(root) {
+    if (!root || root.dataset.aioFabDragBound === "1") return;
+    root.dataset.aioFabDragBound = "1";
+    const fab = root.querySelector('[data-aio="fab"]');
+    if (!fab) return;
+
+    let pointerId = null;
+    let startClientX = 0;
+    let startClientY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let dragging = false;
+
+    const finish = () => {
+      if (pointerId == null) return;
+      try {
+        fab.releasePointerCapture(pointerId);
+      } catch {
+        /* ignore */
+      }
+      pointerId = null;
+      root.classList.remove("is-dragging");
+      if (dragging) {
+        dragging = false;
+        clampCurrentFabPos({ persist: true });
+        suppressFabClickUntil = Date.now() + 350;
+      }
+      global.removeEventListener("pointermove", onMove);
+      global.removeEventListener("pointerup", onUp);
+      global.removeEventListener("pointercancel", onUp);
+    };
+
+    const onMove = (ev) => {
+      if (pointerId == null || ev.pointerId !== pointerId) return;
+      const dx = ev.clientX - startClientX;
+      const dy = ev.clientY - startClientY;
+      if (!dragging && Math.hypot(dx, dy) >= 6) {
+        dragging = true;
+        root.classList.add("is-dragging");
+      }
+      if (!dragging) return;
+      ev.preventDefault();
+      applyFabPos(startLeft + dx, startTop + dy, { persist: false });
+    };
+
+    const onUp = (ev) => {
+      if (pointerId == null || ev.pointerId !== pointerId) return;
+      finish();
+    };
+
+    fab.addEventListener("pointerdown", (ev) => {
+      if (ev.button != null && ev.button !== 0) return;
+      if (pointerId != null) return;
+
+      const rect = root.getBoundingClientRect();
+      applyFabPos(rect.left, rect.top, { persist: false });
+      startLeft = Number.parseFloat(root.style.left || "0") || 0;
+      startTop = Number.parseFloat(root.style.top || "0") || 0;
+      startClientX = ev.clientX;
+      startClientY = ev.clientY;
+      dragging = false;
+      pointerId = ev.pointerId;
+
+      try {
+        fab.setPointerCapture(pointerId);
+      } catch {
+        /* ignore */
+      }
+      global.addEventListener("pointermove", onMove, { passive: false });
+      global.addEventListener("pointerup", onUp);
+      global.addEventListener("pointercancel", onUp);
+    });
   }
 
   function refreshVisibility() {
@@ -2354,6 +2514,7 @@
     if (root.dataset.aioBound === "1") return;
     root.dataset.aioBound = "1";
     els.fab?.addEventListener("click", () => {
+      if (Date.now() < suppressFabClickUntil) return;
       try {
         if (global.BaupassAiUi?.isVoiceCaptureActive?.("aioOperatorInput")) {
           // Finish utterance → show full text for review (never abort mid-listen).
@@ -2424,7 +2585,10 @@
       mounted = true;
       destroyDuplicateRoots(existing);
       bindRootElements(existing);
+      bindFabDragOnce(existing);
       bindRootEventsOnce(existing);
+      restoreFabPos();
+      clampCurrentFabPos({ persist: false });
       refreshCopy();
       refreshVisibility();
       updateExpandHref();
@@ -2499,7 +2663,10 @@
     `;
     document.body.appendChild(root);
     bindRootElements(root);
+    bindFabDragOnce(root);
     bindRootEventsOnce(root);
+    restoreFabPos();
+    clampCurrentFabPos({ persist: false });
 
     refreshCopy();
     refreshVisibility();
@@ -2548,9 +2715,13 @@
     }
     global.addEventListener("storage", refreshVisibility);
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) refreshVisibility();
+      if (!document.hidden) {
+        refreshVisibility();
+        clampCurrentFabPos({ persist: true });
+      }
     });
     global.addEventListener("pageshow", refreshVisibility);
+    global.addEventListener("resize", () => clampCurrentFabPos({ persist: true }));
     // Stable visibility: catch late logins / SPA-like view swaps on any page.
     if (!global.__baupassAioVisibilityTimer) {
       global.__baupassAioVisibilityTimer = setInterval(refreshVisibility, 2000);

@@ -40,11 +40,18 @@ body[dir="rtl"] .aio-root,
     linear-gradient(145deg, #0f2744, #0b1628 60%, #10243a);
   color: var(--aio-accent-2);
   box-shadow: var(--aio-shadow), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  cursor: pointer;
+  cursor: grab;
   display: grid;
   place-items: center;
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
   padding: 0;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.aio-root.is-dragging .aio-fab {
+  cursor: grabbing;
 }
 
 .aio-fab:hover {
@@ -186,6 +193,7 @@ body[dir="rtl"] .aio-root,
   position: fixed;
   inset: 0;
   background: rgba(2, 6, 23, 0.45);
+    -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   z-index: 2147482990;
 }
@@ -337,7 +345,6 @@ form.aio-form[data-aio="form"][hidden] {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
-  scrollbar-width: thin;
 }
 
 .aio-turn {
@@ -823,6 +830,7 @@ form.aio-form[data-aio="form"][hidden] {
   align-items: center;
   justify-content: center;
   touch-action: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
