@@ -12,6 +12,8 @@ ops_os_bp = Blueprint("physical_operations", __name__)
 
 _OVERVIEW_CACHE: dict[str, tuple[float, dict]] = {}
 _OVERVIEW_TTL_SEC = 25.0
+_OVERVIEW_LAYER_CACHE: dict[str, tuple[float, object]] = {}
+_OVERVIEW_LAYER_TTL_SEC = 8.0
 _LIVE_MAP_CACHE: dict[str, tuple[float, dict]] = {}
 _LIVE_MAP_TTL_SEC = 3.0
 _COMMAND_CENTER_CACHE: dict[str, tuple[float, dict]] = {}
@@ -22,6 +24,30 @@ _COPILOT_CONTEXT_CACHE: dict[str, tuple[float, dict]] = {}
 _COPILOT_CONTEXT_TTL_SEC = 8.0
 _WORKFORCE_GRAPH_CACHE: dict[str, tuple[float, dict]] = {}
 _WORKFORCE_GRAPH_TTL_SEC = 8.0
+
+
+def _micro_cache_get_or_build(
+    cache: dict[str, tuple[float, object]],
+    key: str,
+    ttl_sec: float,
+    builder,
+    *,
+    force: bool = False,
+    max_items: int = 300,
+    trim_count: int = 60,
+):
+    now = time.monotonic()
+    if not force:
+        hit = cache.get(key)
+        if hit and now - hit[0] < ttl_sec:
+            return hit[1]
+    payload = builder()
+    cache[key] = (now, payload)
+    if len(cache) > max_items:
+        oldest = sorted(cache.items(), key=lambda kv: kv[1][0])[:trim_count]
+        for stale_key, _ in oldest:
+            cache.pop(stale_key, None)
+    return payload
 
 
 def register_physical_operations(flask_app) -> None:
@@ -138,7 +164,9 @@ def register_physical_operations(flask_app) -> None:
         cid = cid or str(request.args.get("company_id", "") or "").strip()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
-        force = str(request.args.get("refresh") or "").strip() in {"1", "true", "yes"}
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        deep_force = str(request.args.get("deep_refresh") or "").strip().lower() in {"1", "true", "yes"}
+        layer_force = force and deep_force
         cache_key = f"{cid}:{role}"
         now = time.monotonic()
         if not force:
@@ -147,24 +175,90 @@ def register_physical_operations(flask_app) -> None:
                 return jsonify(hit[1])
         from backend.app.platform.physical_operations.daily_brief import build_daily_ops_brief
 
-        daily = build_daily_ops_brief(db, cid)
+        daily = _micro_cache_get_or_build(
+            _OVERVIEW_LAYER_CACHE,
+            f"daily:{cid}:{role}",
+            _OVERVIEW_LAYER_TTL_SEC,
+            lambda: build_daily_ops_brief(db, cid),
+            force=layer_force,
+        )
         payload = {
             "physicalOperationsOS": True,
             "companyId": cid,
             "dailyBrief": daily,
             "layers": {
-                "1_digital_twin": build_digital_twin(db, cid),
-                "2_ai_security": analyze_security(db, cid, persist=False),
-                "3_site_intelligence": build_site_intelligence(db, cid),
+                "1_digital_twin": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"digital_twin:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_digital_twin(db, cid),
+                    force=layer_force,
+                ),
+                "2_ai_security": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"ai_security:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: analyze_security(db, cid, persist=False),
+                    force=layer_force,
+                ),
+                "3_site_intelligence": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"site_intel:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_site_intelligence(db, cid),
+                    force=layer_force,
+                ),
                 # Keep leaderboard small — full ranking is available via /reputation
-                "4_reputation": build_reputation_leaderboard(db, cid, limit=12),
-                "5_emergency": _active_emergency_summary(db, cid),
-                "6_camera_ai": _camera_summary(db, cid),
-                "7_iot": build_iot_overview(db, cid),
-                "8_command_center": build_command_center(db, company_id=cid, role=role),
+                "4_reputation": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"reputation:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_reputation_leaderboard(db, cid, limit=12),
+                    force=layer_force,
+                ),
+                "5_emergency": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"emergency:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: _active_emergency_summary(db, cid),
+                    force=layer_force,
+                ),
+                "6_camera_ai": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"camera_ai:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: _camera_summary(db, cid),
+                    force=layer_force,
+                ),
+                "7_iot": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"iot:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_iot_overview(db, cid),
+                    force=layer_force,
+                ),
+                "8_command_center": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"command_center:{cid}:{role}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_command_center(db, company_id=cid, role=role),
+                    force=layer_force,
+                ),
                 "9_autonomous": _autonomous_summary(db, cid),
-                "10_workforce_graph": build_workforce_graph(db, cid),
-                "11_identity": build_identity_hub(db, cid),
+                "10_workforce_graph": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"workforce_graph:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_workforce_graph(db, cid),
+                    force=layer_force,
+                ),
+                "11_identity": _micro_cache_get_or_build(
+                    _OVERVIEW_LAYER_CACHE,
+                    f"identity:{cid}",
+                    _OVERVIEW_LAYER_TTL_SEC,
+                    lambda: build_identity_hub(db, cid),
+                    force=layer_force,
+                ),
                 "12_copilot": _copilot_layer_summary(),
                 "13_daily_brief": daily,
             },
