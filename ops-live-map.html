@@ -192,6 +192,23 @@
       animation: legendSlideIn 0.6s ease-out;
       color: var(--text);
     }
+    /* Layout lock for Arabic: keep same visual structure as DE/EN (translate text only) */
+    html[dir="rtl"] .wrap,
+    html[dir="rtl"] header,
+    html[dir="rtl"] #map,
+    html[dir="rtl"] .leaflet-container {
+      direction: ltr;
+    }
+    html[dir="rtl"] .side {
+      direction: ltr;
+      text-align: start;
+    }
+    html[dir="rtl"] .legend {
+      left: 12px !important;
+      right: auto !important;
+      text-align: start;
+      animation: legendSlideIn 0.6s ease-out;
+    }
     html.dark-mode .legend {
       background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
       border-color: rgba(56, 189, 248, 0.4);
