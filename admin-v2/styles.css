@@ -146,6 +146,41 @@ body.theme-white .quick-links-grid {
   color: var(--text);
 }
 
+body.theme-black .app-shell {
+  background: linear-gradient(180deg, rgba(6, 11, 23, 0.82), rgba(8, 17, 36, 0.92));
+}
+
+body.theme-black .topbar,
+body.theme-black .topbar-compact {
+  background: linear-gradient(145deg, rgba(10, 16, 30, 0.96), rgba(12, 18, 36, 0.92));
+  border-bottom-color: rgba(120, 156, 255, 0.16);
+}
+
+body.theme-black #userLine {
+  color: var(--muted);
+}
+
+body.theme-black .app-content {
+  background: linear-gradient(180deg, rgba(7, 12, 24, 0.96), rgba(10, 16, 30, 0.94));
+}
+
+body.theme-black .card,
+body.theme-black .card-metric,
+body.theme-black .panel,
+body.theme-black .quick-bar-btn {
+  background: linear-gradient(180deg, rgba(13, 20, 38, 0.96), rgba(8, 13, 26, 0.98));
+  border-color: rgba(120, 156, 255, 0.16);
+  color: var(--text);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+
+body.theme-black .quick-bar-btn:hover,
+body.theme-black .card:hover,
+body.theme-black .card-metric:hover {
+  border-color: rgba(56, 189, 248, 0.34);
+  background: linear-gradient(180deg, rgba(16, 25, 46, 0.98), rgba(10, 16, 30, 0.98));
+}
+
 body.theme-black input,
 body.theme-black select,
 body.theme-black textarea {
@@ -291,10 +326,10 @@ body.embed-mode.admin-v2-embed .login-panel {
   max-width: 420px;
   margin: 4rem auto;
   padding: 2rem;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 252, 0.98));
+  background: var(--panel);
   border-radius: 18px;
-  border: 1px solid rgba(120, 156, 255, 0.14);
-  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
 }
 
 .login-brand-block {
@@ -390,8 +425,8 @@ button.ghost {
   justify-content: space-between;
   align-items: flex-start;
   padding: 1rem 1.35rem;
-  border-bottom: 1px solid rgba(120, 156, 255, 0.12);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(245, 248, 252, 0.9));
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
@@ -521,11 +556,11 @@ main {
 }
 
 .card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 249, 252, 0.98));
-  border: 1px solid rgba(120, 156, 255, 0.14);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 1.02rem 1.2rem;
-  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--shadow-card);
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -2627,8 +2662,8 @@ body.theme-black .worker-action-btn-ghost {
 .topbar-compact {
   padding: 1.05rem 1.45rem;
   flex-shrink: 0;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(246, 249, 252, 0.9));
-  border-bottom: 1px solid rgba(120, 156, 255, 0.12);
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
 }
@@ -2667,7 +2702,7 @@ body.theme-black .worker-action-btn-ghost {
 
 #userLine {
   font-size: 0.9rem;
-  color: #58708c;
+  color: var(--muted);
 }
 
 .topbar-title-wrap .sector-chip {
@@ -2788,7 +2823,7 @@ body.theme-black .worker-action-btn-ghost {
   overflow-y: auto;
   overflow-x: hidden;
   padding: 1.35rem 1.5rem 5rem;
-  background: linear-gradient(180deg, rgba(249, 251, 254, 0.95), rgba(238, 243, 249, 0.92));
+  background: var(--bg);
 }
 
 .overview-quick-bar {
@@ -2806,12 +2841,12 @@ body.theme-black .worker-action-btn-ghost {
   padding: 0.65rem 1rem;
   min-height: var(--touch-min);
   border-radius: var(--radius);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(243, 247, 251, 0.96));
-  border: 1px solid rgba(120, 156, 255, 0.14);
+  background: var(--panel);
+  border: 1px solid var(--border);
   color: var(--text);
   font-weight: 600;
   font-size: 0.9rem;
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+  box-shadow: var(--shadow-card);
   transition: border-color 0.15s, background 0.15s, transform 0.15s, box-shadow 0.15s;
 }
 
