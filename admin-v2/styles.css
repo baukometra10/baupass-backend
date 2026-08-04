@@ -2214,11 +2214,11 @@ body.theme-black .worker-action-btn-ghost {
   width: min(720px, 96vw);
   max-height: 88vh;
   overflow: auto;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(246, 249, 252, 0.99));
-  border: 1px solid rgba(120, 156, 255, 0.14);
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-radius: 18px;
   padding: 1rem 1.1rem 1.1rem;
-  box-shadow: 0 18px 52px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--shadow);
 }
 .audit-detail-modal-head {
   display: flex;
@@ -2319,6 +2319,40 @@ body.theme-black .worker-action-btn-ghost {
   height: 100% !important;
   width: 100% !important;
   background: #0d131a;
+}
+
+body.theme-black #geofenceMap .leaflet-control-zoom a,
+body.theme-black #geofenceMap .leaflet-bar a,
+body.theme-black #geofenceMap .leaflet-control-layers-toggle,
+body.theme-black #geofenceMap .leaflet-popup-content-wrapper,
+body.theme-black #geofenceMap .leaflet-popup-tip {
+  background: rgba(13, 20, 38, 0.96);
+  color: var(--text);
+  border-color: rgba(120, 156, 255, 0.18);
+}
+
+body.theme-black #geofenceMap .leaflet-control-zoom a,
+body.theme-black #geofenceMap .leaflet-bar a {
+  box-shadow: none;
+}
+
+body.theme-black #geofenceMap .leaflet-control-zoom a:hover,
+body.theme-black #geofenceMap .leaflet-bar a:hover {
+  background: rgba(16, 25, 46, 0.98);
+}
+
+body.theme-black #geofenceMap .leaflet-popup-content-wrapper {
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
+}
+
+body.theme-white #geofenceMap .leaflet-control-zoom a,
+body.theme-white #geofenceMap .leaflet-bar a,
+body.theme-white #geofenceMap .leaflet-control-layers-toggle,
+body.theme-white #geofenceMap .leaflet-popup-content-wrapper,
+body.theme-white #geofenceMap .leaflet-popup-tip {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: rgba(15, 23, 42, 0.12);
 }
 
 .wizard-form label {
