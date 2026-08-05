@@ -61,6 +61,7 @@ def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> d
                 "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
                 "badgeId": w.get("badge_id") or "",
                 "role": w.get("role") or "",
+                "hasPhoto": bool(int(w.get("has_photo") or 0)),
                 "site": w.get("site"),
                 "gate": w.get("gate"),
                 "lastAccess": w.get("last_access"),

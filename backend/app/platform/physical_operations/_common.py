@@ -621,6 +621,7 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
             SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                    w.site_latitude, w.site_longitude,
                    COALESCE(w.role, '') AS role,
+                     CASE WHEN LENGTH(COALESCE(w.photo_data, '')) > 0 THEN 1 ELSE 0 END AS has_photo,
                    COALESCE(latest.gate, '') AS gate,
                    COALESCE(latest.timestamp, '') AS last_access,
                    COALESCE(latest.note, '') AS last_note,
@@ -657,6 +658,7 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
             SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                    w.site_latitude, w.site_longitude,
                    COALESCE(w.role, '') AS role,
+                     CASE WHEN LENGTH(COALESCE(w.photo_data, '')) > 0 THEN 1 ELSE 0 END AS has_photo,
                    COALESCE(latest.gate, '') AS gate,
                    COALESCE(latest.timestamp, '') AS last_access,
                    COALESCE(latest.note, '') AS last_note,
@@ -687,6 +689,7 @@ def list_on_site_workers(db, company_id: str, today: str | None = None) -> list[
                 f"""
             SELECT w.id, w.first_name, w.last_name, w.site, w.badge_id, w.status,
                    w.site_latitude, w.site_longitude,
+                     CASE WHEN LENGTH(COALESCE(w.photo_data, '')) > 0 THEN 1 ELSE 0 END AS has_photo,
                    COALESCE(latest.gate, '') AS gate,
                    COALESCE(latest.timestamp, '') AS last_access,
                    COALESCE(latest.note, '') AS last_note

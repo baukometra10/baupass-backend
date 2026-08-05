@@ -3,6 +3,7 @@ Physical Operations OS — all 12 capabilities under /api/ops-os/*
 """
 from __future__ import annotations
 
+import base64
 import json
 import time
 import uuid
@@ -718,6 +719,52 @@ def register_physical_operations(flask_app) -> None:
                 to_iso=request.args.get("to"),
                 limit=int(request.args.get("limit", "500") or 500),
             )
+        )
+
+    @ops_os_bp.get("/ops-os/workers/<worker_id>/avatar")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def ops_worker_avatar(worker_id: str):
+        cid = _cid()
+        if not cid:
+            return jsonify({"error": "company_required"}), 400
+        wid = str(worker_id or "").strip()
+        if not wid:
+            return jsonify({"error": "worker_required"}), 400
+
+        row = get_db().execute(
+            """
+            SELECT photo_data FROM workers
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL AND worker_type = 'worker'
+            LIMIT 1
+            """,
+            (wid, cid),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "worker_not_found"}), 404
+
+        photo_data = str(row["photo_data"] or "").strip()
+        if not photo_data:
+            return jsonify({"error": "photo_not_found"}), 404
+
+        if not photo_data.startswith("data:image/") or "," not in photo_data:
+            return jsonify({"error": "invalid_photo_data"}), 422
+        header, b64_data = photo_data.split(",", 1)
+        mime = header[5:].split(";", 1)[0].strip().lower() or "image/png"
+        if mime not in {"image/png", "image/jpeg", "image/jpg", "image/webp"}:
+            mime = "image/png"
+        try:
+            body = base64.b64decode(b64_data, validate=True)
+        except Exception:
+            return jsonify({"error": "invalid_photo_data"}), 422
+
+        return Response(
+            body,
+            mimetype=mime,
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "X-Content-Type-Options": "nosniff",
+            },
         )
 
     @ops_os_bp.get("/ops-os/nearest-workers")
