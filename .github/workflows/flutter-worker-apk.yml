@@ -99,9 +99,21 @@ jobs:
         env:
           API_URL: ${{ github.event.inputs.api_base_url || 'https://suppix-workpass-ai.up.railway.app' }}
           GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2 -Xmx2g
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -o pipefail
-          flutter build apk --release --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
+          VERSION_NAME=$(python - <<'PY'
+          import re, pathlib
+          text = pathlib.Path("pubspec.yaml").read_text(encoding="utf-8")
+          m = re.search(r"^version:\s*([^\s+#]+)", text, re.M)
+          print(m.group(1) if m else "0.1.0")
+          PY
+          )
+          echo "Building Worker APK versionName=$VERSION_NAME versionCode=$BUILD_NUMBER"
+          flutter build apk --release \
+            --build-name="$VERSION_NAME" \
+            --build-number="$BUILD_NUMBER" \
+            --dart-define=BAUPASS_API_URL="$API_URL" 2>&1 | tee build-apk.log || {
             echo "::error title=APK build failed::$(grep -E 'What went wrong|Execution failed|error:|Error:|FAILURE:' build-apk.log | tail -n 20 | tr '\n' ' ')"
             {
               echo "### Build failed"
@@ -137,6 +149,7 @@ jobs:
           {
             echo "## Mitarbeiter-App (APK)"
             echo ""
+            echo "- **Build / versionCode:** \`${{ github.run_number }}\`"
             echo "- **API URL baked in:** \`$API_URL\`"
             echo "- **Artifact:** \`baupass-worker-apk\` → \`app-release.apk\`"
             echo "- **Install (USB):** \`adb install -r app-release.apk\`"
