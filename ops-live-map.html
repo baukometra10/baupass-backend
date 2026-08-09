@@ -75,14 +75,75 @@
       line-height: 1.15;
     }
     .ops-header-brand-copy #status {
-      display: block;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.35rem;
       font-size: 0.78rem;
       color: var(--muted, #94a3b8);
-      line-height: 1.2;
+      line-height: 1.35;
+    }
+    .ops-stat-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      align-items: center;
+    }
+    .ops-stat-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.28rem;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(15, 23, 42, 0.45);
+      color: #e2e8f0;
+      font-size: 0.72rem;
+      font-weight: 650;
+      letter-spacing: 0.01em;
       white-space: nowrap;
-      text-overflow: ellipsis;
-      overflow: hidden;
-      max-width: min(56vw, 520px);
+    }
+    .ops-stat-chip .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      box-shadow: 0 0 6px currentColor;
+    }
+    .ops-stat-chip.onsite .dot { background: #38bdf8; color: #38bdf8; }
+    .ops-stat-chip.working .dot { background: #5eead4; color: #5eead4; }
+    .ops-stat-chip.stale .dot { background: #94a3b8; color: #94a3b8; }
+    .ops-stat-chip.break .dot { background: #38bdf8; color: #38bdf8; }
+    .ops-stat-chip.task .dot { background: #a78bfa; color: #a78bfa; }
+    .ops-stat-chip.offsite .dot { background: #fb923c; color: #fb923c; }
+    .ops-stat-chip.missing .dot { background: #fbbf24; color: #fbbf24; }
+    .ops-stat-chip.meta {
+      opacity: 0.85;
+      font-weight: 550;
+      color: #94a3b8;
+    }
+    .ops-stat-chip.is-zero { opacity: 0.55; }
+    .ops-live-badge {
+      display: inline-block;
+      margin-inline-start: 0.35rem;
+      padding: 0.05rem 0.35rem;
+      border-radius: 999px;
+      font-size: 0.65rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #042f2e;
+      background: linear-gradient(135deg, #5eead4, #2dd4bf);
+      box-shadow: 0 0 8px rgba(45, 212, 191, 0.35);
+      vertical-align: middle;
+    }
+    html:not(.dark-mode) .ops-stat-chip {
+      background: rgba(255, 255, 255, 0.85);
+      border-color: rgba(148, 163, 184, 0.45);
+      color: #334155;
+    }
+    html:not(.dark-mode) .ops-stat-chip.meta { color: #64748b; }
+    .ops-header-brand-copy #status {
+      max-width: min(72vw, 720px);
     }
     header a {
       color: var(--accent);
@@ -1513,6 +1574,35 @@
       return parts.filter(Boolean).join(" · ");
     }
 
+    function renderStatusChips(data) {
+      const missing = data.counts?.missingExpected ?? data.missingExpected ?? 0;
+      const onSite = data.counts?.onSite ?? (data.workersOnSite || []).length ?? 0;
+      const working = data.counts?.working ?? data.statusCounts?.working ?? 0;
+      const stale = data.counts?.stale ?? data.statusCounts?.stale ?? 0;
+      const onBreak = data.counts?.onBreak ?? data.statusCounts?.on_break ?? 0;
+      const onTask = data.counts?.onTask ?? data.statusCounts?.on_task ?? 0;
+      const offSite = data.counts?.offSite ?? data.statusCounts?.off_site ?? 0;
+      const chip = (cls, n, labelKey, fallback) => {
+        const zero = Number(n) === 0 ? " is-zero" : "";
+        const label = window.opsMapT(labelKey) || fallback;
+        return `<span class="ops-stat-chip ${cls}${zero}"><span class="dot" aria-hidden="true"></span>${Number(n)} ${escapeHtml(label)}</span>`;
+      };
+      const suffix = runtimeStatusSuffix();
+      const meta = suffix
+        ? `<span class="ops-stat-chip meta">${escapeHtml(suffix)}</span>`
+        : "";
+      return `<span class="ops-stat-chips">${
+        chip("onsite", onSite, "chipOnSite", "vor Ort") +
+        chip("working", working, "chipWorking", "arbeitet") +
+        chip("stale", stale, "chipStale", "ohne Live-GPS") +
+        chip("break", onBreak, "chipBreak", "Pause") +
+        chip("task", onTask, "chipTask", "Aufgabe") +
+        chip("offsite", offSite, "chipOffSite", "außerhalb") +
+        chip("missing", missing, "chipMissing", "fehlt") +
+        meta
+      }</span>`;
+    }
+
     function scheduleRealtimeRefresh() {
       if (eventRefreshTimer) return;
       eventRefreshTimer = window.setTimeout(() => {
@@ -1965,8 +2055,12 @@
       const workerRows = renderedWorkers.map((w) => {
         const active = String(w.id) === selectedWorkerId ? " active" : "";
         const zone = w.currentZone?.name || w.site || "";
+        const live = w.positionSource === "live" && w.status !== "stale";
+        const liveBadge = live
+          ? `<span class="ops-live-badge">${escapeHtml(window.opsMapT("liveBadge") || "LIVE")}</span>`
+          : "";
         return `<div class="worker-row${active}" data-worker-id="${escapeHtml(w.id)}" data-lat="${w.lat}" data-lng="${w.lng}">
-          <strong><span class="status-dot ${escapeHtml(w.status || "working")}"></span>${escapeHtml(w.name || "")}</strong>
+          <strong><span class="status-dot ${escapeHtml(w.status || "working")}"></span>${escapeHtml(w.name || "")}${liveBadge}</strong>
           <br><span style="color:#94a3b8">${escapeHtml(statusLabel(w.status))} · ${escapeHtml(zone)}</span>
         </div>`;
       }).join("");
@@ -2197,20 +2291,7 @@
       const camAlerts = data.counts?.cameraAlerts ?? data.openCameraEscalations ?? 0;
       const security = data.openSecurityAlerts ?? data.counts?.security ?? 0;
       const statusEl = document.getElementById("status");
-      const baseStatusText = window.opsMapT("statusLineSmart", {
-        onSite: data.counts?.onSite ?? 0,
-        working: data.counts?.working ?? data.statusCounts?.working ?? 0,
-        offSite: data.counts?.offSite ?? data.statusCounts?.off_site ?? 0,
-        stale: data.counts?.stale ?? data.statusCounts?.stale ?? 0,
-        onBreak: data.counts?.onBreak ?? data.statusCounts?.on_break ?? 0,
-        onTask: data.counts?.onTask ?? data.statusCounts?.on_task ?? 0,
-        missing,
-        cameras: data.counts?.cameras ?? 0,
-        cameraAlerts: camAlerts,
-        security,
-      });
-      const suffix = runtimeStatusSuffix();
-      statusEl.textContent = suffix ? `${baseStatusText} · ${suffix}` : baseStatusText;
+      statusEl.innerHTML = renderStatusChips(data);
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
       renderSidebar(data);
       refreshSelectedTrail();

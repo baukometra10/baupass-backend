@@ -549,6 +549,8 @@ def resolve_map_coordinates(
 
 
 LIVE_LOCATION_MAX_AGE_SECONDS = 20 * 60
+# Keep last device GPS on the map longer so pins don't snap back to a zone center.
+LIVE_LOCATION_DISPLAY_MAX_AGE_SECONDS = 12 * 60 * 60
 
 
 def _parse_iso_timestamp(value: Any) -> datetime | None:
@@ -581,15 +583,21 @@ def resolve_worker_map_coordinates(
     worker: dict[str, Any],
     *,
     max_age_seconds: int = LIVE_LOCATION_MAX_AGE_SECONDS,
+    display_max_age_seconds: int = LIVE_LOCATION_DISPLAY_MAX_AGE_SECONDS,
 ) -> dict[str, float] | None:
-    """Prefer fresh live GPS from site-presence; fall back to check-in/geofence anchors."""
+    """Prefer device GPS (even slightly stale) over check-in/geofence anchors."""
     live_lat = worker.get("last_lat")
     live_lng = worker.get("last_lng")
-    if is_usable_map_coordinate(live_lat, live_lng) and is_fresh_live_location(
-        worker.get("last_location_at"),
-        max_age_seconds=max_age_seconds,
-    ):
-        return {"lat": float(live_lat), "lng": float(live_lng), "source": "live"}
+    if is_usable_map_coordinate(live_lat, live_lng):
+        # Fresh ping → live; older but still recent enough → keep pin where the phone was.
+        if is_fresh_live_location(
+            worker.get("last_location_at"),
+            max_age_seconds=max(int(max_age_seconds), int(display_max_age_seconds)),
+        ):
+            return {"lat": float(live_lat), "lng": float(live_lng), "source": "live"}
+        # Coords without parseable timestamp: still prefer over zone anchor.
+        if not str(worker.get("last_location_at") or "").strip():
+            return {"lat": float(live_lat), "lng": float(live_lng), "source": "live"}
 
     last_note = str(worker.get("last_note") or "")
     device_coords = parse_device_coords_from_note(last_note)

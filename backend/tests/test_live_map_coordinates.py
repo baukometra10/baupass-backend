@@ -99,6 +99,42 @@ def test_upsert_live_location_and_prefer_on_map(client_and_db):
     assert abs(coords["lng"] - 13.4062) < 0.0001
 
 
+def test_resolve_prefers_stale_live_gps_over_zone_anchor(client_and_db):
+    """Pins should stay at last phone GPS instead of snapping to geofence center."""
+    from datetime import datetime, timedelta, timezone
+
+    _client, db_path = client_and_db
+    old = (datetime.now(timezone.utc) - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    with closing(sqlite3.connect(db_path)) as db:
+        db.row_factory = sqlite3.Row
+        db.execute(
+            """
+            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+            VALUES ('gf-anchor', 'cmp-default', 'Hassoweg', 52.52, 13.405, 80, 1, datetime('now'))
+            """
+        )
+        db.commit()
+        coords = resolve_worker_map_coordinates(
+            db,
+            "cmp-default",
+            {
+                "id": "w-stale-live",
+                "site": "Hassoweg",
+                "site_latitude": 52.52,
+                "site_longitude": 13.405,
+                "last_lat": 52.4801,
+                "last_lng": 13.4502,
+                "last_location_at": old,
+                "last_note": "",
+            },
+        )
+    assert coords is not None
+    assert coords["source"] == "live"
+    assert abs(coords["lat"] - 52.4801) < 0.0001
+    assert abs(coords["lng"] - 13.4502) < 0.0001
+    assert is_fresh_live_location(old) is False
+
+
 def test_resolve_worker_map_coordinates_uses_exact_checkin_gps(client_and_db):
     _client, db_path = client_and_db
     with closing(sqlite3.connect(db_path)) as db:
@@ -167,6 +203,14 @@ def test_derive_status_and_zone_and_trail(client_and_db):
             position_source="anchor",
             last_location_at="",
             inside_zone=True,
+        )
+        == "working"
+    )
+    assert (
+        derive_worker_map_status(
+            position_source="anchor",
+            last_location_at="",
+            inside_zone=False,
         )
         == "stale"
     )

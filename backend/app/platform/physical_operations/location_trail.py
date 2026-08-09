@@ -124,7 +124,8 @@ def derive_worker_map_status(
         return "working" if inside_zone else "off_site"
     if source == "live" and not fresh:
         return "stale"
-    if source == "checkin":
+    # Checked-in workers on the map: zone/check-in position counts as working when inside.
+    if source in {"checkin", "anchor"}:
         return "working" if inside_zone else "stale"
     return "stale"
 
