@@ -303,16 +303,12 @@ class GeofenceService {
             }
           } else if (result['reason'] == 'not_checked_in' ||
               result['trackingActive'] == false) {
-            // Do not kill tracking forever: map/check-in state can lag briefly.
+            // Keep sending; server may accept as soon as check-in is visible.
             _notCheckedInStrikes += 1;
             if (_notCheckedInStrikes == 1) {
               onNotify?.call(
-                'Live-GPS wartet auf Check-in — bitte anmelden, dann bewegt sich der Pin.',
+                'GPS läuft — Pin bewegt sich nach erfolgreichem Check-in.',
               );
-            }
-            if (_notCheckedInStrikes >= 8) {
-              _liveTracking = false;
-              _trackingStartedNotified = false;
             }
           }
         }

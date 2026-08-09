@@ -488,53 +488,53 @@
     /* Classic Maps-style worker pin (blue teardrop + dark pill label) */
     .ops-map-pin.is-worker-classic {
       animation: none;
-      filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.45));
-      color: #4ba3f5;
+      filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+      color: #3b9eff;
     }
     .ops-map-pin.is-worker-classic::before { display: none; }
     .ops-map-pin.is-worker-classic:hover {
-      transform: translateY(-3px) scale(1.05);
-      filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
+      transform: translateY(-3px) scale(1.06);
+      filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
     }
     .ops-map-pin.is-worker-classic.is-selected {
       animation: none;
-      filter: drop-shadow(0 4px 12px rgba(59, 130, 246, 0.55));
+      filter: drop-shadow(0 5px 16px rgba(59, 158, 255, 0.55));
     }
     .ops-worker-pin {
       position: relative;
-      width: 36px;
-      height: 48px;
+      width: 44px;
+      height: 58px;
       display: block;
       flex-shrink: 0;
     }
     .ops-map-pin.is-near .ops-worker-pin {
-      width: 40px;
-      height: 54px;
+      width: 48px;
+      height: 64px;
     }
     .ops-worker-pin-svg {
       width: 100%;
       height: 100%;
       display: block;
       overflow: visible;
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.28));
     }
     .ops-worker-pin-face {
       position: absolute;
       left: 50%;
-      top: 30%;
-      width: 18px;
-      height: 18px;
+      top: 31%;
+      width: 24px;
+      height: 24px;
       transform: translate(-50%, -50%);
       border-radius: 50%;
       overflow: hidden;
       background: #ffffff;
-      border: 2px solid #ffffff;
-      box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.12);
+      border: 2.5px solid #ffffff;
+      box-shadow: 0 0 0 1.5px rgba(15, 23, 42, 0.18), 0 1px 3px rgba(0,0,0,0.25);
       pointer-events: none;
     }
     .ops-map-pin.is-near .ops-worker-pin-face {
-      width: 20px;
-      height: 20px;
+      width: 26px;
+      height: 26px;
     }
     .ops-worker-pin-face img {
       width: 100%;
@@ -546,42 +546,42 @@
       content: "";
       position: absolute;
       left: 50%;
-      top: 30%;
-      width: 22px;
-      height: 22px;
+      top: 31%;
+      width: 28px;
+      height: 28px;
       transform: translate(-50%, -50%);
       border-radius: 50%;
-      border: 2px solid rgba(94, 234, 212, 0.85);
-      animation: workerLiveRing 1.8s ease-out infinite;
+      border: 2px solid rgba(94, 234, 212, 0.9);
+      animation: workerLiveRing 1.7s ease-out infinite;
       pointer-events: none;
     }
     @keyframes workerLiveRing {
-      0% { opacity: 0.85; transform: translate(-50%, -50%) scale(0.9); }
-      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.7); }
+      0% { opacity: 0.9; transform: translate(-50%, -50%) scale(0.85); }
+      100% { opacity: 0; transform: translate(-50%, -50%) scale(1.85); }
     }
     .ops-map-pin-worker-working,
-    .ops-map-pin-worker { color: #4ba3f5; }
+    .ops-map-pin-worker { color: #3b9eff; }
     .ops-map-pin-worker-off_site { color: #fb923c; }
     .ops-map-pin-worker-stale { color: #94a3b8; }
     .ops-map-pin-worker-on_break { color: #38bdf8; }
     .ops-map-pin-worker-on_task { color: #a78bfa; }
     .ops-map-pin-worker-shift_ended { color: #64748b; }
     .ops-map-worker-label {
-      margin-top: 3px;
-      padding: 4px 10px;
+      margin-top: 4px;
+      padding: 5px 12px;
       border-radius: 999px;
-      background: linear-gradient(180deg, #111827 0%, #0b1220 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, #1a2332 0%, #0b1220 100%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       color: #ffffff;
-      font-size: 11.5px;
-      font-weight: 700;
-      line-height: 1.2;
+      font-size: 12px;
+      font-weight: 750;
+      line-height: 1.15;
       white-space: nowrap;
-      max-width: 160px;
+      max-width: 180px;
       overflow: hidden;
       text-overflow: ellipsis;
-      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
-      letter-spacing: 0.01em;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+      letter-spacing: 0.015em;
     }
     .ops-map-worker-label.is-appearing {
       animation: labelFadeIn 0.28s ease-out;
@@ -1754,9 +1754,9 @@
       "</svg>";
 
     const WORKER_PIN_SVG =
-      '<svg viewBox="0 0 24 36" class="ops-worker-pin-svg" aria-hidden="true">' +
-      '<path d="M12 0C5.925 0 1 4.925 1 11c0 8.25 11 25 11 25s11-16.75 11-25C23 4.925 18.075 0 12 0z" fill="currentColor"/>' +
-      '<circle cx="12" cy="11" r="4.2" fill="#ffffff"/>' +
+      '<svg viewBox="0 0 48 68" class="ops-worker-pin-svg" aria-hidden="true">' +
+      '<path d="M24 2C12.4 2 3 11.4 3 23c0 15.5 21 43 21 43s21-27.5 21-43C45 11.4 35.6 2 24 2z" fill="currentColor"/>' +
+      '<circle cx="24" cy="22" r="9.2" fill="#ffffff"/>' +
       "</svg>";
 
     function mapPinIcon(kind, label, options = {}) {
@@ -1782,15 +1782,15 @@
       const nearClass = nearZoom ? " is-near" : "";
       const workerClass = isWorker ? " is-worker-classic" : "";
       const liveClass = isWorker && liveGps ? " live-gps" : "";
-      const iconW = isWorker ? 170 : 36;
-      const iconH = isWorker ? (showLabel ? 78 : 52) : (showLabel ? 52 : 36);
-      const anchorY = isWorker ? 48 : (showLabel ? 50 : 34);
+      const iconW = isWorker ? 190 : 36;
+      const iconH = isWorker ? (showLabel ? 92 : 62) : (showLabel ? 52 : 36);
+      const anchorY = isWorker ? 58 : (showLabel ? 50 : 34);
       return L.divIcon({
         className: "ops-map-pin-wrap",
         html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}${workerClass}${liveClass}" role="img" aria-label="${safeLabel}">${isWorker ? "" : PIN_SVG}${faceHtml}${labelHtml}</div>`,
         iconSize: [iconW, iconH],
         iconAnchor: [iconW / 2, anchorY],
-        popupAnchor: [0, isWorker ? -42 : (showLabel ? -48 : -32)],
+        popupAnchor: [0, isWorker ? -50 : (showLabel ? -48 : -32)],
       });
     }
     function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick, targetLayer = null) {

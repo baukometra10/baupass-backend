@@ -12740,6 +12740,39 @@ def _worker_location_accuracy_meters(location):
     return accuracy
 
 
+def _upsert_worker_live_gps_from_location(db, worker, location) -> bool:
+    """Persist device GPS for live map after check-in / presence pings."""
+    if not isinstance(location, dict):
+        return False
+    lat = _normalize_float(location.get("latitude"))
+    lng = _normalize_float(location.get("longitude"))
+    if lat is None or lng is None:
+        lat = _normalize_float(location.get("deviceLatitude"))
+        lng = _normalize_float(location.get("deviceLongitude"))
+    if lat is None or lng is None:
+        return False
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        return False
+    if abs(lat) < 0.0001 and abs(lng) < 0.0001:
+        return False
+    try:
+        from backend.app.platform.workforce.presence_state import upsert_live_location
+
+        return bool(
+            upsert_live_location(
+                db,
+                worker_id=worker["id"],
+                company_id=worker["company_id"],
+                lat=float(lat),
+                lng=float(lng),
+                accuracy_m=_worker_location_accuracy_meters(location),
+                min_move_meters=0.0,
+            )
+        )
+    except Exception:
+        return False
+
+
 def _validate_worker_location_accuracy_or_raise(location):
     accuracy = _worker_location_accuracy_meters(location)
     if accuracy is not None and accuracy > WORKER_GEOLOCATION_MAX_ACCURACY_METERS:
@@ -15542,18 +15575,19 @@ def worker_app_live_location():
             "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
         }), 400
 
-    open_session = (
-        worker_has_open_checkin_today(db, worker["id"])
-        or worker_has_open_site_app_session_today(db, worker["id"])
-    )
-    if not open_session:
-        # Align with live-map membership (same SQL as workersOnSite).
-        try:
-            from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
+    # Same membership rule as live-map workersOnSite — otherwise pins stay frozen.
+    open_session = False
+    try:
+        from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
 
-            open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
-        except Exception:
-            open_session = False
+        open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
+    except Exception:
+        open_session = False
+    if not open_session:
+        open_session = (
+            worker_has_open_checkin_today(db, worker["id"])
+            or worker_has_open_site_app_session_today(db, worker["id"])
+        )
     if not open_session:
         # Privacy: no live pin outside an active work session (checked-in).
         return jsonify(
@@ -15899,6 +15933,11 @@ def record_worker_app_nfc_attendance(
         timestamp_value=timestamp_value,
         worker_type=worker["worker_type"],
     )
+    location_saved = False
+    try:
+        location_saved = _upsert_worker_live_gps_from_location(db, worker, location)
+    except Exception:
+        location_saved = False
     return {
         "ok": True,
         "duplicate": False,
@@ -15909,6 +15948,7 @@ def record_worker_app_nfc_attendance(
         "clientEventId": client_event_id,
         "outsideHours": outside_hours,
         "eligibilityReason": eligibility_reason,
+        "locationSaved": bool(location_saved),
     }
 
 
@@ -16064,6 +16104,11 @@ def record_worker_app_manual_attendance(
         timestamp_value=timestamp_value,
         worker_type=worker["worker_type"],
     )
+    location_saved = False
+    try:
+        location_saved = _upsert_worker_live_gps_from_location(db, worker, location)
+    except Exception:
+        location_saved = False
     return {
         "ok": True,
         "duplicate": False,
@@ -16074,6 +16119,7 @@ def record_worker_app_manual_attendance(
         "clientEventId": client_event_id,
         "outsideHours": outside_hours,
         "eligibilityReason": eligibility_reason,
+        "locationSaved": bool(location_saved),
     }
 
 
