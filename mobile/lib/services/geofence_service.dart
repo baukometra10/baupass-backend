@@ -42,17 +42,21 @@ class GeofenceService {
 
   Position? _pendingForcedPosition;
   int _notCheckedInStrikes = 0;
+  int _gpsFailStrikes = 0;
+  String _lastStatus = '';
 
   /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
-  static const pollInterval = Duration(seconds: 4);
+  static const pollInterval = Duration(seconds: 3);
 
-  static const positionDebounceMs = 400;
-  static const minMoveMetersToSend = 3.0;
-  static const heartbeatInterval = Duration(seconds: 10);
+  static const positionDebounceMs = 300;
+  static const minMoveMetersToSend = 1.0;
+  static const heartbeatInterval = Duration(seconds: 6);
   static const offSiteStrikesRequired = 3;
 
   bool get liveTrackingActive => _running && _liveTracking;
   bool get isRunning => _running;
+  /// Short status for UI: "Pin live", "GPS sendet…", "GPS fehlgeschlagen", …
+  String get lastStatus => _lastStatus;
 
   /// Turn live map pings on/off without restarting site_app geofence.
   void setLiveTracking(bool enabled) {
@@ -107,11 +111,13 @@ class GeofenceService {
     }
 
     // Background / app-closed tracking needs "Allow all the time".
+    var useBackgroundStream = false;
     if (liveTracking) {
       final always = await _location.ensureAlwaysPermission();
-      if (!_location.isBackgroundCapable(always)) {
+      useBackgroundStream = _location.isBackgroundCapable(always);
+      if (!useBackgroundStream) {
         onNotify?.call(
-          'Für Live-Karte bei geschlossener App: Standort «Immer erlauben» in den Einstellungen setzen.',
+          'App offen: Pin bewegt sich. Für geschlossene App: Standort «Immer erlauben».',
         );
       }
     }
@@ -127,7 +133,9 @@ class GeofenceService {
     _lastSentLng = null;
     _trackingStartedNotified = false;
     _notCheckedInStrikes = 0;
+    _gpsFailStrikes = 0;
     _pendingForcedPosition = null;
+    _lastStatus = 'GPS startet…';
 
     void schedulePoll() {
       _timer?.cancel();
@@ -145,36 +153,50 @@ class GeofenceService {
       });
     }
 
-    // Foreground-service stream — continues while checked in even if UI is closed.
-    _positionSub = _location.watchPosition().listen(
-      (position) {
-        final now = DateTime.now();
-        if (_lastWatchPollAt != null &&
-            now.difference(_lastWatchPollAt!).inMilliseconds <
-                positionDebounceMs) {
-          return;
-        }
-        _lastWatchPollAt = now;
-        if (_pollInFlight) {
-          _pendingForcedPosition = position;
-          return;
-        }
-        unawaited(
-          _poll(
-            bearer: bearer,
-            deviceId: deviceId,
-            autoLogout: autoLogout,
-            onPresence: onPresence,
-            onNotify: onNotify,
-            reason: _PollReason.movement,
-            forcedPosition: position,
-          ),
-        );
-      },
-      onError: (Object error) {
-        onNotify?.call('GPS-Stream unterbrochen — bitte App kurz öffnen.');
-      },
-    );
+    void attachStream({required bool background}) {
+      unawaited(_positionSub?.cancel());
+      _positionSub = _location.watchPosition(background: background).listen(
+        (position) {
+          final now = DateTime.now();
+          if (_lastWatchPollAt != null &&
+              now.difference(_lastWatchPollAt!).inMilliseconds <
+                  positionDebounceMs) {
+            return;
+          }
+          _lastWatchPollAt = now;
+          if (_pollInFlight) {
+            _pendingForcedPosition = position;
+            return;
+          }
+          unawaited(
+            _poll(
+              bearer: bearer,
+              deviceId: deviceId,
+              autoLogout: autoLogout,
+              onPresence: onPresence,
+              onNotify: onNotify,
+              reason: _PollReason.movement,
+              forcedPosition: position,
+            ),
+          );
+        },
+        onError: (Object error) {
+          // FGS/notification failures are common on Android 13+ — fall back.
+          if (background) {
+            attachStream(background: false);
+            onNotify?.call(
+              'Hintergrund-GPS blockiert — sende weiter solange App offen ist.',
+            );
+            return;
+          }
+          _lastStatus = 'GPS-Stream unterbrochen';
+          onNotify?.call('GPS-Stream unterbrochen — bitte App kurz öffnen.');
+        },
+      );
+    }
+
+    // Prefer FGS/background stream when Always is granted; else foreground-only.
+    attachStream(background: useBackgroundStream);
 
     schedulePoll();
     await _poll(
@@ -199,6 +221,7 @@ class GeofenceService {
     _leaveInProgress = false;
     _offSiteStrikes = 0;
     _notCheckedInStrikes = 0;
+    _gpsFailStrikes = 0;
     _pendingForcedPosition = null;
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
@@ -207,6 +230,7 @@ class GeofenceService {
     _lastSentLat = null;
     _lastSentLng = null;
     _trackingStartedNotified = false;
+    _lastStatus = '';
   }
 
   bool _shouldSend({
@@ -263,35 +287,50 @@ class GeofenceService {
     required _PollReason reason,
     Position? forcedPosition,
   }) async {
-    if (!_running || _pollInFlight || _leaveInProgress) {
+    // Keep live GPS posting even while site-leave is in flight.
+    if (!_running || _pollInFlight) {
+      if (forcedPosition != null) _pendingForcedPosition = forcedPosition;
+      return;
+    }
+    if (_leaveInProgress && reason != _PollReason.heartbeat) {
       if (forcedPosition != null) _pendingForcedPosition = forcedPosition;
       return;
     }
     _pollInFlight = true;
     try {
       Map<String, dynamic>? location;
-      if (forcedPosition != null) {
-        if (forcedPosition.accuracy >
-            LocationService.liveMapMaxAccuracyMeters) {
-          return;
-        }
+      if (forcedPosition != null &&
+          forcedPosition.accuracy <=
+              LocationService.liveMapMaxAccuracyMeters) {
         location = _location.positionToPayload(forcedPosition);
       } else {
         // Never fall back to attendance's 90s cache — that freezes the map pin.
+        // Also used when stream accuracy is too poor.
         location = await _location.captureFreshForLiveMap();
       }
-      if (location == null) return;
+      if (location == null) {
+        _gpsFailStrikes += 1;
+        _lastStatus = 'GPS-Signal fehlt';
+        if (_gpsFailStrikes == 3) {
+          onNotify?.call(
+            'Kein GPS-Signal — Standortdienste prüfen und App im Vordergrund lassen.',
+          );
+        }
+        return;
+      }
 
       final accuracy = (location['accuracyMeters'] as num?)?.toDouble();
       if (accuracy != null &&
           accuracy > LocationService.liveMapMaxAccuracyMeters) {
+        _lastStatus = 'GPS zu ungenau';
         return;
       }
 
       final lat = (location['latitude'] as num).toDouble();
       final lng = (location['longitude'] as num).toDouble();
+      _gpsFailStrikes = 0;
 
-      // Live map pings only during an active work session (checked-in).
+      // Live map pings while tracking is enabled (server always stores coords).
       if (_liveTracking) {
         if (!_shouldSend(lat: lat, lng: lng, reason: reason)) {
           // Still allow site_app presence path below on heartbeat/initial.
@@ -308,6 +347,7 @@ class GeofenceService {
 
           if (result['locationSaved'] == true) {
             _notCheckedInStrikes = 0;
+            _lastStatus = 'Pin live · GPS gesendet';
             if (!_trackingStartedNotified) {
               _trackingStartedNotified = true;
               onNotify?.call(
@@ -318,11 +358,14 @@ class GeofenceService {
               result['trackingActive'] == false) {
             // Keep sending; server may accept as soon as check-in is visible.
             _notCheckedInStrikes += 1;
+            _lastStatus = 'GPS sendet · warte auf Check-in';
             if (_notCheckedInStrikes == 1) {
               onNotify?.call(
                 'GPS läuft — Pin bewegt sich nach erfolgreichem Check-in.',
               );
             }
+          } else {
+            _lastStatus = 'GPS gesendet';
           }
         }
       }
@@ -357,6 +400,7 @@ class GeofenceService {
         }
       }
     } on ApiException catch (e) {
+      _lastStatus = 'GPS-Serverfehler (${e.statusCode})';
       if (e.errorCode == 'worker_geolocation_inaccurate' ||
           e.errorCode == 'worker_geolocation_required' ||
           e.errorCode == 'site_location_unavailable') {
@@ -364,8 +408,11 @@ class GeofenceService {
       }
       if (isWorkerSessionAuthError(e.errorCode)) {
         onNotify?.call('Sitzung abgelaufen — bitte erneut anmelden.');
+      } else if (_notCheckedInStrikes <= 1) {
+        onNotify?.call('Live-GPS konnte nicht gesendet werden (${e.statusCode}).');
       }
     } catch (_) {
+      _lastStatus = 'GPS Netzwerkfehler';
       // ignore transient GPS/network errors
     } finally {
       _pollInFlight = false;
@@ -410,8 +457,8 @@ class GeofenceService {
           onNotify,
         );
       } else if (presence['siteLeaveApplied'] == true) {
-        _liveTracking = false;
-        _trackingStartedNotified = false;
+        // Keep GPS loop alive — server/map decide whether the pin is shown.
+        _liveTracking = true;
         final leaveKey =
             'leave:${presence['checkoutLogId'] ?? presence['siteLeaveLogId'] ?? 'applied'}';
         _notifyOnce(
@@ -473,8 +520,8 @@ class GeofenceService {
         body: <String, dynamic>{'location': location},
       );
       onNotify?.call('Automatischer Check-out — Baustelle verlassen');
-      _liveTracking = false;
-      _trackingStartedNotified = false;
+      // Keep posting GPS; map hides the pin when no longer on site.
+      _liveTracking = true;
     } catch (_) {
       await _offlineStore.enqueue(<String, dynamic>{
         'type': 'site_leave',

@@ -2002,6 +2002,11 @@
             try { workerClusterLayer.addLayer(existing); } catch (_) {}
           }
           animateWorkerMarkerMove(id, existing, w.lat, w.lng);
+          try {
+            if (workerClusterLayer && workerClusterLayer.hasLayer(existing)) {
+              workerClusterLayer.refreshClusters(existing);
+            }
+          } catch (_) { /* ignore */ }
           existing.setIcon(mapPinIcon(pinKind, label, {
             showLabel: showPersistentLabel,
             selected: markerSelected,

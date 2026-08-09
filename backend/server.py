@@ -15575,7 +15575,8 @@ def worker_app_live_location():
             "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
         }), 400
 
-    # Accept GPS whenever the worker is checked in (same idea as live-map presence).
+    # Always persist GPS for authenticated worker-app sessions.
+    # Privacy: live-map still only lists on-site / checked-in workers.
     open_session = bool(worker_has_open_checkin(db, worker["id"]))
     if not open_session:
         open_session = bool(worker_has_open_checkin_today(db, worker["id"]))
@@ -15588,18 +15589,6 @@ def worker_app_live_location():
             open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
         except Exception:
             open_session = False
-    if not open_session:
-        # Privacy: no live pin outside an active work session (checked-in).
-        return jsonify(
-            {
-                "ok": True,
-                "locationSaved": False,
-                "trailSaved": False,
-                "trackingActive": False,
-                "reason": "not_checked_in",
-                "message": "Live-Standort nur während der angemeldeten Arbeitszeit.",
-            }
-        )
 
     from backend.app.platform.workforce.presence_state import upsert_live_location
     from backend.app.platform.physical_operations.location_trail import (
@@ -15618,7 +15607,8 @@ def worker_app_live_location():
         min_move_meters=0.0,
     )
     trail_saved = False
-    if location_saved:
+    # Trail samples only while on duty — avoids idle tracks after checkout.
+    if location_saved and open_session:
         try:
             zones = list_active_geofences(db, worker["company_id"])
             zone = resolve_containing_zone(float(lat), float(lng), zones)
@@ -15646,6 +15636,7 @@ def worker_app_live_location():
             "locationSaved": bool(location_saved),
             "trailSaved": bool(trail_saved),
             "trackingActive": True,
+            "onDuty": bool(open_session),
             "lat": float(lat),
             "lng": float(lng),
             "accuracyMeters": accuracy_m,

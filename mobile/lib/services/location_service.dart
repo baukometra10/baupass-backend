@@ -10,7 +10,7 @@ class LocationService {
   /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
   static const _freshCacheMaxAge = Duration(seconds: 90);
   static const _fastFixTimeout = Duration(milliseconds: 900);
-  static const _liveLastKnownMaxAge = Duration(seconds: 12);
+  static const _liveLastKnownMaxAge = Duration(seconds: 20);
 
   static const _foregroundNotification = ForegroundNotificationConfig(
     notificationTitle: 'SUPPIX Live-Standort',
@@ -21,28 +21,31 @@ class LocationService {
     setOngoing: true,
   );
 
-  LocationSettings _watchSettings() {
+  LocationSettings _watchSettings({required bool background}) {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        // 5 m: reliable walking updates + better battery than 1 m.
-        distanceFilter: 5,
-        foregroundNotificationConfig: _foregroundNotification,
+        // 3 m: walking updates without drowning the network.
+        distanceFilter: 3,
+        // FGS notification is required for background; omit it for reliable
+        // foreground-only tracking when notification permission is missing.
+        foregroundNotificationConfig:
+            background ? _foregroundNotification : null,
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
-        allowBackgroundLocationUpdates: true,
-        showBackgroundLocationIndicator: true,
+        distanceFilter: 3,
+        allowBackgroundLocationUpdates: background,
+        showBackgroundLocationIndicator: background,
         pauseLocationUpdatesAutomatically: false,
         activityType: ActivityType.otherNavigation,
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+      distanceFilter: 3,
     );
   }
 
@@ -69,18 +72,18 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
+        timeLimit: const Duration(seconds: 8),
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
+        timeLimit: const Duration(seconds: 8),
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 5),
+      timeLimit: Duration(seconds: 8),
     );
   }
 
@@ -127,8 +130,11 @@ class LocationService {
     return permission == LocationPermission.always;
   }
 
-  Stream<Position> watchPosition() {
-    return Geolocator.getPositionStream(locationSettings: _watchSettings());
+  /// Continuous GPS stream. Prefer [background]=true when Always is granted.
+  Stream<Position> watchPosition({bool background = false}) {
+    return Geolocator.getPositionStream(
+      locationSettings: _watchSettings(background: background),
+    );
   }
 
   bool _usable(
@@ -263,7 +269,7 @@ class LocationService {
 
       if (_usable(
         lastKnown,
-        maxAge: const Duration(seconds: 45),
+        maxAge: const Duration(seconds: 60),
         maxAccuracy: liveMapMaxAccuracyMeters,
       )) {
         return positionToPayload(lastKnown!);

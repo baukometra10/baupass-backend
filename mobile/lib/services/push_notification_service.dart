@@ -47,6 +47,15 @@ class PushNotificationService {
     return obtainNativeDeviceToken();
   }
 
+  /// Android 13+ needs this so the live-GPS foreground-service notification can show.
+  Future<void> ensureNotificationPermission() async {
+    try {
+      await FirebaseBootstrap.deviceToken();
+    } catch (_) {
+      /* best-effort */
+    }
+  }
+
   /// FCM token: Firebase (google-services.json) or --dart-define=BAUPASS_FCM_TOKEN=...
   Future<String?> obtainNativeDeviceToken() async {
     const fromDefine = String.fromEnvironment('BAUPASS_FCM_TOKEN');

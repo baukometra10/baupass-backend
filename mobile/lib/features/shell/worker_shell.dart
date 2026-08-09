@@ -94,6 +94,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   late final VoiceCallController _voiceCall;
   late final ConferenceRepository _conferenceRepo;
   Timer? _conferencePollTimer;
+  Timer? _gpsStatusTimer;
+  String _gpsStatus = '';
   String? _shownConferenceId;
   String? _pendingConferenceForceId;
   bool _conferenceSheetOpen = false;
@@ -124,6 +126,13 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     _conferenceRepo = ConferenceRepository(widget.chat.apiClient);
     _conferencePollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       unawaited(_pollConferenceInvite());
+    });
+    _gpsStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted) return;
+      final next = widget.geofence.lastStatus;
+      if (next != _gpsStatus) {
+        setState(() => _gpsStatus = next);
+      }
     });
     unawaited(_pollConferenceInvite());
     _loadProfileAndGeofence();
@@ -164,6 +173,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _conferencePollTimer?.cancel();
+    _gpsStatusTimer?.cancel();
     _voiceCall.dispose();
     // Do NOT stop geofence here — background FGS must keep sending GPS after
     // UI teardown; logout in WorkerApp stops tracking explicitly.
@@ -372,6 +382,13 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     required bool liveTracking,
     required bool autoLogout,
   }) async {
+    // Android 13+: notification permission needed for the live-GPS foreground service.
+    try {
+      await widget.push.ensureNotificationPermission();
+    } catch (_) {
+      /* best-effort */
+    }
+
     void onPresence(Map<String, dynamic> presence) {
       final open = presence['openCheckInToday'] == true ||
           presence['siteSessionOpen'] == true ||
@@ -597,7 +614,44 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                 color: scheme.surface,
                 child: SafeArea(
                   top: false,
-                  child: BottomNavigationBar(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_gpsStatus.isNotEmpty)
+                        Builder(
+                          builder: (context) {
+                            final s = _gpsStatus.toLowerCase();
+                            final ok = s.contains('live');
+                            final bad = s.contains('fehlt') ||
+                                s.contains('fehler') ||
+                                s.contains('ungenau') ||
+                                s.contains('unterbrochen');
+                            return Container(
+                              width: double.infinity,
+                              color: ok
+                                  ? const Color(0xFF0F766E)
+                                  : (bad
+                                      ? const Color(0xFFB45309)
+                                      : scheme.surfaceContainerHighest),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              child: Text(
+                                _gpsStatus,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: ok || bad
+                                      ? Colors.white
+                                      : scheme.onSurface,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      BottomNavigationBar(
                     type: BottomNavigationBarType.fixed,
                     currentIndex: _index,
                     backgroundColor: scheme.surface,
@@ -653,6 +707,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                         icon: const Icon(Icons.person_outline),
                         activeIcon: const Icon(Icons.person),
                         label: t('navProfile', 'Profil'),
+                      ),
+                    ],
                       ),
                     ],
                   ),
