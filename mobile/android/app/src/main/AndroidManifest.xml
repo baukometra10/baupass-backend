@@ -25,6 +25,12 @@
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Keep live GPS running when the app is backgrounded / closed (check-in active). -->
+        <service
+            android:name="com.baseflow.geolocator.GeolocatorLocationService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="location" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -44,9 +44,11 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Das Mikrofon wird für Sprachnachrichten, Arbeitgeber-Sprachanrufe und den Assistenten genutzt.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Der Standort wird genutzt, um zu prüfen, ob du dich auf der Baustelle befindest.</string>
+	<string>Der Standort wird für Check-in und die Live-Karte des Arbeitgebers genutzt.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Der Standort wird im Hintergrund genutzt, um An- und Abwesenheit auf der Baustelle automatisch zu erfassen.</string>
+	<string>Mit Check-in wird dein Standort auch bei geschlossener App an die Live-Karte gesendet, solange du angemeldet bist.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Mit Check-in wird dein Standort auch bei geschlossener App an die Live-Karte gesendet, solange du angemeldet bist.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

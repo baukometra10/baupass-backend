@@ -15575,19 +15575,19 @@ def worker_app_live_location():
             "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
         }), 400
 
-    # Same membership rule as live-map workersOnSite — otherwise pins stay frozen.
-    open_session = False
-    try:
-        from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
-
-        open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
-    except Exception:
-        open_session = False
+    # Accept GPS whenever the worker is checked in (same idea as live-map presence).
+    open_session = bool(worker_has_open_checkin(db, worker["id"]))
     if not open_session:
-        open_session = (
-            worker_has_open_checkin_today(db, worker["id"])
-            or worker_has_open_site_app_session_today(db, worker["id"])
-        )
+        open_session = bool(worker_has_open_checkin_today(db, worker["id"]))
+    if not open_session:
+        open_session = bool(worker_has_open_site_app_session_today(db, worker["id"]))
+    if not open_session:
+        try:
+            from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
+
+            open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
+        except Exception:
+            open_session = False
     if not open_session:
         # Privacy: no live pin outside an active work session (checked-in).
         return jsonify(

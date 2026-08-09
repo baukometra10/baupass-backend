@@ -44,11 +44,11 @@ class GeofenceService {
   int _notCheckedInStrikes = 0;
 
   /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
-  static const pollInterval = Duration(seconds: 3);
+  static const pollInterval = Duration(seconds: 4);
 
-  static const positionDebounceMs = 500;
-  static const minMoveMetersToSend = 1.0;
-  static const heartbeatInterval = Duration(seconds: 8);
+  static const positionDebounceMs = 400;
+  static const minMoveMetersToSend = 3.0;
+  static const heartbeatInterval = Duration(seconds: 10);
   static const offSiteStrikesRequired = 3;
 
   bool get liveTrackingActive => _running && _liveTracking;
@@ -100,10 +100,20 @@ class GeofenceService {
     if (!allowed) {
       if (liveTracking) {
         onNotify?.call(
-          'Standort-Berechtigung fehlt — während der Arbeitszeit bitte GPS erlauben.',
+          'Standort-Berechtigung fehlt — bitte GPS erlauben.',
         );
       }
       return;
+    }
+
+    // Background / app-closed tracking needs "Allow all the time".
+    if (liveTracking) {
+      final always = await _location.ensureAlwaysPermission();
+      if (!_location.isBackgroundCapable(always)) {
+        onNotify?.call(
+          'Für Live-Karte bei geschlossener App: Standort «Immer erlauben» in den Einstellungen setzen.',
+        );
+      }
     }
 
     _running = true;
@@ -135,6 +145,7 @@ class GeofenceService {
       });
     }
 
+    // Foreground-service stream — continues while checked in even if UI is closed.
     _positionSub = _location.watchPosition().listen(
       (position) {
         final now = DateTime.now();
@@ -160,7 +171,9 @@ class GeofenceService {
           ),
         );
       },
-      onError: (_) {},
+      onError: (Object error) {
+        onNotify?.call('GPS-Stream unterbrochen — bitte App kurz öffnen.');
+      },
     );
 
     schedulePoll();

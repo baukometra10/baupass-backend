@@ -142,6 +142,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       _voiceCall.onAppResumed();
       unawaited(_pollConferenceInvite());
       unawaited(_drainMissedCallbackIntent());
+      // Re-assert live GPS after returning from background.
+      unawaited(_onAttendanceSessionChanged());
     }
   }
 
@@ -163,7 +165,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _conferencePollTimer?.cancel();
     _voiceCall.dispose();
-    widget.geofence.stop();
+    // Do NOT stop geofence here — background FGS must keep sending GPS after
+    // UI teardown; logout in WorkerApp stops tracking explicitly.
     super.dispose();
   }
 
@@ -427,6 +430,17 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     // Always keep the GPS loop running; server decides whether to persist.
     if (widget.geofence.isRunning) {
       widget.geofence.setLiveTracking(true);
+      final always = await widget.location.ensureAlwaysPermission();
+      if (mounted && !widget.location.isBackgroundCapable(always)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Für Bewegung auf der Live-Karte bei geschlossener App: Standort «Immer erlauben».',
+            ),
+            duration: Duration(seconds: 8),
+          ),
+        );
+      }
       await widget.geofence.forcePing(
         bearer: widget.session.bearer,
         deviceId: widget.session.deviceId,

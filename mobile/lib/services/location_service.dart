@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 
 import 'package:geolocator/geolocator.dart';
 
-/// Captures GPS for site-based geofence attendance (site_app mode).
+/// Captures GPS for attendance + continuous live-map tracking (incl. background).
 class LocationService {
   static const maxAccuracyMeters = 350.0;
   /// Soft gate for live-map pings (server accepts up to ~500 m).
@@ -10,37 +10,39 @@ class LocationService {
   /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
   static const _freshCacheMaxAge = Duration(seconds: 90);
   static const _fastFixTimeout = Duration(milliseconds: 900);
-  static const _liveLastKnownMaxAge = Duration(seconds: 8);
+  static const _liveLastKnownMaxAge = Duration(seconds: 12);
 
   static const _foregroundNotification = ForegroundNotificationConfig(
-    notificationTitle: 'SUPPIX Anwesenheit',
-    notificationText: 'Standort wird für An- und Abwesenheit überwacht',
-    notificationChannelName: 'Baustellen-Standort',
+    notificationTitle: 'SUPPIX Live-Standort',
+    notificationText:
+        'Standort wird für die Live-Karte gesendet (Check-in aktiv).',
+    notificationChannelName: 'Live-Standort',
     enableWakeLock: true,
+    setOngoing: true,
   );
 
   LocationSettings _watchSettings() {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        // ~1 m so employer live-map tracks walking in near-realtime.
-        distanceFilter: 1,
+        // 5 m: reliable walking updates + better battery than 1 m.
+        distanceFilter: 5,
         foregroundNotificationConfig: _foregroundNotification,
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 1,
+        distanceFilter: 5,
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
-        // Keep streaming while the worker app is open for live-map movement.
         pauseLocationUpdatesAutomatically: false,
+        activityType: ActivityType.otherNavigation,
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 1,
+      distanceFilter: 5,
     );
   }
 
@@ -67,26 +69,45 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 3),
+        timeLimit: const Duration(seconds: 5),
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 3),
+        timeLimit: const Duration(seconds: 5),
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 3),
+      timeLimit: Duration(seconds: 5),
     );
   }
 
-  /// Returns true when at least while-in-use location is granted.
+  /// At least while-in-use (needed to start tracking).
   Future<bool> ensureBackgroundPermission() async {
     final level = await requestLocationPermission();
     return level == LocationPermission.always ||
         level == LocationPermission.whileInUse;
+  }
+
+  /// Escalate to "Allow all the time" so GPS continues when the app is closed.
+  /// Android 10+ requires a second prompt after while-in-use.
+  Future<LocationPermission> ensureAlwaysPermission() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      return LocationPermission.denied;
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+    if (permission == LocationPermission.whileInUse) {
+      // Second request surfaces the "Allow all the time" option on Android.
+      permission = await Geolocator.requestPermission();
+    }
+    return permission;
   }
 
   Future<LocationPermission> requestLocationPermission() async {
@@ -139,7 +160,6 @@ class LocationService {
   }
 
   /// Returns null when GPS unavailable; throws [LocationCaptureException] with i18n key.
-  /// Target: resolve in ≤1s via last-known / medium-accuracy fast fix.
   Future<Map<String, dynamic>?> captureForAttendance() async {
     final serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
@@ -176,7 +196,6 @@ class LocationService {
         /* fall through to older cache / error */
       }
 
-      // Accept a slightly older cached fix rather than blocking the worker.
       if (_usable(lastKnown, maxAge: const Duration(minutes: 10))) {
         return _positionPayload(lastKnown!);
       }
@@ -206,7 +225,7 @@ class LocationService {
   Map<String, dynamic> _positionPayload(Position position) =>
       positionToPayload(position);
 
-  /// Fresh-enough GPS for live-map movement (never uses the 90s attendance cache).
+  /// Fresh-enough GPS for live-map movement.
   Future<Map<String, dynamic>?> captureFreshForLiveMap() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -242,10 +261,9 @@ class LocationService {
         /* fall through */
       }
 
-      // Last resort: slightly older last-known (still much fresher than attendance cache).
       if (_usable(
         lastKnown,
-        maxAge: const Duration(seconds: 30),
+        maxAge: const Duration(seconds: 45),
         maxAccuracy: liveMapMaxAccuracyMeters,
       )) {
         return positionToPayload(lastKnown!);
