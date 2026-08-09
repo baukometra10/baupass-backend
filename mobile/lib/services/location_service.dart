@@ -4,7 +4,7 @@ import 'package:geolocator/geolocator.dart';
 
 /// Captures GPS for site-based geofence attendance (site_app mode).
 class LocationService {
-  static const maxAccuracyMeters = 200.0;
+  static const maxAccuracyMeters = 350.0;
   /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
   static const _freshCacheMaxAge = Duration(seconds: 90);
   static const _fastFixTimeout = Duration(milliseconds: 900);

@@ -33,6 +33,7 @@ class GeofenceService {
   String? _lastNoticeKey;
   DateTime? _lastWatchPollAt;
   DateTime? _lastSentAt;
+  DateTime? _lastSitePresenceAt;
   double? _lastSentLat;
   double? _lastSentLng;
 
@@ -64,6 +65,7 @@ class GeofenceService {
     _offSiteStrikes = 0;
     _lastNoticeKey = '';
     _lastSentAt = null;
+    _lastSitePresenceAt = null;
     _lastSentLat = null;
     _lastSentLng = null;
 
@@ -131,6 +133,7 @@ class GeofenceService {
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
     _lastSentAt = null;
+    _lastSitePresenceAt = null;
     _lastSentLat = null;
     _lastSentLng = null;
   }
@@ -189,7 +192,7 @@ class GeofenceService {
       }
 
       final result = await _api.postJson(
-        '/api/worker-app/site-presence',
+        '/api/worker-app/live-location',
         bearerToken: bearer,
         deviceId: deviceId,
         body: <String, dynamic>{'location': location},
@@ -199,67 +202,34 @@ class GeofenceService {
       _lastSentLng = lng;
       onPresence?.call(result);
 
-      if (!_siteAppMode) {
-        // Live-map tracking only — no auto check-in/out side effects on client.
-        return;
-      }
-
-      if (result['autoCheckInLogId'] != null) {
-        _notifyOnce(
-          'checkin:${result['autoCheckInLogId']}',
-          'Automatischer Check-in an der Baustelle',
-          onNotify,
-        );
-      } else if (result['siteLoginLogId'] != null) {
-        _notifyOnce(
-          'login:${result['siteLoginLogId']}',
-          'Standort auf der Baustelle registriert',
-          onNotify,
-        );
-      } else if (result['siteLeaveApplied'] == true) {
-        final leaveKey =
-            'leave:${result['checkoutLogId'] ?? result['siteLeaveLogId'] ?? 'applied'}';
-        _notifyOnce(
-          leaveKey,
-          'Automatischer Check-out — Baustelle verlassen',
-          onNotify,
-        );
-        _offSiteStrikes = 0;
-        return;
-      } else if (result['attendanceBlocked'] is Map) {
-        final blocked = Map<String, dynamic>.from(
-          result['attendanceBlocked'] as Map,
-        );
-        final msg = blocked['message']?.toString();
-        if (msg != null && msg.isNotEmpty) {
-          _notifyOnce(
-            'blocked:${blocked['reason'] ?? msg}',
-            msg,
-            onNotify,
+      // Attendance / auto leave stays on site-presence (site_app only, less often).
+      final shouldPingPresence = _siteAppMode &&
+          (reason == _PollReason.initial ||
+              (reason == _PollReason.heartbeat &&
+                  (_lastSitePresenceAt == null ||
+                      DateTime.now().difference(_lastSitePresenceAt!) >=
+                          const Duration(seconds: 15))));
+      if (shouldPingPresence) {
+        try {
+          final presence = await _api.postJson(
+            '/api/worker-app/site-presence',
+            bearerToken: bearer,
+            deviceId: deviceId,
+            body: <String, dynamic>{'location': location},
           );
-        }
-      }
-
-      final offSiteForLeave = result['onSiteForLeave'] == false ||
-          (result['onSiteForLeave'] == null && result['onSite'] != true);
-      final registeredOnSite = result['openCheckInToday'] == true ||
-          result['siteSessionOpen'] == true;
-
-      if (offSiteForLeave &&
-          autoLogout &&
-          registeredOnSite &&
-          result['siteLeaveApplied'] != true) {
-        _offSiteStrikes += 1;
-        if (_offSiteStrikes >= offSiteStrikesRequired) {
-          await _handleSiteLeave(
+          _lastSitePresenceAt = DateTime.now();
+          onPresence?.call(presence);
+          await _handleSiteAppPresenceSideEffects(
+            presence: presence,
             bearer: bearer,
             deviceId: deviceId,
             location: location,
+            autoLogout: autoLogout,
             onNotify: onNotify,
           );
+        } catch (_) {
+          // live-location already saved; attendance ping can fail independently
         }
-      } else {
-        _offSiteStrikes = 0;
       }
     } on ApiException catch (e) {
       if (e.errorCode == 'worker_geolocation_inaccurate' ||
@@ -274,6 +244,72 @@ class GeofenceService {
     }
   }
 
+  Future<void> _handleSiteAppPresenceSideEffects({
+    required Map<String, dynamic> presence,
+    required String bearer,
+    String? deviceId,
+    required Map<String, dynamic> location,
+    required bool autoLogout,
+    GeofenceNotify? onNotify,
+  }) async {
+      if (presence['autoCheckInLogId'] != null) {
+        _notifyOnce(
+          'checkin:${presence['autoCheckInLogId']}',
+          'Automatischer Check-in an der Baustelle',
+          onNotify,
+        );
+      } else if (presence['siteLoginLogId'] != null) {
+        _notifyOnce(
+          'login:${presence['siteLoginLogId']}',
+          'Standort auf der Baustelle registriert',
+          onNotify,
+        );
+      } else if (presence['siteLeaveApplied'] == true) {
+        final leaveKey =
+            'leave:${presence['checkoutLogId'] ?? presence['siteLeaveLogId'] ?? 'applied'}';
+        _notifyOnce(
+          leaveKey,
+          'Automatischer Check-out — Baustelle verlassen',
+          onNotify,
+        );
+        _offSiteStrikes = 0;
+        return;
+      } else if (presence['attendanceBlocked'] is Map) {
+        final blocked = Map<String, dynamic>.from(
+          presence['attendanceBlocked'] as Map,
+        );
+        final msg = blocked['message']?.toString();
+        if (msg != null && msg.isNotEmpty) {
+          _notifyOnce(
+            'blocked:${blocked['reason'] ?? msg}',
+            msg,
+            onNotify,
+          );
+        }
+      }
+
+      final offSiteForLeave = presence['onSiteForLeave'] == false ||
+          (presence['onSiteForLeave'] == null && presence['onSite'] != true);
+      final registeredOnSite = presence['openCheckInToday'] == true ||
+          presence['siteSessionOpen'] == true;
+
+      if (offSiteForLeave &&
+          autoLogout &&
+          registeredOnSite &&
+          presence['siteLeaveApplied'] != true) {
+        _offSiteStrikes += 1;
+        if (_offSiteStrikes >= offSiteStrikesRequired) {
+          await _handleSiteLeave(
+            bearer: bearer,
+            deviceId: deviceId,
+            location: location,
+            onNotify: onNotify,
+          );
+        }
+      } else {
+        _offSiteStrikes = 0;
+      }
+  }
   Future<void> _handleSiteLeave({
     required String bearer,
     String? deviceId,

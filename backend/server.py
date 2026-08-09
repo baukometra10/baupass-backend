@@ -15482,6 +15482,91 @@ def worker_app_site_presence():
 
 
 @require_worker_session
+def worker_app_live_location():
+    """
+    Lightweight GPS ping for Live Ops Map movement.
+    Does not require configured company geofence (unlike site-presence).
+    """
+    worker = g.worker
+    db = get_db()
+    payload = request.get_json(silent=True) or {}
+    location = payload.get("location") if isinstance(payload, dict) else payload
+    if not isinstance(location, dict):
+        return jsonify({"error": "worker_geolocation_required", "message": "Standort erforderlich."}), 400
+
+    lat = _normalize_float(location.get("latitude"))
+    lng = _normalize_float(location.get("longitude"))
+    if lat is None or lng is None:
+        return jsonify({"error": "worker_geolocation_required", "message": "Standort erforderlich."}), 400
+    if not (-90.0 <= lat <= 90.0 and -180.0 <= lng <= 180.0):
+        return jsonify({"error": "worker_geolocation_required", "message": "Standort ungültig."}), 400
+    if abs(lat) < 0.0001 and abs(lng) < 0.0001:
+        return jsonify({"error": "worker_geolocation_required", "message": "Standort ungültig."}), 400
+
+    # Soft accuracy gate — keep map moving even with medium GPS quality.
+    accuracy_m = _worker_location_accuracy_meters(location)
+    if accuracy_m is not None and accuracy_m > 500:
+        return jsonify({
+            "error": "worker_geolocation_inaccurate",
+            "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
+        }), 400
+
+    from backend.app.platform.workforce.presence_state import upsert_live_location
+    from backend.app.platform.physical_operations.location_trail import (
+        list_active_geofences,
+        maybe_record_location_sample,
+        resolve_containing_zone,
+    )
+
+    location_saved = upsert_live_location(
+        db,
+        worker_id=worker["id"],
+        company_id=worker["company_id"],
+        lat=float(lat),
+        lng=float(lng),
+        accuracy_m=accuracy_m,
+        min_move_meters=0.5,
+    )
+    trail_saved = False
+    open_session = (
+        worker_has_open_checkin_today(db, worker["id"])
+        or worker_has_open_site_app_session_today(db, worker["id"])
+    )
+    if open_session and location_saved:
+        try:
+            zones = list_active_geofences(db, worker["company_id"])
+            zone = resolve_containing_zone(float(lat), float(lng), zones)
+            trail_saved = maybe_record_location_sample(
+                db,
+                worker_id=worker["id"],
+                company_id=worker["company_id"],
+                lat=float(lat),
+                lng=float(lng),
+                accuracy_m=accuracy_m,
+                geofence_id=str((zone or {}).get("id") or ""),
+                zone_kind=str((zone or {}).get("zone_kind") or ""),
+                min_interval_seconds=5,
+                min_move_meters=0.5,
+            )
+        except Exception:
+            trail_saved = False
+
+    if location_saved or trail_saved:
+        db.commit()
+
+    return jsonify(
+        {
+            "ok": True,
+            "locationSaved": bool(location_saved),
+            "trailSaved": bool(trail_saved),
+            "lat": float(lat),
+            "lng": float(lng),
+            "accuracyMeters": accuracy_m,
+        }
+    )
+
+
+@require_worker_session
 def worker_app_activity():
     """Set operational activity while checked in: working | on_break | on_task."""
     worker = g.worker

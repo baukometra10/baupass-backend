@@ -1747,7 +1747,8 @@
       }
       const latDelta = Math.abs(Number(current.lat) - Number(nextLat));
       const lngDelta = Math.abs(Number(current.lng) - Number(nextLng));
-      if (latDelta < 0.000001 && lngDelta < 0.000001) {
+      // ~0.05 m threshold — animate any real GPS change
+      if (latDelta < 0.0000004 && lngDelta < 0.0000004) {
         marker.setLatLng([nextLat, nextLng]);
         return;
       }
@@ -2232,7 +2233,7 @@
           ? (loadDurationEmaMs * 0.75 + lastLoadDurationMs * 0.25)
           : lastLoadDurationMs;
         weakNetwork = loadDurationEmaMs >= WEAK_NETWORK_THRESHOLD_MS;
-        renderMap(data);
+        renderMap(data).catch(() => {});
       } catch (error) {
         weakNetwork = true;
         const statusEl = document.getElementById("status");
