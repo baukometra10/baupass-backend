@@ -2299,6 +2299,14 @@
           lng: String(c.lng),
           limit: "5",
         });
+        try {
+          const ne = map.getBounds().getNorthEast();
+          const radiusM = Math.max(
+            400,
+            Math.min(20000, Math.abs(ne.lat - c.lat) * 111320 * 1.25)
+          );
+          q.set("radius_m", String(Math.round(radiusM)));
+        } catch (_) { /* optional */ }
         if (role.trim()) q.set("role", role.trim());
         const data = await api(`/api/ops-os/nearest-workers?${q.toString()}`);
         const workers = data.workers || [];

@@ -675,7 +675,15 @@ def register_physical_operations(flask_app) -> None:
                 )
                 return jsonify(hit[1])
 
-        payload = build_live_ops_map(get_db(), cid, emit_anomalies=not lite)
+        payload = build_live_ops_map(
+            get_db(),
+            cid,
+            emit_anomalies=not lite,
+            north=request.args.get("north"),
+            south=request.args.get("south"),
+            east=request.args.get("east"),
+            west=request.args.get("west"),
+        )
         _LIVE_MAP_CACHE[cache_key] = (now, payload)
         if len(_LIVE_MAP_CACHE) > 80:
             oldest = sorted(_LIVE_MAP_CACHE.items(), key=lambda kv: kv[1][0])[:20]
@@ -783,14 +791,23 @@ def register_physical_operations(flask_app) -> None:
             return jsonify({"error": "lat_lng_required"}), 400
         limit = int(request.args.get("limit", "5") or 5)
         role_q = str(request.args.get("role") or request.args.get("skills") or "").strip()
+        radius_raw = request.args.get("radius_m") or request.args.get("radius")
+        radius_m = None
+        if radius_raw not in (None, ""):
+            try:
+                radius_m = float(radius_raw)
+            except (TypeError, ValueError):
+                return jsonify({"error": "invalid_radius"}), 400
         # Reuse live map worker positions (without re-emitting anomalies)
         data = build_live_ops_map(get_db(), cid, emit_anomalies=False)
-        nearest = find_nearest_workers(
+        nearest, spatial = find_nearest_workers(
             data.get("workersOnSite") or [],
             lat=lat,
             lng=lng,
             limit=limit,
             role_query=role_q,
+            radius_meters=radius_m,
+            return_meta=True,
         )
         return jsonify(
             {
@@ -798,8 +815,10 @@ def register_physical_operations(flask_app) -> None:
                 "lat": lat,
                 "lng": lng,
                 "roleQuery": role_q,
+                "radiusMeters": spatial.get("radiusMeters"),
                 "count": len(nearest),
                 "workers": nearest,
+                "spatial": spatial,
             }
         )
 

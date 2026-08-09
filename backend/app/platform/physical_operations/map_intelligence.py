@@ -6,7 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ._common import is_fresh_live_location, is_usable_map_coordinate, now_iso
-from .location_trail import haversine_meters, normalize_zone_kind
+from .geospatial_optimizer import BoundingBox, GeoPoint, get_optimizer
+from .location_trail import normalize_zone_kind
 
 ACTIVITIES = frozenset({"working", "on_break", "on_task"})
 
@@ -108,51 +109,91 @@ def find_nearest_workers(
     limit: int = 5,
     role_query: str = "",
     exclude_break: bool = True,
-) -> list[dict[str, Any]]:
+    radius_meters: float | None = None,
+    return_meta: bool = False,
+) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Nearest workers via spatial grid / bbox prune, then Haversine refine."""
+    empty_meta = {
+        "totalConsidered": 0,
+        "bboxFiltered": 0,
+        "haversineComputed": 0,
+        "cacheHit": False,
+        "elapsedMs": 0.0,
+        "method": "none",
+        "radiusMeters": 0,
+        "bbox": None,
+    }
     if not is_usable_map_coordinate(lat, lng):
-        return []
+        return ([], empty_meta) if return_meta else []
+
     q = str(role_query or "").strip().casefold()
-    ranked: list[dict[str, Any]] = []
-    for w in workers or []:
+    radius = float(radius_meters) if radius_meters is not None else 50_000.0
+    radius = max(1.0, min(radius, 200_000.0))
+
+    def filter_fn(w: dict[str, Any]) -> bool:
         status = str(w.get("status") or "")
         activity = normalize_activity(w.get("activity"))
         if exclude_break and (status == "on_break" or activity == "on_break"):
-            continue
+            return False
         if status in {"shift_ended"}:
-            continue
+            return False
         if w.get("lat") is None or w.get("lng") is None:
-            continue
+            return False
         try:
             wlat = float(w["lat"])
             wlng = float(w["lng"])
         except (TypeError, ValueError):
-            continue
+            return False
         if not is_usable_map_coordinate(wlat, wlng):
-            continue
-        role = str(w.get("role") or "")
-        site = str(w.get("site") or "")
-        zone_name = str((w.get("currentZone") or {}).get("name") or "")
+            return False
         if q:
+            role = str(w.get("role") or "")
+            site = str(w.get("site") or "")
+            zone_name = str((w.get("currentZone") or {}).get("name") or "")
             hay = f"{role} {site} {zone_name} {w.get('name') or ''}".casefold()
             if q not in hay:
-                continue
-        dist = haversine_meters(float(lat), float(lng), wlat, wlng)
+                return False
+        return True
+
+    result = get_optimizer().find_nearest(
+        GeoPoint(float(lat), float(lng), id="search_center"),
+        list(workers or []),
+        limit=max(1, min(int(limit or 5), 20)),
+        radius_meters=radius,
+        filter_fn=filter_fn,
+        use_grid=True,
+        lat_key="lat",
+        lng_key="lng",
+    )
+    ranked: list[dict[str, Any]] = []
+    for w in result.points:
+        try:
+            wlat = float(w["lat"])
+            wlng = float(w["lng"])
+        except (TypeError, ValueError, KeyError):
+            continue
         ranked.append(
             {
                 "id": w.get("id"),
                 "name": w.get("name"),
-                "role": role,
-                "status": status,
-                "activity": activity,
+                "role": str(w.get("role") or ""),
+                "status": str(w.get("status") or ""),
+                "activity": normalize_activity(w.get("activity")),
                 "lat": wlat,
                 "lng": wlng,
-                "distanceMeters": int(round(dist)),
+                "distanceMeters": int(w.get("distanceMeters") or 0),
                 "currentZone": w.get("currentZone"),
                 "positionSource": w.get("positionSource"),
             }
         )
-    ranked.sort(key=lambda r: (r["distanceMeters"], str(r.get("name") or "")))
-    return ranked[: max(1, min(int(limit or 5), 20))]
+    meta = {
+        **result.to_meta(),
+        "radiusMeters": int(round(radius)),
+        "bbox": BoundingBox.around_point(float(lat), float(lng), radius).to_dict(),
+    }
+    if return_meta:
+        return ranked, meta
+    return ranked
 
 
 def _age_seconds(iso_ts: Any) -> float | None:

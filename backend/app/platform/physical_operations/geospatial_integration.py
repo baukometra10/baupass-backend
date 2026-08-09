@@ -10,15 +10,12 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from .geospatial_optimizer import GeoPoint, GeospatialOptimizer, get_optimizer
+    from .geospatial_optimizer import GeoPoint, get_optimizer, haversine_meters
 except ImportError:
-    from geospatial_optimizer import GeoPoint, GeospatialOptimizer, get_optimizer
+    from geospatial_optimizer import GeoPoint, get_optimizer, haversine_meters
 
-try:
-    from .location_trail import haversine_meters as _compat_haversine
-except ImportError:
-    def _compat_haversine(lat1, lng1, lat2, lng2):
-        pass  # Unused for now
+# Re-export for older imports
+_compat_haversine = haversine_meters
 
 
 def find_nearest_cameras_optimized(
@@ -37,22 +34,10 @@ def find_nearest_cameras_optimized(
     1. SQL Bounding Box filter → typically 90% reduction
     2. Haversine only on filtered results
     3. LRU caching with TTL
-
-    Args:
-        db: Database connection
-        worker_lat: Worker latitude
-        worker_lng: Worker longitude
-        company_id: Company ID for filtering
-        limit: Max cameras to return
-        search_radius_meters: Search radius in meters
-
-    Returns:
-        List of cameras sorted by distance
     """
     optimizer = get_optimizer()
     center = GeoPoint(worker_lat, worker_lng, id="worker_location")
 
-    # Use database-level optimization for better performance
     result = optimizer.find_nearest_in_db(
         db,
         center,
@@ -61,8 +46,8 @@ def find_nearest_cameras_optimized(
         lng_col="longitude",
         limit=limit,
         radius_meters=search_radius_meters,
-        where_clause="company_id = ?",
-        where_params={"company_id": company_id},
+        extra_where="company_id = ?",
+        extra_params=(company_id,),
         cache_key=f"cameras|{worker_lat:.3f}|{worker_lng:.3f}|{company_id}",
     )
 
@@ -75,61 +60,24 @@ def find_nearest_workers_optimized(
     center_lat: float,
     center_lng: float,
     limit: int = 5,
-    search_radius_meters: float = 1000.0,
+    search_radius_meters: float = 5000.0,
     role_filter: str = "",
     exclude_on_break: bool = True,
-) -> list[dict[str, Any]]:
-    """
-    Find nearest workers using optimized Bounding Box search.
+    return_meta: bool = False,
+) -> list[dict[str, Any]] | tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Find nearest workers using optimized Bounding Box / grid search."""
+    from .map_intelligence import find_nearest_workers
 
-    Replaces map_intelligence.find_nearest_workers with:
-    1. Bounding Box pre-filter (eliminates ~90% of workers)
-    2. Haversine on remaining workers only
-    3. Smart caching
-
-    Args:
-        workers: List of worker dicts (must have 'lat', 'lng', 'id', 'name', 'role')
-        center_lat: Search center latitude
-        center_lng: Search center longitude
-        limit: Max workers to return
-        search_radius_meters: Search radius in meters
-        role_filter: Optional role filter (substring match, case-insensitive)
-        exclude_on_break: If True, exclude workers on break
-
-    Returns:
-        List of workers sorted by distance
-    """
-    optimizer = get_optimizer()
-    center = GeoPoint(center_lat, center_lng, id="search_center")
-
-    def filter_fn(worker: dict) -> bool:
-        """Filter function for workers."""
-        # Exclude workers on break
-        if exclude_on_break:
-            status = str(worker.get("status") or "")
-            activity = str(worker.get("activity") or "")
-            if status == "on_break" or activity == "on_break":
-                return False
-        # Exclude workers with ended shift
-        if str(worker.get("status") or "") == "shift_ended":
-            return False
-        # Role filter (if provided)
-        if role_filter:
-            role = str(worker.get("role") or "").lower()
-            if role_filter.lower() not in role:
-                return False
-        return True
-
-    result = optimizer.find_nearest(
-        center,
+    return find_nearest_workers(
         workers,
+        lat=center_lat,
+        lng=center_lng,
         limit=limit,
+        role_query=role_filter,
+        exclude_break=exclude_on_break,
         radius_meters=search_radius_meters,
-        filter_fn=filter_fn,
-        cache_key=f"workers|{center_lat:.3f}|{center_lng:.3f}|{role_filter or 'all'}",
+        return_meta=return_meta,
     )
-
-    return result.points
 
 
 def find_nearest_zones_optimized(
@@ -140,27 +88,26 @@ def find_nearest_zones_optimized(
     limit: int = 3,
     search_radius_meters: float = 300.0,
 ) -> list[dict[str, Any]]:
-    """
-    Find nearest geofence zones (smart zones/geofences).
-
-    Args:
-        zones: List of zone dicts (must have 'latitude', 'longitude', 'id', 'site_name')
-        worker_lat: Worker latitude
-        worker_lng: Worker longitude
-        limit: Max zones to return
-        search_radius_meters: Search radius in meters
-
-    Returns:
-        List of zones sorted by distance
-    """
+    """Find nearest geofence zones (smart zones/geofences)."""
     optimizer = get_optimizer()
     center = GeoPoint(worker_lat, worker_lng, id="worker")
 
+    normalized = []
+    for z in zones or []:
+        item = dict(z)
+        if "lat" not in item and item.get("latitude") is not None:
+            item["lat"] = item.get("latitude")
+        if "lng" not in item and item.get("longitude") is not None:
+            item["lng"] = item.get("longitude")
+        normalized.append(item)
+
     result = optimizer.find_nearest(
         center,
-        zones,
+        normalized,
         limit=limit,
         radius_meters=search_radius_meters,
+        lat_key="lat",
+        lng_key="lng",
         cache_key=f"zones|{worker_lat:.3f}|{worker_lng:.3f}",
     )
 
@@ -175,31 +122,16 @@ def find_nearest_police_station_optimized(
     country: str = "",
     search_radius_km: float = 50.0,
 ) -> dict[str, Any] | None:
-    """
-    Find nearest police station using database-level geospatial optimization.
-
-    Args:
-        db: Database connection
-        incident_lat: Incident latitude
-        incident_lng: Incident longitude
-        country: Country code (for filtering)
-        search_radius_km: Search radius in kilometers
-
-    Returns:
-        Nearest police station dict or None
-    """
+    """Find nearest police station using database-level geospatial optimization."""
     optimizer = get_optimizer()
     center = GeoPoint(incident_lat, incident_lng, id="incident")
-
-    # Convert km to meters
     radius_meters = search_radius_km * 1000
 
-    # Build WHERE clause
-    where_clause = ""
-    where_params = {}
+    extra_where = ""
+    extra_params: tuple[Any, ...] = ()
     if country:
-        where_clause = "country_code = ?"
-        where_params = {"country_code": country}
+        extra_where = "country_code = ?"
+        extra_params = (country,)
 
     result = optimizer.find_nearest_in_db(
         db,
@@ -209,8 +141,8 @@ def find_nearest_police_station_optimized(
         lng_col="longitude",
         limit=1,
         radius_meters=radius_meters,
-        where_clause=where_clause,
-        where_params=where_params,
+        extra_where=extra_where,
+        extra_params=extra_params,
         cache_key=f"police|{incident_lat:.2f}|{incident_lng:.2f}|{country}",
     )
 
@@ -230,17 +162,14 @@ def find_nearest_police_station_optimized(
 
 def get_geospatial_metrics() -> dict[str, Any]:
     """Get performance metrics from the global optimizer."""
-    optimizer = get_optimizer()
-    return optimizer.get_metrics()
+    return get_optimizer().get_metrics()
 
 
 def clear_geospatial_cache() -> None:
     """Clear all geospatial cache."""
-    optimizer = get_optimizer()
-    optimizer.clear_cache()
+    get_optimizer().clear_cache()
 
 
 def reset_geospatial_metrics() -> None:
     """Reset geospatial performance metrics."""
-    optimizer = get_optimizer()
-    optimizer.reset_metrics()
+    get_optimizer().reset_metrics()

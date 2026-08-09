@@ -20,22 +20,23 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        // Only wake GPS/network when the worker actually moves (~battery saver).
+        distanceFilter: 12,
         foregroundNotificationConfig: _foregroundNotification,
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
+        distanceFilter: 12,
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
-        pauseLocationUpdatesAutomatically: false,
+        pauseLocationUpdatesAutomatically: true,
       );
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 5,
+      distanceFilter: 12,
     );
   }
 

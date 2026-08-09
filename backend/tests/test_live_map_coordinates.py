@@ -38,8 +38,8 @@ def test_resolve_map_coordinates_ignores_zero_and_uses_geofence(client_and_db):
         db.row_factory = sqlite3.Row
         db.execute(
             """
-            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active)
-            VALUES ('gf-berlin', 'cmp-default', 'Berlin Baustelle', 52.52, 13.405, 80, 1)
+            INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+            VALUES ('gf-berlin', 'cmp-default', 'Berlin Baustelle', 52.52, 13.405, 80, 1, datetime('now'))
             """
         )
         db.commit()
@@ -232,15 +232,15 @@ def test_build_live_ops_map_includes_status(client_and_db):
             db.execute(
                 """
                 INSERT INTO geofences (
-                    id, company_id, site_name, latitude, longitude, radius_meters, active, zone_kind, color
-                ) VALUES ('gf-swm', 'cmp-default', 'Lager', 52.52, 13.405, 100, 1, 'warehouse', '#8b5cf6')
+                    id, company_id, site_name, latitude, longitude, radius_meters, active, zone_kind, color, created_at
+                ) VALUES ('gf-swm', 'cmp-default', 'Lager', 52.52, 13.405, 100, 1, 'warehouse', '#8b5cf6', datetime('now'))
                 """
             )
         except sqlite3.OperationalError:
             db.execute(
                 """
-                INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active)
-                VALUES ('gf-swm', 'cmp-default', 'Lager', 52.52, 13.405, 100, 1)
+                INSERT INTO geofences (id, company_id, site_name, latitude, longitude, radius_meters, active, created_at)
+                VALUES ('gf-swm', 'cmp-default', 'Lager', 52.52, 13.405, 100, 1, datetime('now'))
                 """
             )
         db.commit()

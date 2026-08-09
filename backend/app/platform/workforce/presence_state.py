@@ -154,6 +154,21 @@ def upsert_presence_after_access(
         pass
 
 
+# Significant move for live-map pin updates (battery-friendly clients still heartbeat).
+LIVE_LOCATION_MIN_MOVE_METERS = 8.0
+
+
+def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    import math
+
+    earth = 6_371_000.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlng / 2) ** 2
+    return 2 * earth * math.asin(math.sqrt(min(1.0, a)))
+
+
 def upsert_live_location(
     db,
     *,
@@ -163,8 +178,14 @@ def upsert_live_location(
     lng: float,
     accuracy_m: float | None = None,
     at: str | None = None,
+    min_move_meters: float = LIVE_LOCATION_MIN_MOVE_METERS,
 ) -> bool:
-    """Persist latest device GPS for live ops map (site-presence heartbeat)."""
+    """
+    Persist latest device GPS for live ops map.
+
+    Always refreshes last_location_at (keeps pin "fresh"). Coordinates update when the
+    worker moved ≥ min_move_meters (or on first fix) so tiny GPS jitter does not rewrite.
+    """
     try:
         la = float(lat)
         ln = float(lng)
@@ -185,19 +206,43 @@ def upsert_live_location(
     cid = str(company_id)
     try:
         existing = db.execute(
-            "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+            """
+            SELECT worker_id, last_lat, last_lng FROM worker_presence_state
+            WHERE worker_id = ? LIMIT 1
+            """,
             (wid,),
         ).fetchone()
-        if existing:
-            db.execute(
-                """
-                UPDATE worker_presence_state
-                SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
-                    last_location_at = ?, updated_at = ?
-                WHERE worker_id = ?
-                """,
-                (cid, la, ln, acc, stamp, stamp, wid),
-            )
+        moved = True
+        if existing is not None:
+            try:
+                prev_lat = existing["last_lat"]
+                prev_lng = existing["last_lng"]
+                if prev_lat is not None and prev_lng is not None:
+                    dist = _haversine_meters(float(prev_lat), float(prev_lng), la, ln)
+                    moved = dist >= float(min_move_meters)
+            except (TypeError, ValueError):
+                moved = True
+            if moved:
+                db.execute(
+                    """
+                    UPDATE worker_presence_state
+                    SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
+                        last_location_at = ?, updated_at = ?
+                    WHERE worker_id = ?
+                    """,
+                    (cid, la, ln, acc, stamp, stamp, wid),
+                )
+            else:
+                # Heartbeat only — stay fresh on the map without jittering the pin.
+                db.execute(
+                    """
+                    UPDATE worker_presence_state
+                    SET company_id = ?, last_accuracy_m = COALESCE(?, last_accuracy_m),
+                        last_location_at = ?, updated_at = ?
+                    WHERE worker_id = ?
+                    """,
+                    (cid, acc, stamp, stamp, wid),
+                )
         else:
             db.execute(
                 """

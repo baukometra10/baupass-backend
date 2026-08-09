@@ -1757,5 +1757,23 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="052",
+        name="live_map_spatial_indexes",
+        up_sql="""
+            CREATE INDEX IF NOT EXISTS idx_geofences_company_lat_lng
+                ON geofences(company_id, latitude, longitude);
+            CREATE INDEX IF NOT EXISTS idx_presence_company_last_lat_lng
+                ON worker_presence_state(company_id, last_lat, last_lng);
+            CREATE INDEX IF NOT EXISTS idx_worker_location_samples_company_lat_lng
+                ON worker_location_samples(company_id, lat, lng);
+        """,
+        down_sql="""
+            DROP INDEX IF EXISTS idx_worker_location_samples_company_lat_lng;
+            DROP INDEX IF EXISTS idx_presence_company_last_lat_lng;
+            DROP INDEX IF EXISTS idx_geofences_company_lat_lng;
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

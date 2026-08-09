@@ -11,8 +11,10 @@ from backend.app.platform.physical_operations.geospatial_optimizer import (
     BoundingBox,
     GeoPoint,
     GeospatialOptimizer,
+    SpatialGridIndex,
     haversine_meters,
     get_optimizer,
+    point_in_circle_bbox_then_haversine,
 )
 from backend.app.platform.physical_operations.geospatial_integration import (
     find_nearest_cameras_optimized,
@@ -109,16 +111,19 @@ class TestBoundingBox:
         assert "lat BETWEEN" in where
         assert "lng BETWEEN" in where
         assert "51.0" in where and "53.0" in where
+        clause = bbox.to_sql_clause("lat", "lng")
+        assert clause == "lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?"
 
     def test_bounding_box_sql_params(self):
         """Test SQL parameter generation."""
         bbox = BoundingBox(51.0, 53.0, 12.0, 15.0)
         params = bbox.to_sql_params()
-        assert params["min_lat"] == 51.0
-        assert params["max_lat"] == 53.0
-        assert params["min_lng"] == 12.0
-        assert params["max_lng"] == 15.0
-
+        assert params == (51.0, 53.0, 12.0, 15.0)
+        as_dict = bbox.to_sql_params_dict()
+        assert as_dict["min_lat"] == 51.0
+        assert as_dict["max_lat"] == 53.0
+        assert as_dict["min_lng"] == 12.0
+        assert as_dict["max_lng"] == 15.0
 
 class TestGeospatialOptimizer:
     """Test GeospatialOptimizer main functionality."""
@@ -328,6 +333,41 @@ class TestGeospatialIntegration:
 
         assert len(result) == 1
         assert result[0]["id"] == "w1"
+
+
+class TestSpatialPrimitives:
+    def test_bbox_rejects_before_haversine(self):
+        inside, dist = point_in_circle_bbox_then_haversine(52.5, 13.4, 52.5, 13.4, 100)
+        assert inside is True
+        assert dist is not None and dist < 1
+
+        outside, dist2 = point_in_circle_bbox_then_haversine(53.0, 14.0, 52.5, 13.4, 100)
+        assert outside is False
+        assert dist2 is None
+
+    def test_grid_nearest_matches_bruteforce_order(self):
+        center = GeoPoint(52.5, 13.4)
+        candidates = [
+            {"id": f"w{i}", "lat": 52.5 + (i % 20) * 0.001, "lng": 13.4 + (i // 20) * 0.001}
+            for i in range(60)
+        ]
+        opt = GeospatialOptimizer()
+        with_grid = opt.find_nearest(center, candidates, limit=5, radius_meters=5_000, use_grid=True)
+        no_grid = opt.find_nearest(center, candidates, limit=5, radius_meters=5_000, use_grid=False)
+        assert [p["id"] for p in with_grid.points] == [p["id"] for p in no_grid.points]
+        assert with_grid.method == "grid+bbox+haversine"
+
+    def test_spatial_grid_query_bbox(self):
+        grid = SpatialGridIndex(cell_size_meters=100, reference_lat=52.5)
+        grid.build(
+            [
+                {"id": "a", "lat": 52.5001, "lng": 13.4001},
+                {"id": "b", "lat": 53.0, "lng": 14.0},
+            ]
+        )
+        hits = grid.query_bbox(BoundingBox.around_point(52.5, 13.4, 200))
+        assert any(h["id"] == "a" for h in hits)
+        assert all(h["id"] != "b" for h in hits)
 
 
 class TestEdgeCases:

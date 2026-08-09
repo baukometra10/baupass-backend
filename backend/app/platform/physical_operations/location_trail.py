@@ -1,12 +1,15 @@
 """GPS trail samples + smart-zone resolution for Smart Workforce Map."""
 from __future__ import annotations
 
-import math
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from ._common import is_fresh_live_location, is_usable_map_coordinate, now_iso
+from .geospatial_optimizer import (
+    haversine_meters,
+    point_in_circle_bbox_then_haversine,
+)
 
 TRAIL_MIN_INTERVAL_SECONDS = 20
 TRAIL_MIN_MOVE_METERS = 10.0
@@ -30,16 +33,6 @@ ZONE_KIND_COLORS = {
 def normalize_zone_kind(value: Any) -> str:
     kind = str(value or "site").strip().lower()
     return kind if kind in ZONE_KINDS else "site"
-
-
-def haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
-    earth_radius_m = 6_371_000.0
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlmb = math.radians(lng2 - lng1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
-    return 2 * earth_radius_m * math.asin(math.sqrt(min(1.0, a)))
-
 
 def list_active_geofences(db, company_id: str) -> list[dict[str, Any]]:
     cid = str(company_id or "").strip()
@@ -89,7 +82,7 @@ def resolve_containing_zone(
     lng: float,
     zones: list[dict[str, Any]],
 ) -> dict[str, Any] | None:
-    """Nearest geofence circle that contains the point."""
+    """Nearest geofence circle that contains the point (bbox reject → Haversine)."""
     best: dict[str, Any] | None = None
     best_dist = float("inf")
     for z in zones or []:
@@ -99,18 +92,19 @@ def resolve_containing_zone(
             radius = float(z.get("radius_meters") or 50)
         except (TypeError, ValueError, KeyError):
             continue
-        dist = haversine_meters(lat, lng, zlat, zlng)
-        if dist <= radius and dist < best_dist:
-            best_dist = dist
-            kind = normalize_zone_kind(z.get("zone_kind"))
-            best = {
-                "id": z.get("id"),
-                "site_name": z.get("site_name"),
-                "zone_kind": kind,
-                "color": z.get("color") or ZONE_KIND_COLORS.get(kind, "#38bdf8"),
-                "distanceMeters": int(round(dist)),
-                "radiusMeters": int(round(radius)),
-            }
+        inside, dist = point_in_circle_bbox_then_haversine(lat, lng, zlat, zlng, radius)
+        if not inside or dist is None or dist >= best_dist:
+            continue
+        best_dist = dist
+        kind = normalize_zone_kind(z.get("zone_kind"))
+        best = {
+            "id": z.get("id"),
+            "site_name": z.get("site_name"),
+            "zone_kind": kind,
+            "color": z.get("color") or ZONE_KIND_COLORS.get(kind, "#38bdf8"),
+            "distanceMeters": int(round(dist)),
+            "radiusMeters": int(round(radius)),
+        }
     return best
 
 
@@ -330,7 +324,10 @@ def cameras_for_zone(
         geo_hit = False
         if zlat is not None and cam.get("lat") is not None and cam.get("lng") is not None:
             try:
-                geo_hit = haversine_meters(zlat, zlng, float(cam["lat"]), float(cam["lng"])) <= radius
+                inside, _dist = point_in_circle_bbox_then_haversine(
+                    float(cam["lat"]), float(cam["lng"]), zlat, zlng, radius
+                )
+                geo_hit = inside
             except (TypeError, ValueError):
                 geo_hit = False
         if name_hit or geo_hit:

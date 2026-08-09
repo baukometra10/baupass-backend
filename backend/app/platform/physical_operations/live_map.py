@@ -9,6 +9,7 @@ from ._common import (
     resolve_worker_map_coordinates,
     today_prefix,
 )
+from .geospatial_optimizer import BoundingBox
 from .location_trail import (
     ZONE_KIND_COLORS,
     cameras_for_zone,
@@ -27,10 +28,41 @@ from .map_intelligence import (
 )
 
 
-def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> dict[str, Any]:
+def _parse_viewport_bbox(
+    *,
+    north: Any = None,
+    south: Any = None,
+    east: Any = None,
+    west: Any = None,
+) -> BoundingBox | None:
+    try:
+        if None in (north, south, east, west):
+            return None
+        n, s, e, w = float(north), float(south), float(east), float(west)
+    except (TypeError, ValueError):
+        return None
+    if not (-90.0 <= s <= n <= 90.0):
+        return None
+    if not (-180.0 <= w <= e <= 180.0):
+        return None
+    return BoundingBox(min_lat=s, max_lat=n, min_lng=w, max_lng=e)
+
+
+def build_live_ops_map(
+    db,
+    company_id: str,
+    *,
+    emit_anomalies: bool = True,
+    viewport: BoundingBox | None = None,
+    north: Any = None,
+    south: Any = None,
+    east: Any = None,
+    west: Any = None,
+) -> dict[str, Any]:
     cid = str(company_id or "").strip()
     today = today_prefix()
     geofences = list_active_geofences(db, cid)
+    viewport = viewport or _parse_viewport_bbox(north=north, south=south, east=east, west=west)
 
     workers: list[dict[str, Any]] = []
     status_counts = {"working": 0, "off_site": 0, "stale": 0, "on_break": 0, "on_task": 0}
@@ -40,6 +72,8 @@ def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> d
             continue
         lat = float(coords["lat"])
         lng = float(coords["lng"])
+        if viewport is not None and not viewport.contains_lat_lng(lat, lng):
+            continue
         zone = resolve_containing_zone(lat, lng, geofences)
         inside = zone is not None
         if not geofences:
@@ -55,13 +89,14 @@ def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> d
         status = display_status(geo_status=geo_status, activity=activity)
         if status in status_counts:
             status_counts[status] += 1
+        wid = str(w.get("id") or "")
+        has_photo = bool(int(w.get("has_photo") or 0))
         workers.append(
             {
                 "id": w.get("id"),
                 "name": f"{w.get('first_name', '')} {w.get('last_name', '')}".strip(),
                 "badgeId": w.get("badge_id") or "",
                 "role": w.get("role") or "",
-                "hasPhoto": bool(int(w.get("has_photo") or 0)),
                 "site": w.get("site"),
                 "gate": w.get("gate"),
                 "lastAccess": w.get("last_access"),
@@ -72,6 +107,12 @@ def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> d
                 "activity": activity,
                 "activityNote": w.get("activity_note") or "",
                 "taskRef": w.get("task_ref") or "",
+                "hasPhoto": has_photo,
+                "photoUrl": (
+                    f"/api/ops-os/workers/{wid}/avatar?company_id={cid}"
+                    if has_photo and wid and cid
+                    else None
+                ),
                 "currentZone": (
                     {
                         "id": zone.get("id"),
@@ -262,6 +303,13 @@ def build_live_ops_map(db, company_id: str, *, emit_anomalies: bool = True) -> d
         "autoDial": False,
         "statusCounts": status_counts,
         "zoneStats": zone_stats,
+        "viewport": viewport.to_dict() if viewport is not None else None,
+        "spatial": {
+            "method": "bbox+haversine",
+            "viewportFiltered": viewport is not None,
+            "zoneMatch": "bbox+haversine",
+            "cameraMatch": "bbox+haversine",
+        },
         "mapAnomalies": [
             {
                 "code": a.get("code"),
