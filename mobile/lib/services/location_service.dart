@@ -5,9 +5,12 @@ import 'package:geolocator/geolocator.dart';
 /// Captures GPS for site-based geofence attendance (site_app mode).
 class LocationService {
   static const maxAccuracyMeters = 350.0;
+  /// Soft gate for live-map pings (server accepts up to ~500 m).
+  static const liveMapMaxAccuracyMeters = 500.0;
   /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
   static const _freshCacheMaxAge = Duration(seconds: 90);
   static const _fastFixTimeout = Duration(milliseconds: 900);
+  static const _liveLastKnownMaxAge = Duration(seconds: 8);
 
   static const _foregroundNotification = ForegroundNotificationConfig(
     notificationTitle: 'SUPPIX Anwesenheit',
@@ -31,7 +34,8 @@ class LocationService {
         distanceFilter: 1,
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
-        pauseLocationUpdatesAutomatically: true,
+        // Keep streaming while the worker app is open for live-map movement.
+        pauseLocationUpdatesAutomatically: false,
       );
     }
     return const LocationSettings(
@@ -56,6 +60,25 @@ class LocationService {
     return const LocationSettings(
       accuracy: LocationAccuracy.medium,
       timeLimit: _fastFixTimeout,
+    );
+  }
+
+  LocationSettings _liveCaptureSettings() {
+    if (Platform.isAndroid) {
+      return AndroidSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 3),
+      );
+    }
+    if (Platform.isIOS) {
+      return AppleSettings(
+        accuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 3),
+      );
+    }
+    return const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      timeLimit: Duration(seconds: 3),
     );
   }
 
@@ -87,9 +110,13 @@ class LocationService {
     return Geolocator.getPositionStream(locationSettings: _watchSettings());
   }
 
-  bool _usable(Position? position, {required Duration maxAge}) {
+  bool _usable(
+    Position? position, {
+    required Duration maxAge,
+    double maxAccuracy = maxAccuracyMeters,
+  }) {
     if (position == null) return false;
-    if (position.accuracy > maxAccuracyMeters) return false;
+    if (position.accuracy > maxAccuracy) return false;
     final age = DateTime.now().difference(position.timestamp);
     if (age.isNegative) return true;
     return age <= maxAge;
@@ -179,7 +206,7 @@ class LocationService {
   Map<String, dynamic> _positionPayload(Position position) =>
       positionToPayload(position);
 
-  /// Fresh high-accuracy fix for live-map movement (avoids attendance cache).
+  /// Fresh-enough GPS for live-map movement (never uses the 90s attendance cache).
   Future<Map<String, dynamic>?> captureFreshForLiveMap() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -189,25 +216,41 @@ class LocationService {
           permission == LocationPermission.deniedForever) {
         return null;
       }
-      final settings = Platform.isAndroid
-          ? AndroidSettings(
-              accuracy: LocationAccuracy.high,
-              timeLimit: const Duration(seconds: 4),
-            )
-          : Platform.isIOS
-              ? AppleSettings(
-                  accuracy: LocationAccuracy.high,
-                  timeLimit: const Duration(seconds: 4),
-                )
-              : const LocationSettings(
-                  accuracy: LocationAccuracy.high,
-                  timeLimit: Duration(seconds: 4),
-                );
-      final fresh = await Geolocator.getCurrentPosition(
-        locationSettings: settings,
-      );
-      if (fresh.accuracy > maxAccuracyMeters) return null;
-      return positionToPayload(fresh);
+
+      Position? lastKnown;
+      try {
+        lastKnown = await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        lastKnown = null;
+      }
+      if (_usable(
+        lastKnown,
+        maxAge: _liveLastKnownMaxAge,
+        maxAccuracy: liveMapMaxAccuracyMeters,
+      )) {
+        return positionToPayload(lastKnown!);
+      }
+
+      try {
+        final fresh = await Geolocator.getCurrentPosition(
+          locationSettings: _liveCaptureSettings(),
+        );
+        if (fresh.accuracy <= liveMapMaxAccuracyMeters) {
+          return positionToPayload(fresh);
+        }
+      } catch (_) {
+        /* fall through */
+      }
+
+      // Last resort: slightly older last-known (still much fresher than attendance cache).
+      if (_usable(
+        lastKnown,
+        maxAge: const Duration(seconds: 30),
+        maxAccuracy: liveMapMaxAccuracyMeters,
+      )) {
+        return positionToPayload(lastKnown!);
+      }
+      return null;
     } catch (_) {
       return null;
     }

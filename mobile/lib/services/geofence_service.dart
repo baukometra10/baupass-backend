@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/api_client.dart';
+import '../core/worker_auth_errors.dart';
 import 'location_service.dart';
 import 'offline_attendance_store.dart';
 
@@ -36,6 +37,7 @@ class GeofenceService {
   DateTime? _lastSitePresenceAt;
   double? _lastSentLat;
   double? _lastSentLng;
+  bool _trackingStartedNotified = false;
 
   /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
   static const pollInterval = Duration(seconds: 3);
@@ -58,7 +60,12 @@ class GeofenceService {
     if (!siteAppMode && !liveTracking) return;
 
     final allowed = await _location.ensureBackgroundPermission();
-    if (!allowed) return;
+    if (!allowed) {
+      onNotify?.call(
+        'Standort-Berechtigung fehlt — Live-Karte kann den Pin nicht bewegen. Bitte GPS erlauben.',
+      );
+      return;
+    }
 
     _running = true;
     _siteAppMode = siteAppMode;
@@ -68,6 +75,7 @@ class GeofenceService {
     _lastSitePresenceAt = null;
     _lastSentLat = null;
     _lastSentLng = null;
+    _trackingStartedNotified = false;
 
     void schedulePoll() {
       _timer?.cancel();
@@ -136,6 +144,7 @@ class GeofenceService {
     _lastSitePresenceAt = null;
     _lastSentLat = null;
     _lastSentLng = null;
+    _trackingStartedNotified = false;
   }
 
   bool _shouldSend({
@@ -155,6 +164,34 @@ class GeofenceService {
     return false;
   }
 
+  Future<Map<String, dynamic>> _postLiveLocation({
+    required String bearer,
+    String? deviceId,
+    required Map<String, dynamic> location,
+  }) async {
+    try {
+      return await _api.postJson(
+        '/api/worker-app/live-location',
+        bearerToken: bearer,
+        deviceId: deviceId,
+        body: <String, dynamic>{'location': location},
+      );
+    } on ApiException catch (e) {
+      // Older backends / deploy lag: fall back to site-presence (now also saves GPS).
+      if (e.statusCode == 404 ||
+          e.statusCode == 405 ||
+          e.errorCode == 'not_found') {
+        return await _api.postJson(
+          '/api/worker-app/site-presence',
+          bearerToken: bearer,
+          deviceId: deviceId,
+          body: <String, dynamic>{'location': location},
+        );
+      }
+      rethrow;
+    }
+  }
+
   Future<void> _poll({
     required String bearer,
     String? deviceId,
@@ -169,19 +206,20 @@ class GeofenceService {
     try {
       Map<String, dynamic>? location;
       if (forcedPosition != null) {
-        if (forcedPosition.accuracy > LocationService.maxAccuracyMeters) {
+        if (forcedPosition.accuracy >
+            LocationService.liveMapMaxAccuracyMeters) {
           return;
         }
         location = _location.positionToPayload(forcedPosition);
       } else {
-        // Prefer a fresh fix for live-map movement (avoid 90s attendance cache).
+        // Never fall back to attendance's 90s cache — that freezes the map pin.
         location = await _location.captureFreshForLiveMap();
-        location ??= await _location.captureForAttendance();
       }
       if (location == null) return;
 
       final accuracy = (location['accuracyMeters'] as num?)?.toDouble();
-      if (accuracy != null && accuracy > LocationService.maxAccuracyMeters) {
+      if (accuracy != null &&
+          accuracy > LocationService.liveMapMaxAccuracyMeters) {
         return;
       }
 
@@ -191,16 +229,21 @@ class GeofenceService {
         return;
       }
 
-      final result = await _api.postJson(
-        '/api/worker-app/live-location',
-        bearerToken: bearer,
+      final result = await _postLiveLocation(
+        bearer: bearer,
         deviceId: deviceId,
-        body: <String, dynamic>{'location': location},
+        location: location,
       );
       _lastSentAt = DateTime.now();
       _lastSentLat = lat;
       _lastSentLng = lng;
       onPresence?.call(result);
+
+      if (!_trackingStartedNotified &&
+          (result['locationSaved'] == true || result['ok'] == true)) {
+        _trackingStartedNotified = true;
+        onNotify?.call('Live-Standort aktiv — Pin sollte sich auf der Karte bewegen.');
+      }
 
       // Attendance / auto leave stays on site-presence (site_app only, less often).
       final shouldPingPresence = _siteAppMode &&
@@ -236,6 +279,9 @@ class GeofenceService {
           e.errorCode == 'worker_geolocation_required' ||
           e.errorCode == 'site_location_unavailable') {
         return;
+      }
+      if (isWorkerSessionAuthError(e.errorCode)) {
+        onNotify?.call('Sitzung abgelaufen — bitte erneut anmelden.');
       }
     } catch (_) {
       // ignore transient GPS/network errors
