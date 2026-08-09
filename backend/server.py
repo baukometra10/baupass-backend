@@ -15394,6 +15394,7 @@ def worker_app_site_presence():
                 lat=float(device_lat),
                 lng=float(device_lng),
                 accuracy_m=measured.get("accuracyMeters"),
+                min_move_meters=0.0,
             )
             if open_session:
                 zones = list_active_geofences(db, worker["company_id"])
@@ -15545,6 +15546,14 @@ def worker_app_live_location():
         worker_has_open_checkin_today(db, worker["id"])
         or worker_has_open_site_app_session_today(db, worker["id"])
     )
+    if not open_session:
+        # Align with live-map membership (same SQL as workersOnSite).
+        try:
+            from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
+
+            open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
+        except Exception:
+            open_session = False
     if not open_session:
         # Privacy: no live pin outside an active work session (checked-in).
         return jsonify(

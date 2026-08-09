@@ -40,12 +40,15 @@ class GeofenceService {
   double? _lastSentLng;
   bool _trackingStartedNotified = false;
 
+  Position? _pendingForcedPosition;
+  int _notCheckedInStrikes = 0;
+
   /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
   static const pollInterval = Duration(seconds: 3);
 
   static const positionDebounceMs = 500;
   static const minMoveMetersToSend = 1.0;
-  static const heartbeatInterval = Duration(seconds: 12);
+  static const heartbeatInterval = Duration(seconds: 8);
   static const offSiteStrikesRequired = 3;
 
   bool get liveTrackingActive => _running && _liveTracking;
@@ -56,7 +59,29 @@ class GeofenceService {
     _liveTracking = enabled;
     if (!enabled) {
       _trackingStartedNotified = false;
+      _notCheckedInStrikes = 0;
+    } else {
+      _notCheckedInStrikes = 0;
     }
+  }
+
+  /// Force an immediate GPS ping (e.g. right after check-in).
+  Future<void> forcePing({
+    required String bearer,
+    String? deviceId,
+    required bool autoLogout,
+    GeofencePresence? onPresence,
+    GeofenceNotify? onNotify,
+  }) async {
+    if (!_running) return;
+    await _poll(
+      bearer: bearer,
+      deviceId: deviceId,
+      autoLogout: autoLogout,
+      onPresence: onPresence,
+      onNotify: onNotify,
+      reason: _PollReason.initial,
+    );
   }
 
   Future<void> start({
@@ -91,6 +116,8 @@ class GeofenceService {
     _lastSentLat = null;
     _lastSentLng = null;
     _trackingStartedNotified = false;
+    _notCheckedInStrikes = 0;
+    _pendingForcedPosition = null;
 
     void schedulePoll() {
       _timer?.cancel();
@@ -117,6 +144,10 @@ class GeofenceService {
           return;
         }
         _lastWatchPollAt = now;
+        if (_pollInFlight) {
+          _pendingForcedPosition = position;
+          return;
+        }
         unawaited(
           _poll(
             bearer: bearer,
@@ -154,6 +185,8 @@ class GeofenceService {
     _pollInFlight = false;
     _leaveInProgress = false;
     _offSiteStrikes = 0;
+    _notCheckedInStrikes = 0;
+    _pendingForcedPosition = null;
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
     _lastSentAt = null;
@@ -217,7 +250,10 @@ class GeofenceService {
     required _PollReason reason,
     Position? forcedPosition,
   }) async {
-    if (!_running || _pollInFlight || _leaveInProgress) return;
+    if (!_running || _pollInFlight || _leaveInProgress) {
+      if (forcedPosition != null) _pendingForcedPosition = forcedPosition;
+      return;
+    }
     _pollInFlight = true;
     try {
       Map<String, dynamic>? location;
@@ -257,16 +293,27 @@ class GeofenceService {
           _lastSentLng = lng;
           onPresence?.call(result);
 
-          if (!_trackingStartedNotified && result['locationSaved'] == true) {
-            _trackingStartedNotified = true;
-            onNotify?.call(
-              'Standort während der Arbeitszeit aktiv (Sicherheit & Abläufe).',
-            );
-          }
-          if (result['reason'] == 'not_checked_in' ||
+          if (result['locationSaved'] == true) {
+            _notCheckedInStrikes = 0;
+            if (!_trackingStartedNotified) {
+              _trackingStartedNotified = true;
+              onNotify?.call(
+                'Live-Standort aktiv — Pin bewegt sich auf der Karte.',
+              );
+            }
+          } else if (result['reason'] == 'not_checked_in' ||
               result['trackingActive'] == false) {
-            _liveTracking = false;
-            _trackingStartedNotified = false;
+            // Do not kill tracking forever: map/check-in state can lag briefly.
+            _notCheckedInStrikes += 1;
+            if (_notCheckedInStrikes == 1) {
+              onNotify?.call(
+                'Live-GPS wartet auf Check-in — bitte anmelden, dann bewegt sich der Pin.',
+              );
+            }
+            if (_notCheckedInStrikes >= 8) {
+              _liveTracking = false;
+              _trackingStartedNotified = false;
+            }
           }
         }
       }
@@ -313,6 +360,21 @@ class GeofenceService {
       // ignore transient GPS/network errors
     } finally {
       _pollInFlight = false;
+      final pending = _pendingForcedPosition;
+      _pendingForcedPosition = null;
+      if (_running && pending != null) {
+        unawaited(
+          _poll(
+            bearer: bearer,
+            deviceId: deviceId,
+            autoLogout: autoLogout,
+            onPresence: onPresence,
+            onNotify: onNotify,
+            reason: _PollReason.movement,
+            forcedPosition: pending,
+          ),
+        );
+      }
     }
   }
 

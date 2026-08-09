@@ -371,34 +371,49 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
   }) async {
     final cachedOpen = await widget.workerCache.openCheckInToday();
     final enableLive = liveTracking || cachedOpen;
-    widget.geofence.start(
+
+    void onPresence(Map<String, dynamic> presence) {
+      final open = presence['openCheckInToday'] == true ||
+          presence['siteSessionOpen'] == true ||
+          presence['autoCheckInLogId'] != null ||
+          presence['siteLoginLogId'] != null ||
+          presence['locationSaved'] == true;
+      final left = presence['siteLeaveApplied'] == true;
+      if (open) {
+        unawaited(widget.workerCache.setOpenCheckInToday(true));
+        widget.geofence.setLiveTracking(true);
+      } else if (left) {
+        unawaited(widget.workerCache.setOpenCheckInToday(false));
+        widget.geofence.setLiveTracking(false);
+      }
+    }
+
+    void onNotify(String message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+
+    await widget.geofence.start(
       bearer: widget.session.bearer,
       deviceId: widget.session.deviceId,
       siteAppMode: siteAppMode,
       // Live pin only while checked in — not merely because the app is open.
       liveTracking: enableLive,
       autoLogout: autoLogout,
-      onPresence: (presence) {
-        final open = presence['openCheckInToday'] == true ||
-            presence['siteSessionOpen'] == true ||
-            presence['autoCheckInLogId'] != null ||
-            presence['siteLoginLogId'] != null;
-        final left = presence['siteLeaveApplied'] == true;
-        if (open) {
-          unawaited(widget.workerCache.setOpenCheckInToday(true));
-          widget.geofence.setLiveTracking(true);
-        } else if (left) {
-          unawaited(widget.workerCache.setOpenCheckInToday(false));
-          widget.geofence.setLiveTracking(false);
-        }
-      },
-      onNotify: (message) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      },
+      onPresence: onPresence,
+      onNotify: onNotify,
     );
+    if (enableLive) {
+      await widget.geofence.forcePing(
+        bearer: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+        autoLogout: autoLogout,
+        onPresence: onPresence,
+        onNotify: onNotify,
+      );
+    }
     unawaited(_maybeWarnBackgroundLocation(siteAppMode));
   }
 
@@ -409,8 +424,22 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       widget.geofence.setLiveTracking(false);
       return;
     }
+
+    void onNotify(String message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+
     if (widget.geofence.isRunning) {
       widget.geofence.setLiveTracking(true);
+      await widget.geofence.forcePing(
+        bearer: widget.session.bearer,
+        deviceId: widget.session.deviceId,
+        autoLogout: true,
+        onNotify: onNotify,
+      );
       return;
     }
     final cached = await widget.workerCache.loadProfile();
@@ -429,12 +458,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       siteAppMode: false,
       liveTracking: true,
       autoLogout: true,
-      onNotify: (message) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
-      },
+      onNotify: onNotify,
     );
   }
 
