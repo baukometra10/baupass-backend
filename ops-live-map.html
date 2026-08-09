@@ -485,98 +485,100 @@
       height: 34px;
       display: block;
     }
-    /* Compact GPS teardrop pin with employee photo */
-    .ops-map-pin.is-worker-gps {
+    /* Classic Maps-style worker pin (blue teardrop + dark pill label) */
+    .ops-map-pin.is-worker-classic {
       animation: none;
-      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+      filter: drop-shadow(0 2px 5px rgba(15, 23, 42, 0.35));
+      color: #4ba3f5;
     }
-    .ops-map-pin.is-worker-gps .ops-map-pin-svg { display: none; }
-    .ops-gps-teardrop {
-      width: 30px;
-      height: 30px;
-      border-radius: 50% 50% 50% 0;
-      transform: rotate(-45deg);
-      overflow: hidden;
-      border: 2px solid #ffffff;
-      background: #0f172a;
-      box-shadow:
-        0 0 0 1.5px currentColor,
-        0 3px 8px rgba(0, 0, 0, 0.4);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .ops-map-pin.is-worker-classic::before { display: none; }
+    .ops-map-pin.is-worker-classic:hover {
+      transform: translateY(-2px) scale(1.06);
+      filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.4));
+    }
+    .ops-map-pin.is-worker-classic.is-selected {
+      animation: none;
+      filter: drop-shadow(0 3px 8px rgba(15, 23, 42, 0.45));
+    }
+    .ops-worker-pin {
       position: relative;
-      z-index: 2;
+      width: 28px;
+      height: 40px;
+      display: block;
+      flex-shrink: 0;
     }
-    .ops-gps-teardrop-inner {
-      width: 128%;
-      height: 128%;
-      transform: rotate(45deg);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+    .ops-map-pin.is-near .ops-worker-pin {
+      width: 32px;
+      height: 46px;
+    }
+    .ops-worker-pin-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+    .ops-worker-pin-face {
+      position: absolute;
+      left: 50%;
+      top: 28%;
+      width: 12px;
+      height: 12px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
       overflow: hidden;
+      background: #ffffff;
+      pointer-events: none;
     }
-    .ops-gps-teardrop-inner img {
+    .ops-map-pin.is-near .ops-worker-pin-face {
+      width: 14px;
+      height: 14px;
+    }
+    .ops-worker-pin-face img {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
     }
-    .ops-gps-teardrop-fallback {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      font-weight: 800;
-      color: #f8fafc;
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-      background: linear-gradient(145deg, #1e293b, #0f172a);
+    .ops-map-pin.is-worker-classic.live-gps .ops-worker-pin {
+      animation: workerClassicPulse 2s ease-in-out infinite;
     }
-    .ops-map-pin.is-worker-gps.live-gps .ops-gps-teardrop {
-      animation: workerGpsPulse 1.8s ease-in-out infinite;
+    @keyframes workerClassicPulse {
+      0%, 100% { filter: drop-shadow(0 2px 4px rgba(15, 23, 42, 0.3)); }
+      50% { filter: drop-shadow(0 2px 8px rgba(75, 163, 245, 0.55)); }
     }
-    @keyframes workerGpsPulse {
-      0%, 100% { box-shadow: 0 0 0 1.5px currentColor, 0 3px 8px rgba(0,0,0,0.4); }
-      50% { box-shadow: 0 0 0 2.5px currentColor, 0 0 10px currentColor, 0 3px 10px rgba(0,0,0,0.45); }
-    }
-    .ops-map-pin.is-worker-gps:hover .ops-gps-teardrop,
-    .ops-map-pin.is-worker-gps.is-selected .ops-gps-teardrop {
-      box-shadow: 0 0 0 2px currentColor, 0 0 12px currentColor, 0 4px 10px rgba(0,0,0,0.5);
-      transform: rotate(-45deg) scale(1.08);
-    }
-    .ops-map-pin.is-near .ops-gps-teardrop {
-      width: 34px;
-      height: 34px;
-    }
-    .ops-map-gps-name {
-      margin-top: 4px;
-      padding: 2px 6px;
-      border-radius: 6px;
-      background: rgba(8, 12, 18, 0.92);
-      border: 1px solid rgba(148, 163, 184, 0.45);
-      color: #f8fafc;
-      font-size: 9px;
-      font-weight: 700;
-      line-height: 1.2;
-      white-space: nowrap;
-      max-width: 110px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
-    }
-    /* legacy face classes kept for non-worker pins if referenced */
-    .ops-map-pin-face { display: none; }
-    .ops-map-pin-worker { color: #5eead4; }
-    .ops-map-pin-worker-working { color: #5eead4; }
+    .ops-map-pin-worker-working,
+    .ops-map-pin-worker { color: #4ba3f5; }
     .ops-map-pin-worker-off_site { color: #fb923c; }
     .ops-map-pin-worker-stale { color: #94a3b8; }
     .ops-map-pin-worker-on_break { color: #38bdf8; }
     .ops-map-pin-worker-on_task { color: #a78bfa; }
     .ops-map-pin-worker-shift_ended { color: #64748b; }
+    .ops-map-worker-label {
+      margin-top: 2px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #0b1220;
+      border: none;
+      color: #ffffff;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1.2;
+      white-space: nowrap;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+      letter-spacing: 0.01em;
+    }
+    .ops-map-worker-label.is-appearing {
+      animation: labelFadeIn 0.28s ease-out;
+    }
+    @keyframes labelFadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    /* legacy face classes kept for non-worker pins if referenced */
+    .ops-map-pin-face { display: none; }
     .ops-map-pin-camera { color: #a78bfa; }
     .ops-map-pin-camera-alert { color: #f87171; }
     .ops-map-pin-geofence { color: #38bdf8; }
@@ -1738,6 +1740,12 @@
       '<circle cx="12" cy="9" r="2.6" fill="#fff"/>' +
       "</svg>";
 
+    const WORKER_PIN_SVG =
+      '<svg viewBox="0 0 24 36" class="ops-worker-pin-svg" aria-hidden="true">' +
+      '<path d="M12 0C5.925 0 1 4.925 1 11c0 8.25 11 25 11 25s11-16.75 11-25C23 4.925 18.075 0 12 0z" fill="currentColor"/>' +
+      '<circle cx="12" cy="11" r="4.2" fill="#ffffff"/>' +
+      "</svg>";
+
     function mapPinIcon(kind, label, options = {}) {
       const showLabel = options.showLabel !== false;
       const selected = !!options.selected;
@@ -1745,32 +1753,31 @@
       const liveGps = !!options.liveGps;
       const safeLabel = escapeHtml(label);
       const avatarUrl = String(options.avatarUrl || "").trim();
-      const initials = escapeHtml(options.initials || "MA");
       const isWorker = String(kind || "").startsWith("worker-");
       const faceHtml = isWorker
-        ? `<span class="ops-gps-teardrop" aria-hidden="true"><span class="ops-gps-teardrop-inner">`
+        ? `<span class="ops-worker-pin" aria-hidden="true">${WORKER_PIN_SVG}`
           + (avatarUrl
-            ? `<img src="${escapeHtml(avatarUrl)}" alt="">`
-            : `<span class="ops-gps-teardrop-fallback">${initials}</span>`)
-          + `</span></span>`
+            ? `<span class="ops-worker-pin-face"><img src="${escapeHtml(avatarUrl)}" alt=""></span>`
+            : `<span class="ops-worker-pin-face"></span>`)
+          + `</span>`
         : "";
-      const labelClass = options.labelAppearing ? "ops-map-gps-name is-appearing" : "ops-map-gps-name";
+      const labelClass = options.labelAppearing ? "ops-map-worker-label is-appearing" : "ops-map-worker-label";
       const labelHtml = isWorker
         ? (showLabel && safeLabel ? `<span class="${labelClass}">${safeLabel}</span>` : "")
         : (showLabel && safeLabel ? `<span class="ops-map-pin-label${options.labelAppearing ? " is-appearing" : ""}">${safeLabel}</span>` : "");
       const selClass = selected ? " is-selected" : "";
       const nearClass = nearZoom ? " is-near" : "";
-      const workerClass = isWorker ? " is-worker-gps" : "";
+      const workerClass = isWorker ? " is-worker-classic" : "";
       const liveClass = isWorker && liveGps ? " live-gps" : "";
-      const iconW = isWorker ? 56 : 36;
-      const iconH = isWorker ? (showLabel ? 86 : 62) : (showLabel ? 52 : 36);
-      const anchorY = isWorker ? (showLabel ? 56 : 52) : (showLabel ? 50 : 34);
+      const iconW = isWorker ? 150 : 36;
+      const iconH = isWorker ? (showLabel ? 68 : 44) : (showLabel ? 52 : 36);
+      const anchorY = isWorker ? (showLabel ? 40 : 40) : (showLabel ? 50 : 34);
       return L.divIcon({
         className: "ops-map-pin-wrap",
         html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}${workerClass}${liveClass}" role="img" aria-label="${safeLabel}">${isWorker ? "" : PIN_SVG}${faceHtml}${labelHtml}</div>`,
         iconSize: [iconW, iconH],
         iconAnchor: [iconW / 2, anchorY],
-        popupAnchor: [0, isWorker ? -48 : (showLabel ? -48 : -32)],
+        popupAnchor: [0, isWorker ? -36 : (showLabel ? -48 : -32)],
       });
     }
     function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick, targetLayer = null) {
@@ -1944,16 +1951,14 @@
         const status = w.status || "working";
         const pinKind = `worker-${status}`;
         const markerSelected = id === selectedWorkerId;
-        const zoom = Number(map?.getZoom?.() || 0);
-        const nonSelectedLabelZoom = compactLabels ? 17 : 15;
-        const showPersistentLabel = markerSelected || zoom >= nonSelectedLabelZoom;
+        // Classic Maps look: keep the dark pill name visible like street labels.
+        const showPersistentLabel = true;
         const labelWasVisible = workerLabelVisibility.get(id) === true;
         const labelAppearing = showPersistentLabel && !labelWasVisible;
         workerLabelVisibility.set(id, showPersistentLabel);
         const nearZoom = !!(map && map.getZoom() >= 16);
         const liveGps = w.positionSource === "live" && status !== "stale";
         const avatarUrl = avatarBlobUrls.get(id) || "";
-        const initials = workerInitials(w.name);
         const chatHref = cid
           ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(id)}`
           : "";
@@ -1990,7 +1995,6 @@
             nearZoom,
             liveGps,
             avatarUrl,
-            initials,
             labelAppearing,
           }));
           existing.setPopupContent(popup);
@@ -2009,7 +2013,6 @@
             nearZoom,
             liveGps,
             avatarUrl,
-            initials,
             labelAppearing,
           }));
           workerMarkersById.set(id, m);
