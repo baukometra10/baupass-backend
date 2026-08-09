@@ -52,6 +52,8 @@ class _ChatVoiceComposeBarState extends State<ChatVoiceComposeBar>
 
   @override
   Widget build(BuildContext context) {
+    final brand = Theme.of(context).colorScheme.primary;
+    final onBrand = Theme.of(context).colorScheme.onPrimary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
@@ -102,7 +104,7 @@ class _ChatVoiceComposeBarState extends State<ChatVoiceComposeBar>
                             child: Container(
                               height: 4 + (amp * 18),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF00A884).withValues(alpha: 0.55 + amp * 0.35),
+                                color: brand.withValues(alpha: 0.55 + amp * 0.35),
                                 borderRadius: BorderRadius.circular(999),
                               ),
                             ),
@@ -123,13 +125,11 @@ class _ChatVoiceComposeBarState extends State<ChatVoiceComposeBar>
           IconButton(
             onPressed: widget.onToggleViewOnce,
             style: IconButton.styleFrom(
-              backgroundColor: widget.viewOnce
-                  ? const Color(0xFF00A884).withValues(alpha: 0.18)
-                  : Colors.transparent,
+              backgroundColor: widget.viewOnce ? brand.withValues(alpha: 0.18) : Colors.transparent,
             ),
             icon: Icon(
               Icons.looks_one,
-              color: widget.viewOnce ? const Color(0xFF00A884) : const Color(0xFF8696A0),
+              color: widget.viewOnce ? brand : const Color(0xFF8696A0),
             ),
             tooltip: 'Einmal anhören',
           ),
@@ -137,7 +137,8 @@ class _ChatVoiceComposeBarState extends State<ChatVoiceComposeBar>
           FilledButton(
             onPressed: widget.onSend,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF00A884),
+              backgroundColor: brand,
+              foregroundColor: onBrand,
               minimumSize: const Size(48, 48),
               padding: EdgeInsets.zero,
               shape: const CircleBorder(),
