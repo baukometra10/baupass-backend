@@ -424,23 +424,23 @@
       height: 34px;
       display: block;
     }
-    /* Classic GPS teardrop pin with employee photo inside */
+    /* Compact GPS teardrop pin with employee photo */
     .ops-map-pin.is-worker-gps {
       animation: none;
-      filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
     }
     .ops-map-pin.is-worker-gps .ops-map-pin-svg { display: none; }
     .ops-gps-teardrop {
-      width: 46px;
-      height: 46px;
+      width: 30px;
+      height: 30px;
       border-radius: 50% 50% 50% 0;
       transform: rotate(-45deg);
       overflow: hidden;
-      border: 3px solid #ffffff;
+      border: 2px solid #ffffff;
       background: #0f172a;
       box-shadow:
-        0 0 0 2.5px currentColor,
-        0 6px 14px rgba(0, 0, 0, 0.45);
+        0 0 0 1.5px currentColor,
+        0 3px 8px rgba(0, 0, 0, 0.4);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -448,8 +448,8 @@
       z-index: 2;
     }
     .ops-gps-teardrop-inner {
-      width: 130%;
-      height: 130%;
+      width: 128%;
+      height: 128%;
       transform: rotate(45deg);
       display: flex;
       align-items: center;
@@ -468,7 +468,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 15px;
+      font-size: 10px;
       font-weight: 800;
       color: #f8fafc;
       letter-spacing: 0.02em;
@@ -476,35 +476,36 @@
       background: linear-gradient(145deg, #1e293b, #0f172a);
     }
     .ops-map-pin.is-worker-gps.live-gps .ops-gps-teardrop {
-      animation: workerGpsPulse 1.7s ease-in-out infinite;
+      animation: workerGpsPulse 1.8s ease-in-out infinite;
     }
     @keyframes workerGpsPulse {
-      0%, 100% { box-shadow: 0 0 0 2.5px currentColor, 0 6px 14px rgba(0,0,0,0.45); }
-      50% { box-shadow: 0 0 0 4px currentColor, 0 0 18px currentColor, 0 6px 16px rgba(0,0,0,0.5); }
+      0%, 100% { box-shadow: 0 0 0 1.5px currentColor, 0 3px 8px rgba(0,0,0,0.4); }
+      50% { box-shadow: 0 0 0 2.5px currentColor, 0 0 10px currentColor, 0 3px 10px rgba(0,0,0,0.45); }
     }
     .ops-map-pin.is-worker-gps:hover .ops-gps-teardrop,
     .ops-map-pin.is-worker-gps.is-selected .ops-gps-teardrop {
-      box-shadow: 0 0 0 3px currentColor, 0 0 20px currentColor, 0 8px 18px rgba(0,0,0,0.55);
+      box-shadow: 0 0 0 2px currentColor, 0 0 12px currentColor, 0 4px 10px rgba(0,0,0,0.5);
+      transform: rotate(-45deg) scale(1.08);
     }
     .ops-map-pin.is-near .ops-gps-teardrop {
-      width: 52px;
-      height: 52px;
+      width: 34px;
+      height: 34px;
     }
     .ops-map-gps-name {
-      margin-top: 6px;
-      padding: 3px 8px;
-      border-radius: 8px;
-      background: rgba(8, 12, 18, 0.94);
-      border: 1px solid currentColor;
+      margin-top: 4px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      background: rgba(8, 12, 18, 0.92);
+      border: 1px solid rgba(148, 163, 184, 0.45);
       color: #f8fafc;
-      font-size: 11px;
+      font-size: 9px;
       font-weight: 700;
       line-height: 1.2;
       white-space: nowrap;
-      max-width: 140px;
+      max-width: 110px;
       overflow: hidden;
       text-overflow: ellipsis;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.35);
     }
     /* legacy face classes kept for non-worker pins if referenced */
     .ops-map-pin-face { display: none; }
