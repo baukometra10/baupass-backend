@@ -29,14 +29,15 @@ Future<bool?> showPrivacyConsentDialog(
                     'Mit der Nutzung dieser App erklären Sie sich mit der Verarbeitung Ihrer '
                         'personenbezogenen Daten einverstanden.\n\n'
                         'Standortdaten:\n'
-                        '• Ihr Standort wird nur während der Arbeitszeit am Arbeitsplatz '
-                        '(innerhalb des definierten Betriebsgeländes) erfasst und angezeigt.\n'
-                        '• Außerhalb des Arbeitsplatzes wird Ihr Standort nicht verfolgt oder '
-                        'dem Arbeitgeber angezeigt.\n'
-                        '• Die Standorterfassung dient ausschließlich der Zeiterfassung und '
-                        'Anwesenheitskontrolle am Einsatzort.\n\n'
-                        'Weitere Informationen erhalten Sie in der Datenschutzerklärung '
-                        'unter Profil → Rechtliches.',
+                        '• Ihr Standort wird nur während der angemeldeten Arbeitszeit erfasst '
+                        '(nach Check-in), nicht dauerhaft und nicht privat.\n'
+                        '• Zweck: Sicherheit am Einsatzort und bessere Arbeitsabläufe / Produktion '
+                        '— nicht zur Dauerüberwachung.\n'
+                        '• Außerhalb der Arbeitszeit bzw. nach Check-out wird Ihr Standort nicht '
+                        'an den Arbeitgeber übermittelt.\n'
+                        '• Innerhalb der definierten Betriebsfläche kann die Position während der '
+                        'Schicht in Echtzeit aktualisiert werden, wenn Sie sich bewegen.\n\n'
+                        'Weitere Informationen: Profil → Rechtliches.',
                   )),
                   if (session != null) ...[
                     const SizedBox(height: 12),

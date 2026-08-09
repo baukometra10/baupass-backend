@@ -15311,6 +15311,36 @@ def worker_app_site_presence():
             }), 400
         return jsonify({"error": "worker_geolocation_required", "message": "Standort erforderlich."}), 400
     if not measured:
+        # Company site missing — still accept GPS for live map so pins can move.
+        raw_lat = _normalize_float(location.get("latitude") if isinstance(location, dict) else None)
+        raw_lng = _normalize_float(location.get("longitude") if isinstance(location, dict) else None)
+        if raw_lat is not None and raw_lng is not None and not (abs(raw_lat) < 0.0001 and abs(raw_lng) < 0.0001):
+            try:
+                from backend.app.platform.workforce.presence_state import upsert_live_location
+
+                saved = upsert_live_location(
+                    db,
+                    worker_id=worker["id"],
+                    company_id=worker["company_id"],
+                    lat=float(raw_lat),
+                    lng=float(raw_lng),
+                    accuracy_m=_worker_location_accuracy_meters(location) if isinstance(location, dict) else None,
+                    min_move_meters=0.0,
+                )
+                if saved:
+                    db.commit()
+                return jsonify(
+                    {
+                        "onSite": False,
+                        "locationSaved": bool(saved),
+                        "mapOnly": True,
+                        "lat": float(raw_lat),
+                        "lng": float(raw_lng),
+                        "message": "Kein Firmen-Standort konfiguriert — Live-GPS trotzdem gespeichert.",
+                    }
+                )
+            except Exception:
+                pass
         return jsonify({"error": "site_location_unavailable", "message": "Standort der Firma ist nicht konfiguriert."}), 403
 
     site_cfg = get_company_site_access_config(db, worker["company_id"])
@@ -15511,6 +15541,23 @@ def worker_app_live_location():
             "message": "GPS-Signal zu ungenau. Bitte kurz warten und erneut versuchen.",
         }), 400
 
+    open_session = (
+        worker_has_open_checkin_today(db, worker["id"])
+        or worker_has_open_site_app_session_today(db, worker["id"])
+    )
+    if not open_session:
+        # Privacy: no live pin outside an active work session (checked-in).
+        return jsonify(
+            {
+                "ok": True,
+                "locationSaved": False,
+                "trailSaved": False,
+                "trackingActive": False,
+                "reason": "not_checked_in",
+                "message": "Live-Standort nur während der angemeldeten Arbeitszeit.",
+            }
+        )
+
     from backend.app.platform.workforce.presence_state import upsert_live_location
     from backend.app.platform.physical_operations.location_trail import (
         list_active_geofences,
@@ -15525,14 +15572,10 @@ def worker_app_live_location():
         lat=float(lat),
         lng=float(lng),
         accuracy_m=accuracy_m,
-        min_move_meters=0.5,
+        min_move_meters=0.0,
     )
     trail_saved = False
-    open_session = (
-        worker_has_open_checkin_today(db, worker["id"])
-        or worker_has_open_site_app_session_today(db, worker["id"])
-    )
-    if open_session and location_saved:
+    if location_saved:
         try:
             zones = list_active_geofences(db, worker["company_id"])
             zone = resolve_containing_zone(float(lat), float(lng), zones)
@@ -15559,6 +15602,7 @@ def worker_app_live_location():
             "ok": True,
             "locationSaved": bool(location_saved),
             "trailSaved": bool(trail_saved),
+            "trackingActive": True,
             "lat": float(lat),
             "lng": float(lng),
             "accuracyMeters": accuracy_m,

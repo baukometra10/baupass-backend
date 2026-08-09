@@ -188,6 +188,34 @@ def _shift_times(shift_start: str | None, shift_end: str | None) -> tuple[int, i
     return sh * 60 + sm, eh * 60 + em
 
 
+def _company_local_now(db, company_id: str, *, now: datetime | None = None) -> datetime:
+    """
+    Company-local wall clock for shift / work-hour checks.
+
+    Railway often runs in UTC; company work times are local (default Europe/Berlin).
+    Naive `now` from tests is treated as already company-local.
+    """
+    from backend.app.platform.reports.schedule import (
+        local_now_for_timezone,
+        resolve_company_timezone,
+    )
+
+    tz_name = resolve_company_timezone(db, company_id)
+    if now is None:
+        return local_now_for_timezone(tz_name)
+    if now.tzinfo is None:
+        return now
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(tz_name)
+    except Exception:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo("Europe/Berlin")
+    return now.astimezone(tz)
+
+
 def _within_shift_window(shift_start: str, shift_end: str, *, now: datetime | None = None) -> bool:
     parsed = _shift_times(shift_start, shift_end)
     if parsed is None:
@@ -303,13 +331,13 @@ def worker_may_auto_attend_today(
 
     Returns {ok, reason, message, dayType, location, shiftStart, shiftEnd}.
     """
-    from backend.server import is_company_workday_today, normalize_worker_type
+    from backend.server import normalize_worker_type
     from backend.app.platform.sector.catalog import sector_attendance_message
 
-    day = target_date or date.today()
-    current = now or datetime.now()
     worker_id = str(worker["id"])
     company_id = str(worker["company_id"])
+    current = _company_local_now(db, company_id, now=now)
+    day = target_date or current.date()
 
     if normalize_worker_type(worker["worker_type"]) != "worker":
         return {
@@ -402,13 +430,7 @@ def worker_may_auto_attend_today(
         }
 
     # No deployment plan in use — fall back to standard workday (Mo–Fr) + company work hours.
-    if day == date.today() and not is_company_workday_today():
-        return {
-            "ok": False,
-            "reason": "not_a_workday",
-            "message": sector_attendance_message(db, company_id, "attendanceNotWorkday", lang=lang),
-            "dayType": "weekend",
-        }
+    # Use company-local calendar day (not server UTC weekday).
     if day.weekday() >= 5:
         return {
             "ok": False,
@@ -474,7 +496,8 @@ def evaluate_intentional_app_checkin(
     Automatic proximity still uses worker_may_auto_attend_today as a hard gate.
     Intentional punches allow outside-shift / free-day punches and alert the employer.
     """
-    current = now or datetime.now()
+    company_id = str(worker["company_id"])
+    current = _company_local_now(db, company_id, now=now)
     attendance = worker_may_auto_attend_today(
         db,
         worker,

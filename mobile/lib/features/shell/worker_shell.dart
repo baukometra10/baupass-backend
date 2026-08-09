@@ -355,13 +355,43 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
     final company = profile['company'] as Map<String, dynamic>?;
     final siteAccess = profile['siteAccess'] as Map<String, dynamic>?;
     final accessMode = company?['accessMode'] as String? ?? '';
+    final openSession = siteAccess?['openCheckInToday'] == true ||
+        siteAccess?['siteSessionOpen'] == true;
+    unawaited(_startGeofenceAsync(
+      siteAppMode: accessMode == 'site_app',
+      liveTracking: openSession,
+      autoLogout: siteAccess?['autoLogout'] != false,
+    ));
+  }
+
+  Future<void> _startGeofenceAsync({
+    required bool siteAppMode,
+    required bool liveTracking,
+    required bool autoLogout,
+  }) async {
+    final cachedOpen = await widget.workerCache.openCheckInToday();
+    final enableLive = liveTracking || cachedOpen;
     widget.geofence.start(
       bearer: widget.session.bearer,
       deviceId: widget.session.deviceId,
-      siteAppMode: accessMode == 'site_app',
-      // Always stream GPS while app is open so employer live-map can move.
-      liveTracking: true,
-      autoLogout: siteAccess?['autoLogout'] != false,
+      siteAppMode: siteAppMode,
+      // Live pin only while checked in — not merely because the app is open.
+      liveTracking: enableLive,
+      autoLogout: autoLogout,
+      onPresence: (presence) {
+        final open = presence['openCheckInToday'] == true ||
+            presence['siteSessionOpen'] == true ||
+            presence['autoCheckInLogId'] != null ||
+            presence['siteLoginLogId'] != null;
+        final left = presence['siteLeaveApplied'] == true;
+        if (open) {
+          unawaited(widget.workerCache.setOpenCheckInToday(true));
+          widget.geofence.setLiveTracking(true);
+        } else if (left) {
+          unawaited(widget.workerCache.setOpenCheckInToday(false));
+          widget.geofence.setLiveTracking(false);
+        }
+      },
       onNotify: (message) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -369,7 +399,43 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
         );
       },
     );
-    unawaited(_maybeWarnBackgroundLocation(accessMode == 'site_app'));
+    unawaited(_maybeWarnBackgroundLocation(siteAppMode));
+  }
+
+  /// Re-sync live tracking after manual GPS/NFC check-in or check-out.
+  Future<void> _onAttendanceSessionChanged() async {
+    final open = await widget.workerCache.openCheckInToday();
+    if (!open) {
+      widget.geofence.setLiveTracking(false);
+      return;
+    }
+    if (widget.geofence.isRunning) {
+      widget.geofence.setLiveTracking(true);
+      return;
+    }
+    final cached = await widget.workerCache.loadProfile();
+    if (cached != null) {
+      final rawAccess = cached['siteAccess'];
+      final siteAccess = <String, dynamic>{
+        if (rawAccess is Map) ...Map<String, dynamic>.from(rawAccess),
+        'openCheckInToday': true,
+      };
+      _startGeofence({...cached, 'siteAccess': siteAccess});
+      return;
+    }
+    await widget.geofence.start(
+      bearer: widget.session.bearer,
+      deviceId: widget.session.deviceId,
+      siteAppMode: false,
+      liveTracking: true,
+      autoLogout: true,
+      onNotify: (message) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(message)),
+        );
+      },
+    );
   }
 
   Future<void> _maybeWarnBackgroundLocation(bool siteAppMode) async {
@@ -402,6 +468,9 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
           offlineSync: widget.offlineSync,
           workerCache: widget.workerCache,
           embedded: true,
+          onSessionChanged: () {
+            unawaited(_onAttendanceSessionChanged());
+          },
         );
       case 2:
         return TasksScreen(

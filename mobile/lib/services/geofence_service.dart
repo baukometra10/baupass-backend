@@ -12,10 +12,10 @@ import 'offline_attendance_store.dart';
 typedef GeofenceNotify = void Function(String message);
 typedef GeofencePresence = void Function(Map<String, dynamic> presence);
 
-/// Live GPS for employer map + optional site_app auto check-in/out.
+/// Live GPS for employer map during an active work session + optional site_app auto check-in/out.
 ///
-/// Tracking runs whenever the worker app is open (not only site_app mode),
-/// so the live map pin moves. Auto leave/check-in stays site_app-only.
+/// Live pin updates only while [liveTracking] is true (checked-in). site_app auto
+/// attendance can run without live tracking so workers can still punch in on site.
 class GeofenceService {
   GeofenceService(this._api, this._location, this._offlineStore);
 
@@ -30,6 +30,7 @@ class GeofenceService {
   bool _pollInFlight = false;
   bool _leaveInProgress = false;
   bool _siteAppMode = false;
+  bool _liveTracking = false;
   int _offSiteStrikes = 0;
   String? _lastNoticeKey;
   DateTime? _lastWatchPollAt;
@@ -47,11 +48,22 @@ class GeofenceService {
   static const heartbeatInterval = Duration(seconds: 12);
   static const offSiteStrikesRequired = 3;
 
+  bool get liveTrackingActive => _running && _liveTracking;
+  bool get isRunning => _running;
+
+  /// Turn live map pings on/off without restarting site_app geofence.
+  void setLiveTracking(bool enabled) {
+    _liveTracking = enabled;
+    if (!enabled) {
+      _trackingStartedNotified = false;
+    }
+  }
+
   Future<void> start({
     required String bearer,
     String? deviceId,
     required bool siteAppMode,
-    bool liveTracking = true,
+    bool liveTracking = false,
     required bool autoLogout,
     GeofencePresence? onPresence,
     GeofenceNotify? onNotify,
@@ -61,14 +73,17 @@ class GeofenceService {
 
     final allowed = await _location.ensureBackgroundPermission();
     if (!allowed) {
-      onNotify?.call(
-        'Standort-Berechtigung fehlt — Live-Karte kann den Pin nicht bewegen. Bitte GPS erlauben.',
-      );
+      if (liveTracking) {
+        onNotify?.call(
+          'Standort-Berechtigung fehlt — während der Arbeitszeit bitte GPS erlauben.',
+        );
+      }
       return;
     }
 
     _running = true;
     _siteAppMode = siteAppMode;
+    _liveTracking = liveTracking;
     _offSiteStrikes = 0;
     _lastNoticeKey = '';
     _lastSentAt = null;
@@ -131,6 +146,7 @@ class GeofenceService {
   void stop() {
     _running = false;
     _siteAppMode = false;
+    _liveTracking = false;
     _timer?.cancel();
     _timer = null;
     unawaited(_positionSub?.cancel());
@@ -225,24 +241,34 @@ class GeofenceService {
 
       final lat = (location['latitude'] as num).toDouble();
       final lng = (location['longitude'] as num).toDouble();
-      if (!_shouldSend(lat: lat, lng: lng, reason: reason)) {
-        return;
-      }
 
-      final result = await _postLiveLocation(
-        bearer: bearer,
-        deviceId: deviceId,
-        location: location,
-      );
-      _lastSentAt = DateTime.now();
-      _lastSentLat = lat;
-      _lastSentLng = lng;
-      onPresence?.call(result);
+      // Live map pings only during an active work session (checked-in).
+      if (_liveTracking) {
+        if (!_shouldSend(lat: lat, lng: lng, reason: reason)) {
+          // Still allow site_app presence path below on heartbeat/initial.
+        } else {
+          final result = await _postLiveLocation(
+            bearer: bearer,
+            deviceId: deviceId,
+            location: location,
+          );
+          _lastSentAt = DateTime.now();
+          _lastSentLat = lat;
+          _lastSentLng = lng;
+          onPresence?.call(result);
 
-      if (!_trackingStartedNotified &&
-          (result['locationSaved'] == true || result['ok'] == true)) {
-        _trackingStartedNotified = true;
-        onNotify?.call('Live-Standort aktiv — Pin sollte sich auf der Karte bewegen.');
+          if (!_trackingStartedNotified && result['locationSaved'] == true) {
+            _trackingStartedNotified = true;
+            onNotify?.call(
+              'Standort während der Arbeitszeit aktiv (Sicherheit & Abläufe).',
+            );
+          }
+          if (result['reason'] == 'not_checked_in' ||
+              result['trackingActive'] == false) {
+            _liveTracking = false;
+            _trackingStartedNotified = false;
+          }
+        }
       }
 
       // Attendance / auto leave stays on site-presence (site_app only, less often).
@@ -299,18 +325,22 @@ class GeofenceService {
     GeofenceNotify? onNotify,
   }) async {
       if (presence['autoCheckInLogId'] != null) {
+        _liveTracking = true;
         _notifyOnce(
           'checkin:${presence['autoCheckInLogId']}',
           'Automatischer Check-in an der Baustelle',
           onNotify,
         );
       } else if (presence['siteLoginLogId'] != null) {
+        _liveTracking = true;
         _notifyOnce(
           'login:${presence['siteLoginLogId']}',
           'Standort auf der Baustelle registriert',
           onNotify,
         );
       } else if (presence['siteLeaveApplied'] == true) {
+        _liveTracking = false;
+        _trackingStartedNotified = false;
         final leaveKey =
             'leave:${presence['checkoutLogId'] ?? presence['siteLeaveLogId'] ?? 'applied'}';
         _notifyOnce(
@@ -372,6 +402,8 @@ class GeofenceService {
         body: <String, dynamic>{'location': location},
       );
       onNotify?.call('Automatischer Check-out — Baustelle verlassen');
+      _liveTracking = false;
+      _trackingStartedNotified = false;
     } catch (_) {
       await _offlineStore.enqueue(<String, dynamic>{
         'type': 'site_leave',

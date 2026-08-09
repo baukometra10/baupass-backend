@@ -338,3 +338,47 @@ def test_allows_inside_company_work_hours(db_conn):
     assert result["dayType"] == "workday"
     assert result["shiftStart"] == "08:00"
     assert result["shiftEnd"] == "17:00"
+
+
+def test_company_work_hours_use_timezone_not_naive_utc(db_conn):
+    """06:00 UTC in June is 08:00 Europe/Berlin — inside company hours after TZ convert."""
+    from datetime import datetime, timezone
+
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    # Naive 06:00 is before early window (08:00-30min=07:30) → outside.
+    naive_wrong = worker_may_auto_attend_today(
+        db_conn,
+        worker,
+        target_date=date(2026, 6, 10),
+        now=datetime(2026, 6, 10, 6, 0),
+    )
+    assert naive_wrong["ok"] is False
+    assert naive_wrong["reason"] == "outside_work_hours"
+
+    # Same UTC instant as company-local 08:00 CEST → inside.
+    aware_ok = worker_may_auto_attend_today(
+        db_conn,
+        worker,
+        target_date=date(2026, 6, 10),
+        now=datetime(2026, 6, 10, 6, 0, tzinfo=timezone.utc),
+    )
+    assert aware_ok["ok"] is True
+    assert aware_ok["dayType"] == "workday"
+
+
+def test_intentional_uses_company_timezone_for_outside_hours_flag(db_conn):
+    from datetime import datetime, timezone
+
+    from backend.app.platform.workforce.attendance_eligibility import (
+        evaluate_intentional_app_checkin,
+    )
+
+    worker = db_conn.execute("SELECT * FROM workers WHERE id = 'wrk-1'").fetchone()
+    # 07:30 UTC → 09:30 Berlin → inside hours → outsideHours false
+    decision = evaluate_intentional_app_checkin(
+        db_conn,
+        worker,
+        now=datetime(2026, 6, 10, 7, 30, tzinfo=timezone.utc),
+    )
+    assert decision["ok"] is True
+    assert decision["outsideHours"] is False

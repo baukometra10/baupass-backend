@@ -28,6 +28,7 @@ class AttendanceScreen extends StatefulWidget {
     required this.offlineSync,
     required this.workerCache,
     this.embedded = false,
+    this.onSessionChanged,
   });
 
   final WorkerSession session;
@@ -39,6 +40,7 @@ class AttendanceScreen extends StatefulWidget {
   final OfflineSyncService offlineSync;
   final WorkerCache workerCache;
   final bool embedded;
+  final VoidCallback? onSessionChanged;
 
   @override
   State<AttendanceScreen> createState() => _AttendanceScreenState();
@@ -128,6 +130,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       'location': location,
     });
     await widget.workerCache.setOpenCheckInToday(direction != 'check-out');
+    _notifySessionChanged();
     await _refreshPendingCount();
     if (!mounted) return;
     final msg = t('offlineQueued').replaceAll('{dir}', direction);
@@ -154,12 +157,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       if (location != null) 'location': location,
     });
     await widget.workerCache.setOpenCheckInToday(direction == 'check-in');
+    _notifySessionChanged();
     await _refreshPendingCount();
     if (!mounted) return;
     setState(() {
       _lastDirection = direction;
       _status = t('offlineQueued').replaceAll('{dir}', direction);
     });
+  }
+
+  void _notifySessionChanged() {
+    widget.onSessionChanged?.call();
   }
 
   void _showFeedback(String message, {bool isError = false}) {
@@ -246,12 +254,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final recordedDirection = result['direction'] as String? ?? direction;
         final open = result['openCheckInToday'] == true || result['attendanceOpen'] == true;
         await widget.workerCache.setOpenCheckInToday(open);
-        final outsideHours = result['outsideHours'] == true;
+        _notifySessionChanged();
+        // Soft-allow outside hours stays server-side (employer alert); worker sees a calm success.
         final msg = result['duplicate'] == true
             ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
-            : outsideHours
-                ? t('attendanceOutsideHoursOk')
-                : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
+            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
         setState(() {
           _lastDirection = recordedDirection;
           _status = msg;
@@ -316,12 +323,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         final duplicate = result['duplicate'] == true;
         final open = result['openCheckInToday'] == true;
         await widget.workerCache.setOpenCheckInToday(open);
-        final outsideHours = result['outsideHours'] == true;
+        _notifySessionChanged();
         final msg = duplicate
             ? t('attendanceDuplicate').replaceAll('{dir}', recordedDirection)
-            : outsideHours
-                ? t('attendanceOutsideHoursOk')
-                : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
+            : t('attendanceSaved').replaceAll('{dir}', recordedDirection);
         setState(() {
           _lastDirection = recordedDirection;
           _status = msg;
