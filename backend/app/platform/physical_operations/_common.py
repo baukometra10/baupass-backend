@@ -571,7 +571,8 @@ def is_fresh_live_location(location_at: Any, *, max_age_seconds: int = LIVE_LOCA
     if not dt:
         return False
     age = (datetime.now(timezone.utc) - dt.astimezone(timezone.utc)).total_seconds()
-    return 0 <= age <= float(max_age_seconds)
+    # Allow small clock skew (negative age) so pins still use live GPS.
+    return -120.0 <= age <= float(max_age_seconds)
 
 
 def resolve_worker_map_coordinates(
