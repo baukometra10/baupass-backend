@@ -15340,52 +15340,52 @@ def worker_app_site_presence():
     location_saved = False
     trail_saved = False
 
-    # Persist live GPS so Command Center map can show movement inside the object.
+    # Persist live GPS for Command Center map whenever the device reports a fix.
+    # Trail samples only while an open session exists.
     open_session = (
         worker_has_open_checkin_today(db, worker["id"])
         or worker_has_open_site_app_session_today(db, worker["id"])
     )
-    if open_session or on_site:
-        try:
-            from backend.app.platform.workforce.presence_state import upsert_live_location
-            from backend.app.platform.physical_operations.location_trail import (
-                list_active_geofences,
-                maybe_record_location_sample,
-                resolve_containing_zone,
-            )
+    try:
+        from backend.app.platform.workforce.presence_state import upsert_live_location
+        from backend.app.platform.physical_operations.location_trail import (
+            list_active_geofences,
+            maybe_record_location_sample,
+            resolve_containing_zone,
+        )
 
-            device_lat = measured.get("deviceLatitude")
-            device_lng = measured.get("deviceLongitude")
-            if device_lat is not None and device_lng is not None:
-                location_saved = upsert_live_location(
+        device_lat = measured.get("deviceLatitude")
+        device_lng = measured.get("deviceLongitude")
+        if device_lat is not None and device_lng is not None:
+            location_saved = upsert_live_location(
+                db,
+                worker_id=worker["id"],
+                company_id=worker["company_id"],
+                lat=float(device_lat),
+                lng=float(device_lng),
+                accuracy_m=measured.get("accuracyMeters"),
+            )
+            if open_session:
+                zones = list_active_geofences(db, worker["company_id"])
+                zone = resolve_containing_zone(float(device_lat), float(device_lng), zones)
+                trail_saved = maybe_record_location_sample(
                     db,
                     worker_id=worker["id"],
                     company_id=worker["company_id"],
                     lat=float(device_lat),
                     lng=float(device_lng),
                     accuracy_m=measured.get("accuracyMeters"),
+                    geofence_id=str(
+                        (zone or {}).get("id")
+                        or measured.get("geofenceId")
+                        or active_geofence_id
+                        or ""
+                    ),
+                    zone_kind=str((zone or {}).get("zone_kind") or ""),
                 )
-                if open_session:
-                    zones = list_active_geofences(db, worker["company_id"])
-                    zone = resolve_containing_zone(float(device_lat), float(device_lng), zones)
-                    trail_saved = maybe_record_location_sample(
-                        db,
-                        worker_id=worker["id"],
-                        company_id=worker["company_id"],
-                        lat=float(device_lat),
-                        lng=float(device_lng),
-                        accuracy_m=measured.get("accuracyMeters"),
-                        geofence_id=str(
-                            (zone or {}).get("id")
-                            or measured.get("geofenceId")
-                            or active_geofence_id
-                            or ""
-                        ),
-                        zone_kind=str((zone or {}).get("zone_kind") or ""),
-                    )
-        except Exception:
-            location_saved = False
-            trail_saved = False
+    except Exception:
+        location_saved = False
+        trail_saved = False
 
     if site_cfg["accessMode"] == "site_app" and not on_site_for_leave:
         site_leave_result = _sync_off_site_polls_and_maybe_leave(

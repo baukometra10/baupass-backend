@@ -11,11 +11,10 @@ import 'offline_attendance_store.dart';
 typedef GeofenceNotify = void Function(String message);
 typedef GeofencePresence = void Function(Map<String, dynamic> presence);
 
-/// Site geofence monitor: near-realtime presence (~1 m moves) + sparse idle heartbeat.
+/// Live GPS for employer map + optional site_app auto check-in/out.
 ///
-/// Battery strategy:
-/// - OS distanceFilter (~1 m) — stream fires on small walking steps
-/// - Network POST on ≥1 m move OR idle heartbeat (~20 s)
+/// Tracking runs whenever the worker app is open (not only site_app mode),
+/// so the live map pin moves. Auto leave/check-in stays site_app-only.
 class GeofenceService {
   GeofenceService(this._api, this._location, this._offlineStore);
 
@@ -29,6 +28,7 @@ class GeofenceService {
   bool _running = false;
   bool _pollInFlight = false;
   bool _leaveInProgress = false;
+  bool _siteAppMode = false;
   int _offSiteStrikes = 0;
   String? _lastNoticeKey;
   DateTime? _lastWatchPollAt;
@@ -36,35 +36,31 @@ class GeofenceService {
   double? _lastSentLat;
   double? _lastSentLng;
 
-  /// Idle heartbeat for freshness / leave detection.
-  static const pollInterval = Duration(seconds: 20);
+  /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
+  static const pollInterval = Duration(seconds: 3);
 
-  /// Debounce rapid GPS stream events after a move.
-  static const positionDebounceMs = 800;
-
-  /// Significant move before another live-map update (meters).
+  static const positionDebounceMs = 500;
   static const minMoveMetersToSend = 1.0;
-
-  /// Max silence while on site — keeps employer map fresh.
-  static const heartbeatInterval = Duration(seconds: 20);
-
+  static const heartbeatInterval = Duration(seconds: 12);
   static const offSiteStrikesRequired = 3;
 
   Future<void> start({
     required String bearer,
     String? deviceId,
     required bool siteAppMode,
+    bool liveTracking = true,
     required bool autoLogout,
     GeofencePresence? onPresence,
     GeofenceNotify? onNotify,
   }) async {
     stop();
-    if (!siteAppMode) return;
+    if (!siteAppMode && !liveTracking) return;
 
     final allowed = await _location.ensureBackgroundPermission();
     if (!allowed) return;
 
     _running = true;
+    _siteAppMode = siteAppMode;
     _offSiteStrikes = 0;
     _lastNoticeKey = '';
     _lastSentAt = null;
@@ -124,6 +120,7 @@ class GeofenceService {
 
   void stop() {
     _running = false;
+    _siteAppMode = false;
     _timer?.cancel();
     _timer = null;
     unawaited(_positionSub?.cancel());
@@ -149,7 +146,6 @@ class GeofenceService {
     }
     final moved = _distanceMeters(_lastSentLat!, _lastSentLng!, lat, lng);
     if (moved >= minMoveMetersToSend) return true;
-    // Stationary: sparse heartbeat only (leave detection + live freshness).
     if (DateTime.now().difference(_lastSentAt!) >= heartbeatInterval) {
       return true;
     }
@@ -173,15 +169,11 @@ class GeofenceService {
         if (forcedPosition.accuracy > LocationService.maxAccuracyMeters) {
           return;
         }
-        location = <String, dynamic>{
-          'latitude': forcedPosition.latitude,
-          'longitude': forcedPosition.longitude,
-          'accuracyMeters': forcedPosition.accuracy,
-          'accuracy': forcedPosition.accuracy,
-          'capturedAt': DateTime.now().toUtc().toIso8601String(),
-        };
+        location = _location.positionToPayload(forcedPosition);
       } else {
-        location = await _location.captureForAttendance();
+        // Prefer a fresh fix for live-map movement (avoid 90s attendance cache).
+        location = await _location.captureFreshForLiveMap();
+        location ??= await _location.captureForAttendance();
       }
       if (location == null) return;
 
@@ -206,6 +198,11 @@ class GeofenceService {
       _lastSentLat = lat;
       _lastSentLng = lng;
       onPresence?.call(result);
+
+      if (!_siteAppMode) {
+        // Live-map tracking only — no auto check-in/out side effects on client.
+        return;
+      }
 
       if (result['autoCheckInLogId'] != null) {
         _notifyOnce(

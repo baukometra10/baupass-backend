@@ -359,6 +359,8 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       bearer: widget.session.bearer,
       deviceId: widget.session.deviceId,
       siteAppMode: accessMode == 'site_app',
+      // Always stream GPS while app is open so employer live-map can move.
+      liveTracking: true,
       autoLogout: siteAccess?['autoLogout'] != false,
       onNotify: (message) {
         if (!mounted) return;
@@ -367,7 +369,7 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
         );
       },
     );
-    _maybeWarnBackgroundLocation(accessMode == 'site_app');
+    unawaited(_maybeWarnBackgroundLocation(accessMode == 'site_app'));
   }
 
   Future<void> _maybeWarnBackgroundLocation(bool siteAppMode) async {

@@ -166,7 +166,7 @@ class LocationService {
     }
   }
 
-  Map<String, dynamic> _positionPayload(Position position) {
+  Map<String, dynamic> positionToPayload(Position position) {
     return <String, dynamic>{
       'latitude': position.latitude,
       'longitude': position.longitude,
@@ -174,6 +174,43 @@ class LocationService {
       'accuracy': position.accuracy,
       'capturedAt': DateTime.now().toUtc().toIso8601String(),
     };
+  }
+
+  Map<String, dynamic> _positionPayload(Position position) =>
+      positionToPayload(position);
+
+  /// Fresh high-accuracy fix for live-map movement (avoids attendance cache).
+  Future<Map<String, dynamic>?> captureFreshForLiveMap() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+      final settings = Platform.isAndroid
+          ? AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              timeLimit: const Duration(seconds: 4),
+            )
+          : Platform.isIOS
+              ? AppleSettings(
+                  accuracy: LocationAccuracy.high,
+                  timeLimit: const Duration(seconds: 4),
+                )
+              : const LocationSettings(
+                  accuracy: LocationAccuracy.high,
+                  timeLimit: Duration(seconds: 4),
+                );
+      final fresh = await Geolocator.getCurrentPosition(
+        locationSettings: settings,
+      );
+      if (fresh.accuracy > maxAccuracyMeters) return null;
+      return positionToPayload(fresh);
+    } catch (_) {
+      return null;
+    }
   }
 }
 
