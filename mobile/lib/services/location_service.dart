@@ -20,15 +20,15 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.high,
-        // Only wake GPS/network when the worker actually moves (~battery saver).
-        distanceFilter: 12,
+        // ~1 m so employer live-map tracks walking in near-realtime.
+        distanceFilter: 1,
         foregroundNotificationConfig: _foregroundNotification,
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.high,
-        distanceFilter: 12,
+        distanceFilter: 1,
         allowBackgroundLocationUpdates: true,
         showBackgroundLocationIndicator: true,
         pauseLocationUpdatesAutomatically: true,
@@ -36,7 +36,7 @@ class LocationService {
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.high,
-      distanceFilter: 12,
+      distanceFilter: 1,
     );
   }
 

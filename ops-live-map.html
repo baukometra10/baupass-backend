@@ -424,32 +424,52 @@
       height: 34px;
       display: block;
     }
+    /* Worker GPS avatar — photo is the marker, not a tiny overlay */
+    .ops-map-pin.is-worker-gps .ops-map-pin-svg { display: none; }
     .ops-map-pin-face {
-      position: absolute;
-      top: 4px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 14px;
-      height: 14px;
+      position: relative;
+      top: auto;
+      left: auto;
+      transform: none;
+      width: 44px;
+      height: 44px;
       border-radius: 999px;
-      border: 2px solid currentColor;
+      border: 3px solid currentColor;
       overflow: hidden;
-      background: rgba(15, 23, 42, 0.95);
+      background: #0f172a;
       box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.72),
-        0 0 8px rgba(15, 23, 42, 0.45),
-        0 1px 4px rgba(0, 0, 0, 0.45);
+        0 0 0 2px rgba(255, 255, 255, 0.85),
+        0 0 14px currentColor,
+        0 4px 12px rgba(0, 0, 0, 0.55);
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      z-index: 2;
+    }
+    .ops-map-pin.is-worker-gps::after {
+      content: "";
+      width: 0;
+      height: 0;
+      margin-top: -3px;
+      border-left: 9px solid transparent;
+      border-right: 9px solid transparent;
+      border-top: 12px solid currentColor;
+      filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
+      z-index: 1;
+    }
+    .ops-map-pin.is-worker-gps.live-gps .ops-map-pin-face {
+      animation: workerFacePulse 1.8s ease-in-out infinite;
+    }
+    @keyframes workerFacePulse {
+      0%, 100% { box-shadow: 0 0 0 2px rgba(255,255,255,0.85), 0 0 10px currentColor, 0 4px 12px rgba(0,0,0,0.55); }
+      50% { box-shadow: 0 0 0 3px rgba(255,255,255,0.95), 0 0 18px currentColor, 0 4px 14px rgba(0,0,0,0.6); }
     }
     .ops-map-pin:hover .ops-map-pin-face,
     .ops-map-pin.is-selected .ops-map-pin-face {
       box-shadow:
-        0 0 0 1px rgba(255, 255, 255, 0.82),
-        0 0 10px currentColor,
-        0 0 14px rgba(15, 23, 42, 0.6),
-        0 2px 8px rgba(0, 0, 0, 0.5);
+        0 0 0 2px rgba(255, 255, 255, 0.95),
+        0 0 18px currentColor,
+        0 6px 16px rgba(0, 0, 0, 0.6);
     }
     .ops-map-pin-face img {
       width: 100%;
@@ -463,21 +483,22 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 8px;
+      font-size: 14px;
       font-weight: 800;
-      color: #e2e8f0;
+      color: #f8fafc;
       letter-spacing: 0.02em;
       text-transform: uppercase;
       line-height: 1;
+      background: #1e293b;
     }
     .ops-map-pin.is-near .ops-map-pin-face {
-      top: 2px;
-      width: 18px;
-      height: 18px;
-      border-width: 2px;
+      top: auto;
+      width: 48px;
+      height: 48px;
+      border-width: 3px;
     }
     .ops-map-pin.is-near .ops-map-pin-face-fallback {
-      font-size: 9px;
+      font-size: 15px;
     }
     .ops-map-pin-worker { color: #5eead4; }
     .ops-map-pin-worker-working { color: #5eead4; }
@@ -1459,15 +1480,16 @@
         return new Intl.NumberFormat(locale, { maximumFractionDigits: 2, minimumFractionDigits: 1 }).format(km) + ' km';
       }
     };
-    const LIVE_POLL_MS_VISIBLE = 2000;
-    const LIVE_POLL_MS_HIDDEN = 8000;
-    const MARKER_MOVE_ANIM_MS = 900;
-    const EVENT_REFRESH_THROTTLE_MS = 1200;
+    const LIVE_POLL_MS_VISIBLE = 1000;
+    const LIVE_POLL_MS_HIDDEN = 5000;
+    const MARKER_MOVE_ANIM_MS = 700;
+    const EVENT_REFRESH_THROTTLE_MS = 600;
     const WEAK_NETWORK_THRESHOLD_MS = 1800;
     const WORKER_LIST_SOFT_CAP = 180;
     const WORKER_LIST_CAP_TRIGGER = 260;
     const workerLabelVisibility = new Map();
-
+    const avatarBlobUrls = new Map();
+    const avatarFetchInFlight = new Map();
     function modeLabel(mode) {
       if (mode === "websocket") return window.opsMapT("modeWebsocket") || "Realtime";
       if (mode === "sse") return window.opsMapT("modeSse") || "Stream";
@@ -1486,7 +1508,7 @@
       if (eventRefreshTimer) return;
       eventRefreshTimer = window.setTimeout(() => {
         eventRefreshTimer = 0;
-        load().catch(() => {});
+        load({ force: true, lite: true }).catch(() => {});
       }, EVENT_REFRESH_THROTTLE_MS);
     }
 
@@ -1556,10 +1578,46 @@
 
     function workerAvatarUrl(worker, cid) {
       const id = String(worker?.id || "").trim();
-      if (!id || !worker?.hasPhoto) return "";
-      let url = `/api/ops-os/workers/${encodeURIComponent(id)}/avatar`;
-      if (cid) url += `?company_id=${encodeURIComponent(cid)}`;
+      if (!id) return "";
+      if (avatarBlobUrls.has(id)) return avatarBlobUrls.get(id);
+      let url = String(worker.photoUrl || "").trim();
+      if (!url) {
+        url = `/api/ops-os/workers/${encodeURIComponent(id)}/avatar`;
+        if (cid) url += `?company_id=${encodeURIComponent(cid)}`;
+      }
       return url;
+    }
+
+    async function ensureWorkerAvatarBlob(worker, cid) {
+      const id = String(worker?.id || "").trim();
+      if (!id) return "";
+      if (avatarBlobUrls.has(id)) return avatarBlobUrls.get(id);
+      if (avatarFetchInFlight.has(id)) return avatarFetchInFlight.get(id);
+      let apiUrl = String(worker.photoUrl || "").trim();
+      if (!apiUrl) {
+        apiUrl = `/api/ops-os/workers/${encodeURIComponent(id)}/avatar`;
+        if (cid) apiUrl += `?company_id=${encodeURIComponent(cid)}`;
+      }
+      const job = (async () => {
+        try {
+          const headers = window.BaupassAuth
+            ? window.BaupassAuth.authHeaders({ Accept: "image/*" })
+            : { Accept: "image/*" };
+          const r = await fetch(apiUrl, { credentials: "include", headers });
+          if (!r.ok) return "";
+          const blob = await r.blob();
+          if (!blob || !String(blob.type || "").startsWith("image/")) return "";
+          const objectUrl = URL.createObjectURL(blob);
+          avatarBlobUrls.set(id, objectUrl);
+          return objectUrl;
+        } catch (_) {
+          return "";
+        } finally {
+          avatarFetchInFlight.delete(id);
+        }
+      })();
+      avatarFetchInFlight.set(id, job);
+      return job;
     }
 
     function zoneKindLabel(kind) {
@@ -1585,6 +1643,7 @@
       const showLabel = options.showLabel !== false;
       const selected = !!options.selected;
       const nearZoom = !!options.nearZoom;
+      const liveGps = !!options.liveGps;
       const safeLabel = escapeHtml(label);
       const avatarUrl = String(options.avatarUrl || "").trim();
       const initials = escapeHtml(options.initials || "MA");
@@ -1592,9 +1651,8 @@
       const faceHtml = isWorker
         ? `<span class="ops-map-pin-face">`
           + (avatarUrl
-            ? `<img src="${escapeHtml(avatarUrl)}" loading="lazy" decoding="async" alt="" onerror="this.style.display='none'; if (this.nextElementSibling) this.nextElementSibling.style.display='inline-flex';">`
-            : "")
-          + `<span class="ops-map-pin-face-fallback"${avatarUrl ? ' style="display:none"' : ""}>${initials}</span>`
+            ? `<img src="${escapeHtml(avatarUrl)}" alt="" decoding="async">`
+            : `<span class="ops-map-pin-face-fallback">${initials}</span>`)
           + `</span>`
         : "";
       const labelClass = options.labelAppearing ? "ops-map-pin-label is-appearing" : "ops-map-pin-label";
@@ -1603,15 +1661,19 @@
         : "";
       const selClass = selected ? " is-selected" : "";
       const nearClass = nearZoom ? " is-near" : "";
+      const workerClass = isWorker ? " is-worker-gps" : "";
+      const liveClass = isWorker && liveGps ? " live-gps" : "";
+      const iconW = isWorker ? 52 : 36;
+      const iconH = isWorker ? (showLabel ? 78 : 60) : (showLabel ? 52 : 36);
+      const anchorY = isWorker ? (showLabel ? 62 : 56) : (showLabel ? 50 : 34);
       return L.divIcon({
         className: "ops-map-pin-wrap",
-        html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}" role="img" aria-label="${safeLabel}">${PIN_SVG}${faceHtml}${labelHtml}</div>`,
-        iconSize: [36, safeLabel ? 52 : 36],
-        iconAnchor: [18, safeLabel ? 50 : 34],
-        popupAnchor: [0, safeLabel ? -48 : -32],
+        html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}${workerClass}${liveClass}" role="img" aria-label="${safeLabel}">${isWorker ? "" : PIN_SVG}${faceHtml}${labelHtml}</div>`,
+        iconSize: [iconW, iconH],
+        iconAnchor: [iconW / 2, anchorY],
+        popupAnchor: [0, isWorker ? -54 : (showLabel ? -48 : -32)],
       });
     }
-
     function addPinMarker(lat, lng, kind, label, popupHtml, openHref, onClick, targetLayer = null) {
       const marker = L.marker([lat, lng], {
         icon: mapPinIcon(kind, label),
@@ -1762,12 +1824,17 @@
         .finally(() => { trailRefreshInFlight = false; });
     }
 
-    function renderWorkerMarkers(data) {
+    async function renderWorkerMarkers(data) {
       const cid = companyId || data.companyId || "";
       const workerLayerTarget = getWorkerLayerTarget();
       const nextIds = new Set();
       const bounds = [];
-      (data.workersOnSite || []).forEach((w) => {
+      const visibleWorkers = (data.workersOnSite || []).filter((w) => {
+        if (!w?.id || w.lat == null || w.lng == null) return false;
+        return workerMatchesFilters(w);
+      });
+      await Promise.all(visibleWorkers.map((w) => ensureWorkerAvatarBlob(w, cid)));
+      visibleWorkers.forEach((w) => {
         const id = String(w.id || "");
         if (!id || w.lat == null || w.lng == null) return;
         if (!workerMatchesFilters(w)) return;
@@ -1784,7 +1851,8 @@
         const labelAppearing = showPersistentLabel && !labelWasVisible;
         workerLabelVisibility.set(id, showPersistentLabel);
         const nearZoom = !!(map && map.getZoom() >= 16);
-        const avatarUrl = workerAvatarUrl(w, cid);
+        const liveGps = w.positionSource === "live" && status !== "stale";
+        const avatarUrl = avatarBlobUrls.get(id) || "";
         const initials = workerInitials(w.name);
         const chatHref = cid
           ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(id)}`
@@ -1820,6 +1888,7 @@
             showLabel: showPersistentLabel,
             selected: markerSelected,
             nearZoom,
+            liveGps,
             avatarUrl,
             initials,
             labelAppearing,
@@ -1838,6 +1907,7 @@
             showLabel: showPersistentLabel,
             selected: markerSelected,
             nearZoom,
+            liveGps,
             avatarUrl,
             initials,
             labelAppearing,
@@ -2002,7 +2072,7 @@
       }
     }
 
-    function renderMap(data) {
+    async function renderMap(data) {
       lastMapData = data;
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
@@ -2082,7 +2152,7 @@
         layers.zones.push(pin);
         bounds.push([z.latitude, z.longitude]);
       });
-      bounds.push(...renderWorkerMarkers(data));
+      bounds.push(...(await renderWorkerMarkers(data)));
       renderWorkerDistances(data);
       (data.gates || []).forEach((g) => {
         const label = g.name || "Gate";
@@ -2170,10 +2240,10 @@
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
-          return visible ? 7000 : 15000;
+          return visible ? 1500 : 8000;
         }
         if (weakNetwork) {
-          return visible ? 4500 : 10000;
+          return visible ? 2000 : 8000;
         }
         return visible ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_HIDDEN;
       };
@@ -2184,7 +2254,7 @@
         }
         livePollInFlight = true;
         try {
-          await load();
+          await load({ force: true, lite: true });
         } catch (_) {
           // keep polling
         } finally {

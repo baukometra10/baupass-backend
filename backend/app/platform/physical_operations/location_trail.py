@@ -11,8 +11,8 @@ from .geospatial_optimizer import (
     point_in_circle_bbox_then_haversine,
 )
 
-TRAIL_MIN_INTERVAL_SECONDS = 20
-TRAIL_MIN_MOVE_METERS = 10.0
+TRAIL_MIN_INTERVAL_SECONDS = 8
+TRAIL_MIN_MOVE_METERS = 1.0
 TRAIL_RETENTION_DAYS = 14
 
 ZONE_KINDS = frozenset(

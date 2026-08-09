@@ -17,7 +17,7 @@ _OVERVIEW_TTL_SEC = 25.0
 _OVERVIEW_LAYER_CACHE: dict[str, tuple[float, object]] = {}
 _OVERVIEW_LAYER_TTL_SEC = 8.0
 _LIVE_MAP_CACHE: dict[str, tuple[float, dict]] = {}
-_LIVE_MAP_TTL_SEC = 3.0
+_LIVE_MAP_TTL_SEC = 1.0
 _COMMAND_CENTER_CACHE: dict[str, tuple[float, dict]] = {}
 _COMMAND_CENTER_TTL_SEC = 5.0
 _DAILY_BRIEF_CACHE: dict[str, tuple[float, dict]] = {}
@@ -743,7 +743,7 @@ def register_physical_operations(flask_app) -> None:
         row = get_db().execute(
             """
             SELECT photo_data FROM workers
-            WHERE id = ? AND company_id = ? AND deleted_at IS NULL AND worker_type = 'worker'
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL
             LIMIT 1
             """,
             (wid, cid),

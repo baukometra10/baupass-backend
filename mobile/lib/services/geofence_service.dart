@@ -11,12 +11,11 @@ import 'offline_attendance_store.dart';
 typedef GeofenceNotify = void Function(String message);
 typedef GeofencePresence = void Function(Map<String, dynamic> presence);
 
-/// Site geofence monitor (PWA parity): movement-triggered presence + sparse heartbeat.
+/// Site geofence monitor: near-realtime presence (~1 m moves) + sparse idle heartbeat.
 ///
 /// Battery strategy:
-/// - OS distanceFilter (~12 m) — GPS callbacks only when the worker moves
-/// - Network POST only on significant move OR heartbeat (~60 s) while on duty
-/// - Slow timer when idle (no continuous 5 s GPS spam)
+/// - OS distanceFilter (~1 m) — stream fires on small walking steps
+/// - Network POST on ≥1 m move OR idle heartbeat (~20 s)
 class GeofenceService {
   GeofenceService(this._api, this._location, this._offlineStore);
 
@@ -37,17 +36,17 @@ class GeofenceService {
   double? _lastSentLat;
   double? _lastSentLng;
 
-  /// Idle heartbeat for freshness / leave detection (not continuous tracking).
-  static const pollInterval = Duration(seconds: 45);
+  /// Idle heartbeat for freshness / leave detection.
+  static const pollInterval = Duration(seconds: 20);
 
   /// Debounce rapid GPS stream events after a move.
-  static const positionDebounceMs = 2500;
+  static const positionDebounceMs = 800;
 
   /// Significant move before another live-map update (meters).
-  static const minMoveMetersToSend = 10.0;
+  static const minMoveMetersToSend = 1.0;
 
-  /// Max silence while on site — keeps employer map "fresh" without draining battery.
-  static const heartbeatInterval = Duration(seconds: 60);
+  /// Max silence while on site — keeps employer map fresh.
+  static const heartbeatInterval = Duration(seconds: 20);
 
   static const offSiteStrikesRequired = 3;
 
