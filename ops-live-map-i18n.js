@@ -102,6 +102,7 @@ window.OpsLiveMapI18n = {
     chipOffSite: "außerhalb",
     chipMissing: "fehlt",
     liveBadge: "LIVE",
+    filter: "Filter",
   },
   en: {
     title: "Smart Workforce Map",
@@ -205,6 +206,7 @@ window.OpsLiveMapI18n = {
     chipOffSite: "off-site",
     chipMissing: "missing",
     liveBadge: "LIVE",
+    filter: "Filter",
   },
   ar: {
     title: "خريطة العمل الذكية",
@@ -300,11 +302,21 @@ window.OpsLiveMapI18n = {
     coordNone: "—",
     copyCoords: "نسخ الإحداثيات",
     copied: "تم النسخ",
+    chipOnSite: "في الموقع",
+    chipWorking: "يعمل",
+    chipStale: "بدون GPS مباشر",
+    chipBreak: "استراحة",
+    chipTask: "مهمة",
+    chipOffSite: "خارج الموقع",
+    chipMissing: "غائب",
+    liveBadge: "مباشر",
+    filter: "تصفية",
   },
   tr: {
     title: "Akıllı İşçi Haritası",
     loading: "Yükleniyor…",
     refresh: "Yenile",
+    refreshBusy: "Yenileniyor…",
     navCommand: "Komuta merkezi",
     navAi: "Yapay Zeka",
     navAdmin: "Operasyonlar",
@@ -318,6 +330,9 @@ window.OpsLiveMapI18n = {
     nobodyCheckedIn: "Kimse giriş yapmadı",
     emptyMapTitle: "Canlı hareket için hazır",
     emptyMapHint: "Çalışanlar giriş yaptığında mavi pinler görünür ve GPS ile hareket eder.",
+    moreMapOptions: "Diğer harita seçenekleri",
+    filterSection: "Filtre",
+    zonesAllEmpty: "Tüm bölgeler boş",
     noCameras: "Konumlu kamera yok",
     openChat: "Sohbeti aç",
     openCameraWatch: "Kamera gözetimi",
@@ -376,11 +391,36 @@ window.OpsLiveMapI18n = {
     errorServer: "Sunucu hatası: Lütfen daha sonra deneyin",
     errorGeneric: "Bir hata meydana geldi",
     errorRetry: "Yeniden Dene",
+    modeWebsocket: "Gerçek zamanlı",
+    modePolling: "Aralık",
+    modeSse: "Akış",
+    netWeak: "Zayıf ağ",
+    netReconnects: "Yeniden bağlanma {count}",
+    netLatency: "Yanıt {ms}ms",
+    listWindowSummary: "{shown}/{total} gösteriliyor",
+    listShowAll: "Tümünü yükle",
+    liveCoordsTitle: "Canlı koordinatlar",
+    coordCenter: "Harita merkezi",
+    coordCursor: "İmleç",
+    coordLastPoint: "Son nokta",
+    coordNone: "—",
+    copyCoords: "Koordinatları kopyala",
+    copied: "Kopyalandı",
+    chipOnSite: "sahada",
+    chipWorking: "çalışıyor",
+    chipStale: "canlı GPS yok",
+    chipBreak: "mola",
+    chipTask: "görev",
+    chipOffSite: "sahada değil",
+    chipMissing: "eksik",
+    liveBadge: "CANLI",
+    filter: "Filtre",
   },
   fr: {
     title: "Carte d'effectifs intelligente",
     loading: "Chargement…",
     refresh: "Actualiser",
+    refreshBusy: "Actualisation…",
     navCommand: "Centre de commandement",
     navAi: "Intelligence artificielle",
     navAdmin: "Opérations",
@@ -394,6 +434,9 @@ window.OpsLiveMapI18n = {
     nobodyCheckedIn: "Personne n'est arrivée",
     emptyMapTitle: "Prêt pour le suivi en direct",
     emptyMapHint: "Quand les employés pointent, des épingles bleues apparaissent et bougent avec le GPS.",
+    moreMapOptions: "Plus d'options de carte",
+    filterSection: "Filtres",
+    zonesAllEmpty: "Toutes les zones sont vides",
     noCameras: "Aucune caméra avec position",
     openChat: "Ouvrir le chat",
     openCameraWatch: "Surveillance caméra",
@@ -452,11 +495,36 @@ window.OpsLiveMapI18n = {
     errorServer: "Erreur serveur : Veuillez réessayer plus tard",
     errorGeneric: "Une erreur s'est produite",
     errorRetry: "Réessayer",
+    modeWebsocket: "Temps réel",
+    modePolling: "Intervalle",
+    modeSse: "Flux",
+    netWeak: "Réseau faible",
+    netReconnects: "Reconnexions {count}",
+    netLatency: "Réponse {ms}ms",
+    listWindowSummary: "Affiche {shown}/{total}",
+    listShowAll: "Tout charger",
+    liveCoordsTitle: "Coordonnées en direct",
+    coordCenter: "Centre de la carte",
+    coordCursor: "Curseur",
+    coordLastPoint: "Dernier point",
+    coordNone: "—",
+    copyCoords: "Copier les coordonnées",
+    copied: "Copié",
+    chipOnSite: "sur site",
+    chipWorking: "travaille",
+    chipStale: "sans GPS live",
+    chipBreak: "pause",
+    chipTask: "mission",
+    chipOffSite: "hors site",
+    chipMissing: "absent",
+    liveBadge: "LIVE",
+    filter: "Filtre",
   },
   es: {
     title: "Mapa inteligente de personal",
     loading: "Cargando…",
     refresh: "Actualizar",
+    refreshBusy: "Actualizando…",
     navCommand: "Centro de mando",
     navAi: "Inteligencia artificial",
     navAdmin: "Operaciones",
@@ -470,6 +538,9 @@ window.OpsLiveMapI18n = {
     nobodyCheckedIn: "Nadie se ha registrado",
     emptyMapTitle: "Listo para movimiento en vivo",
     emptyMapHint: "Al fichar, aparecen pines azules que se mueven con el GPS.",
+    moreMapOptions: "Más opciones del mapa",
+    filterSection: "Filtros",
+    zonesAllEmpty: "Todas las zonas vacías",
     noCameras: "Sin cámaras con posición",
     openChat: "Abrir chat",
     openCameraWatch: "Vigilancia de cámara",
@@ -528,11 +599,36 @@ window.OpsLiveMapI18n = {
     errorServer: "Error del servidor: Por favor intente más tarde",
     errorGeneric: "Ocurrió un error",
     errorRetry: "Reintentar",
+    modeWebsocket: "Tiempo real",
+    modePolling: "Intervalo",
+    modeSse: "Flujo",
+    netWeak: "Red débil",
+    netReconnects: "Reconexiones {count}",
+    netLatency: "Respuesta {ms}ms",
+    listWindowSummary: "Mostrando {shown}/{total}",
+    listShowAll: "Cargar todos",
+    liveCoordsTitle: "Coordenadas en vivo",
+    coordCenter: "Centro del mapa",
+    coordCursor: "Cursor",
+    coordLastPoint: "Último punto",
+    coordNone: "—",
+    copyCoords: "Copiar coordenadas",
+    copied: "Copiado",
+    chipOnSite: "en obra",
+    chipWorking: "trabajando",
+    chipStale: "sin GPS en vivo",
+    chipBreak: "descanso",
+    chipTask: "tarea",
+    chipOffSite: "fuera de obra",
+    chipMissing: "falta",
+    liveBadge: "EN VIVO",
+    filter: "Filtro",
   },
   it: {
     title: "Mappa intelligente del personale",
     loading: "Caricamento…",
     refresh: "Aggiorna",
+    refreshBusy: "Aggiornamento…",
     navCommand: "Centro di comando",
     navAi: "Intelligenza artificiale",
     navAdmin: "Operazioni",
@@ -546,6 +642,9 @@ window.OpsLiveMapI18n = {
     nobodyCheckedIn: "Nessuno ha fatto il check-in",
     emptyMapTitle: "Pronto per il movimento live",
     emptyMapHint: "Dopo il check-in compaiono pin blu che si muovono con il GPS.",
+    moreMapOptions: "Altre opzioni mappa",
+    filterSection: "Filtri",
+    zonesAllEmpty: "Tutte le zone vuote",
     noCameras: "Nessuna telecamera con posizione",
     openChat: "Apri chat",
     openCameraWatch: "Monitoraggio telecamera",
@@ -604,11 +703,36 @@ window.OpsLiveMapI18n = {
     errorServer: "Errore del server: Riprovare più tardi",
     errorGeneric: "Si è verificato un errore",
     errorRetry: "Riprova",
+    modeWebsocket: "Tempo reale",
+    modePolling: "Intervallo",
+    modeSse: "Stream",
+    netWeak: "Rete debole",
+    netReconnects: "Riconnessioni {count}",
+    netLatency: "Risposta {ms}ms",
+    listWindowSummary: "Mostra {shown}/{total}",
+    listShowAll: "Carica tutti",
+    liveCoordsTitle: "Coordinate live",
+    coordCenter: "Centro mappa",
+    coordCursor: "Cursore",
+    coordLastPoint: "Ultimo punto",
+    coordNone: "—",
+    copyCoords: "Copia coordinate",
+    copied: "Copiato",
+    chipOnSite: "in cantiere",
+    chipWorking: "in lavoro",
+    chipStale: "senza GPS live",
+    chipBreak: "pausa",
+    chipTask: "incarico",
+    chipOffSite: "fuori cantiere",
+    chipMissing: "mancante",
+    liveBadge: "LIVE",
+    filter: "Filtro",
   },
   pl: {
     title: "Inteligentna mapa pracowników",
     loading: "Ładowanie…",
     refresh: "Odśwież",
+    refreshBusy: "Odświeżanie…",
     navCommand: "Centrum dowodzenia",
     navAi: "Sztuczna inteligencja",
     navAdmin: "Operacje",
@@ -622,6 +746,9 @@ window.OpsLiveMapI18n = {
     nobodyCheckedIn: "Nikt się nie zarejestrował",
     emptyMapTitle: "Gotowe na ruch na żywo",
     emptyMapHint: "Po zameldowaniu pojawiają się niebieskie pinezki i ruszają wraz z GPS.",
+    moreMapOptions: "Więcej opcji mapy",
+    filterSection: "Filtry",
+    zonesAllEmpty: "Wszystkie strefy puste",
     noCameras: "Brak kamer z pozycją",
     openChat: "Otwórz czat",
     openCameraWatch: "Monitorowanie kamery",
@@ -680,6 +807,30 @@ window.OpsLiveMapI18n = {
     errorServer: "Błąd serwera: Spróbuj ponownie później",
     errorGeneric: "Wystąpił błąd",
     errorRetry: "Ponów próbę",
+    modeWebsocket: "Czas rzeczywisty",
+    modePolling: "Interwał",
+    modeSse: "Strumień",
+    netWeak: "Słaba sieć",
+    netReconnects: "Ponowne połączenia {count}",
+    netLatency: "Odpowiedź {ms}ms",
+    listWindowSummary: "Pokazano {shown}/{total}",
+    listShowAll: "Załaduj wszystkich",
+    liveCoordsTitle: "Współrzędne na żywo",
+    coordCenter: "Środek mapy",
+    coordCursor: "Kursor",
+    coordLastPoint: "Ostatni punkt",
+    coordNone: "—",
+    copyCoords: "Kopiuj współrzędne",
+    copied: "Skopiowano",
+    chipOnSite: "na budowie",
+    chipWorking: "pracuje",
+    chipStale: "bez live GPS",
+    chipBreak: "przerwa",
+    chipTask: "zadanie",
+    chipOffSite: "poza budową",
+    chipMissing: "brakuje",
+    liveBadge: "NA ŻYWO",
+    filter: "Filtr",
   },
 };
 
@@ -710,7 +861,9 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
   const titleEl = document.getElementById("opsMapTitle");
   if (titleEl) titleEl.textContent = window.opsMapT("title");
   const refreshBtn = document.getElementById("refreshBtn");
-  if (refreshBtn) refreshBtn.textContent = window.opsMapT("refresh");
+  if (refreshBtn && !refreshBtn.classList.contains("is-loading")) {
+    refreshBtn.textContent = window.opsMapT("refresh");
+  }
 
   // Apply translations to elements with data-omapi18n attribute
   document.querySelectorAll("[data-omapi18n]").forEach((el) => {
@@ -721,8 +874,10 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
     // For input placeholders
     if (el.tagName === "INPUT" && el.hasAttribute("placeholder")) {
       el.setAttribute("placeholder", translated || key);
-    } else if (el.tagName === "SELECT" && el.hasAttribute("aria-label")) {
+    } else if (el.tagName === "SELECT") {
       el.setAttribute("aria-label", translated || key);
+    } else if (el.tagName === "SUMMARY") {
+      el.textContent = translated || key;
     } else if (el.tagName === "BUTTON") {
       // For buttons, update textContent but preserve any child elements
       const text = el.childNodes[0];
@@ -736,10 +891,23 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
     }
   });
 
+  const themeBtn = document.getElementById("themeToggleBtn");
+  if (themeBtn) {
+    const isDark = document.documentElement.classList.contains("dark-mode");
+    const label = window.opsMapT(isDark ? "lightMode" : "darkMode");
+    themeBtn.title = label;
+    themeBtn.setAttribute("aria-label", label);
+  }
+
   const sel = document.getElementById("opsMapLangSelect");
   if (sel) {
     sel.value = lang;
     sel.setAttribute("aria-label", window.opsMapT("uiLang"));
+  }
+
+  // Re-translate dynamic chips / sidebar / empty state after language change.
+  if (typeof window.__opsMapApplyDynamicI18n === "function") {
+    try { window.__opsMapApplyDynamicI18n(); } catch (_) { /* ignore */ }
   }
 };
 
