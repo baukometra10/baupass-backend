@@ -864,14 +864,67 @@
     .status-filters button.active {
       background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
       color: #e2e8f0;
-      border-color: #64748b;
-      box-shadow: 0 0 12px rgba(34, 211, 238, 0.3), inset 0 0 8px rgba(34, 211, 238, 0.1);
-      transform: scale(1.05);
-      animation: buttonGlow 2s ease-in-out infinite;
+      border-color: rgba(56, 189, 248, 0.55);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+      transform: none;
+      animation: none;
     }
-    @keyframes buttonGlow {
-      0%, 100% { box-shadow: 0 0 12px rgba(34, 211, 238, 0.3), inset 0 0 8px rgba(34, 211, 238, 0.1); }
-      50% { box-shadow: 0 0 20px rgba(34, 211, 238, 0.5), inset 0 0 12px rgba(34, 211, 238, 0.2); }
+    .side-tools-advanced {
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.28);
+      overflow: hidden;
+    }
+    .side-tools-advanced > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0.42rem 0.55rem;
+      font-size: 0.72rem;
+      font-weight: 650;
+      color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .side-tools-advanced > summary::-webkit-details-marker { display: none; }
+    .side-tools-advanced > summary::after {
+      content: "+";
+      font-size: 0.85rem;
+      color: #7dd3fc;
+      line-height: 1;
+    }
+    .side-tools-advanced[open] > summary::after { content: "–"; }
+    .side-tools-advanced-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      padding: 0 0.55rem 0.55rem;
+      border-top: 1px solid rgba(148, 163, 184, 0.14);
+      padding-top: 0.45rem;
+    }
+    .side-section-label {
+      margin: 0.15rem 0 0;
+      font-size: 0.66rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .zone-stats.is-empty {
+      opacity: 0.72;
+    }
+    .side-empty-hint {
+      margin: 0.35rem 0.65rem 0.75rem;
+      padding: 0.7rem 0.75rem;
+      border-radius: 10px;
+      border: 1px dashed rgba(148, 163, 184, 0.35);
+      background: rgba(15, 23, 42, 0.25);
+      color: #cbd5e1;
+      font-size: 0.8rem;
+      line-height: 1.4;
     }
     .nearest-box { display: flex; flex-direction: column; gap: 0.3rem; }
     .nearest-box .btn-link, #nearestBtn {
@@ -1384,6 +1437,7 @@
     <aside class="side" id="sidePanel">
       <div class="side-tools">
         <input type="search" id="workerSearch" placeholder="Mitarbeiter suchen…" data-omapi18n="searchWorkers" autocomplete="off" />
+        <div class="side-section-label" data-omapi18n="filterSection">Filter</div>
         <div class="status-filters" id="statusFilters">
           <button type="button" data-status="all" class="active" data-omapi18n="allStatuses">Alle</button>
           <button type="button" data-status="working" data-omapi18n="statusWorking">Arbeitet</button>
@@ -1392,27 +1446,32 @@
           <button type="button" data-status="off_site" data-omapi18n="statusOffSite">Außerhalb</button>
           <button type="button" data-status="stale" data-omapi18n="offlineStatus">Offline/Stale</button>
         </div>
-        <div class="nearest-box">
-          <button type="button" id="nearestBtn" class="btn-link" data-omapi18n="nearestWorkers">Nächste MA (Kartenmitte)</button>
-          <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" data-omapi18n="filterRole" />
-        </div>
-        <div class="map-view-controls">
-          <label>
-            <input type="checkbox" id="compactLabelsToggle" checked />
-            <span id="compactLabelsText" data-omapi18n="compactLabels">Kompakte Labels</span>
-          </label>
-          <button type="button" id="recenterWorkersBtn" data-omapi18n="zoomWorkers">Auf MA zoomen</button>
-        </div>
-        <div class="map-view-controls">
-          <label>
-            <input type="checkbox" id="clusterWorkersToggle" checked />
-            <span data-omapi18n="clusterMarkers">Cluster</span>
-          </label>
-          <label>
-            <input type="checkbox" id="liveTrailToggle" />
-            <span data-omapi18n="liveTrail">Live Spur folgen</span>
-          </label>
-        </div>
+        <details class="side-tools-advanced" id="sideAdvancedTools">
+          <summary data-omapi18n="moreMapOptions">Weitere Kartenoptionen</summary>
+          <div class="side-tools-advanced-body">
+            <div class="nearest-box">
+              <button type="button" id="nearestBtn" class="btn-link" data-omapi18n="nearestWorkers">Nächste MA (Kartenmitte)</button>
+              <input type="search" id="nearestRole" placeholder="Rolle/Skill Filter…" data-omapi18n="filterRole" />
+            </div>
+            <div class="map-view-controls">
+              <label>
+                <input type="checkbox" id="compactLabelsToggle" checked />
+                <span id="compactLabelsText" data-omapi18n="compactLabels">Kompakte Labels</span>
+              </label>
+              <button type="button" id="recenterWorkersBtn" data-omapi18n="zoomWorkers">Auf MA zoomen</button>
+            </div>
+            <div class="map-view-controls">
+              <label>
+                <input type="checkbox" id="clusterWorkersToggle" checked />
+                <span data-omapi18n="clusterMarkers">Cluster</span>
+              </label>
+              <label>
+                <input type="checkbox" id="liveTrailToggle" />
+                <span data-omapi18n="liveTrail">Live Spur folgen</span>
+              </label>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="side-body" id="workerList"></div>
       <div class="trail-panel" id="trailPanel" hidden>
@@ -1439,7 +1498,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map1"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map2"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
@@ -1776,17 +1835,20 @@
       const onBreak = data.counts?.onBreak ?? data.statusCounts?.on_break ?? 0;
       const onTask = data.counts?.onTask ?? data.statusCounts?.on_task ?? 0;
       const offSite = data.counts?.offSite ?? data.statusCounts?.off_site ?? 0;
-      const chip = (cls, n, labelKey, fallback) => {
-        const zero = Number(n) === 0 ? " is-zero" : "";
+      const chip = (cls, n, labelKey, fallback, { always = false } = {}) => {
+        const num = Number(n) || 0;
+        // Header: keep the overview calm — hide empty noise chips.
+        if (!always && num === 0) return "";
+        const zero = num === 0 ? " is-zero" : "";
         const label = window.opsMapT(labelKey) || fallback;
-        return `<span class="ops-stat-chip ${cls}${zero}"><span class="dot" aria-hidden="true"></span>${Number(n)} ${escapeHtml(label)}</span>`;
+        return `<span class="ops-stat-chip ${cls}${zero}"><span class="dot" aria-hidden="true"></span>${num} ${escapeHtml(label)}</span>`;
       };
       const suffix = runtimeStatusSuffix();
       const meta = suffix
         ? `<span class="ops-stat-chip meta">${escapeHtml(suffix)}</span>`
         : "";
       return `<span class="ops-stat-chips">${
-        chip("onsite", onSite, "chipOnSite", "vor Ort") +
+        chip("onsite", onSite, "chipOnSite", "vor Ort", { always: true }) +
         chip("working", working, "chipWorking", "arbeitet") +
         chip("stale", stale, "chipStale", "ohne Live-GPS") +
         chip("break", onBreak, "chipBreak", "Pause") +
@@ -2240,12 +2302,15 @@
       }
       const zoneStats = data.zoneStats || [];
       const anomalies = data.mapAnomalies || [];
+      const occupiedZones = zoneStats.filter((z) => Number(z.headcount || 0) > 0);
       const statsHtml = zoneStats.length
-        ? `<div class="zone-stats"><strong>${escapeHtml(window.opsMapT("zoneStatsTitle") || "Zonen")}</strong><br>` +
-          zoneStats.slice(0, 8).map((z) => {
-            const dwell = z.avgDwellMinutes != null ? ` · Ø ${z.avgDwellMinutes}m` : "";
-            return `${escapeHtml(z.name || z.zoneId)}: <strong>${z.headcount || 0}</strong>${dwell}`;
-          }).join("<br>") + `</div>`
+        ? (occupiedZones.length
+            ? `<div class="zone-stats"><strong>${escapeHtml(window.opsMapT("zoneStatsTitle") || "Zonen")}</strong><br>` +
+              occupiedZones.slice(0, 8).map((z) => {
+                const dwell = z.avgDwellMinutes != null ? ` · Ø ${z.avgDwellMinutes}m` : "";
+                return `${escapeHtml(z.name || z.zoneId)}: <strong>${z.headcount || 0}</strong>${dwell}`;
+              }).join("<br>") + `</div>`
+            : `<div class="zone-stats is-empty"><strong>${escapeHtml(window.opsMapT("zoneStatsTitle") || "Zonen")}</strong><br>${escapeHtml(window.opsMapT("zonesAllEmpty") || "Alle Zonen leer")}</div>`)
         : "";
       const anomalyHtml = anomalies.length
         ? `<div class="anomaly-list"><strong>${escapeHtml(window.opsMapT("anomaliesTitle") || "Hinweise")}</strong><br>` +
@@ -2269,6 +2334,7 @@
       const workerMeta = shouldCapWorkers
         ? `<div class="worker-list-meta"><span>${escapeHtml(window.opsMapT("listWindowSummary", { shown: renderedWorkers.length, total: workers.length }))}</span><button type="button" class="worker-list-more" id="workerListShowAll">${escapeHtml(window.opsMapT("listShowAll"))}</button></div>`
         : "";
+      const emptyWorkersHtml = `<p class="side-empty-hint">${escapeHtml(window.opsMapT("nobodyCheckedIn"))}<br><span style="opacity:0.85">${escapeHtml(window.opsMapT("emptyMapHint") || "")}</span></p>`;
       const camRows = (data.cameras || []).map((cam) => {
         const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
         return `<div class="worker-row" data-lat="${cam.lat}" data-lng="${cam.lng}" data-open="${escapeHtml(href)}">
@@ -2281,7 +2347,7 @@
         anomalyHtml +
         `<h3 style='margin:0.5rem 0.65rem;font-size:0.85rem'>${window.opsMapT("sidebarTitle")}</h3>` +
         workerMeta +
-        (workerRows || `<p style='padding:0.65rem'>${window.opsMapT("nobodyCheckedIn")}</p>`) +
+        (workerRows || emptyWorkersHtml) +
         `<h3 style='margin:0.85rem 0.65rem 0.35rem;font-size:0.85rem'>${window.opsMapT("sidebarCameras")}</h3>` +
         (camRows || `<p style='padding:0.65rem;color:#94a3b8'>${window.opsMapT("noCameras")}</p>`);
       const showAllBtn = document.getElementById("workerListShowAll");
