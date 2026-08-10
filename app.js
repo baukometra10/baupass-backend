@@ -19059,7 +19059,10 @@ function loadEnterpriseEmbed(viewName) {
         scheduleAdminV2EinsatzplanFocus();
       }
     };
-    iframe.addEventListener("load", syncToken, { once: false });
+    if (iframe.dataset.baupassTokenSyncBound !== "1") {
+      iframe.dataset.baupassTokenSyncBound = "1";
+      iframe.addEventListener("load", syncToken);
+    }
     syncToken();
   }
   if (viewName === "admin-v2" && pendingAdminV2EinsatzplanFocus) {

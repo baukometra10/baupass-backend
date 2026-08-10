@@ -511,20 +511,29 @@ window.addEventListener("message", (event) => {
   }
   const token = String(event.data.token || "").trim();
   if (!token) return;
+  const prevToken = String(wpGet(TOKEN_KEY) || "").trim();
+  const nextCid = String(event.data.companyId || "").trim();
+  const prevCid = String(activeCompanyId() || "").trim();
+  const tokenChanged = token !== prevToken;
+  const companyChanged = Boolean(nextCid) && nextCid !== prevCid;
   wpSet(TOKEN_KEY, token);
   wpSet(CONTROL_TOKEN_KEY, token);
-  if (event.data.companyId) {
-    applyParentCompanyId(event.data.companyId);
+  if (nextCid) {
+    applyParentCompanyId(nextCid);
   }
   if ($("dashboardView")?.classList.contains("hidden")) {
     showSessionBoot();
     bootSession().catch(() => {});
     return;
   }
+  // Parent re-posts the same session often — do not remount Tools/Geofence/Ops every time.
+  if (!tokenChanged && !companyChanged) return;
   const activeTab = document.querySelector(".tab.active")?.dataset?.tab;
-  if (activeTab) {
+  if (!activeTab) return;
+  clearTimeout(window.__adminSyncTokenRefreshT);
+  window.__adminSyncTokenRefreshT = setTimeout(() => {
     refreshActiveTab().catch(() => {});
-  }
+  }, 400);
 });
 let pendingIntegrationProvider = null;
 let pendingEinsatzplanFocus = false;
@@ -3601,17 +3610,30 @@ function syncTokenToOpsEmbedFrame(frame, companyId) {
       // iframe not ready
     }
   };
-  frame.addEventListener("load", send, { once: false });
+  if (frame.dataset.opsTokenSyncBound !== "1") {
+    frame.dataset.opsTokenSyncBound = "1";
+    frame.addEventListener("load", send);
+  }
   send();
 }
 
 function initOpsEmbedTabs(panel, companyId) {
   const frame = panel?.querySelector("#opsEmbedFrame");
   if (!frame) return;
+  if (panel.dataset.opsEmbedTabsBound === "1" && frame.dataset.opsCid === String(companyId || "")) {
+    syncTokenToOpsEmbedFrame(frame, companyId);
+    return;
+  }
+  panel.dataset.opsEmbedTabsBound = "1";
+  frame.dataset.opsCid = String(companyId || "");
   const ensureFrameSrc = (page) => {
     const target = page || frame.getAttribute("data-ops-page") || "/ops-live-map.html";
+    const nextSrc = buildOpsEmbedUrl(target, companyId);
     frame.setAttribute("data-ops-page", target);
-    frame.src = buildOpsEmbedUrl(target, companyId);
+    // Avoid reload loop when soft-updating the ops shell.
+    if (frame.getAttribute("src") !== nextSrc) {
+      frame.src = nextSrc;
+    }
     syncTokenToOpsEmbedFrame(frame, companyId);
   };
   panel.querySelectorAll(".ops-embed-tab").forEach((btn) => {
@@ -4282,6 +4304,27 @@ function bindBillingTabFormsOnce() {
 
 
 function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, features, mapEager }) {
+  // Soft update: keep Ops iframe alive (full remount was killing Ops-Zentrale mid-load).
+  const existingFrame = panel?.querySelector("#opsEmbedFrame");
+  if (existingFrame && panel.dataset.opsCid === String(cid) && panel.querySelector(".ops-panel")) {
+    window.__opsLayersCache = layers;
+    const track = panel.querySelector(".ops-carousel-track");
+    if (track) {
+      track.innerHTML = getOpsLayerOrder()
+        .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
+        .join("") || `<p class="muted small">${t("common.loading")}</p>`;
+      initOpsCarousel($("opsCarousel"));
+      initOpsLayerCards($("opsCarousel"));
+    }
+    const head = panel.querySelector(".ops-panel-head h3");
+    if (head) {
+      head.innerHTML = `${t("ops.physicalOs")} <span class="badge badge-ok">${t("ops.layersBadge")}</span> ${rtLabel || ""}`;
+    }
+    syncTokenToOpsEmbedFrame(existingFrame, cid);
+    return;
+  }
+  panel.dataset.opsEmbedTabsBound = "";
+
   const cards = getOpsLayerOrder()
     .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
     .join("");
@@ -4318,6 +4361,7 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
   const mapSrc = mapEager
     ? `/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
     : "about:blank";
+  panel.dataset.opsCid = String(cid || "");
   panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
@@ -4755,7 +4799,11 @@ async function loadTools() {
   const panel = $("toolsPanel");
   const q = requireCompany(panel);
   if (q === null) return;
-  panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  const gen = (loadTools._gen = (loadTools._gen || 0) + 1);
+  const keepUi = Boolean(panel.querySelector("#geofenceMap"));
+  if (!keepUi) {
+    panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
+  }
   try {
     const [geofences, rules, integrations, setupLite, lockSt] = await Promise.all([
       apiSoft(`/api/geofences/admin${q}`, { geofences: [] }, 3500),
@@ -4765,9 +4813,42 @@ async function loadTools() {
       apiSoft(`/api/contracts/lock-status${q}`, null, 3000),
       ensureLeafletLoaded(4500),
     ]);
+    if (gen !== loadTools._gen) return;
     const gfRows = geofences?.geofences || [];
     const ruleRows = rules?.rules || [];
     const intRows = integrations?.integrations || [];
+    const zonesSig = gfRows
+      .map((z) => `${z.id || z.site_name}|${z.latitude}|${z.longitude}|${z.radius_meters}|${z.zone_kind || ""}`)
+      .join(";");
+    const mapAlive = Boolean(panel.querySelector("#geofenceMap")?._baupassLeafletMap);
+    if (keepUi && mapAlive && panel.dataset.toolsZonesSig === zonesSig && panel.querySelector("#geofenceTable")) {
+      const zoneKindLabel = (value) => {
+        const kind = String(value || "site").trim().toLowerCase();
+        if (kind === "production") return t("tools.zoneKindProduction") || "Production";
+        if (kind === "warehouse") return t("tools.zoneKindWarehouse") || "Warehouse";
+        if (kind === "admin") return t("tools.zoneKindAdmin") || "Administration";
+        if (kind === "maintenance") return t("tools.zoneKindMaintenance") || "Maintenance";
+        if (kind === "lab") return t("tools.zoneKindLab") || "Laboratory";
+        if (kind === "other") return t("tools.zoneKindOther") || "Other";
+        return t("tools.zoneKindSite") || "Site";
+      };
+      renderTable($("geofenceTable"), gfRows, [
+        { label: t("table.site"), render: (r) => r.site_name || "-" },
+        { label: t("table.coords"), render: (r) => `${r.latitude}, ${r.longitude}` },
+        { label: t("table.radius"), render: (r) => `${r.radius_meters}m` },
+        { label: t("tools.zoneKind") || "Typ", render: (r) => zoneKindLabel(r.zone_kind || r.zoneKind || "site") },
+        { label: t("table.active"), render: (r) => yn(r.active) },
+      ]);
+      if ($("automationTable")) {
+        renderTable($("automationTable"), ruleRows, [
+          { label: t("table.name"), render: (r) => r.name || "-" },
+          { label: t("table.trigger"), render: (r) => r.trigger_event || "-" },
+          { label: t("table.enabled"), render: (r) => yn(r.enabled) },
+        ]);
+      }
+      return;
+    }
+    panel.dataset.toolsZonesSig = zonesSig;
     const channelPills = [];
     if (setupLite?.channels) {
       for (const ch of setupLite.channels) {

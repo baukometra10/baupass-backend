@@ -2543,9 +2543,10 @@
         return new Intl.NumberFormat(locale, { maximumFractionDigits: 2, minimumFractionDigits: 1 }).format(km) + ' km';
       }
     };
-    const LIVE_POLL_MS_VISIBLE = 1000;
-    const LIVE_POLL_MS_VISIBLE_IDLE = 3500;
-    const LIVE_POLL_MS_HIDDEN = 5000;
+    // Keep live updates snappy, but avoid 1 Hz API hammering (blocks Ops-Zentrale / admin tabs).
+    const LIVE_POLL_MS_VISIBLE = 5000;
+    const LIVE_POLL_MS_VISIBLE_IDLE = 12000;
+    const LIVE_POLL_MS_HIDDEN = 20000;
     const MARKER_MOVE_ANIM_MS = 700;
     const EVENT_REFRESH_THROTTLE_MS = 600;
     const WEAK_NETWORK_THRESHOLD_MS = 1800;
@@ -3143,7 +3144,7 @@
       if (!liveTrailEnabled) return;
       trailLiveTimer = window.setInterval(() => {
         refreshSelectedTrail();
-      }, 1000);
+      }, 5000);
     }
 
     async function showWorkerTrail(worker, options = {}) {
@@ -3862,10 +3863,11 @@
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
-          return visible ? (siteHasWorkers ? 1500 : 4000) : 8000;
+          // Socket already pushes events — HTTP lite poll is only a safety net.
+          return visible ? (siteHasWorkers ? 12000 : 20000) : 45000;
         }
         if (weakNetwork) {
-          return visible ? 2500 : 8000;
+          return visible ? 8000 : 25000;
         }
         if (!visible) return LIVE_POLL_MS_HIDDEN;
         return siteHasWorkers ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_VISIBLE_IDLE;
