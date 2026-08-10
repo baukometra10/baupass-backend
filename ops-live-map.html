@@ -927,16 +927,39 @@
       line-height: 1.4;
     }
     body.side-collapsed .side {
+      display: none !important;
       width: 0 !important;
       max-width: 0 !important;
       min-width: 0 !important;
+      flex: 0 0 0 !important;
       opacity: 0;
       pointer-events: none;
       border: none;
       overflow: hidden;
+      padding: 0 !important;
+      margin: 0 !important;
     }
-    body.side-collapsed .legend {
-      inset-inline-end: 12px;
+    /* Map focus: hide the whole legend panel; reopen via chip. */
+    body.side-collapsed #mapLegend {
+      display: none !important;
+    }
+    body.side-collapsed.legend-open #mapLegend {
+      display: block !important;
+      bottom: 14px !important;
+      inset-inline-start: 12px !important;
+      inset-inline-end: auto !important;
+    }
+    body.side-collapsed .map-empty-state {
+      display: none !important;
+    }
+    body.side-collapsed .map-stage::after {
+      opacity: 0.45;
+    }
+    #legendFocusToggle {
+      display: none;
+    }
+    body.side-collapsed #legendFocusToggle {
+      display: inline-flex;
     }
     .map-float-tools {
       position: absolute;
@@ -1073,10 +1096,19 @@
     }
     @media (max-width: 800px) {
       body.side-collapsed .side {
+        display: none !important;
         max-height: 0 !important;
         height: 0 !important;
+        width: 0 !important;
+        transform: none !important;
+        animation: none !important;
       }
-      .command-hud-metric strong { font-size: 1.25rem; }
+      body:not(.side-collapsed) .legend {
+        bottom: calc(42vh + 22px);
+      }
+      body.side-collapsed.legend-open #mapLegend {
+        bottom: 14px !important;
+      }
     }
     .nearest-box { display: flex; flex-direction: column; gap: 0.3rem; }
     .nearest-box .btn-link, #nearestBtn {
@@ -1548,7 +1580,15 @@
         to { transform: translateY(0); opacity: 1; }
       }
       .legend { bottom: calc(42vh + 22px); animation: none; }
+      body.side-collapsed .legend { bottom: 14px !important; animation: none; }
+      body.side-collapsed .side {
+        display: none !important;
+        max-height: 0 !important;
+        height: 0 !important;
+        animation: none !important;
+      }
       #map { padding-bottom: 0; }
+      .command-hud-metric strong { font-size: 1.25rem; }
     }
   </style>
 </head>
@@ -1581,6 +1621,7 @@
       <div id="map"></div>
       <div class="map-float-tools">
         <button type="button" id="toggleSideBtn" data-omapi18n="toggleSidebar">Liste ausblenden</button>
+        <button type="button" id="legendFocusToggle" data-omapi18n="showLegend">Legende</button>
         <button type="button" id="heatToggleBtn" data-omapi18n="heatDensity">Dichte</button>
         <button type="button" id="alertsToggleBtn" class="is-active" data-omapi18n="liveAlerts">Alerts</button>
       </div>
@@ -1656,7 +1697,7 @@
         <ol id="trailList"></ol>
       </div>
     </aside>
-    <div class="legend">
+    <div class="legend" id="mapLegend">
       <div class="legend-row"><span class="legend-pin ops-map-pin-worker-working"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendWorking">Arbeitet</span></div>
       <div class="legend-row"><span class="legend-pin ops-map-pin-worker-off_site"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendOffSite">Außerhalb</span></div>
       <div class="legend-row"><span class="legend-pin ops-map-pin-worker-stale"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z" fill="currentColor"/></svg></span><span class="legend-label" data-omapi18n="legendStale">Letzter Standort</span></div>
@@ -1675,7 +1716,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map4"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map5"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
@@ -2558,6 +2599,14 @@
         btn.textContent = window.opsMapT(collapsed ? "showSidebar" : "toggleSidebar");
         btn.classList.toggle("is-active", collapsed);
       }
+      const legendBtn = document.getElementById("legendFocusToggle");
+      if (legendBtn) {
+        const legendOpen = document.body.classList.contains("legend-open");
+        legendBtn.textContent = window.opsMapT(legendOpen ? "hideLegend" : "showLegend");
+        legendBtn.classList.toggle("is-active", legendOpen);
+        legendBtn.hidden = !collapsed;
+      }
+      if (!collapsed) document.body.classList.remove("legend-open");
       window.setTimeout(() => {
         try { map?.invalidateSize?.(true); } catch (_) { /* ignore */ }
       }, 280);
@@ -3270,10 +3319,19 @@
       setAlertsEnabled(!alertsEnabled);
     });
     document.getElementById("toggleSideBtn")?.addEventListener("click", () => {
-      document.body.classList.toggle("side-collapsed");
+      const collapsing = !document.body.classList.contains("side-collapsed");
+      document.body.classList.toggle("side-collapsed", collapsing);
+      if (collapsing) document.body.classList.remove("legend-open");
+      localStorage.setItem("ops-map-side-collapsed", collapsing ? "1" : "0");
+      localStorage.setItem("ops-map-legend-open", "0");
+      syncSidebarCollapsedUi();
+    });
+    document.getElementById("legendFocusToggle")?.addEventListener("click", () => {
+      if (!document.body.classList.contains("side-collapsed")) return;
+      document.body.classList.toggle("legend-open");
       localStorage.setItem(
-        "ops-map-side-collapsed",
-        document.body.classList.contains("side-collapsed") ? "1" : "0"
+        "ops-map-legend-open",
+        document.body.classList.contains("legend-open") ? "1" : "0"
       );
       syncSidebarCollapsedUi();
     });
