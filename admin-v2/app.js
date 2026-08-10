@@ -1,5 +1,5 @@
 import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
-import { mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
+import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
 const WP = window.WorkPassStorage;
@@ -4758,15 +4758,16 @@ async function loadTools() {
   panel.innerHTML = `<p class="muted">${t("common.loading")}</p>`;
   try {
     const [geofences, rules, integrations, setupLite, lockSt] = await Promise.all([
-      api(`/api/geofences/admin${q}`),
-      api(`/api/automation/rules${q}`),
-      api(`/api/integrations${q}`),
-      isSuperadminUser() ? api("/api/platform/setup-status").catch(() => null) : Promise.resolve(null),
-      api(`/api/contracts/lock-status${q}`).catch(() => null),
+      apiSoft(`/api/geofences/admin${q}`, { geofences: [] }, 3500),
+      apiSoft(`/api/automation/rules${q}`, { rules: [] }, 3500),
+      apiSoft(`/api/integrations${q}`, { integrations: [] }, 3500),
+      isSuperadminUser() ? apiSoft("/api/platform/setup-status", null, 3000) : Promise.resolve(null),
+      apiSoft(`/api/contracts/lock-status${q}`, null, 3000),
+      ensureLeafletLoaded(4500),
     ]);
-    const gfRows = geofences.geofences || [];
-    const ruleRows = rules.rules || [];
-    const intRows = integrations.integrations || [];
+    const gfRows = geofences?.geofences || [];
+    const ruleRows = rules?.rules || [];
+    const intRows = integrations?.integrations || [];
     const channelPills = [];
     if (setupLite?.channels) {
       for (const ch of setupLite.channels) {
@@ -4903,7 +4904,9 @@ async function loadTools() {
     const gfForm = $("geofenceForm");
     const latIn = gfForm.querySelector('[name="latitude"]');
     const lngIn = gfForm.querySelector('[name="longitude"]');
-    mountGeofenceMapWhenReady($("geofenceMap"), latIn, lngIn, gfRows);
+    mountGeofenceMapWhenReady($("geofenceMap"), latIn, lngIn, gfRows).then(() => {
+      refreshGeofenceMap();
+    });
     const geofenceSearchInput = $("geofenceSearchInput");
     const geofenceSearchStatus = $("geofenceSearchStatus");
     const geofenceSearchResults = $("geofenceSearchResults");
@@ -6954,18 +6957,18 @@ async function loadOverview() {
     <div class="card card-skeleton"><span class="muted">${t("overview.onSite")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
-  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, null, 10000);
-  const billingP = withTimeout(loadBillingSummaryPanel(cid), 8000, null);
+  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, null, 5000);
+  const billingP = withTimeout(loadBillingSummaryPanel(cid), 4000, null);
   const secondaryP = Promise.all([
-    withTimeout(fetchInboxCountsCached(q), 6000, { counts: {} }),
-    apiSoft(`/api/dashboard/role${q}`, null, 6000),
+    withTimeout(fetchInboxCountsCached(q), 3500, { counts: {} }),
+    apiSoft(`/api/dashboard/role${q}`, null, 3500),
     cid
-      ? apiSoft(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`, null, 6000)
+      ? apiSoft(`/api/ops-os/summary?company_id=${encodeURIComponent(cid)}`, null, 3500)
       : Promise.resolve(null),
-    apiSoft(`/api/operations/snapshot${q}`, null, 6000),
-    apiSoft(`/api/integrations/cameras${q}`, { cameras: [] }, 6000),
+    apiSoft(`/api/operations/snapshot${q}`, null, 3500),
+    apiSoft(`/api/integrations/cameras${q}`, { cameras: [] }, 3500),
     cid
-      ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 8000)
+      ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 4000)
       : Promise.resolve(null),
   ]);
   const overview = (await overviewP) || {};

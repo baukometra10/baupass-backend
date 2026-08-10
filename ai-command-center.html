@@ -880,8 +880,6 @@
     </div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
-  <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260723insightNav1"></script>
@@ -889,6 +887,27 @@
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/e2e-crypto.js?v=20260705e2e4"></script>
   <script src="/e2e-admin-bridge.js?v=20260705e2e4"></script>
+  <script>
+    (function deferAiRealtime() {
+      const add = (src, attrs) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        Object.entries(attrs || {}).forEach(([k, v]) => s.setAttribute(k, v));
+        document.head.appendChild(s);
+        return s;
+      };
+      const run = () => {
+        const io = add("https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js", {
+          crossorigin: "anonymous",
+        });
+        io.onload = () => add("/ops-realtime.js?v=20260726ws1");
+        io.onerror = () => add("/ops-realtime.js?v=20260726ws1");
+      };
+      if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 2000 });
+      else setTimeout(run, 40);
+    })();
+  </script>
   <script>
     (function initEmbed() {
       const params = new URLSearchParams(location.search);

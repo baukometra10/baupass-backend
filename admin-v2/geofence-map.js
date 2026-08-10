@@ -1,4 +1,37 @@
 /** Leaflet geofence picker — click map to set lat/lng, show existing zones. */
+
+function waitMs(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Load Leaflet once when Tools/Geofencing opens (not on every Betrieb boot). */
+export async function ensureLeafletLoaded(timeoutMs = 5000) {
+  if (window.L?.map) return true;
+  if (!document.querySelector('link[data-leaflet-css]')) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    link.crossOrigin = "";
+    link.dataset.leafletCss = "1";
+    document.head.appendChild(link);
+  }
+  let script = document.querySelector("script[data-leaflet-js]");
+  if (!script) {
+    script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
+    script.async = true;
+    script.crossOrigin = "";
+    script.dataset.leafletJs = "1";
+    document.head.appendChild(script);
+  }
+  const deadline = Date.now() + Math.max(1000, timeoutMs);
+  while (Date.now() < deadline) {
+    if (window.L?.map) return true;
+    await waitMs(40);
+  }
+  return Boolean(window.L?.map);
+}
+
 export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   if (!window.L || !containerEl) return null;
 
@@ -24,8 +57,9 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   containerEl.style.overflow = "hidden";
 
   const map = window.L.map(containerEl, {
-    preferCanvas: false,
+    preferCanvas: true,
     zoomControl: true,
+    scrollWheelZoom: true,
   }).setView([lat, lng], 14);
 
   window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -105,23 +139,20 @@ export function mountGeofenceMap(containerEl, latInput, lngInput, zones = []) {
   return map;
 }
 
-/** Wait until the map container has real dimensions (tab visible, layout done). */
-export function mountGeofenceMapWhenReady(containerEl, latInput, lngInput, zones = []) {
+/** Wait until Leaflet is ready and the map container has real dimensions. */
+export async function mountGeofenceMapWhenReady(containerEl, latInput, lngInput, zones = []) {
   if (!containerEl) return null;
-  let attempts = 0;
-  const tryMount = () => {
+  await ensureLeafletLoaded(5000);
+  if (!window.L?.map) return null;
+  for (let attempts = 0; attempts < 40; attempts += 1) {
     const rect = containerEl.getBoundingClientRect();
     const visible = rect.width > 48 && rect.height > 48 && containerEl.offsetParent !== null;
     if (visible) {
       return mountGeofenceMap(containerEl, latInput, lngInput, zones);
     }
-    if (++attempts < 120) {
-      requestAnimationFrame(tryMount);
-    }
-    return null;
-  };
-  tryMount();
-  return containerEl._baupassLeafletMap || null;
+    await waitMs(40);
+  }
+  return mountGeofenceMap(containerEl, latInput, lngInput, zones);
 }
 
 export function refreshGeofenceMap() {
