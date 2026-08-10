@@ -22943,21 +22943,26 @@ function _gdprTypeLabel(type) {
 
 function _gdprStatusLabel(status) {
   const s = String(status || "").toLowerCase();
-  if (s === "pending") return "Offen";
-  if (s === "completed") return "Erledigt";
-  if (s === "rejected") return "Abgelehnt";
+  if (s === "pending" || s === "offen" || s === "open") return "Offen";
+  if (s === "completed" || s === "erledigt" || s === "done") return "Erledigt";
+  if (s === "rejected" || s === "abgelehnt") return "Abgelehnt";
   return status || "-";
 }
 
-function renderGdprRequestsPanel() {
-  const targets = [elements.gdprRequestsPanel, elements.dashboardGdprRequestsPanel].filter(Boolean);
-  if (!targets.length) return;
-  const rows = Array.isArray(state.gdprRequests) ? state.gdprRequests : [];
-  const markup = rows.length
-    ? rows.map((req) => {
-        const pending = String(req.status || "") === "pending";
-        const id = escapeHtml(req.id || "");
-        return `
+function _gdprIsPending(req) {
+  const s = String(req?.status || "").toLowerCase();
+  return s === "pending" || s === "offen" || s === "open";
+}
+
+function _gdprRequestCardsHtml(rows) {
+  if (!rows.length) {
+    return `<p class="helper-text muted">Keine offenen DSGVO-Anfragen.</p>`;
+  }
+  return rows
+    .map((req) => {
+      const pending = _gdprIsPending(req);
+      const id = escapeHtml(req.id || "");
+      return `
           <article class="card-item" data-gdpr-id="${id}">
             <div class="panel-heading" style="margin:0;align-items:flex-start;">
               <div>
@@ -22971,21 +22976,34 @@ function renderGdprRequestsPanel() {
               </div>
               <span class="status-pill ${pending ? "status-check-in" : "status-critical"}">${escapeHtml(_gdprStatusLabel(req.status))}</span>
             </div>
-            ${pending ? `
+            ${
+              pending
+                ? `
               <div class="button-row" style="margin-top:8px;flex-wrap:wrap;gap:6px;">
                 <button type="button" class="primary-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="completed">Erledigt</button>
                 <button type="button" class="ghost-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="rejected">Ablehnen</button>
               </div>
-            ` : `
+            `
+                : `
               <p class="helper-text" style="margin-top:6px;">
                 ${escapeHtml(req.processedBy || "")}
                 ${req.completedAt ? ` · ${escapeHtml(formatDateTime(req.completedAt) || req.completedAt)}` : ""}
               </p>
-            `}
+            `
+            }
           </article>
         `;
-      }).join("")
-    : `<p class="helper-text muted">Keine DSGVO-Anfragen.</p>`;
+    })
+    .join("");
+}
+
+function renderGdprRequestsPanel() {
+  const targets = [elements.gdprRequestsPanel, elements.dashboardGdprRequestsPanel].filter(Boolean);
+  if (!targets.length) return;
+  const all = Array.isArray(state.gdprRequests) ? state.gdprRequests : [];
+  // Dashboard / Arbeitsliste: nur offene Aufträge — erledigte verschwinden nach Bearbeitung.
+  const openRows = all.filter((req) => _gdprIsPending(req));
+  const markup = _gdprRequestCardsHtml(openRows);
   targets.forEach((el) => {
     el.innerHTML = markup;
   });
