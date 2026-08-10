@@ -18835,7 +18835,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260810fast1");
+    params.push("v=20260810opsfix2");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }

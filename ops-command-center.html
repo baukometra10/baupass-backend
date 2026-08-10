@@ -1473,13 +1473,18 @@
 
     let cachedMe = null;
 
-    async function loadMe() {
+    async function loadMeCached() {
+      if (cachedMe) return cachedMe;
       try {
-        cachedMe = await api("/api/me");
+        cachedMe = await apiSoft("/api/me", null, 2000);
       } catch {
         cachedMe = null;
       }
       return cachedMe;
+    }
+
+    async function loadMe() {
+      return loadMeCached();
     }
 
     function currentRole() {
@@ -1822,20 +1827,11 @@
 
     function apiSoft(path, fallback, timeoutMs = 2500, options = {}) {
       return Promise.race([
-        api(path, options).catch(() => fallback),
+        Promise.resolve()
+          .then(() => api(path, options))
+          .catch(() => fallback),
         new Promise((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
       ]);
-    }
-
-    let cachedMe = null;
-    async function loadMeCached() {
-      if (cachedMe) return cachedMe;
-      try {
-        cachedMe = await apiSoft("/api/me", null, 2000);
-      } catch {
-        cachedMe = null;
-      }
-      return cachedMe;
     }
 
     async function loadPayrollPending() {
@@ -2301,6 +2297,7 @@
     }
 
     let loadScheduled = false;
+    let opsAuthedLoadDone = false;
 
     window.addEventListener("message", (event) => {
       if (event.origin !== location.origin || !event?.data) return;
@@ -2312,21 +2309,47 @@
           const map = document.getElementById("mapLink");
           if (map) map.href = `/ops-live-map.html?company_id=${encodeURIComponent(companyId)}`;
         }
-        // Parent re-broadcasts the same token frequently — only reload on company change
-        // or the very first sync after boot (handled by the boot path below).
-        if (!companyChanged && lastPayload) return;
+        // Parent re-broadcasts the same token often. Reload only when company changes
+        // or we never completed an authenticated load yet.
+        if (!companyChanged && opsAuthedLoadDone) return;
         clearTimeout(window.__opsTokenReloadT);
         window.__opsTokenReloadT = setTimeout(() => {
           load({ mode: "lohn" })
-            .then(() => load({ mode: "full" }))
+            .then(() => {
+              opsAuthedLoadDone = true;
+              return load({ mode: "full" });
+            })
             .catch(() => {});
-        }, 250);
+        }, 120);
       }
     });
 
     initOpsLangSync();
     (async () => {
       loadScheduled = true;
+      // Immediate shell — never leave the page stuck on raw "Laden…".
+      try {
+        render(
+          {
+            date: "—",
+            scope: companyId ? "company" : "global",
+            totals: {},
+            companies: [],
+          },
+          null,
+          { status: null, history: [] },
+          [],
+          null,
+          [],
+          [],
+          null,
+          [],
+        );
+        const st = document.getElementById("status");
+        if (st) st.textContent = tr("loading");
+      } catch {
+        /* keep gridLoading until load() */
+      }
       try {
         await waitForEmbedSession(800);
         if (!window.BaupassAuth?.getSessionToken?.() && window.BaupassAuth?.bootstrapSession) {
@@ -2341,13 +2364,18 @@
       window.BaupassAuth?.resolveTenantBranding?.({ companyId })?.catch?.(() => {});
       try {
         await load({ mode: "lohn" });
+        if (window.BaupassAuth?.getSessionToken?.()) opsAuthedLoadDone = true;
       } catch (e) {
         const grid = document.getElementById("grid");
         if (grid && !grid.querySelector(".lohn-hub, .ops-card, .err")) {
           grid.innerHTML = `<p class="err">${tr("authError")} ${e?.message || ""}</p>`;
         }
       }
-      load({ mode: "full" }).catch(() => {});
+      load({ mode: "full" })
+        .then(() => {
+          if (window.BaupassAuth?.getSessionToken?.()) opsAuthedLoadDone = true;
+        })
+        .catch(() => {});
       if (lohnPollTimer) clearInterval(lohnPollTimer);
       lohnPollTimer = setInterval(() => {
         if (!lohnActionBusy) refreshLohnOnly().catch(() => {});

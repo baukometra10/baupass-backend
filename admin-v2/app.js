@@ -2842,10 +2842,10 @@ async function loadPlatform() {
   const cid = activeCompanyId();
   try {
     const [caps, ready, health, setup] = await Promise.all([
-      api("/api/platform/capabilities"),
-      fetch("/api/health/ready").then((r) => r.json()),
-      fetch("/api/health").then((r) => r.json()).catch(() => ({})),
-      api("/api/platform/setup-status").catch(() => null),
+      apiSoft("/api/platform/capabilities", {}, 5000),
+      withTimeout(fetch("/api/health/ready").then((r) => r.json()).catch(() => ({ ready: false })), 4000, { ready: false }),
+      withTimeout(fetch("/api/health").then((r) => r.json()).catch(() => ({})), 4000, {}),
+      apiSoft("/api/platform/setup-status", null, 5000),
     ]);
     const dbEarly = setup?.database || {};
     const bgEarly = setup?.backgroundJobs || health.checks?.backgroundJobs || {};
