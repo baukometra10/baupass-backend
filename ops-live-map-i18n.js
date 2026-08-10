@@ -984,6 +984,18 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
     sel.value = lang;
     sel.setAttribute("aria-label", window.opsMapT("uiLang"));
   }
+  const langBtn = document.getElementById("opsMapLangBtn");
+  const langCurrent = document.getElementById("opsMapLangCurrent");
+  if (langBtn) {
+    langBtn.setAttribute("aria-label", window.opsMapT("uiLang"));
+  }
+  if (langCurrent) {
+    langCurrent.textContent = String(lang || "de").toUpperCase();
+  }
+  document.querySelectorAll("#opsMapLangMenu [data-lang]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.getAttribute("data-lang") === lang);
+    btn.setAttribute("aria-selected", btn.getAttribute("data-lang") === lang ? "true" : "false");
+  });
 
   // Re-translate dynamic chips / sidebar / empty state after language change.
   if (typeof window.__opsMapApplyDynamicI18n === "function") {
@@ -994,16 +1006,55 @@ window.applyOpsMapI18n = function applyOpsMapI18n() {
 window.initOpsMapLangSync = function initOpsMapLangSync() {
   window.applyOpsMapI18n();
   const sel = document.getElementById("opsMapLangSelect");
+  const picker = document.getElementById("opsMapLangPicker");
+  const trigger = document.getElementById("opsMapLangBtn");
+  const menu = document.getElementById("opsMapLangMenu");
+
+  const setLang = (code) => {
+    const next = String(code || "de").toLowerCase();
+    if (sel) sel.value = next;
+    localStorage.setItem("baupass-ui-lang", next);
+    localStorage.setItem("baupass-admin-v2-lang", next);
+    window.applyOpsMapI18n();
+    window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: next } }));
+    if (typeof window.__opsMapReload === "function") window.__opsMapReload();
+  };
+
+  const closePicker = () => {
+    if (!picker) return;
+    picker.classList.remove("is-open");
+    if (trigger) trigger.setAttribute("aria-expanded", "false");
+  };
+
   if (sel && !sel.dataset.bound) {
     sel.dataset.bound = "1";
-    sel.addEventListener("change", () => {
-      localStorage.setItem("baupass-ui-lang", sel.value);
-      localStorage.setItem("baupass-admin-v2-lang", sel.value);
-      window.applyOpsMapI18n();
-      window.dispatchEvent(new CustomEvent("baupass-admin-lang", { detail: { lang: sel.value } }));
-      if (typeof window.__opsMapReload === "function") window.__opsMapReload();
+    sel.addEventListener("change", () => setLang(sel.value));
+  }
+
+  if (picker && trigger && menu && !picker.dataset.bound) {
+    picker.dataset.bound = "1";
+    trigger.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const open = !picker.classList.contains("is-open");
+      picker.classList.toggle("is-open", open);
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+    menu.querySelectorAll("[data-lang]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setLang(btn.getAttribute("data-lang"));
+        closePicker();
+      });
+    });
+    document.addEventListener("click", (ev) => {
+      if (!picker.contains(ev.target)) closePicker();
+    });
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") closePicker();
     });
   }
+
   if (!window.__opsMapLangBound) {
     window.__opsMapLangBound = true;
     window.addEventListener("storage", (e) => {

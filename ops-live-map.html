@@ -202,28 +202,108 @@
     #companySelect {
       display: none;
     }
-    #opsMapLangSelect {
+    .ops-lang-picker {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .ops-lang-trigger {
+      min-width: 3.4rem;
+      padding-inline: 0.55rem 0.45rem;
+      gap: 0.35rem;
+    }
+    .ops-lang-trigger .ops-lang-caret {
+      width: 0.55rem;
+      height: 0.55rem;
+      opacity: 0.85;
+      transition: transform 0.2s ease;
+    }
+    .ops-lang-picker.is-open .ops-lang-trigger {
+      border-color: rgba(45, 212, 191, 0.65);
+      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.22);
+    }
+    .ops-lang-picker.is-open .ops-lang-caret {
+      transform: rotate(180deg);
+    }
+    .ops-lang-menu {
+      position: absolute;
+      top: calc(100% + 0.35rem);
+      inset-inline-end: 0;
+      z-index: 1200;
+      min-width: 9.5rem;
+      margin: 0;
+      padding: 0.35rem;
+      list-style: none;
+      border-radius: 12px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: linear-gradient(165deg, rgba(8, 15, 28, 0.97), rgba(15, 23, 42, 0.94));
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 211, 238, 0.08);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      display: none;
+    }
+    .ops-lang-picker.is-open .ops-lang-menu {
+      display: block;
+      animation: opsLangPop 0.18s ease-out;
+    }
+    @keyframes opsLangPop {
+      from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .ops-lang-menu button {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin: 0;
+      padding: 0.42rem 0.55rem;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #e2e8f0;
+      font-family: inherit;
       font-size: 0.78rem;
       font-weight: 650;
-      padding: 0.32rem 1.55rem 0.32rem 0.55rem;
-      border-radius: 8px;
-      border: 1px solid rgba(125, 211, 252, 0.32);
-      background:
-        linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82));
-      color: #e2e8f0;
+      text-align: start;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
-      background-image:
-        linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82)),
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237dd3fc' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-      background-repeat: no-repeat, no-repeat;
-      background-position: 0 0, right 0.55rem center;
-      background-size: auto, 10px;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+      transition: background 0.15s ease, color 0.15s ease;
     }
-    #opsMapLangSelect:hover {
-      border-color: rgba(45, 212, 191, 0.55);
-      transform: translateY(-1px);
+    .ops-lang-menu button:hover,
+    .ops-lang-menu button:focus-visible {
+      background: rgba(34, 211, 238, 0.16);
+      color: #f8fafc;
+      outline: none;
+    }
+    .ops-lang-menu button.is-active {
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.75), rgba(15, 118, 110, 0.65));
+      color: #ecfeff;
+      box-shadow: inset 0 0 0 1px rgba(45, 212, 191, 0.35);
+    }
+    .ops-lang-menu .ops-lang-code {
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      color: #7dd3fc;
+    }
+    .ops-lang-menu button.is-active .ops-lang-code {
+      color: #a5f3fc;
+    }
+    .ops-lang-menu .ops-lang-name {
+      font-size: 0.68rem;
+      font-weight: 550;
+      color: #94a3b8;
+    }
+    .ops-lang-menu button.is-active .ops-lang-name,
+    .ops-lang-menu button:hover .ops-lang-name {
+      color: #cbd5e1;
+    }
+    #opsMapLangSelect {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
     }
     .ops-header-btn {
       display: inline-flex;
@@ -1461,7 +1541,6 @@
       background: rgba(14, 116, 144, 0.12);
       color: #0f3f64;
     }
-    html:not(.dark-mode) #opsMapLangSelect,
     html:not(.dark-mode) .ops-header-btn {
       border-color: #b7c6d7;
       background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
@@ -1469,13 +1548,37 @@
       box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
       background-image: none;
     }
-    html:not(.dark-mode) #opsMapLangSelect {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2325567a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 0.55rem center;
-      background-size: 10px;
-      background-color: #ffffff;
-      padding-inline-end: 1.55rem;
+    html:not(.dark-mode) .ops-lang-menu {
+      border-color: rgba(125, 148, 173, 0.45);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.96));
+      box-shadow: 0 16px 36px rgba(15, 23, 42, 0.16);
+    }
+    html:not(.dark-mode) .ops-lang-menu button {
+      color: #1e293b;
+    }
+    html:not(.dark-mode) .ops-lang-menu button:hover,
+    html:not(.dark-mode) .ops-lang-menu button:focus-visible {
+      background: rgba(14, 116, 144, 0.12);
+      color: #0f3f64;
+    }
+    html:not(.dark-mode) .ops-lang-menu button.is-active {
+      background: linear-gradient(135deg, #255079 0%, #0f766e 100%);
+      color: #ffffff;
+    }
+    html:not(.dark-mode) .ops-lang-menu .ops-lang-code {
+      color: #0e7490;
+    }
+    html:not(.dark-mode) .ops-lang-menu button.is-active .ops-lang-code {
+      color: #ecfeff;
+    }
+    html:not(.dark-mode) .ops-lang-menu .ops-lang-name {
+      color: #64748b;
+    }
+    html:not(.dark-mode) .ops-lang-menu button.is-active .ops-lang-name {
+      color: #e2e8f0;
+    }
+    html:not(.dark-mode) .ops-lang-menu button:hover .ops-lang-name {
+      color: #475569;
     }
     html:not(.dark-mode) .ops-header-btn:hover {
       border-color: #7aa0bf;
@@ -1723,11 +1826,27 @@
       <a href="/ops-command-center.html" data-omapi18n="navCommand">Command Center</a>
       <a href="/ai-command-center.html" data-omapi18n="navAi">KI</a>
       <a href="/admin-v2/index.html" data-omapi18n="navAdmin">Admin</a>
-      <select id="opsMapLangSelect" data-omapi18n="uiLang" aria-label="Sprache">
-        <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
-        <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
-        <option value="it">IT</option><option value="pl">PL</option>
-      </select>
+      <div class="ops-lang-picker" id="opsMapLangPicker">
+        <button type="button" class="ops-header-btn ops-lang-trigger" id="opsMapLangBtn" aria-haspopup="listbox" aria-expanded="false" data-omapi18n="uiLang" aria-label="Sprache">
+          <span id="opsMapLangCurrent">DE</span>
+          <svg class="ops-lang-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M1 1l5 5 5-5"/></svg>
+        </button>
+        <ul class="ops-lang-menu" id="opsMapLangMenu" role="listbox" aria-label="Sprache">
+          <li role="presentation"><button type="button" role="option" data-lang="de"><span class="ops-lang-code">DE</span><span class="ops-lang-name">Deutsch</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="en"><span class="ops-lang-code">EN</span><span class="ops-lang-name">English</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="ar"><span class="ops-lang-code">AR</span><span class="ops-lang-name">العربية</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="tr"><span class="ops-lang-code">TR</span><span class="ops-lang-name">Türkçe</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="fr"><span class="ops-lang-code">FR</span><span class="ops-lang-name">Français</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="es"><span class="ops-lang-code">ES</span><span class="ops-lang-name">Español</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="it"><span class="ops-lang-code">IT</span><span class="ops-lang-name">Italiano</span></button></li>
+          <li role="presentation"><button type="button" role="option" data-lang="pl"><span class="ops-lang-code">PL</span><span class="ops-lang-name">Polski</span></button></li>
+        </ul>
+        <select id="opsMapLangSelect" tabindex="-1" aria-hidden="true">
+          <option value="de">DE</option><option value="en">EN</option><option value="ar">AR</option>
+          <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
+          <option value="it">IT</option><option value="pl">PL</option>
+        </select>
+      </div>
       <button type="button" id="themeToggleBtn" class="ops-header-btn" title="Dunkelmodus / Hellmodus" aria-label="Theme">🌙</button>
       <button type="button" id="commandModeBtn" class="ops-header-btn" data-omapi18n="commandMode">Kommando</button>
       <button type="button" id="refreshBtn" class="ops-header-btn" data-omapi18n="refresh">Aktualisieren</button>
@@ -1833,7 +1952,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map5"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map6"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
