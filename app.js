@@ -20911,7 +20911,7 @@ async function loadAllData() {
   }
 
   try {
-    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`);
+    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?status=pending&limit=80`);
     state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
   } catch (_) {
     state.gdprRequests = [];
@@ -23023,7 +23023,7 @@ async function resolveGdprRequest(requestId, status) {
       body: { status, notes: note },
     });
     showToast(status === "completed" ? "Anfrage erledigt" : "Anfrage abgelehnt", "success");
-    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`);
+    const gdpr = await apiRequest(`${API_BASE}/api/gdpr-requests?status=pending&limit=80`);
     state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
     renderGdprRequestsPanel();
   } catch (error) {
@@ -38901,7 +38901,7 @@ document.addEventListener("click", (event) => {
     return;
   }
   if (event.target.closest?.("#gdprRequestsRefreshBtn") || event.target.closest?.("#dashGdprRefreshBtn")) {
-    apiRequest(`${API_BASE}/api/gdpr-requests?limit=80`)
+    apiRequest(`${API_BASE}/api/gdpr-requests?status=pending&limit=80`)
       .then((gdpr) => {
         state.gdprRequests = Array.isArray(gdpr?.requests) ? gdpr.requests : [];
         renderGdprRequestsPanel();

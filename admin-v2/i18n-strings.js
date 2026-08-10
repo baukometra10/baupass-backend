@@ -1,4 +1,4 @@
-﻿/** Admin v2 UI strings — keep de/en/ar key sets identical. */
+/** Admin v2 UI strings — keep de/en/ar key sets identical. */
 export const STRINGS = {
   de: {
     "app.title": "SUPPIX Betrieb",
@@ -1607,6 +1607,7 @@ export const STRINGS = {
     "inbox.total": "الإجمالي",
     "inbox.empty": "تم — لا مهام مفتوحة. رسائل الموظفين في الدردشة.",
     "inbox.emptyHint": "مهام الأمن أو المستندات أو الإجازات الجديدة تظهر تلقائياً.",
+    "inbox.emptyAttendance": "لا توجد رسائل حضور مفتوحة. راجع تبويب الحضور — العناصر المؤكدة سابقاً لا تظهر هنا مرة أخرى.",
     "inbox.badgeTooltip": "{open} مفتوح · {critical} حرج",
     "lohn.badgeTooltip": "{n} رسائل WorkPass Lohn غير مقروءة",
     "lohn.opsLink": "WorkPass Lohn",
