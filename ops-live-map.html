@@ -204,33 +204,90 @@
     }
     #opsMapLangSelect {
       font-size: 0.78rem;
-      padding: 0.2rem 0.35rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--text);
+      font-weight: 650;
+      padding: 0.32rem 1.55rem 0.32rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid rgba(125, 211, 252, 0.32);
+      background:
+        linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82));
+      color: #e2e8f0;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+      background-image:
+        linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82)),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%237dd3fc' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat, no-repeat;
+      background-position: 0 0, right 0.55rem center;
+      background-size: auto, 10px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    #opsMapLangSelect:hover {
+      border-color: rgba(45, 212, 191, 0.55);
+      transform: translateY(-1px);
+    }
+    .ops-header-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
+      margin: 0;
+      padding: 0.34rem 0.72rem;
+      border-radius: 8px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(17, 36, 58, 0.88));
+      color: #e2e8f0;
+      font-family: inherit;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      line-height: 1.2;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, filter 0.2s ease, background 0.2s ease;
+    }
+    .ops-header-btn:hover {
+      transform: translateY(-1px);
+      border-color: rgba(45, 212, 191, 0.6);
+      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.22);
+      filter: brightness(1.05);
+    }
+    .ops-header-btn:active {
+      transform: translateY(0);
+    }
+    .ops-header-btn.is-active {
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(15, 118, 110, 0.85));
+      border-color: rgba(45, 212, 191, 0.75);
+      color: #ecfeff;
     }
     #themeToggleBtn {
-      margin-inline-start: 8px;
-      padding: 0.3rem 0.55rem;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--panel);
-      color: var(--text);
-      cursor: pointer;
-      font-size: 0.85rem;
-      font-weight: 600;
+      min-width: 2.35rem;
+      padding: 0.34rem 0.55rem;
+      font-size: 0.95rem;
+    }
+    #commandModeBtn {
+      border-color: rgba(167, 139, 250, 0.4);
+      background: linear-gradient(135deg, rgba(49, 30, 84, 0.95), rgba(30, 41, 74, 0.9));
+    }
+    #commandModeBtn:hover {
+      border-color: rgba(196, 181, 253, 0.7);
+      box-shadow: 0 8px 18px rgba(124, 58, 237, 0.28);
+    }
+    #commandModeBtn.is-active {
+      background: linear-gradient(135deg, rgba(109, 40, 217, 0.88), rgba(14, 116, 144, 0.82));
+      border-color: rgba(196, 181, 253, 0.85);
     }
     #refreshBtn {
-      margin-inline-start: 8px;
       position: relative;
       overflow: hidden;
       border-radius: 8px;
-      border: 1px solid rgba(34, 211, 238, 0.45);
+      border: 1px solid rgba(34, 211, 238, 0.5);
       background: linear-gradient(135deg, #123451 0%, #1c4d70 100%);
       color: #f8fafc;
       font-weight: 700;
       letter-spacing: 0.01em;
+      padding: 0.34rem 0.8rem;
+      font-size: 0.78rem;
+      box-shadow: 0 4px 14px rgba(14, 165, 233, 0.22);
       transition: transform 0.2s ease, box-shadow 0.25s ease, filter 0.2s ease;
       cursor: pointer;
     }
@@ -521,16 +578,28 @@
       margin-top: 0.15rem;
     }
     .legend-copy-btn {
-      border: 1px solid rgba(125, 211, 252, 0.4);
-      background: rgba(14, 116, 144, 0.2);
-      color: #bae6fd;
-      border-radius: 6px;
-      font-size: 0.66rem;
-      padding: 0.15rem 0.38rem;
+      border: 1px solid rgba(45, 212, 191, 0.45);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.45), rgba(15, 118, 110, 0.35));
+      color: #ecfeff;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      padding: 0.28rem 0.65rem;
       cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, filter 0.2s ease;
     }
     .legend-copy-btn:hover {
-      background: rgba(14, 116, 144, 0.34);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.65), rgba(15, 118, 110, 0.55));
+      border-color: rgba(94, 234, 212, 0.75);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(45, 212, 191, 0.28);
+      filter: brightness(1.05);
+    }
+    .legend-copy-btn:active {
+      transform: translateY(0);
     }
     .legend-copy-state {
       font-size: 0.65rem;
@@ -975,27 +1044,42 @@
     }
     .map-float-tools button {
       pointer-events: auto;
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      background: linear-gradient(160deg, rgba(15, 23, 42, 0.88), rgba(8, 15, 28, 0.78));
+      border: 1px solid rgba(125, 211, 252, 0.38);
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.94), rgba(8, 15, 28, 0.84));
       color: #e2e8f0;
       border-radius: 999px;
-      padding: 0.38rem 0.7rem;
+      padding: 0.42rem 0.78rem;
+      font-family: inherit;
       font-size: 0.72rem;
       font-weight: 700;
+      letter-spacing: 0.01em;
       cursor: pointer;
       -webkit-backdrop-filter: blur(10px);
       backdrop-filter: blur(10px);
       box-shadow: 0 8px 24px rgba(0,0,0,0.28);
-      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
     }
     .map-float-tools button:hover {
       transform: translateY(-1px);
-      border-color: rgba(45, 212, 191, 0.65);
+      border-color: rgba(45, 212, 191, 0.7);
+      box-shadow: 0 10px 26px rgba(14, 165, 233, 0.25);
     }
     .map-float-tools button.is-active {
-      background: linear-gradient(135deg, rgba(14, 116, 144, 0.85), rgba(15, 118, 110, 0.8));
-      border-color: rgba(45, 212, 191, 0.8);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(15, 118, 110, 0.85));
+      border-color: rgba(45, 212, 191, 0.85);
       color: #ecfeff;
+      box-shadow: 0 8px 22px rgba(45, 212, 191, 0.28);
+    }
+    #toggleSideBtn.is-active {
+      background: linear-gradient(135deg, rgba(30, 64, 115, 0.95), rgba(14, 116, 144, 0.85));
+    }
+    #heatToggleBtn.is-active {
+      background: linear-gradient(135deg, rgba(194, 65, 12, 0.88), rgba(180, 83, 9, 0.82));
+      border-color: rgba(251, 146, 60, 0.8);
+    }
+    #alertsToggleBtn.is-active {
+      background: linear-gradient(135deg, rgba(185, 28, 28, 0.88), rgba(153, 27, 27, 0.82));
+      border-color: rgba(252, 165, 165, 0.7);
     }
     .command-hud {
       position: absolute;
@@ -1259,17 +1343,23 @@
       gap: 0.45rem;
     }
     .worker-list-more {
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      background: rgba(15, 23, 42, 0.45);
-      color: #bae6fd;
+      border: 1px solid rgba(125, 211, 252, 0.4);
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(30, 58, 89, 0.65));
+      color: #e0f2fe;
       border-radius: 999px;
+      font-family: inherit;
       font-size: 0.68rem;
-      padding: 0.15rem 0.45rem;
+      font-weight: 700;
+      padding: 0.22rem 0.55rem;
       cursor: pointer;
       white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
     }
     .worker-list-more:hover {
-      background: rgba(30, 58, 89, 0.65);
+      background: linear-gradient(135deg, rgba(30, 58, 89, 0.85), rgba(14, 116, 144, 0.55));
+      border-color: rgba(45, 212, 191, 0.65);
+      transform: translateY(-1px);
     }
     .wrap { display: flex; flex: 1; min-height: 0; position: relative; }
     .worker-row {
@@ -1372,10 +1462,35 @@
       color: #0f3f64;
     }
     html:not(.dark-mode) #opsMapLangSelect,
-    html:not(.dark-mode) #themeToggleBtn {
+    html:not(.dark-mode) .ops-header-btn {
       border-color: #b7c6d7;
-      background: #ffffff;
+      background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
       color: #1e293b;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+      background-image: none;
+    }
+    html:not(.dark-mode) #opsMapLangSelect {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%2325567a' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 0.55rem center;
+      background-size: 10px;
+      background-color: #ffffff;
+      padding-inline-end: 1.55rem;
+    }
+    html:not(.dark-mode) .ops-header-btn:hover {
+      border-color: #7aa0bf;
+      box-shadow: 0 6px 14px rgba(37, 80, 121, 0.16);
+    }
+    html:not(.dark-mode) .ops-header-btn.is-active,
+    html:not(.dark-mode) #commandModeBtn.is-active {
+      background: linear-gradient(135deg, #255079 0%, #0f766e 100%);
+      border-color: #2f628f;
+      color: #ffffff;
+    }
+    html:not(.dark-mode) #commandModeBtn {
+      border-color: #c4b5fd;
+      background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+      color: #5b21b6;
     }
     html:not(.dark-mode) #refreshBtn {
       border-color: #2f628f;
@@ -1386,6 +1501,16 @@
     html:not(.dark-mode) #refreshBtn:hover {
       box-shadow: 0 6px 14px rgba(37, 80, 121, 0.28);
       filter: brightness(1.04);
+    }
+    html:not(.dark-mode) .legend-copy-btn {
+      border-color: rgba(14, 116, 144, 0.45);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.16), rgba(15, 118, 110, 0.12));
+      color: #0f4f68;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+    }
+    html:not(.dark-mode) .legend-copy-btn:hover {
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.28), rgba(15, 118, 110, 0.2));
+      border-color: rgba(14, 116, 144, 0.65);
     }
     html:not(.dark-mode) .ops-header-brand-copy #status {
       color: #64748b;
@@ -1407,14 +1532,6 @@
       color: #0e7490;
       background: rgba(224, 242, 254, 0.7);
       border-color: rgba(14, 116, 144, 0.25);
-    }
-    html:not(.dark-mode) .legend-copy-btn {
-      border-color: rgba(14, 116, 144, 0.45);
-      background: rgba(14, 116, 144, 0.12);
-      color: #0f4f68;
-    }
-    html:not(.dark-mode) .legend-copy-btn:hover {
-      background: rgba(14, 116, 144, 0.2);
     }
 
     html:not(.dark-mode) .side {
@@ -1611,9 +1728,9 @@
         <option value="tr">TR</option><option value="fr">FR</option><option value="es">ES</option>
         <option value="it">IT</option><option value="pl">PL</option>
       </select>
-      <button type="button" id="themeToggleBtn" title="Dunkelmodus / Hellmodus" aria-label="Theme">🌙</button>
-      <button type="button" id="commandModeBtn" data-omapi18n="commandMode">Kommando</button>
-      <button type="button" id="refreshBtn" data-omapi18n="refresh">Aktualisieren</button>
+      <button type="button" id="themeToggleBtn" class="ops-header-btn" title="Dunkelmodus / Hellmodus" aria-label="Theme">🌙</button>
+      <button type="button" id="commandModeBtn" class="ops-header-btn" data-omapi18n="commandMode">Kommando</button>
+      <button type="button" id="refreshBtn" class="ops-header-btn" data-omapi18n="refresh">Aktualisieren</button>
     </nav>
   </header>
   <div class="wrap">
