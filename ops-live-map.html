@@ -1169,6 +1169,229 @@
       background: linear-gradient(135deg, rgba(185, 28, 28, 0.88), rgba(153, 27, 27, 0.82));
       border-color: rgba(252, 165, 165, 0.7);
     }
+    #nightModeBtn.is-active {
+      background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.95));
+      border-color: rgba(250, 204, 21, 0.55);
+      color: #fef08a;
+      box-shadow: 0 0 18px rgba(250, 204, 21, 0.18);
+    }
+    .map-quick-filters {
+      position: absolute;
+      top: 12px;
+      inset-inline-start: 12px;
+      z-index: 520;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      max-width: min(70vw, 360px);
+      pointer-events: none;
+    }
+    .map-quick-filters button {
+      pointer-events: auto;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82));
+      color: #e2e8f0;
+      border-radius: 999px;
+      padding: 0.4rem 0.72rem;
+      font-family: inherit;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.28);
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+    .map-quick-filters button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(45, 212, 191, 0.65);
+    }
+    .map-quick-filters button.is-active {
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(15, 118, 110, 0.85));
+      border-color: rgba(45, 212, 191, 0.85);
+      color: #ecfeff;
+    }
+    .map-quick-filters button[data-status="attention"].is-active {
+      background: linear-gradient(135deg, rgba(180, 83, 9, 0.9), rgba(146, 64, 14, 0.85));
+      border-color: rgba(251, 191, 36, 0.8);
+      color: #fffbeb;
+    }
+    .map-focus-card {
+      position: absolute;
+      inset-inline-end: 12px;
+      inset-inline-start: auto;
+      bottom: 18px;
+      z-index: 540;
+      width: min(92vw, 320px);
+      padding: 0.85rem 0.9rem 0.75rem;
+      border-radius: 14px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: linear-gradient(165deg, rgba(8, 15, 28, 0.96), rgba(15, 23, 42, 0.92));
+      box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(34, 211, 238, 0.08);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      color: #e2e8f0;
+    }
+    .map-focus-card[hidden] { display: none !important; }
+    .map-focus-close {
+      position: absolute;
+      top: 0.4rem;
+      inset-inline-end: 0.45rem;
+      width: 1.6rem;
+      height: 1.6rem;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.18);
+      color: #e2e8f0;
+      font-size: 1.05rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .map-focus-close:hover { background: rgba(148, 163, 184, 0.32); }
+    .map-focus-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+      padding-inline-end: 1.4rem;
+      margin-bottom: 0.55rem;
+    }
+    .map-focus-dot {
+      width: 0.7rem;
+      height: 0.7rem;
+      margin-top: 0.35rem;
+      border-radius: 50%;
+      background: #38bdf8;
+      box-shadow: 0 0 10px currentColor;
+      flex-shrink: 0;
+    }
+    .map-focus-dot.is-working { color: #2dd4bf; background: #2dd4bf; }
+    .map-focus-dot.is-off_site { color: #fb923c; background: #fb923c; }
+    .map-focus-dot.is-stale { color: #94a3b8; background: #94a3b8; }
+    .map-focus-dot.is-on_break { color: #38bdf8; background: #38bdf8; }
+    .map-focus-dot.is-on_task { color: #a78bfa; background: #a78bfa; }
+    .map-focus-dot.is-zone { color: #38bdf8; background: #38bdf8; }
+    .map-focus-titles { min-width: 0; }
+    .map-focus-titles strong {
+      display: block;
+      font-size: 0.95rem;
+      line-height: 1.25;
+    }
+    .map-focus-titles span {
+      display: block;
+      margin-top: 0.12rem;
+      font-size: 0.72rem;
+      color: #94a3b8;
+    }
+    .map-focus-meta {
+      margin: 0;
+      display: grid;
+      gap: 0.28rem;
+    }
+    .map-focus-meta div {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      font-size: 0.72rem;
+    }
+    .map-focus-meta dt { color: #94a3b8; margin: 0; }
+    .map-focus-meta dd {
+      margin: 0;
+      color: #e2e8f0;
+      font-weight: 650;
+      text-align: end;
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+    }
+    .map-focus-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+    }
+    .map-focus-actions button,
+    .map-focus-actions a {
+      border: 1px solid rgba(125, 211, 252, 0.4);
+      background: rgba(14, 116, 144, 0.28);
+      color: #ecfeff;
+      border-radius: 999px;
+      padding: 0.28rem 0.65rem;
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .map-focus-actions button:hover,
+    .map-focus-actions a:hover {
+      border-color: rgba(45, 212, 191, 0.7);
+      background: rgba(14, 116, 144, 0.45);
+    }
+    /* Control-room night: higher contrast on large screens */
+    html.ops-night {
+      --bg: #020617;
+      --panel: rgba(2, 6, 23, 0.94);
+      --text: #f8fafc;
+      --border: rgba(250, 204, 21, 0.18);
+      --accent: #fde047;
+      --map-empty-veil: rgba(0, 0, 0, 0.42);
+    }
+    html.ops-night body {
+      background:
+        radial-gradient(1000px 520px at 10% -12%, rgba(250, 204, 21, 0.08), transparent 55%),
+        radial-gradient(900px 480px at 90% 0%, rgba(14, 165, 233, 0.1), transparent 50%),
+        #020617;
+    }
+    html.ops-night header {
+      border-bottom-color: rgba(250, 204, 21, 0.22);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.55);
+    }
+    html.ops-night .map-stage::after {
+      opacity: 0.85;
+      background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%);
+    }
+    html.ops-night .ops-map-pin.is-worker-classic,
+    html.ops-night .ops-map-worker-label {
+      filter: drop-shadow(0 0 6px rgba(255,255,255,0.25)) drop-shadow(0 2px 8px rgba(0,0,0,0.8));
+    }
+    html.ops-night .ops-map-worker-label {
+      background: rgba(2, 6, 23, 0.92) !important;
+      border-color: rgba(250, 204, 21, 0.35) !important;
+      color: #f8fafc !important;
+      font-weight: 750;
+    }
+    html.ops-night .command-hud,
+    html.ops-night .map-float-tools button,
+    html.ops-night .map-quick-filters button,
+    html.ops-night .map-focus-card {
+      border-color: rgba(250, 204, 21, 0.28);
+      box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+    }
+    html.ops-night .ops-stat-chip {
+      border-color: rgba(250, 204, 21, 0.28);
+      background: rgba(2, 6, 23, 0.75);
+      color: #f8fafc;
+    }
+    html.ops-night .side {
+      background: linear-gradient(180deg, rgba(2, 6, 23, 0.98), rgba(0,0,0,0.88) 100%);
+      border-color: rgba(250, 204, 21, 0.2);
+    }
+    @media (max-width: 800px) {
+      .map-quick-filters {
+        top: auto;
+        bottom: calc(42vh + 10px);
+        inset-inline-start: 10px;
+      }
+      body.side-collapsed .map-quick-filters {
+        bottom: auto;
+        top: 12px;
+      }
+      .map-focus-card {
+        bottom: calc(42vh + 10px);
+      }
+      body.side-collapsed .map-focus-card {
+        bottom: 18px;
+      }
+    }
     .command-hud {
       position: absolute;
       left: 50%;
@@ -1868,7 +2091,25 @@
         <button type="button" id="legendFocusToggle" data-omapi18n="showLegend">Legende</button>
         <button type="button" id="heatToggleBtn" data-omapi18n="heatDensity">Dichte</button>
         <button type="button" id="alertsToggleBtn" class="is-active" data-omapi18n="liveAlerts">Alerts</button>
+        <button type="button" id="nightModeBtn" data-omapi18n="nightMode">Nacht</button>
       </div>
+      <div class="map-quick-filters" id="mapQuickFilters" role="toolbar" aria-label="Filter">
+        <button type="button" data-status="all" class="is-active" data-omapi18n="quickFilterAll">Alle</button>
+        <button type="button" data-status="working" data-omapi18n="quickFilterWorking">Arbeitet</button>
+        <button type="button" data-status="attention" data-omapi18n="quickFilterAttention">Achtung</button>
+      </div>
+      <aside class="map-focus-card" id="mapFocusCard" hidden>
+        <button type="button" class="map-focus-close" id="mapFocusClose" aria-label="Close">×</button>
+        <div class="map-focus-head">
+          <span class="map-focus-dot" id="mapFocusDot"></span>
+          <div class="map-focus-titles">
+            <strong id="mapFocusTitle">—</strong>
+            <span id="mapFocusSubtitle"></span>
+          </div>
+        </div>
+        <dl class="map-focus-meta" id="mapFocusMeta"></dl>
+        <div class="map-focus-actions" id="mapFocusActions"></div>
+      </aside>
       <div class="command-hud" id="commandHud" aria-live="polite">
         <div class="command-hud-metric is-ok" id="cmdOnSite"><strong>0</strong><span data-omapi18n="chipOnSite">vor Ort</span></div>
         <div class="command-hud-metric" id="cmdWorking"><strong>0</strong><span data-omapi18n="chipWorking">arbeitet</span></div>
@@ -1960,7 +2201,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map6"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map7"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
@@ -2390,8 +2631,179 @@
         shift_ended: "statusShiftEnded",
         on_break: "statusOnBreak",
         on_task: "statusOnTask",
+        attention: "quickFilterAttention",
       })[status] || "statusWorking";
       return window.opsMapT(key) || status;
+    }
+
+    function formatRelativeAge(iso) {
+      if (!iso) return window.opsMapT("coordNone") || "—";
+      const ts = Date.parse(iso);
+      if (!Number.isFinite(ts)) return String(iso).slice(0, 19);
+      const sec = Math.max(0, Math.round((Date.now() - ts) / 1000));
+      if (sec < 45) return window.opsMapT("agoJustNow") || "gerade eben";
+      if (sec < 3600) {
+        const m = Math.max(1, Math.round(sec / 60));
+        return window.opsMapT("agoMinutes", { count: m }) || `vor ${m} Min.`;
+      }
+      if (sec < 86400) {
+        const h = Math.max(1, Math.round(sec / 3600));
+        return window.opsMapT("agoHours", { count: h }) || `vor ${h} Std.`;
+      }
+      const d = Math.max(1, Math.round(sec / 86400));
+      return window.opsMapT("agoDays", { count: d }) || `vor ${d} T.`;
+    }
+
+    function syncQuickFiltersUi() {
+      document.querySelectorAll("#mapQuickFilters button[data-status]").forEach((btn) => {
+        btn.classList.toggle("is-active", (btn.dataset.status || "all") === statusFilter);
+      });
+      document.querySelectorAll("#statusFilters button[data-status]").forEach((btn) => {
+        const st = btn.dataset.status || "all";
+        // Sidebar has no "attention"; highlight closest matches.
+        if (statusFilter === "attention") {
+          btn.classList.toggle("active", st === "stale" || st === "off_site");
+        } else {
+          btn.classList.toggle("active", st === statusFilter);
+        }
+      });
+    }
+
+    function setStatusFilter(next, options = {}) {
+      const value = String(next || "all");
+      statusFilter = value;
+      syncQuickFiltersUi();
+      if (options.announceAttention && value === "attention" && lastMapData) {
+        const missing = lastMapData.counts?.missingExpected ?? lastMapData.missingExpected ?? 0;
+        if (missing > 0) {
+          showMapToast(
+            window.opsMapT("alertMissingUp", { count: missing }) ||
+              `${missing} erwartet fehlen`
+          );
+        }
+      }
+      if (lastMapData) renderMap(lastMapData);
+    }
+
+    function hideFocusCard() {
+      const card = document.getElementById("mapFocusCard");
+      if (card) card.hidden = true;
+    }
+
+    function showFocusCard(payload) {
+      const card = document.getElementById("mapFocusCard");
+      const title = document.getElementById("mapFocusTitle");
+      const subtitle = document.getElementById("mapFocusSubtitle");
+      const meta = document.getElementById("mapFocusMeta");
+      const actions = document.getElementById("mapFocusActions");
+      const dot = document.getElementById("mapFocusDot");
+      if (!card || !title || !subtitle || !meta || !actions || !dot) return;
+      const kind = payload?.kind || "worker";
+      title.textContent = payload?.title || "—";
+      subtitle.textContent = payload?.subtitle || "";
+      const tone = String(payload?.tone || (kind === "zone" ? "zone" : "working")).replace(/[^a-z0-9_]/gi, "") || "working";
+      dot.className = `map-focus-dot is-${tone}`;
+      meta.innerHTML = (payload?.rows || [])
+        .map((row) =>
+          `<div><dt>${escapeHtml(row.label || "")}</dt><dd>${escapeHtml(row.value || "—")}</dd></div>`
+        )
+        .join("");
+      actions.innerHTML = "";
+      (payload?.actions || []).forEach((action) => {
+        if (action.href) {
+          const a = document.createElement("a");
+          a.href = action.href;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.textContent = action.label || "";
+          actions.appendChild(a);
+          return;
+        }
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = action.label || "";
+        btn.addEventListener("click", () => {
+          try { action.onClick?.(); } catch (_) { /* ignore */ }
+        });
+        actions.appendChild(btn);
+      });
+      card.hidden = false;
+    }
+
+    function openWorkerFocus(worker) {
+      if (!worker) return;
+      const cid = companyId || lastMapData?.companyId || "";
+      const status = worker.status || "working";
+      const zoneName = worker.currentZone?.name || worker.site || "";
+      const lastAt = worker.lastLocationAt || worker.lastAccess || "";
+      const gps =
+        worker.lat != null && worker.lng != null
+          ? formatCoordPair(worker.lat, worker.lng)
+          : (window.opsMapT("coordNone") || "—");
+      const activity = worker.activity || worker.task || worker.currentTask || "";
+      const chatHref = cid
+        ? `/admin-v2/chat.html?company_id=${encodeURIComponent(cid)}&worker_id=${encodeURIComponent(worker.id)}`
+        : "";
+      showFocusCard({
+        kind: "worker",
+        tone: status,
+        title: worker.name || "MA",
+        subtitle: statusLabel(status),
+        rows: [
+          { label: window.opsMapT("focusLastGps") || "GPS", value: gps },
+          { label: window.opsMapT("focusAgo") || "Aktualisiert", value: formatRelativeAge(lastAt) },
+          {
+            label: window.opsMapT("focusZone") || "Zone",
+            value: zoneName || (window.opsMapT("coordNone") || "—"),
+          },
+          {
+            label: window.opsMapT("focusTask") || "Aufgabe",
+            value: activity || statusLabel(status),
+          },
+        ],
+        actions: [
+          {
+            label: window.opsMapT("showTrail") || "Spur zeigen",
+            onClick: () => showWorkerTrail(worker),
+          },
+          ...(chatHref
+            ? [{ label: window.opsMapT("openChat") || "Chat", href: chatHref }]
+            : []),
+        ],
+      });
+    }
+
+    function openZoneFocus(zone) {
+      if (!zone) return;
+      const cams = zone.cameras || [];
+      const head =
+        (lastMapData?.zoneStats || []).find(
+          (z) => String(z.zoneId || z.id || "") === String(zone.id || zone.zone_id || "")
+        ) || null;
+      showFocusCard({
+        kind: "zone",
+        tone: "zone",
+        title: zone.site_name || zone.name || "Zone",
+        subtitle: zoneKindLabel(zone.zone_kind || zone.kind),
+        rows: [
+          {
+            label: window.opsMapT("focusRadius") || "Radius",
+            value: `${zone.radius_meters || 50} m`,
+          },
+          {
+            label: window.opsMapT("focusHeadcount") || "Personen",
+            value: String(head?.headcount ?? 0),
+          },
+          {
+            label: window.opsMapT("focusCameras") || "Kameras",
+            value: String(cams.length),
+          },
+        ],
+        actions: cams.slice(0, 2).map((c) => ({
+          label: c.name || (window.opsMapT("openCameraWatch") || "Kamera"),
+          href: c.href || "#",
+        })),
+      });
     }
 
     function workerInitials(name) {
@@ -2454,7 +2866,12 @@
     }
 
     function workerMatchesFilters(w) {
-      if (statusFilter !== "all" && String(w.status || "") !== statusFilter) return false;
+      const status = String(w.status || "");
+      if (statusFilter === "attention") {
+        if (status !== "stale" && status !== "off_site") return false;
+      } else if (statusFilter !== "all" && status !== statusFilter) {
+        return false;
+      }
       const q = searchQuery.trim().toLowerCase();
       if (!q) return true;
       const hay = `${w.name || ""} ${w.badgeId || ""} ${w.site || ""} ${(w.currentZone && w.currentZone.name) || ""}`.toLowerCase();
@@ -2931,7 +3348,10 @@
             ? `<br><a class="btn-link" href="${chatHref}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openChat"))}</strong></a>`
             : "");
         const existing = workerMarkersById.get(id);
-        const onClick = () => showWorkerTrail(w);
+        const onClick = () => {
+          openWorkerFocus(w);
+          showWorkerTrail(w, { keepView: true });
+        };
         if (existing) {
           const isInCluster = !!(workerClusterLayer && workerClusterLayer.hasLayer(existing));
           if (workerLayerTarget === map && isInCluster) {
@@ -3057,8 +3477,12 @@
       list.querySelectorAll(".worker-row[data-worker-id]").forEach((row) => {
         row.onclick = () => {
           const w = (data.workersOnSite || []).find((x) => String(x.id) === row.dataset.workerId);
-          if (w) showWorkerTrail(w);
-          else map.setView([+row.dataset.lat, +row.dataset.lng], 17);
+          if (w) {
+            openWorkerFocus(w);
+            showWorkerTrail(w);
+          } else if (row.dataset.lat && row.dataset.lng) {
+            map.setView([+row.dataset.lat, +row.dataset.lng], 17);
+          }
         };
       });
       list.querySelectorAll(".worker-row[data-open]").forEach((row) => {
@@ -3241,7 +3665,10 @@
           circle.bindPopup(
             `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))} · ${z.radius_meters || 50}m` + camLinks
           );
-          circle.on("click", () => circle.openPopup());
+          circle.on("click", () => {
+            openZoneFocus(z);
+            circle.openPopup();
+          });
           layers.zones.push(circle);
           const pin = addPinMarker(
             z.latitude,
@@ -3250,7 +3677,10 @@
             siteLabel,
             `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))}${camLinks}`,
             null,
-            () => circle.openPopup(),
+            () => {
+              openZoneFocus(z);
+              circle.openPopup();
+            },
           );
           layers.zones.push(pin);
           bounds.push([z.latitude, z.longitude]);
@@ -3469,9 +3899,30 @@
     document.getElementById("statusFilters")?.addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-status]");
       if (!btn) return;
-      statusFilter = btn.dataset.status || "all";
-      document.querySelectorAll("#statusFilters button").forEach((b) => b.classList.toggle("active", b === btn));
-      if (lastMapData) renderMap(lastMapData);
+      setStatusFilter(btn.dataset.status || "all");
+    });
+    document.getElementById("mapQuickFilters")?.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-status]");
+      if (!btn) return;
+      setStatusFilter(btn.dataset.status || "all", { announceAttention: true });
+    });
+    document.getElementById("mapFocusClose")?.addEventListener("click", () => hideFocusCard());
+    document.getElementById("nightModeBtn")?.addEventListener("click", () => {
+      const on = !document.documentElement.classList.contains("ops-night");
+      document.documentElement.classList.toggle("ops-night", on);
+      if (on) document.documentElement.classList.add("dark-mode");
+      localStorage.setItem("ops-map-night", on ? "1" : "0");
+      if (on) localStorage.setItem("baupass-ui-darkmode", "true");
+      const nightBtn = document.getElementById("nightModeBtn");
+      if (nightBtn) {
+        nightBtn.classList.toggle("is-active", on);
+        nightBtn.textContent = window.opsMapT(on ? "nightModeOn" : "nightMode");
+      }
+      const themeBtn = document.getElementById("themeToggleBtn");
+      if (themeBtn) {
+        themeBtn.textContent = document.documentElement.classList.contains("dark-mode") ? "☀️" : "🌙";
+      }
+      updateMapTiles();
     });
     document.getElementById("nearestBtn")?.addEventListener("click", async () => {
       if (!companyId || !map) return;
@@ -3594,6 +4045,13 @@
     setHeatEnabled(localStorage.getItem("ops-map-heat") === "1");
     setAlertsEnabled(localStorage.getItem("ops-map-alerts") !== "0");
     setCommandMode(localStorage.getItem("ops-map-command-mode") === "1");
+    if (localStorage.getItem("ops-map-night") === "1") {
+      document.documentElement.classList.add("ops-night", "dark-mode");
+      localStorage.setItem("baupass-ui-darkmode", "true");
+      const nightBtn = document.getElementById("nightModeBtn");
+      if (nightBtn) nightBtn.classList.add("is-active");
+    }
+    syncQuickFiltersUi();
     window.initOpsMapLangSync?.();
     setRefreshBusy(false);
     syncCoordinatePanel();
@@ -3624,6 +4082,17 @@
       if (heatBtn) heatBtn.textContent = window.opsMapT("heatDensity");
       const alertBtn = document.getElementById("alertsToggleBtn");
       if (alertBtn) alertBtn.textContent = window.opsMapT("liveAlerts");
+      const nightBtn = document.getElementById("nightModeBtn");
+      if (nightBtn) {
+        const on = document.documentElement.classList.contains("ops-night");
+        nightBtn.textContent = window.opsMapT(on ? "nightModeOn" : "nightMode");
+        nightBtn.classList.toggle("is-active", on);
+      }
+      document.querySelectorAll("#mapQuickFilters [data-omapi18n]").forEach((el) => {
+        const key = el.getAttribute("data-omapi18n");
+        if (key) el.textContent = window.opsMapT(key);
+      });
+      syncQuickFiltersUi();
     };
     window.addEventListener("baupass-admin-lang", () => {
       setRefreshBusy(false);
@@ -3644,6 +4113,15 @@
         btn.addEventListener('click', () => {
           const isCurrentlyDark = document.documentElement.classList.toggle('dark-mode');
           localStorage.setItem('baupass-ui-darkmode', isCurrentlyDark);
+          if (!isCurrentlyDark) {
+            document.documentElement.classList.remove('ops-night');
+            localStorage.setItem('ops-map-night', '0');
+            const nightBtn = document.getElementById('nightModeBtn');
+            if (nightBtn) {
+              nightBtn.classList.remove('is-active');
+              nightBtn.textContent = window.opsMapT('nightMode');
+            }
+          }
           btn.textContent = isCurrentlyDark ? '☀️' : '🌙';
           const nextLabel = window.opsMapT(isCurrentlyDark ? "lightMode" : "darkMode");
           btn.title = nextLabel;
