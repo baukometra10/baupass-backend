@@ -341,6 +341,11 @@ function humanizeUserError(err) {
     feature_not_available: "error.featureUnavailable",
     database_not_ready: "error.dbNotReady",
     missing_fields: "error.missingFields",
+    feature_not_available: "error.featureUnavailable",
+    push_failed: "inbox.pushNotDelivered",
+    push_not_delivered: "inbox.pushNotDelivered",
+    worker_not_found: "error.notFound",
+    worker_id_and_body_required: "error.missingFields",
   };
   if (code && known[code]) {
     const label = t(known[code]);
@@ -5102,7 +5107,11 @@ async function runInboxResolveAction(itemId, companyQ, extraBody = {}) {
     ok ? t("common.done") : humanizeUserError({ message: res?.message || res?.error, data: res }),
     !ok,
   );
-  if (ok) await loadInbox();
+  if (ok) {
+    await loadInbox();
+    // Keep Live-Lage KPIs in sync (Fehlt heute, Offene Aufgaben, …).
+    scheduleOverviewReload();
+  }
   return res;
 }
 
@@ -5120,7 +5129,10 @@ async function runInboxExecAction(btn, companyQ) {
       ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
       : humanizeUserError({ message: res?.message || res?.error, data: res });
     showActionToast(msg, !ok);
-    if (ok) await loadInbox();
+    if (ok) {
+      await loadInbox();
+      scheduleOverviewReload();
+    }
     return;
   }
   let params = {};
@@ -5591,6 +5603,7 @@ async function loadInbox() {
         raw.status = "resolved";
         showActionToast(t("inbox.ackedOnOpen"), false);
         await refreshInboxBadgeOnly();
+        scheduleOverviewReload();
       } catch (e) {
         showActionToast(humanizeUserError(e), true);
       }
@@ -6077,6 +6090,7 @@ async function loadInbox() {
           : t("inbox.bulkResultSys", { n: res.acknowledged ?? 0 });
     showActionToast(res.ok ? msg : res.error || t("common.error"), !res.ok);
     await loadInbox();
+    if (res.ok) scheduleOverviewReload();
   }
 
   $("inboxBulkDocPush")?.addEventListener("click", () => {

@@ -10,6 +10,42 @@ def _today() -> str:
     return date.today().isoformat()
 
 
+def acked_missing_worker_ids(db, company_id: str, work_date: str) -> set[str]:
+    """Workers whose missing check-in was acknowledged in the employer inbox today."""
+    out: set[str] = set()
+    cid = str(company_id or "").strip()
+    day = str(work_date or "").strip()[:10]
+    if not cid or not day:
+        return out
+    try:
+        rows = db.execute(
+            """
+            SELECT details FROM system_alerts
+            WHERE code = 'missing_checkin_noted'
+              AND (details LIKE ? OR details LIKE ?)
+            ORDER BY created_at DESC
+            LIMIT 200
+            """,
+            (f'%"{cid}"%', f"%company_id={cid}%"),
+        ).fetchall()
+        for r in rows:
+            raw = r["details"] or ""
+            try:
+                details = json.loads(raw) if isinstance(raw, str) else (raw or {})
+            except Exception:
+                details = {}
+            if not isinstance(details, dict):
+                continue
+            if str(details.get("workDate") or details.get("work_date") or "")[:10] != day:
+                continue
+            wid = str(details.get("workerId") or details.get("worker_id") or "").strip()
+            if wid:
+                out.add(wid)
+    except Exception:
+        return set()
+    return out
+
+
 def company_work_window(db, company_id: str) -> dict[str, Any]:
     """Per-company flexible work window (empty = no fixed punctuality hours)."""
     cid = str(company_id or "").strip()
@@ -327,6 +363,9 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         if not w.get("shiftEnd") and window.get("end"):
             w["companyEnd"] = window["end"]
     missing_workers = [w for w in expected if w["workerId"] not in checked]
+    acked = acked_missing_worker_ids(db, cid, today)
+    # Employer-acknowledged absences leave the Lage/Inbox task counters.
+    open_missing = [w for w in missing_workers if str(w.get("workerId") or "") not in acked]
 
     return {
         "date": today,
@@ -336,8 +375,10 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         "lateWorkers": late_workers[:12],
         "outsideHoursAttemptsToday": outside,
         "expectedToday": len(expected),
-        "missingExpected": len(missing_workers),
-        "missingWorkers": missing_workers[:40],
+        "missingExpected": len(open_missing),
+        "missingExpectedRaw": len(missing_workers),
+        "missingAcknowledged": len(missing_workers) - len(open_missing),
+        "missingWorkers": open_missing[:40],
         "workWindow": window,
     }
 

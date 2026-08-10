@@ -83,36 +83,10 @@ def _missing_inbox_eligible(worker: dict[str, Any], now_local: datetime) -> bool
 
 
 def _acked_missing_worker_ids(db, company_id: str, work_date: str) -> set[str]:
-    """Workers already acknowledged missing for this work day."""
-    out: set[str] = set()
-    try:
-        rows = db.execute(
-            """
-            SELECT details FROM system_alerts
-            WHERE code = 'missing_checkin_noted'
-              AND (details LIKE ? OR details LIKE ?)
-            ORDER BY created_at DESC
-            LIMIT 200
-            """,
-            (f'%"{company_id}"%', f"%company_id={company_id}%"),
-        ).fetchall()
-        for r in rows:
-            raw = r["details"] or ""
-            try:
-                details = json.loads(raw) if isinstance(raw, str) else (raw or {})
-            except Exception:
-                details = {}
-            if not isinstance(details, dict):
-                continue
-            if str(details.get("workDate") or details.get("work_date") or "")[:10] != str(work_date)[:10]:
-                continue
-            wid = str(details.get("workerId") or details.get("worker_id") or "").strip()
-            if wid:
-                out.add(wid)
-    except Exception:
-        return set()
-    return out
+    """Compat wrapper — canonical helper lives in daily_brief."""
+    from backend.app.platform.physical_operations.daily_brief import acked_missing_worker_ids
 
+    return acked_missing_worker_ids(db, company_id, work_date)
 
 def _coerce_iso_timestamp(value: Any) -> str:
     """Normalize DB timestamps (TEXT or datetime) for parsing and sorting."""
