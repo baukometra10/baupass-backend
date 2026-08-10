@@ -160,19 +160,24 @@
       max-width: min(72vw, 720px);
     }
     header a {
-      color: var(--accent);
-      font-size: 0.85rem;
-      margin-inline-start: 0.75rem;
-      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-      padding: 0.3rem 0.6rem;
-      border-radius: 6px;
+      color: #7dd3fc;
+      font-size: 0.82rem;
+      font-weight: 650;
+      margin-inline-start: 0.35rem;
+      transition: all 0.25s ease;
+      padding: 0.32rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid transparent;
       outline: 2px solid transparent;
       outline-offset: 2px;
+      text-decoration: none;
     }
     header a:hover {
-      background: rgba(34, 211, 238, 0.15);
+      background: rgba(34, 211, 238, 0.12);
+      border-color: rgba(56, 189, 248, 0.28);
+      color: #e0f2fe;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.2);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.18);
     }
     header a:focus {
       outline: 2px solid var(--accent);
@@ -1118,103 +1123,158 @@
     body.side-collapsed #legendFocusToggle {
       display: inline-flex;
     }
+    /* Unified map HUD — clear zones, no overlap with Leaflet zoom */
+    .map-hud-left {
+      position: absolute;
+      top: 76px;
+      inset-inline-start: 12px;
+      z-index: 520;
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      max-width: min(92vw, 340px);
+      pointer-events: none;
+    }
+    .map-hud-label {
+      pointer-events: none;
+      font-size: 0.62rem;
+      font-weight: 750;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(148, 163, 184, 0.95);
+      padding-inline-start: 0.2rem;
+      text-shadow: 0 1px 8px rgba(0,0,0,0.65);
+    }
     .map-float-tools {
       position: absolute;
       top: 12px;
       inset-inline-end: 12px;
       z-index: 520;
-      display: flex;
+      display: inline-flex;
       flex-wrap: wrap;
-      gap: 0.35rem;
+      align-items: center;
+      gap: 0.2rem;
       justify-content: flex-end;
-      max-width: min(92vw, 420px);
-      pointer-events: none;
+      max-width: min(94vw, 520px);
+      padding: 0.28rem;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      background: linear-gradient(155deg, rgba(8, 15, 28, 0.92), rgba(15, 23, 42, 0.82));
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
+      backdrop-filter: blur(16px) saturate(1.2);
+      box-shadow:
+        0 12px 32px rgba(0,0,0,0.4),
+        inset 0 1px 0 rgba(255,255,255,0.06);
+      pointer-events: auto;
     }
     .map-float-tools button {
       pointer-events: auto;
-      border: 1px solid rgba(125, 211, 252, 0.38);
-      background: linear-gradient(160deg, rgba(15, 23, 42, 0.94), rgba(8, 15, 28, 0.84));
-      color: #e2e8f0;
-      border-radius: 999px;
-      padding: 0.42rem 0.78rem;
+      border: 1px solid transparent;
+      background: transparent;
+      color: #dbeafe;
+      border-radius: 10px;
+      padding: 0.45rem 0.72rem;
       font-family: inherit;
-      font-size: 0.72rem;
+      font-size: 0.73rem;
       font-weight: 700;
       letter-spacing: 0.01em;
       cursor: pointer;
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
-      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
     .map-float-tools button:hover {
-      transform: translateY(-1px);
-      border-color: rgba(45, 212, 191, 0.7);
-      box-shadow: 0 10px 26px rgba(14, 165, 233, 0.25);
+      background: rgba(56, 189, 248, 0.14);
+      color: #f8fafc;
+      border-color: rgba(56, 189, 248, 0.28);
     }
     .map-float-tools button.is-active {
-      background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(15, 118, 110, 0.85));
-      border-color: rgba(45, 212, 191, 0.85);
+      background: linear-gradient(135deg, rgba(8, 145, 178, 0.95), rgba(13, 148, 136, 0.9));
+      border-color: rgba(45, 212, 191, 0.55);
       color: #ecfeff;
-      box-shadow: 0 8px 22px rgba(45, 212, 191, 0.28);
+      box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.25), 0 6px 16px rgba(8, 145, 178, 0.35);
     }
     #toggleSideBtn.is-active {
-      background: linear-gradient(135deg, rgba(30, 64, 115, 0.95), rgba(14, 116, 144, 0.85));
+      background: linear-gradient(135deg, rgba(30, 64, 175, 0.95), rgba(8, 145, 178, 0.88));
     }
     #heatToggleBtn.is-active {
-      background: linear-gradient(135deg, rgba(194, 65, 12, 0.88), rgba(180, 83, 9, 0.82));
-      border-color: rgba(251, 146, 60, 0.8);
+      background: linear-gradient(135deg, rgba(234, 88, 12, 0.92), rgba(194, 65, 12, 0.88));
+      border-color: rgba(251, 146, 60, 0.55);
+      box-shadow: 0 6px 16px rgba(234, 88, 12, 0.3);
     }
     #alertsToggleBtn.is-active {
-      background: linear-gradient(135deg, rgba(185, 28, 28, 0.88), rgba(153, 27, 27, 0.82));
-      border-color: rgba(252, 165, 165, 0.7);
-    }
-    #nightModeBtn.is-active {
-      background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.95));
-      border-color: rgba(250, 204, 21, 0.55);
-      color: #fef08a;
-      box-shadow: 0 0 18px rgba(250, 204, 21, 0.18);
+      background: linear-gradient(135deg, rgba(220, 38, 38, 0.92), rgba(153, 27, 27, 0.88));
+      border-color: rgba(252, 165, 165, 0.5);
+      box-shadow: 0 6px 16px rgba(220, 38, 38, 0.28);
     }
     .map-quick-filters {
-      position: absolute;
-      top: 12px;
-      inset-inline-start: 12px;
-      z-index: 520;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.3rem;
-      max-width: min(70vw, 360px);
-      pointer-events: none;
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: stretch;
+      gap: 0;
+      padding: 0.22rem;
+      border-radius: 14px;
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      background: linear-gradient(155deg, rgba(8, 15, 28, 0.94), rgba(15, 23, 42, 0.86));
+      -webkit-backdrop-filter: blur(16px) saturate(1.2);
+      backdrop-filter: blur(16px) saturate(1.2);
+      box-shadow:
+        0 12px 32px rgba(0,0,0,0.4),
+        inset 0 1px 0 rgba(255,255,255,0.06);
     }
     .map-quick-filters button {
       pointer-events: auto;
-      border: 1px solid rgba(125, 211, 252, 0.35);
-      background: linear-gradient(160deg, rgba(15, 23, 42, 0.92), rgba(8, 15, 28, 0.82));
-      color: #e2e8f0;
-      border-radius: 999px;
-      padding: 0.4rem 0.72rem;
+      border: 0;
+      background: transparent;
+      color: #cbd5e1;
+      border-radius: 10px;
+      padding: 0.48rem 0.85rem;
       font-family: inherit;
-      font-size: 0.72rem;
-      font-weight: 700;
+      font-size: 0.74rem;
+      font-weight: 750;
+      letter-spacing: 0.01em;
       cursor: pointer;
-      -webkit-backdrop-filter: blur(10px);
-      backdrop-filter: blur(10px);
-      box-shadow: 0 8px 22px rgba(0,0,0,0.28);
-      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      white-space: nowrap;
+      min-width: 4.2rem;
+      transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
     }
     .map-quick-filters button:hover {
-      transform: translateY(-1px);
-      border-color: rgba(45, 212, 191, 0.65);
+      background: rgba(56, 189, 248, 0.12);
+      color: #f8fafc;
     }
     .map-quick-filters button.is-active {
-      background: linear-gradient(135deg, rgba(14, 116, 144, 0.9), rgba(15, 118, 110, 0.85));
-      border-color: rgba(45, 212, 191, 0.85);
+      background: linear-gradient(135deg, rgba(8, 145, 178, 0.95), rgba(13, 148, 136, 0.9));
       color: #ecfeff;
+      box-shadow: 0 4px 14px rgba(8, 145, 178, 0.35);
+    }
+    .map-quick-filters button[data-status="working"].is-active {
+      background: linear-gradient(135deg, rgba(13, 148, 136, 0.95), rgba(15, 118, 110, 0.9));
     }
     .map-quick-filters button[data-status="attention"].is-active {
-      background: linear-gradient(135deg, rgba(180, 83, 9, 0.9), rgba(146, 64, 14, 0.85));
-      border-color: rgba(251, 191, 36, 0.8);
+      background: linear-gradient(135deg, rgba(217, 119, 6, 0.95), rgba(180, 83, 9, 0.9));
       color: #fffbeb;
+      box-shadow: 0 4px 14px rgba(217, 119, 6, 0.35);
+    }
+    .leaflet-top.leaflet-left {
+      top: 10px;
+      left: 10px;
+    }
+    .leaflet-control-zoom {
+      border: 1px solid rgba(56, 189, 248, 0.28) !important;
+      border-radius: 12px !important;
+      overflow: hidden;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.35) !important;
+    }
+    .leaflet-control-zoom a {
+      width: 34px !important;
+      height: 34px !important;
+      line-height: 34px !important;
+      font-size: 16px !important;
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.95), rgba(8, 15, 28, 0.9)) !important;
+      color: #e2e8f0 !important;
+      border-bottom-color: rgba(56, 189, 248, 0.2) !important;
+    }
+    .leaflet-control-zoom a:hover {
+      background: rgba(8, 145, 178, 0.35) !important;
+      color: #ecfeff !important;
     }
     .map-focus-card {
       position: absolute;
@@ -1225,7 +1285,7 @@
       width: min(92vw, 320px);
       padding: 0.85rem 0.9rem 0.75rem;
       border-radius: 14px;
-      border: 1px solid rgba(125, 211, 252, 0.35);
+      border: 1px solid rgba(56, 189, 248, 0.3);
       background: linear-gradient(165deg, rgba(8, 15, 28, 0.96), rgba(15, 23, 42, 0.92));
       box-shadow: 0 18px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(34, 211, 238, 0.08);
       -webkit-backdrop-filter: blur(14px);
@@ -1326,64 +1386,20 @@
       border-color: rgba(45, 212, 191, 0.7);
       background: rgba(14, 116, 144, 0.45);
     }
-    /* Control-room night: higher contrast on large screens */
-    html.ops-night {
-      --bg: #020617;
-      --panel: rgba(2, 6, 23, 0.94);
-      --text: #f8fafc;
-      --border: rgba(250, 204, 21, 0.18);
-      --accent: #fde047;
-      --map-empty-veil: rgba(0, 0, 0, 0.42);
-    }
-    html.ops-night body {
-      background:
-        radial-gradient(1000px 520px at 10% -12%, rgba(250, 204, 21, 0.08), transparent 55%),
-        radial-gradient(900px 480px at 90% 0%, rgba(14, 165, 233, 0.1), transparent 50%),
-        #020617;
-    }
-    html.ops-night header {
-      border-bottom-color: rgba(250, 204, 21, 0.22);
-      box-shadow: 0 2px 16px rgba(0,0,0,0.55);
-    }
-    html.ops-night .map-stage::after {
-      opacity: 0.85;
-      background: radial-gradient(ellipse at center, transparent 35%, rgba(0,0,0,0.55) 100%);
-    }
-    html.ops-night .ops-map-pin.is-worker-classic,
-    html.ops-night .ops-map-worker-label {
-      filter: drop-shadow(0 0 6px rgba(255,255,255,0.25)) drop-shadow(0 2px 8px rgba(0,0,0,0.8));
-    }
-    html.ops-night .ops-map-worker-label {
-      background: rgba(2, 6, 23, 0.92) !important;
-      border-color: rgba(250, 204, 21, 0.35) !important;
-      color: #f8fafc !important;
-      font-weight: 750;
-    }
-    html.ops-night .command-hud,
-    html.ops-night .map-float-tools button,
-    html.ops-night .map-quick-filters button,
-    html.ops-night .map-focus-card {
-      border-color: rgba(250, 204, 21, 0.28);
-      box-shadow: 0 12px 32px rgba(0,0,0,0.55);
-    }
-    html.ops-night .ops-stat-chip {
-      border-color: rgba(250, 204, 21, 0.28);
-      background: rgba(2, 6, 23, 0.75);
-      color: #f8fafc;
-    }
-    html.ops-night .side {
-      background: linear-gradient(180deg, rgba(2, 6, 23, 0.98), rgba(0,0,0,0.88) 100%);
-      border-color: rgba(250, 204, 21, 0.2);
-    }
     @media (max-width: 800px) {
-      .map-quick-filters {
+      .map-hud-left {
         top: auto;
-        bottom: calc(42vh + 10px);
+        bottom: calc(42vh + 12px);
         inset-inline-start: 10px;
       }
-      body.side-collapsed .map-quick-filters {
+      body.side-collapsed .map-hud-left {
         bottom: auto;
-        top: 12px;
+        top: 76px;
+      }
+      .map-float-tools {
+        max-width: min(96vw, 100%);
+        inset-inline-end: 8px;
+        top: 8px;
       }
       .map-focus-card {
         bottom: calc(42vh + 10px);
@@ -1765,12 +1781,32 @@
       border-bottom-color: #d6e0eb;
     }
     html:not(.dark-mode) header a {
-      color: #1e4f7a;
-      font-weight: 600;
+      color: #0f4c81;
+      font-weight: 650;
     }
     html:not(.dark-mode) header a:hover {
-      background: rgba(14, 116, 144, 0.12);
-      color: #0f3f64;
+      background: rgba(14, 116, 144, 0.1);
+      border-color: rgba(14, 116, 144, 0.22);
+      color: #0b3b66;
+    }
+    html:not(.dark-mode) .map-float-tools,
+    html:not(.dark-mode) .map-quick-filters {
+      border-color: rgba(125, 148, 173, 0.4);
+      background: linear-gradient(155deg, rgba(255,255,255,0.96), rgba(241,245,249,0.92));
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+    }
+    html:not(.dark-mode) .map-float-tools button,
+    html:not(.dark-mode) .map-quick-filters button {
+      color: #334155;
+    }
+    html:not(.dark-mode) .map-float-tools button:hover,
+    html:not(.dark-mode) .map-quick-filters button:hover {
+      background: rgba(14, 116, 144, 0.1);
+      color: #0f172a;
+    }
+    html:not(.dark-mode) .map-hud-label {
+      color: #64748b;
+      text-shadow: none;
     }
     html:not(.dark-mode) .ops-header-btn {
       border-color: #b7c6d7;
@@ -2058,7 +2094,7 @@
       <a href="/ai-command-center.html" data-omapi18n="navAi">KI</a>
       <a href="/admin-v2/index.html" data-omapi18n="navAdmin">Admin</a>
       <div class="ops-lang-picker" id="opsMapLangPicker">
-        <button type="button" class="ops-header-btn ops-lang-trigger" id="opsMapLangBtn" aria-haspopup="listbox" aria-expanded="false" data-omapi18n="uiLang" aria-label="Sprache">
+        <button type="button" class="ops-header-btn ops-lang-trigger" id="opsMapLangBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Sprache">
           <span id="opsMapLangCurrent">DE</span>
           <svg class="ops-lang-caret" viewBox="0 0 12 8" aria-hidden="true"><path fill="currentColor" d="M1 1l5 5 5-5"/></svg>
         </button>
@@ -2086,17 +2122,19 @@
   <div class="wrap">
     <div class="map-stage">
       <div id="map"></div>
-      <div class="map-float-tools">
+      <div class="map-hud-left">
+        <div class="map-hud-label" data-omapi18n="filterSection">Filter</div>
+        <div class="map-quick-filters" id="mapQuickFilters" role="toolbar" aria-label="Filter">
+          <button type="button" data-status="all" class="is-active" data-omapi18n="quickFilterAll">Alle</button>
+          <button type="button" data-status="working" data-omapi18n="quickFilterWorking">Arbeitet</button>
+          <button type="button" data-status="attention" data-omapi18n="quickFilterAttention">Achtung</button>
+        </div>
+      </div>
+      <div class="map-float-tools" role="toolbar" aria-label="Map tools">
         <button type="button" id="toggleSideBtn" data-omapi18n="toggleSidebar">Liste ausblenden</button>
         <button type="button" id="legendFocusToggle" data-omapi18n="showLegend">Legende</button>
         <button type="button" id="heatToggleBtn" data-omapi18n="heatDensity">Dichte</button>
         <button type="button" id="alertsToggleBtn" class="is-active" data-omapi18n="liveAlerts">Alerts</button>
-        <button type="button" id="nightModeBtn" data-omapi18n="nightMode">Nacht</button>
-      </div>
-      <div class="map-quick-filters" id="mapQuickFilters" role="toolbar" aria-label="Filter">
-        <button type="button" data-status="all" class="is-active" data-omapi18n="quickFilterAll">Alle</button>
-        <button type="button" data-status="working" data-omapi18n="quickFilterWorking">Arbeitet</button>
-        <button type="button" data-status="attention" data-omapi18n="quickFilterAttention">Achtung</button>
       </div>
       <aside class="map-focus-card" id="mapFocusCard" hidden>
         <button type="button" class="map-focus-close" id="mapFocusClose" aria-label="Close">×</button>
@@ -2201,7 +2239,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map7"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map8"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
@@ -3907,23 +3945,6 @@
       setStatusFilter(btn.dataset.status || "all", { announceAttention: true });
     });
     document.getElementById("mapFocusClose")?.addEventListener("click", () => hideFocusCard());
-    document.getElementById("nightModeBtn")?.addEventListener("click", () => {
-      const on = !document.documentElement.classList.contains("ops-night");
-      document.documentElement.classList.toggle("ops-night", on);
-      if (on) document.documentElement.classList.add("dark-mode");
-      localStorage.setItem("ops-map-night", on ? "1" : "0");
-      if (on) localStorage.setItem("baupass-ui-darkmode", "true");
-      const nightBtn = document.getElementById("nightModeBtn");
-      if (nightBtn) {
-        nightBtn.classList.toggle("is-active", on);
-        nightBtn.textContent = window.opsMapT(on ? "nightModeOn" : "nightMode");
-      }
-      const themeBtn = document.getElementById("themeToggleBtn");
-      if (themeBtn) {
-        themeBtn.textContent = document.documentElement.classList.contains("dark-mode") ? "☀️" : "🌙";
-      }
-      updateMapTiles();
-    });
     document.getElementById("nearestBtn")?.addEventListener("click", async () => {
       if (!companyId || !map) return;
       const c = map.getCenter();
@@ -4045,12 +4066,8 @@
     setHeatEnabled(localStorage.getItem("ops-map-heat") === "1");
     setAlertsEnabled(localStorage.getItem("ops-map-alerts") !== "0");
     setCommandMode(localStorage.getItem("ops-map-command-mode") === "1");
-    if (localStorage.getItem("ops-map-night") === "1") {
-      document.documentElement.classList.add("ops-night", "dark-mode");
-      localStorage.setItem("baupass-ui-darkmode", "true");
-      const nightBtn = document.getElementById("nightModeBtn");
-      if (nightBtn) nightBtn.classList.add("is-active");
-    }
+    document.documentElement.classList.remove("ops-night");
+    localStorage.removeItem("ops-map-night");
     syncQuickFiltersUi();
     window.initOpsMapLangSync?.();
     setRefreshBusy(false);
@@ -4082,13 +4099,7 @@
       if (heatBtn) heatBtn.textContent = window.opsMapT("heatDensity");
       const alertBtn = document.getElementById("alertsToggleBtn");
       if (alertBtn) alertBtn.textContent = window.opsMapT("liveAlerts");
-      const nightBtn = document.getElementById("nightModeBtn");
-      if (nightBtn) {
-        const on = document.documentElement.classList.contains("ops-night");
-        nightBtn.textContent = window.opsMapT(on ? "nightModeOn" : "nightMode");
-        nightBtn.classList.toggle("is-active", on);
-      }
-      document.querySelectorAll("#mapQuickFilters [data-omapi18n]").forEach((el) => {
+      document.querySelectorAll("#mapQuickFilters [data-omapi18n], .map-hud-label[data-omapi18n]").forEach((el) => {
         const key = el.getAttribute("data-omapi18n");
         if (key) el.textContent = window.opsMapT(key);
       });
@@ -4113,15 +4124,6 @@
         btn.addEventListener('click', () => {
           const isCurrentlyDark = document.documentElement.classList.toggle('dark-mode');
           localStorage.setItem('baupass-ui-darkmode', isCurrentlyDark);
-          if (!isCurrentlyDark) {
-            document.documentElement.classList.remove('ops-night');
-            localStorage.setItem('ops-map-night', '0');
-            const nightBtn = document.getElementById('nightModeBtn');
-            if (nightBtn) {
-              nightBtn.classList.remove('is-active');
-              nightBtn.textContent = window.opsMapT('nightMode');
-            }
-          }
           btn.textContent = isCurrentlyDark ? '☀️' : '🌙';
           const nextLabel = window.opsMapT(isCurrentlyDark ? "lightMode" : "darkMode");
           btn.title = nextLabel;
