@@ -4975,7 +4975,10 @@ function inboxActionLabel(a) {
   const action = a || {};
   const type = String(action.type || "").trim().toLowerCase();
   const rawLabel = String(action.label || "").trim();
-  const humanLabel = rawLabel && !/^[a-z][a-z0-9_.-]*$/i.test(rawLabel) ? rawLabel : "";
+  // Technical ids look like snake_case / dotted codes — plain words stay human labels.
+  const isTechnical =
+    /^[a-z][a-z0-9_.-]*$/i.test(rawLabel) && (/[_.-]/.test(rawLabel) || rawLabel.length < 3);
+  const humanLabel = rawLabel && !isTechnical ? rawLabel : "";
   if (type === "resolve" || type === "ack") return humanLabel || t("inbox.done");
   if (type === "prompt") return humanLabel || t("inbox.aiAnalyze");
   if (type === "open") return humanLabel || t("inbox.openAction");
@@ -4986,26 +4989,160 @@ function inboxActionLabel(a) {
     if (localized && localized !== key) return localized;
     if (humanLabel) return humanLabel;
     if (act === "notify_worker") return t("inbox.exec.notify_worker");
-    return act ? act.replace(/_/g, " ") : t("inbox.openAction");
+    return act ? act.replace(/_/g, " ") : t("common.open");
   }
   if (type === "navigate") {
     const url = String(action.url || "");
     const tab = String(action.tab || "").trim();
     if (tab === "audit" || /tab=audit/i.test(url)) return t("inbox.nav.audit");
+    if (tab === "access" || /tab=access/i.test(url)) return t("inbox.nav.attendance");
+    if (tab === "workers" || /tab=workers/i.test(url)) return t("tab.workers");
+    if (/chat\.html/i.test(url)) return humanLabel || t("lage.openChat");
     if (/docs\.html/i.test(url)) return t("inbox.nav.docs");
-    if (/source=leave/i.test(url) || tab === "inbox") {
-      if (/source=leave/i.test(url)) return t("inbox.nav.leave");
-      if (/source=document/i.test(url)) return t("inbox.nav.docs");
-      if (/source=attendance/i.test(url)) return t("inbox.nav.attendance");
-      if (/source=security/i.test(url)) return t("inbox.nav.security");
-    }
+    if (/camera-watch/i.test(url)) return t("cameraWatch.open");
+    if (/source=leave/i.test(url)) return t("inbox.nav.leave");
+    if (/source=document/i.test(url)) return t("inbox.nav.docs");
+    if (/source=attendance/i.test(url)) return t("inbox.nav.attendance");
+    if (/source=security/i.test(url)) return t("inbox.nav.security");
     if (/ai-command-center/i.test(url)) return t("inbox.aiAnalyze");
     if (/deployment|einsatzplan/i.test(url)) return t("inbox.nav.deployment");
     if (humanLabel) return humanLabel;
-    return t("inbox.openAction");
+    return t("common.open");
   }
   if (humanLabel) return humanLabel;
-  return t("inbox.openAction");
+  return t("common.open");
+}
+
+function inboxJoinUrl(url, companyQ) {
+  const raw = String(url || "").trim();
+  if (!raw) return raw;
+  const q = String(companyQ || "").replace(/^\?/, "");
+  if (!q) return raw;
+  try {
+    const u = new URL(raw, window.location.origin);
+    const extra = new URLSearchParams(q);
+    extra.forEach((value, key) => {
+      if (!u.searchParams.has(key)) u.searchParams.set(key, value);
+    });
+    return u.pathname + u.search + u.hash;
+  } catch (_e) {
+    if (raw.includes("?")) return raw;
+    return `${raw}?${q}`;
+  }
+}
+
+async function runInboxNavigateAction(a, { companyQ = "", workerId = "", workerName = "" } = {}) {
+  const action = a || {};
+  const url = String(action.url || "").trim();
+  const tabTarget =
+    String(action.tab || "").trim() ||
+    (() => {
+      try {
+        return new URL(url, window.location.origin).searchParams.get("tab") || "";
+      } catch (_e) {
+        return "";
+      }
+    })();
+
+  if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
+    switchToTab(tabTarget);
+    await refreshActiveTab();
+    return;
+  }
+
+  const isDeployment =
+    /deployment-plan|einsatzplan/i.test(url) || String(action.label || "").toLowerCase().includes("einsatz");
+  if (isDeployment && workerId) {
+    switchToTab("workers");
+    await loadWorkers();
+    await openDeploymentModal(workerId, workerName || workerId);
+    return;
+  }
+
+  if (/chat\.html/i.test(url)) {
+    const href = inboxJoinUrl(url, companyQ);
+    window.open(href, "_blank", "noopener");
+    return;
+  }
+
+  if (url) {
+    const href = inboxJoinUrl(url, companyQ);
+    if (window.parent !== window && href.startsWith("/")) {
+      try {
+        const u = new URL(href, window.location.origin);
+        window.parent.postMessage(
+          {
+            type: "baupass-navigate",
+            view: u.searchParams.get("view") || "",
+            focusEinsatzplan: u.searchParams.get("einsatzplan") === "1",
+            url: u.pathname + u.search + u.hash,
+          },
+          window.location.origin,
+        );
+        return;
+      } catch (_e) {
+        /* fall through */
+      }
+    }
+    if (/^https?:\/\//i.test(href) || href.startsWith("/")) {
+      window.location.href = href;
+      return;
+    }
+  }
+  showActionToast(t("common.error"), true);
+}
+
+async function runInboxResolveAction(itemId, companyQ, extraBody = {}) {
+  const res = await api(`/api/inbox/${encodeURIComponent(itemId)}/resolve${companyQ}`, {
+    method: "POST",
+    body: JSON.stringify(extraBody),
+  });
+  const ok = res?.ok !== false;
+  showActionToast(
+    ok ? t("common.done") : humanizeUserError({ message: res?.message || res?.error, data: res }),
+    !ok,
+  );
+  if (ok) await loadInbox();
+  return res;
+}
+
+async function runInboxExecAction(btn, companyQ) {
+  const id = btn.dataset.id || "";
+  const action = btn.dataset.action || "";
+  if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
+    const decision = action === "approve_leave_request" ? "approve" : "reject";
+    const res = await api(`/api/inbox/${encodeURIComponent(id)}/resolve${companyQ}`, {
+      method: "POST",
+      body: JSON.stringify({ decision }),
+    });
+    const ok = res?.ok !== false;
+    const msg = ok
+      ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
+      : humanizeUserError({ message: res?.message || res?.error, data: res });
+    showActionToast(msg, !ok);
+    if (ok) await loadInbox();
+    return;
+  }
+  let params = {};
+  try {
+    params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
+  } catch (_e) {
+    params = {};
+  }
+  const cid = String(companyQ || "").replace(/^\?company_id=/, "");
+  const res = await api("/api/ai/actions/execute", {
+    method: "POST",
+    body: JSON.stringify({ action, params, company_id: cid || undefined }),
+  });
+  const ok = res?.ok !== false;
+  const pushMsg = formatPushDelivery(res);
+  showActionToast(
+    ok
+      ? `${inboxActionLabel({ type: "execute", action, label: btn.textContent }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
+      : humanizeUserError({ message: res?.message || res?.error, data: res, status: res?.status }),
+    !ok,
+  );
+  if (ok) await loadInbox();
 }
 
 function inboxTitleForCode(code, fallback) {
@@ -5163,19 +5300,21 @@ function localizeInboxItem(it) {
   }
   if (code === "missing_checkin" || id.startsWith("miss:")) {
     const name = String(details.workerName || "").trim() || "—";
-    const loc = String(details.location || "").trim();
-    const start = String(details.shiftStart || "").trim().slice(0, 5);
-    const end = String(details.shiftEnd || "").trim().slice(0, 5);
-    const shift = start && end ? `${start}–${end}` : "";
+    const loc = employerCleanText(details.location) || "";
+    const startRaw = String(details.shiftStart || "").trim();
+    const endRaw = String(details.shiftEnd || "").trim();
+    const start = /^\d{1,2}:\d{2}/.test(startRaw) ? startRaw.slice(0, 5) : "";
+    const end = /^\d{1,2}:\d{2}/.test(endRaw) ? endRaw.slice(0, 5) : "";
+    const shift = start && end ? `${start}–${end}` : start || "";
     return {
       ...item,
       title: t("inbox.alert.missingCheckin.title", { name }),
       message: t("inbox.alert.missingCheckin.body", {
         name,
-        location: loc ? ` ${loc}` : "",
+        location: loc ? ` · ${loc}` : "",
         shift: shift ? ` (${shift})` : "",
       }),
-      details: { ...details, workerName: name },
+      details: { ...details, workerName: name, shiftStart: start, shiftEnd: end },
       fromName: name,
     };
   }
@@ -5513,51 +5652,29 @@ async function loadInbox() {
         .map((p) => `<p>${escapeHtml(p)}</p>`)
         .join("");
       const actionBtns = (it.actions || [])
-        .map((a) => {
+        .map((a, idx) => {
           const label = inboxActionLabel(a);
           if (a.type === "resolve" || a.type === "ack")
-            return `<button type="button" class="inbox-resolve" data-id="${it.id}">${escapeHtml(label)}</button>`;
+            return `<button type="button" class="ghost inbox-action-btn inbox-resolve" data-id="${escapeAttr(it.id)}">${escapeHtml(label)}</button>`;
           if (a.type === "execute" && a.action)
-            return `<button type="button" class="inbox-exec" data-id="${it.id}" data-action="${escapeAttr(a.action)}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${escapeHtml(label)}</button>`;
+            return `<button type="button" class="ghost inbox-action-btn inbox-exec" data-id="${escapeAttr(it.id)}" data-action="${escapeAttr(a.action)}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${escapeHtml(label)}</button>`;
           if (a.type === "navigate") {
             const url = String(a.url || "");
-            const isAiCenter = /ai-command-center\.html/i.test(url);
-            if (isAiCenter) {
+            if (/ai-command-center\.html/i.test(url)) {
               const prompt =
                 a.prompt ||
                 t("inbox.aiPromptDefault", {
                   title: it.title || "",
                   message: it.message || "",
                 });
-              return `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
+              return `<button type="button" class="ghost inbox-action-btn inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
             }
-            const isDeployment =
-              String(it.id || "").startsWith("depdecl:") ||
-              url.includes("deployment-plan") ||
-              url.includes("einsatzplan");
-            if (isDeployment && it.workerId) {
-              const workerName = String(from || "").trim();
-              return `<button type="button" class="inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeHtml(label)}</button>`;
-            }
-            const tabTarget = String(a.tab || "").trim() || (() => {
-              try {
-                return new URL(url, window.location.origin).searchParams.get("tab") || "";
-              } catch (_e) {
-                return "";
-              }
-            })();
-            if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
-              return `<button type="button" class="inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeHtml(label)}</button>`;
-            }
-            if (window.parent !== window && url.startsWith("/")) {
-              return `<button type="button" class="inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
-            }
-            return `<a class="ghost" href="${escapeAttr(url)}${q}">${escapeHtml(label)}</a>`;
+            return `<button type="button" class="ghost inbox-action-btn inbox-nav" data-action-idx="${idx}" data-worker-id="${escapeAttr(String(it.workerId || ""))}" data-worker-name="${escapeAttr(String(from || ""))}">${escapeHtml(label)}</button>`;
           }
           if (a.type === "prompt")
-            return `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
+            return `<button type="button" class="ghost inbox-action-btn inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
           if (a.type === "open")
-            return `<button type="button" class="inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(label)}</button>`;
+            return ""; // Already open in the letter view — no redundant button
           return "";
         })
         .filter(Boolean)
@@ -5590,111 +5707,34 @@ async function loadInbox() {
         panel.innerHTML = "";
       });
       panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
-        btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
+        btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(humanizeUserError(e), true)));
       });
       panel.querySelectorAll(".inbox-resolve").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          try {
-            const res = await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, {
-              method: "POST",
-              body: "{}",
-            });
-            showActionToast(res.ok ? t("common.done") : res.error || t("common.error"), !res.ok);
-            await loadInbox();
-          } catch (e) {
-            showActionToast(e.message, true);
-          }
-        });
+        btn.addEventListener("click", () =>
+          runInboxResolveAction(btn.dataset.id, q).catch((e) => showActionToast(humanizeUserError(e), true)),
+        );
       });
       panel.querySelectorAll(".inbox-exec").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const id = btn.dataset.id || "";
-          const action = btn.dataset.action || "";
-          if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
-            const decision = action === "approve_leave_request" ? "approve" : "reject";
-            try {
-              const res = await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
-                method: "POST",
-                body: JSON.stringify({ decision }),
-              });
-              const msg = res.ok
-                ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
-                : res.error || t("common.error");
-              showActionToast(msg, !res.ok);
-              await loadInbox();
-            } catch (e) {
-              showActionToast(e.message, true);
-            }
-            return;
-          }
-          try {
-            const params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
-            const cid = q.replace("?company_id=", "");
-            const res = await api("/api/ai/actions/execute", {
-              method: "POST",
-              body: JSON.stringify({ action, params, company_id: cid || undefined }),
-            });
-            const pushMsg = formatPushDelivery(res);
-            showActionToast(
-              res.ok
-                ? `${inboxActionLabel({ type: "execute", action, label: btn.textContent }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
-                : humanizeUserError({ message: res.message || res.error, data: res, status: res.status }),
-              !res.ok,
-            );
-            await loadInbox();
-          } catch (e) {
-            showActionToast(e.message, true);
-          }
-        });
+        btn.addEventListener("click", () =>
+          runInboxExecAction(btn, q).catch((e) => showActionToast(humanizeUserError(e), true)),
+        );
       });
-      panel.querySelectorAll(".inbox-nav-tab").forEach((btn) => {
+      panel.querySelectorAll(".inbox-nav").forEach((btn) => {
         btn.addEventListener("click", () => {
-          const tab = String(btn.dataset.tab || "").trim();
-          if (tab) switchToTab(tab);
+          const idx = Number(btn.dataset.actionIdx);
+          const navAction = (it.actions || [])[idx];
+          if (!navAction) return;
+          runInboxNavigateAction(navAction, {
+            companyQ: q,
+            workerId: btn.dataset.workerId || it.workerId || "",
+            workerName: btn.dataset.workerName || from || "",
+          }).catch((e) => showActionToast(humanizeUserError(e), true));
         });
-      });
-      panel.querySelectorAll(".inbox-nav-parent").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const raw = String(btn.dataset.navUrl || "").trim();
-          if (!raw) return;
-          try {
-            const u = new URL(raw, window.location.origin);
-            const view = u.searchParams.get("view") || "";
-            window.parent.postMessage(
-              {
-                type: "baupass-navigate",
-                view,
-                focusEinsatzplan: u.searchParams.get("einsatzplan") === "1",
-                url: u.pathname + u.search + u.hash,
-              },
-              window.location.origin,
-            );
-          } catch (_e) {
-            window.location.href = raw;
-          }
-        });
-      });
-      panel.querySelectorAll(".inbox-nav-deployment").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const workerId = String(btn.dataset.workerId || "").trim();
-          const workerName = String(btn.dataset.workerName || "").trim();
-          if (!workerId) return;
-          try {
-            switchToTab("workers");
-            await loadWorkers();
-            await openDeploymentModal(workerId, workerName || workerId);
-          } catch (e) {
-            showActionToast(e.message, true);
-          }
-        });
-      });
-      panel.querySelectorAll(".inbox-open").forEach((btn) => {
-        btn.addEventListener("click", () => openInboxItem(btn.dataset.id).catch((e) => showActionToast(e.message, true)));
       });
     }
 
     if (shouldAutoAck) {
-      // Full reload keeps badge/list consistent even if soft-remove selectors fail.
+      // Keep the letter open after list refresh; re-bind close only (actions already used).
       const detailHtml = panel?.innerHTML || "";
       const detailOpen = panel && !panel.classList.contains("hidden");
       await loadInbox();
@@ -5704,9 +5744,6 @@ async function loadInbox() {
         panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
           panel.classList.add("hidden");
           panel.innerHTML = "";
-        });
-        panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
-          btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
         });
       }
     }

@@ -76,6 +76,27 @@ def _on_leave_ids(db, company_id: str, today: str) -> set[str]:
         return set()
 
 
+def _shift_hhmm(value: Any) -> str:
+    """Normalize shift values that may be HH:MM or full ISO datetimes."""
+    raw = str(value or "").strip()
+    if not raw:
+        return ""
+    if "T" in raw and len(raw) >= 16:
+        return raw[11:16]
+    if len(raw) >= 5 and raw[2] == ":":
+        return raw[:5]
+    # "7:00" / "7:00:00"
+    if ":" in raw:
+        parts = raw.split(":")
+        try:
+            hh, mm = int(parts[0]), int(parts[1] if len(parts) > 1 else 0)
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                return f"{hh:02d}:{mm:02d}"
+        except Exception:
+            return ""
+    return ""
+
+
 def _expected_workers_today(db, company_id: str, today: str) -> list[dict[str, Any]]:
     """Workers expected on site today (deployment plan or Mo–Fr fallback)."""
     cid = str(company_id)
@@ -124,8 +145,8 @@ def _expected_workers_today(db, company_id: str, today: str) -> list[dict[str, A
                         "workerId": wid,
                         "name": str(r["worker_name"] or "").strip() or wid,
                         "location": loc,
-                        "shiftStart": str(r["shift_start"] or "")[:5],
-                        "shiftEnd": str(r["shift_end"] or "")[:5],
+                        "shiftStart": _shift_hhmm(r["shift_start"]),
+                        "shiftEnd": _shift_hhmm(r["shift_end"]),
                         "reason": "scheduled",
                     }
                 )
