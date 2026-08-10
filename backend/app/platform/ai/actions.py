@@ -294,20 +294,72 @@ def execute_action(
         if not w:
             return {"ok": False, "error": "worker_not_found"}
         tag = str(params.get("tag") or "ops-notify").strip()[:40] or "ops-notify"
+        action_url = str(params.get("action_url") or "chat").strip()[:80] or "chat"
+        delivery: dict[str, Any] = {"pushSent": 0, "delivered": False}
         try:
-            from backend.app.platform.push.automation import push_to_worker
+            from backend.app.platform.notifications.worker_mitteilung import notify_worker_mitteilung
 
-            delivery = push_to_worker(
-                db, worker_id, title, body, tag=tag, company_id=str(company_id)
+            # In-app Mitteilung + optional push/email — useful even without FCM token.
+            result = notify_worker_mitteilung(
+                db,
+                worker_id,
+                notif_type="ops_notify",
+                title=title,
+                message=body,
+                action_url=action_url,
+                push_tag=tag,
+                send_email=True,
             )
+            db.commit()
+            push_sent = int(result.get("pushSent") or 0)
+            delivery = {
+                "delivered": push_sent > 0,
+                "pushSent": push_sent,
+                "emailSent": bool(result.get("emailSent")),
+                "notificationId": result.get("notificationId"),
+                "channels": (["push"] if push_sent > 0 else [])
+                + (["email"] if result.get("emailSent") else [])
+                + (["inbox"] if result.get("notificationId") else []),
+                "hint": None
+                if push_sent > 0 or result.get("emailSent") or result.get("notificationId")
+                else (
+                    "Keine Push-Zustellung — Mitarbeiter hat noch kein Gerät / keine Push-Anmeldung. "
+                    "Mitteilung wurde trotzdem versucht."
+                ),
+            }
+            if push_sent <= 0 and not result.get("notificationId") and not result.get("emailSent"):
+                # Fall back to raw push attempt for clearer channel hints.
+                from backend.app.platform.push.automation import push_to_worker
+
+                delivery = push_to_worker(
+                    db, worker_id, title, body, tag=tag, company_id=str(company_id)
+                )
         except Exception as exc:
-            return {"ok": False, "error": "push_failed", "hint": str(exc)[:200]}
+            try:
+                from backend.app.platform.push.automation import push_to_worker
+
+                delivery = push_to_worker(
+                    db, worker_id, title, body, tag=tag, company_id=str(company_id)
+                )
+            except Exception as exc2:
+                return {"ok": False, "error": "push_failed", "hint": str(exc2 or exc)[:200]}
         sent = int(delivery.get("pushSent") or 0)
+        has_inbox = bool(delivery.get("notificationId") or "inbox" in (delivery.get("channels") or []))
+        has_email = bool(delivery.get("emailSent"))
+        # Employer action succeeded if any channel worked (push, email, or in-app).
+        ok = sent > 0 or has_inbox or has_email or delivery.get("delivered") is True
+        if not ok and not delivery.get("hint"):
+            delivery["hint"] = (
+                "Kein Push-Gerät beim Mitarbeiter. Bitte Chat nutzen oder Push in der App aktivieren."
+            )
         return {
-            "ok": sent > 0,
+            "ok": True if (sent > 0 or has_inbox or has_email) else False,
+            "softFail": sent <= 0,
             "pushSent": sent,
             "pushDelivery": delivery,
             "workerId": worker_id,
+            "message": delivery.get("hint") if sent <= 0 else None,
+            "error": None if (sent > 0 or has_inbox or has_email) else "push_not_delivered",
         }
 
     if action == "ack_system_alert":

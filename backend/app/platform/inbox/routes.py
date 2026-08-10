@@ -75,6 +75,55 @@ def register_inbox_blueprint(flask_app) -> None:
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 
+    @inbox_bp.post("/inbox/<path:item_id>/execute")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def execute_item_action(item_id: str):
+        """Run a safe inbox action (e.g. notify_worker) without AI-plan gate."""
+        from backend.app.platform.ai.actions import execute_action
+
+        role = str(g.current_user.get("role") or "company-admin")
+        company_id = str(g.current_user.get("company_id") or "").strip()
+        data = request.get_json(silent=True) or {}
+        if role == "superadmin":
+            company_id = str(
+                request.args.get("company_id") or data.get("company_id") or company_id
+            ).strip()
+        if not company_id:
+            return jsonify({"ok": False, "error": "company_required"}), 400
+        action = str(data.get("action") or "").strip()
+        params = data.get("params") if isinstance(data.get("params"), dict) else {}
+        # Only allow ops notify / leave / security-style executes from the inbox UI.
+        allowed = {
+            "notify_worker",
+            "resolve_security_alert",
+            "approve_leave_request",
+            "reject_leave_request",
+            "remind_late_workers",
+        }
+        if action not in allowed:
+            return jsonify({"ok": False, "error": "action_not_allowed", "action": action}), 400
+        user_id = str(g.current_user.get("id") or g.current_user.get("username") or "")
+        result = execute_action(
+            get_db(),
+            company_id=company_id,
+            user_id=user_id,
+            action=action,
+            params=params or {},
+        )
+        # Soft push misses should not look like hard failures in the employer UI.
+        if action == "notify_worker" and result.get("softFail") and result.get("ok") is False:
+            result = {
+                **result,
+                "ok": True,
+                "softFail": True,
+                "message": result.get("message")
+                or (result.get("pushDelivery") or {}).get("hint")
+                or "Push nicht zugestellt — Mitteilung/E-Mail ggf. trotzdem versucht.",
+            }
+        code = 200 if result.get("ok") else 400
+        return jsonify({**result, "itemId": item_id}), code
+
     @inbox_bp.post("/inbox/bulk")
     @require_auth
     @require_roles("superadmin", "company-admin")

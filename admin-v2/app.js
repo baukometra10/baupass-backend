@@ -5130,19 +5130,56 @@ async function runInboxExecAction(btn, companyQ) {
     params = {};
   }
   const cid = String(companyQ || "").replace(/^\?company_id=/, "");
-  const res = await api("/api/ai/actions/execute", {
-    method: "POST",
-    body: JSON.stringify({ action, params, company_id: cid || undefined }),
-  });
-  const ok = res?.ok !== false;
+  // Prefer inbox execute (no AI-plan gate). Fall back to AI execute for legacy actions.
+  let res;
+  try {
+    res = await api(`/api/inbox/${encodeURIComponent(id || "action")}/execute${companyQ}`, {
+      method: "POST",
+      body: JSON.stringify({ action, params, company_id: cid || undefined }),
+    });
+  } catch (firstErr) {
+    // Older backends / unexpected 404 → try AI path once.
+    const status = Number(firstErr?.status || 0);
+    if (status === 404 || status === 405) {
+      res = await api("/api/ai/actions/execute", {
+        method: "POST",
+        body: JSON.stringify({ action, params, company_id: cid || undefined }),
+      });
+    } else {
+      throw firstErr;
+    }
+  }
+  const sent = Number(res?.pushSent ?? res?.pushDelivery?.pushSent ?? 0) || 0;
+  const channels = res?.pushDelivery?.channels || [];
   const pushMsg = formatPushDelivery(res);
+  const soft = Boolean(res?.softFail) || (action === "notify_worker" && sent <= 0);
+  if (action === "notify_worker") {
+    if (sent > 0) {
+      showActionToast(`${t("inbox.exec.notify_worker")} ✓ — ${pushMsg || t("common.done")}`, false);
+    } else if (channels.includes("inbox") || channels.includes("email") || res?.ok) {
+      showActionToast(
+        t("inbox.pushSoftOk") ||
+          `Mitteilung gespeichert${pushMsg ? ` — ${pushMsg}` : ""}. Push-Gerät fehlt ggf. beim Mitarbeiter.`,
+        false,
+      );
+    } else {
+      showActionToast(
+        pushMsg ||
+          t("inbox.pushNotDelivered") ||
+          "Push nicht zugestellt — Mitarbeiter hat kein aktives Gerät. Bitte Chat nutzen.",
+        true,
+      );
+    }
+    return;
+  }
+  const ok = res?.ok !== false;
   showActionToast(
     ok
       ? `${inboxActionLabel({ type: "execute", action, label: btn.textContent }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
       : humanizeUserError({ message: res?.message || res?.error, data: res, status: res?.status }),
     !ok,
   );
-  if (ok) await loadInbox();
+  if (ok && !soft) await loadInbox();
 }
 
 function inboxTitleForCode(code, fallback) {
@@ -6063,46 +6100,9 @@ async function loadInbox() {
   });
 
   el.querySelectorAll(".inbox-exec").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const id = btn.dataset.id || "";
-      const action = btn.dataset.action || "";
-      if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
-        const decision = action === "approve_leave_request" ? "approve" : "reject";
-        try {
-          const res = await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
-            method: "POST",
-            body: JSON.stringify({ decision }),
-          });
-          const msg = res.ok
-            ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
-            : res.error || t("common.error");
-          showActionToast(msg, !res.ok);
-          await loadInbox();
-          return;
-        } catch (e) {
-          showActionToast(e.message, true);
-          return;
-        }
-      }
-      try {
-        const params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
-        const cid = q.replace("?company_id=", "");
-        const res = await api("/api/ai/actions/execute", {
-          method: "POST",
-          body: JSON.stringify({ action, params, company_id: cid || undefined }),
-        });
-        const pushMsg = formatPushDelivery(res);
-        showActionToast(
-          res.ok
-            ? `${inboxActionLabel({ type: "execute", action }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
-            : humanizeUserError({ message: res.message || res.error, data: res, status: res.status }),
-          !res.ok,
-        );
-        await loadInbox();
-      } catch (e) {
-        showActionToast(e.message, true);
-      }
-    });
+    btn.addEventListener("click", () =>
+      runInboxExecAction(btn, q).catch((e) => showActionToast(humanizeUserError(e), true)),
+    );
   });
 }
 
