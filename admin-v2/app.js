@@ -4881,6 +4881,45 @@ function inboxSeverityLabel(severity) {
   return label && label !== key ? label : s;
 }
 
+function employerCleanText(value) {
+  const s = String(value ?? "").trim();
+  if (!s) return "";
+  // Hide raw technical ids / snake_case codes from employers.
+  if (/^[a-z][a-z0-9_.-]{2,}$/i.test(s) && (s.includes("_") || s.includes("."))) return "";
+  if (/^[0-9a-f]{8,}$/i.test(s)) return "";
+  return s;
+}
+
+function lageToneForCount(value, { warnAt = 1, alertAt = 3, invert = false } = {}) {
+  const n = Number(value) || 0;
+  if (invert) {
+    if (n <= 0) return "muted";
+    if (n < warnAt) return "warn";
+    return "ok";
+  }
+  if (n <= 0) return "ok";
+  if (n >= alertAt) return "alert";
+  if (n >= warnAt) return "warn";
+  return "ok";
+}
+
+function renderLageKpi({ id, label, value, tone = "ok", hint = "" }) {
+  const toneCls = ["ok", "warn", "alert", "info", "muted"].includes(tone) ? tone : "ok";
+  return `<button type="button" class="lage-kpi is-${toneCls}" data-lage-detail="${escapeAttr(id)}" title="${escapeAttr(hint || label)}">
+    <span class="lage-kpi-label">${escapeHtml(label)}</span>
+    <strong class="lage-kpi-value">${escapeHtml(String(value ?? "—"))}</strong>
+    <span class="lage-kpi-hint">${escapeHtml(hint || t("lage.tapForDetails"))}</span>
+  </button>`;
+}
+
+function renderLagePersonRows(items, emptyKey) {
+  const rows = (items || []).filter(Boolean);
+  if (!rows.length) {
+    return `<p class="lage-empty">${escapeHtml(t(emptyKey))}</p>`;
+  }
+  return `<ul class="lage-alert-list">${rows.join("")}</ul>`;
+}
+
 function inboxSourceLabel(source) {
   const s = String(source || "").trim().toLowerCase();
   const map = {
@@ -5028,9 +5067,15 @@ function localizeInboxItem(it) {
   if (code === "shift_swap_accepted") {
     return { ...item, title: t("inbox.alert.shiftSwap.title") };
   }
+  const title = inboxTitleForCode(code, item.title);
+  let message = String(item.message || "").trim();
+  if (!message || /^[a-z][a-z0-9_.-]*$/i.test(message)) {
+    message = t("inbox.detail.noMessage");
+  }
   return {
     ...item,
-    title: inboxTitleForCode(code, item.title),
+    title,
+    message,
   };
 }
 
@@ -5351,12 +5396,15 @@ async function loadInbox() {
       panel.classList.remove("hidden");
       panel.innerHTML = `
       <div class="inbox-detail-head">
-        <h3>${escapeHtml(it.title || "")}</h3>
+        <div>
+          <p class="inbox-detail-kicker">${escapeHtml(inboxSourceLabel(it.source))} · ${escapeHtml(inboxSeverityLabel(it.severity))}</p>
+          <h3>${escapeHtml(it.title || t("inbox.alert.generic.title"))}</h3>
+        </div>
         <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
       </div>
-      <p>${escapeHtml(it.message || "")}</p>
+      <p class="inbox-detail-message">${escapeHtml(it.message || t("inbox.detail.noMessage"))}</p>
       ${factsHtml}
-      ${reason ? `<p><strong>${t("inbox.reasonLabel")}</strong> ${escapeHtml(reason)}</p>` : ""}
+      ${reason ? `<p class="inbox-detail-reason"><strong>${t("inbox.reasonLabel")}</strong> ${escapeHtml(reason)}</p>` : ""}
       ${eventHtml}
       <div class="inbox-detail-actions">
         ${(it.actions || [])
@@ -6495,39 +6543,54 @@ async function loadOverview() {
         ? `<span class="badge">${t("lage.watchStandby")}</span>`
         : `<span class="badge">${t("lage.watchOff")}</span>`;
     const lateList = (att.lateWorkers || [])
-      .slice(0, 4)
-      .map(
-        (w) =>
-          `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong> · ${escapeHtml(w.time || "—")} · ${escapeHtml(w.gate || "—")}</li>`,
-      )
-      .join("");
-    const missingList = (att.missingWorkers || [])
-      .slice(0, 5)
+      .slice(0, 8)
       .map((w) => {
+        const name = employerCleanText(w.name) || t("lage.unknownWorker");
+        const time = employerCleanText(String(w.time || "").slice(0, 5)) || "—";
+        const gate = employerCleanText(w.gate) || "";
+        return `<li class="lage-alert-item">
+          <div class="lage-alert-item-main">
+            <strong>${escapeHtml(name)}</strong>
+            <span class="lage-alert-meta">${escapeHtml(time)}${gate ? ` · ${escapeHtml(gate)}` : ""}</span>
+          </div>
+        </li>`;
+      });
+    const missingList = (att.missingWorkers || [])
+      .slice(0, 10)
+      .map((w) => {
+        const name = employerCleanText(w.name) || employerCleanText(w.workerId) || t("lage.unknownWorker");
         const shift =
-          w.shiftStart && w.shiftEnd ? ` · ${escapeHtml(w.shiftStart)}–${escapeHtml(w.shiftEnd)}` : "";
-        const loc = w.location ? ` · ${escapeHtml(w.location)}` : "";
+          w.shiftStart && w.shiftEnd
+            ? `${String(w.shiftStart).slice(0, 5)}–${String(w.shiftEnd).slice(0, 5)}`
+            : "";
+        const loc = employerCleanText(w.location) || "";
         const chat =
           w.workerId && q
-            ? ` · <a href="/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(w.workerId)}" target="_blank" rel="noopener">${t("lage.openChat")}</a>`
+            ? `<a class="lage-alert-link" href="/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(w.workerId)}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`
             : "";
-        return `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong>${loc}${shift}${chat}</li>`;
-      })
-      .join("");
+        return `<li class="lage-alert-item">
+          <div class="lage-alert-item-main">
+            <strong>${escapeHtml(name)}</strong>
+            <span class="lage-alert-meta">${escapeHtml([loc, shift].filter(Boolean).join(" · ") || t("lage.notCheckedInYet"))}</span>
+          </div>
+          ${chat}
+        </li>`;
+      });
     const secItems = (secBrief.items || [])
-      .slice(0, 4)
+      .slice(0, 6)
       .map((it) => {
-        const label = escapeHtml(it.title || it.id || "—");
-        const href = it.href
-          ? `<a href="${escapeAttr(it.href)}">${label}</a>`
-          : label;
-        return `<li>${href} <span class="muted">· ${escapeHtml(it.source || "")}</span></li>`;
-      })
-      .join("");
+        const label = employerCleanText(it.title) || t("lage.securityItem");
+        const href = it.href || "";
+        const title = href
+          ? `<a class="lage-alert-link" href="${escapeAttr(href)}">${escapeHtml(label)}</a>`
+          : `<strong>${escapeHtml(label)}</strong>`;
+        const src = employerCleanText(it.source) || inboxSourceLabel(it.source) || "";
+        return `<li class="lage-alert-item"><div class="lage-alert-item-main">${title}<span class="lage-alert-meta">${escapeHtml(src)}</span></div></li>`;
+      });
     const chatItems = (chatBrief.items || [])
-      .slice(0, 5)
+      .slice(0, 8)
       .map((it) => {
-        const who = escapeHtml(it.workerName || it.workerId || "—");
+        const who = employerCleanText(it.workerName) || t("lage.unknownWorker");
         const kind =
           it.kind === "callback_requested" ? t("lage.chatCallback") : t("lage.chatMissed");
         const link =
@@ -6535,42 +6598,111 @@ async function loadOverview() {
           (it.workerId && q
             ? `/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(it.workerId)}`
             : "");
-        const label = link
-          ? `<a href="${escapeAttr(link)}" target="_blank" rel="noopener">${who}</a>`
-          : who;
-        return `<li><strong>${escapeHtml(kind)}</strong> · ${label}</li>`;
-      })
-      .join("");
+        const action = link
+          ? `<a class="lage-alert-link" href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`
+          : "";
+        return `<li class="lage-alert-item">
+          <div class="lage-alert-item-main">
+            <strong>${escapeHtml(kind)}</strong>
+            <span class="lage-alert-meta">${escapeHtml(who)}</span>
+          </div>
+          ${action}
+        </li>`;
+      });
     const hrItems = (hrBrief.items || [])
-      .slice(0, 5)
+      .slice(0, 8)
       .map((it) => {
         if (it.kind === "docs_review") {
-          const title = escapeHtml(it.docTitle || it.title || "—");
+          const title = employerCleanText(it.docTitle || it.title) || t("lage.hrReview");
           const link = it.href
-            ? `<a href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${title}</a>`
-            : title;
-          return `<li><strong>${escapeHtml(t("lage.hrReview"))}</strong> · ${link}</li>`;
+            ? `<a class="lage-alert-link" href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${escapeHtml(t("common.open"))}</a>`
+            : "";
+          return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrReview"))}</strong><span class="lage-alert-meta">${escapeHtml(title)}</span></div>${link}</li>`;
         }
-        const who = escapeHtml(it.workerName || it.workerId || "—");
+        const who = employerCleanText(it.workerName) || t("lage.unknownWorker");
         if (it.kind === "leave") {
-          const range = [it.startDate, it.endDate].filter(Boolean).join("–") || "—";
-          return `<li><strong>${escapeHtml(t("lage.hrLeave"))}</strong> · ${who} · ${escapeHtml(range)}</li>`;
+          const range = [it.startDate, it.endDate].filter(Boolean).join(" – ") || "—";
+          return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrLeave"))}</strong><span class="lage-alert-meta">${escapeHtml(who)} · ${escapeHtml(range)}</span></div></li>`;
         }
-        const doc = escapeHtml(it.docType || "—");
-        const exp = escapeHtml(it.expiryDate || "—");
+        const doc = employerCleanText(it.docType) || t("lage.hrDoc");
+        const exp = employerCleanText(it.expiryDate) || "—";
         const link = it.href
-          ? `<a href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${doc}</a>`
-          : doc;
-        return `<li><strong>${escapeHtml(t("lage.hrDoc"))}</strong> · ${who} · ${link} · ${exp}</li>`;
-      })
-      .join("");
+          ? `<a class="lage-alert-link" href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${escapeHtml(t("common.open"))}</a>`
+          : "";
+        return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrDoc"))}</strong><span class="lage-alert-meta">${escapeHtml(who)} · ${escapeHtml(doc)} · ${escapeHtml(exp)}</span></div>${link}</li>`;
+      });
     const escHtml = (camLayer.latestEscalations || [])
-      .slice(0, 2)
+      .slice(0, 3)
       .map((e) => {
-        const police = e.policeName || e.details?.police?.station?.name || "—";
-        return `<li><strong>${escapeHtml(e.cameraId || "")}</strong> · ${escapeHtml(police)} · <button type="button" class="btn-link camera-esc-ack" data-id="${escapeAttr(e.id)}">${t("lage.watchAck")}</button></li>`;
-      })
-      .join("");
+        const cam = employerCleanText(e.cameraName || e.cameraId) || t("lage.securityItem");
+        const police = employerCleanText(e.policeName || e.details?.police?.station?.name) || "";
+        return `<li class="lage-alert-item">
+          <div class="lage-alert-item-main">
+            <strong>${escapeHtml(cam)}</strong>
+            <span class="lage-alert-meta">${escapeHtml(police || t("lage.watchEscalations"))}</span>
+          </div>
+          <button type="button" class="lage-alert-link camera-esc-ack" data-id="${escapeAttr(e.id)}">${escapeHtml(t("lage.watchAck"))}</button>
+        </li>`;
+      });
+
+    const detailBundles = {
+      onSite: {
+        title: t("lage.onSite"),
+        body: t("lage.detail.onSiteBody", { n: onSite }),
+        rows: "",
+      },
+      checkIns: {
+        title: t("lage.checkIns"),
+        body: t("lage.detail.checkInsBody", { n: checkIns }),
+        rows: "",
+      },
+      expected: {
+        title: t("lage.expectedToday"),
+        body: t("lage.detail.expectedBody", { n: expectedToday }),
+        rows: "",
+      },
+      missing: {
+        title: t("lage.missingToday"),
+        body: t("lage.detail.missingBody", { n: missingToday }),
+        rows: renderLagePersonRows(missingList, "lage.missingEmpty"),
+      },
+      late: {
+        title: t("lage.lateToday"),
+        body: t("lage.detail.lateBody", { n: lateToday }),
+        rows: renderLagePersonRows(lateList, "lage.attendanceEmpty"),
+      },
+      outside: {
+        title: t("lage.outsideHours"),
+        body: t("lage.detail.outsideBody", { n: outsideToday }),
+        rows: "",
+      },
+      cameras: {
+        title: t("lage.camerasOnline"),
+        body: t("lage.detail.camerasBody", { online: camsOnline, total: camList.length }),
+        rows: "",
+      },
+      security: {
+        title: t("lage.security"),
+        body: t("lage.detail.securityBody", { n: securityOpen }),
+        rows: renderLagePersonRows([...secItems, ...escHtml], "lage.securityEmpty"),
+      },
+      chat: {
+        title: t("lage.chatOpen"),
+        body: t("lage.detail.chatBody", { n: chatOpen, missed: missedCallsOpen, callback: callbackOpen }),
+        rows: renderLagePersonRows(chatItems, "lage.chatEmpty"),
+      },
+      hr: {
+        title: t("lage.hrOpen"),
+        body: t("lage.detail.hrBody", { n: hrOpen, leave: pendingLeave, docs: expiringDocs, review: inReviewDocs }),
+        rows: renderLagePersonRows(hrItems, "lage.hrEmpty"),
+      },
+      inbox: {
+        title: t("lage.inbox"),
+        body: t("lage.detail.inboxBody", { n: openInbox }),
+        rows: "",
+      },
+    };
+
     lage.innerHTML = `
       <div class="lage-panel-head">
         <div>
@@ -6580,82 +6712,78 @@ async function loadOverview() {
         <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">${liveBadge}${watchBadge}</div>
       </div>
       <div class="lage-grid">
-        <div class="lage-kpi"><span>${t("lage.onSite")}</span><strong>${onSite}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.checkIns")}</span><strong>${checkIns}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.expectedToday")}</span><strong>${expectedToday}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.missingToday")}</span><strong style="color:${missingToday > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${missingToday}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.lateToday")}</span><strong>${lateToday}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.outsideHours")}</span><strong>${outsideToday}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.camerasOnline")}</span><strong>${camsOnline}/${camList.length}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.security")}</span><strong>${securityOpen}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.chatOpen")}</span><strong style="color:${chatOpen > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${chatOpen}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.hrOpen")}</span><strong style="color:${hrOpen > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${hrOpen}</strong></div>
-        <div class="lage-kpi"><span>${t("lage.inbox")}</span><strong>${openInbox}</strong></div>
+        ${renderLageKpi({ id: "onSite", label: t("lage.onSite"), value: onSite, tone: lageToneForCount(onSite, { invert: true, warnAt: 1 }), hint: t("lage.tapForDetails") })}
+        ${renderLageKpi({ id: "checkIns", label: t("lage.checkIns"), value: checkIns, tone: "info" })}
+        ${renderLageKpi({ id: "expected", label: t("lage.expectedToday"), value: expectedToday, tone: "info" })}
+        ${renderLageKpi({ id: "missing", label: t("lage.missingToday"), value: missingToday, tone: lageToneForCount(missingToday) })}
+        ${renderLageKpi({ id: "late", label: t("lage.lateToday"), value: lateToday, tone: lageToneForCount(lateToday) })}
+        ${renderLageKpi({ id: "outside", label: t("lage.outsideHours"), value: outsideToday, tone: lageToneForCount(outsideToday) })}
+        ${renderLageKpi({ id: "cameras", label: t("lage.camerasOnline"), value: `${camsOnline}/${camList.length}`, tone: camsOnline < camList.length ? "warn" : "ok" })}
+        ${renderLageKpi({ id: "security", label: t("lage.security"), value: securityOpen, tone: lageToneForCount(securityOpen) })}
+        ${renderLageKpi({ id: "chat", label: t("lage.chatOpen"), value: chatOpen, tone: lageToneForCount(chatOpen) })}
+        ${renderLageKpi({ id: "hr", label: t("lage.hrOpen"), value: hrOpen, tone: lageToneForCount(hrOpen) })}
+        ${renderLageKpi({ id: "inbox", label: t("lage.inbox"), value: openInbox, tone: lageToneForCount(openInbox) })}
       </div>
-      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
-        <strong>${t("lage.attendanceTitle")}</strong>
-        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.attendanceHint")}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.workWindow")}: <strong>${escapeHtml(workWinLabel)}</strong>
-          · <button type="button" class="btn-link" data-goto-tab="tools">${t("lage.openWorkTimes")}</button></p>
-        ${
-          missingList
-            ? `<p class="muted small" style="margin:0.35rem 0 0"><strong>${t("lage.missingListTitle")}</strong></p><ul class="muted small" style="margin:0.2rem 0 0;padding-left:1.1rem">${missingList}</ul>`
-            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.missingEmpty")}</p>`
-        }
-        ${lateList ? `<p class="muted small" style="margin:0.45rem 0 0"><strong>${t("lage.lateListTitle")}</strong></p><ul class="muted small" style="margin:0.2rem 0 0;padding-left:1.1rem">${lateList}</ul>` : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.attendanceEmpty")}</p>`}
-        <p style="margin:0.45rem 0 0">
+      <aside class="lage-detail-drawer" id="lageDetailDrawer" hidden>
+        <div class="lage-detail-head">
+          <div>
+            <h4 id="lageDetailTitle"></h4>
+            <p class="muted small" id="lageDetailBody"></p>
+          </div>
+          <button type="button" class="ghost small" id="lageDetailClose">${escapeHtml(t("common.close"))}</button>
+        </div>
+        <div id="lageDetailRows"></div>
+        <div class="lage-detail-actions" id="lageDetailActions"></div>
+      </aside>
+      <div class="lage-watch-block is-attendance">
+        <div class="lage-block-head">
+          <strong>${t("lage.attendanceTitle")}</strong>
+          <span class="lage-block-chip">${escapeHtml(workWinLabel)}</span>
+        </div>
+        <p class="muted small">${t("lage.attendanceHint")}</p>
+        ${renderLagePersonRows(missingList, "lage.missingEmpty")}
+        ${lateList.length ? `<p class="lage-block-sub"><strong>${t("lage.lateListTitle")}</strong></p>${renderLagePersonRows(lateList, "lage.attendanceEmpty")}` : ""}
+        <div class="lage-block-actions">
+          <button type="button" class="btn-link" data-goto-tab="tools">${t("lage.openWorkTimes")}</button>
           <button type="button" class="btn-link" data-goto-tab="access">${t("lage.openAccess")}</button>
-          · <button type="button" class="btn-link" data-goto-tab="inbox">${t("lage.openInboxSecurity")}</button>
-        </p>
+          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="attendance">${t("lage.openInboxSecurity")}</button>
+        </div>
       </div>
-      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
-        <strong>${t("lage.securityTitle")}</strong>
-        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.securityHint")} · ${t("lage.watchNoAutodial")}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchEscalations")}: <strong>${openEsc}</strong>
-          · ${t("lage.securityEngineOpen")}: <strong>${Number(secBrief.openSecurityAlerts || 0)}</strong></p>
-        ${secItems ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${secItems}</ul>` : ""}
-        ${escHtml ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${escHtml}</ul>` : ""}
-        <p style="margin:0.45rem 0 0">
+      <div class="lage-watch-block is-security">
+        <div class="lage-block-head"><strong>${t("lage.securityTitle")}</strong></div>
+        <p class="muted small">${t("lage.securityHint")} · ${t("lage.watchNoAutodial")}</p>
+        <p class="muted small">${t("lage.watchEscalations")}: <strong>${openEsc}</strong> · ${t("lage.securityEngineOpen")}: <strong>${Number(secBrief.openSecurityAlerts || 0)}</strong></p>
+        ${renderLagePersonRows([...secItems, ...escHtml], "lage.securityEmpty")}
+        <div class="lage-block-actions">
           <a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>
-          · <button type="button" class="btn-link" data-goto-tab="inbox">${t("overview.inbox")}</button>
-        </p>
+          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="security">${t("overview.inbox")}</button>
+        </div>
       </div>
-      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
-        <strong>${t("lage.chatTitle")}</strong>
-        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.chatHint")}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.chatMissed")}: <strong>${missedCallsOpen}</strong>
-          · ${t("lage.chatCallback")}: <strong>${callbackOpen}</strong></p>
-        ${
-          chatItems
-            ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${chatItems}</ul>`
-            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.chatEmpty")}</p>`
-        }
-        <p style="margin:0.45rem 0 0">
+      <div class="lage-watch-block is-chat">
+        <div class="lage-block-head"><strong>${t("lage.chatTitle")}</strong></div>
+        <p class="muted small">${t("lage.chatHint")}</p>
+        <p class="muted small">${t("lage.chatMissed")}: <strong>${missedCallsOpen}</strong> · ${t("lage.chatCallback")}: <strong>${callbackOpen}</strong></p>
+        ${renderLagePersonRows(chatItems, "lage.chatEmpty")}
+        <div class="lage-block-actions">
           <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
-          · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="chat">${t("lage.openInboxChat")}</button>
-        </p>
+          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="chat">${t("lage.openInboxChat")}</button>
+        </div>
       </div>
-      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
-        <strong>${t("lage.hrTitle")}</strong>
-        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.hrHint")}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong>
-          · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong>
-          · ${t("lage.hrReview")}: <strong style="color:${inReviewDocs > 0 ? "var(--warn-accent,#fbbf24)" : "inherit"}">${inReviewDocs}</strong></p>
-        ${
-          hrItems
-            ? `<ul class="muted small" style="margin:0.35rem 0 0;padding-left:1.1rem">${hrItems}</ul>`
-            : `<p class="muted small" style="margin:0.35rem 0 0">${t("lage.hrEmpty")}</p>`
-        }
-        <p style="margin:0.45rem 0 0">
+      <div class="lage-watch-block is-hr">
+        <div class="lage-block-head"><strong>${t("lage.hrTitle")}</strong></div>
+        <p class="muted small">${t("lage.hrHint")}</p>
+        <p class="muted small">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong> · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong> · ${t("lage.hrReview")}: <strong>${inReviewDocs}</strong></p>
+        ${renderLagePersonRows(hrItems, "lage.hrEmpty")}
+        <div class="lage-block-actions">
           <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="leave">${t("lage.openInboxLeave")}</button>
-          · <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="document">${t("lage.openInboxDocs")}</button>
-          · <a href="/admin-v2/docs.html${q}${q ? "&" : "?"}status=in_review" target="_blank" rel="noopener">${t("lage.openDocsReview")}</a>
-        </p>
+          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="document">${t("lage.openInboxDocs")}</button>
+          <a href="/admin-v2/docs.html${q}${q ? "&" : "?"}status=in_review" target="_blank" rel="noopener">${t("lage.openDocsReview")}</a>
+        </div>
       </div>
-      <div class="lage-watch-block" style="margin:0.65rem 0 0.35rem;padding:0.55rem 0.7rem;border:1px solid var(--border);border-radius:10px">
-        <strong>${t("lage.watchTitle")}</strong>
-        <p class="muted small" style="margin:0.25rem 0 0">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
-        <p class="muted small" style="margin:0.2rem 0 0">${t("lage.watchMode")}: <strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></p>
+      <div class="lage-watch-block is-watch">
+        <div class="lage-block-head"><strong>${t("lage.watchTitle")}</strong></div>
+        <p class="muted small">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
+        <p class="muted small">${t("lage.watchMode")}: <strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></p>
       </div>
       <div class="lage-actions">
         <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
@@ -6674,6 +6802,49 @@ async function loadOverview() {
         ></iframe>
       </div>
     `;
+
+    const drawer = lage.querySelector("#lageDetailDrawer");
+    const openLageDetail = (id) => {
+      const pack = detailBundles[id];
+      if (!pack || !drawer) return;
+      drawer.hidden = false;
+      const titleEl = drawer.querySelector("#lageDetailTitle");
+      const bodyEl = drawer.querySelector("#lageDetailBody");
+      const rowsEl = drawer.querySelector("#lageDetailRows");
+      const actionsEl = drawer.querySelector("#lageDetailActions");
+      if (titleEl) titleEl.textContent = pack.title || "";
+      if (bodyEl) bodyEl.textContent = pack.body || "";
+      if (rowsEl) rowsEl.innerHTML = pack.rows || "";
+      if (actionsEl) {
+        const actionMap = {
+          missing: `<button type="button" class="ghost" data-goto-tab="access">${escapeHtml(t("lage.openAccess"))}</button>`,
+          late: `<button type="button" class="ghost" data-goto-tab="access">${escapeHtml(t("lage.openAccess"))}</button>`,
+          chat: `<a class="ghost" href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`,
+          hr: `<button type="button" class="ghost" data-goto-tab="inbox" data-inbox-source="leave">${escapeHtml(t("lage.openInboxLeave"))}</button>`,
+          security: `<a class="ghost" href="/admin-v2/camera-watch.html${q}">${escapeHtml(t("cameraWatch.open"))}</a>`,
+          inbox: `<button type="button" class="ghost" data-goto-tab="inbox">${escapeHtml(t("overview.inbox"))}</button>`,
+        };
+        actionsEl.innerHTML = actionMap[id] || "";
+        actionsEl.querySelectorAll("[data-goto-tab]").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const tab = btn.getAttribute("data-goto-tab");
+            switchToTab(tab);
+            if (tab === "inbox") {
+              inboxSourceFilter = btn.getAttribute("data-inbox-source") || "";
+              await loadInbox();
+            } else if (tab === "access") await loadAccess();
+          });
+        });
+      }
+      drawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    };
+
+    lage.querySelector("#lageDetailClose")?.addEventListener("click", () => {
+      if (drawer) drawer.hidden = true;
+    });
+    lage.querySelectorAll("[data-lage-detail]").forEach((btn) => {
+      btn.addEventListener("click", () => openLageDetail(btn.getAttribute("data-lage-detail")));
+    });
     lage.querySelectorAll("[data-goto-tab]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const tab = btn.getAttribute("data-goto-tab");
@@ -6682,6 +6853,9 @@ async function loadOverview() {
           inboxSourceFilter = btn.getAttribute("data-inbox-source") || "security";
           await loadInbox();
         } else if (tab === "access") await loadAccess();
+        else if (tab === "tools") {
+          /* tools tab hosts work times */
+        }
       });
     });
     lage.querySelectorAll(".camera-esc-ack").forEach((btn) => {
