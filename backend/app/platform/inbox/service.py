@@ -179,6 +179,36 @@ def build_operations_inbox(
             if cid and row_cid != cid:
                 continue
             alert_type = str(r["alert_type"] or "").strip()
+            title = str(r["title"] or "Security alert").strip() or "Security alert"
+            details_obj: dict[str, Any] = {}
+            try:
+                import json as _json
+
+                raw_details = r["details_json"]
+                if isinstance(raw_details, dict):
+                    details_obj = dict(raw_details)
+                elif raw_details:
+                    parsed = _json.loads(str(raw_details))
+                    if isinstance(parsed, dict):
+                        details_obj = parsed
+            except Exception:
+                details_obj = {}
+            reason = str(
+                details_obj.get("reasonSummary")
+                or details_obj.get("reason")
+                or details_obj.get("summary")
+                or details_obj.get("message")
+                or ""
+            ).strip()
+            worker_name = str(
+                details_obj.get("workerName") or details_obj.get("worker_name") or ""
+            ).strip()
+            msg_bits = [title]
+            if worker_name:
+                msg_bits.append(worker_name)
+            if reason and reason.lower() not in title.lower():
+                msg_bits.append(reason)
+            message = " · ".join(msg_bits)[:500]
             nav_action = (
                 {
                     "type": "navigate",
@@ -194,12 +224,18 @@ def build_operations_inbox(
                     "id": f"sec:{r['id']}",
                     "source": "security",
                     "severity": r["severity"] or "medium",
-                    "title": r["title"] or "Security alert",
-                    "message": r["title"] or "",
+                    "code": alert_type or "security_alert",
+                    "title": title,
+                    "message": message,
                     "companyId": row_cid,
                     "workerId": r["worker_id"],
                     "createdAt": _coerce_iso_timestamp(r["created_at"]),
                     "status": "open",
+                    "details": {
+                        **details_obj,
+                        "workerName": worker_name or details_obj.get("workerName"),
+                        "reasonSummary": reason,
+                    },
                     "actions": [
                         {"type": "resolve", "action": "resolve_security_alert", "params": {"alert_id": r["id"]}},
                         *(
@@ -210,7 +246,7 @@ def build_operations_inbox(
                                     "params": {
                                         "worker_id": r["worker_id"],
                                         "title": "SUPPIX Sicherheit",
-                                        "body": (r["title"] or "Security-Hinweis")[:200],
+                                        "body": (title or "Security-Hinweis")[:200],
                                     },
                                     "label": "Push an MA",
                                 }
@@ -221,7 +257,7 @@ def build_operations_inbox(
                         {
                             "type": "prompt",
                             "prompt": (
-                                f"Analysiere Security-Alert „{r['title'] or r['alert_type'] or 'Security'}“ "
+                                f"Analysiere Security-Alert „{title or alert_type or 'Security'}“ "
                                 f"für Mitarbeiter {r['worker_id'] or '—'}. Priorität {r['severity'] or 'medium'}. "
                                 "Kurz: Risiko, nächste Schritte, Eskalation ja/nein."
                             ),

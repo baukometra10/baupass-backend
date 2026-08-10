@@ -308,7 +308,17 @@ function humanizeUserError(err) {
   const code = String(data.error || data.code || err?.code || "")
     .trim()
     .toLowerCase();
-  const raw = String(err?.message || err || "").trim();
+  const msgCandidate =
+    typeof err?.message === "string"
+      ? err.message
+      : typeof err === "string"
+        ? err
+        : typeof data.message === "string"
+          ? data.message
+          : typeof data.error === "string"
+            ? data.error
+            : "";
+  const raw = String(msgCandidate || "").trim();
   const rawLower = raw.toLowerCase();
   const status = Number(err?.status || data.status || 0) || 0;
 
@@ -353,6 +363,7 @@ function humanizeUserError(err) {
   if (/^[a-z][a-z0-9_.-]*$/i.test(raw) || /^http_\d{3}$/i.test(raw)) {
     return t("common.error");
   }
+  if (raw === "[object Object]") return t("common.error");
   if (raw.length > 180) return `${raw.slice(0, 160)}…`;
   return raw || t("common.error");
 }
@@ -1053,7 +1064,19 @@ function showActionToast(message, isError) {
   const el =
     document.getElementById("globalToast") ||
     document.getElementById("inboxToast");
-  const text = isError ? humanizeUserError({ message }) : String(message ?? "");
+  let text;
+  if (isError) {
+    if (message && typeof message === "object") {
+      text = humanizeUserError(message);
+    } else {
+      text = humanizeUserError({ message: message == null ? "" : String(message) });
+    }
+  } else if (message && typeof message === "object") {
+    text = humanizeUserError(message);
+  } else {
+    text = String(message ?? "");
+  }
+  if (!text || text === "[object Object]") text = t("common.error");
   if (!el) {
     alert(text);
     return;
@@ -4951,15 +4974,19 @@ function inboxSourceLabel(source) {
 function inboxActionLabel(a) {
   const action = a || {};
   const type = String(action.type || "").trim().toLowerCase();
-  if (type === "resolve" || type === "ack") return t("inbox.done");
-  if (type === "prompt") return t("inbox.aiAnalyze");
-  if (type === "open") return t("inbox.openAction");
+  const rawLabel = String(action.label || "").trim();
+  const humanLabel = rawLabel && !/^[a-z][a-z0-9_.-]*$/i.test(rawLabel) ? rawLabel : "";
+  if (type === "resolve" || type === "ack") return humanLabel || t("inbox.done");
+  if (type === "prompt") return humanLabel || t("inbox.aiAnalyze");
+  if (type === "open") return humanLabel || t("inbox.openAction");
   if (type === "execute") {
     const act = String(action.action || "").trim();
     const key = `inbox.exec.${act}`;
     const localized = t(key);
     if (localized && localized !== key) return localized;
-    return t("inbox.openAction");
+    if (humanLabel) return humanLabel;
+    if (act === "notify_worker") return t("inbox.exec.notify_worker");
+    return act ? act.replace(/_/g, " ") : t("inbox.openAction");
   }
   if (type === "navigate") {
     const url = String(action.url || "");
@@ -4974,13 +5001,10 @@ function inboxActionLabel(a) {
     }
     if (/ai-command-center/i.test(url)) return t("inbox.aiAnalyze");
     if (/deployment|einsatzplan/i.test(url)) return t("inbox.nav.deployment");
-    const raw = String(action.label || "").trim();
-    // Prefer human labels; never show snake_case action ids
-    if (raw && !/^[a-z][a-z0-9_.-]*$/i.test(raw)) return raw;
+    if (humanLabel) return humanLabel;
     return t("inbox.openAction");
   }
-  const raw = String(action.label || "").trim();
-  if (raw && !/^[a-z][a-z0-9_.-]*$/i.test(raw)) return raw;
+  if (humanLabel) return humanLabel;
   return t("inbox.openAction");
 }
 
@@ -5602,7 +5626,9 @@ async function loadInbox() {
             });
             const pushMsg = formatPushDelivery(res);
             showActionToast(
-              res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || t("common.error"),
+              res.ok
+                ? `${inboxActionLabel({ type: "execute", action, label: btn.textContent }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
+                : humanizeUserError({ message: res.message || res.error, data: res, status: res.status }),
               !res.ok,
             );
             await loadInbox();
@@ -6020,7 +6046,9 @@ async function loadInbox() {
         });
         const pushMsg = formatPushDelivery(res);
         showActionToast(
-          res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || t("common.error"),
+          res.ok
+            ? `${inboxActionLabel({ type: "execute", action }) || action} ✓${pushMsg ? ` — ${pushMsg}` : ""}`
+            : humanizeUserError({ message: res.message || res.error, data: res, status: res.status }),
           !res.ok,
         );
         await loadInbox();
