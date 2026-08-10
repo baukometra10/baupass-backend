@@ -143,7 +143,12 @@ def build_live_ops_map(
             (cid, f"{today}%"),
         ).fetchall()
         for r in rows:
-            gate = r["gate"] or "Gate"
+            gate = str(r["gate"] or "Gate").strip() or "Gate"
+            # Virtual app check-in labels are not physical gates — showing them as
+            # yellow pins looks like someone is on site when nobody is present.
+            gate_l = gate.lower()
+            if gate_l.startswith("mitarbeiter-app") or gate_l.startswith("worker-app"):
+                continue
             coords = resolve_map_coordinates(db, cid, site=gate, seed=gate)
             if not coords and geofences:
                 anchor = geofences[0]

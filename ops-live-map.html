@@ -2280,7 +2280,10 @@
       bounds.push(...(await renderWorkerMarkers(data)));
       renderWorkerDistances(data);
       (data.gates || []).forEach((g) => {
-        const label = g.name || "Gate";
+        const label = String(g.name || "Gate");
+        const lower = label.toLowerCase();
+        // App check-in labels are not real gates (yellow pin looked like a person).
+        if (lower.startsWith("mitarbeiter-app") || lower.startsWith("worker-app")) return;
         const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
         layers.gates.push(m);
         bounds.push([g.lat, g.lng]);
