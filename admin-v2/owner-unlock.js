@@ -1,6 +1,6 @@
 /**
  * Shared Owner step-up unlock (contracts + docs).
- * Uses /api/contracts/lock/* OTP session (shared unlock flag).
+ * Contracts prefer password; docs can still use OTP.
  */
 (function (global) {
   function createOwnerUnlock(opts) {
@@ -23,6 +23,12 @@
         verifyBtn: "docsLockVerifyBtn",
         skipBtn: "docsLockSkipBtn",
         mainRoot: "docsMainRoot",
+        passwordBlock: "",
+        password: "",
+        passwordConfirm: "",
+        passwordConfirmWrap: "",
+        passwordBtn: "",
+        emailBlock: "",
       },
       cfg.ids || {},
     );
@@ -34,10 +40,12 @@
     const onVerified = typeof cfg.onVerified === "function" ? cfg.onVerified : null;
     const mapError = typeof cfg.mapError === "function" ? cfg.mapError : (e) => e?.body?.message || e?.data?.message || e?.message || String(e);
     const skipResolvesTrue = cfg.skipResolvesTrue === true;
+    const preferPassword = cfg.preferPassword !== false;
 
     let setupMode = false;
     let unlocked = false;
     let cooldownUntil = 0;
+    let authMode = "password";
     const waiters = [];
 
     function $(id) {
@@ -88,23 +96,47 @@
       setTimeout(tick, 1000);
     }
 
-    function show({ setup = false, enforced = false, smsConfigured = true } = {}) {
+    function usePasswordUi() {
+      return preferPassword && authMode !== "otp";
+    }
+
+    function show({ setup = false, enforced = false, smsConfigured = true, authMode: mode = "" } = {}) {
       setupMode = !!setup;
+      if (mode) authMode = String(mode);
+      else if (setup) authMode = "setup_password";
+      else if (!authMode || authMode === "none") authMode = preferPassword ? "password" : "otp";
+
       $(ids.overlay)?.classList.remove("hidden");
       $(ids.mainRoot)?.classList.add("hidden");
-      $(ids.setupBlock)?.classList.toggle("hidden", !setup);
+
+      const passwordUi = usePasswordUi();
+      $(ids.passwordBlock)?.classList.toggle("hidden", !passwordUi);
+      $(ids.passwordConfirmWrap)?.classList.toggle("hidden", !(passwordUi && setupMode));
+      $(ids.passwordBtn)?.classList.toggle("hidden", !passwordUi);
+      $(ids.setupBlock)?.classList.toggle("hidden", passwordUi || !setup);
+      $(ids.emailBlock)?.classList.toggle("hidden", passwordUi || !$(ids.emailBlock));
       $(ids.codeBlock)?.classList.add("hidden");
       $(ids.verifyBtn)?.classList.add("hidden");
-      $(ids.sendBtn)?.classList.remove("hidden");
-      // Skip only when setup is optional (not enforced).
+      $(ids.sendBtn)?.classList.toggle("hidden", passwordUi);
       $(ids.skipBtn)?.classList.toggle("hidden", !setup || enforced);
+
       if ($(ids.title)) {
         $(ids.title).textContent = setup
-          ? t("lockSetupTitle", "Owner-Zugang einrichten")
-          : t("lockTitle", "Owner-Freigabe");
+          ? t("lockSetupTitle", "Vertrags-Passwort einrichten")
+          : t("lockTitle", "Vertragszugang");
       }
       if ($(ids.desc)) {
-        if (setup && enforced) {
+        if (passwordUi && setup) {
+          $(ids.desc).textContent = t(
+            "lockSetupPasswordDesc",
+            "Legen Sie ein Passwort nur für die Vertragsseite fest (zusätzlich zum Firmen-Login).",
+          );
+        } else if (passwordUi) {
+          $(ids.desc).textContent = t(
+            "lockPasswordDesc",
+            "Gehalt und Verträge sind geschützt. Bitte Vertrags-Passwort eingeben.",
+          );
+        } else if (setup && enforced) {
           $(ids.desc).textContent = t(
             "lockSetupRequiredDesc",
             "Pflicht: Owner-Handynummer einrichten, sonst bleiben Verträge/Dokumente gesperrt.",
@@ -121,32 +153,39 @@
           );
         }
       }
-      const emailLabel = $(ids.emailLabel);
-      const hint = $(ids.deliveryHint);
-      if (!smsConfigured) {
-        if (emailLabel) {
-          emailLabel.textContent = t("lockEmailRequired", "E-Mail (erforderlich — SMS nicht konfiguriert)");
-        }
-        if (hint) {
-          hint.textContent = t(
-            "lockNoSmsHint",
-            "Twilio-SMS fehlt. Code geht per E-Mail oder als Debug-Code in der Entwicklung.",
-          );
-        }
-      } else {
-        if (emailLabel) {
-          emailLabel.textContent = t("lockEmailLabel", "Backup-E-Mail (optional)");
-        }
-        if (hint) {
-          hint.textContent = t("lockSmsOkHint", "SMS aktiv. E-Mail als Backup empfohlen.");
+
+      if (!passwordUi) {
+        const emailLabel = $(ids.emailLabel);
+        const hint = $(ids.deliveryHint);
+        if (!smsConfigured) {
+          if (emailLabel) {
+            emailLabel.textContent = t("lockEmailRequired", "E-Mail (erforderlich — SMS nicht konfiguriert)");
+          }
+          if (hint) {
+            hint.textContent = t(
+              "lockNoSmsHint",
+              "Twilio-SMS fehlt. Code geht per E-Mail oder als Debug-Code in der Entwicklung.",
+            );
+          }
+        } else {
+          if (emailLabel) {
+            emailLabel.textContent = t("lockEmailLabel", "Backup-E-Mail (optional)");
+          }
+          if (hint) {
+            hint.textContent = t("lockSmsOkHint", "SMS aktiv. E-Mail als Backup empfohlen.");
+          }
         }
       }
+
+      if ($(ids.password)) $(ids.password).value = "";
+      if ($(ids.passwordConfirm)) $(ids.passwordConfirm).value = "";
       setMsg("");
       if (Date.now() < cooldownUntil) {
         setRateHint(Math.ceil((cooldownUntil - Date.now()) / 1000));
       } else {
         setRateHint(0);
       }
+      setTimeout(() => $(ids.password)?.focus(), 30);
     }
 
     function hide() {
@@ -169,6 +208,39 @@
       if (unlocked) return Promise.resolve(true);
       show({ setup: false });
       return new Promise((resolve) => waiters.push(resolve));
+    }
+
+    async function verifyPassword() {
+      const password = $(ids.password)?.value || "";
+      const confirm = $(ids.passwordConfirm)?.value || "";
+      if (!password || password.length < 6) {
+        setMsg(t("lockPasswordTooShort", "Passwort mindestens 6 Zeichen."), "err");
+        return;
+      }
+      if (setupMode && confirm && password !== confirm) {
+        setMsg(t("lockPasswordMismatch", "Passwörter stimmen nicht überein."), "err");
+        return;
+      }
+      const body = {
+        company_id: getCompanyId(),
+        password,
+        setup: setupMode,
+      };
+      if (setupMode) body.confirmPassword = confirm || password;
+      try {
+        const res = await api("/api/contracts/lock/verify-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        unlocked = true;
+        hide();
+        onStatus(t("lockUnlockedToast", "Bereich freigeschaltet."), "ok");
+        if (onVerified) await onVerified(res);
+        resolveWaiters(true);
+      } catch (e) {
+        setMsg(mapError(e) || t("lockPasswordInvalid", "Passwort ungültig"), "err");
+      }
     }
 
     async function sendOtp() {
@@ -254,6 +326,15 @@
     }
 
     function bind() {
+      $(ids.passwordBtn)?.addEventListener("click", () => {
+        verifyPassword().catch(() => {});
+      });
+      $(ids.password)?.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") verifyPassword().catch(() => {});
+      });
+      $(ids.passwordConfirm)?.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") verifyPassword().catch(() => {});
+      });
       $(ids.sendBtn)?.addEventListener("click", () => {
         sendOtp().catch(() => {});
       });
@@ -289,7 +370,7 @@
       ) {
         unlocked = false;
         if (data.ownerSetupRequired || data.error === "owner_setup_required") {
-          show({ setup: true, enforced: true });
+          show({ setup: true, enforced: true, authMode: data.authMode || "setup_password" });
         } else {
           const ok = await ensureUnlocked();
           return !ok;
@@ -319,6 +400,7 @@
       isUnlocked,
       sendOtp,
       verifyOtp,
+      verifyPassword,
       resolveWaiters,
     };
   }

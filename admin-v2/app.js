@@ -1215,6 +1215,284 @@ async function refreshLohnBadgeOnly() {
   }
 }
 
+function broadcastLohnInboxChanged() {
+  try {
+    localStorage.setItem("workpass-lohn-inbox-bump", String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.dispatchEvent(new CustomEvent("workpass-lohn-inbox-changed"));
+  } catch {
+    /* ignore */
+  }
+}
+
+function closeLohnDrawer() {
+  $("lohnDrawer")?.classList.add("hidden");
+  $("lohnDrawer")?.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("lohn-drawer-open");
+}
+
+function lohnContractsUrl(companyId, workerId, fields, hint) {
+  const cid = String(companyId || activeCompanyId() || "").trim();
+  const wid = String(workerId || "").trim();
+  const u = new URL("/admin-v2/contracts.html", location.origin);
+  if (cid) u.searchParams.set("company_id", cid);
+  if (wid) u.searchParams.set("worker_id", wid);
+  u.searchParams.set("focus", "payroll");
+  const fieldList = Array.isArray(fields) ? fields.filter(Boolean) : [];
+  if (fieldList.length) u.searchParams.set("fields", fieldList.join(","));
+  if (hint) u.searchParams.set("hint", String(hint).slice(0, 120));
+  return u.pathname + u.search;
+}
+
+function renderLohnDrawerChips(fields) {
+  const list = Array.isArray(fields) ? fields.filter(Boolean) : [];
+  if (!list.length) return "";
+  return `<div class="lohn-drawer-chips">${list
+    .slice(0, 6)
+    .map((f) => `<span class="lohn-drawer-chip">${escapeHtml(String(f))}</span>`)
+    .join("")}</div>`;
+}
+
+async function openLohnDrawer() {
+  const drawer = $("lohnDrawer");
+  const body = $("lohnDrawerBody");
+  if (!drawer || !body) return;
+  drawer.classList.remove("hidden");
+  document.body.classList.add("lohn-drawer-open");
+  body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(t("common.loading") || "Wird geladen…")}</div>`;
+  drawer.setAttribute("aria-hidden", "false");
+
+  const q = companyQuery();
+  const cid = activeCompanyId() || q.replace("?company_id=", "");
+  const opsLink = $("lohnDrawerOpsLink");
+  if (opsLink) {
+    opsLink.href = `/ops-command-center.html${cid ? `?company_id=${encodeURIComponent(cid)}` : ""}#lohnHub`;
+  }
+  if (getUser().role === "superadmin" && !cid) {
+    body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(t("common.selectCompany") || "Bitte Firma wählen")}</div>`;
+    return;
+  }
+
+  const cq = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+  let messages = [];
+  let alerts = [];
+  let periodRequests = [];
+  try {
+    const [msgRes, alertRes, periodRes] = await Promise.all([
+      apiSoft(`/api/payroll/accounting/messages${cq}`, { messages: [] }, 4000),
+      apiSoft(`/api/payroll/accounting/data-alerts${cq}`, { alerts: [] }, 4000),
+      apiSoft(
+        `/api/payroll/accounting/period-requests?status=pending_confirmation${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`,
+        { requests: [] },
+        4000,
+      ),
+    ]);
+    messages = Array.isArray(msgRes?.messages) ? msgRes.messages : [];
+    alerts = Array.isArray(alertRes?.alerts) ? alertRes.alerts : [];
+    periodRequests = Array.isArray(periodRes?.requests) ? periodRes.requests : [];
+  } catch (e) {
+    body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(e.message || "load_failed")}</div>`;
+    return;
+  }
+
+  updateLohnNavBadge(messages.length);
+  paintLohnBadge($("opsStripLohnBadge"), messages.length);
+
+  if (!messages.length && !alerts.length && !periodRequests.length) {
+    body.innerHTML = `<div class="lohn-drawer-empty"><strong>${escapeHtml(t("lohn.drawerEmptyTitle") || "Alles erledigt")}</strong>${escapeHtml(t("lohn.drawerEmptyBody") || "Keine offenen Anfragen von WorkPass Lohn.")}</div>`;
+    return;
+  }
+
+  const parts = [];
+
+  for (const req of periodRequests.slice(0, 8)) {
+    const id = String(req.id || "");
+    const period = String(req.period || "—");
+    parts.push(`
+      <article class="lohn-drawer-item is-alert" data-lohn-period="${escapeAttr(id)}">
+        <div class="lohn-drawer-item-title">${escapeHtml(t("lohn.periodRequestTitle") || "Perioden-Übergabe")}</div>
+        <div class="lohn-drawer-item-body">${escapeHtml(t("lohn.periodRequestBody", { period }) || `Buchhaltung bittet um Daten für ${period}.`)}</div>
+        <div class="lohn-drawer-item-meta">${escapeHtml(period)}</div>
+        <div class="lohn-drawer-actions">
+          <button type="button" class="primary" data-lohn-drawer="period-confirm" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.periodConfirm") || "Freigeben")}</button>
+          <button type="button" data-lohn-drawer="period-reject" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.periodReject") || "Ablehnen")}</button>
+        </div>
+      </article>`);
+  }
+
+  for (const a of alerts.slice(0, 12)) {
+    const id = String(a.id || "");
+    const wid = String(a.workerId || a.employeeId || "");
+    const fields = a.missingFields || a.missing_fields || [];
+    const name = [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
+      || a.workerName || wid || "—";
+    const href = lohnContractsUrl(a.companyId || cid, wid, fields, a.message || "");
+    parts.push(`
+      <article class="lohn-drawer-item is-alert" data-lohn-alert="${escapeAttr(id)}">
+        <div class="lohn-drawer-item-title">${escapeHtml(name)}</div>
+        <div class="lohn-drawer-item-body">${escapeHtml(a.message || (t("lohn.missingData") || "Fehlende Stammdaten"))}</div>
+        ${renderLohnDrawerChips(fields)}
+        <div class="lohn-drawer-actions">
+          <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener" data-lohn-drawer="open-stammdaten" data-alert-id="${escapeAttr(id)}" data-worker-id="${escapeAttr(wid)}">${escapeHtml(t("lohn.openStammdaten") || "Stammdaten öffnen")}</a>
+          <button type="button" data-lohn-drawer="dismiss-alert" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.dismiss") || "Erledigt")}</button>
+        </div>
+      </article>`);
+  }
+
+  for (const m of messages.slice(0, 20)) {
+    const id = String(m.id || "");
+    const fields = m.missingFields || m.missing_fields || [];
+    const subject = m.subject || m.kind || "WorkPass Lohn";
+    const bodyText = String(m.body || "").trim();
+    const name = [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim() || m.workerId || "";
+    const href = lohnContractsUrl(m.companyId || cid, m.workerId, fields, `${subject} ${bodyText}`);
+    parts.push(`
+      <article class="lohn-drawer-item" data-lohn-msg="${escapeAttr(id)}">
+        <div class="lohn-drawer-item-title">${escapeHtml(subject)}</div>
+        ${bodyText ? `<div class="lohn-drawer-item-body">${escapeHtml(bodyText.slice(0, 180))}</div>` : ""}
+        ${renderLohnDrawerChips(fields)}
+        <div class="lohn-drawer-item-meta">${escapeHtml([m.period, name].filter(Boolean).join(" · ") || "—")}</div>
+        <div class="lohn-drawer-actions">
+          <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener" data-lohn-drawer="open-msg-stammdaten" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.openStammdaten") || "Bearbeiten")}</a>
+          <button type="button" data-lohn-drawer="ack-msg" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.markDone") || "Erledigt")}</button>
+        </div>
+      </article>`);
+  }
+
+  body.innerHTML = parts.join("");
+}
+
+async function handleLohnDrawerAction(ev) {
+  const el = ev.target?.closest?.("[data-lohn-drawer]");
+  if (!el) return;
+  const action = el.getAttribute("data-lohn-drawer");
+  const id = String(el.getAttribute("data-id") || el.getAttribute("data-alert-id") || "").trim();
+
+  const removeRow = (sel) => document.querySelector(sel)?.remove();
+
+  if (action === "open-msg-stammdaten" && id) {
+    // Ack in background so the request leaves the inbox after opening contracts
+    ev.preventDefault();
+    const href = el.getAttribute("href");
+    removeRow(`.lohn-drawer-item[data-lohn-msg="${CSS.escape(id)}"]`);
+    try {
+      await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch {
+      /* still open contracts */
+    }
+    broadcastLohnInboxChanged();
+    refreshLohnBadgeOnly().catch(() => {});
+    if (href) window.open(href, "_blank", "noopener");
+    if (!$("lohnDrawerBody")?.querySelector(".lohn-drawer-item")) {
+      openLohnDrawer().catch(() => {});
+    }
+    return;
+  }
+
+  if (action === "ack-msg" && id) {
+    el.disabled = true;
+    removeRow(`.lohn-drawer-item[data-lohn-msg="${CSS.escape(id)}"]`);
+    try {
+      await api(`/api/payroll/accounting/messages/${encodeURIComponent(id)}/open`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch (e) {
+      /* still open contracts */
+    }
+    broadcastLohnInboxChanged();
+    refreshLohnBadgeOnly().catch(() => {});
+    if (!$("lohnDrawerBody")?.querySelector(".lohn-drawer-item")) {
+      openLohnDrawer().catch(() => {});
+    }
+    return;
+  }
+
+  if (action === "dismiss-alert" && id) {
+    el.disabled = true;
+    removeRow(`.lohn-drawer-item[data-lohn-alert="${CSS.escape(id)}"]`);
+    try {
+      await api(`/api/payroll/accounting/data-alerts/${encodeURIComponent(id)}/dismiss`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+    } catch {
+      /* ignore */
+    }
+    broadcastLohnInboxChanged();
+    return;
+  }
+
+  if (action === "open-stammdaten") {
+    // Keep alert until contract save pushes resolved data; just open.
+    return;
+  }
+
+  if ((action === "period-confirm" || action === "period-reject") && id) {
+    el.disabled = true;
+    const path =
+      action === "period-confirm"
+        ? `/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/confirm`
+        : `/api/payroll/accounting/period-requests/${encodeURIComponent(id)}/reject`;
+    removeRow(`.lohn-drawer-item[data-lohn-period="${CSS.escape(id)}"]`);
+    try {
+      await api(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: action === "period-reject" ? JSON.stringify({ reason: "" }) : "{}",
+      });
+    } catch (e) {
+      /* ignore period error — drawer will refresh */
+      openLohnDrawer().catch(() => {});
+      return;
+    }
+    broadcastLohnInboxChanged();
+    if (!$("lohnDrawerBody")?.querySelector(".lohn-drawer-item")) {
+      openLohnDrawer().catch(() => {});
+    }
+  }
+}
+
+function wireLohnDrawer() {
+  $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
+  $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
+  $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
+  $("lohnDrawerBody")?.addEventListener("click", (ev) => {
+    handleLohnDrawerAction(ev).catch(() => {});
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && !$("lohnDrawer")?.classList.contains("hidden")) {
+      closeLohnDrawer();
+    }
+  });
+  window.addEventListener("storage", (ev) => {
+    if (ev.key === "workpass-lohn-inbox-bump") refreshLohnBadgeOnly().catch(() => {});
+  });
+  window.addEventListener("workpass-lohn-inbox-changed", () => {
+    refreshLohnBadgeOnly().catch(() => {});
+  });
+  // Badge on Betrieb tab also opens the fast drawer
+  $("lohnOpsBadge")?.closest("button")?.addEventListener("click", (ev) => {
+    if (Number($("lohnOpsBadge")?.textContent || 0) > 0 && ev.detail === 1) {
+      // After tab switch settles, open drawer when badge shows mail
+      setTimeout(() => {
+        if (Number($("lohnOpsBadge")?.textContent || 0) > 0) {
+          openLohnDrawer().catch(() => {});
+        }
+      }, 120);
+    }
+  });
+}
+
 async function refreshInboxBadgeOnly() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
@@ -3388,13 +3666,21 @@ function initOpsCarousel(root) {
     track.scrollBy({ left: step(), behavior: "smooth" });
   });
 
-  /* Scroll-Chaining zur Seite verhindern — nur die Kartenzeile bewegt sich */
+  /* Vertical wheel scrolls the page; horizontal (or Shift+wheel) moves the card row */
   track.addEventListener(
     "wheel",
     (e) => {
       const dx = Math.abs(e.deltaX);
       const dy = Math.abs(e.deltaY);
-      if (dx <= dy && !e.shiftKey) return;
+      const scroller = document.querySelector(".app-content");
+      if (dx <= dy && !e.shiftKey) {
+        if (scroller) {
+          scroller.scrollTop += e.deltaY;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       track.scrollLeft += dx > dy ? e.deltaX : e.deltaY;
@@ -6787,7 +7073,7 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
-      <a href="/ops-command-center.html${q}#lohnHub" target="_blank" rel="noopener" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></a>
+      <button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>
       <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
       <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
       <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
@@ -6797,6 +7083,9 @@ async function loadOverview() {
     strip.querySelector(".ops-strip-tab")?.addEventListener("click", async () => {
       switchToTab("operations");
       await loadOperations();
+    });
+    strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
+      openLohnDrawer().catch(() => {});
     });
     refreshLohnBadgeOnly()
       .then(() => {
@@ -6891,7 +7180,8 @@ async function loadOverview() {
         <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
         <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
       </div>
-      <div class="lage-map-embed">
+      <div class="lage-map-embed" id="lageMapEmbed" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
+        <p class="lage-map-embed-hint">${escapeHtml(t("lage.mapScrollHint") || "Klicken für Karte · Mausrad scrollt die Seite")}</p>
         <iframe
           title="${escapeAttr(t("lage.openMap"))}"
           loading="lazy"
@@ -6901,6 +7191,15 @@ async function loadOverview() {
       </div>
     `;
 
+    const mapEmbed = lage.querySelector("#lageMapEmbed");
+    if (mapEmbed) {
+      mapEmbed.addEventListener("click", () => {
+        mapEmbed.classList.add("is-interactive");
+      });
+      mapEmbed.addEventListener("mouseleave", () => {
+        mapEmbed.classList.remove("is-interactive");
+      });
+    }
     lage.querySelectorAll("[data-goto-tab]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const tab = btn.getAttribute("data-goto-tab");
@@ -7883,6 +8182,7 @@ async function bootSession() {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    wireLohnDrawer();
     if (!window.__lohnBadgePoll) {
       window.__lohnBadgePoll = setInterval(() => {
         refreshLohnBadgeOnly().catch(() => {});
@@ -7925,6 +8225,7 @@ $("loginBtn").addEventListener("click", async () => {
     }
     startAdminRealtime().catch(() => {});
     refreshInboxBadgeOnly().catch(() => {});
+    wireLohnDrawer();
     if (!window.__lohnBadgePoll) {
       window.__lohnBadgePoll = setInterval(() => {
         refreshLohnBadgeOnly().catch(() => {});

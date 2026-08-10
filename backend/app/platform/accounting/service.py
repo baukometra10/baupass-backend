@@ -357,6 +357,233 @@ def push_employees_to_lohn(
     }
 
 
+def notify_employee_data_resolved(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    actor_user_id: str = "",
+    source: str = "contracts",
+    timeout: float = 10,
+) -> dict[str, Any]:
+    """
+    After admin fills missing payroll stammdaten: push this employee back to Lohn,
+    clear open data alerts, and ack related missing-data inbox messages.
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .hours_service import get_employee_master_item
+    from .messages_inbox import ack_message_to_lohn
+    from .platform_link import _post_lohn_json, get_platform_link
+    from .schema import ensure_accounting_schema
+
+    company_id = require_company_id(company_id)
+    worker_id = str(worker_id or "").strip()
+    if not worker_id:
+        return {"ok": False, "error": "worker_id_required"}
+
+    ensure_accounting_schema(db)
+    employee = get_employee_master_item(db, company_id=company_id, worker_id=worker_id)
+    if not employee:
+        return {"ok": False, "error": "worker_not_found"}
+
+    company = db.execute("SELECT id, name FROM companies WHERE id = ?", (company_id,)).fetchone()
+    company_name = (company["name"] if company else "") or ""
+    missing = list(employee.get("missingFields") or [])
+    payroll_ready = bool(employee.get("payrollReady"))
+
+    # Clear alerts for fields that are now present; if fully ready, clear all for worker.
+    alerts = dismiss_related_data_alerts_for_worker_if_improved(
+        db,
+        company_id=company_id,
+        worker_id=worker_id,
+        still_missing=missing,
+        actor_user_id=actor_user_id,
+    )
+
+    message_acks: list[dict[str, Any]] = []
+    try:
+        rows = db.execute(
+            """
+            SELECT id FROM accounting_messages
+            WHERE company_id = ?
+              AND worker_id = ?
+              AND status = 'pending'
+              AND lower(COALESCE(kind, '')) IN (
+                    'missing_data', 'missing_employee_data', 'employee_data', 'data_gap'
+                  )
+            ORDER BY received_at DESC
+            LIMIT 20
+            """,
+            (company_id, worker_id),
+        ).fetchall()
+        for row in rows:
+            message_acks.append(
+                ack_message_to_lohn(
+                    db,
+                    message_id=str(row["id"]),
+                    actor_user_id=actor_user_id,
+                    company_id=company_id,
+                )
+            )
+    except Exception as exc:
+        message_acks.append({"ok": False, "error": str(exc)[:160]})
+
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {
+            "ok": True,
+            "skipped": True,
+            "error": "workpass_lohn_disabled",
+            "companyId": company_id,
+            "workerId": worker_id,
+            "payrollReady": payroll_ready,
+            "missingFields": missing,
+            "employee": employee,
+            "push": {"ok": False, "skipped": True, "error": "workpass_lohn_disabled"},
+            "alerts": alerts,
+            "messageAcks": message_acks,
+            "path": "/v1/employees/import",
+        }
+
+    link = get_platform_link(db)
+    push: dict[str, Any] = {"ok": False, "skipped": True, "error": "platform_link_disabled"}
+    if link.get("enabled") and str(link.get("base_url") or "").strip():
+        body = {
+            "ok": True,
+            "format": "platform.employees.v1",
+            "capability": "platform.employees.v1",
+            "product": "WorkPass Lohn",
+            "event": "employees.updated",
+            "reason": "missing_data_resolved",
+            "source": str(source or "platform")[:40],
+            "companyId": company_id,
+            "id": company_id,
+            "company": {"id": company_id, "name": company_name},
+            "companyName": company_name,
+            "employeeCount": 1,
+            "payrollReadyCount": 1 if payroll_ready else 0,
+            "incompleteCount": 0 if payroll_ready else 1,
+            "employees": [employee],
+            "resolvedWorkerIds": [worker_id],
+            "payrollReady": payroll_ready,
+            "missingFields": missing,
+            "actorUserId": str(actor_user_id or "")[:80],
+        }
+        push = _post_lohn_json(
+            link,
+            path="/v1/employees/import",
+            body=body,
+            event="employees.updated",
+            timeout=timeout,
+        )
+
+    return {
+        "ok": bool(push.get("ok")) or int(alerts.get("dismissed") or 0) > 0 or any(
+            bool(a.get("ok")) for a in message_acks if isinstance(a, dict)
+        ),
+        "companyId": company_id,
+        "workerId": worker_id,
+        "payrollReady": payroll_ready,
+        "missingFields": missing,
+        "employee": employee,
+        "push": push,
+        "alerts": alerts,
+        "messageAcks": message_acks,
+        "path": "/v1/employees/import",
+    }
+
+
+def dismiss_related_data_alerts_for_worker_if_improved(
+    db,
+    *,
+    company_id: str,
+    worker_id: str,
+    still_missing: list[str] | None = None,
+    actor_user_id: str = "",
+) -> dict[str, Any]:
+    """
+    Dismiss open Lohn data alerts for a worker when previously missing fields are filled.
+    If the worker is fully payroll-ready, dismiss all open alerts for that worker.
+    """
+    from .schema import ensure_accounting_schema
+
+    ensure_accounting_schema(db)
+    company_id = str(company_id or "").strip()
+    worker_id = str(worker_id or "").strip()
+    if not company_id or not worker_id:
+        return {"ok": True, "dismissed": 0}
+    from datetime import datetime, timezone
+
+    still = {str(f).strip() for f in (still_missing or []) if str(f).strip()}
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    open_rows = db.execute(
+        """
+        SELECT id, missing_fields_json FROM lohn_data_alerts
+        WHERE company_id = ? AND status = 'open' AND worker_id = ?
+        """,
+        (company_id, worker_id),
+    ).fetchall()
+    dismissed = 0
+    for row in open_rows:
+        fields: list[str] = []
+        try:
+            import json as _json
+
+            raw = row["missing_fields_json"] or "[]"
+            parsed = _json.loads(raw) if isinstance(raw, str) else raw
+            if isinstance(parsed, list):
+                fields = [str(f).strip() for f in parsed if str(f).strip()]
+        except Exception:
+            fields = []
+        # Dismiss when all alerted fields are no longer missing (or alert had no field list).
+        if fields and any(f in still for f in fields):
+            # Update remaining missing fields on the alert instead of dismissing.
+            remaining = [f for f in fields if f in still]
+            try:
+                import json as _json
+
+                db.execute(
+                    """
+                    UPDATE lohn_data_alerts
+                    SET missing_fields_json = ?, message = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        _json.dumps(remaining, ensure_ascii=False),
+                        f"Fehlende Daten: {', '.join(remaining)}"[:1000],
+                        now,
+                        str(row["id"]),
+                    ),
+                )
+            except Exception:
+                pass
+            continue
+        db.execute(
+            """
+            UPDATE lohn_data_alerts
+            SET status = 'dismissed', dismissed_at = ?, dismissed_by_user_id = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (now, str(actor_user_id or "")[:80], now, str(row["id"])),
+        )
+        dismissed += 1
+    try:
+        db.commit()
+    except Exception:
+        pass
+    # Prefer dedicated helper when fully ready (covers period variants).
+    if not still:
+        from .messages_inbox import dismiss_related_data_alerts_for_message
+
+        extra = dismiss_related_data_alerts_for_message(
+            db,
+            company_id=company_id,
+            worker_id=worker_id,
+            actor_user_id=actor_user_id,
+        )
+        dismissed = max(dismissed, int(extra.get("dismissed") or 0))
+    return {"ok": True, "dismissed": dismissed}
+
+
 def request_period_handoff(
     db,
     *,

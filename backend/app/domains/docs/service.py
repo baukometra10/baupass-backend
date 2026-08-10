@@ -873,42 +873,87 @@ class EditorDocsService:
         worker_id: str | None,
         action: str,
         grounding: dict[str, Any],
+        lang: str = "de",
     ) -> dict[str, Any] | None:
         """Deterministic drafts when OpenAI is unavailable."""
         worker = grounding.get("worker") or {}
         name = worker.get("worker.name") or "Mitarbeiter/in"
         company = worker.get("company.name") or "Firma"
         today = worker.get("date.today") or _today_de()
+        lang = (lang or "de")[:2]
         if action == "from_expiry":
             items = grounding.get("expiringDocuments") or []
-            if not items:
-                return {
-                    "ok": True,
-                    "action": action,
-                    "provider": "local",
-                    "contentHtml": (
-                        f"<p>Sehr geehrte/r {html_escape(name)},</p>"
-                        f"<p>bitte prüfen Sie Ihre hinterlegten Nachweise. Aktuell sind keine "
-                        f"ablaufenden Dokumente in den nächsten 14 Tagen gemeldet.</p>"
+            if lang == "ar":
+                if not items:
+                    html = (
+                        f"<p>عزيزي / عزيزتي {html_escape(name)}،</p>"
+                        f"<p>يرجى مراجعة المستندات المودعة لديكم. حالياً لا توجد مستندات تنتهي خلال 14 يوماً.</p>"
                         f"<p>{html_escape(company)} · {html_escape(today)}</p>"
-                    ),
-                    "contentText": f"Keine ablaufenden Dokumente für {name}.",
-                    "grounding": grounding,
-                    "hint": "Lokal ohne OpenAI — Hinweis aus Expiry-Liste.",
-                }
-            lines = "".join(
-                f"<li>{html_escape(str(it.get('docType') or 'Dokument'))}: "
-                f"{html_escape(str(it.get('filename') or ''))} "
-                f"(Ablauf {html_escape(str(it.get('expiryDate') or '—'))})</li>"
-                for it in items[:5]
-            )
-            html = (
-                f"<p>Sehr geehrte/r {html_escape(name)},</p>"
-                f"<p>folgende Nachweise laufen in Kürze ab bzw. sind abgelaufen:</p>"
-                f"<ul>{lines}</ul>"
-                f"<p>Bitte reichen Sie rechtzeitig gültige Kopien nach.</p>"
-                f"<p>{html_escape(company)} · {html_escape(today)}</p>"
-            )
+                    )
+                else:
+                    lines = "".join(
+                        f"<li>{html_escape(str(it.get('docType') or 'مستند'))}: "
+                        f"{html_escape(str(it.get('filename') or ''))} "
+                        f"(ينتهي {html_escape(str(it.get('expiryDate') or '—'))})</li>"
+                        for it in items[:5]
+                    )
+                    html = (
+                        f"<p>عزيزي / عزيزتي {html_escape(name)}،</p>"
+                        f"<p>المستندات التالية ستنتهي قريباً أو انتهت صلاحيتها:</p>"
+                        f"<ul>{lines}</ul>"
+                        f"<p>يرجى تزويدنا بنسخ سارية في أقرب وقت.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+            elif lang == "en":
+                if not items:
+                    html = (
+                        f"<p>Dear {html_escape(name)},</p>"
+                        f"<p>please review your filed documents. No items are currently due to expire within 14 days.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+                else:
+                    lines = "".join(
+                        f"<li>{html_escape(str(it.get('docType') or 'Document'))}: "
+                        f"{html_escape(str(it.get('filename') or ''))} "
+                        f"(expires {html_escape(str(it.get('expiryDate') or '—'))})</li>"
+                        for it in items[:5]
+                    )
+                    html = (
+                        f"<p>Dear {html_escape(name)},</p>"
+                        f"<p>the following documents will expire soon or have expired:</p>"
+                        f"<ul>{lines}</ul>"
+                        f"<p>Please submit valid copies in good time.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+            else:
+                if not items:
+                    return {
+                        "ok": True,
+                        "action": action,
+                        "provider": "local",
+                        "contentHtml": (
+                            f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                            f"<p>bitte prüfen Sie Ihre hinterlegten Nachweise. Aktuell sind keine "
+                            f"ablaufenden Dokumente in den nächsten 14 Tagen gemeldet.</p>"
+                            f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                        ),
+                        "contentText": f"Keine ablaufenden Dokumente für {name}.",
+                        "grounding": grounding,
+                        "hint": "Lokal ohne OpenAI — Hinweis aus Expiry-Liste.",
+                    }
+                lines = "".join(
+                    f"<li>{html_escape(str(it.get('docType') or 'Dokument'))}: "
+                    f"{html_escape(str(it.get('filename') or ''))} "
+                    f"(Ablauf {html_escape(str(it.get('expiryDate') or '—'))})</li>"
+                    for it in items[:5]
+                )
+                html = (
+                    f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                    f"<p>folgende Nachweise laufen in Kürze ab bzw. sind abgelaufen:</p>"
+                    f"<ul>{lines}</ul>"
+                    f"<p>Bitte reichen Sie rechtzeitig gültige Kopien nach.</p>"
+                    f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                )
             return {
                 "ok": True,
                 "action": action,
@@ -921,30 +966,77 @@ class EditorDocsService:
         if action in {"from_attendance", "draft_warning"}:
             summary = grounding.get("attendanceSummary") or ""
             events = grounding.get("attendance") or []
-            if not events and not summary:
-                html = (
-                    f"<p>Sehr geehrte/r {html_escape(name)},</p>"
-                    f"<p>wir möchten Sie auf die Einhaltung der Arbeitszeiten hinweisen.</p>"
-                    f"<p>Bitte erscheinen Sie pünktlich und melden Sie Verzögerungen frühzeitig.</p>"
-                    f"<p>{html_escape(company)} · {html_escape(today)}</p>"
-                )
+            if lang == "ar":
+                if not events and not summary:
+                    html = (
+                        f"<p>عزيزي / عزيزتي {html_escape(name)}،</p>"
+                        f"<p>نودّ تذكيركم بأهمية الالتزام بمواعيد العمل.</p>"
+                        f"<p>يرجى الحضور في الوقت المحدد وإبلاغنا مسبقاً عند أي تأخير.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+                else:
+                    bullets = "".join(
+                        f"<li>{html_escape(str(e.get('day') or e.get('at') or '—'))}"
+                        f"{(' · ' + html_escape(str(e.get('time')))) if e.get('time') else ''}"
+                        f"{(' — ' + html_escape(str(e.get('reason')))) if e.get('reason') and e.get('reason') != 'late_checkin' else ''}</li>"
+                        for e in events[:5]
+                    )
+                    html = (
+                        f"<p>عزيزي / عزيزتي {html_escape(name)}،</p>"
+                        f"<p>نوجّه إليكم تنبيهاً كتابياً بخصوص التأخر المتكرر عن مواعيد العمل.</p>"
+                        f"{('<p>' + html_escape(str(summary)) + '</p>') if summary else ''}"
+                        f"{('<ul>' + bullets + '</ul>') if bullets else ''}"
+                        f"<p>نرجو الالتزام بالحضور في الوقت المحدد مستقبلاً.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+            elif lang == "en":
+                if not events and not summary:
+                    html = (
+                        f"<p>Dear {html_escape(name)},</p>"
+                        f"<p>we kindly remind you to keep to working hours.</p>"
+                        f"<p>Please arrive on time and report delays early.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+                else:
+                    bullets = "".join(
+                        f"<li>{html_escape(str(e.get('day') or e.get('at') or '—'))}"
+                        f"{(' at ' + html_escape(str(e.get('time')))) if e.get('time') else ''}"
+                        f"{(' — ' + html_escape(str(e.get('reason')))) if e.get('reason') and e.get('reason') != 'late_checkin' else ''}</li>"
+                        for e in events[:5]
+                    )
+                    html = (
+                        f"<p>Dear {html_escape(name)},</p>"
+                        f"<p>this is a written notice regarding repeated lateness.</p>"
+                        f"{('<p>' + html_escape(str(summary)) + '</p>') if summary else ''}"
+                        f"{('<ul>' + bullets + '</ul>') if bullets else ''}"
+                        f"<p>We expect punctual attendance going forward.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
             else:
-                bullets = "".join(
-                    f"<li>{html_escape(str(e.get('day') or e.get('at') or '—'))}"
-                    f"{(' um ' + html_escape(str(e.get('time')))) if e.get('time') else ''}"
-                    f"{(' · Tor ' + html_escape(str(e.get('gate')))) if e.get('gate') else ''}"
-                    f"{(' — ' + html_escape(str(e.get('reason')))) if e.get('reason') and e.get('reason') != 'late_checkin' else ''}</li>"
-                    for e in events[:5]
-                )
-                html = (
-                    f"<p>Sehr geehrte/r {html_escape(name)},</p>"
-                    f"<p>hiermit sprechen wir eine schriftliche Ermahnung wegen wiederholter "
-                    f"Unpünktlichkeit aus.</p>"
-                    f"{('<p>' + html_escape(str(summary)) + '</p>') if summary else ''}"
-                    f"{('<ul>' + bullets + '</ul>') if bullets else ''}"
-                    f"<p>Wir fordern Sie auf, künftig pünktlich zu erscheinen.</p>"
-                    f"<p>{html_escape(company)} · {html_escape(today)}</p>"
-                )
+                if not events and not summary:
+                    html = (
+                        f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                        f"<p>wir möchten Sie auf die Einhaltung der Arbeitszeiten hinweisen.</p>"
+                        f"<p>Bitte erscheinen Sie pünktlich und melden Sie Verzögerungen frühzeitig.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
+                else:
+                    bullets = "".join(
+                        f"<li>{html_escape(str(e.get('day') or e.get('at') or '—'))}"
+                        f"{(' um ' + html_escape(str(e.get('time')))) if e.get('time') else ''}"
+                        f"{(' · Tor ' + html_escape(str(e.get('gate')))) if e.get('gate') else ''}"
+                        f"{(' — ' + html_escape(str(e.get('reason')))) if e.get('reason') and e.get('reason') != 'late_checkin' else ''}</li>"
+                        for e in events[:5]
+                    )
+                    html = (
+                        f"<p>Sehr geehrte/r {html_escape(name)},</p>"
+                        f"<p>hiermit sprechen wir eine schriftliche Ermahnung wegen wiederholter "
+                        f"Unpünktlichkeit aus.</p>"
+                        f"{('<p>' + html_escape(str(summary)) + '</p>') if summary else ''}"
+                        f"{('<ul>' + bullets + '</ul>') if bullets else ''}"
+                        f"<p>Wir fordern Sie auf, künftig pünktlich zu erscheinen.</p>"
+                        f"<p>{html_escape(company)} · {html_escape(today)}</p>"
+                    )
             return {
                 "ok": True,
                 "action": action,
@@ -955,6 +1047,153 @@ class EditorDocsService:
                 "hint": "Lokal ohne OpenAI — Entwurf aus Anwesenheitsdaten.",
             }
         return None
+
+    def _docs_ai_lang_name(self, lang: str) -> str:
+        return {
+            "de": "German",
+            "en": "English",
+            "ar": "Arabic (Modern Standard Arabic, clear and elegant)",
+            "tr": "Turkish",
+            "fr": "French",
+            "es": "Spanish",
+            "it": "Italian",
+            "pl": "Polish",
+        }.get((lang or "de")[:2], "German")
+
+    def _docs_ai_instruction(self, action: str, lang: str) -> str:
+        lang_name = self._docs_ai_lang_name(lang)
+        common = (
+            f"Write in {lang_name} only. "
+            "Produce a polished, ready-to-send business letter. "
+            "Keep any {{placeholders}} unchanged. "
+            "No salary/pay inventions. Reply with letter text only."
+        )
+        if action == "shorten":
+            return (
+                f"Shorten the following document clearly while keeping the key points. {common}"
+            )
+        if action in {"formal", "draft_reply"}:
+            return (
+                "Turn the notes / draft below into an elegant formal business reply letter. "
+                "If the input is only a short note or almost empty, invent a complete professional "
+                "letter structure around the available facts (company/worker/site from grounding if provided), "
+                "and mark missing specifics with short blank lines (________) instead of inventing private facts. "
+                "Include: respectful greeting, clear purpose, polished body with praise or clarity as appropriate, "
+                "concrete next step or request, warm professional closing. "
+                f"{common}"
+            )
+        if action == "improve":
+            return (
+                "Improve clarity, flow and professional style of the following document. "
+                "Keep the meaning. Make it sound ready to send. "
+                f"{common}"
+            )
+        if action == "grounded_improve":
+            return (
+                "Improve the document using ONLY the provided ops grounding context. "
+                "Do not invent salary, wages, or contract pay. "
+                f"{common}"
+            )
+        if action == "from_expiry":
+            return (
+                "Draft a short formal HR letter reminding the worker about expiring compliance documents. "
+                "Use ONLY grounding.expiringDocuments and worker fields. No salary. "
+                f"{common}"
+            )
+        if action == "from_attendance":
+            return (
+                "Draft a short polite formal reminder about late attendance using grounding.attendance. "
+                "No salary. "
+                f"{common}"
+            )
+        if action == "draft_warning":
+            return (
+                "Draft a formal written notice (warning) about punctuality using grounding.attendance. "
+                "No salary or legal overclaim. Stay factual and respectful. "
+                f"{common}"
+            )
+        translates = {
+            "translate_de": "Übersetze den folgenden Text ins Deutsche. Antworte nur mit der Übersetzung.",
+            "translate_en": "Translate the following text to English. Reply with the translation only.",
+            "translate_ar": "ترجم النص التالي إلى العربية الفصحى الواضحة فقط بدون شرح.",
+            "translate_tr": "Aşağıdaki metni Türkçeye çevir. Sadece çeviriyi yaz.",
+            "translate_fr": "Traduis le texte suivant en français. Réponds uniquement avec la traduction.",
+            "translate_es": "Traduce el siguiente texto al español. Responde solo con la traducción.",
+            "translate_it": "Traduci il seguente testo in italiano. Rispondi solo con la traduzione.",
+            "translate_pl": "Przetłumacz poniższy tekst na polski. Odpowiedz tylko tłumaczeniem.",
+        }
+        return translates.get(action) or (
+            f"Improve the following text for clarity and style. Keep the meaning. {common}"
+        )
+
+    def _local_formal_letter(
+        self,
+        *,
+        lang: str,
+        text: str,
+        grounding: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        worker = (grounding or {}).get("worker") or {}
+        name = str(worker.get("worker.name") or "").strip() or "________"
+        company = str(worker.get("company.name") or "").strip() or "________"
+        site = str(worker.get("site.name") or "").strip() or "________"
+        today = str(worker.get("date.today") or "").strip() or "________"
+        manager = str(worker.get("manager.name") or "").strip() or "________"
+        note = (text or "").strip()
+        if len(note) > 900:
+            note = note[:900] + "…"
+        note_block = note or "________"
+
+        lang = (lang or "de")[:2]
+        if lang == "ar":
+            body = (
+                f"عزيزي / عزيزتي {name}،\n\n"
+                f"نتشرّف بالتواصل معكم بخصوص الأمر التالي:\n\n"
+                f"{note_block}\n\n"
+                f"الموقع: {site}\n"
+                f"التاريخ: {today}\n\n"
+                f"نرجو منكم التكرّم بمراجعة التفاصيل أعلاه، وإبلاغنا بملاحظاتكم أو بما يلزم استكماله في أقرب وقت مناسب.\n\n"
+                f"نقدّر تعاونكم وثقتكم، ونتطلّع إلى استمرار التواصل البنّاء.\n\n"
+                f"مع أطيب التحيات والاحترام\n{manager}\n{company}"
+            )
+            hint = "مسودة محلية بدون OpenAI — صيغة رسمية عربية."
+        elif lang == "en":
+            body = (
+                f"Dear {name},\n\n"
+                f"We are writing with regard to the following matter:\n\n"
+                f"{note_block}\n\n"
+                f"Site: {site}\n"
+                f"Date: {today}\n\n"
+                f"Please review the above and let us know your comments or any missing items at your earliest convenience.\n\n"
+                f"We appreciate your cooperation and look forward to continued constructive communication.\n\n"
+                f"Yours sincerely\n{manager}\n{company}"
+            )
+            hint = "Local draft without OpenAI — formal English letter."
+        else:
+            body = (
+                f"Sehr geehrte/r {name},\n\n"
+                f"hiermit beziehen wir uns auf folgenden Sachverhalt:\n\n"
+                f"{note_block}\n\n"
+                f"Standort: {site}\n"
+                f"Datum: {today}\n\n"
+                f"Bitte prüfen Sie die Angaben und teilen Sie uns Rückmeldungen oder fehlende Unterlagen zeitnah mit.\n\n"
+                f"Wir danken für Ihre Zusammenarbeit und freuen uns auf den weiteren Austausch.\n\n"
+                f"Mit freundlichen Grüßen\n{manager}\n{company}"
+            )
+            hint = "Lokaler Entwurf ohne OpenAI — formelles Anschreiben."
+
+        html = "".join(
+            f"<p>{html_escape(line)}</p>" if line.strip() else "<p><br></p>" for line in body.splitlines()
+        )
+        return {
+            "ok": True,
+            "action": "formal",
+            "provider": "local",
+            "contentHtml": html,
+            "contentText": body,
+            "grounding": grounding,
+            "hint": hint,
+        }
 
     def suggest(
         self,
@@ -970,7 +1209,10 @@ class EditorDocsService:
         text = html_to_text(content_html or "")
         action = (action or "improve").strip().lower()
         lang = (lang or "de")[:2]
+        if action == "draft_reply":
+            action = "formal"
         grounded_actions = {"from_expiry", "from_attendance", "draft_warning", "grounded_improve"}
+        letter_actions = {"formal", "improve", "shorten"}
         grounding = self.build_docs_grounding(
             db,
             company_id=company_id,
@@ -979,57 +1221,49 @@ class EditorDocsService:
         )
 
         prompts = {
-            "improve": "Improve the following text for clarity and style. Keep the meaning. Reply with the improved text only.",
-            "shorten": "Shorten the following text clearly while keeping the key points. Reply with the shortened text only.",
-            "formal": "Rewrite the following text in a more formal business tone. Reply with the text only.",
-            "grounded_improve": (
-                "Improve the document using ONLY the provided ops grounding context. "
-                "Do not invent salary, wages, or contract pay. Reply with the improved document text only."
-            ),
-            "from_expiry": (
-                "Draft a short German HR letter reminding the worker about expiring compliance documents. "
-                "Use ONLY grounding.expiringDocuments and worker fields. No salary. Reply with letter text only."
-            ),
-            "from_attendance": (
-                "Draft a short German reminder about late attendance using grounding.attendance. "
-                "No salary. Reply with letter text only."
-            ),
-            "draft_warning": (
-                "Draft a formal German Abmahnung/Ermahnung about punctuality using grounding.attendance. "
-                "No salary or legal overclaim. Reply with letter text only."
-            ),
-            "translate_de": "Übersetze den folgenden Text ins Deutsche. Antworte nur mit der Übersetzung.",
-            "translate_en": "Translate the following text to English. Reply with the translation only.",
-            "translate_ar": "ترجم النص التالي إلى العربية فقط بدون شرح.",
-            "translate_tr": "Aşağıdaki metni Türkçeye çevir. Sadece çeviriyi yaz.",
-            "translate_fr": "Traduis le texte suivant en français. Réponds uniquement avec la traduction.",
-            "translate_es": "Traduce el siguiente texto al español. Responde solo con la traducción.",
-            "translate_it": "Traduci il seguente testo in italiano. Rispondi solo con la traduzione.",
-            "translate_pl": "Przetłumacz poniższy tekst na polski. Odpowiedz tylko tłumaczeniem.",
+            "translate_de": True,
+            "translate_en": True,
+            "translate_ar": True,
+            "translate_tr": True,
+            "translate_fr": True,
+            "translate_es": True,
+            "translate_it": True,
+            "translate_pl": True,
+            "improve": True,
+            "shorten": True,
+            "formal": True,
+            "grounded_improve": True,
+            "from_expiry": True,
+            "from_attendance": True,
+            "draft_warning": True,
         }
         if action == "translate_ui":
             action = f"translate_{lang}" if f"translate_{lang}" in prompts else "translate_en"
         if action.startswith("translate_") and action not in prompts:
             action = "translate_en"
-        instruction = prompts.get(action) or prompts["improve"]
+        instruction = self._docs_ai_instruction(action, lang)
         if action.startswith("translate_"):
             lang = action.split("_", 1)[-1] or lang
 
-        # Grounded drafts can run without an existing editor body.
-        if action not in grounded_actions and not text.strip():
+        # Formal/improve may draft from short notes; grounded drafts may start empty.
+        if action not in grounded_actions and action not in letter_actions and not text.strip():
             return {"ok": False, "error": "empty_content", "action": action}
+        if action in letter_actions and not text.strip() and not worker_id and not grounding.get("worker"):
+            # Still allow a blank formal skeleton.
+            pass
 
         openai_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-        use_grounding = action in grounded_actions or bool(worker_id)
-        if openai_key and (text.strip() or action in grounded_actions):
+        use_grounding = action in grounded_actions or bool(worker_id) or action in {"formal", "improve"}
+        if openai_key and (text.strip() or action in grounded_actions or action in letter_actions):
             try:
                 from backend.app.platform.ai.assistant import natural_language_query
 
+                doc_block = text[:6000] if text.strip() else "(empty draft — create a complete formal letter)"
                 question = (
-                    f"{instruction}\n\n---DOCUMENT---\n{text[:5000]}\n\n---GROUNDING---\n"
+                    f"{instruction}\n\n---DOCUMENT---\n{doc_block}\n\n---GROUNDING---\n"
                     f"{str(grounding)[:3500]}"
                     if use_grounding
-                    else f"{instruction}\n\n---\n{text[:6000]}"
+                    else f"{instruction}\n\n---\n{doc_block}"
                 )
                 result = natural_language_query(
                     company_id,
@@ -1038,7 +1272,9 @@ class EditorDocsService:
                         "mode": "docs_editor",
                         "docsGrounding": grounding if use_grounding else {},
                         "salaryExcluded": True,
+                        "uiLang": lang,
                     },
+                    mode="docs_editor",
                     lang=lang,
                 )
                 answer = self._scrub_salary_text(str(result.get("answer") or "").strip())
@@ -1070,14 +1306,17 @@ class EditorDocsService:
                                 "workerId": worker_id or "",
                                 "provider": "openai",
                                 "grounded": use_grounding,
+                                "lang": lang,
                             },
                         )
                     except Exception:
                         pass
                     return out
+                if result.get("configured") is False and action in {"formal", "improve"}:
+                    return self._local_formal_letter(lang=lang, text=text, grounding=grounding)
             except Exception as exc:
                 # Fall through to local grounded/local rewrite.
-                if action not in grounded_actions:
+                if action not in grounded_actions and action not in {"formal", "improve"}:
                     return {
                         "ok": False,
                         "action": action,
@@ -1093,6 +1332,7 @@ class EditorDocsService:
                 worker_id=worker_id,
                 action=action,
                 grounding=grounding,
+                lang=lang,
             )
             if local:
                 try:
@@ -1105,7 +1345,7 @@ class EditorDocsService:
                         target_id=company_id,
                         company_id=company_id,
                         actor={"id": actor_user_id} if actor_user_id else None,
-                        details={"action": action, "workerId": worker_id or "", "provider": "local"},
+                        details={"action": action, "workerId": worker_id or "", "provider": "local", "lang": lang},
                     )
                 except Exception:
                     pass
@@ -1119,14 +1359,8 @@ class EditorDocsService:
                 short += "."
             html = f"<p>{html_escape(short)}</p>"
             return {"ok": True, "action": action, "provider": "local", "contentHtml": html, "contentText": short}
-        if action == "formal" and text:
-            formal = text.replace("Hallo", "Sehr geehrte Damen und Herren").replace(
-                "hiermit teilen wir", "hiermit teilen wir Ihnen förmlich"
-            )
-            html = "".join(
-                f"<p>{html_escape(line)}</p>" if line.strip() else "<p><br></p>" for line in formal.splitlines()
-            )
-            return {"ok": True, "action": action, "provider": "local", "contentHtml": html, "contentText": formal}
+        if action in {"formal", "improve"}:
+            return self._local_formal_letter(lang=lang, text=text, grounding=grounding)
 
         return {
             "ok": True,

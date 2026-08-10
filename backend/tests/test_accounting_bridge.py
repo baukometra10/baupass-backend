@@ -497,7 +497,7 @@ def test_push_payroll_batch_to_lohn(monkeypatch):
     )
     posts = []
 
-    def _fake_post(link, *, path, body, event):
+    def _fake_post(link, *, path, body, event, **_kwargs):
         posts.append({"path": path, "event": event, "body": body})
         return {"ok": True, "status": 200, "body": "{}"}
 
@@ -849,3 +849,105 @@ def test_platform_webhook_auth_master_key():
         body=b"{}",
     )
     assert bad["ok"] is False
+
+
+def test_notify_employee_data_resolved_clears_alerts_and_acks_message():
+    from backend.app.platform.accounting import messages_inbox, repository, service
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    db.execute("UPDATE workers SET insurance_number = ? WHERE id = ?", ("SN123456789", "w1"))
+    db.execute(
+        "UPDATE employment_contracts SET input_json = ?, status = ? WHERE id = ?",
+        (
+            json.dumps(
+                {
+                    "form": {
+                        "employee_iban": "DE89370400440532013000",
+                        "employee_tax_id": "12345678901",
+                        "employee_birth_date": "1990-05-01",
+                        "hourly_rate": "18.50",
+                    },
+                    "hourly_rate": "18.50",
+                }
+            ),
+            "signed",
+            "ctr1",
+        ),
+    )
+    db.commit()
+
+    repository.ingest_lohn_data_alerts(
+        db,
+        company_id="c1",
+        period="2026-07",
+        issues=[{"workerId": "w1", "missingFields": ["iban", "taxId"], "message": "fehlt"}],
+    )
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-resolved-1",
+                "companyId": "c1",
+                "period": "2026-07",
+                "workerId": "w1",
+                "kind": "missing_data",
+                "subject": "Stammdaten",
+                "body": "IBAN/Steuer-ID fehlen",
+                "missingFields": ["iban", "taxId"],
+            }
+        ],
+    )
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1")
+
+    out = service.notify_employee_data_resolved(
+        db, company_id="c1", worker_id="w1", actor_user_id="u1", source="test"
+    )
+    assert out.get("payrollReady") is True
+    assert out.get("missingFields") == []
+    assert (out.get("alerts") or {}).get("dismissed", 0) >= 1
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1") == []
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert not any(m.get("id") == stored["ids"][0] and m.get("status") == "pending" for m in pending)
+    # No platform link → push skipped, but local resolve still succeeds
+    assert out.get("ok") is True
+    assert (out.get("push") or {}).get("skipped") is True
+
+
+def test_dismiss_alerts_partial_field_improvement():
+    from backend.app.platform.accounting import repository, service
+
+    db = _db()
+    repository.ingest_lohn_data_alerts(
+        db,
+        company_id="c1",
+        period="",
+        issues=[{"workerId": "w1", "missingFields": ["iban", "taxId"], "message": "beide fehlen"}],
+    )
+    # Only IBAN filled → taxId still missing → alert updated, not dismissed
+    out = service.dismiss_related_data_alerts_for_worker_if_improved(
+        db,
+        company_id="c1",
+        worker_id="w1",
+        still_missing=["taxId"],
+        actor_user_id="u1",
+    )
+    assert out["dismissed"] == 0
+    open_alerts = repository.list_open_lohn_data_alerts(db, company_id="c1")
+    assert len(open_alerts) == 1
+    fields = open_alerts[0].get("missingFields") or open_alerts[0].get("missing_fields") or []
+    if isinstance(fields, str):
+        fields = json.loads(fields)
+    assert fields == ["taxId"]
+
+    # Fully ready → dismiss
+    out2 = service.dismiss_related_data_alerts_for_worker_if_improved(
+        db,
+        company_id="c1",
+        worker_id="w1",
+        still_missing=[],
+        actor_user_id="u1",
+    )
+    assert out2["dismissed"] >= 1
+    assert repository.list_open_lohn_data_alerts(db, company_id="c1") == []

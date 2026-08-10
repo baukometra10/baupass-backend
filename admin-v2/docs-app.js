@@ -243,6 +243,7 @@
     const factory = window.BaupassOwnerUnlock?.create;
     if (!factory) return null;
     ownerUnlock = factory({
+      preferPassword: false,
       t: (key, fallback) => {
         const v = dt(key);
         return v && v !== key ? v : fallback || key;
@@ -553,16 +554,30 @@
     return !!lastLocalEditAt && Date.now() - lastLocalEditAt < ms;
   }
 
+  function serializePhChips(html) {
+    // Persist machine tokens; UI shows dotted human labels only.
+    return String(html || "").replace(
+      /<span\b([^>]*\bwp-ph-chip\b[^>]*)>[\s\S]*?<\/span>/gi,
+      (full, attrs) => {
+        const m =
+          /\bdata-wp-ph\s*=\s*["']([^"']+)["']/i.exec(attrs) ||
+          /\btitle\s*=\s*["']\{\{\s*([^"'}\s]+)\s*\}\}["']/i.exec(attrs);
+        if (!m) return full;
+        return `{{${m[1]}}}`;
+      },
+    );
+  }
+
   function getBodyHtml() {
-    return quill ? quill.root.innerHTML : "<p><br></p>";
+    return serializePhChips(quill ? quill.root.innerHTML : "<p><br></p>");
   }
 
   function getHeaderHtml() {
-    return ($("docHeader")?.innerHTML || "").trim();
+    return serializePhChips(($("docHeader")?.innerHTML || "").trim());
   }
 
   function getFooterHtml() {
-    return ($("docFooter")?.innerHTML || "").trim();
+    return serializePhChips(($("docFooter")?.innerHTML || "").trim());
   }
 
   function getHtml() {
@@ -687,6 +702,15 @@
     reinjectPlaceholderChips();
   }
 
+  function mergeTokenDisplay(tokenOrKey) {
+    const raw = String(tokenOrKey || "").trim();
+    const key = raw.replace(/^\{\{\s*|\s*\}\}$/g, "");
+    const def = MERGE_FIELD_DEFS.find((d) => d.token === `{{${key}}}` || d.token === raw);
+    const label = def ? mergeFieldLabel(def) : key || raw;
+    // Visible fill-spot: dots left/right — no {{ braces }} for clients.
+    return `··· ${label} ···`;
+  }
+
   function reinjectPlaceholderChips() {
     if (!quill?.root) return;
     const walk = document.createTreeWalker(quill.root, NodeFilter.SHOW_TEXT);
@@ -701,20 +725,19 @@
       const wrap = document.createElement("span");
       let html = escapeHtml(raw);
       if (hasMerge) {
-        html = html.replace(
-          /(\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\})/g,
-          '<span class="wp-ph-chip" data-wp-ph="$2">$1</span>',
-        );
+        html = html.replace(/(\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\})/g, (_m, _full, key) => {
+          const label = escapeHtml(mergeTokenDisplay(key));
+          return `<span class="wp-ph-chip" data-wp-ph="${escapeHtml(key)}" title="{{${escapeHtml(key)}}}">${label}</span>`;
+        });
       }
       if (hasHint) {
-        html = html.replace(
-          /\[([^\]\n]{3,120})\]/g,
-          '<span class="wp-hint-chip" data-wp-hint="1">$1</span>',
-        );
+        html = html.replace(/\[([^\]\n]{3,120})\]/g, (_m, inner) => {
+          const label = escapeHtml(String(inner).trim());
+          return `<span class="wp-hint-chip" data-wp-hint="1">··· ${label} ···</span>`;
+        });
       }
       wrap.innerHTML = html;
       node.parentNode?.replaceChild(wrap, node);
-      // unwrap helper span
       while (wrap.firstChild) wrap.parentNode?.insertBefore(wrap.firstChild, wrap);
       wrap.remove();
     });
@@ -753,10 +776,10 @@
     return parts
       .map((part, i) => {
         if (i % 2 === 1) return part;
-        return part.replace(
-          /\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g,
-          '<span class="wp-ph-chip" data-wp-ph="$1">{{$1}}</span>',
-        );
+        return part.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (_m, key) => {
+          const label = escapeHtml(mergeTokenDisplay(key));
+          return `<span class="wp-ph-chip" data-wp-ph="${escapeHtml(key)}" title="{{${escapeHtml(key)}}}">${label}</span>`;
+        });
       })
       .join("");
   }
@@ -841,14 +864,14 @@
     }
   }
 
-  async function publishTeamTemplate({ title, contentHtml, layout: lay, category }) {
+  async function publishTeamTemplate({ title, contentHtml, layout: lay, category, blurb }) {
     if (!activeCompanyId()) return null;
     const data = await api(`/api/v2/docs/templates${companyQuery()}`, {
       method: "POST",
       body: JSON.stringify({
         company_id: activeCompanyId(),
         title,
-        blurb: dt("teamTemplateBlurb"),
+        blurb: blurb || dt("teamTemplateBlurb"),
         contentHtml: contentHtml || getHtml(),
         layout: lay || { ...layout },
         category: category || "sonstiges",
@@ -863,15 +886,38 @@
       return;
     }
     if (!confirm(dt("starterKitConfirm"))) return;
+    const kits = [
+      { contentKey: "letter", titleKey: "tplLetter", blurbKey: "tplLetterBlurb", category: "correspondence" },
+      { contentKey: "invitation", titleKey: "tplInvitation", blurbKey: "tplInvitationBlurb", category: "correspondence" },
+      { contentKey: "praise", titleKey: "tplPraise", blurbKey: "tplPraiseBlurb", category: "hr" },
+      { contentKey: "warning", titleKey: "tplWarning", blurbKey: "tplWarningBlurb", category: "hr" },
+      { contentKey: "certificate", titleKey: "tplCertificate", blurbKey: "tplCertificateBlurb", category: "hr" },
+      { contentKey: "policy", titleKey: "tplPolicy", blurbKey: "tplPolicyBlurb", category: "safety" },
+      { contentKey: "induction", titleKey: "tplInduction", blurbKey: "tplInductionBlurb", category: "safety" },
+      { contentKey: "meeting", titleKey: "tplMeeting", blurbKey: "tplMeetingBlurb", category: "meetings" },
+    ];
     try {
-      const data = await api(`/api/v2/docs/templates/starter-kit${companyQuery()}`, {
-        method: "POST",
-        body: JSON.stringify({ company_id: activeCompanyId() }),
-      });
+      let created = 0;
+      const existing = await api(`/api/v2/docs/templates${companyQuery()}`);
+      const titles = new Set((existing.items || []).map((t) => String(t.title || "").trim().toLowerCase()));
+      for (const kit of kits) {
+        const title = dt(kit.titleKey);
+        if (titles.has(String(title).toLowerCase())) continue;
+        // Also skip if old German Kit: stub already exists for same content.
+        const legacyHit = (existing.items || []).some((t) => resolveKitMeta(t.title)?.contentKey === kit.contentKey);
+        if (legacyHit) continue;
+        await publishTeamTemplate({
+          title,
+          contentHtml: getTemplateHtml(kit.contentKey),
+          category: kit.category,
+          blurb: dt(kit.blurbKey),
+        });
+        created += 1;
+      }
       activeTopicFilter = "team";
       setSideTab("templates");
       await renderTemplateGallery();
-      setStatus($("saveStatus"), dt("starterKitDone", { n: data.created || 0 }), "ok");
+      setStatus($("saveStatus"), dt("starterKitDone", { n: created }), "ok");
     } catch (e) {
       setStatus($("saveStatus"), e.message || dt("error"), "err");
     }
@@ -2165,18 +2211,14 @@
   function mergeFieldLabel(def) {
     const translated = dt(def.labelKey);
     if (translated && translated !== def.labelKey) return translated;
-    const fallbacks = {
-      chipContact: "Kontakt",
-      chipBadge: "Badge",
-      chipManager: "Leitung",
-    };
-    return fallbacks[def.labelKey] || def.token;
+    const token = String(def.token || "").replace(/^\{\{|\}\}$/g, "");
+    return token || def.labelKey;
   }
 
   function mergeCatalog() {
     return MERGE_FIELD_DEFS.map((d) => ({
       token: d.token,
-      label: `${mergeFieldLabel(d)} · ${d.token}`,
+      label: mergeFieldLabel(d),
       run: () => insertMergeToken(d.token),
     }));
   }
@@ -4819,6 +4861,99 @@
     setStatus($("saveStatus"), dt("snippetInserted"), "ok");
   }
 
+  const KIT_TITLE_MAP = [
+    { match: /firmenbrief|business\s*letter|geschäftsbrief|خطاب\s*عمل|iş\s*mektubu/i, contentKey: "letter", titleKey: "tplLetter", blurbKey: "tplLetterBlurb" },
+    { match: /abmahnung|schriftlicher\s*hinweis|written\s*notice|تنبيه\s*كتابي|yazılı\s*uyarı/i, contentKey: "warning", titleKey: "tplWarning", blurbKey: "tplWarningBlurb" },
+    { match: /(arbeits)?bescheinigung|certificate|شهادة|belge|attestation/i, contentKey: "certificate", titleKey: "tplCertificate", blurbKey: "tplCertificateBlurb" },
+    { match: /sicherheitsunterweisung|induction|einweisung|توجيه|oryantasyon|unterweisung/i, contentKey: "induction", titleKey: "tplInduction", blurbKey: "tplInductionBlurb" },
+    { match: /betriebsanweisung|work\s*instruction|تعليمات\s*تشغيل|iş\s*talimat/i, contentKey: "policy", titleKey: "tplPolicy", blurbKey: "tplPolicyBlurb" },
+    { match: /^(kit:\s*)?protokoll$|^(kit:\s*)?(minutes|محضر(\s*اجتماع)?|tutanak|procès-verbal|verbale|acta|protokół)$/i, contentKey: "meeting", titleKey: "tplMeeting", blurbKey: "tplMeetingBlurb" },
+    { match: /einladung|invitation|دعوة|davetiye|invito|invitación/i, contentKey: "invitation", titleKey: "tplInvitation", blurbKey: "tplInvitationBlurb" },
+    { match: /anerkennung|praise|thank|شكر|تقدير|takdir|remerciement|reconocimiento|podziękowanie/i, contentKey: "praise", titleKey: "tplPraise", blurbKey: "tplPraiseBlurb" },
+    { match: /toolbox[\s-]*talk|toolbox|إحاطة\s*سلامة/i, contentKey: "toolbox", titleKey: "tplToolbox", blurbKey: "tplToolboxBlurb" },
+    { match: /baustellenordnung|site\s*rules|قواعد\s*الموقع|şantiye\s*kurallar/i, contentKey: "site_rules", titleKey: "tplSiteRules", blurbKey: "tplSiteRulesBlurb" },
+    { match: /besucherbestätigung|besucher|visitor\s*confirm|تأكيد\s*زيارة|ziyaretçi/i, contentKey: "visitor", titleKey: "tplVisitor", blurbKey: "tplVisitorBlurb" },
+    { match: /schadens|vorfallmeldung|damage|incident\s*report|بلاغ\s*ضرر|hasar/i, contentKey: "damage", titleKey: "tplDamage", blurbKey: "tplDamageBlurb" },
+    { match: /materialausgabe|material\s*issue|صرف|malzeme\s*teslim/i, contentKey: "material", titleKey: "tplMaterial", blurbKey: "tplMaterialBlurb" },
+  ];
+
+  function resolveKitMeta(rawTitle) {
+    let t = String(rawTitle || "")
+      .normalize("NFKC")
+      .replace(/[\u200B-\u200D\uFEFF]/g, "")
+      .trim()
+      .replace(/^(pack|kit):\s*/i, "")
+      .replace(/\s+/g, " ");
+    if (!t) return null;
+    // Prefer exact-ish first for Protokoll vs Übergabeprotokoll.
+    if (/^protokoll$/i.test(t) || /^(minutes|محضر(\s*اجتماع)?|tutanak|procès-verbal|verbale|acta|protokół)$/i.test(t)) {
+      return KIT_TITLE_MAP.find((row) => row.contentKey === "meeting") || null;
+    }
+    if (/übergabe|handover|تسليم/i.test(t)) {
+      return null;
+    }
+    return KIT_TITLE_MAP.find((row) => row.contentKey !== "meeting" && row.match.test(t)) || null;
+  }
+
+  function cleanTemplateTitle(raw) {
+    const kit = resolveKitMeta(raw);
+    if (kit) return dt(kit.titleKey);
+    let t = String(raw || "").trim();
+    if (!t) return dt("teamTemplateBlurb");
+    t = t.replace(/^Pack:\s*/i, "");
+    t = t.replace(/^Kit:\s*/i, "");
+    t = t.replace(/\s*\((TR|AR|DE|EN|FR|ES|IT|PL)\)\s*$/i, "");
+    t = t.replace(/\s*[-–]\s*(TR|AR|DE|EN|FR|ES|IT|PL)\s*$/i, "");
+    t = t.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+    if (/^toolbox[\s-]*talk$/i.test(t)) return dt("tplToolbox") || t;
+    return t || dt("teamTemplateBlurb");
+  }
+
+  function cleanTemplateBlurb(blurb, category, rawTitle) {
+    const kit = resolveKitMeta(rawTitle || blurb);
+    if (kit) return dt(kit.blurbKey);
+    let b = String(blurb || "").trim();
+    b = b.replace(/^Policy-Pack\s*/i, "");
+    b = b.replace(/^Starter-Kit\s*/i, "");
+    b = b.replace(/\s*[-–]\s*(TR|AR|DE|EN|FR|ES|IT|PL)\b/gi, "");
+    b = b.replace(/\s*[-–]\s*safety\b/gi, "");
+    b = b.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+    const catMap = {
+      safety: dt("topicSafety"),
+      hr: dt("topicHr"),
+      correspondence: dt("topicCorrespondence"),
+      meetings: dt("topicMeetings"),
+      sonstiges: "",
+    };
+    const cat = catMap[String(category || "").toLowerCase()] || "";
+    if (!b || /^starter/i.test(b) || /^kit\b/i.test(b)) return cat || dt("teamTemplateBlurb");
+    if (cat && !b.includes(cat)) return `${b} · ${cat}`;
+    return b;
+  }
+
+  function isStubTemplateHtml(html) {
+    const raw = String(html || "");
+    const plain = raw
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (plain.length < 280) return true;
+    if (/\b…\b|\.\.\.|<[lh][12]?>?\s*\.\.\./i.test(raw)) return true;
+    // Backend starter-kit stubs (German short shells).
+    if (/Starter-Kit|Kit:\s*/i.test(plain)) return true;
+    if (/<h1[^>]*>\s*(Betriebsanweisung|Protokoll|Abmahnung|Bescheinigung|Sicherheitsunterweisung|Firmenbrief)\s*<\/h1>/i.test(raw)) {
+      return plain.length < 900;
+    }
+    return false;
+  }
+
+  function resolveTeamTemplateHtml(title, html) {
+    const kit = resolveKitMeta(title);
+    if (!kit) return html;
+    if (!isStubTemplateHtml(html)) return html;
+    return getTemplateHtml(kit.contentKey) || html;
+  }
+
   async function renderTemplateGallery() {
     const host = $("templateGallery");
     if (!host) return;
@@ -4840,9 +4975,10 @@
           id: t.id,
           topic: "team",
           category: t.category || "sonstiges",
-          title: t.title,
-          blurb: `${t.blurb || dt("teamTemplateBlurb")}${t.category ? ` · ${t.category}` : ""}`,
-          previewHtml: t.content_html || t.contentHtml || "",
+          sourceTitle: t.title || "",
+          title: cleanTemplateTitle(t.title),
+          blurb: cleanTemplateBlurb(t.blurb || dt("teamTemplateBlurb"), t.category, t.title),
+          previewHtml: resolveTeamTemplateHtml(t.title, t.content_html || t.contentHtml || ""),
           team: true,
           canDelete: t.canDelete !== false,
           isMine: !!t.isMine,
@@ -4852,7 +4988,7 @@
     } catch {
       team = [];
     }
-    const list = [...team, ...custom, ...builtIn];
+    const list = [...builtIn, ...custom, ...team];
     const q = String(tplSearchQuery || "")
       .trim()
       .toLowerCase();
@@ -5172,8 +5308,9 @@
       }
       if (lay && typeof lay === "object") Object.assign(layout, lay);
       applyLayoutToDom();
-      const html = tpl.content_html || "<p><br></p>";
-      const title = tpl.title || dt("tplBlank");
+      const sourceTitle = tpl.title || "";
+      const html = resolveTeamTemplateHtml(sourceTitle, tpl.content_html || "<p><br></p>");
+      const title = cleanTemplateTitle(sourceTitle) || dt("tplBlank");
       if (!currentDoc?.id && activeCompanyId()) {
         await createBlank({ title, contentHtml: html, mode: "general" });
         setHtml(html);
@@ -5745,10 +5882,17 @@
         .replace(/\s*\}\}$/, "");
       const re = new RegExp(`\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}`, "g");
       out = out.replace(re, String(value));
-      // Also replace chip wrappers that still show the token text.
+      // Replace chip wrappers by token attribute (display may be dotted human label).
       out = out.replace(
         new RegExp(
-          `<span[^>]*class="[^"]*wp-ph-chip[^"]*"[^>]*>\\s*\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\}\\}\\s*</span>`,
+          `<span[^>]*class="[^"]*wp-ph-chip[^"]*"[^>]*data-wp-ph=["']${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*>[\\s\\S]*?<\\/span>`,
+          "gi",
+        ),
+        String(value),
+      );
+      out = out.replace(
+        new RegExp(
+          `<span[^>]*data-wp-ph=["']${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]*class="[^"]*wp-ph-chip[^"]*"[^>]*>[\\s\\S]*?<\\/span>`,
           "gi",
         ),
         String(value),
@@ -5881,7 +6025,7 @@
       .map(
         (it, i) =>
           `<li><button type="button" class="placeholder-check-item" data-ph="${i}" title="${escapeHtml(it.token)}">` +
-          `<code>${escapeHtml(it.token)}</code>` +
+          `<span>${escapeHtml(mergeTokenDisplay(it.token))}</span>` +
           `<span>×${it.count || 1}</span></button></li>`,
       )
       .join("");
@@ -6103,6 +6247,7 @@
       return;
     }
     const grounded = new Set(["from_expiry", "from_attendance", "draft_warning", "grounded_improve"]);
+    const letterActions = new Set(["formal", "improve", "draft_reply"]);
     const workerId =
       selectedWorkerId ||
       currentDoc?.worker_id ||
@@ -6113,7 +6258,8 @@
       setStatus($("saveStatus"), dt("needWorker"), "err");
       return;
     }
-    if (!getText() && !grounded.has(action)) {
+    // Formal reply may start from short notes or nearly empty page.
+    if (!getText() && !grounded.has(action) && !letterActions.has(action)) {
       setStatus($("saveStatus"), dt("noAiText"), "err");
       return;
     }
@@ -7288,6 +7434,26 @@
       });
     }
 
+    function positionMoreMenu() {
+      const btn = $("moreBtn");
+      const menu = $("moreMenu");
+      if (!btn || !menu || !menu.classList.contains("open")) return;
+      const r = btn.getBoundingClientRect();
+      const pad = 8;
+      const mw = Math.min(380, Math.max(280, menu.offsetWidth || 280));
+      const mh = menu.offsetHeight || 320;
+      const rtl = document.documentElement.dir === "rtl";
+      let left = rtl ? r.left : r.right - mw;
+      left = Math.max(pad, Math.min(left, window.innerWidth - mw - pad));
+      let top = r.bottom + 6;
+      if (top + mh > window.innerHeight - pad) {
+        top = Math.max(pad, r.top - mh - 6);
+      }
+      menu.style.left = `${Math.round(left)}px`;
+      menu.style.top = `${Math.round(top)}px`;
+      menu.style.right = "auto";
+      menu.style.bottom = "auto";
+    }
     function closeMoreMenu() {
       $("moreMenu")?.classList.remove("open");
       $("moreBtn")?.setAttribute("aria-expanded", "false");
@@ -7298,7 +7464,10 @@
       const open = !menu?.classList.contains("open");
       menu?.classList.toggle("open", open);
       $("moreBtn")?.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) requestAnimationFrame(() => positionMoreMenu());
     });
+    window.addEventListener("resize", () => positionMoreMenu());
+    window.addEventListener("scroll", () => positionMoreMenu(), true);
     document.addEventListener("click", (e) => {
       if (!e.target.closest?.(".more-wrap")) closeMoreMenu();
     });
@@ -7406,6 +7575,7 @@
     $("applyLetterheadBtn")?.addEventListener("click", () => applyCompanyLetterhead());
     $("clearLetterheadBtn")?.addEventListener("click", () => clearCompanyLetterhead());
     $("useLetterhead")?.addEventListener("change", () => syncLetterheadFromToggle());
+    $("brandLogoBrowseBtn")?.addEventListener("click", () => $("brandLogoFile")?.click());
     $("brandLogoUploadBtn")?.addEventListener("click", () => {
       const status = $("brandLogoStatus");
       if (status) status.hidden = false;
@@ -7418,9 +7588,12 @@
     });
     $("brandLogoFile")?.addEventListener("change", () => {
       const status = $("brandLogoStatus");
+      const nameEl = $("brandLogoFileName");
+      const file = $("brandLogoFile")?.files?.[0];
+      if (nameEl) nameEl.textContent = file?.name || dt("brandLogoNoFile");
       if (status) {
         status.hidden = false;
-        setStatus(status, $("brandLogoFile")?.files?.[0] ? dt("brandLogoReady") : "", "");
+        setStatus(status, file ? dt("brandLogoReady") : "", "");
       }
     });
     syncBrandLogoControls();

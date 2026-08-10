@@ -239,44 +239,7 @@ def build_employee_master_list(db, *, company_id: str) -> dict[str, Any]:
     ).fetchall()
     employees: list[dict[str, Any]] = []
     for worker in workers:
-        wid = str(worker["id"])
-        master = _contract_master_for_worker(db, company_id=company_id, worker_id=wid)
-        email = master["email"] or _worker_row_value(worker, "contact_email")
-        phone = master["phone"] or _worker_row_value(worker, "contact_phone")
-        address = master["address"] or _worker_row_value(worker, "home_address")
-        birth = master["birthDate"] or _worker_row_value(worker, "birth_date")
-        gender = master["gender"] or _worker_row_value(worker, "gender")
-        item = {
-            "companyId": company_id,
-            "workerId": wid,
-            "employeeId": wid,
-            "firstName": _worker_row_value(worker, "first_name"),
-            "lastName": _worker_row_value(worker, "last_name"),
-            "badgeId": _worker_row_value(worker, "badge_id"),
-            "insuranceNumber": _worker_row_value(worker, "insurance_number"),
-            "status": _worker_row_value(worker, "status"),
-            "role": _worker_row_value(worker, "role") or master.get("jobTitle") or "",
-            "site": _worker_row_value(worker, "site"),
-            "iban": master["iban"],
-            "taxId": master["taxId"],
-            "birthDate": birth,
-            "email": email,
-            "phone": phone,
-            "address": address,
-            "nationality": master["nationality"],
-            "gender": gender,
-            "jobTitle": master["jobTitle"] or _worker_row_value(worker, "role"),
-            "startDate": master["startDate"],
-            "weeklyHours": master["weeklyHours"],
-            "hourlyRate": master["hourlyRate"],
-            "salaryGrossMonthly": master["salaryGrossMonthly"],
-            "currency": master["currency"] or "EUR",
-            "contractId": master.get("contractId"),
-            "contractStatus": master.get("contractStatus"),
-        }
-        item["missingFields"] = _missing_payroll_fields(item)
-        item["payrollReady"] = len(item["missingFields"]) == 0
-        employees.append(item)
+        employees.append(_employee_master_item_from_worker(db, company_id=company_id, worker=worker))
     company = db.execute("SELECT id, name FROM companies WHERE id = ?", (company_id,)).fetchone()
     company_name = (company["name"] if company else "") or ""
     ready = sum(1 for e in employees if e.get("payrollReady"))
@@ -294,6 +257,67 @@ def build_employee_master_list(db, *, company_id: str) -> dict[str, Any]:
         "employees": employees,
         "note": "Master data for Lohn; hours/payroll-batch still required for period totals",
     }
+
+
+def _employee_master_item_from_worker(db, *, company_id: str, worker) -> dict[str, Any]:
+    wid = str(worker["id"])
+    master = _contract_master_for_worker(db, company_id=company_id, worker_id=wid)
+    email = master["email"] or _worker_row_value(worker, "contact_email")
+    phone = master["phone"] or _worker_row_value(worker, "contact_phone")
+    address = master["address"] or _worker_row_value(worker, "home_address")
+    birth = master["birthDate"] or _worker_row_value(worker, "birth_date")
+    gender = master["gender"] or _worker_row_value(worker, "gender")
+    item = {
+        "companyId": company_id,
+        "workerId": wid,
+        "employeeId": wid,
+        "firstName": _worker_row_value(worker, "first_name"),
+        "lastName": _worker_row_value(worker, "last_name"),
+        "badgeId": _worker_row_value(worker, "badge_id"),
+        "insuranceNumber": _worker_row_value(worker, "insurance_number"),
+        "status": _worker_row_value(worker, "status"),
+        "role": _worker_row_value(worker, "role") or master.get("jobTitle") or "",
+        "site": _worker_row_value(worker, "site"),
+        "iban": master["iban"],
+        "taxId": master["taxId"],
+        "birthDate": birth,
+        "email": email,
+        "phone": phone,
+        "address": address,
+        "nationality": master["nationality"],
+        "gender": gender,
+        "jobTitle": master["jobTitle"] or _worker_row_value(worker, "role"),
+        "startDate": master["startDate"],
+        "weeklyHours": master["weeklyHours"],
+        "hourlyRate": master["hourlyRate"],
+        "salaryGrossMonthly": master["salaryGrossMonthly"],
+        "currency": master["currency"] or "EUR",
+        "contractId": master.get("contractId"),
+        "contractStatus": master.get("contractStatus"),
+    }
+    item["missingFields"] = _missing_payroll_fields(item)
+    item["payrollReady"] = len(item["missingFields"]) == 0
+    return item
+
+
+def get_employee_master_item(db, *, company_id: str, worker_id: str) -> dict[str, Any] | None:
+    """Single employee master row for Lohn push after missing-data fix."""
+    company_id = require_company_id(company_id)
+    worker_id = str(worker_id or "").strip()
+    if not worker_id:
+        return None
+    worker = db.execute(
+        """
+        SELECT *
+        FROM workers
+        WHERE id = ? AND company_id = ? AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (worker_id, company_id),
+    ).fetchone()
+    if not worker:
+        return None
+    return _employee_master_item_from_worker(db, company_id=company_id, worker=worker)
 
 
 def aggregate_company_hours(db, *, company_id: str, period: str) -> dict[str, Any]:

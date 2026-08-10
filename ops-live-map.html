@@ -3614,6 +3614,7 @@
             zoomControl: true,
             fadeAnimation: true,
             markerZoomAnimation: true,
+            scrollWheelZoom: new URLSearchParams(location.search).get("embed") !== "1",
           }).setView([c.lat, c.lng], 15);
           if (typeof map.addLayer !== 'function') {
             console.error("Map object does not have addLayer method. Leaflet may not be loaded properly.");

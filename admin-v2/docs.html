@@ -13,8 +13,8 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/source-serif-4@5.2.6/index.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.6/index.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" />
-  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260725docs70" />
-  <link rel="stylesheet" href="/admin-v2/docs-studio.css?v=20260725docs70" />
+  <link rel="stylesheet" href="/admin-v2/styles.css?v=20260810docs9" />
+  <link rel="stylesheet" href="/admin-v2/docs-studio.css?v=20260810docs9" />
   <style>
     .docs-lock-overlay {
       position: fixed; inset: 0; z-index: 12000; display: flex; align-items: center; justify-content: center;
@@ -46,24 +46,24 @@
 <body class="docs-page">
   <div id="docsLockOverlay" class="docs-lock-overlay hidden" aria-modal="true" role="dialog">
     <div class="docs-lock-card">
-      <h2 id="docsLockTitle">Owner-Freigabe</h2>
-      <p id="docsLockDesc">Arbeitsverträge sind geschützt. Bitte Code des Firmeninhabers bestätigen. Der normale Dokumenteneditor bleibt frei.</p>
+      <h2 id="docsLockTitle" data-di18n="lockOverlayTitle">Freigabe durch Firmeninhaber</h2>
+      <p id="docsLockDesc" data-di18n="lockOverlayDesc">Arbeitsverträge sind geschützt. Bitte den Code des Firmeninhabers bestätigen. Der normale Dokumenteneditor bleibt frei.</p>
       <div id="docsLockSetupBlock" class="hidden">
-        <label>Owner-Handy (mit Ländervorwahl)<input id="docsLockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+        <label><span data-di18n="lockOwnerPhone">Handy des Inhabers (mit Ländervorwahl)</span><input id="docsLockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
       </div>
       <div id="docsLockEmailBlock">
-        <label><span id="docsLockEmailLabel">Backup-E-Mail</span><input id="docsLockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
+        <label><span id="docsLockEmailLabel" data-di18n="lockOwnerEmail">Backup-E-Mail</span><input id="docsLockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
         <p id="docsLockDeliveryHint" class="muted" style="font-size:0.72rem;margin:0.25rem 0 0;"></p>
       </div>
       <div id="docsLockCodeBlock" class="hidden">
-        <label>Sicherheitscode<input id="docsLockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
+        <label><span data-di18n="lockSecurityCode">Sicherheitscode</span><input id="docsLockOtpCode" type="text" inputmode="numeric" maxlength="8" placeholder="6-stelliger Code" autocomplete="one-time-code" /></label>
       </div>
       <p id="docsLockMsg" class="docs-lock-msg"></p>
       <p id="docsLockRateHint" class="muted hidden" style="font-size:0.72rem;margin:0.2rem 0 0;"></p>
       <div class="docs-lock-actions">
-        <button type="button" class="primary" id="docsLockSendBtn">Code senden</button>
-        <button type="button" class="primary hidden" id="docsLockVerifyBtn">Freischalten</button>
-        <button type="button" class="hidden" id="docsLockSkipBtn">Später</button>
+        <button type="button" class="primary" id="docsLockSendBtn" data-di18n="lockSendCode">Code senden</button>
+        <button type="button" class="primary hidden" id="docsLockVerifyBtn" data-di18n="lockVerify">Freischalten</button>
+        <button type="button" class="hidden" id="docsLockSkipBtn" data-di18n="lockLater">Später</button>
       </div>
     </div>
   </div>
@@ -126,7 +126,7 @@
             <button type="button" class="chip" data-snippet="greeting" data-di18n="snGreeting">Anrede</button>
             <button type="button" class="chip" data-snippet="closing" data-di18n="snClosing">Grußformel</button>
             <button type="button" class="chip" data-snippet="address_block" data-di18n="snAddress">Firmenadresse</button>
-            <button type="button" class="chip" data-snippet="worker_line" data-di18n="snWorker">MA-Zeile</button>
+            <button type="button" class="chip" data-snippet="worker_line" data-di18n="snWorker">Mitarbeiterzeile</button>
             <button type="button" class="chip" data-snippet="date_line" data-di18n="snDate">Datum</button>
             <button type="button" class="chip" data-snippet="signature" data-di18n="snSign">Unterschrift</button>
           </div>
@@ -149,11 +149,11 @@
     <main class="docs-main">
       <div class="mobile-bar">
         <button type="button" class="cmd" id="toggleSideBtn" data-di18n="mobileDocs">Dokumente</button>
-        <button type="button" class="cmd" id="toggleRailBtn" data-di18n="mobileOut">Ausgabe</button>
+        <button type="button" class="cmd" id="toggleRailBtn" data-di18n="mobileOut">Fertigstellen &amp; senden</button>
       </div>
 
       <div class="contract-banner hidden" id="contractBanner" role="status">
-        <span data-di18n="contractBanner">Vertragsmodus — speichern, dann „Zum Vertrag“ übernehmen (sonst geht Rich-Text verloren).</span>
+        <span data-di18n="contractBanner">Vertragsmodus — speichern, dann zum Vertrag übernehmen.</span>
         <button type="button" class="cmd quiet" id="contractBannerApplyBtn" data-di18n="toContract">Zum Vertrag</button>
         <button type="button" class="cmd primary" id="applyReturnContractBtn" data-di18n="applyAndReturn">Übernehmen &amp; zurück</button>
       </div>
@@ -205,7 +205,7 @@
                 <button type="button" id="insertTocBtn" data-di18n="insertToc">Inhaltsverzeichnis</button>
                 <button type="button" id="exportDocBtn" data-di18n="exportDocx">Word (.docx)</button>
                 <button type="button" id="exportHtmlBtn" data-di18n="exportHtml">HTML</button>
-                <button type="button" id="wordProBtn" data-di18n="wordPro">Word Pro</button>
+                <button type="button" id="wordProBtn" data-di18n="wordPro">Word-Editor (erweitert)</button>
                 <button type="button" id="fullscreenBtn" data-di18n="focus">Fokus</button>
                 <button type="button" id="applyContractBtn" class="hidden" data-di18n="toContract">Zum Vertrag</button>
                 <button type="button" id="returnContractBtn" class="hidden" data-di18n="returnContract">Zurück zum Vertrag</button>
@@ -315,26 +315,26 @@
           <input id="replaceInput" type="search" autocomplete="off" data-di18n="replacePh" data-di18n-attr="placeholder" placeholder="Ersatztext…" />
         </label>
         <span class="docs-find-count" id="findCount"></span>
-        <button type="button" class="cmd quiet tb-ico" id="findPrevBtn" data-wp-ico="searchPrev" aria-label="Previous"></button>
-        <button type="button" class="cmd quiet tb-ico" id="findNextBtn" data-wp-ico="searchNext" aria-label="Next"></button>
+        <button type="button" class="cmd quiet tb-ico" id="findPrevBtn" data-wp-ico="searchPrev" data-di18n="findPrev" data-di18n-attr="aria-label" aria-label="Previous"></button>
+        <button type="button" class="cmd quiet tb-ico" id="findNextBtn" data-wp-ico="searchNext" data-di18n="findNext" data-di18n-attr="aria-label" aria-label="Next"></button>
         <button type="button" class="cmd quiet" id="replaceOneBtn" hidden data-di18n="replaceOne">Ersetzen</button>
         <button type="button" class="cmd quiet" id="replaceAllBtn" hidden data-di18n="replaceAll">Alle</button>
         <button type="button" class="cmd quiet tb-ico" id="findCloseBtn" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
       </div>
 
       <div class="sel-bubble" id="selBubble" hidden role="toolbar" data-di18n="selBubble" data-di18n-attr="aria-label" aria-label="Schnellformat">
-        <button type="button" class="sel-bubble-btn" data-fmt="bold" data-wp-ico="bold" title="Bold"></button>
-        <button type="button" class="sel-bubble-btn" data-fmt="italic" data-wp-ico="italic" title="Italic"></button>
-        <button type="button" class="sel-bubble-btn" data-fmt="underline" data-wp-ico="underline" title="Underline"></button>
-        <button type="button" class="sel-bubble-btn" data-fmt="strike" data-wp-ico="strike" title="Strike"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="bold" data-wp-ico="bold" data-di18n="fmtBold" data-di18n-attr="title" title="Bold"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="italic" data-wp-ico="italic" data-di18n="fmtItalic" data-di18n-attr="title" title="Italic"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="underline" data-wp-ico="underline" data-di18n="fmtUnderline" data-di18n-attr="title" title="Underline"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="strike" data-wp-ico="strike" data-di18n="fmtStrike" data-di18n-attr="title" title="Strike"></button>
         <span class="sel-bubble-sep"></span>
-        <button type="button" class="sel-bubble-btn" data-fmt="link" data-wp-ico="link" title="Link"></button>
-        <button type="button" class="sel-bubble-btn" data-fmt="blockquote" data-wp-ico="quote" title="Quote"></button>
-        <button type="button" class="sel-bubble-btn" data-action="comment" data-wp-ico="comment" title="Comment" id="bubbleCommentBtn"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="link" data-wp-ico="link" data-di18n="fmtLink" data-di18n-attr="title" title="Link"></button>
+        <button type="button" class="sel-bubble-btn" data-fmt="blockquote" data-wp-ico="quote" data-di18n="fmtQuote" data-di18n-attr="title" title="Quote"></button>
+        <button type="button" class="sel-bubble-btn" data-action="comment" data-wp-ico="comment" data-di18n="fmtComment" data-di18n-attr="title" title="Comment" id="bubbleCommentBtn"></button>
         <span class="sel-bubble-sep"></span>
-        <button type="button" class="sel-bubble-btn" data-align="left" data-wp-ico="alignLeft" title="Left"></button>
-        <button type="button" class="sel-bubble-btn" data-align="center" data-wp-ico="alignCenter" title="Center"></button>
-        <button type="button" class="sel-bubble-btn" data-align="right" data-wp-ico="alignRight" title="Right"></button>
+        <button type="button" class="sel-bubble-btn" data-align="left" data-wp-ico="alignLeft" data-di18n="alignLeft" data-di18n-attr="title" title="Left"></button>
+        <button type="button" class="sel-bubble-btn" data-align="center" data-wp-ico="alignCenter" data-di18n="alignCenter" data-di18n-attr="title" title="Center"></button>
+        <button type="button" class="sel-bubble-btn" data-align="right" data-wp-ico="alignRight" data-di18n="alignRight" data-di18n-attr="title" title="Right"></button>
       </div>
 
       <div class="img-size-bar" id="imgSizeBar" hidden role="toolbar" data-di18n="imgSizeBar" data-di18n-attr="aria-label" aria-label="Bildgröße">
@@ -434,7 +434,7 @@
             </div>
           </div>
           <aside class="doc-comments" id="docComments" hidden>
-            <p class="doc-comments-title" data-di18n="commentsPanel">Review</p>
+            <p class="doc-comments-title" data-di18n="commentsPanel">التعليقات</p>
             <p class="doc-review-banner" id="docReviewBanner" hidden data-di18n="reviewModeBanner">Prüfmodus — Text gesperrt; Vorschläge annehmen/ablehnen.</p>
             <div class="doc-comments-section">
               <div class="doc-comments-section-head">
@@ -473,7 +473,7 @@
           <div class="print-preview-body" id="printPreviewBody"></div>
           <div class="print-preview-actions">
             <button type="button" class="cmd quiet" id="printPreviewDismiss" data-di18n="close">Schließen</button>
-            <button type="button" class="cmd quiet" id="printPreviewCheck" data-di18n="printPreviewCheck">Platzhalter zeigen</button>
+            <button type="button" class="cmd quiet" id="printPreviewCheck" data-di18n="printPreviewCheck">Leere Felder markieren</button>
             <button type="button" class="cmd quiet" id="printPreviewPdfBtn" data-di18n="printAsPdf">Als PDF</button>
             <button type="button" class="cmd primary" id="printPreviewPrint" data-wp-ico="print" data-di18n="printClean">Sauber drucken</button>
           </div>
@@ -491,12 +491,12 @@
           <div class="preflight-publish-opts" id="preflightPublishOpts" hidden>
             <label class="field"><span data-di18n="publishDocType">Dokumenttyp</span>
               <select id="publishDocType">
-                <option value="sonstiges">Sonstiges</option>
-                <option value="mindestlohnnachweis">Mindestlohnnachweis</option>
-                <option value="arbeitserlaubnis">Arbeitserlaubnis</option>
-                <option value="aufenthaltserlaubnis">Aufenthaltserlaubnis</option>
-                <option value="gesundheitszeugnis">Gesundheitszeugnis</option>
-                <option value="meldebescheinigung">Meldebescheinigung</option>
+                <option value="sonstiges" data-di18n="docTypeOther">Sonstiges</option>
+                <option value="mindestlohnnachweis" data-di18n="docTypeMinWage">Mindestlohnnachweis</option>
+                <option value="arbeitserlaubnis" data-di18n="docTypeWorkPermit">Arbeitserlaubnis</option>
+                <option value="aufenthaltserlaubnis" data-di18n="docTypeResidence">Aufenthaltserlaubnis</option>
+                <option value="gesundheitszeugnis" data-di18n="docTypeHealth">Gesundheitszeugnis</option>
+                <option value="meldebescheinigung" data-di18n="docTypeRegistration">Meldebescheinigung</option>
               </select>
             </label>
             <label class="field"><span data-di18n="publishExpiry">Ablaufdatum (optional)</span>
@@ -560,7 +560,7 @@
           </div>
           <div class="share-body">
             <p class="rail-note" data-di18n="emailModalHint">PDF wird serverseitig erzeugt und als Anhang versendet.</p>
-            <p class="rail-note email-smtp-hint" id="emailSmtpStatus" data-di18n="emailSmtpHint">Bei Fehlern: SMTP/API-Mail in den Einstellungen prüfen (SMTP_HOST, Resend oder Brevo).</p>
+            <p class="rail-note email-smtp-hint" id="emailSmtpStatus" data-di18n="emailSmtpHint">Bei Fehlern: E-Mail-Versand in den Einstellungen prüfen.</p>
             <label class="field"><span data-di18n="emailTo">An</span>
               <select id="emailWorkerSelect">
                 <option value="" data-di18n="emailToManual">Manuell / anderer Empfänger</option>
@@ -611,7 +611,7 @@
               <input type="checkbox" id="signLockCheck" />
               <span data-di18n="signLockLabel">Nach Stempel Dokument freigeben (Hash-Lock)</span>
             </label>
-            <p class="rail-note" data-di18n="signAesNote">Fortgeschrittene elektronische Signatur (AES) mit Inhalts-Hash — keine qualifizierte Signatur (QES).</p>
+            <p class="rail-note" data-di18n="signAesNote">Elektronische Signatur (AES) mit Inhalts-Hash — keine QES.</p>
             <p class="rail-note is-err" id="signPermNote" hidden data-di18n="permDeniedSign">Unterschreiben nur für Firmen-Admin / Superadmin.</p>
             <p class="rail-note" id="qesStatusNote" data-di18n="qesStatusLoading">QES-Status wird geprüft…</p>
             <div class="action-row">
@@ -633,14 +633,14 @@
         <div class="share-backdrop" id="mergeBackdrop"></div>
         <div class="share-panel merge-panel" role="dialog" aria-modal="true" aria-labelledby="mergeModalTitle">
           <div class="share-head">
-            <strong id="mergeModalTitle" data-di18n="mergeModalTitle">Platzhalter füllen</strong>
+            <strong id="mergeModalTitle" data-di18n="mergeModalTitle">Felder ausfüllen</strong>
             <button type="button" class="cmd quiet tb-ico" id="mergeModalClose" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
           </div>
           <div class="share-body">
             <label class="field"><span data-di18n="worker">Mitarbeiter</span>
               <select id="mergeWorkerSelect"><option value="">—</option></select>
             </label>
-            <p class="rail-note" data-di18n="mergeModalHint">Mitarbeiter wählen, offene Felder manuell ergänzen, dann füllen.</p>
+            <p class="rail-note" data-di18n="mergeModalHint">Mitarbeiter wählen, offene Felder ergänzen, dann ausfüllen.</p>
             <div class="merge-preview">
               <div>
                 <p class="tpl-topic-label" data-di18n="mergeWillFill">Wird gefüllt</p>
@@ -659,7 +659,7 @@
           </div>
           <div class="share-actions">
             <button type="button" class="cmd quiet" id="mergePreviewBtn" data-di18n="mergeRefresh">Vorschau</button>
-            <button type="button" class="cmd primary" id="mergeApplyBtn" data-di18n="mergeApply">Jetzt füllen</button>
+            <button type="button" class="cmd primary" id="mergeApplyBtn" data-di18n="mergeApply">Jetzt ausfüllen</button>
           </div>
         </div>
       </div>
@@ -739,8 +739,8 @@
     <aside class="docs-rail" id="docsRail" data-di18n="railLabel" data-di18n-attr="aria-label" aria-label="Ausgabe und Zustellung">
       <div class="rail-head">
         <div>
-          <p class="rail-kicker" data-di18n="railKicker">Ausgabe</p>
-          <h2 class="rail-title" data-di18n="railTitle">Dokument fertigstellen</h2>
+          <p class="rail-kicker" data-di18n="railKicker">Fertigstellen</p>
+          <h2 class="rail-title" data-di18n="railTitle">Dokument abschließen</h2>
         </div>
         <button type="button" class="cmd icon rail-close tb-ico" id="railCloseBtn" data-wp-ico="close" data-di18n="close" data-di18n-attr="aria-label" aria-label="Schließen"></button>
       </div>
@@ -755,11 +755,13 @@
               <span id="brandMeta"></span>
             </div>
           </div>
-          <p class="rail-note" id="brandHint" data-di18n="brandHint">Firmenlogo erscheint auf allen Papieren — ohne SUPPIX-Markierung.</p>
+          <p class="rail-note" id="brandHint" data-di18n="brandHint">Logo ist optional — Sie entscheiden.</p>
           <div class="brand-logo-actions" id="brandLogoActions">
             <label class="field compact brand-logo-file">
               <span data-di18n="brandLogoPick">Firmenlogo wählen</span>
-              <input type="file" id="brandLogoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" />
+              <input type="file" id="brandLogoFile" class="sr-only" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" tabindex="-1" aria-hidden="true" />
+              <button type="button" class="cmd block" id="brandLogoBrowseBtn" data-di18n="brandLogoBrowse">Datei wählen</button>
+              <span class="rail-note" id="brandLogoFileName" data-di18n="brandLogoNoFile">Keine Datei gewählt</span>
             </label>
             <div class="action-row">
               <button type="button" class="cmd block" id="brandLogoUploadBtn" data-di18n="brandLogoUpload">Logo setzen</button>
@@ -770,7 +772,7 @@
           </div>
           <label class="check-row">
             <input type="checkbox" id="useLetterhead" checked />
-            <span data-di18n="useLetterhead">Firmenbriefkopf (Logo) auf allen Papieren</span>
+            <span data-di18n="useLetterhead">Briefkopf (Logo) auf dem Papier</span>
           </label>
           <div class="action-row">
             <button type="button" class="cmd block" id="applyLetterheadBtn" data-di18n="setLetterhead">Setzen</button>
@@ -785,28 +787,28 @@
             <select id="workerSelect"><option value="">— keiner —</option></select>
           </label>
           <p class="status" id="workersHint"></p>
-          <button type="button" class="cmd primary block" id="fillMergeBtn" data-di18n="fillMerge">Platzhalter füllen</button>
-          <button type="button" class="cmd quiet block" id="checkPlaceholdersBtn" data-di18n="checkPlaceholders">Platzhalter prüfen</button>
+          <button type="button" class="cmd primary block" id="fillMergeBtn" data-di18n="fillMerge">Felder automatisch ausfüllen</button>
+          <button type="button" class="cmd quiet block" id="checkPlaceholdersBtn" data-di18n="checkPlaceholders">Leere Felder prüfen</button>
           <ul class="placeholder-check-list" id="placeholderCheckList" hidden></ul>
           <p class="status" id="placeholderCheckStatus" hidden></p>
           <div class="chip-row">
             <button type="button" class="chip" data-merge="{{company.name}}" data-di18n="chipCompany">Firma</button>
             <button type="button" class="chip" data-merge="{{worker.name}}" data-di18n="chipName">Name</button>
-            <button type="button" class="chip" data-merge="{{worker.badge}}" data-di18n="chipBadge">Badge</button>
+            <button type="button" class="chip" data-merge="{{worker.badge}}" data-di18n="chipBadge">Ausweis-Nr.</button>
             <button type="button" class="chip" data-merge="{{worker.role}}" data-di18n="chipWorkerRole">Rolle</button>
-            <button type="button" class="chip" data-merge="{{worker.email}}" data-di18n="chipWorkerEmail">MA-E-Mail</button>
+            <button type="button" class="chip" data-merge="{{worker.email}}" data-di18n="chipWorkerEmail">E-Mail Mitarbeiter</button>
             <button type="button" class="chip" data-merge="{{site.name}}" data-di18n="chipSite">Standort</button>
             <button type="button" class="chip" data-merge="{{shift.slot}}" data-di18n="chipShiftSlot">Schicht</button>
             <button type="button" class="chip" data-merge="{{date.today}}" data-di18n="chipDate">Datum</button>
             <button type="button" class="chip" data-merge="{{company.address}}" data-di18n="chipAddress">Adresse</button>
             <button type="button" class="chip" data-merge="{{company.email}}" data-di18n="chipEmail">E-Mail</button>
-            <button type="button" class="chip" data-merge="{{manager.name}}" data-di18n="chipManager">Manager</button>
+            <button type="button" class="chip" data-merge="{{manager.name}}" data-di18n="chipManager">Vorgesetzte/r</button>
           </div>
         </section>
 
         <section class="rail-section rail-actions" data-step="3">
-          <h3><span class="rail-step">3</span> <span data-di18n="deliver">Liefern</span></h3>
-          <p class="rail-note" data-di18n="deliverHint">Alles hängt am gespeicherten Dokument — PDF, Druck und Versand.</p>
+          <h3><span class="rail-step">3</span> <span data-di18n="deliver">Versenden &amp; drucken</span></h3>
+          <p class="rail-note" data-di18n="deliverHint">PDF, Druck und Versand nutzen das gespeicherte Dokument.</p>
           <div class="action-stack">
             <button type="button" class="cmd primary block" id="sharePdfBtn" data-di18n="pdf">PDF erzeugen</button>
             <div class="action-row">
@@ -841,7 +843,7 @@
               </select>
             </label>
             <button type="button" class="cmd accent block" id="publishBtn" data-di18n="publish">An Mitarbeiter senden</button>
-            <p class="rail-note" id="publishArchiveHint" data-di18n="publishArchiveHint">Nach Freigabe → MA landet das PDF im Mitarbeiter-Archiv.</p>
+            <p class="rail-note" id="publishArchiveHint" data-di18n="publishArchiveHint">Nach Freigabe liegt das PDF im Mitarbeiter-Archiv.</p>
             <p class="rail-note" id="publishReceipt" hidden></p>
             <div id="publishAckBox" class="publish-ack-box" hidden>
               <p class="status" id="publishAckStatus">—</p>
@@ -851,7 +853,7 @@
         </section>
 
         <section class="rail-section muted" id="unreadDocsSection">
-          <details class="rail-more" open>
+          <details class="rail-more">
             <summary data-di18n="unreadDocsTitle">Ungelesene Freigaben</summary>
             <p class="status" id="unreadDocsStatus">—</p>
             <ul class="docs-list compact" id="unreadDocsList"></ul>
@@ -859,8 +861,8 @@
         </section>
 
         <section class="rail-section muted" id="expiringDocsSection">
-          <details class="rail-more" open>
-            <summary data-di18n="expiringDocsTitle">Ablaufende MA-Dokumente (14 Tage)</summary>
+          <details class="rail-more">
+            <summary data-di18n="expiringDocsTitle">Ablaufende Dokumente (14 Tage)</summary>
             <p class="status" id="expiringDocsStatus">—</p>
             <ul class="docs-list compact" id="expiringDocsList"></ul>
           </details>
@@ -868,7 +870,7 @@
 
         <section class="rail-section muted" data-step="4">
           <details class="rail-more">
-            <summary><span class="rail-step">4</span> <span data-di18n="fineTune">Feinabstimmung</span></summary>
+            <summary><span class="rail-step">4</span> <span data-di18n="fineTune">Seitenlayout (optional)</span></summary>
             <div class="layout-grid">
               <label><span data-di18n="marginTop">Oben</span><input type="number" id="marginTop" min="8" max="45" value="22" /></label>
               <label><span data-di18n="marginBottom">Unten</span><input type="number" id="marginBottom" min="8" max="45" value="22" /></label>
@@ -876,9 +878,9 @@
               <label><span data-di18n="marginRight">Rechts</span><input type="number" id="marginRight" min="8" max="45" value="20" /></label>
             </div>
             <div class="action-row tight">
-              <button type="button" class="cmd quiet" id="toggleHeaderBtn" data-di18n="header">Kopf</button>
-              <button type="button" class="cmd quiet" id="toggleFooterBtn" data-di18n="footer">Fuß</button>
-              <button type="button" class="cmd quiet" id="marginResetBtn" data-di18n="reset">Reset</button>
+              <button type="button" class="cmd quiet" id="toggleHeaderBtn" data-di18n="header">Kopfzeile</button>
+              <button type="button" class="cmd quiet" id="toggleFooterBtn" data-di18n="footer">Fußzeile</button>
+              <button type="button" class="cmd quiet" id="marginResetBtn" data-di18n="reset">Zurücksetzen</button>
             </div>
             <label class="field">
               <span data-di18n="headerPreset">Kopfvorlage</span>
@@ -923,10 +925,10 @@
           <details class="rail-more">
             <summary data-di18n="tableTools">Tabelle</summary>
             <div class="action-row tight">
-              <button type="button" class="cmd quiet" id="tableAddRowBtn">Z+</button>
-              <button type="button" class="cmd quiet" id="tableDelRowBtn">Z−</button>
-              <button type="button" class="cmd quiet" id="tableAddColBtn">S+</button>
-              <button type="button" class="cmd quiet" id="tableDelColBtn">S−</button>
+              <button type="button" class="cmd quiet" id="tableAddRowBtn" data-di18n="tableAddRow">Z+</button>
+              <button type="button" class="cmd quiet" id="tableDelRowBtn" data-di18n="tableDelRow">Z−</button>
+              <button type="button" class="cmd quiet" id="tableAddColBtn" data-di18n="tableAddCol">S+</button>
+              <button type="button" class="cmd quiet" id="tableDelColBtn" data-di18n="tableDelCol">S−</button>
               <button type="button" class="cmd quiet" id="tableHeaderRowBtn" data-di18n="header">Kopf</button>
             </div>
             <label class="field">
@@ -942,9 +944,9 @@
           <details class="rail-more">
             <summary data-di18n="ai">KI</summary>
             <div class="ai-grid">
+              <button type="button" class="cmd primary" data-ai="formal" data-di18n="aiFormal">جواب رسمي</button>
               <button type="button" class="cmd quiet" data-ai="improve" data-di18n="aiImprove">Verbessern</button>
               <button type="button" class="cmd quiet" data-ai="shorten" data-di18n="aiShorten">Kürzen</button>
-              <button type="button" class="cmd quiet" data-ai="formal" data-di18n="aiFormal">Formell</button>
               <button type="button" class="cmd quiet" data-ai="from_expiry" data-di18n="aiFromExpiry">Aus Ablauf</button>
               <button type="button" class="cmd quiet" data-ai="from_attendance" data-di18n="aiFromAttendance">Aus Verspätung</button>
               <button type="button" class="cmd quiet" data-ai="draft_warning" data-di18n="aiDraftWarning">Ermahnung</button>
@@ -998,13 +1000,14 @@
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
-  <script src="/admin-v2/docs-icons.js?v=20260725docs70"></script>
-  <script src="/admin-v2/docs-i18n.js?v=20260725docs70"></script>
-  <script src="/admin-v2/docs-i18n-content.js?v=20260725docs70"></script>
-  <script src="/admin-v2/owner-unlock.js?v=20260725docs70"></script>
-  <script src="/admin-v2/docs-offline-queue.js?v=20260725docs70"></script>
+  <script src="/admin-v2/docs-icons.js?v=20260810docs9"></script>
+  <script src="/admin-v2/docs-i18n.js?v=20260810docs9"></script>
+  <script src="/admin-v2/docs-i18n-extra.js?v=20260810docs9"></script>
+  <script src="/admin-v2/docs-i18n-content.js?v=20260810docs9"></script>
+  <script src="/admin-v2/owner-unlock.js?v=20260810docs9"></script>
+  <script src="/admin-v2/docs-offline-queue.js?v=20260810docs9"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
-  <script src="/admin-v2/docs-app.js?v=20260725docs70"></script>
+  <script src="/admin-v2/docs-app.js?v=20260810docs9"></script>
 </body>
 </html>
 

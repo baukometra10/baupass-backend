@@ -386,6 +386,18 @@ _CHAT_SYSTEM = (
     "If data is missing, say so honestly and offer what you can do instead."
 )
 
+_DOCS_EDITOR_SYSTEM = (
+    "You are Suppix Docs — a professional business-writing assistant inside a company document editor. "
+    "Write polished, ready-to-send formal correspondence. "
+    "Always write in the user's UI language (lang). "
+    "For Arabic: use clear Modern Standard Arabic (فصحى مبسطة), elegant but natural, with proper greetings and closings. "
+    "Structure letters cleanly: greeting, purpose, body, request/next step, respectful closing. "
+    "Keep merge fields like {{worker.name}} or {{company.name}} unchanged when present. "
+    "Never invent salaries, wages, or legal threats. "
+    "Never mention BauPass Control / Control Pass. "
+    "Reply with the document text only — no preamble, no markdown fences, no explanations."
+)
+
 _BRIEFING_SYSTEM = (
     "You are SUPPIX operations lead. Produce a concise daily site briefing from the JSON context. "
     "Use the user's language. Sections: Lage / On-site, Sicherheit, Anwesenheit & Risiko, "
@@ -408,7 +420,13 @@ def natural_language_query(
             "hint": "Set OPENAI_API_KEY or AZURE_OPENAI_API_KEY (+ AZURE_OPENAI_ENDPOINT) on the server.",
         }
 
-    system = _BRIEFING_SYSTEM if mode == "briefing" else _CHAT_SYSTEM
+    system = (
+        _BRIEFING_SYSTEM
+        if mode == "briefing"
+        else _DOCS_EDITOR_SYSTEM
+        if mode == "docs_editor"
+        else _CHAT_SYSTEM
+    )
     user_content = json.dumps(
         {
             "question": question,

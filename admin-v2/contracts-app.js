@@ -605,11 +605,41 @@
         });
       }
       const body = await saveContractPayloadAsync();
-      await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
+      const saved = await api(`/api/contracts/${encodeURIComponent(currentContractId)}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+      const lohn = saved?.contract?.lohnDataResolved || saved?.lohnDataResolved || null;
+      if (lohn) {
+        applyLohnDataResolvedFeedback(lohn);
+      }
+      return saved;
+    }
+    function applyLohnDataResolvedFeedback(lohn) {
+      const banner = document.getElementById("lohnPayrollBanner");
+      const missing = Array.isArray(lohn?.missingFields) ? lohn.missingFields : [];
+      const pushed = !!(lohn?.push?.ok);
+      const dismissed = Number(lohn?.alerts?.dismissed || 0);
+      const ready = !!lohn?.payrollReady;
+      if (banner) {
+        banner.classList.remove("hidden");
+        if (ready) {
+          banner.innerHTML = pushed
+            ? `<strong>WorkPass Lohn</strong> — Stammdaten vollständig und an die Buchhaltung übermittelt.`
+            : `<strong>WorkPass Lohn</strong> — Stammdaten vollständig gespeichert${dismissed ? ` · ${dismissed} Hinweis(e) geschlossen` : ""}.`;
+        } else if (missing.length) {
+          banner.innerHTML = `<strong>WorkPass Lohn</strong> — gespeichert; noch fehlend: <strong>${missing.join(", ")}</strong>.`;
+        } else {
+          banner.innerHTML = `<strong>WorkPass Lohn</strong> — Stammdaten aktualisiert${pushed ? " und an Lohn gesendet" : ""}.`;
+        }
+      }
+      if (ready) {
+        document.getElementById("employeeIban")?.classList.remove("field-error");
+        document.getElementById("employeeTaxId")?.classList.remove("field-error");
+        document.getElementById("employeeIban")?.closest("label")?.classList.remove("field-error");
+        document.getElementById("employeeTaxId")?.closest("label")?.classList.remove("field-error");
+      }
     }
     function signStatusBadge(row) {
       const map = {
@@ -951,11 +981,13 @@
     }
 
     const ownerUnlock = window.BaupassOwnerUnlock?.create({
+      preferPassword: true,
       ids: {
         overlay: "contractsLockOverlay",
         title: "lockTitle",
         desc: "lockDesc",
         setupBlock: "lockSetupBlock",
+        emailBlock: "lockEmailBlock",
         emailLabel: "lockEmailLabel",
         deliveryHint: "lockDeliveryHint",
         rateHint: "lockRateHint",
@@ -968,6 +1000,11 @@
         verifyBtn: "lockVerifyBtn",
         skipBtn: "lockSkipSetupBtn",
         mainRoot: "mainRoot",
+        passwordBlock: "lockPasswordBlock",
+        password: "lockContractPassword",
+        passwordConfirm: "lockContractPasswordConfirm",
+        passwordConfirmWrap: "lockPasswordConfirmWrap",
+        passwordBtn: "lockPasswordBtn",
       },
       t: (key, fallback) => window.contractPageT(key) || fallback || key,
       getCompanyId: () => companyId,
@@ -988,7 +1025,9 @@
     });
 
     function showLockOverlay(opts) {
-      ownerUnlock?.show(opts || {});
+      const statusMode = opts?.authMode
+        || (opts?.setup ? "setup_password" : (opts?.hasContractPassword === false && opts?.hasOwnerPhone ? "otp" : "password"));
+      ownerUnlock?.show({ ...(opts || {}), authMode: statusMode });
     }
 
     function hideLockOverlay() {
@@ -1003,20 +1042,28 @@
       const badge = document.getElementById("contractsUnlockBadge");
       const lockBtn = document.getElementById("contractsLockBtn");
       if (!badge || !lockBtn) return;
+      const overlayOpts = {
+        setup: false,
+        enforced: !!status?.setupEnforced,
+        smsConfigured: !!status?.smsConfigured,
+        authMode: status?.authMode || (status?.hasContractPassword ? "password" : status?.hasOwnerPhone ? "otp" : "setup_password"),
+        hasContractPassword: !!status?.hasContractPassword,
+        hasOwnerPhone: !!status?.hasOwnerPhone,
+      };
       if (status?.ownerSetupRequired) {
         badge.classList.remove("hidden");
         badge.textContent = window.contractPageT("lockSetupRequired") || "🔒 Setup Pflicht";
-        badge.title = window.contractPageT("lockSetupRequiredHint") || "Owner-Handy erforderlich";
+        badge.title = window.contractPageT("lockSetupRequiredHint") || "Vertrags-Passwort erforderlich";
         lockBtn.classList.add("hidden");
-        badge.onclick = () => showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
+        badge.onclick = () => showLockOverlay({ ...overlayOpts, setup: true, enforced: true, authMode: "setup_password" });
         return;
       }
       if (!status?.lockRequired) {
         badge.classList.remove("hidden");
-        badge.textContent = window.contractPageT("lockNudge") || "🔒 PIN empfohlen";
-        badge.title = window.contractPageT("lockNudgeHint") || "Owner-Handy einrichten für Gehaltsschutz";
+        badge.textContent = window.contractPageT("lockNudge") || "🔒 Passwort empfohlen";
+        badge.title = window.contractPageT("lockNudgeHint") || "Vertrags-Passwort einrichten";
         lockBtn.classList.add("hidden");
-        badge.onclick = () => showLockOverlay({ setup: true, enforced: false, smsConfigured: !!status.smsConfigured });
+        badge.onclick = () => showLockOverlay({ ...overlayOpts, setup: true, enforced: false, authMode: "setup_password" });
         return;
       }
       if (status.unlocked) {
@@ -1029,7 +1076,7 @@
         badge.classList.remove("hidden");
         badge.textContent = window.contractPageT("lockSoftBrowse") || "🔒 Gehalt gesperrt";
         badge.title = window.contractPageT("lockSoftBrowseHint") || "";
-        badge.onclick = () => showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
+        badge.onclick = () => showLockOverlay(overlayOpts);
         lockBtn.classList.add("hidden");
       }
     }
@@ -1066,7 +1113,14 @@
       const status = await api(`/api/contracts/lock-status?company_id=${encodeURIComponent(companyId)}`);
       paintUnlockBadge(status);
       if (status.ownerSetupRequired) {
-        showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
+        showLockOverlay({
+          setup: true,
+          enforced: true,
+          smsConfigured: !!status.smsConfigured,
+          authMode: status.authMode || "setup_password",
+          hasContractPassword: !!status.hasContractPassword,
+          hasOwnerPhone: !!status.hasOwnerPhone,
+        });
         return new Promise((resolve) => {
           window.__contractsUnlockResolve = resolve;
         });
@@ -1075,7 +1129,14 @@
         await clearRedactionAndReload();
         return true;
       }
-      showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
+      showLockOverlay({
+        setup: false,
+        enforced: !!status.setupEnforced,
+        smsConfigured: !!status.smsConfigured,
+        authMode: status.authMode || (status.hasContractPassword ? "password" : status.hasOwnerPhone ? "otp" : "password"),
+        hasContractPassword: !!status.hasContractPassword,
+        hasOwnerPhone: !!status.hasOwnerPhone,
+      });
       return new Promise((resolve) => {
         window.__contractsUnlockResolve = resolve;
       });
@@ -1088,7 +1149,14 @@
         salaryFieldsRedacted = true;
         contractsSessionUnlocked = false;
         applyRedactionUi(true);
-        showLockOverlay({ setup: true, enforced: true, smsConfigured: !!status.smsConfigured });
+        showLockOverlay({
+          setup: true,
+          enforced: true,
+          smsConfigured: !!status.smsConfigured,
+          authMode: status.authMode || "setup_password",
+          hasContractPassword: !!status.hasContractPassword,
+          hasOwnerPhone: !!status.hasOwnerPhone,
+        });
         return new Promise((resolve) => {
           window.__contractsUnlockResolve = resolve;
         });
@@ -1107,11 +1175,18 @@
         hideLockOverlay();
         return true;
       }
-      // Hard gate: contracts UI stays locked until OTP is verified (no soft-open).
+      // Hard gate: contracts UI stays locked until password/OTP is verified (no soft-open).
       salaryFieldsRedacted = true;
       contractsSessionUnlocked = false;
       applyRedactionUi(true);
-      showLockOverlay({ setup: false, enforced: !!status.setupEnforced, smsConfigured: !!status.smsConfigured });
+      showLockOverlay({
+        setup: false,
+        enforced: !!status.setupEnforced,
+        smsConfigured: !!status.smsConfigured,
+        authMode: status.authMode || (status.hasContractPassword ? "password" : status.hasOwnerPhone ? "otp" : "password"),
+        hasContractPassword: !!status.hasContractPassword,
+        hasOwnerPhone: !!status.hasOwnerPhone,
+      });
       return new Promise((resolve) => {
         window.__contractsUnlockResolve = resolve;
       });
@@ -1159,8 +1234,18 @@
     document.getElementById("saveBtn").addEventListener("click", () => {
       if (!requireContract("saveBtn")) return;
       withToolbarAction("saveBtn", window.contractPageT("statusWorking"), async () => {
-        await persistContract();
-        setStatus(window.contractPageT("statusSaved"), { active: true });
+        const saved = await persistContract();
+        const lohn = saved?.contract?.lohnDataResolved || saved?.lohnDataResolved;
+        if (lohn?.payrollReady) {
+          setStatus(
+            lohn?.push?.ok
+              ? "Gespeichert — Stammdaten an WorkPass Lohn übermittelt."
+              : (window.contractPageT("statusSaved") || "Gespeichert."),
+            { active: true },
+          );
+        } else {
+          setStatus(window.contractPageT("statusSaved"), { active: true });
+        }
         await loadContracts();
       }).catch(() => {});
     });
@@ -1283,8 +1368,13 @@
     });
     ensureAccess().then((ok) => {
       if (!ok) return;
+      // E2E keys stay automatic in the background — no crypto UI for clients on this page.
       void window.E2EAdminBridge?.ensureIdentity?.();
-      window.E2EAdminBridge?.mountSecurityPanel?.(document.getElementById("e2eSecurityHost"), { companyId });
+      const e2eHost = document.getElementById("e2eSecurityHost");
+      if (e2eHost) {
+        e2eHost.hidden = true;
+        e2eHost.innerHTML = "";
+      }
       const preWorker = params.get("worker_id") || "";
       const focusPayroll = String(params.get("focus") || "").toLowerCase() === "payroll";
       const highlightFields = String(params.get("fields") || "")

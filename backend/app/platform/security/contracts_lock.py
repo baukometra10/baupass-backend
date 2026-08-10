@@ -450,6 +450,65 @@ def company_owner_phone(db, company_id: str) -> str:
         return str(row[0] or "").strip() if row else ""
 
 
+def company_contract_password_hash(db, company_id: str) -> str:
+    try:
+        row = db.execute(
+            "SELECT contract_page_password_hash FROM companies WHERE id = ?",
+            (str(company_id),),
+        ).fetchone()
+    except Exception:
+        return ""
+    if not row:
+        return ""
+    try:
+        return str(row["contract_page_password_hash"] or "").strip()
+    except Exception:
+        return str(row[0] or "").strip() if row else ""
+
+
+def company_has_contract_password(db, company_id: str) -> bool:
+    return bool(company_contract_password_hash(db, company_id))
+
+
+def set_company_contract_password(
+    db,
+    company_id: str,
+    *,
+    password: str,
+    actor_user_id: str = "",
+) -> None:
+    from werkzeug.security import generate_password_hash
+
+    raw = str(password or "")
+    if len(raw) < 6:
+        raise ValueError("password_too_short")
+    if len(raw) > 128:
+        raise ValueError("password_too_long")
+    db.execute(
+        """
+        UPDATE companies
+        SET contract_page_password_hash = ?,
+            contract_owner_set_by = ?,
+            contract_owner_updated_at = ?
+        WHERE id = ?
+        """,
+        (generate_password_hash(raw), str(actor_user_id or ""), _now_iso(), str(company_id)),
+    )
+    db.commit()
+
+
+def verify_company_contract_password(db, company_id: str, password: str) -> bool:
+    from werkzeug.security import check_password_hash
+
+    hashed = company_contract_password_hash(db, company_id)
+    if not hashed:
+        return False
+    try:
+        return bool(check_password_hash(hashed, str(password or "")))
+    except Exception:
+        return False
+
+
 def company_owner_email(db, company_id: str) -> str:
     try:
         row = db.execute(
@@ -473,14 +532,23 @@ def company_owner_email(db, company_id: str) -> str:
 
 
 def contracts_lock_required(db, company_id: str) -> bool:
-    """Active when owner phone is set, or when enforcement requires setup."""
+    """Active when contracts password or owner phone is set, or enforcement requires setup."""
+    if company_has_contract_password(db, company_id):
+        return True
     if company_owner_phone(db, company_id):
         return True
     return owner_step_up_enforced()
 
 
 def owner_setup_required(db, company_id: str) -> bool:
-    return owner_step_up_enforced() and not bool(company_owner_phone(db, company_id))
+    """Setup needed when enforcement is on and neither password nor phone exists."""
+    if not owner_step_up_enforced():
+        return False
+    if company_has_contract_password(db, company_id):
+        return False
+    if company_owner_phone(db, company_id):
+        return False
+    return True
 
 
 def is_contracts_unlocked(db, token: str | None, company_id: str) -> bool:
@@ -790,9 +858,10 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
 
     phone = company_owner_phone(db, company_id)
     email = company_owner_email(db, company_id)
+    has_password = company_has_contract_password(db, company_id)
     enforced = owner_step_up_enforced()
-    setup_needed = enforced and not bool(phone)
-    required = bool(phone) or enforced
+    setup_needed = owner_setup_required(db, company_id)
+    required = contracts_lock_required(db, company_id)
     unlocked = is_contracts_unlocked(db, token, company_id)
     until = ""
     if unlocked and token and required and not setup_needed:
@@ -804,11 +873,21 @@ def lock_status(db, *, company_id: str, token: str | None) -> dict[str, Any]:
             until = str((row["contracts_unlocked_until"] if row else "") or "")
         except Exception:
             until = ""
+    if has_password:
+        auth_mode = "password"
+    elif phone:
+        auth_mode = "otp"
+    elif setup_needed or enforced:
+        auth_mode = "setup_password"
+    else:
+        auth_mode = "none"
     return {
         "lockRequired": required,
         "setupEnforced": enforced,
         "ownerSetupRequired": setup_needed,
         "hasOwnerPhone": bool(phone),
+        "hasContractPassword": has_password,
+        "authMode": auth_mode,
         "unlocked": False if setup_needed else (unlocked if required else True),
         "unlockedUntil": until if required and unlocked and not setup_needed else "",
         "phoneMasked": mask_phone(phone) if phone else "",

@@ -46,6 +46,7 @@ def register_accounting_blueprint(flask_app) -> None:
         approve_batch,
         confirm_period_handoff,
         ingest_statements,
+        notify_employee_data_resolved,
         notify_hours_ready,
         period_handoff_gate,
         prepare_hour_export,
@@ -812,6 +813,36 @@ def register_accounting_blueprint(flask_app) -> None:
             except ValueError:
                 return jsonify({"error": "invalid_period"}), 400
         return jsonify(payload), 200
+
+    @accounting_bp.post("/payroll/accounting/employees/<worker_id>/push-resolved")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_push_employee_data_resolved(worker_id: str):
+        """After admin fills missing Stammdaten: push this worker to Lohn + clear alerts."""
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = (
+            data.get("companyId")
+            or data.get("company_id")
+            or request.args.get("company_id")
+            or (user.get("company_id") if user["role"] != "superadmin" else "")
+        )
+        company_id = str(company_id or "").strip()
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"error": "forbidden"}), 403
+        result = notify_employee_data_resolved(
+            get_db(),
+            company_id=company_id,
+            worker_id=str(worker_id or "").strip(),
+            actor_user_id=str(user.get("id") or ""),
+            source=str(data.get("source") or "admin")[:40],
+        )
+        status = 200 if result.get("ok") or result.get("skipped") else 400
+        if result.get("error") == "worker_not_found":
+            status = 404
+        return jsonify(result), status
 
     @accounting_bp.get("/payroll/accounting/data-alerts")
     @require_auth

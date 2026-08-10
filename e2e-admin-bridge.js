@@ -241,27 +241,34 @@
     return `
       <div class="e2e-security-card">
         <div class="e2e-security-card-head">
-          <div class="e2e-security-icon" aria-hidden="true">🔐</div>
+          <div class="e2e-security-icon" aria-hidden="true"></div>
           <div>
             <p class="e2e-security-kicker" data-e2e-i18n="e2eSecurityEyebrow">Verschlüsselung</p>
             <h4 data-e2e-i18n="e2eSecurityTitle">E2E-Sicherheit</h4>
             <p class="e2e-security-subtitle" data-e2e-i18n="e2eSecuritySubtitle"></p>
           </div>
         </div>
-        <div class="e2e-security-badges">
-          <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeLocal"></span>
-          <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeAlgo"></span>
-          <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeServer"></span>
+        <div class="e2e-security-status-line">
+          <span class="e2e-security-status-dot" aria-hidden="true"></span>
+          <span data-e2e-i18n="e2eSecurityStatusAuto">Aktiv im Hintergrund</span>
         </div>
         <div id="e2ePinLockBanner" class="e2e-security-lock-banner hidden"></div>
-        <div class="e2e-security-actions">
-          <button type="button" class="ghost small-btn" data-e2e-action="recovery-export" data-e2e-i18n="e2eSecurityBtnRecovery"></button>
-          <button type="button" class="ghost small-btn" data-e2e-action="rotate" data-e2e-i18n="e2eSecurityBtnRotate"></button>
-          <button type="button" class="ghost small-btn" data-e2e-action="qr-export" data-e2e-i18n="e2eSecurityBtnQrExport"></button>
-          <button type="button" class="ghost small-btn" data-e2e-action="qr-import" data-e2e-i18n="e2eSecurityBtnQrImport"></button>
-        </div>
-        <pre id="e2eSecurityOutput" class="e2e-security-output"></pre>
-        <textarea id="e2eQrImportInput" class="e2e-security-import" data-e2e-i18n-placeholder="e2eSecurityQrPlaceholder"></textarea>
+        <details class="e2e-security-advanced">
+          <summary data-e2e-i18n="e2eSecurityAdvancedTitle">Erweitert (optional)</summary>
+          <div class="e2e-security-badges">
+            <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeLocal"></span>
+            <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeAlgo"></span>
+            <span class="e2e-security-badge is-secure" data-e2e-i18n="e2eSecurityBadgeServer"></span>
+          </div>
+          <div class="e2e-security-actions">
+            <button type="button" class="ghost small-btn" data-e2e-action="recovery-export" data-e2e-i18n="e2eSecurityBtnRecovery"></button>
+            <button type="button" class="ghost small-btn" data-e2e-action="rotate" data-e2e-i18n="e2eSecurityBtnRotate"></button>
+            <button type="button" class="ghost small-btn" data-e2e-action="qr-export" data-e2e-i18n="e2eSecurityBtnQrExport"></button>
+            <button type="button" class="ghost small-btn" data-e2e-action="qr-import" data-e2e-i18n="e2eSecurityBtnQrImport"></button>
+          </div>
+          <pre id="e2eSecurityOutput" class="e2e-security-output"></pre>
+          <textarea id="e2eQrImportInput" class="e2e-security-import" data-e2e-i18n-placeholder="e2eSecurityQrPlaceholder"></textarea>
+        </details>
       </div>
     `;
   }

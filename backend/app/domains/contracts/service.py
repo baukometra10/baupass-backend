@@ -285,7 +285,20 @@ class ContractsService:
         )
         if worker_id and input_data.get("form"):
             self._sync_worker_from_contract_form(worker_id, company_id, input_data["form"])
-        return self.repo.get_contract(contract_id, company_id)
+        contract = self.repo.get_contract(contract_id, company_id)
+        if contract and worker_id and payload:
+            form_patch = dict((payload.get("form") or {}))
+            lohn = self._notify_lohn_payroll_fields_if_needed(
+                worker_id=str(worker_id),
+                company_id=company_id,
+                form_patch=form_patch,
+                actor_user_id=actor_user_id,
+                source="contracts",
+            )
+            if lohn is not None:
+                contract = dict(contract)
+                contract["lohnDataResolved"] = lohn
+        return contract
 
     def validate_contract_ready(
         self,
@@ -854,6 +867,54 @@ class ContractsService:
                 (str(payload["contactEmail"]).strip(), worker_id, company_id),
             )
         WorkersService._apply_worker_personal_fields(self.db, worker_id, payload, worker)
+
+    _LOHN_PAYROLL_FORM_KEYS = frozenset(
+        {
+            "employee_iban",
+            "iban",
+            "employee_tax_id",
+            "tax_id",
+            "taxId",
+            "employee_email",
+            "employee_phone",
+            "employee_address",
+            "employee_birth_date",
+            "birth_date",
+            "employee_nationality",
+            "employee_gender",
+            "job_title",
+            "hourly_rate",
+            "salary_gross_monthly",
+            "start_date",
+            "weekly_hours",
+        }
+    )
+
+    def _notify_lohn_payroll_fields_if_needed(
+        self,
+        *,
+        worker_id: str,
+        company_id: str,
+        form_patch: dict[str, Any],
+        actor_user_id: str | None = None,
+        source: str = "contracts",
+    ) -> dict[str, Any] | None:
+        if not form_patch:
+            return None
+        if not any(k in self._LOHN_PAYROLL_FORM_KEYS for k in form_patch.keys()):
+            return None
+        try:
+            from backend.app.platform.accounting.service import notify_employee_data_resolved
+
+            return notify_employee_data_resolved(
+                self.db,
+                company_id=company_id,
+                worker_id=worker_id,
+                actor_user_id=str(actor_user_id or ""),
+                source=source,
+            )
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)[:200], "skipped": True}
 
     def _push_contract_sign_invite(self, worker_id: str, contract: dict[str, Any], sign_url: str) -> None:
         try:

@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260810inbox4" />
+  <link rel="stylesheet" href="styles.css?v=20260810lohn2" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <script defer src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -550,6 +550,24 @@
     </div>
   </div>
 
+  <div id="lohnDrawer" class="lohn-drawer hidden" aria-hidden="true">
+    <div id="lohnDrawerBackdrop" class="lohn-drawer-backdrop"></div>
+    <aside class="lohn-drawer-panel" role="dialog" aria-modal="true" aria-labelledby="lohnDrawerTitle">
+      <header class="lohn-drawer-head">
+        <div>
+          <h2 id="lohnDrawerTitle" data-i18n="lohn.drawerTitle">WorkPass Lohn</h2>
+          <p class="lohn-drawer-sub" data-i18n="lohn.drawerSub">Anfragen der Buchhaltung — nach Bearbeitung verschwinden sie hier.</p>
+        </div>
+        <button type="button" id="lohnDrawerClose" class="ghost" data-i18n="common.close">Schließen</button>
+      </header>
+      <div id="lohnDrawerBody" class="lohn-drawer-body"></div>
+      <footer class="lohn-drawer-foot">
+        <button type="button" id="lohnDrawerRefresh" data-i18n="lohn.drawerRefresh">Aktualisieren</button>
+        <a id="lohnDrawerOpsLink" href="/ops-command-center.html#lohnHub" target="_blank" rel="noopener" data-i18n="lohn.drawerOpenOps">Ops Zentrale</a>
+      </footer>
+    </aside>
+  </div>
+
   <script src="/geo-precision.js?v=20260624geofence12"></script>
   <script src="/tenant-brand-icon.js?v=20260629b"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
@@ -563,7 +581,7 @@
   <script src="/chat-global-notify.js?v=20260720hardenD1"></script>
   <script src="/usage-tracker.js?v=20260624usage2"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
-  <script src="app.js?v=20260810inbox6" type="module"></script>
+  <script src="app.js?v=20260810lohn2" type="module"></script>
   <script>
     document.addEventListener("DOMContentLoaded", () => {
       window.SUPPIXChatGlobalNotify?.init?.({ role: "admin" });

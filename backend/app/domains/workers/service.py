@@ -622,8 +622,41 @@ class WorkersService:
                 ),
             }
 
+        lohn_data_resolved = None
+        payroll_touch = any(
+            key in payload
+            for key in (
+                "insuranceNumber",
+                "contactEmail",
+                "contactPhone",
+                "homeAddress",
+                "birthDate",
+                "gender",
+            )
+        ) or (
+            next_insurance_number != (worker.get("insurance_number") or "")
+            and worker_type != "visitor"
+        )
+        if payroll_touch and worker_type != "visitor":
+            try:
+                from backend.app.platform.accounting.service import notify_employee_data_resolved
+
+                lohn_data_resolved = notify_employee_data_resolved(
+                    db,
+                    company_id=str(next_company_id),
+                    worker_id=str(worker_id),
+                    actor_user_id=str(user.get("id") or ""),
+                    source="workers",
+                )
+            except Exception as exc:
+                lohn_data_resolved = {"ok": False, "error": str(exc)[:200], "skipped": True}
+
+        body: dict[str, Any] = {"ok": True}
+        if lohn_data_resolved is not None:
+            body["lohnDataResolved"] = lohn_data_resolved
+
         return {
-            "body": {"ok": True},
+            "body": body,
             "audit": {"worker_id": worker_id, "company_id": worker.get("company_id")},
             "photo_override_audit": photo_override_audit,
         }

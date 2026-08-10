@@ -65,6 +65,129 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             return forbidden_company()
         return jsonify(lock_status(get_db(), company_id=cid, token=getattr(g, "token", "")))
 
+    @contracts_core_bp.post("/contracts/lock/set-password")
+    @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_set_password():
+        from backend.app.platform.security.contracts_lock import (
+            company_has_contract_password,
+            is_contracts_unlocked,
+            set_company_contract_password,
+            unlock_contracts_session,
+        )
+
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        db = get_db()
+        password = str(data.get("password") or "")
+        confirm = str(data.get("confirmPassword") or data.get("passwordConfirm") or password)
+        if password != confirm:
+            return jsonify({"error": "password_mismatch", "message": "Passwörter stimmen nicht überein."}), 400
+        role = str((g.current_user or {}).get("role") or "")
+        setup_mode = bool(data.get("setup")) or not company_has_contract_password(db, cid)
+        token = str(getattr(g, "token", "") or "")
+        if role != "superadmin" and not setup_mode and not is_contracts_unlocked(db, token, cid):
+            return jsonify({"error": "contracts_locked", "stepUpRequired": True, "message": "Bitte zuerst freischalten."}), 403
+        try:
+            set_company_contract_password(db, cid, password=password, actor_user_id=_actor_id())
+        except ValueError as exc:
+            code = str(exc)
+            if code == "password_too_short":
+                return jsonify({"error": code, "message": "Passwort mindestens 6 Zeichen."}), 400
+            if code == "password_too_long":
+                return jsonify({"error": code, "message": "Passwort zu lang."}), 400
+            return jsonify({"error": code}), 400
+        until = ""
+        if token:
+            until = unlock_contracts_session(db, token, cid)
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "step_up.password_set",
+                "Vertrags-Passwort gesetzt",
+                target_type="company",
+                target_id=cid,
+                company_id=cid,
+                actor=g.current_user,
+                details={"setup": setup_mode},
+            )
+        except Exception:
+            pass
+        return jsonify({"ok": True, "unlocked": True, "unlockedUntil": until, **lock_status(db, company_id=cid, token=token)})
+
+    @contracts_core_bp.post("/contracts/lock/verify-password")
+    @require_auth
+    @deny_turnstile_sensitive(surface="contracts")
+    @require_roles("superadmin", "company-admin")
+    @require_plan_capability("employment_contracts")
+    def contracts_lock_verify_password():
+        from backend.app.platform.security.contracts_lock import (
+            company_has_contract_password,
+            set_company_contract_password,
+            unlock_contracts_session,
+            verify_company_contract_password,
+        )
+
+        data = request.get_json(silent=True) or {}
+        cid = _resolve_company_id(data)
+        if not cid:
+            return forbidden_company()
+        db = get_db()
+        password = str(data.get("password") or "")
+        setup_mode = bool(data.get("setup"))
+        confirm = str(data.get("confirmPassword") or data.get("passwordConfirm") or "")
+        token = str(getattr(g, "token", "") or "")
+        if not token:
+            return jsonify({"error": "invalid_session"}), 401
+        if setup_mode or not company_has_contract_password(db, cid):
+            if confirm and password != confirm:
+                return jsonify({"error": "password_mismatch", "message": "Passwörter stimmen nicht überein."}), 400
+            try:
+                set_company_contract_password(db, cid, password=password, actor_user_id=_actor_id())
+            except ValueError as exc:
+                code = str(exc)
+                if code == "password_too_short":
+                    return jsonify({"error": code, "message": "Passwort mindestens 6 Zeichen."}), 400
+                return jsonify({"error": code}), 400
+        else:
+            if not verify_company_contract_password(db, cid, password):
+                try:
+                    from backend.server import log_audit
+
+                    log_audit(
+                        "step_up.password_failed",
+                        "Vertrags-Passwort ungültig",
+                        target_type="company",
+                        target_id=cid,
+                        company_id=cid,
+                        actor=g.current_user,
+                        details={},
+                    )
+                except Exception:
+                    pass
+                return jsonify({"error": "password_invalid", "message": "Passwort ungültig."}), 400
+        until = unlock_contracts_session(db, token, cid)
+        try:
+            from backend.server import log_audit
+
+            log_audit(
+                "step_up.unlock",
+                "Owner-Bereich freigeschaltet (Vertrags-Passwort)",
+                target_type="company",
+                target_id=cid,
+                company_id=cid,
+                actor=g.current_user,
+                details={"method": "password", "setup": setup_mode, "unlockedUntil": until},
+            )
+        except Exception:
+            pass
+        return jsonify({"ok": True, "unlocked": True, "unlockedUntil": until, **lock_status(db, company_id=cid, token=token)})
+
     @contracts_core_bp.post("/contracts/lock/request-otp")
     @require_auth
     @deny_turnstile_sensitive(surface="contracts")

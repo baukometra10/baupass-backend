@@ -11502,6 +11502,18 @@ function getRuntimeUiTexts() {
       companyPromptCopyLinkManual: "Link manuell kopieren:",
       accessDenied: "Funktion in diesem Paket nicht verfügbar.",
       companyBtnChangePlan: "Plan ändern",
+      companyBtnContractPassword: "Vertrags-Passwort",
+      companyBtnContractPasswordHint: "setzen / ändern",
+      companyBtnContractPasswordSet: "Vertrags-Passwort setzen / ändern",
+      companyContractPasswordBoxTitle: "Vertrags-Passwort (Arbeitsverträge)",
+      companyContractPasswordBoxHint: "Zusätzliches Passwort nur für die Vertragsseite. Dem Firmen-Admin zusammen mit dem Firmen-Login mitteilen.",
+      companyContractPasswordPrompt: "Neues Vertrags-Passwort (min. 6 Zeichen)",
+      companyContractPasswordConfirm: "Vertrags-Passwort wiederholen",
+      companyContractPasswordSaved: "Vertrags-Passwort gespeichert",
+      companyContractPasswordFailed: "Vertrags-Passwort konnte nicht gesetzt werden: {error}",
+      companyContractPasswordMismatch: "Passwörter stimmen nicht überein.",
+      companySettingsSearchPlaceholder: "In Einstellungen suchen…",
+      companySettingsDangerTitle: "Kritische Aktionen",
       dashExpiringMore: "+ {count} weitere in Dokumente",
       labelCompanyStatus: "Status",
       legalCloseTitle: "Schließen",
@@ -25237,6 +25249,101 @@ async function renderPhotoOverrideApprovalPanel() {
   });
 }
 
+const companySettingsUiState = {
+  openIds: new Set(),
+  searchByCompany: Object.create(null),
+  busy: Object.create(null),
+};
+
+function companySettingsBtnLabel(key, fallback = "") {
+  const raw = String(runtimeText(key) || fallback || "");
+  const cleaned = raw.replace(/^[^\p{L}\p{N}]+/u, "").trim();
+  return escapeHtml(cleaned || raw.trim() || fallback);
+}
+
+function companySettingsShortValue(value, maxLen = 28) {
+  const text = String(value || "").trim();
+  if (!text) return "—";
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, Math.max(1, maxLen - 1))}…`;
+}
+
+function companySettingsInvoiceLangLabel(company) {
+  const code = String(company?.invoiceEmailLang || company?.invoice_email_lang || "de").toLowerCase();
+  const map = {
+    de: runtimeText("companyInvoiceLangGerman"),
+    en: runtimeText("companyInvoiceLangEnglish"),
+    fr: runtimeText("companyInvoiceLangFrench"),
+    tr: runtimeText("companyInvoiceLangTurkish"),
+    ar: runtimeText("companyInvoiceLangArabic"),
+    es: runtimeText("companyInvoiceLangSpanish"),
+    it: runtimeText("companyInvoiceLangItalian"),
+    pl: runtimeText("companyInvoiceLangPolish"),
+  };
+  return map[code] || map.de || code.toUpperCase();
+}
+
+function companySettingsBillingShort(company) {
+  const joined = [company?.billingStreet || company?.billing_street || "", company?.billingZipCity || company?.billing_zip_city || ""]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(", ");
+  return companySettingsShortValue(joined, 26);
+}
+
+function companySettingsRememberedTab(companyId) {
+  try {
+    const saved = String(localStorage.getItem(`baupass.csTab.${companyId}`) || "").trim();
+    if (saved === "access" || saved === "actions" || saved === "settings") return saved;
+  } catch (_error) {
+    /* ignore */
+  }
+  return "settings";
+}
+
+function companySettingsRowHtml({
+  attr,
+  companyId,
+  labelHtml,
+  className = "",
+  disabled = false,
+  metaHtml = "",
+  valueHtml = "",
+  icon = "dot",
+  searchText = "",
+  busy = false,
+}) {
+  const classes = ["company-settings-row", className, busy ? "is-busy" : ""]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const search = escapeAttr(String(searchText || "").toLowerCase());
+  return `<button type="button" class="${classes}" data-company-${attr}="${escapeHtml(companyId)}" data-cs-search="${search}" ${disabled || busy ? "disabled" : ""}><span class="company-settings-row-icon" data-icon="${escapeAttr(icon)}" aria-hidden="true"></span><span class="company-settings-row-main"><span class="company-settings-row-label">${labelHtml}</span>${valueHtml ? `<span class="company-settings-row-value">${valueHtml}</span>` : ""}</span>${metaHtml ? `<span class="company-settings-row-meta">${metaHtml}</span>` : ""}</button>`;
+}
+
+function applyCompanySettingsSearchFilter(panel, query) {
+  if (!panel) return;
+  const q = String(query || "").trim().toLowerCase();
+  panel.classList.toggle("is-searching", Boolean(q));
+  panel.querySelectorAll(".company-settings-row[data-cs-search]").forEach((row) => {
+    const hay = String(row.getAttribute("data-cs-search") || "");
+    row.classList.toggle("is-filtered-out", Boolean(q) && !hay.includes(q));
+  });
+  panel.querySelectorAll(".company-settings-pane").forEach((pane) => {
+    if (!q) {
+      pane.classList.remove("is-search-empty");
+      return;
+    }
+    const visible = pane.querySelectorAll(".company-settings-row:not(.is-filtered-out)").length;
+    pane.classList.toggle("is-search-empty", visible === 0);
+  });
+  const danger = panel.querySelector(".company-settings-danger");
+  if (danger) {
+    const visible = danger.querySelectorAll(".company-settings-row:not(.is-filtered-out)").length;
+    danger.classList.toggle("is-search-empty", Boolean(q) && visible === 0);
+  }
+}
+
 function renderCompanyList() {
   if (!elements.companyList) return;
   if (!state.companies.length) {
@@ -25353,6 +25460,14 @@ function renderCompanyList() {
           <p class="${workpassLohnEnabled ? "helper-text helper-text-ok" : "helper-text"}"><strong>${escapeHtml(workpassLohnEnabled ? runtimeText("companyWorkpassLohnStatusOn") : runtimeText("companyWorkpassLohnStatusOff"))}</strong></p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
+          ${canDeleteAny && !deleted ? `
+          <div class="meta-box company-contract-password-box" style="margin-top:10px;border-color:color-mix(in srgb, var(--accent,#d95d39) 35%, var(--line,#e5e7eb));">
+            <p><strong>${escapeHtml(runtimeText("companyContractPasswordBoxTitle") || "Vertrags-Passwort (Arbeitsverträge)")}</strong></p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyContractPasswordBoxHint") || "Zusätzliches Passwort nur für die Vertragsseite. Dem Firmen-Admin zusammen mit dem Firmen-Login mitteilen.")}</p>
+            <div class="button-row" style="margin-top:6px;">
+              <button type="button" class="primary-button small-button" data-company-contract-password="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnContractPasswordSet") || "Vertrags-Passwort setzen / ändern")}</button>
+            </div>
+          </div>` : ""}
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
           <div class="meta-box" style="margin-top:8px;">
@@ -25454,40 +25569,141 @@ function renderCompanyList() {
             ${historyMarkup}
           </div>
           ${repairStatus ? `<p class="${repairStatusClass}">${escapeHtml(repairStatus.message || "")}</p>` : ""}
-          <details class="company-actions-details" style="margin-top:12px;">
-            <summary style="cursor:pointer;display:flex;align-items:center;gap:8px;font-size:0.8em;color:#374151;font-weight:600;padding:6px 8px;border-radius:6px;background:var(--surface,#f9fafb);border:1px solid var(--border,#e5e7eb);list-style:none;user-select:none;">
-              <span style="font-size:1.1em;">⚙️</span>
-              <span>${escapeHtml(runtimeText("companySectionSettings"))}</span>
-              <span class="details-arrow" style="margin-left:auto;font-size:0.9em;transition:transform 0.2s;">▼</span>
+          <details class="company-settings-panel" data-company-settings-panel="${escapeHtml(companyId)}" ${companySettingsUiState.openIds.has(companyId) ? "open" : ""}>
+            <summary class="company-settings-summary">
+              <span class="company-settings-summary-icon" aria-hidden="true"></span>
+              <span class="company-settings-summary-copy">
+                <span class="company-settings-summary-title">${escapeHtml(runtimeText("companySectionSettings"))}</span>
+                <span class="company-settings-summary-chips">
+                  <span class="company-settings-chip">Plan: ${escapeHtml(companySettingsShortValue(company.plan || "-", 14))}</span>
+                  <span class="company-settings-chip ${workpassLohnEnabled ? "is-on" : ""}">Lohn: ${workpassLohnEnabled ? "An" : "Aus"}</span>
+                  <span class="company-settings-chip ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "is-warn" : ""}">Status: ${escapeHtml(statusMeta.label || company.status || "aktiv")}</span>
+                </span>
+              </span>
+              <span class="company-settings-summary-hint" aria-hidden="true"></span>
             </summary>
-            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;padding:8px;border-radius:6px;background:var(--surface,#f9fafb);border:1px solid var(--border,#e5e7eb);">
-              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionSettings"))}</span>
-                <button type="button" class="ghost-button small-button" data-company-customer-number="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnCustomerNumber"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-doc-email="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDocEmail"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-invoice-lang="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnInvoiceLang"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-billing-address="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnBillingAddress"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-legal="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnLegal") || "Rechtliches")}</button>
-                <button type="button" class="ghost-button small-button ${workpassLohnEnabled ? "btn-success" : ""}" data-company-lohn-toggle="${escapeHtml(companyId)}" ${canManageCompanySettings ? "" : "disabled"}>${escapeHtml(workpassLohnEnabled ? runtimeText("companyBtnWorkpassLohnDisable") : runtimeText("companyBtnWorkpassLohnEnable"))}</button>
-                ${workpassLohnEnabled && canManageCompanySettings ? `<button type="button" class="ghost-button small-button" data-company-lohn-sync="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnWorkpassLohnSyncLogin") || "Login an Lohn senden")}</button>` : ""}
-                <button type="button" class="ghost-button small-button" data-company-otp-setup="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAdminTfa"))}</button>
-                ${canDeleteAny ? `<button type="button" class="ghost-button small-button" data-company-change-plan="${escapeHtml(companyId)}" ${!deleted ? "" : "disabled"} style="font-weight:600;">📦 ${escapeHtml(runtimeText("companyBtnChangePlan") || "Plan ändern")}</button>` : ""}
+            <div class="company-settings-body">
+              ${(() => {
+                const rememberedTab = companySettingsRememberedTab(companyId);
+                const searchValue = String(companySettingsUiState.searchByCompany[companyId] || "");
+                const invoiceLangLabel = companySettingsInvoiceLangLabel(company);
+                const billingShort = companySettingsBillingShort(company);
+                const otpSec = state.companyAdminSecurity?.[companyId];
+                const otpValue = otpSec
+                  ? (otpSec.twofa_enabled ? "An" : "Aus")
+                  : "—";
+                const customerValue = companySettingsShortValue(customerNumber || "—", 18);
+                const docValue = companySettingsShortValue(documentEmail || "—", 22);
+                const isLocked = String(company.status || "aktiv").toLowerCase() === "gesperrt";
+                const deleteBusy = Boolean(companySettingsUiState.busy?.[`${companyId}:delete`]);
+                const lohnBusy = Boolean(companySettingsUiState.busy?.[`${companyId}:lohn-toggle`] || companySettingsUiState.busy?.[`${companyId}:lohn-sync`]);
+                return `
+              <input type="search" class="company-settings-search" data-company-settings-search="${escapeHtml(companyId)}" value="${escapeAttr(searchValue)}" placeholder="${escapeAttr(runtimeText("companySettingsSearchPlaceholder") || "Suchen…")}" autocomplete="off" />
+              <input class="company-settings-tab-input" type="radio" name="cs-tabs-${escapeHtml(companyId)}" id="cs-tab-set-${escapeHtml(companyId)}" data-pane="settings" data-company-id="${escapeHtml(companyId)}" ${rememberedTab === "settings" ? "checked" : ""} />
+              <input class="company-settings-tab-input" type="radio" name="cs-tabs-${escapeHtml(companyId)}" id="cs-tab-acc-${escapeHtml(companyId)}" data-pane="access" data-company-id="${escapeHtml(companyId)}" ${rememberedTab === "access" ? "checked" : ""} />
+              <input class="company-settings-tab-input" type="radio" name="cs-tabs-${escapeHtml(companyId)}" id="cs-tab-act-${escapeHtml(companyId)}" data-pane="actions" data-company-id="${escapeHtml(companyId)}" ${rememberedTab === "actions" ? "checked" : ""} />
+              <div class="company-settings-tabs" role="tablist">
+                <label class="company-settings-tab" data-pane="settings" for="cs-tab-set-${escapeHtml(companyId)}">${escapeHtml(runtimeText("companySectionSettings"))}</label>
+                <label class="company-settings-tab" data-pane="access" for="cs-tab-acc-${escapeHtml(companyId)}">${escapeHtml(runtimeText("companySectionAccess"))}</label>
+                <label class="company-settings-tab" data-pane="actions" for="cs-tab-act-${escapeHtml(companyId)}">${escapeHtml(runtimeText("companySectionActions"))}</label>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionAccess"))}</span>
-                <button type="button" class="ghost-button small-button" data-company-send-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnPasswordMail"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-set-password="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnSetPassword"))}</button>
-                <button type="button" class="ghost-button small-button" data-company-add-turnstile="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnAddTurnstile"))}</button>
-                <button type="button" class="primary-button small-button" data-company-repair="${escapeHtml(companyId)}" ${canRepair && !deleted && !isRepairing ? "" : "disabled"}>${isRepairing ? escapeHtml(runtimeText("companyBtnLoginPreparing")) : escapeHtml(runtimeText("companyBtnLogin"))}</button>
+              <div class="company-settings-panes">
+                <section class="company-settings-group company-settings-pane company-settings-pane--settings">
+                  <div class="company-settings-list company-settings-list--dense">
+                    ${[
+                      companySettingsRowHtml({ attr: "customer-number", companyId, icon: "hash", labelHtml: companySettingsBtnLabel("companyBtnCustomerNumber", "Kundennummer"), valueHtml: escapeHtml(customerValue), disabled: !(canDeleteAny && !deleted), searchText: `kundennummer customer ${customerNumber}` }),
+                      companySettingsRowHtml({ attr: "doc-email", companyId, icon: "mail", labelHtml: companySettingsBtnLabel("companyBtnDocEmail", "Dokument-Mail"), valueHtml: escapeHtml(docValue), disabled: !(canDeleteAny && !deleted), searchText: `dokument mail email ${documentEmail}` }),
+                      companySettingsRowHtml({ attr: "invoice-lang", companyId, icon: "lang", labelHtml: companySettingsBtnLabel("companyBtnInvoiceLang", "Rechnungs-Sprache"), valueHtml: escapeHtml(companySettingsShortValue(invoiceLangLabel, 16)), disabled: !(canDeleteAny && !deleted), searchText: `rechnung sprache invoice language ${invoiceLangLabel}` }),
+                      companySettingsRowHtml({ attr: "billing-address", companyId, icon: "pin", labelHtml: companySettingsBtnLabel("companyBtnBillingAddress", "Rechnungsadresse"), valueHtml: escapeHtml(billingShort), disabled: !(canDeleteAny && !deleted), searchText: `rechnungsadresse billing address ${billingShort}` }),
+                      companySettingsRowHtml({ attr: "legal", companyId, icon: "legal", labelHtml: companySettingsBtnLabel("companyBtnLegal", "Rechtliches"), valueHtml: escapeHtml("Impressum"), disabled: !canManageCompanySettings, searchText: "rechtliches impressum datenschutz legal" }),
+                      companySettingsRowHtml({
+                        attr: "lohn-toggle",
+                        companyId,
+                        icon: "lohn",
+                        labelHtml: workpassLohnEnabled ? companySettingsBtnLabel("companyBtnWorkpassLohnDisable", "WorkPass Lohn deaktivieren") : companySettingsBtnLabel("companyBtnWorkpassLohnEnable", "WorkPass Lohn aktivieren"),
+                        className: workpassLohnEnabled ? "is-active" : "",
+                        disabled: !canManageCompanySettings,
+                        metaHtml: workpassLohnEnabled ? "An" : "Aus",
+                        valueHtml: escapeHtml(workpassLohnEnabled ? "aktiv" : "aus"),
+                        busy: lohnBusy,
+                        searchText: "workpass lohn payroll buchhaltung",
+                      }),
+                      ...(workpassLohnEnabled && canManageCompanySettings
+                        ? [companySettingsRowHtml({ attr: "lohn-sync", companyId, icon: "sync", labelHtml: companySettingsBtnLabel("companyBtnWorkpassLohnSyncLogin", "Login an Lohn senden"), busy: Boolean(companySettingsUiState.busy?.[`${companyId}:lohn-sync`]), searchText: "login lohn sync senden" })]
+                        : []),
+                      companySettingsRowHtml({ attr: "otp-setup", companyId, icon: "shield", labelHtml: companySettingsBtnLabel("companyBtnAdminTfa", "Admin-2FA"), valueHtml: escapeHtml(otpValue), metaHtml: otpSec?.twofa_enabled ? "An" : "", className: otpSec?.twofa_enabled ? "is-active" : "", disabled: !(canDeleteAny && !deleted), searchText: "admin 2fa otp sicherheit" }),
+                      ...(canDeleteAny
+                        ? [companySettingsRowHtml({ attr: "change-plan", companyId, icon: "plan", labelHtml: companySettingsBtnLabel("companyBtnChangePlan", "Plan ändern"), valueHtml: escapeHtml(companySettingsShortValue(company.plan || "—", 14)), disabled: deleted, searchText: `plan paket ${company.plan || ""}` })]
+                        : []),
+                    ].join("")}
+                  </div>
+                </section>
+                <section class="company-settings-group company-settings-pane company-settings-pane--access">
+                  <div class="company-settings-list">
+                    ${canDeleteAny ? companySettingsRowHtml({ attr: "contract-password", companyId, icon: "key", labelHtml: escapeHtml(runtimeText("companyBtnContractPassword") || "Vertrags-Passwort"), valueHtml: escapeHtml(runtimeText("companyBtnContractPasswordHint") || "setzen / ändern"), disabled: deleted, searchText: "vertrag passwort contracts password arbeitsvertrag" }) : ""}
+                    ${companySettingsRowHtml({ attr: "send-reset", companyId, icon: "key", labelHtml: companySettingsBtnLabel("companyBtnPasswordMail", "Passwort-Mail"), disabled: !(canDeleteAny && !deleted), searchText: "passwort mail reset" })}
+                    ${companySettingsRowHtml({ attr: "set-password", companyId, icon: "lock", labelHtml: companySettingsBtnLabel("companyBtnSetPassword", "Passwort setzen"), disabled: !(canDeleteAny && !deleted), searchText: "passwort setzen" })}
+                    ${companySettingsRowHtml({ attr: "add-turnstile", companyId, icon: "gate", labelHtml: companySettingsBtnLabel("companyBtnAddTurnstile", "Drehkreuz"), valueHtml: escapeHtml(String(turnstiles.length || 0)), disabled: !(canDeleteAny && !deleted), searchText: "drehkreuz turnstile zugang" })}
+                    ${companySettingsRowHtml({ attr: "repair", companyId, icon: "login", labelHtml: isRepairing ? companySettingsBtnLabel("companyBtnLoginPreparing", "Vorbereitung…") : companySettingsBtnLabel("companyBtnLogin", "Firmen-Login"), className: "company-settings-row--primary", disabled: !(canRepair && !deleted && !isRepairing), busy: isRepairing, searchText: "firmen login zugang repair" })}
+                  </div>
+                </section>
+                <section class="company-settings-group company-settings-pane company-settings-pane--actions">
+                  <div class="company-settings-list">
+                    ${companySettingsRowHtml({ attr: "change-status", companyId, icon: "status", labelHtml: companySettingsBtnLabel("labelCompanyStatus", "Status"), valueHtml: escapeHtml(statusMeta.label || company.status || "aktiv"), disabled: !(canToggleLock && !deleted), searchText: `status ${company.status || ""}` })}
+                    ${companySettingsRowHtml({
+                      attr: "review-toggle",
+                      companyId,
+                      icon: "star",
+                      labelHtml: company.review_enabled ? companySettingsBtnLabel("companyBtnReviewDisable", "Bewertung deaktivieren") : companySettingsBtnLabel("companyBtnReviewEnable", "Bewertung aktivieren"),
+                      className: company.review_enabled ? "is-active" : "",
+                      disabled: !(canDeleteAny && !deleted),
+                      metaHtml: company.review_enabled ? "An" : "Aus",
+                      searchText: "bewertung review",
+                    })}
+                    ${companySettingsRowHtml({
+                      attr: "survey-toggle",
+                      companyId,
+                      icon: "survey",
+                      labelHtml: escapeHtml(company.survey_prompt_enabled ? "System-Bewertung aus" : "System-Bewertung an"),
+                      className: company.survey_prompt_enabled ? "is-active" : "",
+                      disabled: !(canDeleteAny && !deleted),
+                      metaHtml: company.survey_prompt_enabled ? "An" : "Aus",
+                      searchText: "system bewertung survey",
+                    })}
+                  </div>
+                </section>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-                <span style="font-size:0.75em;color:#6b7280;min-width:90px;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${escapeHtml(runtimeText("companySectionActions"))}</span>
-                <button type="button" class="ghost-button small-button" data-company-change-status="${escapeHtml(companyId)}" ${canToggleLock && !deleted ? "" : "disabled"}>🧭 ${escapeHtml(runtimeText("labelCompanyStatus"))}</button>
-                <button type="button" class="ghost-button small-button ${String(company.status || "aktiv").toLowerCase() === "gesperrt" ? "btn-success" : "btn-warning"}" data-company-toggle-lock="${escapeHtml(companyId)}" ${canToggleLock && !deleted && !isLockBusy ? "" : "disabled"}>${isLockBusy ? escapeHtml(runtimeText("companyBtnLockSaving")) : String(company.status || "aktiv").toLowerCase() === "gesperrt" ? escapeHtml(runtimeText("companyBtnUnlock")) : escapeHtml(runtimeText("companyBtnLock"))}</button>
-                <button type="button" class="ghost-button small-button ${company.review_enabled ? "btn-success" : ""}" data-company-review-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.review_enabled ? escapeHtml(runtimeText("companyBtnReviewDisable")) : escapeHtml(runtimeText("companyBtnReviewEnable"))}</button>
-                <button type="button" class="ghost-button small-button ${company.survey_prompt_enabled ? "btn-success" : ""}" data-company-survey-toggle="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${company.survey_prompt_enabled ? "📋 System-Bewertung aus" : "📋 System-Bewertung an"}</button>
-                <button type="button" class="ghost-button small-button btn-danger" data-company-delete="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBtnDelete"))}</button>
-              </div>
+              <div class="company-settings-danger">
+                <div class="company-settings-danger-head">${escapeHtml(runtimeText("companySettingsDangerTitle") || "Kritische Aktionen")}</div>
+                <div class="company-settings-list">
+                  ${companySettingsRowHtml({
+                    attr: "toggle-lock",
+                    companyId,
+                    icon: "ban",
+                    labelHtml: isLockBusy
+                      ? companySettingsBtnLabel("companyBtnLockSaving", "Speichert…")
+                      : isLocked
+                        ? companySettingsBtnLabel("companyBtnUnlock", "Sperre aufheben")
+                        : companySettingsBtnLabel("companyBtnLock", "Firma sperren"),
+                    className: `company-settings-row--warn ${isLocked ? "is-active" : ""}`,
+                    disabled: !(canToggleLock && !deleted && !isLockBusy),
+                    busy: isLockBusy,
+                    metaHtml: isLocked ? "Gesperrt" : "",
+                    searchText: "firma sperren unlock lock gesperrt",
+                  })}
+                  ${companySettingsRowHtml({
+                    attr: "delete",
+                    companyId,
+                    icon: "trash",
+                    labelHtml: deleteBusy ? escapeHtml("Löschen…") : companySettingsBtnLabel("companyBtnDelete", "Firma loeschen"),
+                    className: "company-settings-row--danger",
+                    disabled: !(canDeleteAny && !deleted) || deleteBusy,
+                    busy: deleteBusy,
+                    searchText: "firma loeschen delete entfernen",
+                  })}
+                </div>
+              </div>`;
+              })()}
             </div>
           </details>
           ${company.survey_prompt_enabled ? `
@@ -25546,6 +25762,10 @@ function renderCompanyList() {
 
   bindCompanyHistoryControls();
   bindCompanyRowActions();
+  elements.companyList.querySelectorAll("[data-company-settings-panel]").forEach((panel) => {
+    const companyId = String(panel.getAttribute("data-company-settings-panel") || "").trim();
+    applyCompanySettingsSearchFilter(panel, companySettingsUiState.searchByCompany[companyId] || "");
+  });
   elements.companyList.querySelectorAll('input[type="color"][data-company-accent-color]').forEach((input) => {
     const companyId = String(input.getAttribute("data-company-accent-color") || "").trim();
     const company = state.companies.find((entry) => entry.id === companyId);
@@ -25612,7 +25832,39 @@ function bindCompanyRowActions() {
   if (!elements.companyList || elements.companyList.dataset.repairBound === "1") return;
 
   elements.companyList.dataset.repairBound = "1";
+  elements.companyList.addEventListener("toggle", (event) => {
+    const panel = event.target?.closest?.("[data-company-settings-panel]");
+    if (!panel || panel !== event.target || !elements.companyList.contains(panel)) return;
+    const companyId = String(panel.getAttribute("data-company-settings-panel") || "").trim();
+    if (!companyId) return;
+    if (panel.open) companySettingsUiState.openIds.add(companyId);
+    else companySettingsUiState.openIds.delete(companyId);
+  }, true);
+
+  elements.companyList.addEventListener("input", (event) => {
+    const searchInput = event.target.closest("[data-company-settings-search]");
+    if (!searchInput || !elements.companyList.contains(searchInput)) return;
+    const companyId = String(searchInput.getAttribute("data-company-settings-search") || "").trim();
+    const panel = searchInput.closest("[data-company-settings-panel]");
+    companySettingsUiState.searchByCompany[companyId] = String(searchInput.value || "");
+    applyCompanySettingsSearchFilter(panel, companySettingsUiState.searchByCompany[companyId]);
+  });
+
   elements.companyList.addEventListener("change", (event) => {
+    const tabInput = event.target.closest(".company-settings-tab-input");
+    if (tabInput && elements.companyList.contains(tabInput)) {
+      const companyId = String(tabInput.getAttribute("data-company-id") || tabInput.name.replace(/^cs-tabs-/, "") || "").trim();
+      const pane = String(tabInput.getAttribute("data-pane") || "").trim();
+      if (companyId && pane) {
+        try {
+          localStorage.setItem(`baupass.csTab.${companyId}`, pane);
+        } catch (_error) {
+          /* ignore */
+        }
+      }
+      return;
+    }
+
     const providerSelect = event.target.closest("[data-company-mail-provider]");
     if (providerSelect && elements.companyList.contains(providerSelect)) {
       const companyId = String(providerSelect.dataset.companyMailProvider || "").trim();
@@ -26223,7 +26475,9 @@ function bindCompanyRowActions() {
     if (lohnSyncButton && !lohnSyncButton.disabled && elements.companyList.contains(lohnSyncButton)) {
       const companyId = lohnSyncButton.dataset.companyLohnSync;
       if (!companyId) return;
-      lohnSyncButton.disabled = true;
+      companySettingsUiState.busy[`${companyId}:lohn-sync`] = true;
+      companySettingsUiState.openIds.add(companyId);
+      renderCompanyList();
       try {
         const result = await apiRequest(
           `${API_BASE}/api/payroll/accounting/provision/${encodeURIComponent(companyId)}`,
@@ -26258,7 +26512,8 @@ function bindCompanyRowActions() {
         const detail = error?.payload?.message || error?.payload?.error || error.message;
         showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: detail }), "error", 8000);
       } finally {
-        lohnSyncButton.disabled = false;
+        delete companySettingsUiState.busy[`${companyId}:lohn-sync`];
+        renderCompanyList();
       }
       return;
     }
@@ -26274,7 +26529,9 @@ function bindCompanyRowActions() {
         ? runtimeText("companyWorkpassLohnDisableConfirm").replace("{name}", companyName)
         : runtimeText("companyWorkpassLohnEnableConfirm").replace("{name}", companyName);
       if (!(await showConfirmDialog(confirmMsg))) return;
-      lohnToggleButton.disabled = true;
+      companySettingsUiState.busy[`${companyId}:lohn-toggle`] = true;
+      companySettingsUiState.openIds.add(companyId);
+      renderCompanyList();
       try {
         const result = await apiRequest(`${API_BASE}/api/payroll/accounting/company-settings`, {
           method: "PUT",
@@ -26314,32 +26571,20 @@ function bindCompanyRowActions() {
                 copyValue: `${lohnEmail}\n${tempPass}`,
               }
             );
-          } else if (provisionOk) {
-            showToast(
-              runtimeText("companyWorkpassLohnEnabledToast")
-                || "WorkPass Lohn aktiv — Login an Buchhaltung gesendet.",
-              "success"
-            );
+          } else if (!provisionOk) {
+            showToast(runtimeText("companyWorkpassLohnEnabledToast") || "WorkPass Lohn aktiviert", "info", 5000);
           } else {
-            showToast(
-              result?.message
-                || runtimeTextTemplate("companyWorkpassLohnToggleFailed", {
-                  error: result?.error || "provision_failed",
-                }),
-              "error",
-              8000
-            );
+            showToast(runtimeText("companyWorkpassLohnEnabledToast") || "WorkPass Lohn aktiviert");
           }
         } else {
-          showToast(
-            runtimeText("companyWorkpassLohnDisabledToast"),
-            "success"
-          );
+          showToast(runtimeText("companyWorkpassLohnDisabledToast") || "WorkPass Lohn deaktiviert");
         }
       } catch (error) {
-        const detail = error?.payload?.message || error?.payload?.error || error.message;
-        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: detail }), "error", 8000);
-        lohnToggleButton.disabled = false;
+        showToast(runtimeTextTemplate("companyWorkpassLohnToggleFailed", { error: error.message || error }), "error", 8000);
+        renderCompanyList();
+      } finally {
+        delete companySettingsUiState.busy[`${companyId}:lohn-toggle`];
+        renderCompanyList();
       }
       return;
     }
@@ -26351,6 +26596,37 @@ function bindCompanyRowActions() {
       const company = state.companies.find((e) => e.id === companyId);
       if (!companyId || !company) return;
       await openCompanyPlanModal(companyId, company);
+      return;
+    }
+
+    const contractPasswordButton = event.target.closest("[data-company-contract-password]");
+    if (contractPasswordButton && !contractPasswordButton.disabled && elements.companyList.contains(contractPasswordButton)) {
+      const companyId = contractPasswordButton.dataset.companyContractPassword;
+      if (!companyId) return;
+      const password = window.prompt(runtimeText("companyContractPasswordPrompt") || "Neues Vertrags-Passwort (min. 6 Zeichen)", "");
+      if (password === null) return;
+      const confirm = window.prompt(runtimeText("companyContractPasswordConfirm") || "Vertrags-Passwort wiederholen", "");
+      if (confirm === null) return;
+      if (String(password) !== String(confirm)) {
+        showToast(runtimeText("companyContractPasswordMismatch") || "Passwörter stimmen nicht überein.", "error");
+        return;
+      }
+      if (String(password).length < 6) {
+        showToast(runtimeText("companyContractPasswordFailed").replace("{error}", "min. 6 Zeichen"), "error");
+        return;
+      }
+      try {
+        await apiRequest(`${API_BASE}/api/contracts/lock/set-password`, {
+          method: "POST",
+          body: { company_id: companyId, password, confirmPassword: confirm, setup: true },
+        });
+        showToast(runtimeText("companyContractPasswordSaved") || "Vertrags-Passwort gespeichert");
+      } catch (error) {
+        showToast(
+          (runtimeText("companyContractPasswordFailed") || "Fehler: {error}").replace("{error}", error.message || error),
+          "error",
+        );
+      }
       return;
     }
 
@@ -26369,6 +26645,9 @@ function bindCompanyRowActions() {
         return;
       }
 
+      companySettingsUiState.busy[`${companyId}:delete`] = true;
+      companySettingsUiState.openIds.add(companyId);
+      renderCompanyList();
       try {
         await apiRequest(`${API_BASE}/api/companies/${companyId}?force=1`, { method: "DELETE" });
         await loadAllData();
@@ -26377,6 +26656,9 @@ function bindCompanyRowActions() {
       } catch (error) {
         const repairMessage = mapCompanyRepairError(error);
         showToast(uiT("alertCompanyDeleteFailed").replace("{name}", companyName).replace("{error}", repairMessage));
+        renderCompanyList();
+      } finally {
+        delete companySettingsUiState.busy[`${companyId}:delete`];
       }
       return;
     }
@@ -26465,6 +26747,7 @@ function bindCompanyRowActions() {
       }
 
       state.companyLockBusy[companyId] = true;
+      companySettingsUiState.openIds.add(companyId);
       state.companyRepairStatus[companyId] = {
         kind: "info",
         message: nextStatus === "gesperrt" ? runtimeText("companyLockingMessage") : runtimeText("companyUnlockingMessage")

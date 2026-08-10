@@ -1535,12 +1535,12 @@
           if (openHref) {
             window.open(openHref, "_blank", "noopener");
           }
-          await load();
+          await refreshLohnOnly();
         } catch (e) {
           alert(e.message || tr("lohnMessagesOpenFailed"));
           btn.disabled = false;
           btn.textContent = prev || tr("lohnMessagesOpen");
-          await load();
+          await refreshLohnOnly();
         }
       };
       document.querySelectorAll("[data-lohn-msg='open']").forEach((btn) => {
@@ -1740,33 +1740,11 @@
       });
     }
 
-    async function loadPayrollPending() {
-      try {
-        let url = "/api/payroll/statements/pending";
-        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const data = await api(url);
-        return data.batches || [];
-      } catch {
-        return [];
-      }
-    }
-
-    async function loadDataAlerts() {
-      try {
-        let url = "/api/payroll/accounting/data-alerts";
-        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const data = await api(url);
-        return data.alerts || [];
-      } catch {
-        return [];
-      }
-    }
-
     async function loadLohnMessages() {
       try {
         let url = "/api/payroll/accounting/messages";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const data = await api(url);
+        const data = await apiSoft(url, { messages: [] }, 4000);
         return data.messages || [];
       } catch {
         return [];
@@ -1778,9 +1756,237 @@
         return { skipped: true };
       }
       try {
-        return await api("/api/payroll/accounting/platform-link");
+        return await apiSoft("/api/payroll/accounting/platform-link", null, 3500);
       } catch {
         return null;
+      }
+    }
+
+    function apiSoft(path, fallback, timeoutMs = 5000, options = {}) {
+      return Promise.race([
+        api(path, options).catch(() => fallback),
+        new Promise((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+      ]);
+    }
+
+    let cachedMe = null;
+    async function loadMeCached() {
+      if (cachedMe) return cachedMe;
+      try {
+        cachedMe = await loadMe();
+      } catch (e) {
+        cachedMe = null;
+        throw e;
+      }
+      return cachedMe;
+    }
+
+    async function loadPayrollPending() {
+      try {
+        let url = "/api/payroll/statements/pending";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const data = await apiSoft(url, { batches: [] }, 4000);
+        return data.batches || [];
+      } catch {
+        return [];
+      }
+    }
+
+    async function loadDataAlerts() {
+      try {
+        let url = "/api/payroll/accounting/data-alerts";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const data = await apiSoft(url, { alerts: [] }, 4000);
+        return data.alerts || [];
+      } catch {
+        return [];
+      }
+    }
+
+    async function loadLohnPeriodRequests() {
+      try {
+        let url = "/api/payroll/accounting/period-requests?status=pending_confirmation";
+        if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
+        const data = await apiSoft(url, { requests: [] }, 4000);
+        return data.requests || [];
+      } catch {
+        return [];
+      }
+    }
+
+    async function loadForecast() {
+      if (!companyId) return null;
+      try {
+        return await apiSoft(
+          `/api/ops-os/predictions/tomorrow?company_id=${encodeURIComponent(companyId)}`,
+          null,
+          4000,
+        );
+      } catch {
+        return null;
+      }
+    }
+
+    async function loadGuardianBundle() {
+      try {
+        const [status, historyPayload] = await Promise.all([
+          apiSoft("/api/guardian/status", null, 3500),
+          apiSoft("/api/guardian/history?limit=20", { history: [] }, 3500),
+        ]);
+        return { status, history: historyPayload?.history || [] };
+      } catch {
+        return { status: null, history: [] };
+      }
+    }
+
+    async function loadLohnEmployeePreview(periodOverride) {
+      try {
+        if (!companyId) return null;
+        const period = periodOverride || defaultLohnPeriod();
+        let url = `/api/payroll/accounting/employees?company_id=${encodeURIComponent(companyId)}`;
+        if (period) url += `&period=${encodeURIComponent(period)}`;
+        return await apiSoft(url, null, 5000);
+      } catch {
+        return null;
+      }
+    }
+
+    let lastLohnState = {
+      messages: [],
+      alerts: [],
+      batches: [],
+      link: null,
+      preview: null,
+      periodRequests: [],
+    };
+
+    async function refreshLohnOnly() {
+      const [lohnMessages, dataAlerts, periodRequests, payrollBatches] = await Promise.all([
+        loadLohnMessages(),
+        loadDataAlerts(),
+        loadLohnPeriodRequests(),
+        loadPayrollPending(),
+      ]);
+      lastLohnState = {
+        ...lastLohnState,
+        messages: lohnMessages,
+        alerts: dataAlerts,
+        periodRequests,
+        batches: payrollBatches,
+      };
+      updateLohnHeaderChip(lohnMessages);
+      const hub = document.getElementById("lohnHub");
+      const parent = hub?.parentElement;
+      if (parent && hub) {
+        const next = document.createElement("div");
+        next.innerHTML = renderLohnHubSafe(
+          lastLohnState.link,
+          lohnMessages,
+          dataAlerts,
+          payrollBatches,
+          lastLohnState.preview,
+          periodRequests,
+        );
+        const toasts = next.querySelector(".lohn-notify-stack");
+        const newHub = next.querySelector("#lohnHub");
+        const oldToasts = parent.querySelector(".lohn-notify-stack");
+        if (oldToasts && toasts) oldToasts.replaceWith(toasts);
+        else if (toasts && !oldToasts) parent.insertBefore(toasts, hub);
+        if (newHub) hub.replaceWith(newHub);
+        wirePayrollActions();
+        wireDataAlertActions();
+        wireLohnMessageActions();
+        wireLohnBatchActions();
+      }
+      try {
+        localStorage.setItem("workpass-lohn-inbox-bump", String(Date.now()));
+      } catch {
+        /* ignore */
+      }
+    }
+
+    async function load(opts = {}) {
+      if (lohnActionBusy) return; // don't wipe buttons mid-handoff
+      const mode = opts.mode || "full";
+      const status = document.getElementById("status");
+      const grid = document.getElementById("grid");
+      const focusLohn = location.hash === "#lohnHub" || mode === "lohn";
+      try {
+        await loadMeCached();
+
+        if (mode === "poll") {
+          await refreshLohnOnly();
+          return;
+        }
+
+        if (focusLohn) {
+          const [lohnMessages, dataAlerts, periodRequests] = await Promise.all([
+            loadLohnMessages(),
+            loadDataAlerts(),
+            loadLohnPeriodRequests(),
+          ]);
+          lastLohnState.messages = lohnMessages;
+          lastLohnState.alerts = dataAlerts;
+          lastLohnState.periodRequests = periodRequests;
+          updateLohnHeaderChip(lohnMessages);
+          render(
+            lastPayload || { date: "—", scope: companyId ? "company" : "global", totals: {}, companies: [] },
+            lastForecast,
+            lastGuardianBundle || { status: null, history: [] },
+            lastLohnState.batches || [],
+            lastLohnState.link,
+            dataAlerts,
+            lohnMessages,
+            lastLohnState.preview,
+            periodRequests,
+          );
+          if (location.hash === "#lohnHub") {
+            document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+          if (mode === "lohn") {
+            status.textContent = `${lastStatusDate} · ${tr("live")}`;
+            return;
+          }
+        }
+
+        let url = "/api/ops-os/command-center";
+        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview, periodRequests] = await Promise.all([
+          apiSoft(url, lastPayload || { totals: {}, companies: [] }, 6000),
+          loadForecast(),
+          loadGuardianBundle(),
+          loadPayrollPending(),
+          loadLohnPlatformLink(),
+          loadDataAlerts(),
+          loadLohnMessages(),
+          loadLohnEmployeePreview(),
+          loadLohnPeriodRequests(),
+        ]);
+        lastLohnState = {
+          messages: lohnMessages,
+          alerts: dataAlerts,
+          batches: payrollBatches,
+          link: lohnLink,
+          preview: employeePreview,
+          periodRequests,
+        };
+        render(
+          data,
+          forecast,
+          guardianBundle,
+          payrollBatches,
+          lohnLink,
+          dataAlerts,
+          lohnMessages,
+          employeePreview,
+          periodRequests,
+        );
+        if (location.hash === "#lohnHub") {
+          document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      } catch (e) {
+        status.textContent = "";
+        grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;
       }
     }
 
@@ -1877,40 +2083,6 @@
       wireLohnBatchActions();
       if (forecast) renderForecastCard(grid, forecast);
       startEventStream().catch(() => {});
-    }
-
-    async function loadForecast() {
-      if (!companyId) return null;
-      try {
-        return await api(
-          `/api/ops-os/predictions/tomorrow?company_id=${encodeURIComponent(companyId)}`,
-        );
-      } catch {
-        return null;
-      }
-    }
-
-    async function loadGuardianBundle() {
-      try {
-        const [status, historyPayload] = await Promise.all([
-          api("/api/guardian/status"),
-          api("/api/guardian/history?limit=20"),
-        ]);
-        return { status, history: historyPayload.history || [] };
-      } catch {
-        return { status: null, history: [] };
-      }
-    }
-
-    async function loadLohnPeriodRequests() {
-      try {
-        let url = "/api/payroll/accounting/period-requests?status=pending_confirmation";
-        if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
-        const data = await api(url);
-        return data.requests || [];
-      } catch {
-        return [];
-      }
     }
 
     let lohnActionBusy = false;
@@ -2026,44 +2198,6 @@
       }
     });
 
-    async function loadLohnEmployeePreview(periodOverride) {
-      try {
-        if (!companyId) return null;
-        const period = periodOverride || defaultLohnPeriod();
-        let url = `/api/payroll/accounting/employees?company_id=${encodeURIComponent(companyId)}`;
-        if (period) url += `&period=${encodeURIComponent(period)}`;
-        return await api(url);
-      } catch {
-        return null;
-      }
-    }
-
-    async function load() {
-      if (lohnActionBusy) return; // don't wipe buttons mid-handoff
-      const status = document.getElementById("status");
-      const grid = document.getElementById("grid");
-      try {
-        let url = "/api/ops-os/command-center";
-        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        await loadMe();
-        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview, periodRequests] = await Promise.all([
-          api(url),
-          loadForecast(),
-          loadGuardianBundle(),
-          loadPayrollPending(),
-          loadLohnPlatformLink(),
-          loadDataAlerts(),
-          loadLohnMessages(),
-          loadLohnEmployeePreview(),
-          loadLohnPeriodRequests(),
-        ]);
-        render(data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview, periodRequests);
-      } catch (e) {
-        status.textContent = "";
-        grid.innerHTML = `<p class="err">${tr("authError")} ${e.message}</p>`;
-      }
-    }
-
     let stopRealtime = null;
 
     async function startEventStream() {
@@ -2098,7 +2232,7 @@
       }
     })();
 
-    async function waitForEmbedSession(maxMs = 3200) {
+    async function waitForEmbedSession(maxMs = 900) {
       const embedded =
         qs.get("embed") === "1" ||
         (window.BaupassEmbed?.isEmbedMode?.() && window.self !== window.top);
@@ -2106,7 +2240,7 @@
       const deadline = Date.now() + maxMs;
       while (Date.now() < deadline) {
         if (window.BaupassAuth?.getSessionToken?.()) return;
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await new Promise((resolve) => setTimeout(resolve, 40));
       }
     }
 
@@ -2115,7 +2249,7 @@
     window.addEventListener("message", (event) => {
       if (event.origin !== location.origin || !event?.data) return;
       if (event.data.type === "baupass-sync-token" && event.data.token && loadScheduled) {
-        load().catch(() => {});
+        load({ mode: location.hash === "#lohnHub" ? "lohn" : "full" }).catch(() => {});
       }
     });
 
@@ -2130,18 +2264,18 @@
       } catch {
         // load() surfaces auth errors in the grid
       }
-      try {
-        if (window.BaupassAuth?.resolveTenantBranding) {
-          await window.BaupassAuth.resolveTenantBranding({ companyId });
-        }
-      } catch {
-        // optional branding
+      // Branding in background — don't block first paint
+      window.BaupassAuth?.resolveTenantBranding?.({ companyId })?.catch?.(() => {});
+      const firstMode = location.hash === "#lohnHub" ? "lohn" : "full";
+      await load({ mode: firstMode });
+      if (firstMode === "lohn") {
+        // Fill remaining ops widgets without blocking Lohn hub
+        load({ mode: "full" }).catch(() => {});
       }
-      load();
       if (lohnPollTimer) clearInterval(lohnPollTimer);
       lohnPollTimer = setInterval(() => {
-        if (!lohnActionBusy) load();
-      }, 20000);
+        if (!lohnActionBusy) refreshLohnOnly().catch(() => {});
+      }, 25000);
     })();
 
     (async () => {

@@ -622,7 +622,7 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 "category": "safety",
                 "blurb": "Starter-Kit Sicherheit",
                 "html": (
-                    "<h1>Betriebsanweisung</h1><p>{{company.name}} · {{date.today}}</p>"
+                    "<h1>Betriebsanweisung</h1><p>{{company.name}} · {{date.today}} · {{site.name}}</p>"
                     "<h2>Geltungsbereich</h2><p>…</p><h2>Maßnahmen</h2><p>…</p>"
                 ),
             },
@@ -633,6 +633,24 @@ def register_docs_blueprint(flask_app: Flask) -> None:
                 "html": (
                     "<h1>Protokoll</h1><p>Datum: {{date.today}}</p>"
                     "<p>Teilnehmer: …</p><h2>Beschlüsse</h2><ol><li>…</li></ol>"
+                ),
+            },
+            {
+                "title": "Kit: Toolbox-Talk",
+                "category": "safety",
+                "blurb": "Starter-Kit Sicherheit",
+                "html": (
+                    "<h1>Toolbox-Talk</h1><p>{{site.name}} · {{date.today}}</p>"
+                    "<p>Teilnehmer: {{worker.name}}</p><ul><li>…</li></ul>"
+                ),
+            },
+            {
+                "title": "Kit: Baustellenordnung",
+                "category": "safety",
+                "blurb": "Starter-Kit Sicherheit",
+                "html": (
+                    "<h1>Baustellenordnung</h1><p>{{company.name}} · {{site.name}}</p>"
+                    "<ol><li>…</li></ol>"
                 ),
             },
         ]

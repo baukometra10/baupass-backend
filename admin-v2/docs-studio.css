@@ -552,15 +552,17 @@ a.back::before { content: "← "; opacity: 0.7; }
   /* Keep "Mehr"-dropdown above toolbar + paper stage (sibling paint order). */
   position: relative;
   z-index: 90;
+  overflow: visible;
 }
 .titlebar:has(.more-menu.open) {
-  z-index: 220;
+  z-index: 420;
 }
 .titlebar-row {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
+  overflow: visible;
 }
 .titlebar-row .title-input { flex: 1 1 auto; min-width: 0; }
 .title-input {
@@ -573,7 +575,15 @@ a.back::before { content: "← "; opacity: 0.7; }
   padding: 0.25rem 0;
 }
 .title-input:focus { outline: none; }
-.title-actions { display: flex; gap: 0.4rem; align-items: center; position: relative; }
+.title-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  position: relative;
+  z-index: 320;
+  overflow: visible;
+  flex: 0 0 auto;
+}
 .workflow-badge {
   display: inline-flex;
   align-items: center;
@@ -2134,14 +2144,15 @@ body.hide-footer .docs-footer-band { display: none; }
   font-family: var(--doc);
   font-size: 16.5px;
   line-height: var(--doc-lh, 1.35);
-  color: #152033;
-  letter-spacing: 0.005em;
+  color: #0f172a;
+  letter-spacing: 0.01em;
   background: transparent;
   overflow-wrap: anywhere;
   word-break: normal;
   hyphens: manual;
   caret-color: #2563eb;
   -webkit-font-smoothing: antialiased;
+  font-weight: 450;
 }
 #quillEditor .ql-editor .wp-page-edge {
   display: block;
@@ -2233,12 +2244,14 @@ body.hide-footer .docs-footer-band { display: none; }
 #quillEditor .ql-editor .wp-body-hint { margin: 0.35em 0 0.75em; }
 #quillEditor .ql-editor .wp-hint-chip {
   display: inline;
-  padding: 0.05em 0.28em;
-  border-radius: 0.3em;
-  border: 1px dashed rgba(100, 116, 139, 0.45);
-  background: rgba(241, 245, 249, 0.85);
-  color: #64748b;
-  font-style: italic;
+  padding: 0 0.12em 0.05em;
+  border: none;
+  border-bottom: 2px dotted #94a3b8;
+  border-radius: 0;
+  background: transparent;
+  color: #334155;
+  font-style: normal;
+  font-weight: 600;
 }
 #quillEditor .ql-editor .wp-meta {
   margin: 0 0 0.65em;
@@ -2651,8 +2664,18 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
 .brand-logo-file input[type="file"] {
   width: 100%;
   font: inherit;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   color: var(--text);
+}
+.brand-logo-file input[type="file"]::file-selector-button {
+  margin-inline-end: 0.55rem;
+  border: 1px solid var(--rail-line);
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  background: color-mix(in srgb, var(--accent) 14%, var(--input-bg));
+  color: var(--text);
+  font: 650 0.76rem/1.2 var(--ui);
+  cursor: pointer;
 }
 #brandLogoStatus:not([hidden]) {
   margin: 0;
@@ -2710,22 +2733,33 @@ body.docs-editor-rtl #quillEditor .ql-editor h2 {
 #quillEditor .ql-editor .wp-ph-chip,
 .docs-hf .wp-ph-chip {
   display: inline;
-  background: rgba(14, 165, 233, 0.12);
-  color: #075985;
-  border: 1px solid rgba(14, 165, 233, 0.28);
-  border-radius: 999px;
-  padding: 0.08em 0.48em;
-  font: 650 0.86em/1.35 var(--ui);
-  letter-spacing: 0.01em;
+  background: transparent;
+  color: #0f172a;
+  border: none;
+  border-bottom: 2px dotted #64748b;
+  border-radius: 0;
+  padding: 0 0.15em 0.05em;
+  margin: 0 0.1em;
+  font: 650 1em/1.45 var(--doc);
+  letter-spacing: 0.02em;
   white-space: nowrap;
+  box-shadow: none;
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+  cursor: text;
+}
+#quillEditor .ql-editor .wp-ph-chip:hover,
+.docs-hf .wp-ph-chip:hover {
+  border-bottom-color: #0ea5e9;
+  color: #0369a1;
+  background: rgba(14, 165, 233, 0.08);
 }
 body.theme-black #quillEditor .ql-editor .wp-ph-chip,
 body.theme-black .docs-hf .wp-ph-chip {
-  background: rgba(56, 189, 248, 0.16);
-  color: #e0f2fe;
-  border-color: rgba(56, 189, 248, 0.35);
+  background: transparent;
+  color: #0f172a;
+  border-color: transparent;
+  border-bottom: 2px dotted #64748b;
 }
 body.docs-printing .aio-root,
 body.docs-printing-locked .aio-root {
@@ -2906,28 +2940,45 @@ button:focus-visible { outline: none; box-shadow: var(--ring); }
   border-color: var(--danger);
 }
 
-.more-wrap { position: relative; z-index: 1; }
+.more-wrap {
+  position: relative;
+  z-index: 320;
+  flex: 0 0 auto;
+}
 .more-menu {
   display: none;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 6px);
-  min-width: 210px;
-  max-height: min(70vh, 520px);
+  /* Fixed so RTL/LTR titlebar overflow never clips labels. */
+  position: fixed;
+  inset: auto;
+  min-width: 280px;
+  width: max-content;
+  max-width: min(92vw, 380px);
+  max-height: min(70vh, 560px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.35rem;
+  padding: 0.45rem;
   background: var(--panel);
   border: 1px solid var(--rail-line);
-  border-radius: 10px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
-  z-index: 230;
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+  z-index: 5000;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 .more-menu.open { display: flex; }
-.more-menu button { width: 100%; justify-content: flex-start; }
+.more-menu button {
+  width: 100%;
+  justify-content: flex-start;
+  white-space: normal;
+  text-align: start;
+  line-height: 1.4;
+  padding: 0.6rem 0.85rem;
+  min-height: 2.4rem;
+  overflow: visible;
+  font-size: 0.86rem;
+  word-break: break-word;
+}
 
 .docs-list {
   list-style: none;
@@ -3761,8 +3812,8 @@ body.docs-page.theme-black .versions-panel summary {
   cursor: pointer;
 }
 #quillEditor .ql-editor .wp-ph-chip:hover {
-  background: rgba(14, 165, 233, 0.22);
-  border-color: rgba(14, 165, 233, 0.5);
+  background: rgba(14, 165, 233, 0.1);
+  border-bottom-color: #0284c7;
 }
 
 /* Print preview: clean paper, no ghost Kopfzeile */
@@ -3873,4 +3924,273 @@ body.docs-page.theme-black .versions-panel summary {
   min-height: 0 !important;
   padding-top: 0 !important;
   padding-bottom: 0 !important;
+}
+
+/* ——— Readability polish (2026-08-10): klarer Kontrast, ruhigere Typo ——— */
+body.docs-page {
+  --muted: #b6c6dc;
+  --rail-line: color-mix(in srgb, var(--border) 78%, #94a3b8 22%);
+  --docs-hint: #c5d2e6;
+  --docs-label: #d7e2f2;
+}
+body.docs-page.theme-white {
+  --muted: #475569;
+  --docs-hint: #475569;
+  --docs-label: #334155;
+  --text: #0f172a;
+  --input-bg: #ffffff;
+}
+body.docs-page.theme-black {
+  --muted: #b8c7dc;
+  --docs-hint: #c8d4e8;
+  --docs-label: #e2e8f0;
+}
+
+body.docs-page .side-label,
+body.docs-page .tb-label,
+body.docs-page .field span,
+body.docs-page .layout-grid label,
+body.docs-page .tpl-topic-label,
+body.docs-page .rail-kicker {
+  color: var(--docs-label);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  opacity: 1;
+}
+body.docs-page .tb-label {
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+}
+body.docs-page .side-hint,
+body.docs-page .rail-note,
+body.docs-page .doc-sub,
+body.docs-page .empty-list,
+body.docs-page .status,
+body.docs-page .footer-bar,
+body.docs-page .action-divider,
+body.docs-page .side-lang span,
+body.docs-page .tpl-card span,
+body.docs-page .email-smtp-hint,
+body.docs-page .wp-sign-aes {
+  color: var(--docs-hint);
+  opacity: 1;
+}
+body.docs-page .side-hint,
+body.docs-page .rail-note {
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+body.docs-page .doc-sub {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+body.docs-page .footer-bar {
+  font-size: 0.76rem;
+  color: var(--docs-hint);
+}
+body.docs-page .footer-bar .meta-line strong {
+  color: var(--text);
+  font-weight: 700;
+}
+
+body.docs-page a.back {
+  color: var(--docs-label);
+}
+body.docs-page a.back:hover {
+  color: var(--accent-hover, var(--accent));
+}
+
+body.docs-page .side-tab {
+  color: var(--docs-hint);
+  font-size: 0.8rem;
+  min-height: 2.15rem;
+}
+body.docs-page .side-tab.active {
+  color: var(--text);
+}
+
+body.docs-page .chip,
+body.docs-page button.chip,
+body.docs-page .tpl-topic {
+  color: var(--text);
+  font-size: 0.74rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 999px;
+  min-height: 1.85rem;
+}
+body.docs-page .tpl-topic:not(.active) {
+  color: var(--docs-hint);
+}
+body.docs-page .tpl-topic.active,
+body.docs-page .docs-status-filters .chip.active {
+  color: var(--text);
+  font-weight: 700;
+}
+
+body.docs-page .field {
+  font-size: 0.74rem;
+  color: var(--docs-hint);
+  gap: 0.32rem;
+}
+body.docs-page .check-row {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+body.docs-page .rail-section h3 {
+  font-size: 0.8rem;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+body.docs-page .rail-more summary {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+body.docs-page .rail-more summary::after {
+  color: var(--docs-hint);
+}
+body.docs-page .rail-title {
+  font-size: 1.08rem;
+}
+body.docs-page .rail-section {
+  gap: 0.62rem;
+  padding: 1rem 1.05rem 1.1rem;
+}
+body.docs-page .side-panel {
+  gap: 0.65rem;
+}
+body.docs-page .side-panel-head {
+  gap: 0.28rem;
+}
+
+body.docs-page .doc-title {
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+body.docs-page .doc-badge {
+  font-size: 0.64rem;
+  letter-spacing: 0.03em;
+  color: var(--docs-hint);
+}
+body.docs-page .doc-badge.status-draft {
+  color: #cbd5e1;
+}
+body.docs-page.theme-white .doc-badge.status-draft {
+  color: #64748b;
+}
+
+body.docs-page .title-input {
+  font-size: 1.12rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+body.docs-page .title-input::placeholder,
+body.docs-page .docs-search::placeholder,
+body.docs-page input::placeholder,
+body.docs-page textarea::placeholder {
+  color: color-mix(in srgb, var(--docs-hint) 82%, transparent);
+  opacity: 1;
+}
+
+body.docs-page select,
+body.docs-page input[type="number"],
+body.docs-page input[type="search"],
+body.docs-page input[type="text"],
+body.docs-page input[type="email"],
+body.docs-page input[type="tel"],
+body.docs-page textarea {
+  color: var(--text);
+  font-size: 0.84rem;
+}
+body.docs-page .side-lang select,
+body.docs-page .docs-search,
+body.docs-page .tb-field select,
+body.docs-page .toolbar-bar .field.compact select {
+  min-height: 2.15rem;
+  font-size: 0.84rem;
+}
+
+body.docs-page .cmd {
+  font-size: 0.8rem;
+}
+body.docs-page .cmd .wp-ico-label {
+  letter-spacing: -0.01em;
+}
+body.docs-page .status {
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+body.docs-page .stage-caption {
+  font-size: 0.78rem;
+  color: var(--docs-hint);
+}
+
+body.docs-page.theme-white .side-hint,
+body.docs-page.theme-white .rail-note,
+body.docs-page.theme-white .doc-sub,
+body.docs-page.theme-white .footer-bar,
+body.docs-page.theme-white .status,
+body.docs-page.theme-white .empty-list,
+body.docs-page.theme-white .stage-caption {
+  color: #475569;
+}
+body.docs-page.theme-white .side-label,
+body.docs-page.theme-white .tb-label,
+body.docs-page.theme-white .field span,
+body.docs-page.theme-white .layout-grid label {
+  color: #334155;
+}
+
+/* Quill toolbar: readable labels + icons */
+body.docs-page #quillToolbar .ql-picker-label {
+  color: var(--text) !important;
+  font-size: 0.78rem;
+}
+body.docs-page.theme-black #quillToolbar .ql-stroke {
+  stroke: #e8eef8;
+}
+body.docs-page.theme-black #quillToolbar .ql-fill {
+  fill: #e8eef8;
+}
+body.docs-page.theme-white #quillToolbar .ql-stroke {
+  stroke: #1e293b;
+}
+body.docs-page.theme-white #quillToolbar .ql-fill {
+  fill: #1e293b;
+}
+
+body.docs-page .workflow-label {
+  color: var(--docs-label);
+  font-size: 0.68rem;
+}
+body.docs-page .status-chip {
+  font-size: 0.76rem;
+  color: var(--text);
+}
+body.docs-page .docs-find-field,
+body.docs-page .docs-find-count {
+  color: var(--docs-hint);
+  font-size: 0.78rem;
+}
+body.docs-page .contract-banner {
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+body.docs-page .brand-card strong {
+  color: var(--text);
+  font-size: 0.9rem;
+}
+body.docs-page .brand-card span,
+body.docs-page #brandMeta {
+  color: var(--docs-hint);
+  font-size: 0.76rem;
+}
+body.docs-page .placeholder-check-list {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+body.docs-page .rail-section.muted {
+  background: color-mix(in srgb, var(--panel-2) 40%, transparent);
 }

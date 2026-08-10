@@ -3927,6 +3927,8 @@ def init_db():
         cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_set_by TEXT NOT NULL DEFAULT ''")
     if "contract_owner_updated_at" not in company_columns_new:
         cur.execute("ALTER TABLE companies ADD COLUMN contract_owner_updated_at TEXT NOT NULL DEFAULT ''")
+    if "contract_page_password_hash" not in company_columns_new:
+        cur.execute("ALTER TABLE companies ADD COLUMN contract_page_password_hash TEXT NOT NULL DEFAULT ''")
 
     session_columns_contracts = [row[1] for row in cur.execute("PRAGMA table_info(sessions)").fetchall()]
     if "contracts_unlocked_until" not in session_columns_contracts:

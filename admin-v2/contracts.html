@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" />
-  <link rel="stylesheet" href="/e2e-security.css?v=20260707e2e1" />
+  <link rel="stylesheet" href="/e2e-security.css?v=20260810e2e3" />
   <link rel="stylesheet" href="/ai-voice-ui.css?v=20260601voice13" />
   <style>
     :root {
@@ -345,11 +345,16 @@
   <div id="contractsLockOverlay" class="contracts-lock-overlay hidden" aria-modal="true" role="dialog">
     <div class="contracts-lock-card">
       <h2 id="lockTitle">Vertragszugang</h2>
-      <p id="lockDesc">Gehalt und Verträge sind geschützt. Nur der Firmeninhaber öffnet diesen Bereich per SMS-Code.</p>
-      <div id="lockSetupBlock" class="hidden">
-        <label><span data-cpi18n="lockPhoneLabel">Owner-Handy (mit Ländervorwahl)</span><input id="lockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+      <p id="lockDesc">Gehalt und Verträge sind geschützt. Zugang nur mit dem Vertrags-Passwort Ihrer Firma.</p>
+      <div id="lockPasswordBlock">
+        <label><span data-cpi18n="lockPasswordLabel">Vertrags-Passwort</span><input id="lockContractPassword" type="password" autocomplete="current-password" placeholder="••••••••" /></label>
+        <label id="lockPasswordConfirmWrap" class="hidden"><span data-cpi18n="lockPasswordConfirmLabel">Passwort wiederholen</span><input id="lockContractPasswordConfirm" type="password" autocomplete="new-password" placeholder="••••••••" /></label>
+        <p class="muted" style="font-size:0.72rem;margin:0.35rem 0 0;" data-cpi18n="lockPasswordHint">Der Superadmin / Inhaber vergibt dieses Passwort zusätzlich zum Firmen-Login.</p>
       </div>
-      <div id="lockEmailBlock">
+      <div id="lockSetupBlock" class="hidden">
+        <label><span data-cpi18n="lockPhoneLabel">Owner-Handy (optional, Alt)</span><input id="lockOwnerPhone" type="tel" placeholder="+49…" autocomplete="tel" /></label>
+      </div>
+      <div id="lockEmailBlock" class="hidden">
         <label><span id="lockEmailLabel" data-cpi18n="lockEmailLabel">Backup-E-Mail</span><input id="lockOwnerEmail" type="email" placeholder="owner@firma.de" autocomplete="email" /></label>
         <p id="lockDeliveryHint" class="muted" style="font-size:0.72rem;margin:0.25rem 0 0;"></p>
       </div>
@@ -359,8 +364,9 @@
       <p id="lockMsg" class="contracts-lock-msg"></p>
       <p id="lockRateHint" class="muted hidden" style="font-size:0.72rem;margin:0.2rem 0 0;"></p>
       <div class="contracts-lock-actions">
-        <button type="button" class="primary" id="lockSendBtn">Code senden</button>
-        <button type="button" class="primary hidden" id="lockVerifyBtn">Freischalten</button>
+        <button type="button" class="primary" id="lockPasswordBtn" data-cpi18n="lockPasswordUnlock">Freischalten</button>
+        <button type="button" class="primary hidden" id="lockSendBtn">Code senden</button>
+        <button type="button" class="primary hidden" id="lockVerifyBtn">Code prüfen</button>
         <button type="button" class="hidden" id="lockSkipSetupBtn">Später einrichten</button>
       </div>
     </div>
@@ -575,19 +581,19 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260723otp1"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260810pwd1"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260723harden2"></script>
-  <script src="/e2e-i18n.js?v=20260707e2e1"></script>
+  <script src="/e2e-i18n.js?v=20260810e2e2"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
-  <script src="/e2e-admin-bridge.js?v=20260707e2e1"></script>
+  <script src="/e2e-admin-bridge.js?v=20260810e2e2"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
   <script src="/embed-helpers.js?v=20260705c"></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260619theme1"></script>
-  <script src="/admin-v2/owner-unlock.js?v=20260725owner3"></script>
+  <script src="/admin-v2/owner-unlock.js?v=20260810pwd1"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260731lohn5"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260810lohn1"></script>
 </body>
 </html>
