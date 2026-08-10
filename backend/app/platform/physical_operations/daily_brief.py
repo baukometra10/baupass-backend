@@ -316,7 +316,7 @@ def build_attendance_brief(db, company_id: str) -> dict[str, Any]:
         "outsideHoursAttemptsToday": outside,
         "expectedToday": len(expected),
         "missingExpected": len(missing_workers),
-        "missingWorkers": missing_workers[:12],
+        "missingWorkers": missing_workers[:40],
         "workWindow": window,
     }
 

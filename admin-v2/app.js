@@ -5315,7 +5315,17 @@ async function loadInbox() {
     }
   }
   if (!items.length) {
-    el.innerHTML = `<div class="empty-state inbox-empty-state"><strong>${t("inbox.empty")}</strong><p class="muted small" style="margin:0.4rem 0 0">${t("inbox.emptyHint") || ""}</p></div>`;
+    const filterHint =
+      inboxSourceFilter === "attendance"
+        ? t("inbox.emptyAttendance")
+        : t("inbox.emptyHint") || "";
+    el.innerHTML = `<div class="empty-state inbox-empty-state"><strong>${t("inbox.empty")}</strong><p class="muted small" style="margin:0.4rem 0 0">${escapeHtml(filterHint)}</p>
+      ${inboxSourceFilter === "attendance" ? `<p style="margin:0.75rem 0 0"><button type="button" class="ghost" data-goto-tab="access">${escapeHtml(t("lage.openAccess"))}</button></p>` : ""}
+    </div>`;
+    el.querySelector("[data-goto-tab=\"access\"]")?.addEventListener("click", async () => {
+      switchToTab("access");
+      await loadAccess();
+    });
     return;
   }
   el.innerHTML = `<div class="inbox-mail-list">${items

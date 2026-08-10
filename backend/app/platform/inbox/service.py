@@ -29,11 +29,13 @@ def _parse_hhmm(value: str) -> tuple[int, int] | None:
     raw = str(value or "").strip()
     if len(raw) >= 16 and "T" in raw:
         raw = raw[11:16]
-    raw = raw[:5]
-    if len(raw) < 4 or ":" not in raw:
+    raw = raw.strip()
+    # Accept "7:00", "07:00", "7:00:00"
+    if ":" not in raw:
         return None
+    parts = raw.split(":")
     try:
-        hh, mm = int(raw[:2]), int(raw[3:5])
+        hh, mm = int(parts[0]), int(parts[1] if len(parts) > 1 else 0)
         if 0 <= hh <= 23 and 0 <= mm <= 59:
             return hh, mm
     except Exception:
@@ -61,6 +63,23 @@ def _missing_past_grace(worker: dict[str, Any], now_local: datetime) -> bool:
         return (now_local.hour, now_local.minute) >= (12, 0)
     # Flexible company (no work_start_time): skip time-based missing inbox.
     return False
+
+
+def _missing_inbox_eligible(worker: dict[str, Any], now_local: datetime) -> bool:
+    """Whether a missing worker should appear in the employer inbox.
+
+    Always show planned/expected absences that the Lage KPI counts — otherwise
+    "Fehlt heute: 2" opens an empty Posteingang. Grace only affects severity.
+    Flexible Mo–Fr fallback without company hours still stays out (no noise).
+    """
+    w = worker or {}
+    if _parse_hhmm(str(w.get("shiftStart") or "")) or _parse_hhmm(str(w.get("companyStart") or "")):
+        return True
+    reason = str(w.get("reason") or "")
+    if reason == "scheduled":
+        return True
+    # workday fallback without company hours: only after soft noon (same as grace)
+    return _missing_past_grace(w, now_local)
 
 
 def _acked_missing_worker_ids(db, company_id: str, work_date: str) -> set[str]:
@@ -828,20 +847,32 @@ def build_operations_inbox(
             if today and missing:
                 acked = _acked_missing_worker_ids(db, cid, today)
                 now_local = _now_local()
-                for w in missing[:25]:
+                for w in missing[:40]:
                     wid = str(w.get("workerId") or "").strip()
                     if not wid or wid in acked:
                         continue
-                    if not _missing_past_grace(w, now_local):
+                    if not _missing_inbox_eligible(w, now_local):
                         continue
+                    past_grace = _missing_past_grace(w, now_local)
                     name = str(w.get("name") or wid).strip()
                     loc = str(w.get("location") or "").strip()
-                    shift_s = str(w.get("shiftStart") or "").strip()
-                    shift_e = str(w.get("shiftEnd") or "").strip()
+                    shift_s = str(w.get("shiftStart") or w.get("companyStart") or "").strip()
+                    shift_e = str(w.get("shiftEnd") or w.get("companyEnd") or "").strip()
                     reason = str(w.get("reason") or "workday")
                     shift_bit = f" · Schicht {shift_s}–{shift_e}" if shift_s and shift_e else ""
                     loc_bit = f" · {loc}" if loc else ""
-                    sev = "high" if reason == "scheduled" and shift_s else "medium"
+                    if past_grace:
+                        sev = "high" if reason == "scheduled" and shift_s else "medium"
+                        msg = (
+                            f"Erwartet, noch kein Check-in{loc_bit}{shift_bit}. "
+                            "Bitte prüfen oder im Chat nachfragen."
+                        )
+                    else:
+                        sev = "info"
+                        msg = (
+                            f"Noch nicht eingecheckt{loc_bit}{shift_bit}. "
+                            "Noch im Toleranzfenster — erscheint bereits im Posteingang."
+                        )
                     items.append(
                         {
                             "id": f"miss:{today}:{wid}",
@@ -849,10 +880,7 @@ def build_operations_inbox(
                             "severity": sev,
                             "code": "missing_checkin",
                             "title": f"Fehlt heute · {name}",
-                            "message": (
-                                f"Erwartet, noch kein Check-in{loc_bit}{shift_bit}. "
-                                "Kenntnisnahme in der Inbox — kein Auto-Check-in."
-                            ),
+                            "message": msg,
                             "companyId": cid,
                             "workerId": wid,
                             "createdAt": f"{today}T08:00:00Z",
@@ -863,6 +891,7 @@ def build_operations_inbox(
                                 "shiftStart": shift_s,
                                 "shiftEnd": shift_e,
                                 "workDate": today,
+                                "pastGrace": past_grace,
                             },
                             "actions": [
                                 {
