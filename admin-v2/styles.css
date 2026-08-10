@@ -1398,17 +1398,134 @@ button.lage-alert-link:hover {
   color: #e2e8f0;
 }
 .inbox-detail-reason {
-  margin: 0.55rem 0;
-  padding: 0.55rem 0.7rem;
-  border-radius: 10px;
-  background: rgba(14, 116, 144, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.2);
+  margin: 0.85rem 0 0;
+  padding: 0.85rem 1rem;
+  border-left: 3px solid rgba(56, 189, 248, 0.55);
+  border-radius: 0 10px 10px 0;
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
 }
 .inbox-detail-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.65rem;
+}
+
+.inbox-mail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.inbox-mail-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.65rem;
+  align-items: start;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  background: rgba(8, 15, 28, 0.55);
+  cursor: pointer;
+  text-align: start;
+}
+
+.inbox-mail-row:hover,
+.inbox-mail-row:focus-visible {
+  border-color: rgba(56, 189, 248, 0.4);
+  outline: none;
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.inbox-mail-row.is-critical {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.inbox-mail-check {
+  padding-top: 0.15rem;
+}
+
+.inbox-mail-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.inbox-mail-from {
+  font-size: 0.95rem;
+}
+
+.inbox-mail-meta {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  flex-wrap: wrap;
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.inbox-mail-subject {
+  margin-top: 0.2rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.inbox-mail-preview {
+  margin-top: 0.2rem;
+  line-height: 1.4;
+}
+
+.inbox-mail-sla {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.inbox-letter {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.inbox-letter-meta {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(8, 15, 28, 0.45);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.inbox-letter-meta div {
+  display: flex;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.inbox-letter-meta span {
+  min-width: 4.5rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+}
+
+.inbox-letter-body {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+
+.inbox-letter-body p {
+  margin: 0 0 0.65rem;
+}
+
+.lage-inbox-hint {
+  margin: 0.15rem 0 0.75rem;
 }
 
 .sla-overdue {

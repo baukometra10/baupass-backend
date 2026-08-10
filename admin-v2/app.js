@@ -4855,6 +4855,7 @@ function renderInboxFilters(bySource = {}) {
     { id: "attendance", label: `${t("inbox.filterAttendance")} (${bySource.attendance ?? 0})` },
     { id: "chat", label: `${t("inbox.filterChat")} (${bySource.chat ?? 0})` },
     { id: "leave", label: `${t("inbox.filterLeave")} (${bySource.leave ?? 0})` },
+    { id: "deployment", label: `${t("inbox.filterDeployment")} (${bySource.deployment ?? 0})` },
     { id: "document", label: `${t("inbox.filterDocument")} (${bySource.document ?? 0})` },
     { id: "system", label: `${t("inbox.filterSystem")} (${bySource.system ?? 0})` },
   ];
@@ -4903,12 +4904,20 @@ function lageToneForCount(value, { warnAt = 1, alertAt = 3, invert = false } = {
   return "ok";
 }
 
-function renderLageKpi({ id, label, value, tone = "ok", hint = "" }) {
+function renderLageKpi({ id, label, value, tone = "ok", hint = "", inboxSource = null, gotoTab = null, href = null }) {
   const toneCls = ["ok", "warn", "alert", "info", "muted"].includes(tone) ? tone : "ok";
-  return `<button type="button" class="lage-kpi is-${toneCls}" data-lage-detail="${escapeAttr(id)}" title="${escapeAttr(hint || label)}">
+  const attrs = [`data-lage-kpi="${escapeAttr(id)}"`];
+  if (inboxSource != null) {
+    attrs.push(`data-goto-tab="inbox"`, `data-inbox-source="${escapeAttr(inboxSource)}"`);
+  } else if (gotoTab) {
+    attrs.push(`data-goto-tab="${escapeAttr(gotoTab)}"`);
+  } else if (href) {
+    attrs.push(`data-href="${escapeAttr(href)}"`);
+  }
+  return `<button type="button" class="lage-kpi is-${toneCls}" ${attrs.join(" ")} title="${escapeAttr(hint || label)}">
     <span class="lage-kpi-label">${escapeHtml(label)}</span>
     <strong class="lage-kpi-value">${escapeHtml(String(value ?? "—"))}</strong>
-    <span class="lage-kpi-hint">${escapeHtml(hint || t("lage.tapForDetails"))}</span>
+    <span class="lage-kpi-hint">${escapeHtml(hint || t("lage.tapOpenInbox"))}</span>
   </button>`;
 }
 
@@ -5008,16 +5017,45 @@ function inboxTitleForCode(code, fallback) {
   return t("inbox.alert.generic.title");
 }
 
+function splitInboxReason(message, details = {}) {
+  const fromDetails = String(details.reasonSummary || details.reason || details.note || "").trim();
+  let body = String(message || "").trim();
+  let reason = fromDetails;
+  if (!reason) {
+    const m = body.match(/^(.*?)(?:\s*[·•|]\s*)?(?:Grund|Reason|Why|السبب|سبب)\s*:\s*(.+)$/is);
+    if (m) {
+      body = m[1].trim();
+      reason = m[2].trim();
+    }
+  } else if (body) {
+    body = body.replace(/(?:\s*[·•|]\s*)?(?:Grund|Reason|Why|السبب|سبب)\s*:\s*.+$/is, "").trim();
+  }
+  return { body, reason };
+}
+
+function inboxFromName(it) {
+  const details = it?.details && typeof it.details === "object" ? it.details : {};
+  const named = String(details.workerName || details.fromName || "").trim();
+  if (named) return named;
+  const msg = String(it?.message || "").trim();
+  const before = msg.split(/[·:]/)[0]?.trim() || "";
+  if (before && before.length > 1 && before.length < 80 && !/^[a-z0-9_.-]+$/i.test(before)) {
+    return before;
+  }
+  return inboxSourceLabel(it?.source);
+}
+
 function localizeInboxItem(it) {
   const item = it || {};
   const code = String(item.code || "").trim();
-  const details = item.details && typeof item.details === "object" ? item.details : {};
+  const details = item.details && typeof item.details === "object" ? { ...item.details } : {};
+  const id = String(item.id || "");
+
   if (code === "outside_hours_checkin_attempt" || details.i18nKey === "outside_hours_checkin_attempt") {
     const channelKey = String(details.channel || "gps").trim().toLowerCase() || "gps";
     const channel = t(`inbox.alert.outsideHours.channel.${channelKey}`);
     const channelLabel = channel && !channel.startsWith("inbox.alert.") ? channel : channelKey.toUpperCase();
     const gateRaw = String(details.gate || "").trim();
-    // Hide technical gate ids; show only human gate names (letters/spaces)
     const gateHuman = gateRaw && /[a-zA-Z\u0600-\u06FF]{2,}/.test(gateRaw) && !/^[a-z0-9_]+$/i.test(gateRaw)
       ? ` (${gateRaw})`
       : "";
@@ -5034,18 +5072,20 @@ function localizeInboxItem(it) {
         gate: gateHuman,
         window: windowBit,
       }),
+      details: { ...details, workerName: name },
+      fromName: name,
     };
   }
   if (code === "repeated_late_checkin" || details.i18nKey === "repeated_late_checkin") {
     const name = String(details.workerName || "").trim() || "—";
     const streak = Number(details.streak || 0) || 0;
-    const reason = String(details.reasonSummary || "").trim();
+    const reasonText = String(details.reasonSummary || details.reason || "").trim();
     return {
       ...item,
       title: t("inbox.alert.repeatedLate.title"),
-      message: reason
-        ? `${t("inbox.alert.repeatedLate.body", { name, streak })} — ${reason}`
-        : t("inbox.alert.repeatedLate.body", { name, streak }),
+      message: t("inbox.alert.repeatedLate.body", { name, streak }),
+      details: { ...details, workerName: name, reasonSummary: reasonText },
+      fromName: name,
     };
   }
   if (code === "tomorrow_attendance_forecast" || details.i18nKey === "tomorrow_attendance_forecast") {
@@ -5061,14 +5101,66 @@ function localizeInboxItem(it) {
       }),
     };
   }
-  if (code === "deployment_worker_declined") {
-    return { ...item, title: t("inbox.alert.deploymentDeclined.title") };
+  if (code === "deployment_worker_declined" || id.startsWith("depdecl:")) {
+    const { body, reason } = splitInboxReason(item.message, details);
+    const name = String(details.workerName || "").trim() || body.split("·")[0]?.trim() || "—";
+    const date = String(details.workDate || "").trim();
+    const loc = String(details.location || "").trim();
+    const msg = t("inbox.alert.deploymentDeclined.body", {
+      name,
+      date: date || "—",
+      location: loc || "—",
+    });
+    return {
+      ...item,
+      title: t("inbox.alert.deploymentDeclined.title"),
+      message: msg,
+      details: { ...details, workerName: name, reasonSummary: reason || details.reasonSummary || "" },
+      fromName: name,
+    };
+  }
+  if (code === "leave_request_pending" || id.startsWith("leave:") || item.source === "leave") {
+    const { body, reason } = splitInboxReason(item.message, details);
+    const name = String(details.workerName || "").trim() || body.split(":")[0]?.trim() || "—";
+    const leaveType = String(details.leaveType || "").trim() || "—";
+    const start = String(details.startDate || "").trim() || "—";
+    const end = String(details.endDate || "").trim() || "—";
+    return {
+      ...item,
+      title: t("inbox.alert.leave.title"),
+      message: t("inbox.alert.leave.body", { name, type: leaveType, start, end }),
+      details: {
+        ...details,
+        workerName: name,
+        reasonSummary: reason || details.reasonSummary || details.note || "",
+      },
+      fromName: name,
+    };
+  }
+  if (code === "missing_checkin" || id.startsWith("miss:")) {
+    const name = String(details.workerName || "").trim() || "—";
+    const loc = String(details.location || "").trim();
+    const start = String(details.shiftStart || "").trim().slice(0, 5);
+    const end = String(details.shiftEnd || "").trim().slice(0, 5);
+    const shift = start && end ? `${start}–${end}` : "";
+    return {
+      ...item,
+      title: t("inbox.alert.missingCheckin.title", { name }),
+      message: t("inbox.alert.missingCheckin.body", {
+        name,
+        location: loc ? ` ${loc}` : "",
+        shift: shift ? ` (${shift})` : "",
+      }),
+      details: { ...details, workerName: name },
+      fromName: name,
+    };
   }
   if (code === "shift_swap_accepted") {
     return { ...item, title: t("inbox.alert.shiftSwap.title") };
   }
   const title = inboxTitleForCode(code, item.title);
-  let message = String(item.message || "").trim();
+  const split = splitInboxReason(item.message, details);
+  let message = split.body;
   if (!message || /^[a-z][a-z0-9_.-]*$/i.test(message)) {
     message = t("inbox.detail.noMessage");
   }
@@ -5076,6 +5168,8 @@ function localizeInboxItem(it) {
     ...item,
     title,
     message,
+    details: { ...details, reasonSummary: split.reason || details.reasonSummary || "" },
+    fromName: inboxFromName({ ...item, details, message }),
   };
 }
 
@@ -5200,7 +5294,7 @@ async function loadInbox() {
     el.innerHTML = `<div class="empty-state inbox-empty-state"><strong>${t("inbox.empty")}</strong><p class="muted small" style="margin:0.4rem 0 0">${t("inbox.emptyHint") || ""}</p></div>`;
     return;
   }
-  el.innerHTML = `<table><thead><tr><th></th><th>${t("inbox.colTitle")}</th><th>${t("inbox.colSla")}</th><th>${t("inbox.colSource")}</th><th>${t("inbox.colActions")}</th></tr></thead><tbody>${items
+  el.innerHTML = `<div class="inbox-mail-list">${items
     .map((raw) => {
       const it = localizeInboxItem(raw);
       const checked = inboxSelectedIds.has(it.id) ? " checked" : "";
@@ -5213,58 +5307,12 @@ async function loadInbox() {
             ? t("inbox.slaDueSoon")
             : it.slaDueAt
               ? t("inbox.slaUntil", { date: (it.slaDueAt || "").slice(0, 16).replace("T", " ") })
-              : "—";
-      const acts = (it.actions || [])
-        .map((a) => {
-          const label = inboxActionLabel(a);
-          if (a.type === "resolve" || a.type === "ack")
-            return `<button type="button" class="btn-link inbox-resolve" data-id="${it.id}">${escapeHtml(label)}</button>`;
-          if (a.type === "execute" && a.action)
-            return `<button type="button" class="btn-link inbox-exec" data-id="${it.id}" data-action="${escapeAttr(a.action)}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${escapeHtml(label)}</button>`;
-          if (a.type === "navigate") {
-            const url = String(a.url || "");
-            const isAiCenter = /ai-command-center\.html/i.test(url);
-            if (isAiCenter) {
-              const prompt =
-                a.prompt ||
-                t("inbox.aiPromptDefault", {
-                  title: it.title || "",
-                  message: it.message || "",
-                });
-              return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
-            }
-            const isDeployment =
-              String(it.id || "").startsWith("depdecl:") ||
-              url.includes("deployment-plan") ||
-              url.includes("einsatzplan");
-            if (isDeployment && it.workerId) {
-              const workerName = String(it.message || "")
-                .split("·")[0]
-                .trim();
-              return `<button type="button" class="btn-link inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeHtml(label)}</button>`;
-            }
-            const tabTarget = String(a.tab || "").trim() || (() => {
-              try {
-                return new URL(url, window.location.origin).searchParams.get("tab") || "";
-              } catch (_e) {
-                return "";
-              }
-            })();
-            if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
-              return `<button type="button" class="btn-link inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeHtml(label)}</button>`;
-            }
-            if (window.parent !== window && url.startsWith("/")) {
-              return `<button type="button" class="btn-link inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
-            }
-            return `<a class="btn-link" href="${escapeAttr(url)}${q}">${escapeHtml(label)}</a>`;
-          }
-          if (a.type === "prompt")
-            return `<button type="button" class="btn-link inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
-          if (a.type === "open")
-            return `<button type="button" class="btn-link inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(label)}</button>`;
-          return "";
-        })
-        .join(" · ");
+              : "";
+      const when = String(it.createdAt || "")
+        .slice(0, 16)
+        .replace("T", " ");
+      const from = it.fromName || inboxFromName(it);
+      const preview = String(it.details?.reasonSummary || it.message || "").trim();
       const sev = String(it.severity || "").toLowerCase();
       const sevBadge =
         sev === "critical" || sev === "high"
@@ -5272,14 +5320,26 @@ async function loadInbox() {
           : sev === "info" || sev === "low"
             ? "badge-ok"
             : "badge-warn";
-      return `<tr class="${sev === "critical" ? "row-critical" : ""} inbox-row" data-inbox-id="${escapeAttr(it.id)}" tabindex="0">
-        <td><input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" /> <span class="badge ${sevBadge}">${escapeHtml(inboxSeverityLabel(it.severity))}</span></td>
-        <td class="inbox-row-main"><strong>${escapeHtml(it.title || "")}</strong><br><span class="muted small">${escapeHtml(it.message || "")}</span></td>
-        <td class="${slaCls}">${slaLabel}</td>
-        <td>${escapeHtml(inboxSourceLabel(it.source))}</td>
-        <td>${acts}</td></tr>`;
+      return `<article class="inbox-mail-row${sev === "critical" ? " is-critical" : ""} inbox-row" data-inbox-id="${escapeAttr(it.id)}" tabindex="0" role="button">
+        <label class="inbox-mail-check" onclick="event.stopPropagation()">
+          <input type="checkbox" class="inbox-pick" data-id="${it.id}"${checked} aria-label="${t("inbox.selectAria")}" />
+        </label>
+        <div class="inbox-mail-main">
+          <div class="inbox-mail-top">
+            <strong class="inbox-mail-from">${escapeHtml(from)}</strong>
+            <span class="inbox-mail-meta">
+              <span class="badge ${sevBadge}">${escapeHtml(inboxSeverityLabel(it.severity))}</span>
+              <span class="inbox-mail-source">${escapeHtml(inboxSourceLabel(it.source))}</span>
+              ${when ? `<time datetime="${escapeAttr(String(it.createdAt || ""))}">${escapeHtml(when)}</time>` : ""}
+            </span>
+          </div>
+          <div class="inbox-mail-subject">${escapeHtml(it.title || t("inbox.alert.generic.title"))}</div>
+          <div class="inbox-mail-preview muted small">${escapeHtml(preview.slice(0, 160))}${preview.length > 160 ? "…" : ""}</div>
+          ${slaLabel ? `<div class="inbox-mail-sla ${slaCls}">${escapeHtml(slaLabel)}</div>` : ""}
+        </div>
+      </article>`;
     })
-    .join("")}</tbody></table>`;
+    .join("")}</div>`;
   const itemById = Object.fromEntries(items.map((it) => [it.id, it]));
   async function openInboxItem(itemId) {
     const raw = itemById[itemId];
@@ -5305,7 +5365,7 @@ async function loadInbox() {
             .join("")}</ul>
         </div>`
       : "";
-    const reason = String(details.reasonSummary || "").trim();
+    const reason = String(details.reasonSummary || details.reason || details.note || "").trim();
     const shouldAutoAck =
       Boolean(it.autoAckOnOpen) && String(it.id || "").startsWith("sys:") && it.status !== "resolved";
 
@@ -5388,33 +5448,108 @@ async function loadInbox() {
           );
         }
       }
+      if (code === "leave_request_pending" || String(it.id || "").startsWith("leave:")) {
+        pushFact(t("inbox.detail.worker"), details.workerName);
+        if (details.leaveType) pushFact(t("inbox.detail.leaveType"), details.leaveType);
+        if (details.startDate || details.endDate) {
+          pushFact(
+            t("inbox.detail.leavePeriod"),
+            `${details.startDate || "—"} – ${details.endDate || "—"}`,
+          );
+        }
+      }
+      if (code === "deployment_worker_declined" || String(it.id || "").startsWith("depdecl:")) {
+        pushFact(t("inbox.detail.worker"), details.workerName);
+        if (details.workDate) pushFact(t("inbox.detail.when"), details.workDate);
+        if (details.location) pushFact(t("inbox.detail.site"), details.location);
+      }
       pushFact(t("inbox.colSource"), inboxSourceLabel(it.source));
       pushFact(t("inbox.colSeverity"), inboxSeverityLabel(it.severity));
       const factsHtml = facts.length
         ? `<table class="inbox-detail-facts"><tbody>${facts.join("")}</tbody></table>`
         : "";
+      const from = it.fromName || inboxFromName(it);
+      const when = String(it.createdAt || "")
+        .slice(0, 19)
+        .replace("T", " ");
+      const bodyParas = String(it.message || t("inbox.detail.noMessage"))
+        .split(/\n+/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .map((p) => `<p>${escapeHtml(p)}</p>`)
+        .join("");
+      const actionBtns = (it.actions || [])
+        .map((a) => {
+          const label = inboxActionLabel(a);
+          if (a.type === "resolve" || a.type === "ack")
+            return `<button type="button" class="inbox-resolve" data-id="${it.id}">${escapeHtml(label)}</button>`;
+          if (a.type === "execute" && a.action)
+            return `<button type="button" class="inbox-exec" data-id="${it.id}" data-action="${escapeAttr(a.action)}" data-params="${encodeURIComponent(JSON.stringify(a.params || {}))}">${escapeHtml(label)}</button>`;
+          if (a.type === "navigate") {
+            const url = String(a.url || "");
+            const isAiCenter = /ai-command-center\.html/i.test(url);
+            if (isAiCenter) {
+              const prompt =
+                a.prompt ||
+                t("inbox.aiPromptDefault", {
+                  title: it.title || "",
+                  message: it.message || "",
+                });
+              return `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(prompt)}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
+            }
+            const isDeployment =
+              String(it.id || "").startsWith("depdecl:") ||
+              url.includes("deployment-plan") ||
+              url.includes("einsatzplan");
+            if (isDeployment && it.workerId) {
+              const workerName = String(from || "").trim();
+              return `<button type="button" class="inbox-nav-deployment" data-worker-id="${escapeAttr(String(it.workerId))}" data-worker-name="${escapeAttr(workerName)}">${escapeHtml(label)}</button>`;
+            }
+            const tabTarget = String(a.tab || "").trim() || (() => {
+              try {
+                return new URL(url, window.location.origin).searchParams.get("tab") || "";
+              } catch (_e) {
+                return "";
+              }
+            })();
+            if (tabTarget && document.querySelector(`.tab[data-tab="${tabTarget}"]`)) {
+              return `<button type="button" class="inbox-nav-tab" data-tab="${escapeAttr(tabTarget)}">${escapeHtml(label)}</button>`;
+            }
+            if (window.parent !== window && url.startsWith("/")) {
+              return `<button type="button" class="inbox-nav-parent" data-nav-url="${escapeAttr(url)}">${escapeHtml(label)}</button>`;
+            }
+            return `<a class="ghost" href="${escapeAttr(url)}${q}">${escapeHtml(label)}</a>`;
+          }
+          if (a.type === "prompt")
+            return `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(label)}</button>`;
+          if (a.type === "open")
+            return `<button type="button" class="inbox-open" data-id="${escapeAttr(it.id)}">${escapeHtml(label)}</button>`;
+          return "";
+        })
+        .filter(Boolean)
+        .join("");
       panel.classList.remove("hidden");
       panel.innerHTML = `
-      <div class="inbox-detail-head">
-        <div>
-          <p class="inbox-detail-kicker">${escapeHtml(inboxSourceLabel(it.source))} · ${escapeHtml(inboxSeverityLabel(it.severity))}</p>
-          <h3>${escapeHtml(it.title || t("inbox.alert.generic.title"))}</h3>
+      <article class="inbox-letter">
+        <div class="inbox-detail-head">
+          <div>
+            <p class="inbox-detail-kicker">${escapeHtml(inboxSourceLabel(it.source))} · ${escapeHtml(inboxSeverityLabel(it.severity))}</p>
+            <h3>${escapeHtml(it.title || t("inbox.alert.generic.title"))}</h3>
+          </div>
+          <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
         </div>
-        <button type="button" class="ghost small" id="inboxDetailClose">${t("common.close") || "Schließen"}</button>
-      </div>
-      <p class="inbox-detail-message">${escapeHtml(it.message || t("inbox.detail.noMessage"))}</p>
-      ${factsHtml}
-      ${reason ? `<p class="inbox-detail-reason"><strong>${t("inbox.reasonLabel")}</strong> ${escapeHtml(reason)}</p>` : ""}
-      ${eventHtml}
-      <div class="inbox-detail-actions">
-        ${(it.actions || [])
-          .filter((a) => a.type === "prompt")
-          .map(
-            (a) =>
-              `<button type="button" class="inbox-ai-analyze" data-id="${escapeAttr(it.id)}" data-prompt="${encodeURIComponent(a.prompt || "")}" data-agent="${escapeAttr(a.agent || "decision")}">${escapeHtml(inboxActionLabel(a))}</button>`,
-          )
-          .join("")}
-      </div>
+        <div class="inbox-letter-meta">
+          <div><span>${escapeHtml(t("inbox.mail.from"))}</span><strong>${escapeHtml(from)}</strong></div>
+          <div><span>${escapeHtml(t("inbox.mail.when"))}</span><strong>${escapeHtml(when || "—")}</strong></div>
+        </div>
+        <div class="inbox-letter-body">
+          ${bodyParas}
+          ${reason ? `<blockquote class="inbox-detail-reason"><strong>${escapeHtml(t("inbox.reasonLabel"))}</strong><br>${escapeHtml(reason)}</blockquote>` : ""}
+        </div>
+        ${factsHtml}
+        ${eventHtml}
+        <div class="inbox-detail-actions">${actionBtns}</div>
+      </article>
     `;
       panel.querySelector("#inboxDetailClose")?.addEventListener("click", () => {
         panel.classList.add("hidden");
@@ -5422,6 +5557,103 @@ async function loadInbox() {
       });
       panel.querySelectorAll(".inbox-ai-analyze").forEach((btn) => {
         btn.addEventListener("click", () => runInboxAiAnalyze(btn).catch((e) => showActionToast(e.message, true)));
+      });
+      panel.querySelectorAll(".inbox-resolve").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          try {
+            const res = await api(`/api/inbox/${encodeURIComponent(btn.dataset.id)}/resolve${q}`, {
+              method: "POST",
+              body: "{}",
+            });
+            showActionToast(res.ok ? t("common.done") : res.error || t("common.error"), !res.ok);
+            await loadInbox();
+          } catch (e) {
+            showActionToast(e.message, true);
+          }
+        });
+      });
+      panel.querySelectorAll(".inbox-exec").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.id || "";
+          const action = btn.dataset.action || "";
+          if (id.startsWith("leave:") && (action === "approve_leave_request" || action === "reject_leave_request")) {
+            const decision = action === "approve_leave_request" ? "approve" : "reject";
+            try {
+              const res = await api(`/api/inbox/${encodeURIComponent(id)}/resolve${q}`, {
+                method: "POST",
+                body: JSON.stringify({ decision }),
+              });
+              const msg = res.ok
+                ? `${decision === "approve" ? t("inbox.approved") : t("inbox.rejected")}. ${formatPushDelivery(res)}`
+                : res.error || t("common.error");
+              showActionToast(msg, !res.ok);
+              await loadInbox();
+            } catch (e) {
+              showActionToast(e.message, true);
+            }
+            return;
+          }
+          try {
+            const params = JSON.parse(decodeURIComponent(btn.dataset.params || "%7B%7D"));
+            const cid = q.replace("?company_id=", "");
+            const res = await api("/api/ai/actions/execute", {
+              method: "POST",
+              body: JSON.stringify({ action, params, company_id: cid || undefined }),
+            });
+            const pushMsg = formatPushDelivery(res);
+            showActionToast(
+              res.ok ? `${action} ✓${pushMsg ? ` — ${pushMsg}` : ""}` : res.error || t("common.error"),
+              !res.ok,
+            );
+            await loadInbox();
+          } catch (e) {
+            showActionToast(e.message, true);
+          }
+        });
+      });
+      panel.querySelectorAll(".inbox-nav-tab").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const tab = String(btn.dataset.tab || "").trim();
+          if (tab) switchToTab(tab);
+        });
+      });
+      panel.querySelectorAll(".inbox-nav-parent").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const raw = String(btn.dataset.navUrl || "").trim();
+          if (!raw) return;
+          try {
+            const u = new URL(raw, window.location.origin);
+            const view = u.searchParams.get("view") || "";
+            window.parent.postMessage(
+              {
+                type: "baupass-navigate",
+                view,
+                focusEinsatzplan: u.searchParams.get("einsatzplan") === "1",
+                url: u.pathname + u.search + u.hash,
+              },
+              window.location.origin,
+            );
+          } catch (_e) {
+            window.location.href = raw;
+          }
+        });
+      });
+      panel.querySelectorAll(".inbox-nav-deployment").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const workerId = String(btn.dataset.workerId || "").trim();
+          const workerName = String(btn.dataset.workerName || "").trim();
+          if (!workerId) return;
+          try {
+            switchToTab("workers");
+            await loadWorkers();
+            await openDeploymentModal(workerId, workerName || workerId);
+          } catch (e) {
+            showActionToast(e.message, true);
+          }
+        });
+      });
+      panel.querySelectorAll(".inbox-open").forEach((btn) => {
+        btn.addEventListener("click", () => openInboxItem(btn.dataset.id).catch((e) => showActionToast(e.message, true)));
       });
     }
 
@@ -6422,17 +6654,8 @@ async function loadOverview() {
             <span class="badge">${repeatedLate.length}</span>
           </div>
           <p class="muted small" style="margin:0.35rem 0 0">${t("overview.repeatedLateHint")}</p>
-          <ul style="margin:0.45rem 0 0;padding-left:1.1rem">
-            ${repeatedLate
-              .map(
-                (w) =>
-                  `<li><strong>${escapeHtml(w.name || w.workerId || "")}</strong>
-                    <span class="muted"> — ${t("overview.repeatedLateStreak", { n: w.streak ?? 0 })}</span></li>`,
-              )
-              .join("")}
-          </ul>
           <p class="muted small" style="margin:0.5rem 0 0">
-            <button type="button" class="btn-link" data-goto-tab="inbox">${t("overview.openInbox")}</button>
+            <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="attendance">${t("overview.openInbox")}</button>
           </p>
         </div>`
       : "";
@@ -6458,6 +6681,7 @@ async function loadOverview() {
       ${lateHtml}`;
     fp.querySelector("[data-goto-tab=\"inbox\"]")?.addEventListener("click", async () => {
       switchToTab("inbox");
+      inboxSourceFilter = fp.querySelector("[data-goto-tab=\"inbox\"]")?.getAttribute("data-inbox-source") || "";
       await loadInbox();
     });
   } else if (fp) {
@@ -6542,165 +6766,10 @@ async function loadOverview() {
       : watchEnabled
         ? `<span class="badge">${t("lage.watchStandby")}</span>`
         : `<span class="badge">${t("lage.watchOff")}</span>`;
-    const lateList = (att.lateWorkers || [])
-      .slice(0, 8)
-      .map((w) => {
-        const name = employerCleanText(w.name) || t("lage.unknownWorker");
-        const time = employerCleanText(String(w.time || "").slice(0, 5)) || "—";
-        const gate = employerCleanText(w.gate) || "";
-        return `<li class="lage-alert-item">
-          <div class="lage-alert-item-main">
-            <strong>${escapeHtml(name)}</strong>
-            <span class="lage-alert-meta">${escapeHtml(time)}${gate ? ` · ${escapeHtml(gate)}` : ""}</span>
-          </div>
-        </li>`;
-      });
-    const missingList = (att.missingWorkers || [])
-      .slice(0, 10)
-      .map((w) => {
-        const name = employerCleanText(w.name) || employerCleanText(w.workerId) || t("lage.unknownWorker");
-        const shift =
-          w.shiftStart && w.shiftEnd
-            ? `${String(w.shiftStart).slice(0, 5)}–${String(w.shiftEnd).slice(0, 5)}`
-            : "";
-        const loc = employerCleanText(w.location) || "";
-        const chat =
-          w.workerId && q
-            ? `<a class="lage-alert-link" href="/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(w.workerId)}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`
-            : "";
-        return `<li class="lage-alert-item">
-          <div class="lage-alert-item-main">
-            <strong>${escapeHtml(name)}</strong>
-            <span class="lage-alert-meta">${escapeHtml([loc, shift].filter(Boolean).join(" · ") || t("lage.notCheckedInYet"))}</span>
-          </div>
-          ${chat}
-        </li>`;
-      });
-    const secItems = (secBrief.items || [])
-      .slice(0, 6)
-      .map((it) => {
-        const label = employerCleanText(it.title) || t("lage.securityItem");
-        const href = it.href || "";
-        const title = href
-          ? `<a class="lage-alert-link" href="${escapeAttr(href)}">${escapeHtml(label)}</a>`
-          : `<strong>${escapeHtml(label)}</strong>`;
-        const src = employerCleanText(it.source) || inboxSourceLabel(it.source) || "";
-        return `<li class="lage-alert-item"><div class="lage-alert-item-main">${title}<span class="lage-alert-meta">${escapeHtml(src)}</span></div></li>`;
-      });
-    const chatItems = (chatBrief.items || [])
-      .slice(0, 8)
-      .map((it) => {
-        const who = employerCleanText(it.workerName) || t("lage.unknownWorker");
-        const kind =
-          it.kind === "callback_requested" ? t("lage.chatCallback") : t("lage.chatMissed");
-        const link =
-          it.href ||
-          (it.workerId && q
-            ? `/admin-v2/chat.html${q}&worker_id=${encodeURIComponent(it.workerId)}`
-            : "");
-        const action = link
-          ? `<a class="lage-alert-link" href="${escapeAttr(link)}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`
-          : "";
-        return `<li class="lage-alert-item">
-          <div class="lage-alert-item-main">
-            <strong>${escapeHtml(kind)}</strong>
-            <span class="lage-alert-meta">${escapeHtml(who)}</span>
-          </div>
-          ${action}
-        </li>`;
-      });
-    const hrItems = (hrBrief.items || [])
-      .slice(0, 8)
-      .map((it) => {
-        if (it.kind === "docs_review") {
-          const title = employerCleanText(it.docTitle || it.title) || t("lage.hrReview");
-          const link = it.href
-            ? `<a class="lage-alert-link" href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${escapeHtml(t("common.open"))}</a>`
-            : "";
-          return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrReview"))}</strong><span class="lage-alert-meta">${escapeHtml(title)}</span></div>${link}</li>`;
-        }
-        const who = employerCleanText(it.workerName) || t("lage.unknownWorker");
-        if (it.kind === "leave") {
-          const range = [it.startDate, it.endDate].filter(Boolean).join(" – ") || "—";
-          return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrLeave"))}</strong><span class="lage-alert-meta">${escapeHtml(who)} · ${escapeHtml(range)}</span></div></li>`;
-        }
-        const doc = employerCleanText(it.docType) || t("lage.hrDoc");
-        const exp = employerCleanText(it.expiryDate) || "—";
-        const link = it.href
-          ? `<a class="lage-alert-link" href="${escapeAttr(it.href)}" target="_blank" rel="noopener">${escapeHtml(t("common.open"))}</a>`
-          : "";
-        return `<li class="lage-alert-item"><div class="lage-alert-item-main"><strong>${escapeHtml(t("lage.hrDoc"))}</strong><span class="lage-alert-meta">${escapeHtml(who)} · ${escapeHtml(doc)} · ${escapeHtml(exp)}</span></div>${link}</li>`;
-      });
-    const escHtml = (camLayer.latestEscalations || [])
-      .slice(0, 3)
-      .map((e) => {
-        const cam = employerCleanText(e.cameraName || e.cameraId) || t("lage.securityItem");
-        const police = employerCleanText(e.policeName || e.details?.police?.station?.name) || "";
-        return `<li class="lage-alert-item">
-          <div class="lage-alert-item-main">
-            <strong>${escapeHtml(cam)}</strong>
-            <span class="lage-alert-meta">${escapeHtml(police || t("lage.watchEscalations"))}</span>
-          </div>
-          <button type="button" class="lage-alert-link camera-esc-ack" data-id="${escapeAttr(e.id)}">${escapeHtml(t("lage.watchAck"))}</button>
-        </li>`;
-      });
-
-    const detailBundles = {
-      onSite: {
-        title: t("lage.onSite"),
-        body: t("lage.detail.onSiteBody", { n: onSite }),
-        rows: "",
-      },
-      checkIns: {
-        title: t("lage.checkIns"),
-        body: t("lage.detail.checkInsBody", { n: checkIns }),
-        rows: "",
-      },
-      expected: {
-        title: t("lage.expectedToday"),
-        body: t("lage.detail.expectedBody", { n: expectedToday }),
-        rows: "",
-      },
-      missing: {
-        title: t("lage.missingToday"),
-        body: t("lage.detail.missingBody", { n: missingToday }),
-        rows: renderLagePersonRows(missingList, "lage.missingEmpty"),
-      },
-      late: {
-        title: t("lage.lateToday"),
-        body: t("lage.detail.lateBody", { n: lateToday }),
-        rows: renderLagePersonRows(lateList, "lage.attendanceEmpty"),
-      },
-      outside: {
-        title: t("lage.outsideHours"),
-        body: t("lage.detail.outsideBody", { n: outsideToday }),
-        rows: "",
-      },
-      cameras: {
-        title: t("lage.camerasOnline"),
-        body: t("lage.detail.camerasBody", { online: camsOnline, total: camList.length }),
-        rows: "",
-      },
-      security: {
-        title: t("lage.security"),
-        body: t("lage.detail.securityBody", { n: securityOpen }),
-        rows: renderLagePersonRows([...secItems, ...escHtml], "lage.securityEmpty"),
-      },
-      chat: {
-        title: t("lage.chatOpen"),
-        body: t("lage.detail.chatBody", { n: chatOpen, missed: missedCallsOpen, callback: callbackOpen }),
-        rows: renderLagePersonRows(chatItems, "lage.chatEmpty"),
-      },
-      hr: {
-        title: t("lage.hrOpen"),
-        body: t("lage.detail.hrBody", { n: hrOpen, leave: pendingLeave, docs: expiringDocs, review: inReviewDocs }),
-        rows: renderLagePersonRows(hrItems, "lage.hrEmpty"),
-      },
-      inbox: {
-        title: t("lage.inbox"),
-        body: t("lage.detail.inboxBody", { n: openInbox }),
-        rows: "",
-      },
+    const openInboxFromLage = async (source = "") => {
+      switchToTab("inbox");
+      inboxSourceFilter = source || "";
+      await loadInbox();
     };
 
     lage.innerHTML = `
@@ -6711,87 +6780,27 @@ async function loadOverview() {
         </div>
         <div style="display:flex;gap:0.35rem;align-items:center;flex-wrap:wrap">${liveBadge}${watchBadge}</div>
       </div>
+      <p class="muted small lage-inbox-hint">${escapeHtml(t("lage.inboxHint", { window: workWinLabel }))}</p>
       <div class="lage-grid">
-        ${renderLageKpi({ id: "onSite", label: t("lage.onSite"), value: onSite, tone: lageToneForCount(onSite, { invert: true, warnAt: 1 }), hint: t("lage.tapForDetails") })}
-        ${renderLageKpi({ id: "checkIns", label: t("lage.checkIns"), value: checkIns, tone: "info" })}
-        ${renderLageKpi({ id: "expected", label: t("lage.expectedToday"), value: expectedToday, tone: "info" })}
-        ${renderLageKpi({ id: "missing", label: t("lage.missingToday"), value: missingToday, tone: lageToneForCount(missingToday) })}
-        ${renderLageKpi({ id: "late", label: t("lage.lateToday"), value: lateToday, tone: lageToneForCount(lateToday) })}
-        ${renderLageKpi({ id: "outside", label: t("lage.outsideHours"), value: outsideToday, tone: lageToneForCount(outsideToday) })}
-        ${renderLageKpi({ id: "cameras", label: t("lage.camerasOnline"), value: `${camsOnline}/${camList.length}`, tone: camsOnline < camList.length ? "warn" : "ok" })}
-        ${renderLageKpi({ id: "security", label: t("lage.security"), value: securityOpen, tone: lageToneForCount(securityOpen) })}
-        ${renderLageKpi({ id: "chat", label: t("lage.chatOpen"), value: chatOpen, tone: lageToneForCount(chatOpen) })}
-        ${renderLageKpi({ id: "hr", label: t("lage.hrOpen"), value: hrOpen, tone: lageToneForCount(hrOpen) })}
-        ${renderLageKpi({ id: "inbox", label: t("lage.inbox"), value: openInbox, tone: lageToneForCount(openInbox) })}
-      </div>
-      <aside class="lage-detail-drawer" id="lageDetailDrawer" hidden>
-        <div class="lage-detail-head">
-          <div>
-            <h4 id="lageDetailTitle"></h4>
-            <p class="muted small" id="lageDetailBody"></p>
-          </div>
-          <button type="button" class="ghost small" id="lageDetailClose">${escapeHtml(t("common.close"))}</button>
-        </div>
-        <div id="lageDetailRows"></div>
-        <div class="lage-detail-actions" id="lageDetailActions"></div>
-      </aside>
-      <div class="lage-watch-block is-attendance">
-        <div class="lage-block-head">
-          <strong>${t("lage.attendanceTitle")}</strong>
-          <span class="lage-block-chip">${escapeHtml(workWinLabel)}</span>
-        </div>
-        <p class="muted small">${t("lage.attendanceHint")}</p>
-        ${renderLagePersonRows(missingList, "lage.missingEmpty")}
-        ${lateList.length ? `<p class="lage-block-sub"><strong>${t("lage.lateListTitle")}</strong></p>${renderLagePersonRows(lateList, "lage.attendanceEmpty")}` : ""}
-        <div class="lage-block-actions">
-          <button type="button" class="btn-link" data-goto-tab="tools">${t("lage.openWorkTimes")}</button>
-          <button type="button" class="btn-link" data-goto-tab="access">${t("lage.openAccess")}</button>
-          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="attendance">${t("lage.openInboxSecurity")}</button>
-        </div>
-      </div>
-      <div class="lage-watch-block is-security">
-        <div class="lage-block-head"><strong>${t("lage.securityTitle")}</strong></div>
-        <p class="muted small">${t("lage.securityHint")} · ${t("lage.watchNoAutodial")}</p>
-        <p class="muted small">${t("lage.watchEscalations")}: <strong>${openEsc}</strong> · ${t("lage.securityEngineOpen")}: <strong>${Number(secBrief.openSecurityAlerts || 0)}</strong></p>
-        ${renderLagePersonRows([...secItems, ...escHtml], "lage.securityEmpty")}
-        <div class="lage-block-actions">
-          <a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>
-          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="security">${t("overview.inbox")}</button>
-        </div>
-      </div>
-      <div class="lage-watch-block is-chat">
-        <div class="lage-block-head"><strong>${t("lage.chatTitle")}</strong></div>
-        <p class="muted small">${t("lage.chatHint")}</p>
-        <p class="muted small">${t("lage.chatMissed")}: <strong>${missedCallsOpen}</strong> · ${t("lage.chatCallback")}: <strong>${callbackOpen}</strong></p>
-        ${renderLagePersonRows(chatItems, "lage.chatEmpty")}
-        <div class="lage-block-actions">
-          <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
-          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="chat">${t("lage.openInboxChat")}</button>
-        </div>
-      </div>
-      <div class="lage-watch-block is-hr">
-        <div class="lage-block-head"><strong>${t("lage.hrTitle")}</strong></div>
-        <p class="muted small">${t("lage.hrHint")}</p>
-        <p class="muted small">${t("lage.hrLeave")}: <strong>${pendingLeave}</strong> · ${t("lage.hrDoc")}: <strong>${expiringDocs}</strong> · ${t("lage.hrReview")}: <strong>${inReviewDocs}</strong></p>
-        ${renderLagePersonRows(hrItems, "lage.hrEmpty")}
-        <div class="lage-block-actions">
-          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="leave">${t("lage.openInboxLeave")}</button>
-          <button type="button" class="btn-link" data-goto-tab="inbox" data-inbox-source="document">${t("lage.openInboxDocs")}</button>
-          <a href="/admin-v2/docs.html${q}${q ? "&" : "?"}status=in_review" target="_blank" rel="noopener">${t("lage.openDocsReview")}</a>
-        </div>
-      </div>
-      <div class="lage-watch-block is-watch">
-        <div class="lage-block-head"><strong>${t("lage.watchTitle")}</strong></div>
-        <p class="muted small">${t("lage.watchHint", { start: watch.workStart || camLayer.workStart || "06:00", end: watch.workEnd || camLayer.workEnd || "18:00" })}</p>
-        <p class="muted small">${t("lage.watchMode")}: <strong>${watchActive ? t("lage.watchOn") : t("lage.watchIdle")}</strong></p>
+        ${renderLageKpi({ id: "onSite", label: t("lage.onSite"), value: onSite, tone: lageToneForCount(onSite, { invert: true, warnAt: 1 }), gotoTab: "access", hint: t("lage.openAccess") })}
+        ${renderLageKpi({ id: "checkIns", label: t("lage.checkIns"), value: checkIns, tone: "info", gotoTab: "access", hint: t("lage.openAccess") })}
+        ${renderLageKpi({ id: "expected", label: t("lage.expectedToday"), value: expectedToday, tone: "info", gotoTab: "access", hint: t("lage.openAccess") })}
+        ${renderLageKpi({ id: "missing", label: t("lage.missingToday"), value: missingToday, tone: lageToneForCount(missingToday), inboxSource: "attendance" })}
+        ${renderLageKpi({ id: "late", label: t("lage.lateToday"), value: lateToday, tone: lageToneForCount(lateToday), inboxSource: "attendance" })}
+        ${renderLageKpi({ id: "outside", label: t("lage.outsideHours"), value: outsideToday, tone: lageToneForCount(outsideToday), inboxSource: "attendance" })}
+        ${renderLageKpi({ id: "cameras", label: t("lage.camerasOnline"), value: `${camsOnline}/${camList.length}`, tone: camsOnline < camList.length ? "warn" : "ok", href: `/admin-v2/camera-watch.html${q}` })}
+        ${renderLageKpi({ id: "security", label: t("lage.security"), value: securityOpen, tone: lageToneForCount(securityOpen), inboxSource: "security" })}
+        ${renderLageKpi({ id: "chat", label: t("lage.chatOpen"), value: chatOpen, tone: lageToneForCount(chatOpen), inboxSource: "chat" })}
+        ${renderLageKpi({ id: "hr", label: t("lage.hrOpen"), value: hrOpen, tone: lageToneForCount(hrOpen), inboxSource: "leave" })}
+        ${renderLageKpi({ id: "inbox", label: t("lage.inbox"), value: openInbox, tone: lageToneForCount(openInbox), inboxSource: "" })}
       </div>
       <div class="lage-actions">
-        <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
-        <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("lage.openCommand")}</a>
-        <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
+        <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.openInbox")}</button>
         <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
+        <a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>
         <button type="button" class="ghost" data-goto-tab="access">${t("lage.openAccess")}</button>
-        <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.inbox")}</button>
+        <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
+        <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
       </div>
       <div class="lage-map-embed">
         <iframe
@@ -6803,75 +6812,21 @@ async function loadOverview() {
       </div>
     `;
 
-    const drawer = lage.querySelector("#lageDetailDrawer");
-    const openLageDetail = (id) => {
-      const pack = detailBundles[id];
-      if (!pack || !drawer) return;
-      drawer.hidden = false;
-      const titleEl = drawer.querySelector("#lageDetailTitle");
-      const bodyEl = drawer.querySelector("#lageDetailBody");
-      const rowsEl = drawer.querySelector("#lageDetailRows");
-      const actionsEl = drawer.querySelector("#lageDetailActions");
-      if (titleEl) titleEl.textContent = pack.title || "";
-      if (bodyEl) bodyEl.textContent = pack.body || "";
-      if (rowsEl) rowsEl.innerHTML = pack.rows || "";
-      if (actionsEl) {
-        const actionMap = {
-          missing: `<button type="button" class="ghost" data-goto-tab="access">${escapeHtml(t("lage.openAccess"))}</button>`,
-          late: `<button type="button" class="ghost" data-goto-tab="access">${escapeHtml(t("lage.openAccess"))}</button>`,
-          chat: `<a class="ghost" href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${escapeHtml(t("lage.openChat"))}</a>`,
-          hr: `<button type="button" class="ghost" data-goto-tab="inbox" data-inbox-source="leave">${escapeHtml(t("lage.openInboxLeave"))}</button>`,
-          security: `<a class="ghost" href="/admin-v2/camera-watch.html${q}">${escapeHtml(t("cameraWatch.open"))}</a>`,
-          inbox: `<button type="button" class="ghost" data-goto-tab="inbox">${escapeHtml(t("overview.inbox"))}</button>`,
-        };
-        actionsEl.innerHTML = actionMap[id] || "";
-        actionsEl.querySelectorAll("[data-goto-tab]").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            const tab = btn.getAttribute("data-goto-tab");
-            switchToTab(tab);
-            if (tab === "inbox") {
-              inboxSourceFilter = btn.getAttribute("data-inbox-source") || "";
-              await loadInbox();
-            } else if (tab === "access") await loadAccess();
-          });
-        });
-      }
-      drawer.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    };
-
-    lage.querySelector("#lageDetailClose")?.addEventListener("click", () => {
-      if (drawer) drawer.hidden = true;
-    });
-    lage.querySelectorAll("[data-lage-detail]").forEach((btn) => {
-      btn.addEventListener("click", () => openLageDetail(btn.getAttribute("data-lage-detail")));
-    });
     lage.querySelectorAll("[data-goto-tab]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const tab = btn.getAttribute("data-goto-tab");
-        switchToTab(tab);
         if (tab === "inbox") {
-          inboxSourceFilter = btn.getAttribute("data-inbox-source") || "security";
-          await loadInbox();
-        } else if (tab === "access") await loadAccess();
-        else if (tab === "tools") {
-          /* tools tab hosts work times */
+          await openInboxFromLage(btn.getAttribute("data-inbox-source") || "");
+          return;
         }
+        switchToTab(tab);
+        if (tab === "access") await loadAccess();
       });
     });
-    lage.querySelectorAll(".camera-esc-ack").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-id");
-        if (!id) return;
-        try {
-          await api(`/api/integrations/cameras/escalations/${encodeURIComponent(id)}/ack${q}`, {
-            method: "POST",
-            body: JSON.stringify({ securityNotified: true }),
-          });
-          showActionToast(t("lage.watchAckOk"));
-          await loadOverview();
-        } catch (e) {
-          showActionToast(e.message || t("common.error"), true);
-        }
+    lage.querySelectorAll("[data-href]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const href = btn.getAttribute("data-href");
+        if (href) window.location.href = href;
       });
     });
   } else if (lage) {

@@ -552,7 +552,9 @@ def build_operations_inbox(
                     seen_decline.add(key)
                     reason = str(dec.get("reason") or "").strip()
                     loc = str(dec.get("location") or "").strip() or "—"
-                    msg = f"{dec.get('workerName') or 'Mitarbeiter'} · {dec.get('workDate')} · {loc}"
+                    worker_name = str(dec.get("workerName") or "Mitarbeiter").strip() or "Mitarbeiter"
+                    work_date = str(dec.get("workDate") or "").strip()
+                    msg = f"{worker_name} · {work_date} · {loc}"
                     if reason:
                         msg += f" · Grund: {reason}"
                     items.append(
@@ -560,12 +562,20 @@ def build_operations_inbox(
                             "id": f"depdecl:{key}",
                             "source": "deployment",
                             "severity": "high",
+                            "code": "deployment_worker_declined",
                             "title": "Einsatz abgelehnt",
                             "message": msg[:500],
                             "companyId": cid,
                             "workerId": dec.get("workerId"),
                             "createdAt": _coerce_iso_timestamp(dec.get("respondedAt")) or _now_iso(),
                             "status": "open",
+                            "details": {
+                                "workerName": worker_name,
+                                "workDate": work_date,
+                                "location": loc if loc != "—" else "",
+                                "reason": reason,
+                                "reasonSummary": reason,
+                            },
                             "actions": [
                                 {
                                     "type": "navigate",
@@ -704,7 +714,7 @@ def build_operations_inbox(
             rows = db.execute(
                 """
                 SELECT lr.id, lr.worker_id, lr.type, lr.start_date, lr.end_date, lr.status,
-                       lr.created_at, w.first_name, w.last_name
+                       lr.note, lr.created_at, w.first_name, w.last_name
                 FROM leave_requests lr
                 JOIN workers w ON w.id = lr.worker_id
                 WHERE (w.company_id = ? OR lr.company_id = ?) AND lr.status IN ('pending', 'ausstehend')
@@ -715,17 +725,30 @@ def build_operations_inbox(
             ).fetchall()
             for r in rows:
                 name = f"{r['first_name']} {r['last_name']}".strip()
+                note = str(r["note"] or "").strip()
+                msg = f"{name}: {r['type']} {r['start_date']} – {r['end_date']}"
+                if note:
+                    msg += f" · Grund: {note}"
                 items.append(
                     {
                         "id": f"leave:{r['id']}",
                         "source": "leave",
                         "severity": "medium",
+                        "code": "leave_request_pending",
                         "title": "Urlaubsantrag offen",
-                        "message": f"{name}: {r['type']} {r['start_date']} – {r['end_date']}",
+                        "message": msg[:500],
                         "companyId": cid,
                         "workerId": r["worker_id"],
                         "createdAt": _coerce_iso_timestamp(r["created_at"]) or _now_iso(),
                         "status": "open",
+                        "details": {
+                            "workerName": name,
+                            "leaveType": str(r["type"] or "").strip(),
+                            "startDate": str(r["start_date"] or "").strip(),
+                            "endDate": str(r["end_date"] or "").strip(),
+                            "note": note,
+                            "reasonSummary": note,
+                        },
                         "actions": [
                             {
                                 "type": "navigate",
@@ -798,6 +821,13 @@ def build_operations_inbox(
                             "workerId": wid,
                             "createdAt": f"{today}T08:00:00Z",
                             "status": "open",
+                            "details": {
+                                "workerName": name,
+                                "location": loc,
+                                "shiftStart": shift_s,
+                                "shiftEnd": shift_e,
+                                "workDate": today,
+                            },
                             "actions": [
                                 {
                                     "type": "resolve",
