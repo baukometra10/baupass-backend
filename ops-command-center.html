@@ -249,11 +249,31 @@
     </nav>
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
-  <script src="/embed-helpers.js?v=20260705b"></script>
+  <script src="/embed-helpers.js?v=20260810ops1"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
-  <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
-  <script src="/ops-realtime.js?v=20260726ws1"></script>
-  <script src="/ai-operator-fab.js?v=20260725p"></script>
+  <script>
+    // Heavy realtime/CDN scripts load after first paint — they previously blocked "Laden…" for seconds.
+    (function loadOpsRealtimeDeferred() {
+      const add = (src, attrs) => {
+        const s = document.createElement("script");
+        s.src = src;
+        s.async = true;
+        Object.entries(attrs || {}).forEach(([k, v]) => s.setAttribute(k, v));
+        document.head.appendChild(s);
+        return s;
+      };
+      const io = add("https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js", {
+        crossorigin: "anonymous",
+      });
+      io.onload = () => {
+        add("/ops-realtime.js?v=20260726ws1");
+      };
+      io.onerror = () => {
+        add("/ops-realtime.js?v=20260726ws1");
+      };
+      add("/ai-operator-fab.js?v=20260725p");
+    })();
+  </script>
   <script>
     const UI_LANG_KEY = "baupass-ui-lang";
     const OPS_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
@@ -691,7 +711,7 @@
     };
 
     const qs = new URLSearchParams(location.search);
-    const companyId = qs.get("company_id") || "";
+    let companyId = qs.get("company_id") || "";
     const mapLink = document.getElementById("mapLink");
     if (mapLink && companyId) mapLink.href = `/ops-live-map.html?company_id=${encodeURIComponent(companyId)}`;
 
@@ -1762,7 +1782,7 @@
       }
     }
 
-    function apiSoft(path, fallback, timeoutMs = 5000, options = {}) {
+    function apiSoft(path, fallback, timeoutMs = 2500, options = {}) {
       return Promise.race([
         api(path, options).catch(() => fallback),
         new Promise((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
@@ -1773,10 +1793,9 @@
     async function loadMeCached() {
       if (cachedMe) return cachedMe;
       try {
-        cachedMe = await loadMe();
-      } catch (e) {
+        cachedMe = await apiSoft("/api/me", null, 2000);
+      } catch {
         cachedMe = null;
-        throw e;
       }
       return cachedMe;
     }
@@ -1919,48 +1938,50 @@
           return;
         }
 
-        if (focusLohn) {
-          const [lohnMessages, dataAlerts, periodRequests] = await Promise.all([
-            loadLohnMessages(),
-            loadDataAlerts(),
-            loadLohnPeriodRequests(),
-          ]);
-          lastLohnState.messages = lohnMessages;
-          lastLohnState.alerts = dataAlerts;
-          lastLohnState.periodRequests = periodRequests;
-          updateLohnHeaderChip(lohnMessages);
-          render(
-            lastPayload || { date: "—", scope: companyId ? "company" : "global", totals: {}, companies: [] },
-            lastForecast,
-            lastGuardianBundle || { status: null, history: [] },
-            lastLohnState.batches || [],
-            lastLohnState.link,
-            dataAlerts,
-            lohnMessages,
-            lastLohnState.preview,
-            periodRequests,
-          );
-          if (location.hash === "#lohnHub") {
-            document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-          if (mode === "lohn") {
-            status.textContent = `${lastStatusDate} · ${tr("live")}`;
-            return;
-          }
+        // Always paint Lohn + light shell first (sub-second), then fill heavy widgets.
+        const [lohnMessages, dataAlerts, periodRequests] = await Promise.all([
+          loadLohnMessages(),
+          loadDataAlerts(),
+          loadLohnPeriodRequests(),
+        ]);
+        lastLohnState.messages = lohnMessages;
+        lastLohnState.alerts = dataAlerts;
+        lastLohnState.periodRequests = periodRequests;
+        updateLohnHeaderChip(lohnMessages);
+        render(
+          lastPayload || {
+            date: "—",
+            scope: companyId ? "company" : "global",
+            totals: {},
+            companies: [],
+          },
+          lastForecast,
+          lastGuardianBundle || { status: null, history: [] },
+          lastLohnState.batches || [],
+          lastLohnState.link,
+          dataAlerts,
+          lohnMessages,
+          lastLohnState.preview,
+          periodRequests,
+        );
+        if (location.hash === "#lohnHub") {
+          document.getElementById("lohnHub")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (mode === "lohn") {
+          status.textContent = `${lastStatusDate} · ${tr("live")}`;
+          return;
         }
 
         let url = "/api/ops-os/command-center";
         if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const [data, forecast, guardianBundle, payrollBatches, lohnLink, dataAlerts, lohnMessages, employeePreview, periodRequests] = await Promise.all([
-          apiSoft(url, lastPayload || { totals: {}, companies: [] }, 6000),
+        const [data, forecast, guardianBundle, payrollBatches, lohnLink, employeePreview] = await Promise.all([
+          apiSoft(url, lastPayload || { totals: {}, companies: [] }, 3500),
           loadForecast(),
           loadGuardianBundle(),
           loadPayrollPending(),
           loadLohnPlatformLink(),
-          loadDataAlerts(),
-          loadLohnMessages(),
-          loadLohnEmployeePreview(),
-          loadLohnPeriodRequests(),
+          // Employee preview is heavy — only when a company is selected
+          companyId ? loadLohnEmployeePreview() : Promise.resolve(null),
         ]);
         lastLohnState = {
           messages: lohnMessages,
@@ -1971,7 +1992,9 @@
           periodRequests,
         };
         render(
-          data,
+          data && (data.totals || data.companies)
+            ? data
+            : lastPayload || { date: "—", scope: companyId ? "company" : "global", totals: {}, companies: [] },
           forecast,
           guardianBundle,
           payrollBatches,
@@ -2232,7 +2255,7 @@
       }
     })();
 
-    async function waitForEmbedSession(maxMs = 900) {
+    async function waitForEmbedSession(maxMs = 400) {
       const embedded =
         qs.get("embed") === "1" ||
         (window.BaupassEmbed?.isEmbedMode?.() && window.self !== window.top);
@@ -2240,7 +2263,7 @@
       const deadline = Date.now() + maxMs;
       while (Date.now() < deadline) {
         if (window.BaupassAuth?.getSessionToken?.()) return;
-        await new Promise((resolve) => setTimeout(resolve, 40));
+        await new Promise((resolve) => setTimeout(resolve, 30));
       }
     }
 
@@ -2249,7 +2272,15 @@
     window.addEventListener("message", (event) => {
       if (event.origin !== location.origin || !event?.data) return;
       if (event.data.type === "baupass-sync-token" && event.data.token && loadScheduled) {
-        load({ mode: location.hash === "#lohnHub" ? "lohn" : "full" }).catch(() => {});
+        const nextCid = String(event.data.companyId || "").trim();
+        if (nextCid && nextCid !== companyId) {
+          companyId = nextCid;
+          const map = document.getElementById("mapLink");
+          if (map) map.href = `/ops-live-map.html?company_id=${encodeURIComponent(companyId)}`;
+        }
+        load({ mode: "lohn" })
+          .then(() => load({ mode: "full" }))
+          .catch(() => {});
       }
     });
 
@@ -2257,21 +2288,21 @@
     (async () => {
       loadScheduled = true;
       try {
-        await waitForEmbedSession();
-        if (window.BaupassAuth?.bootstrapSession) {
-          await window.BaupassAuth.bootstrapSession();
+        await waitForEmbedSession(400);
+        // Skip bootstrap when parent already synced a token (saves a round-trip).
+        if (!window.BaupassAuth?.getSessionToken?.() && window.BaupassAuth?.bootstrapSession) {
+          await Promise.race([
+            window.BaupassAuth.bootstrapSession(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("bootstrap_timeout")), 2000)),
+          ]).catch(() => {});
         }
       } catch {
         // load() surfaces auth errors in the grid
       }
-      // Branding in background — don't block first paint
       window.BaupassAuth?.resolveTenantBranding?.({ companyId })?.catch?.(() => {});
-      const firstMode = location.hash === "#lohnHub" ? "lohn" : "full";
-      await load({ mode: firstMode });
-      if (firstMode === "lohn") {
-        // Fill remaining ops widgets without blocking Lohn hub
-        load({ mode: "full" }).catch(() => {});
-      }
+      // First paint always via Lohn-fast path, then full widgets in background.
+      await load({ mode: "lohn" });
+      load({ mode: "full" }).catch(() => {});
       if (lohnPollTimer) clearInterval(lohnPollTimer);
       lohnPollTimer = setInterval(() => {
         if (!lohnActionBusy) refreshLohnOnly().catch(() => {});
