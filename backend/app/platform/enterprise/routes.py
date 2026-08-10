@@ -15,6 +15,11 @@ from flask import Blueprint, g, jsonify, request
 
 enterprise_bp = Blueprint("enterprise", __name__)
 
+_PLATFORM_CAPS_CACHE: dict[str, tuple[float, dict]] = {}
+_PLATFORM_CAPS_TTL_SEC = 20.0
+_PLATFORM_SETUP_CACHE: tuple[float, dict] | None = None
+_PLATFORM_SETUP_TTL_SEC = 15.0
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
@@ -946,7 +951,20 @@ def register_enterprise_routes(flask_app):
         from backend.app.platform.capabilities import collect_platform_capabilities
         from backend.server import DB_PATH
 
-        return jsonify(collect_platform_capabilities(Path(DB_PATH)))
+        global _PLATFORM_CAPS_CACHE
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        key = str(DB_PATH)
+        now = time.monotonic()
+        if not force:
+            hit = _PLATFORM_CAPS_CACHE.get(key)
+            if hit and now - hit[0] < _PLATFORM_CAPS_TTL_SEC:
+                return jsonify(hit[1])
+        payload = collect_platform_capabilities(Path(DB_PATH))
+        _PLATFORM_CAPS_CACHE[key] = (now, payload)
+        if len(_PLATFORM_CAPS_CACHE) > 8:
+            _PLATFORM_CAPS_CACHE.clear()
+            _PLATFORM_CAPS_CACHE[key] = (now, payload)
+        return jsonify(payload)
 
     @enterprise_bp.get("/platform/setup-status")
     @require_auth
@@ -954,7 +972,14 @@ def register_enterprise_routes(flask_app):
     def platform_setup_status():
         from backend.app.platform.setup_status import collect_setup_status
 
-        return jsonify(collect_setup_status())
+        global _PLATFORM_SETUP_CACHE
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        now = time.monotonic()
+        if not force and _PLATFORM_SETUP_CACHE and now - _PLATFORM_SETUP_CACHE[0] < _PLATFORM_SETUP_TTL_SEC:
+            return jsonify(_PLATFORM_SETUP_CACHE[1])
+        payload = collect_setup_status()
+        _PLATFORM_SETUP_CACHE = (now, payload)
+        return jsonify(payload)
 
     @enterprise_bp.get("/platform/enterprise-catalog/preview")
     def platform_enterprise_catalog_preview():

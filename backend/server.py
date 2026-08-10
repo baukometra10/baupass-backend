@@ -2023,17 +2023,45 @@ def apply_security_headers(response):
         or path.startswith("/worker-icon-")
     )
 
+    content_type = (response.headers.get("Content-Type") or "").lower()
+    has_version_query = bool(str(request.args.get("v") or "").strip())
+    is_versioned_static = has_version_query and any(
+        path.endswith(ext)
+        for ext in (
+            ".js",
+            ".css",
+            ".mjs",
+            ".map",
+            ".woff",
+            ".woff2",
+            ".ttf",
+            ".svg",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".ico",
+            ".json",
+        )
+    )
+
     if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
     elif is_pwa_asset:
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
+    elif "text/html" in content_type:
+        # HTML shells must stay fresh (embed/ops fixes), but versioned static assets below can cache.
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["Pragma"] = "no-cache"
+    elif is_versioned_static and response.status_code == 200:
+        # Cache-bust via ?v=… — safe long cache for JS/CSS/fonts/icons.
+        response.headers["Cache-Control"] = "public, max-age=604800, immutable"
     else:
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Pragma"] = "no-cache"
 
-    content_type = (response.headers.get("Content-Type") or "").lower()
     if "text/html" in content_type:
         response.headers["Content-Language"] = "de"
         response.headers["X-Robots-Tag"] = "notranslate"

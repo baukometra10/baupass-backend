@@ -18835,7 +18835,7 @@ function buildEnterpriseEmbedUrl(item) {
   const params = [];
   if (item.embed) {
     params.push("embed=1");
-    params.push("v=20260810opsfix2");
+    params.push("v=20260810speed1");
   } else if (item.version) {
     params.push("v=20260601hubupgrade1");
   }
@@ -18990,6 +18990,85 @@ function requestEinsatzplanEditor(options = {}) {
     "error",
     7000,
   );
+}
+
+function warmEnterpriseEmbed(viewName, { force = false } = {}) {
+  const meta = ENTERPRISE_EMBED_META[viewName];
+  if (!meta || !token || !state.currentUser) return;
+  const iframe = document.getElementById(meta.frameId);
+  if (!iframe) return;
+  const item =
+    ENTERPRISE_NAV_ITEMS.find((entry) => entry.view === viewName) ||
+    (viewName === "admin-v2" ? ADMIN_V2_EMBED_ITEM : null) ||
+    ENTERPRISE_NAV_ITEMS.find((entry) => entry.id === meta.defaultItemId);
+  if (!item) return;
+  let url = buildEnterpriseEmbedUrl(item);
+  const prevSrc = iframe.getAttribute("src") || "";
+  if (!force && prevSrc && prevSrc !== "about:blank" && !prevSrc.startsWith("about:")) {
+    // Already warmed — only refresh token.
+    try {
+      iframe.contentWindow?.postMessage(
+        {
+          type: "baupass-sync-token",
+          token,
+          companyId: getEffectiveUiCompanyId(),
+          lang: getStoredUiLang(),
+        },
+        window.location.origin,
+      );
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+  iframe.setAttribute("src", url);
+  if (iframe.dataset.baupassTokenSyncBound !== "1") {
+    iframe.dataset.baupassTokenSyncBound = "1";
+    iframe.addEventListener("load", () => {
+      try {
+        iframe.contentWindow?.postMessage(
+          {
+            type: "baupass-sync-token",
+            token,
+            companyId: getEffectiveUiCompanyId(),
+            lang: getStoredUiLang(),
+          },
+          window.location.origin,
+        );
+      } catch {
+        /* ignore */
+      }
+    });
+  }
+}
+
+function scheduleCriticalEmbedWarm() {
+  if (scheduleCriticalEmbedWarm._armed) return;
+  scheduleCriticalEmbedWarm._armed = true;
+  const run = () => {
+    if (!token || !state.currentUser) return;
+    // Warm the two heaviest embeds in the background so first open feels instant.
+    warmEnterpriseEmbed("admin-v2");
+    window.setTimeout(() => warmEnterpriseEmbed("ops-center"), 1200);
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(() => run(), { timeout: 3500 });
+  } else {
+    window.setTimeout(run, 1800);
+  }
+}
+
+function bindEnterpriseNavPrefetch() {
+  if (bindEnterpriseNavPrefetch._bound) return;
+  bindEnterpriseNavPrefetch._bound = true;
+  const warmFromEvent = (event) => {
+    const link = event.target?.closest?.("[data-view]");
+    const view = link?.dataset?.view;
+    if (!view || !ENTERPRISE_EMBED_META[view]) return;
+    warmEnterpriseEmbed(view);
+  };
+  document.addEventListener("pointerenter", warmFromEvent, true);
+  document.addEventListener("focusin", warmFromEvent, true);
 }
 
 function loadEnterpriseEmbed(viewName) {
@@ -21145,12 +21224,15 @@ function refreshAll() {
   applyDeepLinkViewFromUrl();
   if (loggedIn) {
     broadcastSessionToEmbeds();
+    bindEnterpriseNavPrefetch();
+    scheduleCriticalEmbedWarm();
     if (getCurrentViewName() === "dashboard") {
       startPlatformHealthPoll();
     } else if (canViewPlatformHealth()) {
       void refreshPlatformHealth();
     }
   } else {
+    scheduleCriticalEmbedWarm._armed = false;
     stopPlatformHealthPoll();
   }
 }
@@ -35922,24 +36004,79 @@ async function processStillImageBackground(dataUrl) {
   }
 }
 
+function ensureScriptOnce(src, attrs = {}) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-baupass-src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === "1") {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`script_load_failed:${src}`)), { once: true });
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.dataset.baupassSrc = src;
+    Object.entries(attrs || {}).forEach(([k, v]) => {
+      if (v != null) s.setAttribute(k, v);
+    });
+    s.onload = () => {
+      s.dataset.loaded = "1";
+      resolve();
+    };
+    s.onerror = () => reject(new Error(`script_load_failed:${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureMediaPipeSelfieLoaded() {
+  if (typeof SelfieSegmentation === "function") return true;
+  await ensureScriptOnce(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/selfie_segmentation.js",
+    { crossorigin: "anonymous" },
+  );
+  return typeof SelfieSegmentation === "function";
+}
+
+async function ensureSignotecLibLoaded() {
+  if (window.STPadServerLib) return true;
+  await ensureScriptOnce("/vendor/signotec/STPadServerLib.js?v=3.5.0");
+  return Boolean(window.STPadServerLib);
+}
+
 function initSelfieSegmenter() {
   if (selfieSegmenter) {
     return Promise.resolve(selfieSegmenter);
   }
-  return new Promise((resolve, reject) => {
-    const seg = new SelfieSegmentation({
-      locateFile: (file) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/${file}`
-    });
-    // Model 0 gives cleaner edges than the fast landscape model.
-    seg.setOptions({ modelSelection: 0 });
-    seg.onResults(() => {});
-    seg.initialize().then(() => {
-      selfieSegmenter = seg;
-      resolve(selfieSegmenter);
-    }).catch(reject);
-  });
+  return ensureMediaPipeSelfieLoaded().then(
+    () =>
+      new Promise((resolve, reject) => {
+        if (typeof SelfieSegmentation !== "function") {
+          reject(new Error("mediapipe_unavailable"));
+          return;
+        }
+        const seg = new SelfieSegmentation({
+          locateFile: (file) =>
+            `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation@0.1.1675465747/${file}`,
+        });
+        // Model 0 gives cleaner edges than the fast landscape model.
+        seg.setOptions({ modelSelection: 0 });
+        seg.onResults(() => {});
+        seg.initialize()
+          .then(() => {
+            selfieSegmenter = seg;
+            resolve(selfieSegmenter);
+          })
+          .catch(reject);
+      }),
+  );
 }
+
+window.ensureSignotecLibLoaded = ensureSignotecLibLoaded;
+window.ensureMediaPipeSelfieLoaded = ensureMediaPipeSelfieLoaded;
 
 async function removeBackgroundML(canvas, context) {
   try {

@@ -13,15 +13,15 @@ from flask import Blueprint, Response, g, jsonify, request
 ops_os_bp = Blueprint("physical_operations", __name__)
 
 _OVERVIEW_CACHE: dict[str, tuple[float, dict]] = {}
-_OVERVIEW_TTL_SEC = 25.0
+_OVERVIEW_TTL_SEC = 35.0
 _OVERVIEW_LAYER_CACHE: dict[str, tuple[float, object]] = {}
-_OVERVIEW_LAYER_TTL_SEC = 8.0
+_OVERVIEW_LAYER_TTL_SEC = 12.0
 _LIVE_MAP_CACHE: dict[str, tuple[float, dict]] = {}
-_LIVE_MAP_TTL_SEC = 1.0
+_LIVE_MAP_TTL_SEC = 4.0
 _COMMAND_CENTER_CACHE: dict[str, tuple[float, dict]] = {}
-_COMMAND_CENTER_TTL_SEC = 5.0
+_COMMAND_CENTER_TTL_SEC = 12.0
 _DAILY_BRIEF_CACHE: dict[str, tuple[float, dict]] = {}
-_DAILY_BRIEF_TTL_SEC = 6.0
+_DAILY_BRIEF_TTL_SEC = 10.0
 _COPILOT_CONTEXT_CACHE: dict[str, tuple[float, dict]] = {}
 _COPILOT_CONTEXT_TTL_SEC = 8.0
 _WORKFORCE_GRAPH_CACHE: dict[str, tuple[float, dict]] = {}

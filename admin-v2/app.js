@@ -7034,11 +7034,24 @@ async function loadOverview() {
     return;
   }
   const cid = activeCompanyId() || q.replace("?company_id=", "");
-  $("statCards").innerHTML = `
+  const cacheKey = `${cid || "-"}:${q}`;
+  const cached =
+    loadOverview._cache?.key === cacheKey && Date.now() - (loadOverview._cache?.at || 0) < 20000
+      ? loadOverview._cache.data
+      : null;
+  if (cached?.workforce) {
+    const wf = cached.workforce || {};
+    $("statCards").innerHTML = `
+    <div class="card card-metric"><span class="muted">${t("overview.onSite")}</span><strong>${wf.onSite ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.activeWorkers")}</span><strong>${wf.totalActive ?? 0}</strong></div>
+    <div class="card card-metric"><span class="muted">${t("overview.geofenceZones")}</span><strong>${cached.zonesCount ?? 0}</strong></div>`;
+  } else {
+    $("statCards").innerHTML = `
     <div class="card card-skeleton"><span class="muted">${t("overview.onSite")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.activeWorkers")}</span><strong>…</strong></div>
     <div class="card card-skeleton"><span class="muted">${t("overview.geofenceZones")}</span><strong>…</strong></div>`;
-  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, null, 5000);
+  }
+  const overviewP = apiSoft(`/api/v2/admin/overview${q}`, cached || null, 5000);
   const billingP = withTimeout(loadBillingSummaryPanel(cid), 4000, null);
   const secondaryP = Promise.all([
     withTimeout(fetchInboxCountsCached(q), 3500, { counts: {} }),
@@ -7052,7 +7065,8 @@ async function loadOverview() {
       ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 4000)
       : Promise.resolve(null),
   ]);
-  const overview = (await overviewP) || {};
+  const overview = (await overviewP) || cached || {};
+  loadOverview._cache = { key: cacheKey, at: Date.now(), data: overview };
   const wfEarly = overview.workforce || {};
   $("statCards").innerHTML = `
     <div class="card card-metric"><span class="muted">${t("overview.onSite")}</span><strong>${wfEarly.onSite ?? 0}</strong></div>
