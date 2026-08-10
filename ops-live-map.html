@@ -926,6 +926,158 @@
       font-size: 0.8rem;
       line-height: 1.4;
     }
+    body.side-collapsed .side {
+      width: 0 !important;
+      max-width: 0 !important;
+      min-width: 0 !important;
+      opacity: 0;
+      pointer-events: none;
+      border: none;
+      overflow: hidden;
+    }
+    body.side-collapsed .legend {
+      inset-inline-end: 12px;
+    }
+    .map-float-tools {
+      position: absolute;
+      top: 12px;
+      inset-inline-end: 12px;
+      z-index: 520;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      justify-content: flex-end;
+      max-width: min(92vw, 420px);
+      pointer-events: none;
+    }
+    .map-float-tools button {
+      pointer-events: auto;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.88), rgba(8, 15, 28, 0.78));
+      color: #e2e8f0;
+      border-radius: 999px;
+      padding: 0.38rem 0.7rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+    .map-float-tools button:hover {
+      transform: translateY(-1px);
+      border-color: rgba(45, 212, 191, 0.65);
+    }
+    .map-float-tools button.is-active {
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.85), rgba(15, 118, 110, 0.8));
+      border-color: rgba(45, 212, 191, 0.8);
+      color: #ecfeff;
+    }
+    .command-hud {
+      position: absolute;
+      left: 50%;
+      top: 14px;
+      transform: translateX(-50%);
+      z-index: 510;
+      display: none;
+      gap: 0.55rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 16px;
+      border: 1px solid rgba(125, 211, 252, 0.28);
+      background: linear-gradient(160deg, rgba(8, 15, 28, 0.82), rgba(15, 23, 42, 0.72));
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+      pointer-events: none;
+    }
+    body.command-mode .command-hud {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: min(94vw, 720px);
+    }
+    body.command-mode .ops-header-brand-copy #status,
+    body.command-mode .ops-stat-chips {
+      opacity: 0.35;
+    }
+    .command-hud-metric {
+      min-width: 4.6rem;
+      text-align: center;
+      padding: 0.15rem 0.45rem;
+    }
+    .command-hud-metric strong {
+      display: block;
+      font-size: 1.55rem;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+      color: #f8fafc;
+    }
+    .command-hud-metric span {
+      display: block;
+      margin-top: 0.12rem;
+      font-size: 0.68rem;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    .command-hud-metric.is-alert strong { color: #fbbf24; }
+    .command-hud-metric.is-ok strong { color: #5eead4; }
+    .map-alert-flash {
+      position: absolute;
+      inset: 0;
+      z-index: 480;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(ellipse at center, rgba(45, 212, 191, 0.18), transparent 65%);
+    }
+    .map-alert-flash.is-warn {
+      background: radial-gradient(ellipse at center, rgba(251, 191, 36, 0.22), transparent 65%);
+    }
+    .map-alert-flash.is-on {
+      animation: mapFlash 0.85s ease-out 1;
+    }
+    @keyframes mapFlash {
+      0% { opacity: 0; }
+      20% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    .map-toast {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      z-index: 530;
+      max-width: min(90vw, 420px);
+      padding: 0.55rem 0.85rem;
+      border-radius: 12px;
+      border: 1px solid rgba(125, 211, 252, 0.35);
+      background: rgba(15, 23, 42, 0.92);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      font-weight: 650;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+      text-align: center;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+    }
+    .map-toast.is-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .map-alert-flash.is-on { animation: none; opacity: 0.35; }
+      .map-toast { transition: none; }
+    }
+    @media (max-width: 800px) {
+      body.side-collapsed .side {
+        max-height: 0 !important;
+        height: 0 !important;
+      }
+      .command-hud-metric strong { font-size: 1.25rem; }
+    }
     .nearest-box { display: flex; flex-direction: column; gap: 0.3rem; }
     .nearest-box .btn-link, #nearestBtn {
       font-size: 0.75rem;
@@ -1420,12 +1572,27 @@
         <option value="it">IT</option><option value="pl">PL</option>
       </select>
       <button type="button" id="themeToggleBtn" title="Dunkelmodus / Hellmodus" aria-label="Theme">🌙</button>
+      <button type="button" id="commandModeBtn" data-omapi18n="commandMode">Kommando</button>
       <button type="button" id="refreshBtn" data-omapi18n="refresh">Aktualisieren</button>
     </nav>
   </header>
   <div class="wrap">
     <div class="map-stage">
       <div id="map"></div>
+      <div class="map-float-tools">
+        <button type="button" id="toggleSideBtn" data-omapi18n="toggleSidebar">Liste ausblenden</button>
+        <button type="button" id="heatToggleBtn" data-omapi18n="heatDensity">Dichte</button>
+        <button type="button" id="alertsToggleBtn" class="is-active" data-omapi18n="liveAlerts">Alerts</button>
+      </div>
+      <div class="command-hud" id="commandHud" aria-live="polite">
+        <div class="command-hud-metric is-ok" id="cmdOnSite"><strong>0</strong><span data-omapi18n="chipOnSite">vor Ort</span></div>
+        <div class="command-hud-metric" id="cmdWorking"><strong>0</strong><span data-omapi18n="chipWorking">arbeitet</span></div>
+        <div class="command-hud-metric" id="cmdBreak"><strong>0</strong><span data-omapi18n="chipBreak">Pause</span></div>
+        <div class="command-hud-metric is-alert" id="cmdMissing"><strong>0</strong><span data-omapi18n="chipMissing">fehlt</span></div>
+        <div class="command-hud-metric" id="cmdLatency"><strong>—</strong><span data-omapi18n="latencyLabel">Latenz</span></div>
+      </div>
+      <div class="map-alert-flash" id="mapAlertFlash" aria-hidden="true"></div>
+      <div class="map-toast" id="mapToast" role="status" aria-live="polite"></div>
       <div id="mapEmptyState" class="map-empty-state" hidden aria-live="polite">
         <div class="map-empty-card">
           <div class="map-empty-pulse" aria-hidden="true"></div>
@@ -1469,6 +1636,16 @@
                 <input type="checkbox" id="liveTrailToggle" />
                 <span data-omapi18n="liveTrail">Live Spur folgen</span>
               </label>
+              <label>
+                <input type="checkbox" id="heatDensityToggle" />
+                <span data-omapi18n="heatDensity">Dichte-Heatmap</span>
+              </label>
+            </div>
+            <div class="map-view-controls">
+              <label>
+                <input type="checkbox" id="liveAlertsToggle" checked />
+                <span data-omapi18n="liveAlerts">Live-Alerts</span>
+              </label>
             </div>
           </div>
         </details>
@@ -1498,9 +1675,10 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260810map3"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map4"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
   <script src="/ops-realtime.js?v=20260726ws1"></script>
   <script>
@@ -1607,6 +1785,16 @@
     let clusterWorkers = true;
     let liveTrailEnabled = false;
     let trailPolyline = null;
+    let trailPulseTimer = 0;
+    let trailLiveTimer = 0;
+    let heatLayer = null;
+    let heatEnabled = false;
+    let alertsEnabled = true;
+    let commandMode = false;
+    let knownWorkerIds = null;
+    let lastMissingCount = null;
+    let mapToastTimer = 0;
+    let audioCtx = null;
     let mapZoomSyncBound = false;
     let trailRefreshInFlight = false;
     let mapCoordEventsBound = false;
@@ -2137,9 +2325,46 @@
         try { map.removeLayer(trailPolyline); } catch (_) {}
         trailPolyline = null;
       }
+      if (trailPulseTimer) {
+        window.clearInterval(trailPulseTimer);
+        trailPulseTimer = 0;
+      }
       clearLayers("trail");
       const panel = document.getElementById("trailPanel");
       if (panel) panel.hidden = true;
+    }
+
+    function trailLiveColor(t) {
+      // Cyan → teal pulse for an “alive” feel.
+      const phase = (Math.sin((t || performance.now()) / 320) + 1) / 2;
+      const r = Math.round(45 + phase * 40);
+      const g = Math.round(212 - phase * 30);
+      const b = Math.round(191 + phase * 30);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function startTrailPulse() {
+      if (trailPulseTimer) window.clearInterval(trailPulseTimer);
+      if (!trailPolyline || !liveTrailEnabled) return;
+      trailPulseTimer = window.setInterval(() => {
+        if (!trailPolyline || !liveTrailEnabled) return;
+        try {
+          trailPolyline.setStyle({
+            color: trailLiveColor(),
+            weight: 4,
+            opacity: 0.92,
+          });
+        } catch (_) { /* ignore */ }
+      }, 220);
+    }
+
+    function ensureTrailLiveRefresh() {
+      if (trailLiveTimer) window.clearInterval(trailLiveTimer);
+      trailLiveTimer = 0;
+      if (!liveTrailEnabled) return;
+      trailLiveTimer = window.setInterval(() => {
+        refreshSelectedTrail();
+      }, 1000);
     }
 
     async function showWorkerTrail(worker, options = {}) {
@@ -2153,8 +2378,15 @@
         clearTrail();
         const pts = (trail.points || []).map((p) => [p.lat, p.lng]);
         if (pts.length >= 2) {
-          trailPolyline = L.polyline(pts, { color: "#5eead4", weight: 3, opacity: 0.85 }).addTo(map);
+          trailPolyline = L.polyline(pts, {
+            color: liveTrailEnabled ? trailLiveColor() : "#5eead4",
+            weight: liveTrailEnabled ? 4 : 3,
+            opacity: 0.9,
+            lineCap: "round",
+            lineJoin: "round",
+          }).addTo(map);
           layers.trail.push(trailPolyline);
+          if (liveTrailEnabled) startTrailPulse();
           if (!keepView) map.fitBounds(trailPolyline.getBounds(), { padding: [30, 30], maxZoom: 18 });
         } else if (!keepView && worker.lat != null) {
           map.setView([worker.lat, worker.lng], 17);
@@ -2185,6 +2417,178 @@
       trailRefreshInFlight = true;
       Promise.resolve(showWorkerTrail(worker, { keepView: true }))
         .finally(() => { trailRefreshInFlight = false; });
+    }
+
+    function showMapToast(message) {
+      const el = document.getElementById("mapToast");
+      if (!el || !message) return;
+      el.textContent = message;
+      el.classList.add("is-visible");
+      if (mapToastTimer) window.clearTimeout(mapToastTimer);
+      mapToastTimer = window.setTimeout(() => {
+        el.classList.remove("is-visible");
+      }, 3200);
+    }
+
+    function flashMap(kind) {
+      const el = document.getElementById("mapAlertFlash");
+      if (!el) return;
+      el.classList.remove("is-on", "is-warn");
+      void el.offsetWidth;
+      if (kind === "warn") el.classList.add("is-warn");
+      el.classList.add("is-on");
+      window.setTimeout(() => el.classList.remove("is-on"), 900);
+    }
+
+    function playAlertTone(kind) {
+      if (!alertsEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!audioCtx) audioCtx = new AudioCtx();
+        if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = kind === "warn" ? 420 : 680;
+        gain.gain.value = 0.0001;
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        gain.gain.exponentialRampToValueAtTime(0.045, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+        osc.start(now);
+        osc.stop(now + 0.3);
+      } catch (_) { /* ignore */ }
+    }
+
+    function updateHeatLayer(data) {
+      if (!map || typeof L.heatLayer !== "function") return;
+      const pts = (data.workersOnSite || [])
+        .filter((w) => w?.lat != null && w?.lng != null && workerMatchesFilters(w))
+        .map((w) => [Number(w.lat), Number(w.lng), w.positionSource === "live" ? 0.85 : 0.45]);
+      if (!heatEnabled || pts.length < 1) {
+        if (heatLayer) {
+          try { map.removeLayer(heatLayer); } catch (_) {}
+          heatLayer = null;
+        }
+        return;
+      }
+      if (!heatLayer) {
+        heatLayer = L.heatLayer(pts, {
+          radius: 28,
+          blur: 22,
+          maxZoom: 17,
+          minOpacity: 0.25,
+          gradient: {
+            0.2: "#0ea5e9",
+            0.45: "#22d3ee",
+            0.7: "#2dd4bf",
+            1.0: "#fbbf24",
+          },
+        });
+        heatLayer.addTo(map);
+      } else {
+        heatLayer.setLatLngs(pts);
+      }
+    }
+
+    function updateCommandHud(data) {
+      const onSite = data.counts?.onSite ?? (data.workersOnSite || []).length ?? 0;
+      const working = data.counts?.working ?? data.statusCounts?.working ?? 0;
+      const onBreak = data.counts?.onBreak ?? data.statusCounts?.on_break ?? 0;
+      const missing = data.counts?.missingExpected ?? data.missingExpected ?? 0;
+      const setMetric = (id, value, alert) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const strong = el.querySelector("strong");
+        if (strong) strong.textContent = String(value);
+        el.classList.toggle("is-alert", !!alert && Number(value) > 0);
+        el.classList.toggle("is-ok", id === "cmdOnSite" && Number(value) > 0);
+      };
+      setMetric("cmdOnSite", onSite, false);
+      setMetric("cmdWorking", working, false);
+      setMetric("cmdBreak", onBreak, false);
+      setMetric("cmdMissing", missing, true);
+      const latEl = document.querySelector("#cmdLatency strong");
+      if (latEl) {
+        latEl.textContent = lastLoadDurationMs > 0 ? `${Math.round(lastLoadDurationMs)}` : "—";
+      }
+    }
+
+    function detectPresenceEvents(data) {
+      if (!alertsEnabled) {
+        knownWorkerIds = new Set((data.workersOnSite || []).map((w) => String(w.id)));
+        lastMissingCount = data.counts?.missingExpected ?? data.missingExpected ?? 0;
+        return;
+      }
+      const nextIds = new Set((data.workersOnSite || []).map((w) => String(w.id)));
+      const missing = data.counts?.missingExpected ?? data.missingExpected ?? 0;
+      if (knownWorkerIds) {
+        const newcomers = [...nextIds].filter((id) => !knownWorkerIds.has(id));
+        if (newcomers.length) {
+          const names = newcomers
+            .map((id) => (data.workersOnSite || []).find((w) => String(w.id) === id)?.name || id)
+            .slice(0, 2)
+            .join(", ");
+          flashMap("ok");
+          playAlertTone("ok");
+          showMapToast(
+            `${window.opsMapT("alertWorkerJoined") || "Neu vor Ort"}: ${names}` +
+              (newcomers.length > 2 ? ` (+${newcomers.length - 2})` : "")
+          );
+        }
+        if (lastMissingCount != null && missing > lastMissingCount) {
+          flashMap("warn");
+          playAlertTone("warn");
+          showMapToast(
+            window.opsMapT("alertMissingUp", { count: missing }) ||
+              `${missing} erwartet fehlen`
+          );
+        }
+      }
+      knownWorkerIds = nextIds;
+      lastMissingCount = missing;
+    }
+
+    function syncSidebarCollapsedUi() {
+      const collapsed = document.body.classList.contains("side-collapsed");
+      const btn = document.getElementById("toggleSideBtn");
+      if (btn) {
+        btn.textContent = window.opsMapT(collapsed ? "showSidebar" : "toggleSidebar");
+        btn.classList.toggle("is-active", collapsed);
+      }
+      window.setTimeout(() => {
+        try { map?.invalidateSize?.(true); } catch (_) { /* ignore */ }
+      }, 280);
+    }
+
+    function setCommandMode(on) {
+      commandMode = !!on;
+      document.body.classList.toggle("command-mode", commandMode);
+      localStorage.setItem("ops-map-command-mode", commandMode ? "1" : "0");
+      const btn = document.getElementById("commandModeBtn");
+      if (btn) btn.classList.toggle("is-active", commandMode);
+      if (lastMapData) updateCommandHud(lastMapData);
+    }
+
+    function setHeatEnabled(on) {
+      heatEnabled = !!on;
+      localStorage.setItem("ops-map-heat", heatEnabled ? "1" : "0");
+      const btn = document.getElementById("heatToggleBtn");
+      const toggle = document.getElementById("heatDensityToggle");
+      if (btn) btn.classList.toggle("is-active", heatEnabled);
+      if (toggle) toggle.checked = heatEnabled;
+      if (lastMapData) updateHeatLayer(lastMapData);
+    }
+
+    function setAlertsEnabled(on) {
+      alertsEnabled = !!on;
+      localStorage.setItem("ops-map-alerts", alertsEnabled ? "1" : "0");
+      const btn = document.getElementById("alertsToggleBtn");
+      const toggle = document.getElementById("liveAlertsToggle");
+      if (btn) btn.classList.toggle("is-active", alertsEnabled);
+      if (toggle) toggle.checked = alertsEnabled;
     }
 
     async function renderWorkerMarkers(data) {
@@ -2614,7 +3018,10 @@
       const statusEl = document.getElementById("status");
       statusEl.innerHTML = renderStatusChips(data);
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
+      updateCommandHud(data);
+      updateHeatLayer(data);
       if (!workersOnly) {
+        detectPresenceEvents(data);
         renderSidebar(data);
         refreshSelectedTrail();
       }
@@ -2841,12 +3248,50 @@
     });
     document.getElementById("liveTrailToggle")?.addEventListener("change", (ev) => {
       liveTrailEnabled = !!ev.target?.checked;
-      if (liveTrailEnabled) refreshSelectedTrail();
+      ensureTrailLiveRefresh();
+      if (liveTrailEnabled) {
+        refreshSelectedTrail();
+        startTrailPulse();
+      } else if (trailPulseTimer) {
+        window.clearInterval(trailPulseTimer);
+        trailPulseTimer = 0;
+      }
+    });
+    document.getElementById("heatDensityToggle")?.addEventListener("change", (ev) => {
+      setHeatEnabled(!!ev.target?.checked);
+    });
+    document.getElementById("liveAlertsToggle")?.addEventListener("change", (ev) => {
+      setAlertsEnabled(!!ev.target?.checked);
+    });
+    document.getElementById("heatToggleBtn")?.addEventListener("click", () => {
+      setHeatEnabled(!heatEnabled);
+    });
+    document.getElementById("alertsToggleBtn")?.addEventListener("click", () => {
+      setAlertsEnabled(!alertsEnabled);
+    });
+    document.getElementById("toggleSideBtn")?.addEventListener("click", () => {
+      document.body.classList.toggle("side-collapsed");
+      localStorage.setItem(
+        "ops-map-side-collapsed",
+        document.body.classList.contains("side-collapsed") ? "1" : "0"
+      );
+      syncSidebarCollapsedUi();
+    });
+    document.getElementById("commandModeBtn")?.addEventListener("click", () => {
+      setCommandMode(!commandMode);
     });
     document.addEventListener("visibilitychange", () => {
       // Re-arm polling so visible tabs switch quickly to fast live cadence.
       startLivePolling();
     });
+    // Restore map operator preferences.
+    if (localStorage.getItem("ops-map-side-collapsed") === "1") {
+      document.body.classList.add("side-collapsed");
+    }
+    syncSidebarCollapsedUi();
+    setHeatEnabled(localStorage.getItem("ops-map-heat") === "1");
+    setAlertsEnabled(localStorage.getItem("ops-map-alerts") !== "0");
+    setCommandMode(localStorage.getItem("ops-map-command-mode") === "1");
     window.initOpsMapLangSync?.();
     setRefreshBusy(false);
     syncCoordinatePanel();
@@ -2862,6 +3307,7 @@
         }
         renderSidebar(lastMapData);
         syncEmptyMapState(lastMapData);
+        updateCommandHud(lastMapData);
       } else {
         const statusEl = document.getElementById("status");
         if (statusEl && !statusEl.querySelector(".ops-stat-chips")) {
@@ -2869,6 +3315,13 @@
         }
       }
       syncCoordinatePanel();
+      syncSidebarCollapsedUi();
+      const cmdBtn = document.getElementById("commandModeBtn");
+      if (cmdBtn) cmdBtn.textContent = window.opsMapT("commandMode");
+      const heatBtn = document.getElementById("heatToggleBtn");
+      if (heatBtn) heatBtn.textContent = window.opsMapT("heatDensity");
+      const alertBtn = document.getElementById("alertsToggleBtn");
+      if (alertBtn) alertBtn.textContent = window.opsMapT("liveAlerts");
     };
     window.addEventListener("baupass-admin-lang", () => {
       setRefreshBusy(false);
