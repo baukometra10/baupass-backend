@@ -9,25 +9,32 @@
   <link rel="apple-touch-icon" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="icon" type="image/svg+xml" sizes="192x192" href="/branding/suppix-ai-mark.svg" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,450;9..40,600;9..40,700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
   <style>
     :root {
-      --bg: #f8fafc;
-      --text: #1e293b;
+      --bg: #f4f7fb;
+      --text: #152033;
       --panel: #ffffff;
-      --border: #e2e8f0;
+      --border: #d7e0ec;
       --accent: #0ea5e9;
-      --shadow: rgba(0, 0, 0, 0.1);
+      --shadow: rgba(15, 23, 42, 0.12);
+      --font-ui: "DM Sans", "Segoe UI", sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+      --map-empty-veil: rgba(248, 250, 252, 0.08);
     }
     html.dark-mode {
-      --bg: #0f172a;
-      --text: #f1f5f9;
-      --panel: #1e293b;
-      --border: #334155;
+      --bg: #070b16;
+      --text: #e8eef7;
+      --panel: #121a2b;
+      --border: #243247;
       --accent: #38bdf8;
-      --shadow: rgba(0, 0, 0, 0.4);
+      --shadow: rgba(0, 0, 0, 0.45);
+      --map-empty-veil: rgba(2, 6, 23, 0.22);
     }
     * { box-sizing: border-box; }
     button, a, input, select, textarea {
@@ -43,9 +50,13 @@
       transition: direction 0.4s ease-out, text-align 0.3s ease-out;
     }
     body {
-      margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text);
+      margin: 0; font-family: var(--font-ui); background: var(--bg); color: var(--text);
       height: 100vh; display: flex; flex-direction: column;
-      background: linear-gradient(135deg, var(--bg) 0%, rgba(0,0,0,0.05) 100%);
+      background:
+        radial-gradient(1200px 600px at 12% -10%, rgba(14, 165, 233, 0.14), transparent 55%),
+        radial-gradient(900px 500px at 88% 0%, rgba(45, 212, 191, 0.08), transparent 50%),
+        linear-gradient(160deg, var(--bg) 0%, rgba(0,0,0,0.04) 100%);
+      letter-spacing: 0.01em;
     }
     header {
       padding: 0.45rem 0.85rem; border-bottom: 1px solid var(--border);
@@ -257,11 +268,98 @@
     #map {
       flex: 1;
       min-height: 300px;
-      background: #f0f0f0;
+      background: #e8eef5;
       position: relative;
     }
     html.dark-mode #map {
-      background: #0a0e27;
+      background: #060914;
+    }
+    .map-stage {
+      flex: 1;
+      min-width: 0;
+      min-height: 0;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .map-stage #map {
+      width: 100%;
+      height: 100%;
+    }
+    .map-stage::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 400;
+      background:
+        radial-gradient(ellipse 70% 55% at 50% 45%, transparent 40%, var(--map-empty-veil) 100%),
+        linear-gradient(180deg, rgba(8, 15, 28, 0.18) 0%, transparent 18%, transparent 82%, rgba(8, 15, 28, 0.22) 100%);
+    }
+    .map-empty-state {
+      position: absolute;
+      inset: 0;
+      z-index: 460;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      padding: 1.25rem;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.35s ease, transform 0.35s ease;
+    }
+    .map-empty-state.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .map-empty-card {
+      max-width: 26rem;
+      text-align: center;
+      padding: 1.05rem 1.25rem 1.15rem;
+      border-radius: 16px;
+      border: 1px solid rgba(125, 211, 252, 0.28);
+      background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(8, 15, 28, 0.58));
+      box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255,255,255,0.04) inset;
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      color: #e2e8f0;
+    }
+    html:not(.dark-mode) .map-empty-card {
+      background: linear-gradient(160deg, rgba(255,255,255,0.88), rgba(241,245,249,0.82));
+      color: #0f172a;
+      border-color: rgba(14, 165, 233, 0.28);
+    }
+    .map-empty-card strong {
+      display: block;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.35rem;
+    }
+    .map-empty-card p {
+      margin: 0;
+      font-size: 0.84rem;
+      line-height: 1.45;
+      opacity: 0.88;
+    }
+    .map-empty-pulse {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin: 0 auto 0.65rem;
+      background: #2dd4bf;
+      box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.55);
+      animation: emptyPulse 1.8s ease-out infinite;
+    }
+    @keyframes emptyPulse {
+      0% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0.5); }
+      70% { box-shadow: 0 0 0 14px rgba(45, 212, 191, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(45, 212, 191, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .map-empty-pulse { animation: none; }
+      .map-empty-state { transition: none; }
     }
     #map::before {
       content: '';
@@ -407,7 +505,7 @@
       color: #dbe7f5;
     }
     .legend-live-row code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      font-family: var(--font-mono);
       font-size: 0.69rem;
       color: #7dd3fc;
       background: rgba(15, 23, 42, 0.45);
@@ -449,8 +547,8 @@
       align-items: center;
       filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 8px currentColor);
       pointer-events: auto;
-      animation: markerPulse 2s ease-in-out infinite;
-      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s ease;
+      animation: none;
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.3s ease, opacity 0.3s ease;
       cursor: pointer;
       position: relative;
     }
@@ -461,8 +559,29 @@
       height: 44px;
       border-radius: 50%;
       background: radial-gradient(circle, rgba(34, 211, 238, 0.15) 0%, transparent 70%);
-      animation: pinRing 2.5s ease-out infinite;
+      animation: none;
       opacity: 0;
+    }
+    /* Only alert cameras / selected pins pulse — quiet map when empty. */
+    .ops-map-pin.is-alert,
+    .ops-map-pin.is-selected:not(.is-worker-classic) {
+      animation: markerPulse 2s ease-in-out infinite;
+    }
+    .ops-map-pin.is-alert::before {
+      animation: pinRing 2.5s ease-out infinite;
+    }
+    .ops-map-pin.is-infra {
+      animation: none;
+      filter: drop-shadow(0 2px 7px rgba(0, 0, 0, 0.45));
+      opacity: 0.92;
+    }
+    .ops-map-pin.is-infra::before { display: none; }
+    html.map-site-empty .ops-map-pin.is-infra {
+      opacity: 0.62;
+      filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.35));
+    }
+    html.map-site-empty .ops-map-pin.is-infra:hover {
+      opacity: 1;
     }
     @keyframes pinRing {
       0% { width: 44px; height: 44px; opacity: 1; }
@@ -1252,7 +1371,16 @@
     </nav>
   </header>
   <div class="wrap">
-    <div id="map"></div>
+    <div class="map-stage">
+      <div id="map"></div>
+      <div id="mapEmptyState" class="map-empty-state" hidden aria-live="polite">
+        <div class="map-empty-card">
+          <div class="map-empty-pulse" aria-hidden="true"></div>
+          <strong data-omapi18n="emptyMapTitle">Bereit für Live-Bewegung</strong>
+          <p data-omapi18n="emptyMapHint">Sobald Mitarbeiter einchecken, erscheinen blaue Pins und bewegen sich mit dem GPS.</p>
+        </div>
+      </div>
+    </div>
     <aside class="side" id="sidePanel">
       <div class="side-tools">
         <input type="search" id="workerSearch" placeholder="Mitarbeiter suchen…" data-omapi18n="searchWorkers" autocomplete="off" />
@@ -1311,7 +1439,7 @@
     </div>
   </div>
   <script src="/embed-helpers.js?v=20260609csrf"></script>
-  <script src="/ops-live-map-i18n.js?v=20260802swm1"></script>
+  <script src="/ops-live-map-i18n.js?v=20260810map1"></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
   <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js" crossorigin="anonymous"></script>
@@ -1566,6 +1694,7 @@
       }
     };
     const LIVE_POLL_MS_VISIBLE = 1000;
+    const LIVE_POLL_MS_VISIBLE_IDLE = 3500;
     const LIVE_POLL_MS_HIDDEN = 5000;
     const MARKER_MOVE_ANIM_MS = 700;
     const EVENT_REFRESH_THROTTLE_MS = 600;
@@ -1575,6 +1704,56 @@
     const workerLabelVisibility = new Map();
     const avatarBlobUrls = new Map();
     const avatarFetchInFlight = new Map();
+    let lastInfraSignature = "";
+    let lastWorkersSignature = "";
+    let lastUiSignature = "";
+    let lastZoomForWorkers = null;
+    let siteHasWorkers = false;
+    function infraSignature(data) {
+      const zones = (data.geofences || []).map((z) =>
+        `${z.id || z.site_name}|${z.latitude}|${z.longitude}|${z.radius_meters}|${z.color || ""}`
+      ).join(";");
+      const cams = (data.cameras || []).map((c) =>
+        `${c.id}|${c.lat}|${c.lng}|${c.alert ? 1 : 0}|${c.name || ""}`
+      ).join(";");
+      const gates = (data.gates || []).map((g) => {
+        const name = String(g.name || "");
+        const lower = name.toLowerCase();
+        if (lower.startsWith("mitarbeiter-app") || lower.startsWith("worker-app")) return "";
+        return `${name}|${g.lat}|${g.lng}`;
+      }).filter(Boolean).join(";");
+      return `${zones}#${cams}#${gates}`;
+    }
+
+    function workersSignature(data) {
+      return (data.workersOnSite || []).map((w) =>
+        `${w.id}|${w.lat}|${w.lng}|${w.status}|${w.positionSource}|${w.lastLocationAt || ""}|${w.activity || ""}|${w.hasPhoto ? 1 : 0}`
+      ).join(";");
+    }
+
+    function uiSignature() {
+      return `${statusFilter}|${searchQuery}|${compactLabels ? 1 : 0}|${clusterWorkers ? 1 : 0}`;
+    }
+
+    function syncEmptyMapState(data) {
+      const count = (data.workersOnSite || []).length;
+      siteHasWorkers = count > 0;
+      document.documentElement.classList.toggle("map-site-empty", !siteHasWorkers);
+      const el = document.getElementById("mapEmptyState");
+      if (!el) return;
+      if (siteHasWorkers) {
+        el.hidden = true;
+        el.classList.remove("is-visible");
+        return;
+      }
+      el.hidden = false;
+      requestAnimationFrame(() => el.classList.add("is-visible"));
+      const title = el.querySelector("[data-omapi18n='emptyMapTitle']");
+      const hint = el.querySelector("[data-omapi18n='emptyMapHint']");
+      if (title) title.textContent = window.opsMapT("emptyMapTitle") || title.textContent;
+      if (hint) hint.textContent = window.opsMapT("emptyMapHint") || hint.textContent;
+    }
+
     function modeLabel(mode) {
       if (mode === "websocket") return window.opsMapT("modeWebsocket") || "Realtime";
       if (mode === "sse") return window.opsMapT("modeSse") || "Stream";
@@ -1782,12 +1961,14 @@
       const nearClass = nearZoom ? " is-near" : "";
       const workerClass = isWorker ? " is-worker-classic" : "";
       const liveClass = isWorker && liveGps ? " live-gps" : "";
+      const alertClass = kind === "camera-alert" ? " is-alert" : "";
+      const infraClass = (!isWorker && kind !== "camera-alert") ? " is-infra" : "";
       const iconW = isWorker ? 190 : 36;
       const iconH = isWorker ? (showLabel ? 92 : 62) : (showLabel ? 52 : 36);
       const anchorY = isWorker ? 58 : (showLabel ? 50 : 34);
       return L.divIcon({
         className: "ops-map-pin-wrap",
-        html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}${workerClass}${liveClass}" role="img" aria-label="${safeLabel}">${isWorker ? "" : PIN_SVG}${faceHtml}${labelHtml}</div>`,
+        html: `<div class="ops-map-pin ops-map-pin-${kind}${selClass}${nearClass}${workerClass}${liveClass}${alertClass}${infraClass}" role="img" aria-label="${safeLabel}">${isWorker ? "" : PIN_SVG}${faceHtml}${labelHtml}</div>`,
         iconSize: [iconW, iconH],
         iconAnchor: [iconW / 2, anchorY],
         popupAnchor: [0, isWorker ? -50 : (showLabel ? -48 : -32)],
@@ -2197,12 +2378,18 @@
       }
     }
 
-    async function renderMap(data) {
+    async function renderMap(data, options = {}) {
       lastMapData = data;
+      const workersOnly = !!options.workersOnly;
       const c = data.center || { lat: 52.52, lng: 13.405 };
       if (!map) {
         try {
-          map = L.map("map").setView([c.lat, c.lng], 15);
+          map = L.map("map", {
+            preferCanvas: true,
+            zoomControl: true,
+            fadeAnimation: true,
+            markerZoomAnimation: true,
+          }).setView([c.lat, c.lng], 15);
           if (typeof map.addLayer !== 'function') {
             console.error("Map object does not have addLayer method. Leaflet may not be loaded properly.");
             return;
@@ -2221,6 +2408,8 @@
           spiderfyOnMaxZoom: true,
           chunkedLoading: true,
           maxClusterRadius: 55,
+          animate: true,
+          animateAddingMarkers: false,
         });
         if (clusterWorkers && map && typeof map.addLayer === 'function') {
           map.addLayer(workerClusterLayer);
@@ -2234,72 +2423,114 @@
         mapZoomSyncBound = true;
         map.on("zoomend", () => {
           if (!lastMapData) return;
-          renderMap(lastMapData);
+          const z = map.getZoom();
+          if (lastZoomForWorkers != null && Math.abs(z - lastZoomForWorkers) < 0.01) return;
+          lastZoomForWorkers = z;
+          // Zoom only affects worker pin size/labels — skip full infra rebuild.
+          renderMap(lastMapData, { workersOnly: true }).catch(() => {});
         });
       }
-      clearLayers("zones");
-      clearLayers("gates");
-      clearLayers("cameras");
+
+      const onSiteCount = (data.workersOnSite || []).length;
+      syncEmptyMapState(data);
+
+      const nextInfra = `${infraSignature(data)}|occ:${onSiteCount > 0 ? 1 : 0}`;
+      const nextWorkers = workersSignature(data);
+      const nextUi = uiSignature();
+      const infraChanged = nextInfra !== lastInfraSignature;
+      const workersChanged = nextWorkers !== lastWorkersSignature;
+      const uiChanged = nextUi !== lastUiSignature;
+      if (!workersOnly && !infraChanged && !workersChanged && !uiChanged && mapFittedOnce) {
+        // Payload unchanged — only refresh status chips / sidebar counts.
+        const statusEl = document.getElementById("status");
+        if (statusEl) statusEl.innerHTML = renderStatusChips(data);
+        return;
+      }
+
       const bounds = [];
       const cid = companyId || data.companyId || "";
-      (data.geofences || []).forEach((z) => {
-        if (z.latitude == null) return;
-        const color = z.color || "#38bdf8";
-        const circle = L.circle([z.latitude, z.longitude], {
-          radius: z.radius_meters || 50,
-          color,
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 0.14,
-        }).addTo(map);
-        const cams = z.cameras || [];
-        const camLinks = cams.length
-          ? `<br><b>${escapeHtml(window.opsMapT("zoneCameras") || "Kameras")}</b><br>` +
-            cams.map((c) =>
-              `<a class="btn-link" href="${escapeHtml(c.href || "#")}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a>`
-            ).join("<br>")
-          : `<br><small>${escapeHtml(window.opsMapT("noCameras") || "")}</small>`;
-        const siteLabel = z.site_name || "Zone";
-        circle.bindPopup(
-          `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))} · ${z.radius_meters || 50}m` + camLinks
-        );
-        circle.on("click", () => circle.openPopup());
-        layers.zones.push(circle);
-        const pin = addPinMarker(
-          z.latitude,
-          z.longitude,
-          "geofence",
-          siteLabel,
-          `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))}${camLinks}`,
-          null,
-          () => circle.openPopup(),
-        );
-        layers.zones.push(pin);
-        bounds.push([z.latitude, z.longitude]);
-      });
-      bounds.push(...(await renderWorkerMarkers(data)));
-      renderWorkerDistances(data);
-      (data.gates || []).forEach((g) => {
-        const label = String(g.name || "Gate");
-        const lower = label.toLowerCase();
-        // App check-in labels are not real gates (yellow pin looked like a person).
-        if (lower.startsWith("mitarbeiter-app") || lower.startsWith("worker-app")) return;
-        const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
-        layers.gates.push(m);
-        bounds.push([g.lat, g.lng]);
-      });
-      (data.cameras || []).forEach((cam) => {
-        const label = cam.name || "Kamera";
-        const kind = cam.alert ? "camera-alert" : "camera";
-        const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
-        const popup =
-          `<b>${escapeHtml(label)}</b><br>${escapeHtml(cam.zone || "")}` +
-          `<br>${cam.alert ? escapeHtml(window.opsMapT("cameraAlert")) : escapeHtml(window.opsMapT("cameraOk"))}` +
-          `<br><a class="btn-link" href="${escapeHtml(href)}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openCameraWatch"))}</strong></a>`;
-        const m = addPinMarker(cam.lat, cam.lng, kind, label, popup, href !== "#" ? href : null);
-        layers.cameras.push(m);
-        bounds.push([cam.lat, cam.lng]);
-      });
+
+      if (!workersOnly && infraChanged) {
+        clearLayers("zones");
+        clearLayers("gates");
+        clearLayers("cameras");
+        const zoneFill = onSiteCount > 0 ? 0.16 : 0.07;
+        const zoneWeight = onSiteCount > 0 ? 2 : 1.2;
+        (data.geofences || []).forEach((z) => {
+          if (z.latitude == null) return;
+          const color = z.color || "#38bdf8";
+          const circle = L.circle([z.latitude, z.longitude], {
+            radius: z.radius_meters || 50,
+            color,
+            weight: zoneWeight,
+            fillColor: color,
+            fillOpacity: zoneFill,
+            opacity: onSiteCount > 0 ? 0.85 : 0.55,
+          }).addTo(map);
+          const cams = z.cameras || [];
+          const camLinks = cams.length
+            ? `<br><b>${escapeHtml(window.opsMapT("zoneCameras") || "Kameras")}</b><br>` +
+              cams.map((c) =>
+                `<a class="btn-link" href="${escapeHtml(c.href || "#")}" target="_blank" rel="noopener">${escapeHtml(c.name)}</a>`
+              ).join("<br>")
+            : `<br><small>${escapeHtml(window.opsMapT("noCameras") || "")}</small>`;
+          const siteLabel = z.site_name || "Zone";
+          circle.bindPopup(
+            `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))} · ${z.radius_meters || 50}m` + camLinks
+          );
+          circle.on("click", () => circle.openPopup());
+          layers.zones.push(circle);
+          const pin = addPinMarker(
+            z.latitude,
+            z.longitude,
+            "geofence",
+            siteLabel,
+            `<b>${escapeHtml(siteLabel)}</b><br>${escapeHtml(zoneKindLabel(z.zone_kind))}${camLinks}`,
+            null,
+            () => circle.openPopup(),
+          );
+          layers.zones.push(pin);
+          bounds.push([z.latitude, z.longitude]);
+        });
+        (data.gates || []).forEach((g) => {
+          const label = String(g.name || "Gate");
+          const lower = label.toLowerCase();
+          if (lower.startsWith("mitarbeiter-app") || lower.startsWith("worker-app")) return;
+          const m = addPinMarker(g.lat, g.lng, "gate", label, `<b>${escapeHtml(label)}</b>`);
+          layers.gates.push(m);
+          bounds.push([g.lat, g.lng]);
+        });
+        (data.cameras || []).forEach((cam) => {
+          const label = cam.name || "Kamera";
+          const kind = cam.alert ? "camera-alert" : "camera";
+          const href = cam.href || (cid ? `/admin-v2/camera-watch.html?company_id=${encodeURIComponent(cid)}` : "#");
+          const popup =
+            `<b>${escapeHtml(label)}</b><br>${escapeHtml(cam.zone || "")}` +
+            `<br>${cam.alert ? escapeHtml(window.opsMapT("cameraAlert")) : escapeHtml(window.opsMapT("cameraOk"))}` +
+            `<br><a class="btn-link" href="${escapeHtml(href)}" target="_blank" rel="noopener"><strong>${escapeHtml(window.opsMapT("openCameraWatch"))}</strong></a>`;
+          const m = addPinMarker(cam.lat, cam.lng, kind, label, popup, href !== "#" ? href : null);
+          layers.cameras.push(m);
+          bounds.push([cam.lat, cam.lng]);
+        });
+        lastInfraSignature = nextInfra;
+      } else if (!workersOnly) {
+        // Keep existing infra bounds for first fit.
+        layers.zones.forEach((layer) => {
+          try {
+            const ll = layer.getLatLng?.();
+            if (ll) bounds.push([ll.lat, ll.lng]);
+          } catch (_) { /* ignore */ }
+        });
+      }
+
+      if (workersOnly || workersChanged || uiChanged || !mapFittedOnce) {
+        bounds.push(...(await renderWorkerMarkers(data)));
+        if (!workersOnly) renderWorkerDistances(data);
+        lastWorkersSignature = nextWorkers;
+        lastUiSignature = nextUi;
+        lastZoomForWorkers = map.getZoom();
+      }
+
       if (!mapFittedOnce) {
         if (bounds.length > 1) {
           map.fitBounds(bounds, { padding: [40, 40] });
@@ -2317,8 +2548,10 @@
       const statusEl = document.getElementById("status");
       statusEl.innerHTML = renderStatusChips(data);
       statusEl.style.color = (camAlerts > 0 || security > 0 || missing > 0) ? "#fbbf24" : "";
-      renderSidebar(data);
-      refreshSelectedTrail();
+      if (!workersOnly) {
+        renderSidebar(data);
+        refreshSelectedTrail();
+      }
     }
 
     async function load(options = {}) {
@@ -2355,12 +2588,13 @@
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
-          return visible ? 1500 : 8000;
+          return visible ? (siteHasWorkers ? 1500 : 4000) : 8000;
         }
         if (weakNetwork) {
-          return visible ? 2000 : 8000;
+          return visible ? 2500 : 8000;
         }
-        return visible ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_HIDDEN;
+        if (!visible) return LIVE_POLL_MS_HIDDEN;
+        return siteHasWorkers ? LIVE_POLL_MS_VISIBLE : LIVE_POLL_MS_VISIBLE_IDLE;
       };
       const tick = async () => {
         if (livePollInFlight) {
