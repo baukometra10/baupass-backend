@@ -9537,8 +9537,8 @@ const ADMIN_V2_EMBED_ITEM = {
 
 const ENTERPRISE_NAV_ITEMS = [
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "starter", queryCompany: true, version: true, embed: true },
-  { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "professional", queryCompany: true, version: true, embed: true },
-  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", queryCompany: true, embed: true },
+  { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "enterprise", queryCompany: true, version: true, embed: true },
+  { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "enterprise", queryCompany: true, embed: true },
   { id: "ops-live-map", view: "ops-live-map", path: "/ops-live-map.html", labelKey: "navLiveMap", minPlan: "professional", queryCompany: true, embed: true },
 ];
 
@@ -9586,16 +9586,33 @@ const PLAN_FEATURES = {
   nfc_badges: "starter",
   leave_management: "starter",
   document_upload: "starter",
+  worker_chat: "starter",
+  deployment_plan: "starter",
+  geofence_att: "starter",
+  enterprise_hub: "starter",
   invoicing: "professional",
   email_notifications: "professional",
   worker_hours_report: "professional",
   late_checkin_alert: "professional",
   subcompanies: "professional",
+  employment_contracts: "professional",
+  live_tracking: "professional",
+  live_presence: "professional",
+  zones: "professional",
+  physical_operations_os: "professional",
+  realtime_operations: "professional",
+  automation_suite: "professional",
+  timesheets: "professional",
   white_label: "enterprise",
   api_access: "enterprise",
   multi_site: "enterprise",
   premium_support: "enterprise",
   custom_pricing: "enterprise",
+  ai_assistant: "enterprise",
+  ai_copilot: "enterprise",
+  ops_command_center: "enterprise",
+  cmd_center: "enterprise",
+  enterprise_integrations: "enterprise",
 };
 
 const state = {

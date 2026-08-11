@@ -106,6 +106,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/summary")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("physical_operations_os")
     def ops_summary():
         cid = _cid()
         if not cid and g.current_user.get("role") != "superadmin":
@@ -182,6 +183,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/overview")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("physical_operations_os")
     def ops_overview():
         t0 = time.monotonic()
         cid = _cid()
@@ -618,7 +620,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/command-center")
     @require_auth
     @require_roles("superadmin", "company-admin")
-    @require_plan_capability("physical_operations_os")
+    @require_plan_capability("ops_command_center")
     def command_center():
         role = g.current_user.get("role", "")
         cid = _cid() if role != "superadmin" or request.args.get("company_id") else None
@@ -642,6 +644,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/predictions/tomorrow")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("predictive_ops")
     def ops_tomorrow_prediction():
         from backend.app.platform.predictions.engine import build_tomorrow_forecast
 

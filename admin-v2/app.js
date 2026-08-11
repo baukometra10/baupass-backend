@@ -1013,6 +1013,7 @@ async function loadCompanies() {
   select.innerHTML = `<option value="" disabled selected>${t("common.loading")}</option>`;
   const companies = await api("/api/companies");
   const rows = Array.isArray(companies) ? companies.filter((c) => c && !c.deleted_at) : [];
+  window.__baupassCompanies = rows;
   if (!rows.length) {
     select.innerHTML = `<option value="" disabled selected>${t("common.selectCompany")}</option>`;
     return;
@@ -3682,7 +3683,7 @@ function initOpsEmbedTabs(panel, companyId) {
   panel.querySelectorAll(".ops-embed-tab").forEach((btn) => {
     btn.addEventListener("click", () => {
       const page = btn.getAttribute("data-ops-page");
-      if (!page) return;
+      if (!page || btn.disabled) return;
       panel.querySelectorAll(".ops-embed-tab").forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       frame.title = btn.textContent || "";
@@ -3765,7 +3766,7 @@ function initOpsCarousel(root) {
 let _legacyFeaturesCache = { companyId: "", at: 0, value: null };
 
 async function loadLegacyFeatures(companyId) {
-  if (getUser().role === "superadmin") return null;
+  if (getUser().role === "superadmin" && !String(companyId || "").trim()) return null;
   const cid = String(companyId || "").trim();
   const now = Date.now();
   if (_legacyFeaturesCache.companyId === cid && now - _legacyFeaturesCache.at < 45_000) {
@@ -3773,6 +3774,7 @@ async function loadLegacyFeatures(companyId) {
   }
   const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
   const ent = await api(`/api/platform/entitlements${q}`).catch(() => null);
+  if (ent?.plan) window.__baupassActivePlan = normalizePlanUi(ent.plan);
   const value = ent?.legacyFeatures || {};
   _legacyFeaturesCache = { companyId: cid, at: now, value };
   return value;
@@ -3808,6 +3810,61 @@ function openAiCommandCenterWithPrompt(prompt, agent = "decision") {
 function legacyFeatureEnabled(features, key) {
   if (features === null) return true;
   return Boolean(features[key]);
+}
+
+const PLAN_RANK_UI = { tageskarte: 0, starter: 1, professional: 2, enterprise: 3 };
+
+function normalizePlanUi(planValue) {
+  const raw = String(planValue || "").trim().toLowerCase();
+  const aliases = {
+    start: "starter",
+    startpreis: "starter",
+    starterpaket: "starter",
+    pro: "professional",
+    professionell: "professional",
+    "enterprise packet": "enterprise",
+    enterprisepacket: "enterprise",
+    "enterprise paket": "enterprise",
+    unternehmenspaket: "enterprise",
+  };
+  const plan = aliases[raw] || raw;
+  if (plan in PLAN_RANK_UI) return plan;
+  if (plan.includes("enterprise")) return "enterprise";
+  if (plan.includes("profession") || plan === "pro") return "professional";
+  if (plan.includes("start")) return "starter";
+  return "starter";
+}
+
+function activeCompanyPlan() {
+  if (window.__baupassActivePlan) return normalizePlanUi(window.__baupassActivePlan);
+  const cid = String(activeCompanyId() || "").trim();
+  if (!cid) return getUser().role === "superadmin" ? "enterprise" : "starter";
+  const companies = Array.isArray(window.__baupassCompanies) ? window.__baupassCompanies : [];
+  const hit = companies.find((c) => String(c?.id || "") === cid);
+  return normalizePlanUi(hit?.plan || "starter");
+}
+
+function meetsMinPlan(minPlan) {
+  if (getUser().role === "superadmin" && !activeCompanyId()) return true;
+  const need = PLAN_RANK_UI[minPlan] ?? PLAN_RANK_UI.enterprise;
+  return (PLAN_RANK_UI[activeCompanyPlan()] || 0) >= need;
+}
+
+async function loadEntitlementFlags(companyId) {
+  const features = await loadLegacyFeatures(companyId);
+  if (features === null) {
+    // Superadmin without forced company: all on. With company: use entitlements.
+    if (!companyId) return { all: true, features: {} };
+  }
+  return { all: false, features: features || {} };
+}
+
+function entitlementOn(flags, key, minPlanFallback = "enterprise") {
+  if (flags?.all) return true;
+  if (flags?.features && Object.prototype.hasOwnProperty.call(flags.features, key)) {
+    return Boolean(flags.features[key]);
+  }
+  return meetsMinPlan(minPlanFallback);
 }
 
 function renderBetriebActionCard({ href, icon, title, desc, cta, locked, upgradeLabel }) {
@@ -4407,31 +4464,46 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
     locked: !legacyFeatureEnabled(features, "worker_chat"),
     upgradeLabel: t("chat.upgrade"),
   });
-  const mapSrc = mapEager
+  const canLiveMap = legacyFeatureEnabled(features, "live_tracking") || meetsMinPlan("professional");
+  const canCmdCenter = legacyFeatureEnabled(features, "ops_command_center") || meetsMinPlan("enterprise");
+  const canAi = legacyFeatureEnabled(features, "ai_assistant") || meetsMinPlan("enterprise");
+  const canPhysicalOs = legacyFeatureEnabled(features, "physical_operations_os") || meetsMinPlan("professional");
+  const defaultOpsPage = canLiveMap
+    ? "/ops-live-map.html"
+    : canCmdCenter
+      ? "/ops-command-center.html"
+      : canAi
+        ? "/ai-command-center.html"
+        : "/enterprise-hub.html";
+  const mapSrc = mapEager && canLiveMap
     ? `/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
-    : "about:blank";
+    : mapEager && canCmdCenter
+      ? `/ops-command-center.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}`
+      : "about:blank";
   panel.dataset.opsCid = String(cid || "");
+  const upgradeHint = (need) =>
+    `<span class="muted small"> · ${escapeHtml(t("platform.upgradeRequired", { plan: need }) || `Upgrade: ${need}`)}</span>`;
   panel.innerHTML = `
       <div class="panel-block ops-panel">
         <div class="ops-panel-head">
           <h3>${t("ops.physicalOs")} <span class="badge badge-ok">${t("ops.layersBadge")}</span> ${rtLabel || ""}</h3>
-          <p class="muted small">${t("ops.company", { id: cid })}</p>
+          <p class="muted small">${t("ops.company", { id: cid })}${canPhysicalOs ? "" : upgradeHint("professional")}</p>
         </div>
         <div class="ops-carousel-shell" id="opsCarousel">
           <div class="ops-carousel-wrap">
             <button type="button" class="ops-carousel-btn ops-carousel-prev" aria-label="${t("ops.prevLayer")}">‹</button>
-            <div class="ops-carousel-track">${cards || `<p class="muted small">${t("common.loading")}</p>`}</div>
+            <div class="ops-carousel-track">${canPhysicalOs ? (cards || `<p class="muted small">${t("common.loading")}</p>`) : `<p class="muted small">${escapeHtml(t("platform.upgradeRequired", { plan: "professional" }) || "Professional erforderlich")}</p>`}</div>
             <button type="button" class="ops-carousel-btn ops-carousel-next" aria-label="${t("ops.nextLayer")}">›</button>
           </div>
         </div>
         <p class="ops-carousel-hint muted small"></p>
       </div>
       <div class="link-row ops-embed-tabs" role="tablist">
-        <button type="button" class="btn-link ops-embed-tab active" data-ops-page="/ops-live-map.html">${t("ops.liveMap")}</button>
-        <button type="button" class="btn-link ops-embed-tab" data-ops-page="/ops-command-center.html">${t("ops.commandCenter")}</button>
-        <button type="button" class="btn-link ops-embed-tab" data-ops-page="/ai-command-center.html">${t("ops.aiCenter")}</button>
+        <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("live-map") ? "active" : ""}" data-ops-page="/ops-live-map.html" ${canLiveMap ? "" : "disabled"}>${t("ops.liveMap")}${canLiveMap ? "" : " 🔒"}</button>
+        <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("ops-command") ? "active" : ""}" data-ops-page="/ops-command-center.html" ${canCmdCenter ? "" : "disabled"}>${t("ops.commandCenter")}${canCmdCenter ? "" : " 🔒"}</button>
+        <button type="button" class="btn-link ops-embed-tab ${defaultOpsPage.includes("ai-command") ? "active" : ""}" data-ops-page="/ai-command-center.html" ${canAi ? "" : "disabled"}>${t("ops.aiCenter")}${canAi ? "" : " 🔒"}</button>
         <button type="button" class="btn-link ops-embed-tab" data-ops-page="/enterprise-hub.html">${t("common.enterpriseHub")}</button>
-        <a href="/ops-live-map.html${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
+        <a href="${defaultOpsPage}${q ? `${q}&embed=1` : `?company_id=${encodeURIComponent(cid)}&embed=1`}" target="_blank" rel="noopener" class="muted small">${t("ops.openNewTab")}</a>
       </div>
       <iframe id="opsEmbedFrame" src="${mapSrc}" title="${t("ops.liveMap")}" class="ops-map-frame" loading="lazy"></iframe>
       <div class="panel-block">
@@ -4863,9 +4935,18 @@ async function loadTools() {
       ensureLeafletLoaded(4500),
     ]);
     if (gen !== loadTools._gen) return;
-    const gfRows = geofences?.geofences || [];
-    const ruleRows = rules?.rules || [];
+    const features = await loadLegacyFeatures(activeCompanyId()).catch(() => ({}));
+    const canZones = legacyFeatureEnabled(features, "zones") || meetsMinPlan("professional");
+    const canAutomation = legacyFeatureEnabled(features, "automation_suite") || meetsMinPlan("professional");
+    const gfRows = canZones ? (geofences?.geofences || []) : [];
+    const ruleRows = canAutomation ? (rules?.rules || []) : [];
     const intRows = integrations?.integrations || [];
+    const zonesLockedBanner = canZones
+      ? ""
+      : `<p class="muted small" style="margin:0.5rem 0 1rem;padding:0.65rem 0.8rem;border:1px solid var(--border,#334155);border-radius:8px;">🔒 ${escapeHtml(t("platform.upgradeRequired", { plan: "professional" }) || "Professional erforderlich für Geofencing.")}</p>`;
+    const automationLockedBanner = canAutomation
+      ? ""
+      : `<p class="muted small" style="margin:0.5rem 0 1rem;padding:0.65rem 0.8rem;border:1px solid var(--border,#334155);border-radius:8px;">🔒 ${escapeHtml(t("platform.upgradeRequired", { plan: "professional" }) || "Professional erforderlich für Automation.")}</p>`;
     const zonesSig = gfRows
       .map((z) => `${z.id || z.site_name}|${z.latitude}|${z.longitude}|${z.radius_meters}|${z.zone_kind || ""}`)
       .join(";");
@@ -4936,6 +5017,7 @@ async function loadTools() {
       ${channelsBar}
       <div class="panel-block">
         <h3>${t("tools.geofence")}</h3>
+        ${zonesLockedBanner}
         <p class="muted small">${t("tools.mapHint")}</p>
         <div class="geofence-search-row">
           <input id="geofenceSearchInput" type="text" placeholder="${t("tools.searchPlacePlaceholder")}" autocomplete="street-address" />

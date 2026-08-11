@@ -30,12 +30,26 @@ def require_plan_capability(capability_id: str):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
+            from flask import request
+
             from backend.server import feature_not_available_response, get_company_plan, get_db
 
             db = get_db()
+            role = str(g.current_user.get("role") or "")
             company_id = g.current_user.get("company_id")
-            if g.current_user.get("role") == "superadmin":
-                return fn(*args, **kwargs)
+            # Superadmin may inspect a specific company via query/body — still enforce that company's pack.
+            if role == "superadmin":
+                preview = (
+                    request.args.get("company_id")
+                    or (request.get_json(silent=True) or {}).get("company_id")
+                    or (request.get_json(silent=True) or {}).get("companyId")
+                    or ""
+                )
+                preview = str(preview or "").strip()
+                if preview:
+                    company_id = preview
+                else:
+                    return fn(*args, **kwargs)
             plan = get_company_plan(db, company_id)
             if not plan_includes(plan, min_plan_for_capability(capability_id)):
                 return feature_not_available_response(capability_id, plan)

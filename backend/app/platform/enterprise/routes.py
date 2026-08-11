@@ -88,6 +88,7 @@ def _post_form_with_retry(url: str, payload: dict[str, str], bearer: str, timeou
 
 
 def register_enterprise_routes(flask_app):
+    from backend.app.platform.plan_guard import require_plan_capability
     from backend.app.platform.security.contracts_lock import require_owner_step_up
     from backend.server import require_auth, require_roles
 
@@ -95,6 +96,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.get("/geofences/admin")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("zones")
     def admin_list_geofences():
         from backend.server import get_db
 
@@ -108,6 +110,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.post("/geofences/admin")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("zones")
     def admin_create_geofence():
         from backend.server import get_db
 
@@ -170,6 +173,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.put("/geofences/admin/<gf_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("zones")
     def admin_update_geofence(gf_id: str):
         from backend.server import get_db
 
