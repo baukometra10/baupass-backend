@@ -619,6 +619,16 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
     email = _lohn_email(company_id)
     lohn_origin = _browser_base(link) or str(link.get("base_url") or "").rstrip("/")
 
+    # Ensure credentials exist + are pushed to Lohn (mint if missing).
+    if not login:
+        try:
+            from .platform_link import provision_company_for_lohn
+
+            provision_company_for_lohn(db, company_id, force=True)
+            login = repo.get_lohn_login(db, company_id)
+        except Exception:
+            login = repo.get_lohn_login(db, company_id)
+
     # Re-push password to Lohn so /v1/auth/login matches stored credentials.
     if login:
         try:
@@ -630,6 +640,7 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
                 username=str(login.get("username") or ""),
                 password=str(login.get("password") or ""),
             )
+            login = repo.get_lohn_login(db, company_id) or login
         except Exception:
             pass
 
