@@ -415,6 +415,8 @@ def build_launch_payload(
             "message": "Buchhaltungs-Domain fehlt. Superadmin muss die Lohn-URL unter Plattform speichern.",
         }
 
+    # Always open via SUPPIX sso-enter (autologin shell). Do NOT send the browser to
+    # Lohn #suppix-sso=… — live Lohn auth-gate does not consume that hash yet.
     login = repo.get_lohn_login(db, company_id)
     if login:
         remote = request_lohn_sso_url(
@@ -423,13 +425,21 @@ def build_launch_payload(
             login=login,
             actor_user_id=actor_user_id,
         )
-        if remote.get("ok") and remote.get("url"):
+        remote_url = str(remote.get("url") or "")
+        remote_mode = str(remote.get("mode") or "")
+        # Accept only a real magic-link from Lohn master-key SSO (not our hash handoff).
+        if (
+            remote.get("ok")
+            and remote_url.startswith("http")
+            and remote_mode not in ("session_handoff", "ui_login", "")
+            and "suppix-sso=" not in remote_url
+        ):
             return {
                 "ok": True,
-                "url": remote["url"],
+                "url": remote_url,
                 "baseUrl": api_base,
                 "companyId": company_id,
-                "mode": remote.get("mode") or "lohn_sso",
+                "mode": remote_mode or "lohn_sso",
                 "sso": True,
                 "message": "SSO-Link von WorkPass Lohn.",
             }
