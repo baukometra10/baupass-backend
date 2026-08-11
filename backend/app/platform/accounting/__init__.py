@@ -736,15 +736,27 @@ def register_accounting_blueprint(flask_app) -> None:
 
     @accounting_bp.get("/payroll/accounting/sso-enter")
     def admin_lohn_sso_enter():
-        """One-time SSO ticket consumer — redirects to Lohn magic-link or auto-submits login form."""
+        """One-time SSO ticket consumer — autologin shell or Lohn UI redirect."""
         import html as html_lib
+        import traceback
 
         from flask import Response, redirect
 
         from .lohn_sso import resolve_sso_enter
 
         ticket = (request.args.get("ticket") or "").strip()
-        result = resolve_sso_enter(get_db(), ticket)
+        try:
+            result = resolve_sso_enter(get_db(), ticket)
+        except Exception as exc:
+            traceback.print_exc()
+            msg = html_lib.escape(f"SSO intern fehlgeschlagen: {exc}")
+            return Response(
+                f"<!DOCTYPE html><html><body style='font-family:system-ui;padding:2rem'>"
+                f"<h1>SSO fehlgeschlagen</h1><p>{msg}</p>"
+                f"<p>Bitte erneut über SUPPIX → Buchhaltung öffnen.</p></body></html>",
+                status=500,
+                mimetype="text/html; charset=utf-8",
+            )
         if not result.get("ok"):
             msg = html_lib.escape(str(result.get("message") or result.get("error") or "SSO fehlgeschlagen"))
             return Response(

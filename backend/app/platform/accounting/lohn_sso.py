@@ -593,8 +593,11 @@ try {{
         safe_js = auth_js.replace("</", "<\\/")
         bootstrap += f"<script>\n{safe_js}\n</script>\n"
 
-    if re.search(r"<head[^>]*>", page, flags=re.I):
-        page = re.sub(r"(<head[^>]*>)", r"\1" + bootstrap, page, count=1, flags=re.I)
+    # Do NOT use re.sub replacement with JS (\\d etc. → PatternError / 500).
+    head_match = re.search(r"<head[^>]*>", page, flags=re.I)
+    if head_match:
+        i = head_match.end()
+        page = page[:i] + bootstrap + page[i:]
     else:
         page = bootstrap + page
     return page
