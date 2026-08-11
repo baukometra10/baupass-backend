@@ -644,6 +644,14 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
         except Exception:
             pass
 
+    # Keep Lohn CORS allow-list in sync with tenant access hosts (best-effort).
+    try:
+        from .platform_link import sync_lohn_cors_origins
+
+        sync_lohn_cors_origins(db, link)
+    except Exception:
+        pass
+
     session_payload: dict[str, Any] | None = None
     login_err = ""
     if login:

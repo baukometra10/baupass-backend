@@ -240,7 +240,93 @@ def save_platform_link(
         (enabled_v, base_v, ui_v, key_v, upsert_v, hook_v, public_v, auto_v, run_v, now),
     )
     db.commit()
-    return get_platform_link(db)
+    link = get_platform_link(db)
+    try:
+        sync_lohn_cors_origins(db, link)
+    except Exception:
+        pass
+    return link
+
+
+def _origin_from_host(host: str) -> list[str]:
+    h = (host or "").strip().lower().rstrip("/")
+    if not h:
+        return []
+    if h.startswith("http://") or h.startswith("https://"):
+        try:
+            from urllib.parse import urlparse
+
+            parsed = urlparse(h)
+            origin = f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+            return [origin] if origin.startswith("http") else []
+        except Exception:
+            return []
+    # bare hostname
+    out = [f"https://{h}"]
+    if not h.startswith("www."):
+        out.append(f"https://www.{h}")
+    return out
+
+
+def collect_platform_cors_origins(db, link: dict[str, Any] | None = None) -> list[str]:
+    """Origins SUPPIX uses (public URL + per-company access_host) for Lohn CORS."""
+    link = link or get_platform_link(db)
+    origins: list[str] = []
+    seen: set[str] = set()
+
+    def _add(items: list[str]) -> None:
+        for o in items:
+            n = (o or "").strip().rstrip("/")
+            if not n or n in seen:
+                continue
+            seen.add(n)
+            origins.append(n)
+
+    public = str(link.get("platform_public_url") or "").strip().rstrip("/")
+    if public:
+        _add(_origin_from_host(public))
+    try:
+        env_public = (platform_env("PUBLIC_BASE_URL", "") or "").strip().rstrip("/")
+        if env_public:
+            _add(_origin_from_host(env_public))
+    except Exception:
+        pass
+    _add(
+        [
+            "https://suppix-ai-workpass.com",
+            "https://www.suppix-ai-workpass.com",
+            "https://app.suppix-ai-workpass.com",
+            "http://127.0.0.1:8080",
+            "http://localhost:8080",
+        ]
+    )
+    try:
+        rows = db.execute(
+            "SELECT COALESCE(access_host, '') AS h FROM companies "
+            "WHERE deleted_at IS NULL AND TRIM(COALESCE(access_host, '')) != ''"
+        ).fetchall()
+        for row in rows:
+            _add(_origin_from_host(str(row["h"] if hasattr(row, "keys") else row[0])))
+    except Exception:
+        pass
+    return origins
+
+
+def sync_lohn_cors_origins(db, link: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Push SUPPIX + tenant origins to WorkPass Lohn CORS allow-list."""
+    link = link or get_platform_link(db)
+    if not int(link.get("enabled") or 0):
+        return {"ok": False, "skipped": "platform_link_disabled"}
+    origins = collect_platform_cors_origins(db, link)
+    if not origins:
+        return {"ok": False, "skipped": "no_origins"}
+    return _post_lohn_json(
+        link,
+        path="/v1/platform/cors-origins",
+        body={"origins": origins},
+        event="platform.cors-origins",
+        timeout=15,
+    )
 
 
 def _company_webhook_url(link: dict[str, Any]) -> str:
