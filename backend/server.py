@@ -2025,6 +2025,14 @@ def apply_security_headers(response):
 
     content_type = (response.headers.get("Content-Type") or "").lower()
     has_version_query = bool(str(request.args.get("v") or "").strip())
+    if not has_version_query:
+        # Fallback if args parsing is empty for any reason.
+        raw_qs = (request.query_string or b"").decode("utf-8", "ignore")
+        has_version_query = any(
+            part.split("=", 1)[0] == "v" and str(part.split("=", 1)[1] if "=" in part else "").strip()
+            for part in raw_qs.split("&")
+            if part
+        )
     is_versioned_static = has_version_query and any(
         path.endswith(ext)
         for ext in (
@@ -2058,6 +2066,7 @@ def apply_security_headers(response):
     elif is_versioned_static and response.status_code == 200:
         # Cache-bust via ?v=… — safe long cache for JS/CSS/fonts/icons.
         response.headers["Cache-Control"] = "public, max-age=604800, immutable"
+        response.headers.pop("Pragma", None)
     else:
         response.headers["Cache-Control"] = "no-cache"
         response.headers["Pragma"] = "no-cache"
