@@ -484,7 +484,7 @@ def set_company_contract_password(
         raise ValueError("password_too_short")
     if len(raw) > 128:
         raise ValueError("password_too_long")
-    db.execute(
+    cur = db.execute(
         """
         UPDATE companies
         SET contract_page_password_hash = ?,
@@ -494,6 +494,8 @@ def set_company_contract_password(
         """,
         (generate_password_hash(raw), str(actor_user_id or ""), _now_iso(), str(company_id)),
     )
+    if getattr(cur, "rowcount", None) == 0:
+        raise ValueError("company_not_found")
     db.commit()
 
 

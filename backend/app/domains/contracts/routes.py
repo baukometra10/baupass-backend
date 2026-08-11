@@ -100,6 +100,8 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 return jsonify({"error": code, "message": "Passwort mindestens 6 Zeichen."}), 400
             if code == "password_too_long":
                 return jsonify({"error": code, "message": "Passwort zu lang."}), 400
+            if code == "company_not_found":
+                return jsonify({"error": code, "message": "Firma nicht gefunden."}), 404
             return jsonify({"error": code}), 400
         until = ""
         if token:

@@ -29,6 +29,7 @@
         passwordConfirmWrap: "",
         passwordBtn: "",
         emailBlock: "",
+        otpFallbackBtn: "",
       },
       cfg.ids || {},
     );
@@ -97,21 +98,37 @@
     }
 
     function usePasswordUi() {
-      return preferPassword && authMode !== "otp";
+      // Contracts prefer password; sticky "otp" from an earlier status must not win.
+      if (!preferPassword) return false;
+      return authMode !== "otp";
     }
 
-    function show({ setup = false, enforced = false, smsConfigured = true, authMode: mode = "" } = {}) {
+    function show({ setup = false, enforced = false, smsConfigured = true, authMode: mode = "", forceOtp = false, hasContractPassword = null } = {}) {
       setupMode = !!setup;
-      if (mode) authMode = String(mode);
-      else if (setup) authMode = "setup_password";
-      else if (!authMode || authMode === "none") authMode = preferPassword ? "password" : "otp";
+      if (forceOtp) {
+        authMode = "otp";
+      } else if (mode) {
+        const normalized = String(mode);
+        if (preferPassword && (normalized === "otp" || normalized === "none")) {
+          authMode = setup || hasContractPassword === false ? "setup_password" : "password";
+        } else {
+          authMode = normalized;
+        }
+      } else if (setup) {
+        authMode = preferPassword ? "setup_password" : "otp";
+      } else if (!authMode || authMode === "none" || (preferPassword && authMode === "otp")) {
+        authMode = preferPassword
+          ? (hasContractPassword === false ? "setup_password" : "password")
+          : "otp";
+      }
+      if (authMode === "setup_password") setupMode = true;
 
       $(ids.overlay)?.classList.remove("hidden");
       $(ids.mainRoot)?.classList.add("hidden");
 
       const passwordUi = usePasswordUi();
       $(ids.passwordBlock)?.classList.toggle("hidden", !passwordUi);
-      $(ids.passwordConfirmWrap)?.classList.toggle("hidden", !(passwordUi && setupMode));
+      $(ids.passwordConfirmWrap)?.classList.toggle("hidden", !(passwordUi && (setupMode || authMode === "setup_password")));
       $(ids.passwordBtn)?.classList.toggle("hidden", !passwordUi);
       $(ids.setupBlock)?.classList.toggle("hidden", passwordUi || !setup);
       $(ids.emailBlock)?.classList.toggle("hidden", passwordUi || !$(ids.emailBlock));
@@ -119,6 +136,10 @@
       $(ids.verifyBtn)?.classList.add("hidden");
       $(ids.sendBtn)?.classList.toggle("hidden", passwordUi);
       $(ids.skipBtn)?.classList.toggle("hidden", !setup || enforced);
+      const otpFallbackBtn = $(ids.otpFallbackBtn);
+      if (otpFallbackBtn) {
+        otpFallbackBtn.classList.toggle("hidden", !passwordUi || forceOtp);
+      }
 
       if ($(ids.title)) {
         $(ids.title).textContent = setup
@@ -213,20 +234,29 @@
     async function verifyPassword() {
       const password = $(ids.password)?.value || "";
       const confirm = $(ids.passwordConfirm)?.value || "";
+      const needsSetup = setupMode || authMode === "setup_password";
       if (!password || password.length < 6) {
         setMsg(t("lockPasswordTooShort", "Passwort mindestens 6 Zeichen."), "err");
         return;
       }
-      if (setupMode && confirm && password !== confirm) {
-        setMsg(t("lockPasswordMismatch", "Passwörter stimmen nicht überein."), "err");
-        return;
+      if (needsSetup) {
+        if (!confirm) {
+          setMsg(t("lockPasswordConfirmRequired", "Bitte Passwort wiederholen."), "err");
+          $(ids.passwordConfirmWrap)?.classList.remove("hidden");
+          $(ids.passwordConfirm)?.focus();
+          return;
+        }
+        if (password !== confirm) {
+          setMsg(t("lockPasswordMismatch", "Passwörter stimmen nicht überein."), "err");
+          return;
+        }
       }
       const body = {
         company_id: getCompanyId(),
         password,
-        setup: setupMode,
+        setup: needsSetup,
       };
-      if (setupMode) body.confirmPassword = confirm || password;
+      if (needsSetup) body.confirmPassword = confirm || password;
       try {
         const res = await api("/api/contracts/lock/verify-password", {
           method: "POST",
@@ -234,6 +264,7 @@
           body: JSON.stringify(body),
         });
         unlocked = true;
+        authMode = "password";
         hide();
         onStatus(t("lockUnlockedToast", "Bereich freigeschaltet."), "ok");
         if (onVerified) await onVerified(res);
@@ -334,6 +365,10 @@
       });
       $(ids.passwordConfirm)?.addEventListener("keydown", (ev) => {
         if (ev.key === "Enter") verifyPassword().catch(() => {});
+      });
+      $(ids.otpFallbackBtn)?.addEventListener("click", () => {
+        show({ setup: setupMode, enforced: false, forceOtp: true, smsConfigured: true });
+        setMsg(t("lockOtpFallbackHint", "Code per SMS/E-Mail anfordern."), "");
       });
       $(ids.sendBtn)?.addEventListener("click", () => {
         sendOtp().catch(() => {});

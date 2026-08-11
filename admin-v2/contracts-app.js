@@ -1005,6 +1005,7 @@
         passwordConfirm: "lockContractPasswordConfirm",
         passwordConfirmWrap: "lockPasswordConfirmWrap",
         passwordBtn: "lockPasswordBtn",
+        otpFallbackBtn: "lockOtpFallbackBtn",
       },
       t: (key, fallback) => window.contractPageT(key) || fallback || key,
       getCompanyId: () => companyId,
@@ -1025,9 +1026,15 @@
     });
 
     function showLockOverlay(opts) {
-      const statusMode = opts?.authMode
-        || (opts?.setup ? "setup_password" : (opts?.hasContractPassword === false && opts?.hasOwnerPhone ? "otp" : "password"));
-      ownerUnlock?.show({ ...(opts || {}), authMode: statusMode });
+      const hasPw = opts?.hasContractPassword;
+      let statusMode = opts?.authMode;
+      if (!statusMode) {
+        if (opts?.setup || hasPw === false) statusMode = "setup_password";
+        else statusMode = "password";
+      } else if (statusMode === "otp" || statusMode === "none") {
+        statusMode = hasPw === false || opts?.setup ? "setup_password" : "password";
+      }
+      ownerUnlock?.show({ ...(opts || {}), authMode: statusMode, hasContractPassword: hasPw });
     }
 
     function hideLockOverlay() {
@@ -1046,7 +1053,9 @@
         setup: false,
         enforced: !!status?.setupEnforced,
         smsConfigured: !!status?.smsConfigured,
-        authMode: status?.authMode || (status?.hasContractPassword ? "password" : status?.hasOwnerPhone ? "otp" : "setup_password"),
+        authMode: status?.hasContractPassword
+          ? "password"
+          : (status?.ownerSetupRequired || status?.authMode === "setup_password" ? "setup_password" : "password"),
         hasContractPassword: !!status?.hasContractPassword,
         hasOwnerPhone: !!status?.hasOwnerPhone,
       };
@@ -1133,7 +1142,7 @@
         setup: false,
         enforced: !!status.setupEnforced,
         smsConfigured: !!status.smsConfigured,
-        authMode: status.authMode || (status.hasContractPassword ? "password" : status.hasOwnerPhone ? "otp" : "password"),
+        authMode: status.hasContractPassword ? "password" : "setup_password",
         hasContractPassword: !!status.hasContractPassword,
         hasOwnerPhone: !!status.hasOwnerPhone,
       });
@@ -1183,7 +1192,7 @@
         setup: false,
         enforced: !!status.setupEnforced,
         smsConfigured: !!status.smsConfigured,
-        authMode: status.authMode || (status.hasContractPassword ? "password" : status.hasOwnerPhone ? "otp" : "password"),
+        authMode: status.hasContractPassword ? "password" : "setup_password",
         hasContractPassword: !!status.hasContractPassword,
         hasOwnerPhone: !!status.hasOwnerPhone,
       });
