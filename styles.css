@@ -837,6 +837,9 @@ body.embed-mode.admin-v2-embed #app {
 .app-boot-loader.hidden {
   display: none;
 }
+html.app-boot-failed .app-boot-loader {
+  display: flex;
+}
 .app-boot-spinner {
   width: 40px;
   height: 40px;
