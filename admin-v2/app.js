@@ -144,6 +144,10 @@ async function focusDeploymentSection() {
 async function activateCommandItem(item) {
   if (!item) return;
   closeCommandPalette();
+  if (item.openLohn) {
+    await openLohnSystem();
+    return;
+  }
   if (item.tab === "enterprise" && requestEnterpriseHubInShell()) {
     return;
   }
@@ -1211,12 +1215,14 @@ function updateLohnNavBadge(count) {
   paintLohnBadge($("lohnOpsMobileBadge"), count);
 }
 
+let lohnOpenEnabled = false;
+
 async function syncLohnOpenButton() {
   const btn = $("openLohnSystemBtn");
-  if (!btn) return;
   const cid = activeCompanyId();
   if (!cid) {
-    btn.hidden = true;
+    lohnOpenEnabled = false;
+    if (btn) btn.hidden = true;
     return;
   }
   try {
@@ -1225,9 +1231,11 @@ async function syncLohnOpenButton() {
       { workpassLohnEnabled: false },
       2500,
     );
-    btn.hidden = !settings?.workpassLohnEnabled;
+    lohnOpenEnabled = !!settings?.workpassLohnEnabled;
+    if (btn) btn.hidden = !lohnOpenEnabled;
   } catch {
-    btn.hidden = true;
+    lohnOpenEnabled = false;
+    if (btn) btn.hidden = true;
   }
 }
 
@@ -1695,6 +1703,12 @@ const COMMAND_NAV = [
   { tab: "access", titleKey: "tab.access", groupKey: "nav.group.people" },
   { tab: "mobile", titleKey: "tab.mobile", groupKey: "nav.group.people" },
   { tab: "operations", titleKey: "tab.operations", groupKey: "nav.group.ops" },
+  {
+    openLohn: true,
+    titleKey: "lohn.opsLink",
+    groupKey: "nav.group.ops",
+    searchTerms: "lohn buchhaltung accounting workpass payroll abrechnung firma.de sso",
+  },
   { tab: "billing", titleKey: "tab.billing", groupKey: "nav.group.ops", searchTerms: "rechnung invoice billing stripe zahlung abo" },
   {
     href: "/admin-v2/chat.html",
@@ -1886,6 +1900,13 @@ function openCommandPalette() {
     input.value = "";
     setTimeout(() => input.focus(), 0);
   }
+  // Refresh Lohn visibility so Schnellnavigation shows Buchhaltung when enabled.
+  syncLohnOpenButton()
+    .then(() => {
+      if ($("commandPalette")?.classList.contains("hidden")) return;
+      renderCommandPaletteList(($("commandPaletteInput")?.value || "").trim());
+    })
+    .catch(() => {});
 }
 
 function closeCommandPalette() {
@@ -1902,6 +1923,9 @@ function renderCommandPaletteList(query) {
   const q = query.toLowerCase();
   commandPaletteFiltered = COMMAND_NAV.filter((item) => {
     if (isEmbedMode() && item.tab === "enterprise" && item.titleKey === "tab.enterprise") {
+      return false;
+    }
+    if (item.openLohn && !lohnOpenEnabled) {
       return false;
     }
     if (item.tab === "analytics" && !canAccessAnalyticsTab()) {
