@@ -458,8 +458,140 @@ def build_launch_payload(
     }
 
 
+def _normalize_expires_at(value: Any) -> str:
+    """Lohn auth-gate uses Date.parse(expiresAt); always return an ISO string."""
+    if value is None or value == "":
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 8 * 3600))
+    if isinstance(value, (int, float)):
+        ts = float(value)
+        if ts > 1e12:  # ms
+            ts = ts / 1000.0
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(ts))
+    text = str(value).strip()
+    if text.isdigit():
+        return _normalize_expires_at(int(text))
+    # Already ISO / parseable
+    return text
+
+
+def _rewrite_relative_attr_urls(page: str, lohn_base: str) -> str:
+    import re
+
+    def repl(match: re.Match[str]) -> str:
+        attr, quote, url = match.group(1), match.group(2), match.group(3)
+        if url.startswith(("http://", "https://", "//", "data:", "mailto:", "javascript:", "#")):
+            return match.group(0)
+        if url.startswith("/"):
+            return f"{attr}={quote}{lohn_base}{url}{quote}"
+        return f"{attr}={quote}{lohn_base}/{url}{quote}"
+
+    return re.sub(r"""(src|href)=(["'])([^"']+)\2""", repl, page, flags=re.I)
+
+
+def build_autologin_shell_html(
+    link: dict[str, Any],
+    *,
+    company_id: str,
+    session_payload: dict[str, Any],
+) -> str:
+    """
+    Serve Lohn UI under SUPPIX origin with session already in localStorage.
+    Scripts/styles load from Lohn host; API calls go to Lohn via CORS (production)
+    or absolute API base stored in workpass.lohn.apiConfig.v1.
+    """
+    import re
+
+    lohn_base = _browser_base(link) or str(link.get("base_url") or "").rstrip("/")
+    if not lohn_base:
+        return ""
+    try:
+        req = urlrequest.Request(
+            lohn_base + "/",
+            headers={
+                "Accept": "text/html",
+                "User-Agent": "Mozilla/5.0 SUPPIX-Lohn-SSO/1.0",
+            },
+            method="GET",
+        )
+        with urlrequest.urlopen(req, timeout=20) as resp:
+            page = resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+    # Strip CSP meta that would block cross-origin script/style from Lohn host.
+    page = re.sub(
+        r'<meta[^>]+http-equiv=["\']Content-Security-Policy["\'][^>]*>',
+        "",
+        page,
+        flags=re.I,
+    )
+    page = _rewrite_relative_attr_urls(page, lohn_base)
+
+    # Fetch and patch auth-gate so apiOrigin points at Lohn (page origin is SUPPIX).
+    auth_js = ""
+    try:
+        with urlrequest.urlopen(
+            urlrequest.Request(
+                f"{lohn_base}/auth-gate.js?v=8",
+                headers={"User-Agent": "Mozilla/5.0 SUPPIX-Lohn-SSO/1.0"},
+            ),
+            timeout=20,
+        ) as resp:
+            auth_js = resp.read().decode("utf-8", errors="replace")
+    except Exception:
+        auth_js = ""
+
+    if auth_js:
+        auth_js = auth_js.replace(
+            "function apiOrigin() {",
+            "function apiOrigin() {\n    if (window.__LOHN_API_ORIGIN__) return String(window.__LOHN_API_ORIGIN__);",
+            1,
+        )
+        page = re.sub(
+            r'<script[^>]+src=["\'][^"\']*auth-gate\.js[^"\']*["\'][^>]*>\s*</script>',
+            "<!-- auth-gate inlined by SUPPIX SSO -->",
+            page,
+            flags=re.I,
+        )
+
+    payload = dict(session_payload)
+    payload["expiresAt"] = _normalize_expires_at(payload.get("expiresAt"))
+    session_json = json.dumps(payload, ensure_ascii=False)
+    api_cfg = json.dumps(
+        {"base": lohn_base, "companyId": company_id},
+        ensure_ascii=False,
+    )
+    until = int(time.time() * 1000) + 8 * 60 * 60 * 1000
+    bootstrap = f"""
+<script>
+window.__LOHN_API_ORIGIN__ = {json.dumps(lohn_base)};
+try {{
+  const session = {session_json};
+  localStorage.setItem("workpassPlatformSessionV2", JSON.stringify(session));
+  localStorage.setItem("workpassLohnSessionV2", JSON.stringify({{
+    until: {until},
+    touchedAt: new Date().toISOString()
+  }}));
+  localStorage.setItem("workpass.lohn.apiConfig.v1", {api_cfg});
+  document.addEventListener("DOMContentLoaded", function () {{
+    try {{ document.body && document.body.classList.remove("auth-locked"); }} catch (e) {{}}
+  }});
+}} catch (e) {{ console.warn("SUPPIX Lohn SSO bootstrap", e); }}
+</script>
+"""
+    if auth_js:
+        safe_js = auth_js.replace("</", "<\\/")
+        bootstrap += f"<script>\n{safe_js}\n</script>\n"
+
+    if re.search(r"<head[^>]*>", page, flags=re.I):
+        page = re.sub(r"(<head[^>]*>)", r"\1" + bootstrap, page, count=1, flags=re.I)
+    else:
+        page = bootstrap + page
+    return page
+
+
 def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
-    """Consume ticket → session handoff hash or HTML UI (never API JSON Unauthorized page)."""
+    """Consume ticket → autologin shell (preferred) or Lohn UI."""
     ticket = consume_sso_ticket(db, ticket_id)
     if not ticket:
         return {
@@ -472,30 +604,78 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
     link = get_platform_link(db)
     login = repo.get_lohn_login(db, company_id)
     email = _lohn_email(company_id)
+    lohn_origin = _browser_base(link) or str(link.get("base_url") or "").rstrip("/")
 
+    # Re-push password to Lohn so /v1/auth/login matches stored credentials.
     if login:
-        remote = request_lohn_sso_url(link, company_id=company_id, login=login, actor_user_id=actor)
-        if remote.get("ok") and remote.get("url"):
+        try:
+            from .platform_link import sync_lohn_login_credentials
+
+            sync_lohn_login_credentials(
+                db,
+                company_id,
+                username=str(login.get("username") or ""),
+                password=str(login.get("password") or ""),
+            )
+        except Exception:
+            pass
+
+    session_payload: dict[str, Any] | None = None
+    login_err = ""
+    if login:
+        public = login_lohn_company_session(link, company_id=company_id, login=login)
+        if public.get("ok") and public.get("token"):
+            session_payload = {
+                "token": public["token"],
+                "expiresAt": _normalize_expires_at(public.get("expiresAt")),
+                "user": public.get("user") or {"companyId": company_id, "email": email},
+                "via": public.get("via") or "suppix",
+            }
+        else:
+            login_err = str(public.get("error") or "login_failed")
+            remote = request_lohn_sso_url(
+                link, company_id=company_id, login=login, actor_user_id=actor
+            )
+            if remote.get("ok") and remote.get("mode") == "session_handoff" and remote.get("url"):
+                # Prefer shell if we can re-login; otherwise hash handoff (needs Lohn snippet).
+                public2 = login_lohn_company_session(link, company_id=company_id, login=login)
+                if public2.get("ok") and public2.get("token"):
+                    session_payload = {
+                        "token": public2["token"],
+                        "expiresAt": _normalize_expires_at(public2.get("expiresAt")),
+                        "user": public2.get("user") or {"companyId": company_id, "email": email},
+                        "via": public2.get("via") or "suppix",
+                    }
+
+    if session_payload and _has_browser_ui(link):
+        shell = build_autologin_shell_html(
+            link, company_id=company_id, session_payload=session_payload
+        )
+        if shell:
             return {
                 "ok": True,
-                "redirect": remote["url"],
-                "html": render_sso_help_html(
-                    ui_url=remote["url"],
-                    email=email,
-                    message="Weiterleitung zu WorkPass Lohn…",
-                ),
-                "mode": remote.get("mode") or "lohn_sso",
+                "html": shell,
+                "mode": "shell_autologin",
+                "lohn_origin": lohn_origin,
             }
+        handoff = build_session_handoff_url(lohn_origin, session_payload)
+        return {
+            "ok": True,
+            "redirect": handoff,
+            "html": render_sso_help_html(
+                ui_url=handoff,
+                email=email,
+                message="Weiterleitung zu WorkPass Lohn (SSO)…",
+            ),
+            "mode": "session_handoff",
+        }
 
     if _has_browser_ui(link):
-        target = build_ui_login_url(link, company_id=company_id, email=email) or _browser_base(link)
-        login_err = ""
-        if login:
-            # surface password mismatch hint without leaking secrets
-            probe = login_lohn_company_session(link, company_id=company_id, login=login)
-            if not probe.get("ok"):
-                login_err = str(probe.get("error") or "")
-        msg = "Weiterleitung zu WorkPass Lohn…"
+        target = build_ui_login_url(link, company_id=company_id, email=email) or lohn_origin
+        msg = (
+            "WorkPass Lohn wird geöffnet. Automatische Anmeldung nicht möglich — "
+            "bitte mit der Firmen-E-Mail anmelden (Passwort ggf. neu synchronisieren)."
+        )
         if login_err:
             msg = (
                 "WorkPass Lohn wird geöffnet. Automatische Anmeldung fehlgeschlagen "
@@ -508,13 +688,15 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
             "mode": "ui_login",
         }
 
-    msg = (
-        "WorkPass Lohn API-URL liefert keine Browser-Oberfläche. "
-        "Bitte unter Plattform → WorkPass Lohn die Basis-URL der Web-App speichern "
-        "(z. B. https://workpass-lohn.up.railway.app)."
-    )
     return {
         "ok": True,
-        "html": render_sso_help_html(ui_url="", email=email, message=msg),
+        "html": render_sso_help_html(
+            ui_url="",
+            email=email,
+            message=(
+                "WorkPass Lohn API-URL liefert keine Browser-Oberfläche. "
+                "Bitte Basis-URL der Web-App speichern (z. B. https://workpass-lohn.up.railway.app)."
+            ),
+        ),
         "mode": "needs_ui_url",
     }

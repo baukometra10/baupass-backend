@@ -754,10 +754,17 @@ def register_accounting_blueprint(flask_app) -> None:
                 status=400,
                 mimetype="text/html; charset=utf-8",
             )
+        # Prefer autologin shell (HTML on SUPPIX origin) over redirect to Lohn login.
+        if result.get("html"):
+            resp = Response(str(result["html"]), mimetype="text/html; charset=utf-8")
+            if result.get("mode") == "shell_autologin":
+                lohn = str(result.get("lohn_origin") or "").rstrip("/")
+                resp.headers["X-Suppix-Lohn-Shell"] = "1"
+                if lohn:
+                    resp.headers["X-Suppix-Lohn-Origin"] = lohn
+            return resp
         if result.get("redirect"):
             return redirect(str(result["redirect"]), code=302)
-        if result.get("html"):
-            return Response(str(result["html"]), mimetype="text/html; charset=utf-8")
         return jsonify({"error": "sso_empty"}), 500
 
     @accounting_bp.put("/payroll/accounting/company-settings")

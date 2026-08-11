@@ -1990,24 +1990,50 @@ def apply_security_headers(response):
     response.headers["X-Frame-Options"] = "SAMEORIGIN" if allow_framing else "DENY"
     response.headers["Referrer-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(self), geolocation=(self)"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; "
-        "script-src 'self' https://cdn.jsdelivr.net http://127.0.0.1:8081 http://localhost:8081 'unsafe-inline'; "
-        "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; "
-        "font-src 'self' https://fonts.gstatic.com data: https://cdn.jsdelivr.net; "
-        "img-src 'self' data: blob: https:; "
-        "media-src 'self' blob:; "
-        "manifest-src 'self' blob:; "
-        "connect-src 'self' https: http://127.0.0.1:8081 http://localhost:8081 "
-        "wss://localhost:49494 wss://127.0.0.1:49494 "
-        "wss://signsocket.stepover.com:57357; "
-        "frame-src 'self' blob: http://127.0.0.1:8081 http://localhost:8081 "
-        "https://www.google.com https://maps.google.com https://www.google.de; "
-        "object-src 'self' blob:; "
-        "base-uri 'self'; "
-        f"frame-ancestors {frame_ancestors}"
-    )
     path = (request.path or "").lower()
+    # WorkPass Lohn autologin shell embeds Lohn assets under SUPPIX origin.
+    if response.headers.get("X-Suppix-Lohn-Shell") == "1" or path.startswith(
+        "/api/payroll/accounting/sso-enter"
+    ):
+        lohn_origin = (response.headers.get("X-Suppix-Lohn-Origin") or "").strip().rstrip("/")
+        lohn_src = f"{lohn_origin} " if lohn_origin else ""
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: "
+            f"{lohn_src}https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com; "
+            f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {lohn_src}"
+            "https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+            f"style-src 'self' 'unsafe-inline' {lohn_src}https://fonts.googleapis.com https://cdn.jsdelivr.net; "
+            "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob: https:; "
+            "media-src 'self' blob:; "
+            "manifest-src 'self' blob:; "
+            f"connect-src 'self' https: {lohn_src}"
+            "http://127.0.0.1:8081 http://localhost:8081 "
+            "wss://localhost:49494 wss://127.0.0.1:49494 "
+            "wss://signsocket.stepover.com:57357; "
+            "frame-src 'self' blob:; "
+            "object-src 'self' blob:; "
+            "base-uri 'self'; "
+            f"frame-ancestors {frame_ancestors}"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' https://cdn.jsdelivr.net http://127.0.0.1:8081 http://localhost:8081 'unsafe-inline'; "
+            "style-src 'self' https://fonts.googleapis.com https://cdn.jsdelivr.net 'unsafe-inline'; "
+            "font-src 'self' https://fonts.gstatic.com data: https://cdn.jsdelivr.net; "
+            "img-src 'self' data: blob: https:; "
+            "media-src 'self' blob:; "
+            "manifest-src 'self' blob:; "
+            "connect-src 'self' https: http://127.0.0.1:8081 http://localhost:8081 "
+            "wss://localhost:49494 wss://127.0.0.1:49494 "
+            "wss://signsocket.stepover.com:57357; "
+            "frame-src 'self' blob: http://127.0.0.1:8081 http://localhost:8081 "
+            "https://www.google.com https://maps.google.com https://www.google.de; "
+            "object-src 'self' blob:; "
+            "base-uri 'self'; "
+            f"frame-ancestors {frame_ancestors}"
+        )
     is_pwa_asset = (
         path in {
             "/worker.html",
