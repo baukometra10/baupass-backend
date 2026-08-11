@@ -696,7 +696,8 @@ def register_accounting_blueprint(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def admin_launch_lohn():
-        """Open WorkPass Lohn using the admin-configured base URL (domain follows platform-link)."""
+        """Open WorkPass Lohn with SSO when possible (magic-link / bridge), else domain only."""
+        from .lohn_sso import build_launch_payload
         from .platform_link import get_platform_link
 
         user = g.current_user
@@ -717,26 +718,46 @@ def register_accounting_blueprint(flask_app) -> None:
                 }
             ), 403
         link = get_platform_link(db)
-        base = str(link.get("base_url") or "").rstrip("/")
-        if not base or not link.get("enabled"):
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": "lohn_base_url_missing",
-                    "message": "Buchhaltungs-Domain fehlt. Superadmin muss die Lohn-URL unter Plattform speichern.",
-                }
-            ), 400
-        # Keep company context in query for future SSO; domain always comes from admin config.
-        sep = "&" if "?" in base else "?"
-        url = f"{base}{sep}company_id={company_id}&source=suppix"
-        return jsonify(
-            {
-                "ok": True,
-                "url": url,
-                "baseUrl": base,
-                "companyId": company_id,
-            }
-        ), 200
+        public = str(link.get("platform_public_url") or "").rstrip("/")
+        if not public:
+            try:
+                public = request.url_root.rstrip("/")
+            except Exception:
+                public = ""
+        payload = build_launch_payload(
+            db,
+            company_id=str(company_id),
+            actor_user_id=str(user.get("id") or ""),
+            public_base=public,
+        )
+        code = 200 if payload.get("ok") else (400 if payload.get("error") == "lohn_base_url_missing" else 400)
+        return jsonify(payload), code
+
+    @accounting_bp.get("/payroll/accounting/sso-enter")
+    def admin_lohn_sso_enter():
+        """One-time SSO ticket consumer — redirects to Lohn magic-link or auto-submits login form."""
+        import html as html_lib
+
+        from flask import Response, redirect
+
+        from .lohn_sso import resolve_sso_enter
+
+        ticket = (request.args.get("ticket") or "").strip()
+        result = resolve_sso_enter(get_db(), ticket)
+        if not result.get("ok"):
+            msg = html_lib.escape(str(result.get("message") or result.get("error") or "SSO fehlgeschlagen"))
+            return Response(
+                f"<!DOCTYPE html><html><body style='font-family:system-ui;padding:2rem'>"
+                f"<h1>SSO fehlgeschlagen</h1><p>{msg}</p>"
+                f"<p>Bitte erneut über SUPPIX → Buchhaltung öffnen.</p></body></html>",
+                status=400,
+                mimetype="text/html; charset=utf-8",
+            )
+        if result.get("redirect"):
+            return redirect(str(result["redirect"]), code=302)
+        if result.get("html"):
+            return Response(str(result["html"]), mimetype="text/html; charset=utf-8")
+        return jsonify({"error": "sso_empty"}), 500
 
     @accounting_bp.put("/payroll/accounting/company-settings")
     @require_auth

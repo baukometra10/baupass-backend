@@ -1238,7 +1238,10 @@ async function openLohnSystem() {
       showActionToast(res?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
       return;
     }
-    window.open(res.url, "_blank", "noopener");
+    window.open(res.url, "_blank", "noopener,noreferrer");
+    if (res.sso) {
+      showActionToast(t("lohn.ssoOpening") || "Buchhaltung — SSO-Anmeldung…");
+    }
   } catch (e) {
     showActionToast(e?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
   }
@@ -5050,6 +5053,7 @@ async function loadTools() {
       </div>
       <div class="panel-block">
         <h3>${t("tools.automation")}</h3>
+        ${automationLockedBanner}
         <form id="automationForm" class="tool-form">
           <input name="name" placeholder="${t("tools.ruleName")}" required />
           <select name="trigger_event">

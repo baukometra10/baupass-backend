@@ -271,21 +271,41 @@ def _post_lohn_json(
         "X-Suppix-Signature": sign_payload(master, timestamp=ts, body=raw),
     }
     req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
+    def _decode_body(raw: bytes, limit: int = 8000) -> tuple[str, dict[str, Any] | None]:
+        text = (raw or b"")[:limit].decode("utf-8", errors="replace")
+        parsed: dict[str, Any] | None = None
+        if text.strip().startswith("{"):
+            try:
+                obj = json.loads(text)
+                if isinstance(obj, dict):
+                    parsed = obj
+            except Exception:
+                parsed = None
+        return text, parsed
+
     try:
         with urlrequest.urlopen(req, timeout=max(2.0, float(timeout or 20))) as resp:
-            return {
+            text, parsed = _decode_body(resp.read())
+            out = {
                 "ok": True,
                 "status": int(resp.status),
                 "url": url,
-                "body": resp.read()[:800].decode("utf-8", errors="replace"),
+                "body": text[:800],
             }
+            if parsed is not None:
+                out["json"] = parsed
+            return out
     except urlerror.HTTPError as exc:
         detail = ""
+        parsed = None
         try:
-            detail = exc.read()[:400].decode("utf-8", errors="replace")
+            detail, parsed = _decode_body(exc.read(), limit=4000)
         except Exception:
             detail = str(exc)
-        return {"ok": False, "status": int(exc.code), "url": url, "error": detail or str(exc)[:200]}
+        out = {"ok": False, "status": int(exc.code), "url": url, "error": (detail or str(exc))[:200], "body": detail[:800] if detail else ""}
+        if parsed is not None:
+            out["json"] = parsed
+        return out
     except Exception as exc:
         return {"ok": False, "error": str(exc)[:200], "url": url}
 

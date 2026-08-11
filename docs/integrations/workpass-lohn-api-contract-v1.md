@@ -517,6 +517,56 @@ Then WorkPass Lohn should `GET` the `pullUrl` (with auth headers).
 
 ---
 
+## 4b) Platform → WorkPass Lohn SSO (admin “Buchhaltung öffnen”)
+
+When a company-admin clicks **Buchhaltung** in SUPPIX, the platform prefers a **full auto-login**, not only opening the Lohn domain.
+
+### Preferred: magic-link API (implement this)
+
+```http
+POST {LOHN_BASE}/v1/auth/platform-sso
+Content-Type: application/json
+X-WorkPass-Key: <master-api-key>
+X-WorkPass-Company-Id: <FIRMA-ID>
+X-Suppix-Timestamp: <unix>
+X-Suppix-Signature: <hmac>
+X-Suppix-Event: auth.platform-sso
+
+{
+  "companyId": "<FIRMA-ID>",
+  "email": "<FIRMA-ID>@firma.de",
+  "username": "<company-admin-username>",
+  "password": "<synced-password>",
+  "source": "suppix",
+  "actorUserId": "<suppix-user-id>",
+  "exp": 1730000090,
+  "nonce": "<hex>"
+}
+```
+
+Response `200`:
+
+```json
+{ "ok": true, "url": "https://<LOHN>/session?token=<one-time>" }
+```
+
+Alternate paths the platform also tries: `/v1/company/sso`, `/api/v1/auth/platform-sso`.
+
+### Also accept: signed browser handoff (no password in URL)
+
+```http
+GET {LOHN_BASE}/sso?companyId=<FIRMA-ID>&email=<FIRMA-ID>@firma.de&exp=<unix>&nonce=<hex>&sig=<hmac>&source=suppix
+```
+
+`sig = HMAC_SHA256(masterApiKey, "{companyId}.{email}.{exp}.{nonce}")`  
+Ticket TTL ≈ 90s. Create a session for that company login and redirect into the app.
+
+### Fallback on platform (if API/path missing)
+
+Platform serves a one-time bridge page that **POSTs** `email` / `username` / `password` / `companyId` to `{LOHN_BASE}/login` (classic form navigation so cookies land on the Lohn origin).
+
+---
+
 ## 5) Error codes
 
 | HTTP | `error` | Meaning |
