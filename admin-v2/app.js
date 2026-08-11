@@ -1205,10 +1205,49 @@ function updateLohnNavBadge(count) {
   paintLohnBadge($("lohnOpsMobileBadge"), count);
 }
 
+async function syncLohnOpenButton() {
+  const btn = $("openLohnSystemBtn");
+  if (!btn) return;
+  const cid = activeCompanyId();
+  if (!cid) {
+    btn.hidden = true;
+    return;
+  }
+  try {
+    const settings = await apiSoft(
+      `/api/payroll/accounting/company-settings?company_id=${encodeURIComponent(cid)}`,
+      { workpassLohnEnabled: false },
+      2500,
+    );
+    btn.hidden = !settings?.workpassLohnEnabled;
+  } catch {
+    btn.hidden = true;
+  }
+}
+
+async function openLohnSystem() {
+  const cid = activeCompanyId();
+  if (!cid) {
+    showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
+    return;
+  }
+  try {
+    const res = await api(`/api/payroll/accounting/launch?company_id=${encodeURIComponent(cid)}`);
+    if (!res?.ok || !res.url) {
+      showActionToast(res?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
+      return;
+    }
+    window.open(res.url, "_blank", "noopener");
+  } catch (e) {
+    showActionToast(e?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
+  }
+}
+
 async function refreshLohnBadgeOnly() {
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
     updateLohnNavBadge(0);
+    void syncLohnOpenButton();
     return;
   }
   try {
@@ -1222,6 +1261,7 @@ async function refreshLohnBadgeOnly() {
       /* Lohn optional per company */
     }
   }
+  void syncLohnOpenButton();
 }
 
 function broadcastLohnInboxChanged() {
@@ -1475,6 +1515,9 @@ function wireLohnDrawer() {
   $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
+  $("openLohnSystemBtn")?.addEventListener("click", () => {
+    openLohnSystem().catch(() => {});
+  });
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
     handleLohnDrawerAction(ev).catch(() => {});
   });

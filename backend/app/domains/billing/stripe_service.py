@@ -391,6 +391,112 @@ def _apply_company_plan(db, company_id: str, plan: str, *, subscription_id: str 
     )
 
 
+def _ensure_upgrade_invoice(
+    db,
+    company_id: str,
+    *,
+    plan: str,
+    billing_cycle: str = "monthly",
+    payment_ref: str = "",
+    amount_total_cents: int | None = None,
+    currency: str = "eur",
+) -> str:
+    """Create a clean paid local invoice after verified Stripe upgrade (idempotent by payment_ref)."""
+    from backend.server import now_iso
+
+    ref = str(payment_ref or "").strip()
+    if ref:
+        existing = db.execute(
+            "SELECT id FROM invoices WHERE company_id = ? AND payment_note LIKE ? LIMIT 1",
+            (company_id, f"%{ref}%"),
+        ).fetchone()
+        if existing:
+            return str(existing["id"] or existing[0] or "")
+
+    normalized = _normalize_plan(plan)
+    try:
+        net_amount = float(PLAN_NET_PRICE_EUR.get(normalized, 0) or 0)
+    except Exception:
+        net_amount = 0.0
+    if amount_total_cents is not None:
+        try:
+            # Stripe amount is usually gross; store as total and derive net with 19% VAT.
+            total_amount = max(0.0, float(amount_total_cents) / 100.0)
+            net_amount = round(total_amount / 1.19, 2)
+        except Exception:
+            pass
+    if net_amount <= 0:
+        return ""
+
+    vat_rate = 19.0
+    vat_amount = round(net_amount * vat_rate / 100.0, 2)
+    total_amount = round(net_amount + vat_amount, 2)
+    if amount_total_cents is not None:
+        try:
+            total_amount = max(0.0, float(amount_total_cents) / 100.0)
+            net_amount = round(total_amount / 1.19, 2)
+            vat_amount = round(total_amount - net_amount, 2)
+        except Exception:
+            pass
+
+    company = _company_row(db, company_id)
+    company_name = str((company["name"] if company else "") or company_id)
+    recipient = ""
+    try:
+        recipient = str((company["billing_email"] if company else "") or (company["email"] if company else "") or "").strip()
+    except Exception:
+        recipient = ""
+
+    invoice_id = f"inv-stripe-{uuid.uuid4().hex[:12]}"
+    today = now_iso().split("T")[0]
+    cycle = "jährlich" if str(billing_cycle).lower().startswith("year") else "monatlich"
+    period = f"Stripe {normalized} · {cycle}"
+    description = f"Plan-Upgrade auf {normalized}"
+    note = f"Stripe Upgrade {normalized} ({cycle})"
+    if ref:
+        note = f"{note} · {ref}"
+    invoice_number = f"STRIPE-{normalized.upper()[:4]}-{today.replace('-', '')}-{invoice_id[-4:].upper()}"
+    html = (
+        f"<html><body><h1>Rechnung {invoice_number}</h1>"
+        f"<p>{company_name}</p><p>{description}</p>"
+        f"<p>Netto: {net_amount:.2f} EUR · MwSt {vat_rate:.0f}%: {vat_amount:.2f} EUR · "
+        f"Gesamt: {total_amount:.2f} EUR</p>"
+        f"<p>Status: bezahlt ({currency.upper() or 'EUR'})</p></body></html>"
+    )
+    try:
+        db.execute(
+            """
+            INSERT INTO invoices (
+                id, invoice_number, company_id, recipient_email, invoice_date, invoice_period, description,
+                net_amount, vat_rate, vat_amount, total_amount, status, error_message, sent_at,
+                rendered_html, created_by_user_id, created_at, due_date, payment_note, paid_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'bezahlt', '', ?, ?, 'stripe', ?, ?, ?, ?)
+            """,
+            (
+                invoice_id,
+                invoice_number,
+                company_id,
+                recipient or "billing@suppix.local",
+                today,
+                period,
+                description,
+                net_amount,
+                vat_rate,
+                vat_amount,
+                total_amount,
+                now_iso(),
+                html,
+                now_iso(),
+                today,
+                note,
+                today,
+            ),
+        )
+    except Exception:
+        return ""
+    return invoice_id
+
+
 def _mark_invoice_paid_from_stripe(
     db,
     invoice_id: str,
@@ -484,7 +590,10 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
         billing_cycle = str((data_obj.get("metadata") or {}).get("billing_cycle") or "monthly")
         customer_id = str(data_obj.get("customer") or "")
         mode = str(data_obj.get("mode") or "subscription")
+        payment_status = str(data_obj.get("payment_status") or "").strip().lower()
         invoice_id = str((data_obj.get("metadata") or {}).get("invoice_id") or (data_obj.get("metadata") or {}).get("baupass_invoice_id") or "")
+        # Only unlock paid / no_payment_required (trial) sessions — never unpaid.
+        payment_ok = payment_status in {"paid", "no_payment_required", ""}
         if mode == "payment" and not invoice_id:
             pi_id = str(data_obj.get("payment_intent") or "")
             if pi_id:
@@ -492,9 +601,11 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
                     pi = _stripe_request("GET", f"/payment_intents/{pi_id}", None)
                     pi_meta = pi.get("metadata") or {}
                     invoice_id = str(pi_meta.get("invoice_id") or pi_meta.get("baupass_invoice_id") or "")
+                    if str(pi.get("status") or "").lower() not in {"succeeded", "processing"}:
+                        payment_ok = False
                 except Exception:
                     pass
-        if mode == "payment" and invoice_id:
+        if mode == "payment" and invoice_id and payment_ok:
             _mark_invoice_paid_from_stripe(
                 db,
                 invoice_id,
@@ -504,11 +615,20 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
                 currency=str(data_obj.get("currency") or ""),
             )
             handled = True
-        elif company_id:
+        elif company_id and payment_ok:
             if customer_id:
                 db.execute("UPDATE companies SET stripe_customer_id = ? WHERE id = ?", (customer_id, company_id))
             if subscription_id:
                 _apply_company_plan(db, company_id, plan, subscription_id=subscription_id, status="active", billing_cycle=billing_cycle)
+                _ensure_upgrade_invoice(
+                    db,
+                    company_id,
+                    plan=plan,
+                    billing_cycle=billing_cycle,
+                    payment_ref=str(data_obj.get("payment_intent") or data_obj.get("id") or subscription_id),
+                    amount_total_cents=_stripe_amount_cents(data_obj),
+                    currency=str(data_obj.get("currency") or "eur"),
+                )
             if invoice_id:
                 _mark_invoice_paid_from_stripe(
                     db,
@@ -517,6 +637,19 @@ def handle_webhook_event(db, event: dict[str, Any]) -> dict[str, Any]:
                     expected_company_id=company_id,
                     amount_received_cents=_stripe_amount_cents(data_obj),
                     currency=str(data_obj.get("currency") or ""),
+                )
+            handled = True
+        elif company_id and not payment_ok:
+            # Keep subscription id for later webhook, but do not unlock features yet.
+            if subscription_id:
+                db.execute(
+                    """
+                    UPDATE companies
+                    SET stripe_subscription_id = COALESCE(NULLIF(?, ''), stripe_subscription_id),
+                        stripe_subscription_status = ?
+                    WHERE id = ?
+                    """,
+                    (subscription_id, payment_status or "incomplete", company_id),
                 )
             handled = True
 

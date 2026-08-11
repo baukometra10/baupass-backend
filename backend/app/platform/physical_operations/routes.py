@@ -61,6 +61,7 @@ def _micro_cache_get_or_build(
 
 def register_physical_operations(flask_app) -> None:
     from backend.server import emit_structured_log, require_auth, require_roles, get_db, log_audit
+    from backend.app.platform.plan_guard import require_plan_capability
 
     from ._common import company_id_from_user, count_on_site, now_iso, today_prefix
     from .digital_twin import build_digital_twin
@@ -617,6 +618,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/command-center")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("physical_operations_os")
     def command_center():
         role = g.current_user.get("role", "")
         cid = _cid() if role != "superadmin" or request.args.get("company_id") else None
@@ -651,6 +653,7 @@ def register_physical_operations(flask_app) -> None:
     @ops_os_bp.get("/ops-os/live-map")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("live_tracking")
     def ops_live_map():
         t0 = time.monotonic()
         cid = _cid()

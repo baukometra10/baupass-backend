@@ -692,6 +692,52 @@ def register_accounting_blueprint(flask_app) -> None:
             }
         ), 200
 
+    @accounting_bp.get("/payroll/accounting/launch")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_launch_lohn():
+        """Open WorkPass Lohn using the admin-configured base URL (domain follows platform-link)."""
+        from .platform_link import get_platform_link
+
+        user = g.current_user
+        company_id = user.get("company_id") if user["role"] != "superadmin" else (
+            request.args.get("company_id") or user.get("company_id")
+        )
+        if not company_id:
+            return jsonify({"ok": False, "error": "company_id_required", "message": "Bitte Firma wählen."}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        db = get_db()
+        if not is_workpass_lohn_enabled(db, company_id):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "lohn_not_enabled",
+                    "message": "Buchhaltung ist für diese Firma nicht freigeschaltet.",
+                }
+            ), 403
+        link = get_platform_link(db)
+        base = str(link.get("base_url") or "").rstrip("/")
+        if not base or not link.get("enabled"):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "lohn_base_url_missing",
+                    "message": "Buchhaltungs-Domain fehlt. Superadmin muss die Lohn-URL unter Plattform speichern.",
+                }
+            ), 400
+        # Keep company context in query for future SSO; domain always comes from admin config.
+        sep = "&" if "?" in base else "?"
+        url = f"{base}{sep}company_id={company_id}&source=suppix"
+        return jsonify(
+            {
+                "ok": True,
+                "url": url,
+                "baseUrl": base,
+                "companyId": company_id,
+            }
+        ), 200
+
     @accounting_bp.put("/payroll/accounting/company-settings")
     @require_auth
     @require_roles("superadmin", "company-admin")

@@ -1117,6 +1117,8 @@ const UI_TRANSLATIONS = {
     navBaupassAi: "Suppix AI",
     navEnterpriseHub: "Funktionen & Tarife",
     navOpsCenter: "Ops-Zentrale",
+    navLiveMap: "Live-Karte",
+    topbarHeadingLiveMap: "Mitarbeiter-Live-Karte",
     navAdminV2: "Betrieb",
     navAiCopilot: "KI-Assistent",
     sidebarCompanyPreviewLabel: "Firma (Vorschau)",
@@ -2291,6 +2293,8 @@ const UI_TRANSLATIONS = {
     navAiCopilot: "AI assistant",
     navEnterpriseHub: "Features & plans",
     navOpsCenter: "Ops center",
+    navLiveMap: "Live map",
+    topbarHeadingLiveMap: "Employee live map",
     navAdminV2: "Operations",
     enterpriseHubAdminV2Btn: "Operations",
     enterpriseHubOpsBtn: "Operations center",
@@ -4084,6 +4088,8 @@ const UI_TRANSLATIONS = {
     navBaupassAi: "Suppix AI",
     navEnterpriseHub: "الميزات والخطط",
     navOpsCenter: "مركز العمليات",
+    navLiveMap: "الخريطة المباشرة",
+    topbarHeadingLiveMap: "خريطة الموظفين المباشرة",
     navAdminV2: "التشغيل",
     enterpriseHubAdminV2Btn: "التشغيل",
     enterpriseHubOpsBtn: "مركز العمليات",
@@ -9533,6 +9539,7 @@ const ENTERPRISE_NAV_ITEMS = [
   { id: "enterprise-hub", view: "enterprise-hub", path: "/enterprise-hub.html", labelKey: "navEnterpriseHub", minPlan: "starter", queryCompany: true, version: true, embed: true },
   { id: "ai-assistant", view: "ai-assistant", path: "/ai-command-center.html", labelKey: "navAiCopilot", minPlan: "professional", queryCompany: true, version: true, embed: true },
   { id: "ops-center", view: "ops-center", path: "/ops-command-center.html", labelKey: "navOpsCenter", minPlan: "professional", queryCompany: true, embed: true },
+  { id: "ops-live-map", view: "ops-live-map", path: "/ops-live-map.html", labelKey: "navLiveMap", minPlan: "professional", queryCompany: true, embed: true },
 ];
 
 const PLATFORM_VIEW_CHROME = {
@@ -9550,12 +9557,14 @@ const PLATFORM_VIEW_CHROME = {
   "ai-assistant": { eyebrow: "navBaupassAi", heading: "topbarHeadingAi" },
   "enterprise-hub": { eyebrow: "navEnterpriseHub", heading: "topbarHeadingHub" },
   "ops-center": { eyebrow: "navOpsCenter", heading: "topbarHeadingOps" },
+  "ops-live-map": { eyebrow: "navLiveMap", heading: "topbarHeadingLiveMap" },
 };
 
 const ENTERPRISE_EMBED_META = {
   "ai-assistant": { frameId: "aiAssistantFrame", externalLinkId: "aiAssistantExternalLink", defaultItemId: "ai-assistant" },
   "enterprise-hub": { frameId: "enterpriseHubFrame", externalLinkId: "enterpriseHubExternalLink", defaultItemId: "enterprise-hub" },
   "ops-center": { frameId: "opsCenterFrame", externalLinkId: "opsCenterExternalLink", defaultItemId: "ops-center" },
+  "ops-live-map": { frameId: "opsLiveMapFrame", externalLinkId: "opsLiveMapExternalLink", defaultItemId: "ops-live-map" },
   "admin-v2": { frameId: "adminV2Frame", externalLinkId: "adminV2ExternalLink", defaultItemId: "admin-v2" },
 };
 
@@ -18457,11 +18466,39 @@ function getEffectiveUiCompanyId() {
   return String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
 }
 
+function normalizeCompanyPlan(planValue) {
+  const raw = String(planValue || "").trim().toLowerCase();
+  const aliases = {
+    startpreis: "starter",
+    start: "starter",
+    starterpaket: "starter",
+    "starter paket": "starter",
+    professionell: "professional",
+    pro: "professional",
+    "professional paket": "professional",
+    professionalpaket: "professional",
+    "enterprise paket": "enterprise",
+    enterprisepaket: "enterprise",
+    "enterprise packet": "enterprise",
+    enterprisepacket: "enterprise",
+    unternehmenspaket: "enterprise",
+    unternehmen: "enterprise",
+    daypass: "tageskarte",
+    besucherkarte: "tageskarte",
+  };
+  const plan = aliases[raw] || raw.replace(/\s+/g, " ");
+  if (plan in PLAN_RANK) return plan;
+  if (plan.includes("enterprise")) return "enterprise";
+  if (plan.includes("profession") || plan === "pro") return "professional";
+  if (plan.includes("start")) return "starter";
+  if (plan.includes("tag") || plan.includes("day")) return "tageskarte";
+  return "starter";
+}
+
 function getCompanyPlan(companyId) {
   const normalizedCompanyId = String(companyId || "").trim();
   const company = state.companies.find((entry) => String(entry?.id || "").trim() === normalizedCompanyId);
-  const rawPlan = String(company?.plan || "starter").trim().toLowerCase();
-  return rawPlan in PLAN_RANK ? rawPlan : "starter";
+  return normalizeCompanyPlan(company?.plan || "starter");
 }
 
 function hasCompanyFeatureForCompanyId(companyId, featureKey) {
@@ -19050,6 +19087,7 @@ function scheduleCriticalEmbedWarm() {
     // Warm heaviest embeds in the background so first open feels instant.
     warmEnterpriseEmbed("admin-v2");
     window.setTimeout(() => warmEnterpriseEmbed("ops-center"), 900);
+    window.setTimeout(() => warmEnterpriseEmbed("ops-live-map"), 1400);
     window.setTimeout(() => warmEnterpriseEmbed("enterprise-hub"), 1800);
     window.setTimeout(() => warmEnterpriseEmbed("ai-assistant"), 2600);
   };

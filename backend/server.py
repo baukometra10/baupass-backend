@@ -1610,14 +1610,33 @@ def normalize_company_plan(plan_value):
         "startpreis": "starter",
         "start": "starter",
         "starterpaket": "starter",
+        "starter paket": "starter",
         "professionell": "professional",
         "pro": "professional",
+        "professional paket": "professional",
+        "professionalpaket": "professional",
+        "enterprise paket": "enterprise",
+        "enterprisepaket": "enterprise",
+        "enterprise packet": "enterprise",
+        "enterprisepacket": "enterprise",
+        "unternehmenspaket": "enterprise",
+        "unternehmen": "enterprise",
         "tageskarte": "tageskarte",
         "daypass": "tageskarte",
         "besucherkarte": "tageskarte",
     }
     plan = aliases.get(plan, plan)
-    return plan if plan in PLAN_NET_PRICE_EUR else "tageskarte"
+    if plan in PLAN_NET_PRICE_EUR:
+        return plan
+    if "enterprise" in plan:
+        return "enterprise"
+    if "profession" in plan or plan == "pro":
+        return "professional"
+    if "start" in plan:
+        return "starter"
+    if "tag" in plan or "day" in plan:
+        return "tageskarte"
+    return "starter"
 
 
 def normalize_company_trial_end(raw_value):
