@@ -3860,10 +3860,16 @@ function formatEur(value) {
 
 async function fetchInboxCountsCached(q) {
   const key = q || "_";
-  if (_inboxCountsCache.key === key && Date.now() - _inboxCountsCache.at < 30_000) {
+  if (_inboxCountsCache.key === key && Date.now() - _inboxCountsCache.at < 20_000) {
     return _inboxCountsCache.data;
   }
-  const data = await api(`/api/inbox${q}`).catch(() => ({ counts: {} }));
+  // Prefer lightweight counts endpoint; fall back to full inbox only if needed.
+  const data = await apiSoft(`/api/inbox/counts${q}`, null, 2500)
+    .then(async (countsPayload) => {
+      if (countsPayload?.counts) return countsPayload;
+      return apiSoft(`/api/inbox${q}`, { counts: {} }, 3500);
+    })
+    .catch(() => ({ counts: {} }));
   _inboxCountsCache = { key, at: Date.now(), data };
   return data;
 }

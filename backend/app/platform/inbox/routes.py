@@ -1,9 +1,14 @@
 """Inbox API — /api/inbox"""
 from __future__ import annotations
 
+import time
+
 from flask import Blueprint, g, jsonify, request
 
 inbox_bp = Blueprint("platform_inbox", __name__)
+
+_INBOX_COUNTS_CACHE: dict[str, tuple[float, dict]] = {}
+_INBOX_COUNTS_TTL_SEC = 8.0
 
 
 def register_inbox_blueprint(flask_app) -> None:
@@ -45,11 +50,24 @@ def register_inbox_blueprint(flask_app) -> None:
         company_id = str(g.current_user.get("company_id") or "").strip()
         if role == "superadmin":
             company_id = str(request.args.get("company_id") or company_id or "").strip() or None
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{role}:{company_id or '-'}"
+        now = time.monotonic()
+        if not force:
+            hit = _INBOX_COUNTS_CACHE.get(cache_key)
+            if hit and now - hit[0] < _INBOX_COUNTS_TTL_SEC:
+                return jsonify(hit[1])
         try:
             dash = build_operations_inbox(get_db(), company_id, role=role, limit=10)
         except Exception as exc:
             return jsonify({"error": "inbox_build_failed", "message": str(exc)}), 500
-        return jsonify({"counts": dash.get("counts", {}), "companyId": dash.get("companyId")})
+        payload = {"counts": dash.get("counts", {}), "companyId": dash.get("companyId")}
+        _INBOX_COUNTS_CACHE[cache_key] = (now, payload)
+        if len(_INBOX_COUNTS_CACHE) > 120:
+            oldest = sorted(_INBOX_COUNTS_CACHE.items(), key=lambda kv: kv[1][0])[:40]
+            for key, _ in oldest:
+                _INBOX_COUNTS_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @inbox_bp.post("/inbox/<path:item_id>/resolve")
     @require_auth

@@ -1,6 +1,8 @@
 """Admin domain — legacy /api/admin/* + v2 dashboard."""
 from __future__ import annotations
 
+import time
+
 from flask import Blueprint, Flask, jsonify, request
 
 from .._routes import register_blueprint_once
@@ -24,6 +26,9 @@ from .usage_analytics import (
 admin_core_bp = Blueprint("admin_domain_core", __name__)
 admin_v2_bp = Blueprint("admin_domain_v2", __name__)
 _service = AdminService()
+
+_ADMIN_OVERVIEW_CACHE: dict[str, tuple[float, dict]] = {}
+_ADMIN_OVERVIEW_TTL_SEC = 12.0
 
 
 def _register_core_admin_routes() -> None:
@@ -108,7 +113,20 @@ def register_admin_blueprint(flask_app: Flask) -> None:
         if not cid:
             return forbidden_company()
         today = utc_now().strftime("%Y-%m-%d")
-        return jsonify(_service.overview(get_db(), cid, today))
+        force = str(request.args.get("refresh") or "").strip().lower() in {"1", "true", "yes"}
+        cache_key = f"{cid}:{today}"
+        now = time.monotonic()
+        if not force:
+            hit = _ADMIN_OVERVIEW_CACHE.get(cache_key)
+            if hit and now - hit[0] < _ADMIN_OVERVIEW_TTL_SEC:
+                return jsonify(hit[1])
+        payload = _service.overview(get_db(), cid, today)
+        _ADMIN_OVERVIEW_CACHE[cache_key] = (now, payload)
+        if len(_ADMIN_OVERVIEW_CACHE) > 100:
+            oldest = sorted(_ADMIN_OVERVIEW_CACHE.items(), key=lambda kv: kv[1][0])[:30]
+            for key, _ in oldest:
+                _ADMIN_OVERVIEW_CACHE.pop(key, None)
+        return jsonify(payload)
 
     @admin_v2_bp.get("/admin/usage-stats")
     @require_auth

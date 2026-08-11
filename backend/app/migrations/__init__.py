@@ -58,6 +58,8 @@ ALL_MIGRATIONS: list[Migration] = [
             CREATE INDEX IF NOT EXISTS idx_wit_company ON worker_identity_tokens(company_id, status);
             CREATE INDEX IF NOT EXISTS idx_wit_token_hash ON worker_identity_tokens(token_hash) WHERE status = 'active';
             CREATE INDEX IF NOT EXISTS idx_system_alerts_resolved ON system_alerts(resolved_at, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_access_logs_company_ts ON access_logs(company_id, timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_geofences_company_active ON geofences(company_id, active);
         """,
         down_sql="""
             DROP INDEX IF EXISTS idx_workers_company_id;
@@ -68,6 +70,8 @@ ALL_MIGRATIONS: list[Migration] = [
             DROP INDEX IF EXISTS idx_workers_not_deleted;
             DROP INDEX IF EXISTS idx_access_logs_worker_ts;
             DROP INDEX IF EXISTS idx_access_logs_gate_ts;
+            DROP INDEX IF EXISTS idx_access_logs_company_ts;
+            DROP INDEX IF EXISTS idx_geofences_company_active;
             DROP INDEX IF EXISTS idx_worker_docs_company_expires;
             DROP INDEX IF EXISTS idx_worker_docs_worker_id;
             DROP INDEX IF EXISTS idx_invoices_company_date;

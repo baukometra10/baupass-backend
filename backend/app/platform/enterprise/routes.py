@@ -16,9 +16,9 @@ from flask import Blueprint, g, jsonify, request
 enterprise_bp = Blueprint("enterprise", __name__)
 
 _PLATFORM_CAPS_CACHE: dict[str, tuple[float, dict]] = {}
-_PLATFORM_CAPS_TTL_SEC = 20.0
+_PLATFORM_CAPS_TTL_SEC = 30.0
 _PLATFORM_SETUP_CACHE: tuple[float, dict] | None = None
-_PLATFORM_SETUP_TTL_SEC = 15.0
+_PLATFORM_SETUP_TTL_SEC = 20.0
 
 
 def _now_iso() -> str:
