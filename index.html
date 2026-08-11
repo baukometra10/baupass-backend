@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="SUPPIX" />
   <meta name="application-name" content="SUPPIX" />
-  <link rel="preload" href="./app.js?v=20260811plan2" as="script" />
+  <link rel="preload" href="./app.js?v=20260811lohn2" as="script" />
   <link rel="preload" href="./styles.css?v=20260810co5" as="style" />
     <script>
       (function enforceLatestBuild() {
@@ -365,6 +365,7 @@
           <details class="topbar-more-menu">
             <summary class="ghost-button" data-ui-i18n="topbarMore">Mehr</summary>
             <div class="topbar-more-panel" role="group">
+              <button id="openLohnSystemMenuBtn" class="ghost-button" type="button" hidden data-ui-i18n="btnOpenLohn">Buchhaltung öffnen</button>
               <button id="seedDataButton" class="ghost-button" type="button" data-ui-i18n="btnSeedData">Demo-Daten einspielen</button>
               <button id="exportButton" class="primary-button" type="button" data-ui-i18n="btnExport">System exportieren</button>
               <button id="importButton" class="ghost-button" type="button" data-ui-i18n="btnImport">System importieren</button>
@@ -2544,7 +2545,7 @@
   <script src="./e2e-i18n.js?v=20260707e2e1"></script>
   <script src="./e2e-crypto.js?v=20260707e2e3"></script>
   <script src="./e2e-admin-bridge.js?v=20260707e2e1"></script>
-  <script src="./shell-boot.js?v=20260811plan1"></script>
+  <script src="./shell-boot.js?v=20260811plan2"></script>
   <script src="./desktop/renderer.js?v=20260524l" defer></script>
   <script>
     (function applyPublicBranding() {

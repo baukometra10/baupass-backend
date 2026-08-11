@@ -469,6 +469,11 @@ window.addEventListener("message", (event) => {
     }
     return;
   }
+  if (event.data.type === "baupass-open-lohn") {
+    applyParentCompanyId(event.data.companyId);
+    openLohnSystem().catch(() => {});
+    return;
+  }
   if (event.data.type === "baupass-focus-einsatzplan") {
     applyParentCompanyId(event.data.companyId);
     pendingEinsatzplanFocus = true;
@@ -1206,18 +1211,12 @@ function updateLohnNavBadge(count) {
   paintLohnBadge($("lohnOpsMobileBadge"), count);
 }
 
-function lohnOpenButtons() {
-  return [$("openLohnSystemBtn"), $("openLohnSystemBtnTop")].filter(Boolean);
-}
-
 async function syncLohnOpenButton() {
-  const buttons = lohnOpenButtons();
-  if (!buttons.length) return;
+  const btn = $("openLohnSystemBtn");
+  if (!btn) return;
   const cid = activeCompanyId();
   if (!cid) {
-    buttons.forEach((btn) => {
-      btn.hidden = true;
-    });
+    btn.hidden = true;
     return;
   }
   try {
@@ -1226,14 +1225,9 @@ async function syncLohnOpenButton() {
       { workpassLohnEnabled: false },
       2500,
     );
-    const show = !!settings?.workpassLohnEnabled;
-    buttons.forEach((btn) => {
-      btn.hidden = !show;
-    });
+    btn.hidden = !settings?.workpassLohnEnabled;
   } catch {
-    buttons.forEach((btn) => {
-      btn.hidden = true;
-    });
+    btn.hidden = true;
   }
 }
 
@@ -1530,10 +1524,8 @@ function wireLohnDrawer() {
   $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
-  lohnOpenButtons().forEach((btn) => {
-    btn.addEventListener("click", () => {
-      openLohnSystem().catch(() => {});
-    });
+  $("openLohnSystemBtn")?.addEventListener("click", () => {
+    openLohnSystem().catch(() => {});
   });
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
     handleLohnDrawerAction(ev).catch(() => {});

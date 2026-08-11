@@ -898,6 +898,10 @@ const UI_TRANSLATIONS = {
     dashboardQuickNavLabel: "Schnellzugriff",
     navAdminV2: "Betrieb",
     topbarMore: "Mehr",
+    btnOpenLohn: "Buchhaltung öffnen",
+    btnOpenLohnToastSelect: "Bitte zuerst eine Firma wählen.",
+    btnOpenLohnToastFail: "Buchhaltung konnte nicht geöffnet werden.",
+    btnOpenLohnToastSso: "Buchhaltung — SSO-Anmeldung…",
     navDashboard: "Dashboard",
     navWorkers: "Mitarbeiter",
     navDeploymentPlan: "Einsatzplan",
@@ -2194,6 +2198,10 @@ const UI_TRANSLATIONS = {
     navAdminV2: "Operations",
     navEnterpriseSection: "AI & integrations",
     topbarMore: "More",
+    btnOpenLohn: "Open accounting",
+    btnOpenLohnToastSelect: "Please select a company first.",
+    btnOpenLohnToastFail: "Could not open accounting.",
+    btnOpenLohnToastSso: "Accounting — SSO sign-in…",
     navDashboard: "Dashboard",
     navWorkers: "Workers",
     navDeploymentPlan: "Deployment plan",
@@ -4062,6 +4070,10 @@ const UI_TRANSLATIONS = {
     dashboardQuickNavLabel: "وصول سريع",
     navAdminV2: "Admin v2 — تشغيل سريع",
     topbarMore: "المزيد",
+    btnOpenLohn: "فتح المحاسبة",
+    btnOpenLohnToastSelect: "يرجى اختيار شركة أولاً.",
+    btnOpenLohnToastFail: "تعذر فتح المحاسبة.",
+    btnOpenLohnToastSso: "المحاسبة — تسجيل دخول SSO…",
     navDashboard: "لوحة التحكم",
     navWorkers: "العمال",
     navBadge: "بطاقة الهوية",
@@ -9365,6 +9377,7 @@ const elements = {
   systemAlertText: document.querySelector("#systemAlertText"),
   systemAlertActionBtn: document.querySelector("#systemAlertActionBtn"),
   seedDataButton: document.querySelector("#seedDataButton"),
+  openLohnSystemMenuBtn: document.querySelector("#openLohnSystemMenuBtn"),
   exportButton: document.querySelector("#exportButton"),
   importButton: document.querySelector("#importButton"),
   sessionCard: document.querySelector("#sessionCard"),
@@ -23303,6 +23316,25 @@ function updateTopbarActionsState(loggedIn) {
     elements.seedDataButton.title = canSeed ? "" : runtimeText("adminOnlyTooltip");
   }
 
+  if (elements.openLohnSystemMenuBtn) {
+    const canOpenLohn = loggedIn && (role === "superadmin" || role === "company-admin");
+    let lohnEnabled = false;
+    if (canOpenLohn) {
+      const cid = String(getEffectiveUiCompanyId() || wpGet?.(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "").trim();
+      const company = (state.companies || []).find((c) => String(c?.id || "") === cid);
+      if (company) {
+        lohnEnabled = isCompanyWorkpassLohnEnabled(company);
+      } else if (role === "company-admin" && cid) {
+        // Company list may not be loaded — show and let launch API decide.
+        lohnEnabled = true;
+      } else if (role === "superadmin" && cid) {
+        lohnEnabled = true;
+      }
+    }
+    elements.openLohnSystemMenuBtn.hidden = !lohnEnabled;
+    elements.openLohnSystemMenuBtn.style.display = lohnEnabled ? "inline-flex" : "none";
+  }
+
   if (elements.exportButton) {
     const canExport = role === "superadmin" && canWrite;
     elements.exportButton.style.display = loggedIn && canExport ? "inline-flex" : "none";
@@ -23320,6 +23352,57 @@ function updateTopbarActionsState(loggedIn) {
   if (elements.logoutButton) {
     elements.logoutButton.style.display = loggedIn ? "inline-flex" : "none";
     elements.logoutButton.disabled = false;
+  }
+}
+
+async function openLohnSystemFromTopbarMenu() {
+  const role = String(getCurrentUser()?.role || "");
+  if (role !== "superadmin" && role !== "company-admin") {
+    showToast(runtimeText("btnOpenLohnToastFail"), "error", 5000);
+    return;
+  }
+  const storedAdminCompany = String(wpGet(WP?.KEYS?.ADMIN_COMPANY || "workpass-admin-company") || "").trim();
+  const companyId = String(getEffectiveUiCompanyId() || storedAdminCompany || "").trim();
+  if (!companyId) {
+    showToast(runtimeText("btnOpenLohnToastSelect"), "error", 5000);
+    return;
+  }
+
+  // Prefer Betrieb iframe SSO (has live company picker + launch bridge).
+  const frame = document.getElementById("adminV2Frame");
+  if (frame?.contentWindow) {
+    try {
+      const message = { type: "baupass-open-lohn", companyId };
+      if (window.BaupassEmbed?.postMessageToIframe) {
+        window.BaupassEmbed.postMessageToIframe(frame, message);
+      } else {
+        frame.contentWindow.postMessage(message, window.location.origin);
+      }
+      const moreMenu = document.querySelector(".topbar-more-menu");
+      if (moreMenu) moreMenu.open = false;
+      return;
+    } catch {
+      /* fall through to direct launch */
+    }
+  }
+
+  try {
+    const res = await apiRequest(
+      `${API_BASE}/api/payroll/accounting/launch?company_id=${encodeURIComponent(companyId)}`,
+    );
+    if (!res?.ok || !res.url) {
+      showToast(res?.message || runtimeText("btnOpenLohnToastFail"), "error", 6000);
+      return;
+    }
+    window.open(res.url, "_blank", "noopener,noreferrer");
+    if (res.sso) {
+      showToast(runtimeText("btnOpenLohnToastSso"), "info", 3500);
+    }
+    const moreMenu = document.querySelector(".topbar-more-menu");
+    if (moreMenu) moreMenu.open = false;
+  } catch (error) {
+    const detail = error?.payload?.message || error?.payload?.error || error.message;
+    showToast(detail || runtimeText("btnOpenLohnToastFail"), "error", 6000);
   }
 }
 
@@ -37950,6 +38033,12 @@ if (elements.logoutButton) {
 
 if (elements.seedDataButton) {
   elements.seedDataButton.addEventListener("click", loadDemoData);
+}
+
+if (elements.openLohnSystemMenuBtn) {
+  elements.openLohnSystemMenuBtn.addEventListener("click", () => {
+    openLohnSystemFromTopbarMenu().catch(() => {});
+  });
 }
 
 if (elements.exportButton) {
