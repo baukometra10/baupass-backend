@@ -100,6 +100,7 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "cmd_center": "enterprise",
     # Layer 4 — Automation
     "workflows": "professional",
+    "automation_suite": "professional",
     "approval_chains": "professional",
     "auto_notifications": "starter",
     "auto_expiry": "professional",
@@ -248,6 +249,10 @@ CATALOG_MIN_PLAN: dict[str, str] = {
     "third_party_ext": "enterprise",
     "marketplace": "enterprise",
     "integration_hub": "enterprise",
+    "enterprise_integrations": "enterprise",
+    "ops_command_center": "enterprise",
+    "physical_operations_os": "professional",
+    "realtime_operations": "professional",
     # Layer 12 — Platform ecosystem
     "saas_infra": "enterprise",
     "dev_platform": "enterprise",

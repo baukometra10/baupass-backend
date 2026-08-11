@@ -102,6 +102,69 @@ def register_physical_operations(flask_app) -> None:
             return str(request.args.get("company_id", "") or "").strip()
         return str(g.current_user.get("company_id") or "").strip()
 
+    # Central plan gate for every /api/ops-os/* route (longest prefix wins).
+    # Keeps Starter from calling Pro/Enterprise ops APIs directly.
+    _OPS_PATH_CAPS: tuple[tuple[str, str], ...] = (
+        ("/ops-os/live-map", "live_tracking"),
+        ("/ops-os/nearest-workers", "live_tracking"),
+        ("/ops-os/workers/", "live_tracking"),
+        ("/ops-os/command-center", "ops_command_center"),
+        ("/ops-os/predictions/", "predictive_ops"),
+        ("/ops-os/digital-twin", "digital_twin"),
+        ("/ops-os/emergency", "emergency_ops"),
+        ("/ops-os/cameras", "camera_ai"),
+        ("/ops-os/iot", "iot"),
+        ("/ops-os/copilot", "ai_assistant"),
+        ("/ops-os/security-engine", "security_ops"),
+        ("/ops-os/workforce-graph", "graph_intelligence"),
+        ("/ops-os/site-intelligence", "site_intelligence"),
+        ("/ops-os/daily-brief", "physical_operations_os"),
+        ("/ops-os/reputation", "physical_analytics"),
+        ("/ops-os/events/stream", "sse"),
+        ("/ops-os/equipment", "physical_operations_os"),
+        ("/ops-os/hazard-zones", "zone_monitoring"),
+        ("/ops-os/identity", "physical_operations_os"),
+        ("/ops-os/summary", "physical_operations_os"),
+        ("/ops-os/overview", "physical_operations_os"),
+        ("/ops-os/", "physical_operations_os"),
+    )
+
+    @ops_os_bp.before_request
+    def _enforce_ops_plan_capability():
+        from backend.app.platform.plan_entitlements import min_plan_for_capability, plan_includes
+        from backend.server import feature_not_available_response, get_company_plan
+
+        path = (request.path or "").lower()
+        if "/ops-os/" not in path:
+            return None
+        capability = "physical_operations_os"
+        best = ""
+        for prefix, cap in _OPS_PATH_CAPS:
+            if prefix in path and len(prefix) >= len(best):
+                best = prefix
+                capability = cap
+
+        user = getattr(g, "current_user", None) or {}
+        role = str(user.get("role") or "")
+        company_id = str(user.get("company_id") or "").strip()
+        if role == "superadmin":
+            preview = str(
+                request.args.get("company_id")
+                or (request.get_json(silent=True) or {}).get("company_id")
+                or (request.get_json(silent=True) or {}).get("companyId")
+                or ""
+            ).strip()
+            if preview:
+                company_id = preview
+            else:
+                return None
+        if not company_id:
+            return None
+        plan = get_company_plan(get_db(), company_id)
+        if not plan_includes(plan, min_plan_for_capability(capability)):
+            return feature_not_available_response(capability, plan)
+        return None
+
     # ── Fast summary (first paint) ────────────────────────────────────────────
     @ops_os_bp.get("/ops-os/summary")
     @require_auth

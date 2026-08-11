@@ -420,6 +420,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.get("/automation/rules")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("automation_suite")
     def automation_list():
         from backend.server import get_db
         from .automation_engine import list_rules
@@ -429,6 +430,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.post("/automation/rules")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("automation_suite")
     def automation_create():
         from backend.server import get_db
         from .automation_engine import create_rule
@@ -449,6 +451,7 @@ def register_enterprise_routes(flask_app):
     @enterprise_bp.get("/integrations")
     @require_auth
     @require_roles("superadmin", "company-admin")
+    @require_plan_capability("enterprise_integrations")
     def integrations_list():
         from backend.server import get_db
 

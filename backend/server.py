@@ -8053,6 +8053,21 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
         if not company_id:
             result["skipped"] += 1
             continue
+        # Stripe-billed subscriptions are charged by Stripe — skip local duplicate invoice.
+        stripe_sub = ""
+        stripe_status = ""
+        try:
+            stripe_sub = str(company["stripe_subscription_id"] or "").strip()
+            stripe_status = str(company["stripe_subscription_status"] or "").strip().lower()
+        except Exception:
+            try:
+                stripe_sub = str(company["stripe_subscription_id"] if "stripe_subscription_id" in company.keys() else "").strip()
+                stripe_status = str(company["stripe_subscription_status"] if "stripe_subscription_status" in company.keys() else "").strip().lower()
+            except Exception:
+                pass
+        if stripe_sub and stripe_status in {"active", "trialing", "past_due"}:
+            result["skipped"] += 1
+            continue
         invoice_number = get_next_numeric_invoice_number(db, company_id=company_id)
         existing_invoice = db.execute(
             "SELECT id FROM invoices WHERE company_id = ? AND invoice_number = ? LIMIT 1",
