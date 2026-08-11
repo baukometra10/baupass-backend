@@ -563,7 +563,27 @@ Ticket TTL ≈ 90s. Create a session for that company login and redirect into th
 
 ### Fallback on platform (if API/path missing)
 
-Platform serves a one-time bridge page that **POSTs** `email` / `username` / `password` / `companyId` to `{LOHN_BASE}/login` (classic form navigation so cookies land on the Lohn origin).
+1. Platform calls Lohn **public** login (same as the Lohn UI):
+
+```http
+POST {LOHN_BASE}/v1/auth/login
+Content-Type: application/json
+
+{ "email": "<FIRMA-ID>@firma.de", "password": "<synced-password>" }
+```
+
+Response (success):
+
+```json
+{ "ok": true, "session": "<token>", "expiresAt": "...", "user": { "companyId": "<FIRMA-ID>", "role": "…" } }
+```
+
+2. Browser opens `{LOHN_BASE}/#suppix-sso=<urlencoded-json>` with `{ token, expiresAt, user, via }`.
+
+3. Lohn `auth-gate.js` must consume the hash once (snippet):  
+   `docs/integrations/workpass-lohn-suppix-sso-snippet.js`
+
+Without the snippet, SUPPIX still opens the Lohn HTML UI (not the API JSON error); the user signs in once with `{FIRMA-ID}@firma.de`.
 
 ---
 
