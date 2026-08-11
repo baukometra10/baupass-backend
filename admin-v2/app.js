@@ -1206,12 +1206,18 @@ function updateLohnNavBadge(count) {
   paintLohnBadge($("lohnOpsMobileBadge"), count);
 }
 
+function lohnOpenButtons() {
+  return [$("openLohnSystemBtn"), $("openLohnSystemBtnTop")].filter(Boolean);
+}
+
 async function syncLohnOpenButton() {
-  const btn = $("openLohnSystemBtn");
-  if (!btn) return;
+  const buttons = lohnOpenButtons();
+  if (!buttons.length) return;
   const cid = activeCompanyId();
   if (!cid) {
-    btn.hidden = true;
+    buttons.forEach((btn) => {
+      btn.hidden = true;
+    });
     return;
   }
   try {
@@ -1220,9 +1226,14 @@ async function syncLohnOpenButton() {
       { workpassLohnEnabled: false },
       2500,
     );
-    btn.hidden = !settings?.workpassLohnEnabled;
+    const show = !!settings?.workpassLohnEnabled;
+    buttons.forEach((btn) => {
+      btn.hidden = !show;
+    });
   } catch {
-    btn.hidden = true;
+    buttons.forEach((btn) => {
+      btn.hidden = true;
+    });
   }
 }
 
@@ -1519,8 +1530,10 @@ function wireLohnDrawer() {
   $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
-  $("openLohnSystemBtn")?.addEventListener("click", () => {
-    openLohnSystem().catch(() => {});
+  lohnOpenButtons().forEach((btn) => {
+    btn.addEventListener("click", () => {
+      openLohnSystem().catch(() => {});
+    });
   });
   $("lohnDrawerBody")?.addEventListener("click", (ev) => {
     handleLohnDrawerAction(ev).catch(() => {});
