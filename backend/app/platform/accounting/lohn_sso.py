@@ -672,6 +672,20 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
                     }
 
     if session_payload and _has_browser_ui(link):
+        # Prefer Lohn-origin hash handoff so in-app navigation stays on WorkPass Lohn.
+        handoff = build_session_handoff_url(lohn_origin, session_payload)
+        if handoff and "suppix-sso=" in handoff:
+            return {
+                "ok": True,
+                "redirect": handoff,
+                "html": render_sso_help_html(
+                    ui_url=handoff,
+                    email=email,
+                    message="Weiterleitung zu WorkPass Lohn (SSO)…",
+                ),
+                "mode": "session_handoff",
+                "lohn_origin": lohn_origin,
+            }
         shell = build_autologin_shell_html(
             link, company_id=company_id, session_payload=session_payload
         )
@@ -682,17 +696,6 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
                 "mode": "shell_autologin",
                 "lohn_origin": lohn_origin,
             }
-        handoff = build_session_handoff_url(lohn_origin, session_payload)
-        return {
-            "ok": True,
-            "redirect": handoff,
-            "html": render_sso_help_html(
-                ui_url=handoff,
-                email=email,
-                message="Weiterleitung zu WorkPass Lohn (SSO)…",
-            ),
-            "mode": "session_handoff",
-        }
 
     if _has_browser_ui(link):
         target = build_ui_login_url(link, company_id=company_id, email=email) or lohn_origin
