@@ -47,7 +47,25 @@ def _ensure_platform_link_table(db) -> None:
             db.commit()
         except Exception:
             pass
-
+    # Optional browser UI host (API base often requires X-WorkPass-Key and is not openable in a tab)
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(workpass_lohn_platform_link)").fetchall()}
+    except Exception:
+        cols = set()
+    if cols and "ui_base_url" not in cols:
+        try:
+            db.execute(
+                "ALTER TABLE workpass_lohn_platform_link ADD COLUMN ui_base_url TEXT NOT NULL DEFAULT ''"
+            )
+            db.commit()
+        except Exception:
+            try:
+                db.execute(
+                    "ALTER TABLE workpass_lohn_platform_link ADD COLUMN IF NOT EXISTS ui_base_url TEXT NOT NULL DEFAULT ''"
+                )
+                db.commit()
+            except Exception:
+                pass
 
 def get_platform_link(db) -> dict[str, Any]:
     _ensure_platform_link_table(db)
@@ -55,11 +73,14 @@ def get_platform_link(db) -> dict[str, Any]:
     data = dict(row) if row else {}
     # Env wins as bootstrap / override when DB empty
     env_base = platform_env("WORKPASS_LOHN_BASE_URL", "")
+    env_ui = platform_env("WORKPASS_LOHN_UI_URL", "")
     env_key = platform_env("WORKPASS_LOHN_MASTER_KEY", "")
     env_enabled = platform_env("WORKPASS_LOHN_ENABLED", "")
     env_public = platform_env("PUBLIC_BASE_URL", "") or platform_env("PLATFORM_PUBLIC_URL", "")
     if env_base and not str(data.get("base_url") or "").strip():
         data["base_url"] = env_base
+    if env_ui and not str(data.get("ui_base_url") or "").strip():
+        data["ui_base_url"] = env_ui
     if env_key and not str(data.get("master_api_key") or "").strip():
         data["master_api_key"] = env_key
     if env_public and not str(data.get("platform_public_url") or "").strip():
@@ -73,6 +94,7 @@ def get_platform_link(db) -> dict[str, Any]:
     data["masterApiKeyPreview"] = (key[:6] + "…" + key[-4:]) if len(key) > 12 else ("***" if key else "")
     # camelCase aliases for admin UIs
     data["baseUrl"] = str(data.get("base_url") or "")
+    data["uiBaseUrl"] = str(data.get("ui_base_url") or "")
     data["companyUpsertPath"] = str(data.get("company_upsert_path") or "/v1/company/upsert")
     data["hoursWebhookPath"] = str(data.get("hours_webhook_path") or "/hooks/suppix-hours")
     data["platformPublicUrl"] = str(data.get("platform_public_url") or "")
@@ -169,6 +191,7 @@ def save_platform_link(
     *,
     enabled: bool | None = None,
     base_url: str | None = None,
+    ui_base_url: str | None = None,
     master_api_key: str | None = None,
     company_upsert_path: str | None = None,
     hours_webhook_path: str | None = None,
@@ -181,6 +204,7 @@ def save_platform_link(
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     enabled_v = int(current.get("enabled") or 0) if enabled is None else (1 if enabled else 0)
     base_v = str(current.get("base_url") or "") if base_url is None else base_url.strip().rstrip("/")
+    ui_v = str(current.get("ui_base_url") or "") if ui_base_url is None else ui_base_url.strip().rstrip("/")
     key_v = str(current.get("master_api_key") or "")
     if master_api_key is not None and master_api_key.strip():
         key_v = master_api_key.strip()
@@ -208,12 +232,12 @@ def save_platform_link(
     db.execute(
         """
         UPDATE workpass_lohn_platform_link
-        SET enabled = ?, base_url = ?, master_api_key = ?, company_upsert_path = ?,
+        SET enabled = ?, base_url = ?, ui_base_url = ?, master_api_key = ?, company_upsert_path = ?,
             hours_webhook_path = ?, platform_public_url = ?, auto_provision = ?,
             default_run_day = ?, updated_at = ?
         WHERE id = 1
         """,
-        (enabled_v, base_v, key_v, upsert_v, hook_v, public_v, auto_v, run_v, now),
+        (enabled_v, base_v, ui_v, key_v, upsert_v, hook_v, public_v, auto_v, run_v, now),
     )
     db.commit()
     return get_platform_link(db)

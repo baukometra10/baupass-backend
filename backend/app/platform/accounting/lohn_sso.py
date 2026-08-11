@@ -1,4 +1,4 @@
-"""WorkPass Lohn SSO handoff — one-time ticket + remote magic-link + form bridge."""
+"""WorkPass Lohn SSO handoff — magic-link via master key; never open bare API in browser."""
 from __future__ import annotations
 
 import hashlib
@@ -13,10 +13,17 @@ from urllib.parse import urlencode
 from . import repository as repo
 from .platform_link import _post_lohn_json, get_platform_link
 
+# Paths Lohn may expose for one-time browser session (called server-side with X-WorkPass-Key).
 SSO_API_PATHS = (
     "/v1/auth/platform-sso",
     "/v1/company/sso",
+    "/v1/auth/sso",
+    "/v1/auth/login",
+    "/v1/company/login",
+    "/v1/login",
     "/api/v1/auth/platform-sso",
+    "/api/auth/platform-sso",
+    "/api/auth/login",
 )
 TICKET_TTL_SEC = 90
 
@@ -57,16 +64,34 @@ def _parse_lohn_json(result: dict[str, Any]) -> dict[str, Any]:
     return {}
 
 
-def _extract_sso_url(payload: dict[str, Any]) -> str:
-    for key in ("url", "ssoUrl", "redirectUrl", "loginUrl", "magicLink"):
+def _browser_base(link: dict[str, Any]) -> str:
+    """UI host for the browser — never confuse with API-only base when ui_base_url is set."""
+    ui = str(link.get("ui_base_url") or link.get("uiBaseUrl") or "").strip().rstrip("/")
+    if ui:
+        return ui
+    return str(link.get("base_url") or "").rstrip("/")
+
+
+def _extract_sso_url(payload: dict[str, Any], *, browser_base: str = "") -> str:
+    for key in ("url", "ssoUrl", "redirectUrl", "loginUrl", "magicLink", "sessionUrl"):
         val = str(payload.get(key) or "").strip()
         if val.startswith("http://") or val.startswith("https://"):
             return val
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    for key in ("url", "ssoUrl", "redirectUrl"):
+    for key in ("url", "ssoUrl", "redirectUrl", "token"):
         val = str(data.get(key) or "").strip()
         if val.startswith("http://") or val.startswith("https://"):
             return val
+    token = str(
+        payload.get("token")
+        or payload.get("accessToken")
+        or payload.get("sessionToken")
+        or data.get("token")
+        or ""
+    ).strip()
+    if token and browser_base:
+        q = urlencode({"token": token, "source": "suppix"})
+        return f"{browser_base}/#/sso?{q}"
     return ""
 
 
@@ -118,8 +143,8 @@ def build_signed_handoff_url(
     email: str,
     actor_user_id: str = "",
 ) -> str:
-    """HMAC handoff Lohn can verify with the shared master key (no password in browser)."""
-    base = str(link.get("base_url") or "").rstrip("/")
+    """HMAC handoff for Lohn UI host (not API-only root)."""
+    base = _browser_base(link)
     master = str(link.get("master_api_key") or "").strip()
     if not base or not master:
         return ""
@@ -138,7 +163,8 @@ def build_signed_handoff_url(
             "actorUserId": actor_user_id or "",
         }
     )
-    return f"{base}/sso?{query}"
+    # Prefer hash route (SPA) then /sso
+    return f"{base}/#/sso?{query}"
 
 
 def request_lohn_sso_url(
@@ -148,10 +174,11 @@ def request_lohn_sso_url(
     login: dict[str, Any],
     actor_user_id: str = "",
 ) -> dict[str, Any]:
-    """Ask WorkPass Lohn for a one-time login URL (server-to-server, master key)."""
+    """Ask WorkPass Lohn for a one-time browser URL (server-to-server, master key)."""
     email = _lohn_email(company_id)
     username = str(login.get("username") or "").strip()
     password = str(login.get("password") or "")
+    browser_base = _browser_base(link)
     body = {
         "companyId": company_id,
         "firmaId": company_id,
@@ -170,73 +197,91 @@ def request_lohn_sso_url(
     for path in SSO_API_PATHS:
         result = _post_lohn_json(link, path=path, body=body, event="auth.platform-sso", timeout=12)
         parsed = _parse_lohn_json(result)
-        # Attach parsed for callers that inspect body only
         if parsed and "json" not in result:
             result = {**result, "json": parsed}
-        url = _extract_sso_url(parsed) if result.get("ok") else ""
-        if url:
+        # Accept URL even when HTTP ok=false but body still contains a session link
+        url = _extract_sso_url(parsed, browser_base=browser_base)
+        if url and (result.get("ok") or parsed.get("ok") is True or parsed.get("token") or parsed.get("url")):
+            return {"ok": True, "url": url, "path": path, "status": result.get("status")}
+        if result.get("ok") and url:
             return {"ok": True, "url": url, "path": path, "status": result.get("status")}
         last = {**result, "path": path, "parsed": parsed}
-        # 404/405 → try next path; other auth errors → stop
         status = int(result.get("status") or 0)
-        if status and status not in {404, 405, 501} and not result.get("ok"):
+        # Keep trying on missing routes; stop early only on hard auth failure to master key
+        err = str(result.get("error") or parsed.get("error") or "")
+        if status in {401, 403} and "X-WorkPass-Key" in err and not str(link.get("master_api_key") or "").strip():
+            break
+        if status and status not in {404, 405, 501} and status >= 500:
             break
     return {"ok": False, "error": last.get("error") or "sso_unsupported", "detail": last}
 
 
-def _login_form_path(link: dict[str, Any]) -> str:
-    path = str(link.get("sso_login_path") or link.get("ssoLoginPath") or "/login").strip() or "/login"
-    if not path.startswith("/"):
-        path = "/" + path
-    return path
+def build_ui_login_url(link: dict[str, Any], *, company_id: str, email: str) -> str:
+    """GET URL for dedicated Lohn UI host (not API-only root)."""
+    if not _has_dedicated_ui(link):
+        return ""
+    base = _browser_base(link)
+    if not base:
+        return ""
+    q = urlencode(
+        {
+            "email": email,
+            "companyId": company_id,
+            "firmaId": company_id,
+            "source": "suppix",
+        }
+    )
+    ui_path = str(link.get("sso_login_path") or link.get("ssoLoginPath") or "").strip()
+    if ui_path:
+        if not ui_path.startswith("/") and not ui_path.startswith("#"):
+            ui_path = "/" + ui_path
+        if ui_path.startswith("#"):
+            return f"{base}/{ui_path}?{q}" if "?" not in ui_path else f"{base}/{ui_path}&{q}"
+        return f"{base}{ui_path}{'&' if '?' in ui_path else '?'}{q}"
+    return f"{base}/#/login?{q}"
 
 
-def render_auto_login_html(
+def _has_dedicated_ui(link: dict[str, Any]) -> bool:
+    return bool(str(link.get("ui_base_url") or link.get("uiBaseUrl") or "").strip())
+
+
+def render_sso_help_html(
     *,
-    action_url: str,
+    ui_url: str,
     email: str,
-    username: str,
-    password: str,
-    company_id: str,
+    message: str,
 ) -> str:
-    """Browser navigates to Lohn origin via POST so cookies can be set on Lohn domain."""
-    e_email = html.escape(email, quote=True)
-    e_user = html.escape(username, quote=True)
-    e_pass = html.escape(password, quote=True)
-    e_cid = html.escape(company_id, quote=True)
-    e_action = html.escape(action_url, quote=True)
+    e_url = html.escape(ui_url, quote=True) if ui_url else ""
+    e_email = html.escape(email)
+    e_msg = html.escape(message)
+    link_html = (
+        f'<p><a href="{e_url}">WorkPass Lohn öffnen</a></p>'
+        f"<script>location.replace({json.dumps(ui_url)});</script>"
+        if ui_url
+        else ""
+    )
+    refresh = f'<meta http-equiv="refresh" content="0;url={e_url}"/>' if ui_url else ""
     return f"""<!DOCTYPE html>
 <html lang="de">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>WorkPass Lohn — Anmeldung</title>
+  {refresh}
+  <title>WorkPass Lohn</title>
   <style>
     body {{ font-family: system-ui, sans-serif; background: #0f172a; color: #e2e8f0;
-           display: grid; place-items: center; min-height: 100vh; margin: 0; }}
-    .box {{ text-align: center; padding: 1.5rem; }}
-    .spin {{ width: 28px; height: 28px; border: 3px solid #334155; border-top-color: #38bdf8;
-             border-radius: 50%; margin: 0 auto 1rem; animation: s 0.7s linear infinite; }}
-    @keyframes s {{ to {{ transform: rotate(360deg); }} }}
-    noscript p {{ color: #fbbf24; }}
+           display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }}
+    .box {{ max-width: 32rem; text-align: center; line-height: 1.45; }}
+    a {{ color: #38bdf8; }}
+    .muted {{ color: #94a3b8; font-size: 0.9rem; }}
   </style>
 </head>
 <body>
   <div class="box">
-    <div class="spin" aria-hidden="true"></div>
-    <p>Anmeldung bei WorkPass Lohn…</p>
-    <noscript><p>JavaScript deaktiviert — Formular unten absenden.</p></noscript>
+    <p>{e_msg}</p>
+    <p class="muted">Login-E-Mail: <strong>{e_email}</strong></p>
+    {link_html}
   </div>
-  <form id="sso" method="post" action="{e_action}" style="display:none">
-    <input type="hidden" name="email" value="{e_email}"/>
-    <input type="hidden" name="username" value="{e_user}"/>
-    <input type="hidden" name="password" value="{e_pass}"/>
-    <input type="hidden" name="companyId" value="{e_cid}"/>
-    <input type="hidden" name="firmaId" value="{e_cid}"/>
-    <input type="hidden" name="source" value="suppix"/>
-    <button type="submit">Anmelden</button>
-  </form>
-  <script>document.getElementById("sso").submit();</script>
 </body>
 </html>"""
 
@@ -249,12 +294,12 @@ def build_launch_payload(
     public_base: str = "",
 ) -> dict[str, Any]:
     """
-    Prefer remote Lohn magic-link; else platform SSO bridge (ticket → form / signed /sso).
-    Never puts passwords into the JSON response — only into the one-time enter page.
+    Prefer remote Lohn magic-link (server + master key).
+    Fallback: platform ticket → dedicated UI host. Never open API-only root in the browser.
     """
     link = get_platform_link(db)
-    base = str(link.get("base_url") or "").rstrip("/")
-    if not base or not link.get("enabled"):
+    api_base = str(link.get("base_url") or "").rstrip("/")
+    if not api_base or not link.get("enabled"):
         return {
             "ok": False,
             "error": "lohn_base_url_missing",
@@ -263,8 +308,6 @@ def build_launch_payload(
 
     login = repo.get_lohn_login(db, company_id)
     email = _lohn_email(company_id)
-    plain_sep = "&" if "?" in base else "?"
-    plain_url = f"{base}{plain_sep}company_id={company_id}&source=suppix"
 
     if login:
         remote = request_lohn_sso_url(
@@ -277,59 +320,40 @@ def build_launch_payload(
             return {
                 "ok": True,
                 "url": remote["url"],
-                "baseUrl": base,
+                "baseUrl": api_base,
                 "companyId": company_id,
                 "mode": "lohn_sso",
                 "sso": True,
                 "message": "SSO-Link von WorkPass Lohn.",
             }
 
-    # Bridge: browser hits platform once, then auto-logs into Lohn (or signed /sso).
     ticket = mint_sso_ticket(db, company_id=company_id, actor_user_id=actor_user_id)
     pub = (public_base or str(link.get("platform_public_url") or "")).rstrip("/")
-    if not pub:
-        # Relative path still works when admin UI and API share the same origin.
-        bridge_url = f"/api/payroll/accounting/sso-enter?ticket={ticket}"
-    else:
-        bridge_url = f"{pub}/api/payroll/accounting/sso-enter?ticket={ticket}"
-
-    handoff = ""
-    if login and str(link.get("master_api_key") or "").strip():
-        handoff = build_signed_handoff_url(
-            link,
-            company_id=company_id,
-            email=email,
-            actor_user_id=actor_user_id,
-        )
-
-    if login:
-        return {
-            "ok": True,
-            "url": bridge_url,
-            "baseUrl": base,
-            "companyId": company_id,
-            "mode": "sso_bridge",
-            "sso": True,
-            "handoffUrl": handoff or None,
-            "fallbackUrl": plain_url,
-            "message": "SSO-Übergabe (einmaliges Ticket).",
-        }
+    bridge_url = (
+        f"{pub}/api/payroll/accounting/sso-enter?ticket={ticket}"
+        if pub
+        else f"/api/payroll/accounting/sso-enter?ticket={ticket}"
+    )
+    ui_url = build_ui_login_url(link, company_id=company_id, email=email)
 
     return {
         "ok": True,
-        "url": plain_url,
-        "baseUrl": base,
+        "url": bridge_url,
+        "baseUrl": api_base,
+        "uiUrl": ui_url or None,
         "companyId": company_id,
-        "mode": "open",
-        "sso": False,
-        "message": "Kein gespeichertes Lohn-Login — Domain wird geöffnet. Bitte Firma neu provisionieren.",
+        "mode": "sso_bridge",
+        "sso": True,
+        "fallbackUrl": ui_url or None,
+        "message": "SSO-Übergabe (einmaliges Ticket).",
+        "needsUiUrl": not _has_dedicated_ui(link),
     }
 
 
 def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
     """
-    Consume ticket and return either redirect URL or HTML auto-login.
-    Keys: ok, redirect, html, error, message
+    Consume ticket → magic-link or dedicated UI host.
+    Never navigates the browser to an API-only Lohn base (JSON X-WorkPass-Key).
     """
     ticket = consume_sso_ticket(db, ticket_id)
     if not ticket:
@@ -341,36 +365,37 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
     company_id = str(ticket.get("company_id") or "")
     actor = str(ticket.get("actor_user_id") or "")
     link = get_platform_link(db)
-    base = str(link.get("base_url") or "").rstrip("/")
     login = repo.get_lohn_login(db, company_id)
-    if not login or not base:
-        sep = "&" if "?" in base else "?"
+    email = _lohn_email(company_id)
+
+    if login:
+        remote = request_lohn_sso_url(link, company_id=company_id, login=login, actor_user_id=actor)
+        if remote.get("ok") and remote.get("url"):
+            return {"ok": True, "redirect": remote["url"], "mode": "lohn_sso"}
+
+    if _has_dedicated_ui(link):
+        handoff = build_signed_handoff_url(
+            link, company_id=company_id, email=email, actor_user_id=actor
+        )
+        target = handoff or build_ui_login_url(link, company_id=company_id, email=email)
         return {
             "ok": True,
-            "redirect": f"{base}{sep}company_id={company_id}&source=suppix" if base else "",
-            "mode": "open",
+            "redirect": target,
+            "html": render_sso_help_html(
+                ui_url=target,
+                email=email,
+                message="Weiterleitung zu WorkPass Lohn…",
+            ),
+            "mode": "ui_login",
         }
 
-    remote = request_lohn_sso_url(link, company_id=company_id, login=login, actor_user_id=actor)
-    if remote.get("ok") and remote.get("url"):
-        return {"ok": True, "redirect": remote["url"], "mode": "lohn_sso"}
-
-    email = _lohn_email(company_id)
-    # Prefer form POST to Lohn login path (sets session cookies on Lohn origin).
-    action = f"{base}{_login_form_path(link)}"
-    html_page = render_auto_login_html(
-        action_url=action,
-        email=email,
-        username=str(login.get("username") or ""),
-        password=str(login.get("password") or ""),
-        company_id=company_id,
+    msg = (
+        "WorkPass Lohn API verlangt den Header X-WorkPass-Key — die API-URL kann nicht im Browser geöffnet werden. "
+        "Bitte unter Plattform → WorkPass Lohn die «UI-URL» (Browser-App) speichern, "
+        "oder in Lohn den Endpoint POST /v1/auth/platform-sso freischalten."
     )
     return {
         "ok": True,
-        "html": html_page,
-        "mode": "form_bridge",
-        "handoffUrl": build_signed_handoff_url(
-            link, company_id=company_id, email=email, actor_user_id=actor
-        )
-        or None,
+        "html": render_sso_help_html(ui_url="", email=email, message=msg),
+        "mode": "needs_ui_url",
     }

@@ -612,6 +612,7 @@ def register_accounting_blueprint(flask_app) -> None:
             get_db(),
             enabled=data.get("enabled") if "enabled" in data else None,
             base_url=data.get("baseUrl") if "baseUrl" in data else None,
+            ui_base_url=data.get("uiBaseUrl") if "uiBaseUrl" in data else None,
             master_api_key=data.get("masterApiKey") if "masterApiKey" in data else None,
             company_upsert_path=data.get("companyUpsertPath") if "companyUpsertPath" in data else None,
             hours_webhook_path=data.get("hoursWebhookPath") if "hoursWebhookPath" in data else None,

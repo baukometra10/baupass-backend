@@ -2071,6 +2071,7 @@ function bindLohnPlatformLinkPanel(host) {
       enabled: String(fd.get("enabled") || "0") === "1",
       autoProvision: String(fd.get("autoProvision") || "0") === "1",
       baseUrl: String(fd.get("baseUrl") || "").trim(),
+      uiBaseUrl: String(fd.get("uiBaseUrl") || "").trim(),
       platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
       companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
       hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
@@ -2095,6 +2096,7 @@ function bindLohnPlatformLinkPanel(host) {
         enabled: String(fd.get("enabled") || "0") === "1",
         autoProvision: String(fd.get("autoProvision") || "0") === "1",
         baseUrl: String(fd.get("baseUrl") || "").trim(),
+        uiBaseUrl: String(fd.get("uiBaseUrl") || "").trim(),
         platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
         companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
         hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
@@ -2963,6 +2965,7 @@ async function loadPlatform() {
     const lohnLink = lohnLinkPayload?.link || {};
     const lohnEnabled = Boolean(lohnLink.enabled || lohnLink.configured);
     const lohnBase = String(lohnLink.baseUrl || lohnLink.base_url || "").trim();
+    const lohnUi = String(lohnLink.uiBaseUrl || lohnLink.ui_base_url || "").trim();
     const lohnAuto = lohnLink.autoProvision ?? lohnLink.auto_provision;
     const lohnAutoOn = lohnAuto === true || Number(lohnAuto) === 1 || lohnAuto == null;
     const lohnPanel = `<div class="panel-block" id="lohnPlatformLinkPanel">
@@ -2976,9 +2979,13 @@ async function loadPlatform() {
           <label>${t("lohnLink.auto") || "Auto-Provision"}
             <select name="autoProvision"><option value="1" ${lohnAutoOn ? "selected" : ""}>Ja</option><option value="0" ${!lohnAutoOn ? "selected" : ""}>Nein</option></select>
           </label>
-          <label class="full" style="grid-column:1/-1">${t("lohnLink.baseUrl") || "Basis-URL"}
-            <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://lohn.example.com" />
+          <label class="full" style="grid-column:1/-1">${t("lohnLink.baseUrl") || "API-Basis-URL"}
+            <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://lohn-api.example.com" />
           </label>
+          <label class="full" style="grid-column:1/-1">${t("lohnLink.uiBaseUrl") || "UI-URL (Browser)"}
+            <input name="uiBaseUrl" type="url" value="${escapeAttr(lohnUi)}" placeholder="https://lohn-app.example.com" />
+          </label>
+          <p class="muted small" style="grid-column:1/-1">${t("lohnLink.uiHint") || "API-URL oft nicht im Browser öffenbar (X-WorkPass-Key). Hier die Web-App-URL für «Buchhaltung öffnen»."}</p>
           <label class="full" style="grid-column:1/-1">${t("lohnLink.masterKey") || "Master-API-Key"}
             <input name="masterApiKey" type="password" placeholder="${lohnLink.masterApiKeySet ? escapeAttr(lohnLink.masterApiKeyPreview || "***") : ""}" autocomplete="new-password" />
           </label>
