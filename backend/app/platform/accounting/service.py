@@ -662,6 +662,38 @@ def auto_fulfill_lohn_data_request(
     if not is_workpass_lohn_enabled(db, company_id):
         return {"ok": False, "error": "workpass_lohn_disabled", "companyId": company_id}
 
+    # Emergency kill-switch (Railway): WORKPASS_LOHN_AUTO_FULFILL=0
+    import os
+
+    flag = str(os.getenv("WORKPASS_LOHN_AUTO_FULFILL", "1")).strip().lower()
+    if flag in {"0", "false", "no", "off"}:
+        period_for_queue = str(period or "").strip()[:7]
+        if period_for_queue:
+            try:
+                queued = request_period_handoff(
+                    db,
+                    company_id=company_id,
+                    period=period_for_queue,
+                    source=source,
+                    note=(note or "auto_fulfill_disabled")[:500],
+                    external_ref=external_ref,
+                    notify_inbox=False,
+                )
+            except Exception as exc:
+                queued = {"ok": False, "error": str(exc)[:120]}
+        else:
+            queued = {"ok": True, "skipped": "no_period"}
+        return {
+            "ok": True,
+            "status": "queued_only",
+            "skipped": "auto_fulfill_disabled",
+            "companyId": company_id,
+            "period": period_for_queue or None,
+            "queued": queued,
+            "message": "Auto-fulfill disabled — request queued only",
+            "tenantIsolation": "companyId",
+        }
+
     period_norm = ""
     if period:
         try:
