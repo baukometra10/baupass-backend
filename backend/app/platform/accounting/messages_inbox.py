@@ -11,7 +11,7 @@ from urllib import request as urlrequest
 
 from . import repository as repo
 from .auth import sign_payload, verify_signature
-from .platform_link import get_platform_link
+from .platform_link import get_platform_link, resolve_master_api_keys
 from .schema import ensure_accounting_schema
 
 MESSAGES_PENDING_PATH = "/v1/messages/pending"
@@ -94,8 +94,9 @@ def _now() -> str:
 
 
 def _master_key(link: dict[str, Any] | None = None) -> str:
-    link = link or {}
-    return str(link.get("master_api_key") or "").strip()
+    from .platform_link import primary_master_api_key
+
+    return primary_master_api_key(link)
 
 
 def verify_platform_webhook_auth(
@@ -107,13 +108,14 @@ def verify_platform_webhook_auth(
 ) -> dict[str, Any]:
     """
     Auth for WORKPASS_PLATFORM_WEBHOOK_URL inbound posts from Lohn.
-    Accepts master key (X-WorkPass-Key) or per-company accounting key.
+    Accepts master key (X-WorkPass-Webhook-Key / X-WorkPass-Key / Bearer) or per-company accounting key.
     """
     from .auth import authenticate_accounting_request
 
     hdr = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
     key = (
-        hdr.get("x-workpass-key")
+        hdr.get("x-workpass-webhook-key")
+        or hdr.get("x-workpass-key")
         or hdr.get("x-workpass-master-key")
         or hdr.get("x-accounting-key")
         or ""
@@ -125,12 +127,13 @@ def verify_platform_webhook_auth(
         key = key[7:].strip()
 
     link = get_platform_link(db)
-    master = _master_key(link)
+    masters = resolve_master_api_keys(link)
     ts = (hdr.get("x-suppix-timestamp") or "").strip()
     sig = (hdr.get("x-suppix-signature") or "").strip()
 
-    if master and key and key == master:
-        if sig and not verify_signature(master, timestamp=ts, body=body or b"", signature=sig):
+    matched_master = next((m for m in masters if key and key == m), None)
+    if matched_master:
+        if sig and not verify_signature(matched_master, timestamp=ts, body=body or b"", signature=sig):
             return {"ok": False, "error": "invalid_signature"}
         return {"ok": True, "auth": "master", "companyId": (company_id or "").strip()}
 

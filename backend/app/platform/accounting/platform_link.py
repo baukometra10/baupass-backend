@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 from urllib import error as urlerror
@@ -13,6 +14,42 @@ from . import repository as repo
 from .auth import sign_payload
 from .company_sync import company_upsert_payload
 from .schema import ensure_accounting_schema
+
+
+def _workpass_raw_env(var_name: str) -> str:
+    """Read WORKPASS_* from Railway env plus SUPPIX_/BAUPASS_ mirrors."""
+    for key in (var_name, f"SUPPIX_{var_name}", f"BAUPASS_{var_name}"):
+        value = (os.environ.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
+def resolve_master_api_keys(link: dict[str, Any] | None = None) -> list[str]:
+    """
+    All secrets accepted for inbound Lohn webhooks and outbound Lohn API calls.
+    DB master key plus WORKPASS_LOHN_MASTER_KEY / WORKPASS_PLATFORM_WEBHOOK_KEY env.
+    """
+    link = link or {}
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: str) -> None:
+        candidate = str(raw or "").strip()
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            keys.append(candidate)
+
+    add(str(link.get("master_api_key") or ""))
+    add(platform_env("WORKPASS_LOHN_MASTER_KEY", ""))
+    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY"))
+    add(_workpass_raw_env("WORKPASS_PLATFORM_WEBHOOK_KEY"))
+    return keys
+
+
+def primary_master_api_key(link: dict[str, Any] | None = None) -> str:
+    keys = resolve_master_api_keys(link)
+    return keys[0] if keys else ""
 
 
 def _ensure_platform_link_table(db) -> None:
@@ -74,15 +111,16 @@ def get_platform_link(db) -> dict[str, Any]:
     # Env wins as bootstrap / override when DB empty
     env_base = platform_env("WORKPASS_LOHN_BASE_URL", "")
     env_ui = platform_env("WORKPASS_LOHN_UI_URL", "")
-    env_key = platform_env("WORKPASS_LOHN_MASTER_KEY", "")
     env_enabled = platform_env("WORKPASS_LOHN_ENABLED", "")
     env_public = platform_env("PUBLIC_BASE_URL", "") or platform_env("PLATFORM_PUBLIC_URL", "")
     if env_base and not str(data.get("base_url") or "").strip():
         data["base_url"] = env_base
     if env_ui and not str(data.get("ui_base_url") or "").strip():
         data["ui_base_url"] = env_ui
-    if env_key and not str(data.get("master_api_key") or "").strip():
-        data["master_api_key"] = env_key
+    if not str(data.get("master_api_key") or "").strip():
+        boot_key = primary_master_api_key(data)
+        if boot_key:
+            data["master_api_key"] = boot_key
     if env_public and not str(data.get("platform_public_url") or "").strip():
         data["platform_public_url"] = env_public
     if env_enabled:
@@ -143,7 +181,7 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
             },
             method="GET",
         )
-        master = str(link.get("master_api_key") or "")
+        master = primary_master_api_key(link)
         if master:
             # WorkPass Lohn expects X-WorkPass-Key (Bearer/Master aliases kept for compatibility).
             req.add_header("X-WorkPass-Key", master)
@@ -353,7 +391,7 @@ def _post_lohn_json(
     url = f"{base}{path}"
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     ts = str(int(time.time()))
-    master = str(link.get("master_api_key") or "").strip()
+    master = primary_master_api_key(link)
     company_id = str(
         body.get("companyId")
         or body.get("company_id")

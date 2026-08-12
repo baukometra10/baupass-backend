@@ -851,6 +851,28 @@ def test_platform_webhook_auth_master_key():
     assert bad["ok"] is False
 
 
+def test_platform_webhook_auth_webhook_key_env_and_header(monkeypatch):
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db()
+    platform_link.save_platform_link(
+        db, enabled=True, base_url="https://lohn.test", master_api_key="db-other-key"
+    )
+    monkeypatch.setenv("WORKPASS_PLATFORM_WEBHOOK_KEY", "webhook-env-secret")
+    ok = messages_inbox.verify_platform_webhook_auth(
+        db,
+        headers={
+            "X-WorkPass-Webhook-Key": "webhook-env-secret",
+            "Authorization": "Bearer webhook-env-secret",
+            "X-WorkPass-Company-Id": "c1",
+        },
+        body=b"{}",
+        company_id="c1",
+    )
+    assert ok["ok"] is True
+    assert ok["auth"] == "master"
+
+
 def test_notify_employee_data_resolved_clears_alerts_and_acks_message():
     from backend.app.platform.accounting import messages_inbox, repository, service
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
