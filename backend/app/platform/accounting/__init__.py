@@ -461,11 +461,31 @@ def register_accounting_blueprint(flask_app) -> None:
         )
         if not auth.get("ok"):
             return jsonify({"error": auth.get("error") or "unauthorized", "hint": auth.get("hint")}), 401
-        result = handle_inbound_lohn_webhook(
-            db,
-            data=data if isinstance(data, dict) else {},
-            company_id=str(auth.get("companyId") or company_hint or ""),
-        )
+        try:
+            # Release any schema/auth writes before outbound Lohn HTTP inside the handler
+            try:
+                db.commit()
+            except Exception:
+                pass
+            result = handle_inbound_lohn_webhook(
+                db,
+                data=data if isinstance(data, dict) else {},
+                company_id=str(auth.get("companyId") or company_hint or ""),
+            )
+        except Exception as exc:
+            import sqlite3
+
+            msg = str(exc)
+            if isinstance(exc, sqlite3.OperationalError) and "locked" in msg.lower():
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "database_busy",
+                        "retry": True,
+                        "message": "SQLite busy — retry webhook shortly",
+                    }
+                ), 503
+            raise
         # Never return a tuple accidentally from handler
         if isinstance(result, tuple):
             result = result[0] if result else {"ok": False, "error": "handler_error"}

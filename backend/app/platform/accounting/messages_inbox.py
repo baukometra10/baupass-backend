@@ -953,7 +953,9 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
     if not isinstance(items, list):
         items = []
     stored = upsert_accounting_messages(db, items, default_company=company_id or "")
-    # Poll-fallback: Lohn data requests → auto-deliver immediately (company-scoped)
+    # Poll-fallback: queue period requests only (no outbound HTTP).
+    # Auto-delivery runs on explicit Lohn webhook events — pushing from poll while
+    # holding the request DB caused SQLite "database is locked" / site 502.
     handoffs: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -963,7 +965,7 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
             item.get("companyId") or item.get("company_id") or company_id or ""
         ).strip()
         per = str(item.get("period") or item.get("month") or "").strip()[:7]
-        if not cid:
+        if not cid or not per:
             continue
         if ev in {
             "payroll.month.requested",
@@ -973,33 +975,19 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
             "employees_list_requested",
             "payroll.requested",
             "hours.requested",
-            "company.branding.requested",
-            "branding.requested",
         }:
             try:
-                from .service import auto_fulfill_lohn_data_request
+                from .service import request_period_handoff
 
-                want_branding = ev in {
-                    "company.branding.requested",
-                    "branding.requested",
-                    "employees.list.requested",
-                    "period_request",
-                }
                 handoffs.append(
-                    auto_fulfill_lohn_data_request(
+                    request_period_handoff(
                         db,
                         company_id=cid,
-                        period=per or None,
+                        period=per,
                         source="lohn_poll",
                         note=str(item.get("subject") or item.get("body") or ev)[:500],
                         external_ref=str(item.get("id") or item.get("messageId") or "")[:120],
-                        want_employees=ev
-                        not in {"company.branding.requested", "branding.requested"},
-                        want_payroll=bool(per)
-                        and ev
-                        not in {"company.branding.requested", "branding.requested"},
-                        want_branding=want_branding or bool(per),
-                        worker_id=str(item.get("workerId") or item.get("employeeId") or ""),
+                        notify_inbox=False,
                     )
                 )
             except Exception as exc:
@@ -1010,7 +998,6 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
         "path": MESSAGES_PENDING_PATH,
         "store": stored,
         "periodRequests": handoffs,
-        "autoFulfill": handoffs,
         "pull": {"status": fetched.get("status"), "url": fetched.get("url")},
     }
 
@@ -1110,7 +1097,7 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             external_ref=str(data.get("id") or data.get("requestId") or data.get("externalRef") or "")[:120],
             want_employees=True,
             want_payroll=bool(period),
-            want_branding=True,
+            want_branding=False,
             worker_id=worker_id,
         )
         replies = fulfilled.get("replies") or {}
@@ -1149,7 +1136,7 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             external_ref=str(data.get("id") or data.get("requestId") or data.get("externalRef") or "")[:120],
             want_employees=True,
             want_payroll=True,
-            want_branding=True,
+            want_branding=False,
             worker_id=worker_id,
         )
         replies = fulfilled.get("replies") or {}
@@ -1246,7 +1233,8 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
     elif event == EVENT_ACCOUNTING_MESSAGE or data.get("subject") or data.get("body") or data.get("id"):
         messages = [data]
 
-    # Embedded Lohn data requests → auto-deliver immediately (company-scoped)
+    # Embedded Lohn data requests → queue + auto-deliver at most one (avoid lock storms)
+    fulfilled_embedded = 0
     for msg in messages:
         kind = str((msg or {}).get("kind") or (msg or {}).get("event") or "").strip().lower()
         msg_company = str(
@@ -1268,6 +1256,22 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         }:
             try:
                 replies.setdefault("fromMessages", [])
+                if fulfilled_embedded >= 1 or not msg_period:
+                    from .service import request_period_handoff
+
+                    if msg_period:
+                        replies["fromMessages"].append(
+                            request_period_handoff(
+                                db,
+                                company_id=msg_company,
+                                period=msg_period,
+                                source="lohn_message",
+                                note=str((msg or {}).get("subject") or (msg or {}).get("body") or "")[:500],
+                                external_ref=str((msg or {}).get("id") or "")[:120],
+                                notify_inbox=False,
+                            )
+                        )
+                    continue
                 replies["fromMessages"].append(
                     auto_fulfill_lohn_data_request(
                         db,
@@ -1281,12 +1285,13 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                         want_payroll=bool(msg_period)
                         and kind
                         not in {"company.branding.requested", "branding.requested"},
-                        want_branding=True,
+                        want_branding=False,
                         worker_id=str(
                             (msg or {}).get("workerId") or (msg or {}).get("employeeId") or ""
                         ),
                     )
                 )
+                fulfilled_embedded += 1
             except Exception as exc:
                 replies.setdefault("fromMessages", []).append({"ok": False, "error": str(exc)[:120]})
 
@@ -1294,11 +1299,18 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
     if messages:
         store = upsert_accounting_messages(db, messages, default_company=company_id)
 
-    pull: dict[str, Any] = {"skipped": "no_company"}
-    if company_id:
+    # Avoid nested Lohn HTTP+DB work on every message webhook (was amplifying locks).
+    pull: dict[str, Any] = {"skipped": "deferred_to_explicit_sync"}
+    if company_id and str(data.get("sync") or data.get("pullPending") or "").strip() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        try:
+            db.commit()
+        except Exception:
+            pass
         pull = pull_pending_messages_from_lohn(db, company_id=company_id)
-    elif event in {EVENT_ACCOUNTING_MESSAGE, "messages.pending", "message.created"}:
-        pull = pull_pending_messages_from_lohn(db, company_id=None)
 
     return {
         "ok": True,

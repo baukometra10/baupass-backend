@@ -47,9 +47,10 @@ def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
         "branding": {
             "accentColor": _s("branding_accent_color"),
             "preset": _s("branding_preset"),
-            "logoData": _s("branding_logo_data")[:200_000]
-            if _s("branding_logo_data")
-            else "",
+            # Never embed raw logo blobs in upsert — large base64 holds SQLite writers
+            # during outbound HTTP and can lock the whole platform.
+            "hasLogo": bool(_s("branding_logo_data")),
+            "logoData": "",
         },
     }
     return {

@@ -22,6 +22,14 @@ PAYROLL_BATCH_FORMAT = "platform.payroll.batch.v1"
 PAYROLL_BATCH_PATH = "/v1/payroll/batch"
 
 
+def _db_commit(db) -> None:
+    """Release SQLite write locks before any outbound HTTP."""
+    try:
+        db.commit()
+    except Exception:
+        pass
+
+
 def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
     payload = aggregate_company_hours(db, company_id=company_id, period=period)
     status = "sent" if mark_sent else "queued"
@@ -105,7 +113,7 @@ def _post_webhook(
         headers["X-Suppix-Signature"] = sign_payload(signing_secret, timestamp=ts, body=raw)
     req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
     try:
-        with urlrequest.urlopen(req, timeout=15) as resp:
+        with urlrequest.urlopen(req, timeout=8) as resp:
             return {"ok": True, "status": int(resp.status), "body": resp.read()[:500].decode("utf-8", errors="replace")}
     except urlerror.HTTPError as exc:
         return {"ok": False, "status": int(exc.code), "error": str(exc)[:200]}
@@ -167,12 +175,13 @@ def push_payroll_batch_to_lohn(
             else f"/api/v2/accounting/statements?period={batch['period']}"
         ),
     }
+    _db_commit(db)
     result = _post_lohn_json(
         link,
         path=PAYROLL_BATCH_PATH,
         body=body,
         event="payroll.batch",
-        timeout=12,
+        timeout=8,
     )
     if not result.get("ok"):
         db.execute(
@@ -263,6 +272,7 @@ def notify_hours_ready(db, *, company_id: str, period: str) -> dict[str, Any]:
             ),
             "tenantIsolation": "companyId::employeeId::period",
         }
+        _db_commit(db)
         webhook_result = _post_webhook(
             webhook,
             event,
@@ -341,12 +351,13 @@ def push_employees_to_lohn(
         "companyId": company_id,
         "id": company_id,
     }
+    _db_commit(db)
     result = _post_lohn_json(
         link,
         path="/v1/employees/import",
         body=body,
         event="employees.import",
-        timeout=timeout,
+        timeout=min(float(timeout or 12), 8.0),
     )
     return {
         "ok": bool(result.get("ok")),
@@ -469,12 +480,13 @@ def notify_employee_data_resolved(
             "missingFields": missing,
             "actorUserId": str(actor_user_id or "")[:80],
         }
+        _db_commit(db)
         push = _post_lohn_json(
             link,
             path="/v1/employees/import",
             body=body,
             event="employees.updated",
-            timeout=timeout,
+            timeout=min(float(timeout or 10), 8.0),
         )
 
     return {
@@ -631,6 +643,7 @@ def auto_fulfill_lohn_data_request(
 
     if want_branding:
         try:
+            _db_commit(db)
             replies["companyUpsert"] = notify_company_lohn_status(
                 db, company_id, enabled=True
             )
@@ -724,7 +737,10 @@ def auto_fulfill_lohn_data_request(
 
     # Master sync without month
     if want_employees:
-        replies["employeesImport"] = push_employees_to_lohn(db, company_id=company_id)
+        _db_commit(db)
+        replies["employeesImport"] = push_employees_to_lohn(
+            db, company_id=company_id, timeout=6
+        )
     return {
         "ok": bool((replies.get("employeesImport") or {}).get("ok") or replies.get("companyUpsert", {}).get("ok")),
         "status": "delivered",
@@ -866,8 +882,11 @@ def confirm_period_handoff(
     if not confirmed.get("ok"):
         return confirmed
 
+    # Release write locks before outbound HTTP (prevents platform-wide SQLite stalls)
+    _db_commit(db)
+
     # Deliver full package to Lohn (employees import + payroll batch)
-    employees_push = push_employees_to_lohn(db, company_id=str(company_id), timeout=12)
+    employees_push = push_employees_to_lohn(db, company_id=str(company_id), timeout=6)
     delivery = notify_hours_ready(db, company_id=str(company_id), period=str(period))
     push_ok = bool(
         employees_push.get("ok")

@@ -567,12 +567,12 @@ def _post_lohn_json(
 
 def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
     path = str(link.get("company_upsert_path") or "/v1/company/upsert")
-    return _post_lohn_json(link, path=path, body=body, event="company.upsert")
+    return _post_lohn_json(link, path=path, body=body, event="company.upsert", timeout=8)
 
 
 def _post_lohn_login_sync(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:
     """WorkPass Lohn expects passwords via POST /v1/company/login-sync."""
-    return _post_lohn_json(link, path="/v1/company/login-sync", body=body, event="company.login-sync")
+    return _post_lohn_json(link, path="/v1/company/login-sync", body=body, event="company.login-sync", timeout=8)
 
 
 def _resolve_or_mint_lohn_login(
@@ -670,6 +670,10 @@ def notify_company_lohn_status(db, company_id: str, *, enabled: bool) -> dict[st
         "workpassLohnEnabled": bool(enabled),
         "event": "company.lohn.enabled" if enabled else "company.lohn.disabled",
     }
+    try:
+        db.commit()
+    except Exception:
+        pass
     return _post_lohn_upsert(link, body)
 
 
