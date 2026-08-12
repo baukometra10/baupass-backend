@@ -1805,9 +1805,9 @@
 
     async function loadLohnMessages() {
       try {
-        let url = "/api/payroll/accounting/messages";
-        if (companyId) url += `?company_id=${encodeURIComponent(companyId)}`;
-        const data = await apiSoft(url, { messages: [] }, 4000);
+        let url = "/api/payroll/accounting/messages?sync=1";
+        if (companyId) url += `&company_id=${encodeURIComponent(companyId)}`;
+        const data = await apiSoft(url, { messages: [] }, 8000);
         return data.messages || [];
       } catch {
         return [];

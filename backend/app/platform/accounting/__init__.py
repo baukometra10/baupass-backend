@@ -968,9 +968,15 @@ def register_accounting_blueprint(flask_app) -> None:
         company_id = None if user["role"] == "superadmin" else user.get("company_id")
         if user["role"] == "superadmin" and request.args.get("company_id"):
             company_id = request.args.get("company_id")
-        sync = str(request.args.get("sync") or "").strip().lower() in {"1", "true", "yes"}
+        # Default: pull from Lohn so company-admins see new requests without manual Sync.
+        sync_raw = str(request.args.get("sync") or "1").strip().lower()
+        sync = sync_raw not in {"0", "false", "no"}
+        pull_result = None
         if sync and company_id:
-            pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))
+            try:
+                pull_result = pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))
+            except Exception as exc:
+                pull_result = {"ok": False, "error": str(exc)[:160]}
         messages = list_pending_accounting_messages(get_db(), company_id=company_id)
         notifications = [m for m in messages if m.get("bannerVisible")]
         link = get_platform_link(get_db())
@@ -989,6 +995,7 @@ def register_accounting_blueprint(flask_app) -> None:
                 "notificationCount": len(notifications),
                 "webhookUrl": webhook_url,
                 "webhookEnv": "WORKPASS_PLATFORM_WEBHOOK_URL",
+                "pull": pull_result,
             }
         ), 200
 
@@ -1000,6 +1007,12 @@ def register_accounting_blueprint(flask_app) -> None:
         company_id = None if user["role"] == "superadmin" else user.get("company_id")
         if user["role"] == "superadmin" and request.args.get("company_id"):
             company_id = request.args.get("company_id")
+        sync_raw = str(request.args.get("sync") or "1").strip().lower()
+        if sync_raw not in {"0", "false", "no"} and company_id:
+            try:
+                pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))
+            except Exception:
+                pass
         counts = count_pending_accounting_messages(get_db(), company_id=company_id)
         return jsonify({"ok": True, **counts}), 200
 

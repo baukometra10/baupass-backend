@@ -423,6 +423,7 @@ def notify_employee_data_resolved(
                     message_id=str(row["id"]),
                     actor_user_id=actor_user_id,
                     company_id=company_id,
+                    fulfill=False,
                 )
             )
     except Exception as exc:

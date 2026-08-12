@@ -605,7 +605,31 @@ def list_open_lohn_data_alerts(db, *, company_id: str | None = None, limit: int 
             """,
             (limit,),
         ).fetchall()
-    return [_alert_row_to_dict(r) for r in rows]
+    out = []
+    try:
+        from .messages_inbox import resolve_company_worker
+    except Exception:
+        resolve_company_worker = None  # type: ignore
+    for r in rows:
+        item = _alert_row_to_dict(r)
+        wid = str(item.get("workerId") or item.get("employeeId") or "").strip()
+        cid = str(item.get("companyId") or "").strip()
+        if resolve_company_worker and cid and wid and not (item.get("workerFirstName") or item.get("workerLastName")):
+            resolved = resolve_company_worker(db, cid, wid)
+            if resolved:
+                item["workerId"] = resolved["id"] or wid
+                item["workerFirstName"] = resolved["firstName"]
+                item["workerLastName"] = resolved["lastName"]
+                item["workerDisplayName"] = resolved["displayName"]
+                item["workerResolved"] = True
+        elif item.get("workerFirstName") or item.get("workerLastName"):
+            item["workerDisplayName"] = f"{item.get('workerFirstName') or ''} {item.get('workerLastName') or ''}".strip()
+            item["workerResolved"] = True
+        else:
+            item["workerDisplayName"] = ""
+            item["workerResolved"] = False
+        out.append(item)
+    return out
 
 
 def dismiss_lohn_data_alert(

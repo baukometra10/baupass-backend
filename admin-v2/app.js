@@ -1343,12 +1343,13 @@ async function openLohnDrawer() {
   }
 
   const cq = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+  const msgUrl = `/api/payroll/accounting/messages?sync=1${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`;
   let messages = [];
   let alerts = [];
   let periodRequests = [];
   try {
     const [msgRes, alertRes, periodRes] = await Promise.all([
-      apiSoft(`/api/payroll/accounting/messages${cq}`, { messages: [] }, 4000),
+      apiSoft(msgUrl, { messages: [] }, 8000),
       apiSoft(`/api/payroll/accounting/data-alerts${cq}`, { alerts: [] }, 4000),
       apiSoft(
         `/api/payroll/accounting/period-requests?status=pending_confirmation${cid ? `&company_id=${encodeURIComponent(cid)}` : ""}`,
@@ -1393,12 +1394,14 @@ async function openLohnDrawer() {
     const id = String(a.id || "");
     const wid = String(a.workerId || a.employeeId || "");
     const fields = a.missingFields || a.missing_fields || [];
-    const name = [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
+    const wid = String(a.workerId || "").trim();
+    const name = String(a.workerDisplayName || "").trim()
+      || [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
       || a.workerName || wid || "—";
     const href = lohnContractsUrl(a.companyId || cid, wid, fields, a.message || "");
     parts.push(`
       <article class="lohn-drawer-item is-alert" data-lohn-alert="${escapeAttr(id)}">
-        <div class="lohn-drawer-item-title">${escapeHtml(name)}</div>
+        <div class="lohn-drawer-item-title"><strong>${escapeHtml(name)}</strong>${wid && name !== wid ? ` <span class="muted">(${escapeHtml(wid)})</span>` : ""}</div>
         <div class="lohn-drawer-item-body">${escapeHtml(a.message || (t("lohn.missingData") || "Fehlende Stammdaten"))}</div>
         ${renderLohnDrawerChips(fields)}
         <div class="lohn-drawer-actions">
@@ -1413,14 +1416,20 @@ async function openLohnDrawer() {
     const fields = m.missingFields || m.missing_fields || [];
     const subject = m.subject || m.kind || "WorkPass Lohn";
     const bodyText = String(m.body || "").trim();
-    const name = [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim() || m.workerId || "";
+    const wid = String(m.workerId || "").trim();
+    const name = String(m.workerDisplayName || "").trim()
+      || [m.workerFirstName, m.workerLastName].filter(Boolean).join(" ").trim();
+    const workerLine = name && wid
+      ? `${name} · ID ${wid}`
+      : (name || (wid ? `ID ${wid}` : ""));
     const href = lohnContractsUrl(m.companyId || cid, m.workerId, fields, `${subject} ${bodyText}`);
     parts.push(`
       <article class="lohn-drawer-item" data-lohn-msg="${escapeAttr(id)}">
         <div class="lohn-drawer-item-title">${escapeHtml(subject)}</div>
-        ${bodyText ? `<div class="lohn-drawer-item-body">${escapeHtml(bodyText.slice(0, 180))}</div>` : ""}
+        ${workerLine ? `<div class="lohn-drawer-item-worker"><strong>${escapeHtml(name || "—")}</strong>${wid ? ` <span class="muted">(${escapeHtml(wid)})</span>` : ""}</div>` : ""}
+        ${bodyText ? `<div class="lohn-drawer-item-body">${escapeHtml(bodyText.slice(0, 220))}</div>` : ""}
         ${renderLohnDrawerChips(fields)}
-        <div class="lohn-drawer-item-meta">${escapeHtml([m.period, name].filter(Boolean).join(" · ") || "—")}</div>
+        <div class="lohn-drawer-item-meta">${escapeHtml([m.period, workerLine].filter(Boolean).join(" · ") || "—")}</div>
         <div class="lohn-drawer-actions">
           <a class="primary" href="${escapeAttr(href)}" target="_blank" rel="noopener" data-lohn-drawer="open-msg-stammdaten" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.openStammdaten") || "Bearbeiten")}</a>
           <button type="button" data-lohn-drawer="ack-msg" data-id="${escapeAttr(id)}">${escapeHtml(t("lohn.markDone") || "Erledigt")}</button>

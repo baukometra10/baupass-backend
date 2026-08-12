@@ -17,6 +17,76 @@ from .schema import ensure_accounting_schema
 MESSAGES_PENDING_PATH = "/v1/messages/pending"
 MESSAGES_ACK_PATH = "/v1/messages/ack"
 EVENT_ACCOUNTING_MESSAGE = "accounting.message"
+_MISSING_DATA_KINDS = frozenset(
+    {
+        "missing_data",
+        "missing_employee_data",
+        "employee_data",
+        "data_gap",
+        "stammdaten",
+        "incomplete_employee",
+    }
+)
+
+
+def resolve_company_worker(db, company_id: str, raw_id: str) -> dict[str, Any] | None:
+    """
+    Map Lohn employeeId / workerId / badge to a SUPPIX worker row.
+    Returns id, names, badgeId, displayName — or None.
+    """
+    company_id = str(company_id or "").strip()
+    raw = str(raw_id or "").strip()
+    if not company_id or not raw:
+        return None
+    try:
+        row = db.execute(
+            """
+            SELECT id, first_name, last_name, badge_id, badge_id_lookup, physical_card_id,
+                   insurance_number, contact_email
+            FROM workers
+            WHERE company_id = ? AND deleted_at IS NULL
+              AND (
+                    id = ?
+                 OR lower(COALESCE(badge_id, '')) = lower(?)
+                 OR lower(COALESCE(badge_id_lookup, '')) = lower(?)
+                 OR lower(COALESCE(physical_card_id, '')) = lower(?)
+                 OR lower(COALESCE(insurance_number, '')) = lower(?)
+                 OR lower(COALESCE(contact_email, '')) = lower(?)
+              )
+            ORDER BY CASE WHEN id = ? THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            (company_id, raw, raw, raw, raw, raw, raw, raw),
+        ).fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return None
+    first = str(row["first_name"] or "").strip()
+    last = str(row["last_name"] or "").strip()
+    display = f"{first} {last}".strip() or str(row["badge_id"] or row["id"] or "").strip()
+    return {
+        "id": str(row["id"] or "").strip(),
+        "firstName": first,
+        "lastName": last,
+        "badgeId": str(row["badge_id"] or "").strip(),
+        "displayName": display,
+    }
+
+
+def annotate_text_with_worker_name(text: str, *, worker_id: str, display_name: str) -> str:
+    """If body/subject only shows a raw ID, append the human name once."""
+    raw = str(text or "")
+    wid = str(worker_id or "").strip()
+    name = str(display_name or "").strip()
+    if not raw or not wid or not name:
+        return raw
+    if name.lower() in raw.lower():
+        return raw
+    # Common patterns: bare id, "Mitarbeiter <id>", "Employee <id>"
+    if wid in raw:
+        return raw.replace(wid, f"{name} ({wid})", 1)
+    return f"{raw} — {name} ({wid})"
 
 
 def _now() -> str:
@@ -167,6 +237,28 @@ def upsert_accounting_messages(
         norm = _normalize_message_item(raw, default_company=default_company)
         if not norm:
             continue
+        resolved = resolve_company_worker(db, norm["companyId"], norm.get("workerId") or "")
+        if resolved:
+            canon = resolved["id"]
+            display = resolved["displayName"]
+            if canon:
+                norm["workerId"] = canon
+            if display:
+                norm["subject"] = annotate_text_with_worker_name(
+                    norm.get("subject") or "",
+                    worker_id=canon or str(norm.get("workerId") or ""),
+                    display_name=display,
+                )
+                norm["body"] = annotate_text_with_worker_name(
+                    norm.get("body") or "",
+                    worker_id=canon or str(norm.get("workerId") or ""),
+                    display_name=display,
+                )
+            # Keep original Lohn id in payload for debugging
+            if isinstance(norm.get("payload"), dict):
+                norm["payload"] = dict(norm["payload"])
+                norm["payload"]["resolvedWorkerId"] = canon
+                norm["payload"]["resolvedWorkerName"] = display
         existing = db.execute(
             """
             SELECT id, status, banner_dismissed_at, payload_json, subject, body, kind, period, worker_id
@@ -597,6 +689,32 @@ def list_pending_accounting_messages(
             raw_fields = []
         missing_fields = [str(f).strip() for f in raw_fields if str(f).strip()][:40]
         worker_id = str(data.get("worker_id") or payload.get("workerId") or payload.get("employeeId") or "").strip()
+        company_for_row = str(data.get("company_id") or company_id or "").strip()
+        resolved = resolve_company_worker(db, company_for_row, worker_id) if worker_id else None
+        if resolved:
+            # Prefer canonical SUPPIX worker id for UI deep-links
+            if resolved["id"] and resolved["id"] != worker_id:
+                try:
+                    db.execute(
+                        "UPDATE accounting_messages SET worker_id = ?, updated_at = ? WHERE id = ?",
+                        (resolved["id"], _now(), data.get("id")),
+                    )
+                    db.commit()
+                except Exception:
+                    pass
+                worker_id = resolved["id"]
+            first_name = resolved["firstName"] or str(data.get("first_name") or "")
+            last_name = resolved["lastName"] or str(data.get("last_name") or "")
+            display_name = resolved["displayName"]
+        else:
+            first_name = str(data.get("first_name") or "")
+            last_name = str(data.get("last_name") or "")
+            display_name = f"{first_name} {last_name}".strip()
+        subject = str(data.get("subject") or "")
+        body_text = str(data.get("body") or "")
+        if display_name and worker_id:
+            subject = annotate_text_with_worker_name(subject, worker_id=worker_id, display_name=display_name)
+            body_text = annotate_text_with_worker_name(body_text, worker_id=worker_id, display_name=display_name)
         out.append(
             {
                 "id": data.get("id"),
@@ -604,12 +722,15 @@ def list_pending_accounting_messages(
                 "companyId": data.get("company_id"),
                 "event": data.get("event") or EVENT_ACCOUNTING_MESSAGE,
                 "kind": data.get("kind") or "",
-                "subject": data.get("subject") or "",
-                "body": data.get("body") or "",
+                "subject": subject,
+                "body": body_text,
                 "period": data.get("period") or "",
                 "workerId": worker_id,
-                "workerFirstName": data.get("first_name") or "",
-                "workerLastName": data.get("last_name") or "",
+                "workerFirstName": first_name,
+                "workerLastName": last_name,
+                "workerDisplayName": display_name,
+                "workerBadgeId": (resolved or {}).get("badgeId") or "",
+                "workerResolved": bool(resolved),
                 "missingFields": missing_fields,
                 "status": data.get("status") or "pending",
                 "receivedAt": data.get("received_at"),
@@ -1088,6 +1209,7 @@ def ack_message_to_lohn(
     message_id: str,
     actor_user_id: str = "",
     company_id: str | None = None,
+    fulfill: bool = True,
 ) -> dict[str, Any]:
     """Mark message read locally and POST ack to WorkPass Lohn /v1/messages/ack."""
     from .platform_link import _post_lohn_json
@@ -1201,15 +1323,32 @@ def ack_message_to_lohn(
         "dataAlerts": alerts,
     }
     if err:
+        result["ackWarning"] = err
+
+    # Missing-data requests: push current employee stammdaten back to Lohn when available.
+    kind = str(row["kind"] or "").strip().lower()
+    raw_worker = str(row["worker_id"] or "").strip()
+    if fulfill and kind in _MISSING_DATA_KINDS and company_for_lohn and raw_worker:
+        try:
+            from .service import notify_employee_data_resolved
+
+            resolved = resolve_company_worker(db, company_for_lohn, raw_worker)
+            wid = (resolved or {}).get("id") or raw_worker
+            result["fulfill"] = notify_employee_data_resolved(
+                db,
+                company_id=company_for_lohn,
+                worker_id=wid,
+                actor_user_id=str(actor_user_id or ""),
+                source="message_ack",
+            )
+        except Exception as exc:
+            result["fulfill"] = {"ok": False, "error": str(exc)[:200]}
+
+    if err:
         result["warning"] = "ack_remote_failed"
     elif ack_remote.get("skipped"):
         result["warning"] = "acked_locally_only"
     return result
-
-
-def platform_webhook_public_path() -> str:
-    """Canonical path for WORKPASS_PLATFORM_WEBHOOK_URL on this platform."""
-    return "/api/workpass/webhooks/accounting"
 
 
 def create_test_accounting_message(
