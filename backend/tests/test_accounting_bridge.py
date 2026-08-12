@@ -1075,3 +1075,29 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
     assert ingest.get("companyId") == "c1"
     pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
     assert any(m.get("kind") == "payslip_released" for m in pending)
+
+
+def test_lohn_master_api_key_can_pull_employees(monkeypatch):
+    """Lohn SPA sends WORKPASS_API_KEY — must authenticate accounting pulls."""
+    from backend.app.platform.accounting.auth import authenticate_lohn_pull_request
+    from backend.app.platform.accounting import platform_link
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="db-master",
+    )
+    monkeypatch.setenv("WORKPASS_API_KEY", "lohn-shared-secret")
+    ok = authenticate_lohn_pull_request(
+        db, company_id="c1", api_key="lohn-shared-secret"
+    )
+    assert ok is not None
+    assert ok["company_id"] == "c1"
+    assert ok.get("authMode") == "platform_master_key"
+    bad = authenticate_lohn_pull_request(db, company_id="c1", api_key="wrong")
+    assert bad is None

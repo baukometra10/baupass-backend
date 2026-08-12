@@ -17,7 +17,7 @@ def register_accounting_blueprint(flask_app) -> None:
     from backend.server import get_db, require_auth, require_roles
 
     from . import repository as repo
-    from .auth import authenticate_accounting_request
+    from .auth import authenticate_lohn_pull_request, extract_lohn_api_key_from_headers
     from .company_sync import company_upsert_payload
     from .hours_service import build_employee_master_list, normalize_period
     from .monthly_job import run_monthly_accounting_exports
@@ -66,38 +66,75 @@ def register_accounting_blueprint(flask_app) -> None:
             request.headers.get("X-WorkPass-Company-Id")
             or request.headers.get("X-Company-Id")
             or request.args.get("company_id")
+            or request.args.get("companyId")
             or ""
         ).strip()
         if not company_id:
             return None, ({"error": "company_id_required", "hint": "Send X-WorkPass-Company-Id"}, 400)
-        api_key = (
-            request.headers.get("X-Accounting-Key")
-            or request.headers.get("X-WorkPass-Accounting-Key")
-            or request.headers.get("X-Api-Key")
-            or ""
-        ).strip()
-        if api_key.lower().startswith("bearer "):
-            api_key = api_key[7:].strip()
-        auth = request.headers.get("Authorization") or ""
-        if not api_key and auth.lower().startswith("bearer "):
-            api_key = auth[7:].strip()
+        api_key = extract_lohn_api_key_from_headers(request.headers)
         timestamp = (request.headers.get("X-Suppix-Timestamp") or "").strip()
         signature = (request.headers.get("X-Suppix-Signature") or "").strip()
         body = request.get_data(cache=True) or b""
-        integ = authenticate_accounting_request(
+        integ = authenticate_lohn_pull_request(
             db,
             company_id=company_id,
             api_key=api_key,
             timestamp=timestamp,
             signature=signature,
             body=body,
-            require_signature=bool(signature),
+            require_signature=False,
         )
         if not integ:
-            return None, ({"error": "unauthorized"}, 401)
+            return None, (
+                {
+                    "error": "unauthorized",
+                    "hint": "Send WORKPASS_API_KEY / X-WorkPass-Key or company X-Accounting-Key (acc_live_…)",
+                },
+                401,
+            )
         if str(integ.get("company_id") or "") != company_id:
             return None, ({"error": "company_scope_mismatch"}, 403)
         return integ, None
+
+    def _lohn_contracts_payload(db, company_id: str) -> dict:
+        employees = build_employee_master_list(db, company_id=company_id)
+        contracts = []
+        for emp in employees.get("employees") or []:
+            contracts.append(
+                {
+                    "id": emp.get("contractId") or f"worker-{emp.get('employeeId')}",
+                    "contractId": emp.get("contractId"),
+                    "companyId": company_id,
+                    "workerId": emp.get("workerId") or emp.get("employeeId"),
+                    "employeeId": emp.get("employeeId"),
+                    "status": emp.get("contractStatus") or emp.get("status") or "",
+                    "firstName": emp.get("firstName"),
+                    "lastName": emp.get("lastName"),
+                    "iban": emp.get("iban"),
+                    "taxId": emp.get("taxId"),
+                    "insuranceNumber": emp.get("insuranceNumber"),
+                    "hourlyRate": emp.get("hourlyRate"),
+                    "salaryGrossMonthly": emp.get("salaryGrossMonthly"),
+                    "brutto": emp.get("salaryGrossMonthly") or emp.get("hourlyRate"),
+                    "healthInsurance": emp.get("healthInsurance") or emp.get("krankenkasse") or "",
+                    "bank": emp.get("iban"),
+                    "missingFields": emp.get("missingFields") or [],
+                    "payrollReady": emp.get("payrollReady"),
+                    "employee": emp,
+                }
+            )
+        return {
+            "ok": True,
+            "product": "WorkPass Lohn",
+            "companyId": company_id,
+            "contracts": contracts,
+            "employees": employees.get("employees") or [],
+            "employeeCount": employees.get("employeeCount"),
+            "payrollReadyCount": employees.get("payrollReadyCount"),
+            "incompleteCount": employees.get("incompleteCount"),
+            "format": "platform.employees.v1",
+            "authMode": "lohn_bridge",
+        }
 
     @accounting_bp.get("/v2/accounting/employees")
     def accounting_pull_employees():
@@ -126,6 +163,46 @@ def register_accounting_blueprint(flask_app) -> None:
             payload["period"] = period
             payload["handoffStatus"] = "confirmed"
         return jsonify(payload), 200
+
+    # Lohn SPA compatibility aliases (same auth as /v2/accounting/*)
+    @accounting_bp.get("/v1/company")
+    @accounting_bp.get("/company")
+    def accounting_pull_company_alias():
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        try:
+            payload = company_upsert_payload(get_db(), integ["company_id"])
+        except LookupError:
+            return jsonify({"error": "company_not_found"}), 404
+        except ValueError:
+            return jsonify({"error": "company_id_required"}), 400
+        return jsonify(payload), 200
+
+    @accounting_bp.get("/employees")
+    @accounting_bp.get("/v1/employees")
+    @accounting_bp.get("/workpass/employees")
+    def accounting_pull_employees_alias():
+        return accounting_pull_employees()
+
+    @accounting_bp.get("/lohn/contracts")
+    @accounting_bp.get("/workpass/contracts")
+    @accounting_bp.get("/v1/contracts")
+    def accounting_pull_contracts_alias():
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        return jsonify(_lohn_contracts_payload(get_db(), integ["company_id"])), 200
 
     @accounting_bp.post("/v2/accounting/period-request")
     @accounting_bp.get("/v2/accounting/period-request")

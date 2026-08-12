@@ -475,12 +475,78 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             return jsonify({"error": str(exc)}), 400
 
     @contracts_core_bp.get("/contracts")
+    def list_contracts():
+        # WorkPass Lohn pull: WORKPASS_API_KEY + company header (no admin session)
+        try:
+            from backend.app.platform.accounting.auth import (
+                authenticate_lohn_pull_request,
+                extract_lohn_api_key_from_headers,
+            )
+            from backend.app.platform.accounting.company_opt_in import is_workpass_lohn_enabled
+            from backend.app.platform.accounting.hours_service import build_employee_master_list
+
+            company_hint = (
+                request.headers.get("X-WorkPass-Company-Id")
+                or request.headers.get("X-Company-Id")
+                or request.args.get("company_id")
+                or request.args.get("companyId")
+                or ""
+            ).strip()
+            api_key = extract_lohn_api_key_from_headers(request.headers)
+            if company_hint and api_key:
+                db = get_db()
+                integ = authenticate_lohn_pull_request(
+                    db, company_id=company_hint, api_key=api_key
+                )
+                if integ and is_workpass_lohn_enabled(db, company_hint):
+                    employees = build_employee_master_list(db, company_id=company_hint)
+                    contracts = []
+                    for emp in employees.get("employees") or []:
+                        contracts.append(
+                            {
+                                "id": emp.get("contractId") or f"worker-{emp.get('employeeId')}",
+                                "contractId": emp.get("contractId"),
+                                "companyId": company_hint,
+                                "workerId": emp.get("workerId") or emp.get("employeeId"),
+                                "employeeId": emp.get("employeeId"),
+                                "status": emp.get("contractStatus") or emp.get("status") or "",
+                                "firstName": emp.get("firstName"),
+                                "lastName": emp.get("lastName"),
+                                "iban": emp.get("iban"),
+                                "taxId": emp.get("taxId"),
+                                "insuranceNumber": emp.get("insuranceNumber"),
+                                "hourlyRate": emp.get("hourlyRate"),
+                                "salaryGrossMonthly": emp.get("salaryGrossMonthly"),
+                                "brutto": emp.get("salaryGrossMonthly") or emp.get("hourlyRate"),
+                                "missingFields": emp.get("missingFields") or [],
+                                "payrollReady": emp.get("payrollReady"),
+                                "employee": emp,
+                            }
+                        )
+                    return jsonify(
+                        {
+                            "ok": True,
+                            "contracts": contracts,
+                            "employees": employees.get("employees") or [],
+                            "companyId": company_hint,
+                            "employeeCount": employees.get("employeeCount"),
+                            "payrollReadyCount": employees.get("payrollReadyCount"),
+                            "incompleteCount": employees.get("incompleteCount"),
+                            "salaryRedacted": False,
+                            "authMode": "lohn_bridge",
+                            "format": "platform.employees.v1",
+                        }
+                    )
+        except Exception:
+            pass
+        return _admin_list_contracts()
+
     @require_auth
     @deny_turnstile_sensitive(surface="contracts")
     @require_roles("superadmin", "company-admin")
     @require_plan_capability("employment_contracts")
     @require_owner_setup_complete
-    def list_contracts():
+    def _admin_list_contracts():
         cid = _resolve_company_id()
         if not cid:
             return forbidden_company()

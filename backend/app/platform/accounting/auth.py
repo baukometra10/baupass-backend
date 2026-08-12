@@ -47,6 +47,32 @@ def verify_signature(
     return hmac.compare_digest(expected, str(signature).strip().lower())
 
 
+def _extract_bearer(raw: str) -> str:
+    value = str(raw or "").strip()
+    if value.lower().startswith("bearer "):
+        return value[7:].strip()
+    return value
+
+
+def extract_lohn_api_key_from_headers(headers) -> str:
+    """Read accounting / master key from common Lohn + platform header names."""
+    get = headers.get if hasattr(headers, "get") else (lambda *_a, **_k: "")
+    for name in (
+        "X-Accounting-Key",
+        "X-WorkPass-Accounting-Key",
+        "X-WorkPass-Key",
+        "X-WorkPass-Master-Key",
+        "X-WorkPass-Webhook-Key",
+        "X-Api-Key",
+        "X-Platform-Api-Key",
+        "Authorization",
+    ):
+        raw = _extract_bearer(str(get(name) or ""))
+        if raw:
+            return raw
+    return ""
+
+
 def authenticate_accounting_request(
     db,
     *,
@@ -80,4 +106,101 @@ def authenticate_accounting_request(
     if require_signature or signature:
         if not verify_signature(secret, timestamp=timestamp, body=body, signature=signature):
             return None
-    return dict(row)
+    out = dict(row)
+    out["authMode"] = "company_accounting_key"
+    return out
+
+
+def authenticate_lohn_pull_request(
+    db,
+    *,
+    company_id: str,
+    api_key: str,
+    timestamp: str = "",
+    signature: str = "",
+    body: bytes = b"",
+    require_signature: bool = False,
+) -> dict[str, Any] | None:
+    """
+    Accept either per-company acc_live_* key OR shared WORKPASS_API_KEY / master key.
+    Lohn UI often sends WORKPASS_API_KEY with X-WorkPass-Company-Id.
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .platform_link import get_platform_link, resolve_lohn_api_keys, resolve_master_api_keys
+    from .schema import ensure_accounting_schema
+
+    company_id = (company_id or "").strip()
+    api_key = (api_key or "").strip()
+    if not company_id or not api_key:
+        return None
+
+    integ = authenticate_accounting_request(
+        db,
+        company_id=company_id,
+        api_key=api_key,
+        timestamp=timestamp,
+        signature=signature,
+        body=body,
+        require_signature=require_signature,
+    )
+    if integ:
+        return integ
+
+    ensure_accounting_schema(db)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return None
+
+    link = get_platform_link(db)
+    accepted: list[str] = []
+    seen: set[str] = set()
+    for candidate in (
+        *resolve_lohn_api_keys(link),
+        *resolve_master_api_keys(link),
+    ):
+        value = str(candidate or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            accepted.append(value)
+
+    # Extra env aliases Lohn docs mention
+    import os
+
+    for env_name in (
+        "WORKPASS_API_KEY",
+        "WORKPASS_PLATFORM_API_KEY",
+        "WORKPASS_LOHN_MASTER_KEY",
+        "WORKPASS_PLATFORM_WEBHOOK_KEY",
+    ):
+        value = str(os.environ.get(env_name) or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            accepted.append(value)
+
+    matched = next((k for k in accepted if hmac.compare_digest(k, api_key)), None)
+    if not matched:
+        return None
+
+    # Prefer existing integration row when present; otherwise synthetic master auth.
+    row = db.execute(
+        """
+        SELECT id, company_id, enabled, webhook_url, api_key_hash, signing_secret, run_day
+        FROM accounting_integrations
+        WHERE company_id = ? AND enabled = 1
+        LIMIT 1
+        """,
+        (company_id,),
+    ).fetchone()
+    if row:
+        out = dict(row)
+        out["authMode"] = "platform_master_key"
+        return out
+    return {
+        "id": f"master-{company_id}",
+        "company_id": company_id,
+        "enabled": 1,
+        "webhook_url": "",
+        "api_key_hash": "",
+        "signing_secret": "",
+        "run_day": 1,
+        "authMode": "platform_master_key",
+    }
