@@ -477,6 +477,13 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
     @contracts_core_bp.get("/contracts")
     def list_contracts():
         # WorkPass Lohn pull: WORKPASS_API_KEY + company header (no admin session)
+        company_hint = (
+            request.headers.get("X-WorkPass-Company-Id")
+            or request.headers.get("X-Company-Id")
+            or request.args.get("company_id")
+            or request.args.get("companyId")
+            or ""
+        ).strip()
         try:
             from backend.app.platform.accounting.auth import (
                 authenticate_lohn_pull_request,
@@ -485,60 +492,86 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             from backend.app.platform.accounting.company_opt_in import is_workpass_lohn_enabled
             from backend.app.platform.accounting.hours_service import build_employee_master_list
 
-            company_hint = (
-                request.headers.get("X-WorkPass-Company-Id")
-                or request.headers.get("X-Company-Id")
-                or request.args.get("company_id")
-                or request.args.get("companyId")
-                or ""
-            ).strip()
             api_key = extract_lohn_api_key_from_headers(request.headers)
-            if company_hint and api_key:
+            # If Lohn-style credentials are present, never fall through to admin-session 401
+            if api_key and company_hint:
                 db = get_db()
                 integ = authenticate_lohn_pull_request(
                     db, company_id=company_hint, api_key=api_key
                 )
-                if integ and is_workpass_lohn_enabled(db, company_hint):
-                    employees = build_employee_master_list(db, company_id=company_hint)
-                    contracts = []
-                    for emp in employees.get("employees") or []:
-                        contracts.append(
-                            {
-                                "id": emp.get("contractId") or f"worker-{emp.get('employeeId')}",
-                                "contractId": emp.get("contractId"),
-                                "companyId": company_hint,
-                                "workerId": emp.get("workerId") or emp.get("employeeId"),
-                                "employeeId": emp.get("employeeId"),
-                                "status": emp.get("contractStatus") or emp.get("status") or "",
-                                "firstName": emp.get("firstName"),
-                                "lastName": emp.get("lastName"),
-                                "iban": emp.get("iban"),
-                                "taxId": emp.get("taxId"),
-                                "insuranceNumber": emp.get("insuranceNumber"),
-                                "hourlyRate": emp.get("hourlyRate"),
-                                "salaryGrossMonthly": emp.get("salaryGrossMonthly"),
-                                "brutto": emp.get("salaryGrossMonthly") or emp.get("hourlyRate"),
-                                "missingFields": emp.get("missingFields") or [],
-                                "payrollReady": emp.get("payrollReady"),
-                                "employee": emp,
-                            }
-                        )
+                if not integ:
                     return jsonify(
                         {
-                            "ok": True,
-                            "contracts": contracts,
-                            "employees": employees.get("employees") or [],
+                            "ok": False,
+                            "error": "unauthorized",
+                            "hint": "WORKPASS_API_KEY / WORKPASS_PLATFORM_API_KEY stimmt nicht mit der Plattform überein",
                             "companyId": company_hint,
-                            "employeeCount": employees.get("employeeCount"),
-                            "payrollReadyCount": employees.get("payrollReadyCount"),
-                            "incompleteCount": employees.get("incompleteCount"),
-                            "salaryRedacted": False,
-                            "authMode": "lohn_bridge",
-                            "format": "platform.employees.v1",
+                        }
+                    ), 401
+                if not is_workpass_lohn_enabled(db, company_hint):
+                    return jsonify(
+                        {
+                            "ok": False,
+                            "error": "workpass_lohn_disabled",
+                            "hint": "WorkPass Lohn für diese Firma in der Plattform aktivieren",
+                            "companyId": company_hint,
+                        }
+                    ), 403
+                employees = build_employee_master_list(db, company_id=company_hint)
+                contracts = []
+                for emp in employees.get("employees") or []:
+                    contracts.append(
+                        {
+                            "id": emp.get("contractId") or f"worker-{emp.get('employeeId')}",
+                            "contractId": emp.get("contractId"),
+                            "companyId": company_hint,
+                            "workerId": emp.get("workerId") or emp.get("employeeId"),
+                            "employeeId": emp.get("employeeId"),
+                            "status": emp.get("contractStatus") or emp.get("status") or "",
+                            "firstName": emp.get("firstName"),
+                            "lastName": emp.get("lastName"),
+                            "iban": emp.get("iban"),
+                            "taxId": emp.get("taxId"),
+                            "insuranceNumber": emp.get("insuranceNumber"),
+                            "hourlyRate": emp.get("hourlyRate"),
+                            "salaryGrossMonthly": emp.get("salaryGrossMonthly"),
+                            "brutto": emp.get("salaryGrossMonthly") or emp.get("hourlyRate"),
+                            "missingFields": emp.get("missingFields") or [],
+                            "payrollReady": emp.get("payrollReady"),
+                            "employee": emp,
                         }
                     )
-        except Exception:
-            pass
+                return jsonify(
+                    {
+                        "ok": True,
+                        "contracts": contracts,
+                        "employees": employees.get("employees") or [],
+                        "companyId": company_hint,
+                        "employeeCount": employees.get("employeeCount"),
+                        "payrollReadyCount": employees.get("payrollReadyCount"),
+                        "incompleteCount": employees.get("incompleteCount"),
+                        "salaryRedacted": False,
+                        "authMode": "lohn_bridge",
+                        "format": "platform.employees.v1",
+                    }
+                )
+            if api_key and not company_hint:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "company_id_required",
+                        "hint": "X-WorkPass-Company-Id fehlt",
+                    }
+                ), 400
+        except Exception as exc:
+            if company_hint:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "lohn_bridge_error",
+                        "message": str(exc)[:200],
+                    }
+                ), 500
         return _admin_list_contracts()
 
     @require_auth
