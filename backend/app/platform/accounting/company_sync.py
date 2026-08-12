@@ -28,6 +28,7 @@ def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
         "id": company_id,
         "companyId": company_id,
         "name": _s("name", "portal_display_name"),
+        "displayName": _s("portal_display_name", "name"),
         "customerNumber": _s("customer_number"),
         "contact": _s("contact"),
         "contactEmail": _s("billing_email", "document_email"),
@@ -43,6 +44,13 @@ def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
         "status": _s("status") or "active",
         "workStartTime": _s("work_start_time"),
         "workEndTime": _s("work_end_time"),
+        "branding": {
+            "accentColor": _s("branding_accent_color"),
+            "preset": _s("branding_preset"),
+            "logoData": _s("branding_logo_data")[:200_000]
+            if _s("branding_logo_data")
+            else "",
+        },
     }
     return {
         "ok": True,

@@ -585,6 +585,155 @@ def dismiss_related_data_alerts_for_worker_if_improved(
     return {"ok": True, "dismissed": dismissed}
 
 
+def auto_fulfill_lohn_data_request(
+    db,
+    *,
+    company_id: str,
+    period: str | None = None,
+    source: str = "lohn_webhook",
+    note: str = "",
+    external_ref: str = "",
+    want_employees: bool = True,
+    want_payroll: bool = True,
+    want_branding: bool = True,
+    worker_id: str = "",
+) -> dict[str, Any]:
+    """
+    Immediate Platform → Lohn handoff when accounting asks for data.
+
+    Always scoped to a single companyId (no cross-tenant bleed).
+    Pushes company branding/master, full employee+contract master, and/or
+    hours/payroll-batch for the requested period — without waiting for Ops confirm.
+
+    Payslip release to workers stays human-gated elsewhere (ingest → pending_approval).
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .hours_service import normalize_period as _norm_period
+    from .platform_link import notify_company_lohn_status
+
+    company_id = require_company_id(company_id)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "companyId": company_id}
+
+    period_norm = ""
+    if period:
+        try:
+            period_norm = _norm_period(str(period).strip()[:7])
+        except ValueError:
+            period_norm = str(period or "").strip()[:7]
+
+    worker_id = str(worker_id or "").strip()
+    replies: dict[str, Any] = {
+        "companyId": company_id,
+        "period": period_norm or None,
+        "tenantIsolation": "companyId",
+    }
+
+    if want_branding:
+        try:
+            replies["companyUpsert"] = notify_company_lohn_status(
+                db, company_id, enabled=True
+            )
+        except Exception as exc:
+            replies["companyUpsert"] = {"ok": False, "error": str(exc)[:160]}
+
+    if worker_id and not period_norm and not want_payroll:
+        # Single-employee data repair from Lohn missing_data prompts
+        try:
+            replies["employeeResolved"] = notify_employee_data_resolved(
+                db,
+                company_id=company_id,
+                worker_id=worker_id,
+                actor_user_id="system-lohn-auto",
+                source=source,
+            )
+        except Exception as exc:
+            replies["employeeResolved"] = {"ok": False, "error": str(exc)[:160]}
+        return {
+            "ok": bool((replies.get("employeeResolved") or {}).get("ok")),
+            "status": "delivered" if (replies.get("employeeResolved") or {}).get("ok") else "partial",
+            "mode": "employee",
+            "replies": replies,
+            "message": "Employee master pushed to WorkPass Lohn",
+        }
+
+    if period_norm and (want_employees or want_payroll):
+        # Track request row, then auto-confirm + push (no human gate for outbound data)
+        req = request_period_handoff(
+            db,
+            company_id=company_id,
+            period=period_norm,
+            source=source,
+            note=note or "auto_fulfill",
+            external_ref=external_ref,
+            notify_inbox=False,
+        )
+        replies["periodRequest"] = req
+        if not req.get("ok"):
+            return {
+                "ok": False,
+                "status": "error",
+                "mode": "period",
+                "replies": replies,
+                "error": req.get("error") or "period_request_failed",
+            }
+
+        delivery = confirm_period_handoff(
+            db,
+            company_id=company_id,
+            period=period_norm,
+            request_id=str((req.get("request") or {}).get("id") or "") or None,
+            actor_user_id="system-lohn-auto",
+        )
+        replies["delivery"] = delivery
+
+        # Ops audit trail — delivered, not "please confirm"
+        inbox = None
+        if not req.get("alreadyReleased"):
+            try:
+                from .messages_inbox import create_test_accounting_message
+
+                emp_n = (delivery.get("employees") or {}).get("employeeCount")
+                inbox = create_test_accounting_message(
+                    db,
+                    company_id=company_id,
+                    subject=f"Daten an Lohn übergeben · {period_norm}",
+                    body=(
+                        f"WorkPass Lohn hat Periode {period_norm} angefragt. "
+                        f"Die Plattform hat Stammdaten"
+                        f"{f' ({emp_n} MA)' if emp_n is not None else ''} "
+                        f"und Abrechnungsstunden automatisch übergeben "
+                        f"(Firma {company_id}, Isolation companyId)."
+                    ),
+                    period=period_norm,
+                    kind="data_delivered",
+                )
+            except Exception as exc:
+                inbox = {"ok": False, "error": str(exc)[:120]}
+        replies["inbox"] = inbox
+
+        return {
+            "ok": bool(delivery.get("ok")),
+            "status": delivery.get("status") or "delivered",
+            "mode": "period",
+            "replies": replies,
+            "message": delivery.get("message")
+            or "Mitarbeiter und Abrechnungsdaten automatisch an WorkPass Lohn übergeben",
+            "error": delivery.get("error"),
+        }
+
+    # Master sync without month
+    if want_employees:
+        replies["employeesImport"] = push_employees_to_lohn(db, company_id=company_id)
+    return {
+        "ok": bool((replies.get("employeesImport") or {}).get("ok") or replies.get("companyUpsert", {}).get("ok")),
+        "status": "delivered",
+        "mode": "employees",
+        "replies": replies,
+        "message": "Company/employees master pushed to WorkPass Lohn",
+    }
+
+
 def request_period_handoff(
     db,
     *,
@@ -597,7 +746,10 @@ def request_period_handoff(
 ) -> dict[str, Any]:
     """
     WorkPass Lohn asks: employees + Abrechnung inputs for company/period.
-    Data is NOT released until a human confirms on the platform.
+
+    Creates/updates the period request row. Prefer auto_fulfill_lohn_data_request()
+    for webhook/poll paths that should push immediately. Ops can still confirm
+    manually via confirm_period_handoff when notify_inbox left a pending request.
     """
     from .company_opt_in import is_workpass_lohn_enabled
     from .hours_service import aggregate_company_hours, build_employee_master_list
@@ -1127,6 +1279,20 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
         )
     db.commit()
     refreshed = repo.get_batch(db, batch_id) or {}
+    inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
+    if released:
+        try:
+            from .messages_inbox import clear_payslip_released_messages
+
+            inbox_clear = clear_payslip_released_messages(
+                db,
+                company_id=str(batch.get("company_id") or ""),
+                period=str(batch.get("period") or ""),
+                batch_id=str(batch_id),
+                actor_user_id=str(actor_user_id or ""),
+            )
+        except Exception as exc:
+            inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
     return {
         "ok": True,
         "batchId": batch_id,
@@ -1134,6 +1300,7 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
         "skipped": skipped,
         "errors": errors,
         "status": refreshed.get("status") or new_status,
+        "inboxCleared": inbox_clear,
     }
 
 
@@ -1162,7 +1329,20 @@ def reject_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | Non
         (now, batch_id),
     )
     db.commit()
-    return {"ok": True, "batchId": batch_id, "status": "rejected"}
+    inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
+    try:
+        from .messages_inbox import clear_payslip_released_messages
+
+        inbox_clear = clear_payslip_released_messages(
+            db,
+            company_id=str(batch.get("company_id") or ""),
+            period=str(batch.get("period") or ""),
+            batch_id=str(batch_id),
+            actor_user_id=str(actor_user_id or ""),
+        )
+    except Exception as exc:
+        inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
+    return {"ok": True, "batchId": batch_id, "status": "rejected", "inboxCleared": inbox_clear}
 
 
 def fingerprint_payload(payload: dict[str, Any]) -> str:

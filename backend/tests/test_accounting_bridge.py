@@ -986,3 +986,92 @@ def test_dismiss_alerts_partial_field_improvement():
     )
     assert out2["dismissed"] >= 1
     assert repository.list_open_lohn_data_alerts(db, company_id="c1") == []
+
+
+def test_webhook_auto_fulfills_payroll_month_request(monkeypatch):
+    """Lohn asks for payroll → platform pushes employees + batch immediately (company-scoped)."""
+    from backend.app.platform.accounting import messages_inbox, platform_link
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+    posts = []
+
+    def _fake_post(link, *, path, body, event, **_kwargs):
+        posts.append({"path": path, "event": event, "body": body})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    monkeypatch.setattr(service, "_post_webhook", lambda *a, **k: {"ok": True, "skipped": True})
+
+    out = messages_inbox.handle_inbound_lohn_webhook(
+        db,
+        data={
+            "event": "payroll.month.requested",
+            "companyId": "c1",
+            "period": "2026-06",
+        },
+    )
+    assert out["ok"] is True
+    assert out.get("tenantIsolation") == "companyId"
+    assert out["status"] in {"delivered", "confirmed"}
+    assert any(p["path"] == "/v1/employees/import" for p in posts)
+    assert any(p["path"] == "/v1/payroll/batch" for p in posts)
+    # Every outbound body must stay on c1
+    for p in posts:
+        body = p.get("body") or {}
+        cid = body.get("companyId") or (body.get("company") or {}).get("id") or body.get("id")
+        if cid:
+            assert cid == "c1"
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
+    assert not any(m.get("kind") == "period_request" for m in pending)
+
+
+def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
+    """Payslips land in company inbox as pending_approval — never auto-shown to workers."""
+    from backend.app.platform.accounting import messages_inbox
+
+    db = _db()
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    out = messages_inbox.handle_inbound_lohn_webhook(
+        db,
+        data={
+            "event": "payslip.released",
+            "companyId": "c1",
+            "period": "2026-06",
+            "statements": [
+                {
+                    "employeeId": "w1",
+                    "period": "2026-06",
+                    "hours": 8,
+                    "hourlyRate": 15,
+                    "grossAmount": 120,
+                    "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+                    "filename": "w1-2026-06.pdf",
+                }
+            ],
+        },
+    )
+    assert out["ok"] is True
+    assert out["status"] == "pending_approval"
+    assert out.get("note") == "Never auto-approve payslips to employees"
+    ingest = out.get("ingest") or {}
+    assert ingest.get("ok") is True
+    assert ingest.get("status") == "pending_approval"
+    assert ingest.get("companyId") == "c1"
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
+    assert any(m.get("kind") == "payslip_released" for m in pending)
