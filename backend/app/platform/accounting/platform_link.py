@@ -47,6 +47,34 @@ def resolve_master_api_keys(link: dict[str, Any] | None = None) -> list[str]:
     return keys
 
 
+def resolve_lohn_api_keys(link: dict[str, Any] | None = None) -> list[str]:
+    """
+    Secrets for outbound calls to WorkPass Lohn API (messages, upsert, import).
+    Uses Lohn WORKPASS_API_KEY — not the platform webhook secret.
+    """
+    link = link or {}
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: str) -> None:
+        candidate = str(raw or "").strip()
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            keys.append(candidate)
+
+    add(str(link.get("master_api_key") or ""))
+    add(_workpass_raw_env("WORKPASS_API_KEY"))
+    add(platform_env("WORKPASS_API_KEY", ""))
+    add(platform_env("WORKPASS_LOHN_MASTER_KEY", ""))
+    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY"))
+    return keys
+
+
+def primary_lohn_api_key(link: dict[str, Any] | None = None) -> str:
+    keys = resolve_lohn_api_keys(link)
+    return keys[0] if keys else ""
+
+
 def primary_master_api_key(link: dict[str, Any] | None = None) -> str:
     keys = resolve_master_api_keys(link)
     return keys[0] if keys else ""
@@ -118,7 +146,7 @@ def get_platform_link(db) -> dict[str, Any]:
     if env_ui and not str(data.get("ui_base_url") or "").strip():
         data["ui_base_url"] = env_ui
     if not str(data.get("master_api_key") or "").strip():
-        boot_key = primary_master_api_key(data)
+        boot_key = primary_lohn_api_key(data) or primary_master_api_key(data)
         if boot_key:
             data["master_api_key"] = boot_key
     if env_public and not str(data.get("platform_public_url") or "").strip():
@@ -181,7 +209,7 @@ def test_platform_link_connectivity(db) -> dict[str, Any]:
             },
             method="GET",
         )
-        master = primary_master_api_key(link)
+        master = primary_lohn_api_key(link)
         if master:
             # WorkPass Lohn expects X-WorkPass-Key (Bearer/Master aliases kept for compatibility).
             req.add_header("X-WorkPass-Key", master)
@@ -391,7 +419,7 @@ def _post_lohn_json(
     url = f"{base}{path}"
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
     ts = str(int(time.time()))
-    master = primary_master_api_key(link)
+    master = primary_lohn_api_key(link)
     company_id = str(
         body.get("companyId")
         or body.get("company_id")

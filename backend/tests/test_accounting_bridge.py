@@ -873,6 +873,19 @@ def test_platform_webhook_auth_webhook_key_env_and_header(monkeypatch):
     assert ok["auth"] == "master"
 
 
+def test_resolve_lohn_api_key_prefers_workpass_api_key(monkeypatch):
+    from backend.app.platform.accounting import platform_link
+
+    monkeypatch.setenv("WORKPASS_API_KEY", "lohn-api-secret")
+    monkeypatch.setenv("WORKPASS_PLATFORM_WEBHOOK_KEY", "webhook-only-secret")
+    keys = platform_link.resolve_lohn_api_keys({"master_api_key": "db-master"})
+    assert keys[0] == "db-master"
+    assert "lohn-api-secret" in keys
+    assert "webhook-only-secret" not in keys
+    webhook_keys = platform_link.resolve_master_api_keys({"master_api_key": "db-master"})
+    assert "webhook-only-secret" in webhook_keys
+
+
 def test_notify_employee_data_resolved_clears_alerts_and_acks_message():
     from backend.app.platform.accounting import messages_inbox, repository, service
     from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled

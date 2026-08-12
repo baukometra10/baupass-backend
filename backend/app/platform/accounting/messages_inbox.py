@@ -11,7 +11,7 @@ from urllib import request as urlrequest
 
 from . import repository as repo
 from .auth import sign_payload, verify_signature
-from .platform_link import get_platform_link, resolve_master_api_keys
+from .platform_link import get_platform_link, primary_lohn_api_key, resolve_master_api_keys
 from .schema import ensure_accounting_schema
 
 MESSAGES_PENDING_PATH = "/v1/messages/pending"
@@ -94,9 +94,7 @@ def _now() -> str:
 
 
 def _master_key(link: dict[str, Any] | None = None) -> str:
-    from .platform_link import primary_master_api_key
-
-    return primary_master_api_key(link)
+    return primary_lohn_api_key(link)
 
 
 def verify_platform_webhook_auth(
@@ -961,6 +959,16 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         or (data.get("company") or {}).get("id")
         or ""
     ).strip()
+
+    if event in {"platform.ping", "ping", "health.ping"}:
+        return {
+            "ok": True,
+            "event": event or "platform.ping",
+            "companyId": company_id or None,
+            "message": "platform_webhook_reachable",
+            "webhookPath": platform_webhook_public_path(),
+        }
+
     period = str(data.get("period") or data.get("month") or "").strip()[:7]
     if period:
         try:
