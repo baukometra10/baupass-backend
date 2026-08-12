@@ -1392,9 +1392,8 @@ async function openLohnDrawer() {
 
   for (const a of alerts.slice(0, 12)) {
     const id = String(a.id || "");
-    const wid = String(a.workerId || a.employeeId || "");
+    const wid = String(a.workerId || a.employeeId || "").trim();
     const fields = a.missingFields || a.missing_fields || [];
-    const wid = String(a.workerId || "").trim();
     const name = String(a.workerDisplayName || "").trim()
       || [a.workerFirstName, a.workerLastName].filter(Boolean).join(" ").trim()
       || a.workerName || wid || "—";
