@@ -5,6 +5,8 @@ import base64
 import hashlib
 import json
 import secrets
+import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any
@@ -21,6 +23,12 @@ from .schema import ensure_accounting_schema
 PAYROLL_BATCH_FORMAT = "platform.payroll.batch.v1"
 PAYROLL_BATCH_PATH = "/v1/payroll/batch"
 
+# Process-local debounce so Lohn webhook storms cannot saturate Waitress/SQLite.
+_AUTO_FULFILL_RECENT: dict[str, float] = {}
+_AUTO_FULFILL_INFLIGHT: set[str] = set()
+_AUTO_FULFILL_LOCK = threading.Lock()
+_AUTO_FULFILL_DEBOUNCE_SEC = 120.0
+
 
 def _db_commit(db) -> None:
     """Release SQLite write locks before any outbound HTTP."""
@@ -28,6 +36,33 @@ def _db_commit(db) -> None:
         db.commit()
     except Exception:
         pass
+
+
+def _auto_fulfill_gate(key: str) -> str | None:
+    """
+    Return None if this key may run now.
+    Otherwise return a skip reason: 'inflight' | 'debounced'.
+    """
+    now = time.time()
+    with _AUTO_FULFILL_LOCK:
+        # Drop stale debounce entries
+        stale = [k for k, ts in _AUTO_FULFILL_RECENT.items() if now - ts > _AUTO_FULFILL_DEBOUNCE_SEC]
+        for k in stale:
+            _AUTO_FULFILL_RECENT.pop(k, None)
+        if key in _AUTO_FULFILL_INFLIGHT:
+            return "inflight"
+        last = _AUTO_FULFILL_RECENT.get(key)
+        if last is not None and (now - last) < _AUTO_FULFILL_DEBOUNCE_SEC:
+            return "debounced"
+        _AUTO_FULFILL_INFLIGHT.add(key)
+        return None
+
+
+def _auto_fulfill_ungate(key: str, *, mark_done: bool) -> None:
+    with _AUTO_FULFILL_LOCK:
+        _AUTO_FULFILL_INFLIGHT.discard(key)
+        if mark_done:
+            _AUTO_FULFILL_RECENT[key] = time.time()
 
 
 def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
@@ -635,74 +670,100 @@ def auto_fulfill_lohn_data_request(
             period_norm = str(period or "").strip()[:7]
 
     worker_id = str(worker_id or "").strip()
+    gate_key = f"{company_id}|{period_norm or 'master'}|{int(want_employees)}|{int(want_payroll)}|{worker_id}"
+    skip = _auto_fulfill_gate(gate_key)
+    if skip:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "skipped": skip,
+            "companyId": company_id,
+            "period": period_norm or None,
+            "message": f"Auto-fulfill skipped ({skip}) to protect platform capacity",
+            "tenantIsolation": "companyId",
+        }
+
     replies: dict[str, Any] = {
         "companyId": company_id,
         "period": period_norm or None,
         "tenantIsolation": "companyId",
     }
+    mark_done = False
+    try:
+        if want_branding:
+            try:
+                _db_commit(db)
+                replies["companyUpsert"] = notify_company_lohn_status(
+                    db, company_id, enabled=True
+                )
+            except Exception as exc:
+                replies["companyUpsert"] = {"ok": False, "error": str(exc)[:160]}
 
-    if want_branding:
-        try:
-            _db_commit(db)
-            replies["companyUpsert"] = notify_company_lohn_status(
-                db, company_id, enabled=True
-            )
-        except Exception as exc:
-            replies["companyUpsert"] = {"ok": False, "error": str(exc)[:160]}
-
-    if worker_id and not period_norm and not want_payroll:
-        # Single-employee data repair from Lohn missing_data prompts
-        try:
-            replies["employeeResolved"] = notify_employee_data_resolved(
-                db,
-                company_id=company_id,
-                worker_id=worker_id,
-                actor_user_id="system-lohn-auto",
-                source=source,
-            )
-        except Exception as exc:
-            replies["employeeResolved"] = {"ok": False, "error": str(exc)[:160]}
-        return {
-            "ok": bool((replies.get("employeeResolved") or {}).get("ok")),
-            "status": "delivered" if (replies.get("employeeResolved") or {}).get("ok") else "partial",
-            "mode": "employee",
-            "replies": replies,
-            "message": "Employee master pushed to WorkPass Lohn",
-        }
-
-    if period_norm and (want_employees or want_payroll):
-        # Track request row, then auto-confirm + push (no human gate for outbound data)
-        req = request_period_handoff(
-            db,
-            company_id=company_id,
-            period=period_norm,
-            source=source,
-            note=note or "auto_fulfill",
-            external_ref=external_ref,
-            notify_inbox=False,
-        )
-        replies["periodRequest"] = req
-        if not req.get("ok"):
+        if worker_id and not period_norm and not want_payroll:
+            # Single-employee data repair from Lohn missing_data prompts
+            try:
+                replies["employeeResolved"] = notify_employee_data_resolved(
+                    db,
+                    company_id=company_id,
+                    worker_id=worker_id,
+                    actor_user_id="system-lohn-auto",
+                    source=source,
+                )
+            except Exception as exc:
+                replies["employeeResolved"] = {"ok": False, "error": str(exc)[:160]}
+            mark_done = bool((replies.get("employeeResolved") or {}).get("ok"))
             return {
-                "ok": False,
-                "status": "error",
-                "mode": "period",
+                "ok": mark_done,
+                "status": "delivered" if mark_done else "partial",
+                "mode": "employee",
                 "replies": replies,
-                "error": req.get("error") or "period_request_failed",
+                "message": "Employee master pushed to WorkPass Lohn",
             }
 
-        delivery = confirm_period_handoff(
-            db,
-            company_id=company_id,
-            period=period_norm,
-            request_id=str((req.get("request") or {}).get("id") or "") or None,
-            actor_user_id="system-lohn-auto",
-        )
-        replies["delivery"] = delivery
+        if period_norm and (want_employees or want_payroll):
+            # Track request row, then auto-confirm + push (no human gate for outbound data)
+            req = request_period_handoff(
+                db,
+                company_id=company_id,
+                period=period_norm,
+                source=source,
+                note=note or "auto_fulfill",
+                external_ref=external_ref,
+                notify_inbox=False,
+            )
+            replies["periodRequest"] = req
+            if not req.get("ok"):
+                return {
+                    "ok": False,
+                    "status": "error",
+                    "mode": "period",
+                    "replies": replies,
+                    "error": req.get("error") or "period_request_failed",
+                }
 
-        # Ops audit trail — delivered, not "please confirm"
-        inbox = None
-        if not req.get("alreadyReleased"):
+            # Critical: do NOT re-push on every Lohn retry once already delivered
+            if req.get("alreadyReleased"):
+                mark_done = True
+                return {
+                    "ok": True,
+                    "status": "already_delivered",
+                    "mode": "period",
+                    "replies": replies,
+                    "message": "Period already delivered — skipped re-push",
+                    "skipped": "already_delivered",
+                }
+
+            delivery = confirm_period_handoff(
+                db,
+                company_id=company_id,
+                period=period_norm,
+                request_id=str((req.get("request") or {}).get("id") or "") or None,
+                actor_user_id="system-lohn-auto",
+            )
+            replies["delivery"] = delivery
+
+            # Ops audit trail — delivered, not "please confirm"
+            inbox = None
             try:
                 from .messages_inbox import create_test_accounting_message
 
@@ -723,31 +784,38 @@ def auto_fulfill_lohn_data_request(
                 )
             except Exception as exc:
                 inbox = {"ok": False, "error": str(exc)[:120]}
-        replies["inbox"] = inbox
+            replies["inbox"] = inbox
+            mark_done = True
 
-        return {
-            "ok": bool(delivery.get("ok")),
-            "status": delivery.get("status") or "delivered",
-            "mode": "period",
-            "replies": replies,
-            "message": delivery.get("message")
-            or "Mitarbeiter und Abrechnungsdaten automatisch an WorkPass Lohn übergeben",
-            "error": delivery.get("error"),
-        }
+            return {
+                "ok": bool(delivery.get("ok")),
+                "status": delivery.get("status") or "delivered",
+                "mode": "period",
+                "replies": replies,
+                "message": delivery.get("message")
+                or "Mitarbeiter und Abrechnungsdaten automatisch an WorkPass Lohn übergeben",
+                "error": delivery.get("error"),
+            }
 
-    # Master sync without month
-    if want_employees:
-        _db_commit(db)
-        replies["employeesImport"] = push_employees_to_lohn(
-            db, company_id=company_id, timeout=6
+        # Master sync without month
+        if want_employees:
+            _db_commit(db)
+            replies["employeesImport"] = push_employees_to_lohn(
+                db, company_id=company_id, timeout=6
+            )
+        mark_done = bool(
+            (replies.get("employeesImport") or {}).get("ok")
+            or (replies.get("companyUpsert") or {}).get("ok")
         )
-    return {
-        "ok": bool((replies.get("employeesImport") or {}).get("ok") or replies.get("companyUpsert", {}).get("ok")),
-        "status": "delivered",
-        "mode": "employees",
-        "replies": replies,
-        "message": "Company/employees master pushed to WorkPass Lohn",
-    }
+        return {
+            "ok": mark_done,
+            "status": "delivered",
+            "mode": "employees",
+            "replies": replies,
+            "message": "Company/employees master pushed to WorkPass Lohn",
+        }
+    finally:
+        _auto_fulfill_ungate(gate_key, mark_done=mark_done)
 
 
 def request_period_handoff(
