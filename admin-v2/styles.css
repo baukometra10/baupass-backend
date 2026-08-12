@@ -3299,6 +3299,74 @@ body.theme-white #geofenceMap .leaflet-popup-tip {
   flex: 1 1 12rem;
 }
 
+.lohn-advanced {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12px;
+  padding: 0.65rem 0.85rem 0.85rem;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.lohn-advanced summary {
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 0.88rem;
+  list-style: none;
+}
+
+.lohn-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.lohn-advanced summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: 0.4rem;
+  color: rgba(125, 211, 252, 0.9);
+  transition: transform 0.15s ease;
+}
+
+.lohn-advanced[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.lohn-advanced .lohn-link-grid {
+  margin-top: 0.85rem;
+}
+
+.lohn-webhook-status {
+  padding: 0.8rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(15, 23, 42, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.lohn-webhook-status-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.lohn-webhook-status-head strong {
+  font-size: 0.9rem;
+}
+
+.lohn-webhook-url {
+  margin: 0;
+  word-break: break-all;
+  opacity: 0.92;
+}
+
+.platform-status-pill.is-wait {
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
 .platform-studio-links {
   margin-top: 0.25rem;
   padding-top: 0.35rem;

@@ -23,6 +23,7 @@ def register_accounting_blueprint(flask_app) -> None:
     from .monthly_job import run_monthly_accounting_exports
     from .platform_link import (
         get_platform_link,
+        probe_inbound_platform_webhook,
         provision_all_active_companies,
         provision_company_for_lohn,
         save_platform_link,
@@ -641,6 +642,17 @@ def register_accounting_blueprint(flask_app) -> None:
         result = test_platform_link_connectivity(get_db())
         if not result.get("ok") and not result.get("message"):
             result["message"] = str(result.get("error") or "test_failed")
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/accounting/platform-link/webhook-probe")
+    @require_auth
+    @require_roles("superadmin")
+    def admin_probe_platform_webhook():
+        """Probe inbound WORKPASS_PLATFORM_WEBHOOK_URL auth (Lohn → Platform)."""
+        result = probe_inbound_platform_webhook(get_db())
+        if not result.get("ok") and not result.get("message"):
+            result["message"] = str(result.get("error") or "webhook_probe_failed")
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 

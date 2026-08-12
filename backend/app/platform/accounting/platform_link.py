@@ -80,6 +80,83 @@ def primary_master_api_key(link: dict[str, Any] | None = None) -> str:
     return keys[0] if keys else ""
 
 
+def probe_inbound_platform_webhook(db) -> dict[str, Any]:
+    """
+    Self-probe: POST platform.ping to WORKPASS_PLATFORM_WEBHOOK_URL target
+    using the shared webhook/master key. Verifies Lohn → Platform auth path.
+    """
+    link = get_platform_link(db)
+    public = str(link.get("platform_public_url") or "").rstrip("/")
+    if not public:
+        public = (platform_env("PUBLIC_BASE_URL", "") or "https://suppix-ai-workpass.com").rstrip("/")
+    path = "/api/workpass/webhooks/accounting"
+    url = f"{public}{path}"
+    key = primary_master_api_key(link)
+    if not key:
+        return {
+            "ok": False,
+            "error": "webhook_key_missing",
+            "url": url,
+            "message": "Kein Webhook-/Master-Key hinterlegt (WORKPASS_PLATFORM_WEBHOOK_KEY oder Master-API-Key).",
+        }
+    body = {
+        "event": "platform.ping",
+        "source": "suppix-platform-link-probe",
+        "meta": {"probe": True},
+    }
+    raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urlrequest.Request(
+        url,
+        data=raw,
+        headers={
+            "Content-Type": "application/json",
+            "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
+            "X-WorkPass-Webhook-Key": key,
+            "Authorization": f"Bearer {key}",
+            "X-WorkPass-Key": key,
+            "X-Suppix-Event": "platform.ping",
+        },
+        method="POST",
+    )
+    try:
+        with urlrequest.urlopen(req, timeout=12) as resp:
+            text = resp.read()[:800].decode("utf-8", errors="replace")
+            parsed = None
+            if text.strip().startswith("{"):
+                try:
+                    parsed = json.loads(text)
+                except Exception:
+                    parsed = None
+            return {
+                "ok": True,
+                "status": int(resp.status),
+                "url": url,
+                "event": (parsed or {}).get("event") if isinstance(parsed, dict) else "platform.ping",
+                "message": "Webhook erreichbar (401 behoben / Auth OK).",
+                "body": parsed if isinstance(parsed, dict) else {"raw": text[:200]},
+            }
+    except urlerror.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read()[:400].decode("utf-8", errors="replace")
+        except Exception:
+            detail = str(exc)
+        return {
+            "ok": False,
+            "status": int(exc.code),
+            "url": url,
+            "error": detail[:200] or f"HTTP {exc.code}",
+            "message": f"Webhook-Probe fehlgeschlagen (HTTP {exc.code}).",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "url": url,
+            "error": str(exc)[:200],
+            "message": "Webhook-Probe nicht erreichbar.",
+        }
+
+
 def _ensure_platform_link_table(db) -> None:
     ensure_accounting_schema(db)
     db.execute(
@@ -271,6 +348,8 @@ def save_platform_link(
     enabled_v = int(current.get("enabled") or 0) if enabled is None else (1 if enabled else 0)
     base_v = str(current.get("base_url") or "") if base_url is None else base_url.strip().rstrip("/")
     ui_v = str(current.get("ui_base_url") or "") if ui_base_url is None else ui_base_url.strip().rstrip("/")
+    if not ui_v:
+        ui_v = base_v or "https://workpass-lohn.up.railway.app"
     key_v = str(current.get("master_api_key") or "")
     if master_api_key is not None and master_api_key.strip():
         key_v = master_api_key.strip()

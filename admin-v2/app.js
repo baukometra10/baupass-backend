@@ -2070,26 +2070,140 @@ function renderQuickLinks() {
   });
 }
 
+const DEFAULT_LOHN_UI_URL = "https://workpass-lohn.up.railway.app";
+
+function resolveLohnUiUrl(uiUrl, baseUrl) {
+  const ui = String(uiUrl || "").trim();
+  if (ui) return ui.replace(/\/$/, "");
+  const base = String(baseUrl || "").trim().replace(/\/$/, "");
+  if (base) return base;
+  return DEFAULT_LOHN_UI_URL;
+}
+
+function readLohnPlatformLinkForm(form) {
+  const fd = new FormData(form);
+  const baseUrl = String(fd.get("baseUrl") || "").trim();
+  let uiBaseUrl = String(fd.get("uiBaseUrl") || "").trim();
+  if (!uiBaseUrl) {
+    uiBaseUrl = resolveLohnUiUrl("", baseUrl);
+    const uiInput = form.querySelector('[name="uiBaseUrl"]');
+    if (uiInput) uiInput.value = uiBaseUrl;
+  }
+  const body = {
+    enabled: String(fd.get("enabled") || "0") === "1",
+    autoProvision: String(fd.get("autoProvision") || "0") === "1",
+    baseUrl,
+    uiBaseUrl,
+    platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
+    companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
+    hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
+    runDay: Number(fd.get("runDay") || 1) || 1,
+  };
+  const master = String(fd.get("masterApiKey") || "").trim();
+  if (master) body.masterApiKey = master;
+  return body;
+}
+
+function paintLohnWebhookStatus(host, data = {}) {
+  const box = host?.querySelector("#lohnWebhookStatus");
+  if (!box) return;
+  const ok = data.ok === true;
+  const pending = data.pending === true;
+  const pillClass = pending ? "is-wait" : ok ? "is-on" : "is-off";
+  const pillLabel = pending
+    ? (t("lohnLink.webhookChecking") || "Prüfe…")
+    : ok
+      ? (t("lohnLink.webhookOk") || "Webhook OK")
+      : (t("lohnLink.webhookFail") || "Webhook prüfen");
+  const url = escapeHtml(String(data.url || box.dataset.webhookUrl || ""));
+  const detail = escapeHtml(String(data.message || data.error || data.hint || ""));
+  const lohnLast = data.lohnLastWebhook || null;
+  const lohnLine = lohnLast
+    ? `<p class="muted small">${t("lohnLink.lohnLastWebhook") || "Letzter Lohn-Webhook"}: ${escapeHtml(String(lohnLast.status ?? "—"))} · ${escapeHtml(String(lohnLast.at || "").slice(0, 19))} · ${escapeHtml(String(lohnLast.event || ""))}</p>`
+    : "";
+  box.innerHTML = `
+    <div class="lohn-webhook-status-head">
+      <strong>${t("lohnLink.webhookTitle") || "Webhook-Status"}</strong>
+      <span class="platform-status-pill ${pillClass}">${pillLabel}</span>
+    </div>
+    <p class="mono small lohn-webhook-url">${url || "—"}</p>
+    ${detail ? `<p class="muted small">${detail}</p>` : ""}
+    ${lohnLine}
+  `;
+}
+
+async function refreshLohnWebhookStatus(host, { probe = false } = {}) {
+  if (!host) return;
+  const form = host.querySelector("#lohnPlatformLinkForm");
+  const baseUrl = String(form?.querySelector('[name="baseUrl"]')?.value || host.dataset.lohnBase || "").trim().replace(/\/$/, "");
+  const webhookUrl = String(host.dataset.webhookUrl || "").trim();
+  paintLohnWebhookStatus(host, { pending: true, url: webhookUrl });
+  let lohnLastWebhook = null;
+  if (baseUrl) {
+    try {
+      const health = await withTimeout(
+        fetch(`${baseUrl}/health`, { cache: "no-store" }).then((r) => r.json()),
+        5000,
+        null,
+      );
+      lohnLastWebhook = health?.lastWebhook || null;
+    } catch {
+      /* optional */
+    }
+  }
+  if (!probe) {
+    const lastOk = lohnLastWebhook?.ok === true;
+    paintLohnWebhookStatus(host, {
+      ok: lastOk,
+      url: webhookUrl,
+      message: lastOk
+        ? (t("lohnLink.webhookFromLohnOk") || "Lohn meldet letzten Webhook als erfolgreich.")
+        : (t("lohnLink.webhookFromLohnHint") || "Zum Prüfen «Webhook prüfen» verwenden."),
+      lohnLastWebhook,
+    });
+    return;
+  }
+  try {
+    const result = await api("/api/payroll/accounting/platform-link/webhook-probe", {
+      method: "POST",
+      body: "{}",
+    });
+    paintLohnWebhookStatus(host, {
+      ok: true,
+      url: result.url || webhookUrl,
+      message: result.message || (t("lohnLink.webhookOk") || "Webhook OK"),
+      lohnLastWebhook,
+    });
+  } catch (e) {
+    paintLohnWebhookStatus(host, {
+      ok: false,
+      url: e?.data?.url || webhookUrl,
+      message: e?.data?.message || e.message || "webhook_probe_failed",
+      error: e?.data?.error,
+      lohnLastWebhook,
+    });
+  }
+}
+
 function bindLohnPlatformLinkPanel(host) {
   if (!host || host.dataset.bound === "1") return;
   host.dataset.bound = "1";
   const form = host.querySelector("#lohnPlatformLinkForm");
   const msg = host.querySelector("#lohnLinkMsg");
+  const baseInput = form?.querySelector('[name="baseUrl"]');
+  const uiInput = form?.querySelector('[name="uiBaseUrl"]');
+  const syncUiFromBase = () => {
+    if (!uiInput || !baseInput) return;
+    const currentUi = String(uiInput.value || "").trim();
+    if (currentUi && currentUi !== DEFAULT_LOHN_UI_URL) return;
+    const next = resolveLohnUiUrl("", baseInput.value);
+    if (next) uiInput.value = next;
+  };
+  baseInput?.addEventListener("change", syncUiFromBase);
+  baseInput?.addEventListener("blur", syncUiFromBase);
   form?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
-    const fd = new FormData(form);
-    const body = {
-      enabled: String(fd.get("enabled") || "0") === "1",
-      autoProvision: String(fd.get("autoProvision") || "0") === "1",
-      baseUrl: String(fd.get("baseUrl") || "").trim(),
-      uiBaseUrl: String(fd.get("uiBaseUrl") || "").trim(),
-      platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
-      companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
-      hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
-      runDay: Number(fd.get("runDay") || 1) || 1,
-    };
-    const master = String(fd.get("masterApiKey") || "").trim();
-    if (master) body.masterApiKey = master;
+    const body = readLohnPlatformLinkForm(form);
     try {
       await api("/api/payroll/accounting/platform-link", { method: "POST", body: JSON.stringify(body) });
       if (msg) msg.textContent = t("lohnLink.saved") || "Gespeichert";
@@ -2102,19 +2216,7 @@ function bindLohnPlatformLinkPanel(host) {
   });
   host.querySelector("#lohnLinkTestBtn")?.addEventListener("click", async () => {
     try {
-      const fd = new FormData(form);
-      const body = {
-        enabled: String(fd.get("enabled") || "0") === "1",
-        autoProvision: String(fd.get("autoProvision") || "0") === "1",
-        baseUrl: String(fd.get("baseUrl") || "").trim(),
-        uiBaseUrl: String(fd.get("uiBaseUrl") || "").trim(),
-        platformPublicUrl: String(fd.get("platformPublicUrl") || "").trim(),
-        companyUpsertPath: String(fd.get("companyUpsertPath") || "").trim() || "/v1/company/upsert",
-        hoursWebhookPath: String(fd.get("hoursWebhookPath") || "").trim() || "/hooks/suppix-hours",
-        runDay: Number(fd.get("runDay") || 1) || 1,
-      };
-      const master = String(fd.get("masterApiKey") || "").trim();
-      if (master) body.masterApiKey = master;
+      const body = readLohnPlatformLinkForm(form);
       if (!body.baseUrl) throw new Error("WorkPass Lohn Basis-URL fehlt.");
       if (/suppix-ai-workpass\.com/i.test(body.baseUrl)) {
         throw new Error("Basis-URL muss die Lohn-App sein — nicht die Plattform.");
@@ -2127,12 +2229,17 @@ function bindLohnPlatformLinkPanel(host) {
       const text = `${t("lohnLink.testOk") || "OK"} · ${result.status || ""} · ${result.url || result.baseUrl || ""}`;
       if (msg) msg.textContent = text;
       showActionToast(text);
+      await refreshLohnWebhookStatus(host, { probe: false });
     } catch (e) {
       const detail = e?.data?.message || e.message || "error";
       if (msg) msg.textContent = detail;
       showActionToast(detail, true);
     }
   });
+  host.querySelector("#lohnWebhookProbeBtn")?.addEventListener("click", () => {
+    refreshLohnWebhookStatus(host, { probe: true }).catch(() => {});
+  });
+  refreshLohnWebhookStatus(host, { probe: false }).catch(() => {});
 }
 
 async function loadPlatformBanner() {
@@ -2988,12 +3095,17 @@ async function loadPlatform() {
     const lohnUi = String(lohnLink.uiBaseUrl || lohnLink.ui_base_url || "").trim();
     const lohnAuto = lohnLink.autoProvision ?? lohnLink.auto_provision;
     const lohnAutoOn = lohnAuto === true || Number(lohnAuto) === 1 || lohnAuto == null;
-    const lohnUiResolved = lohnUi || (lohnBase ? lohnBase.replace(/\/$/, "") : "");
+    const lohnUiResolved = resolveLohnUiUrl(lohnUi, lohnBase);
     const lohnStatusClass = lohnEnabled && lohnBase ? "is-on" : "is-off";
     const lohnStatusLabel = lohnEnabled && lohnBase
       ? (t("lohnLink.connected") || "Verbunden")
       : (t("lohnLink.off") || "Nicht verbunden");
-    const lohnPanel = `<section class="platform-section platform-section--lohn" id="lohnPlatformLinkPanel">
+    const webhookUrl = String(
+      lohnLink.platformWebhookUrl
+      || lohnLinkPayload?.link?.platformWebhookUrl
+      || `${String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com").replace(/\/$/, "")}/api/workpass/webhooks/accounting`,
+    ).trim();
+    const lohnPanel = `<section class="platform-section platform-section--lohn" id="lohnPlatformLinkPanel" data-lohn-base="${escapeAttr(lohnBase || DEFAULT_LOHN_UI_URL)}" data-webhook-url="${escapeAttr(webhookUrl)}">
         <header class="platform-section-head">
           <div>
             <p class="platform-section-kicker">${t("lohnLink.kicker") || "Buchhaltung"}</p>
@@ -3003,6 +3115,7 @@ async function loadPlatform() {
           <span class="platform-status-pill ${lohnStatusClass}">${lohnStatusLabel}</span>
         </header>
         ${lohnEnabled && lohnBase ? `<p class="lohn-link-endpoint mono">✓ ${escapeHtml(lohnBase)}</p>` : ""}
+        <div id="lohnWebhookStatus" class="lohn-webhook-status" data-webhook-url="${escapeAttr(webhookUrl)}"></div>
         <form id="lohnPlatformLinkForm" class="lohn-link-form">
           <div class="lohn-link-grid lohn-link-grid--toggles">
             <label class="lohn-field">
@@ -3021,33 +3134,40 @@ async function loadPlatform() {
           <div class="lohn-link-grid">
             <label class="lohn-field lohn-field--full">
               <span>${t("lohnLink.baseUrl") || "API-Basis-URL"}</span>
-              <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://workpass-lohn.up.railway.app" />
+              <input name="baseUrl" type="url" value="${escapeAttr(lohnBase || DEFAULT_LOHN_UI_URL)}" placeholder="${escapeAttr(DEFAULT_LOHN_UI_URL)}" />
             </label>
             <label class="lohn-field lohn-field--full">
               <span>${t("lohnLink.uiBaseUrl") || "UI-URL (Browser)"}</span>
-              <input name="uiBaseUrl" type="url" value="${escapeAttr(lohnUiResolved)}" placeholder="https://workpass-lohn.up.railway.app" />
+              <input name="uiBaseUrl" type="url" value="${escapeAttr(lohnUiResolved)}" placeholder="${escapeAttr(DEFAULT_LOHN_UI_URL)}" />
             </label>
             <p class="muted small lohn-field--full">${t("lohnLink.uiHint") || "API-URL oft nicht im Browser öffenbar (X-WorkPass-Key). Hier die Web-App-URL für «Buchhaltung öffnen»."}</p>
             <label class="lohn-field lohn-field--full">
               <span>${t("lohnLink.masterKey") || "Master-API-Key"}</span>
               <input name="masterApiKey" type="password" placeholder="${lohnLink.masterApiKeySet ? escapeAttr(lohnLink.masterApiKeyPreview || "***") : ""}" autocomplete="new-password" />
             </label>
-            <label class="lohn-field lohn-field--full">
-              <span>${t("lohnLink.platformUrl") || "Plattform-URL"}</span>
-              <input name="platformPublicUrl" type="url" value="${escapeAttr(String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com"))}" />
-            </label>
-            <label class="lohn-field">
-              <span>${t("lohnLink.upsertPath") || "Upsert-Pfad"}</span>
-              <input name="companyUpsertPath" value="${escapeAttr(String(lohnLink.companyUpsertPath || lohnLink.company_upsert_path || "/v1/company/upsert"))}" />
-            </label>
-            <label class="lohn-field">
-              <span>${t("lohnLink.webhookPath") || "Webhook-Pfad"}</span>
-              <input name="hoursWebhookPath" value="${escapeAttr(String(lohnLink.hoursWebhookPath || lohnLink.hours_webhook_path || "/hooks/suppix-hours"))}" />
-            </label>
           </div>
+          <details class="lohn-advanced">
+            <summary>${t("lohnLink.advanced") || "Erweiterte Einstellungen"}</summary>
+            <div class="lohn-link-grid">
+              <label class="lohn-field lohn-field--full">
+                <span>${t("lohnLink.platformUrl") || "Plattform-URL"}</span>
+                <input name="platformPublicUrl" type="url" value="${escapeAttr(String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com"))}" />
+              </label>
+              <label class="lohn-field">
+                <span>${t("lohnLink.upsertPath") || "Upsert-Pfad"}</span>
+                <input name="companyUpsertPath" value="${escapeAttr(String(lohnLink.companyUpsertPath || lohnLink.company_upsert_path || "/v1/company/upsert"))}" />
+              </label>
+              <label class="lohn-field">
+                <span>${t("lohnLink.webhookPath") || "Webhook-Pfad (Lohn)"}</span>
+                <input name="hoursWebhookPath" value="${escapeAttr(String(lohnLink.hoursWebhookPath || lohnLink.hours_webhook_path || "/hooks/suppix-hours"))}" />
+              </label>
+              <p class="muted small lohn-field--full">${t("lohnLink.advancedHint") || "Technische Pfade nur ändern, wenn die Lohn-API andere Endpunkte nutzt."}</p>
+            </div>
+          </details>
           <div class="lohn-link-actions">
             <button type="submit">${t("lohnLink.save") || "Speichern"}</button>
-            <button type="button" class="ghost" id="lohnLinkTestBtn">${t("lohnLink.test") || "Testen"}</button>
+            <button type="button" class="ghost" id="lohnLinkTestBtn">${t("lohnLink.test") || "Verbindung testen"}</button>
+            <button type="button" class="ghost" id="lohnWebhookProbeBtn">${t("lohnLink.webhookProbe") || "Webhook prüfen"}</button>
             <p id="lohnLinkMsg" class="muted small lohn-link-msg"></p>
           </div>
         </form>
