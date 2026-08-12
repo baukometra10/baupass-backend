@@ -1943,7 +1943,11 @@
         wireLohnBatchActions();
       }
       try {
-        localStorage.setItem("workpass-lohn-inbox-bump", String(Date.now()));
+        const sig = `${(lohnMessages || []).map((m) => m?.id).join(",")}|${(dataAlerts || []).map((a) => a?.id).join(",")}|${(periodRequests || []).map((r) => r?.id).join(",")}|${(payrollBatches || []).map((b) => b?.id).join(",")}`;
+        if (sig !== lastLohnState._bumpSig) {
+          lastLohnState._bumpSig = sig;
+          localStorage.setItem("workpass-lohn-inbox-bump", String(Date.now()));
+        }
       } catch {
         /* ignore */
       }

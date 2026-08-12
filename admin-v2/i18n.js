@@ -86,6 +86,8 @@ export function resolvePlanLabel(planMeta, plan) {
 
 export function setLang(code) {
   if (!LANGS_8.includes(code)) return;
+  // Parent shell re-posts baupass-sync-lang/token often — skip no-op to avoid full-tab remount loops.
+  if (getLang() === code) return;
   localStorage.setItem(LANG_KEY, code);
   localStorage.setItem(SHARED_LANG_KEY, code);
   applyI18n();

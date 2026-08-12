@@ -1007,7 +1007,7 @@ def register_accounting_blueprint(flask_app) -> None:
         company_id = None if user["role"] == "superadmin" else user.get("company_id")
         if user["role"] == "superadmin" and request.args.get("company_id"):
             company_id = request.args.get("company_id")
-        sync_raw = str(request.args.get("sync") or "1").strip().lower()
+        sync_raw = str(request.args.get("sync") or "0").strip().lower()
         if sync_raw not in {"0", "false", "no"} and company_id:
             try:
                 pull_pending_messages_from_lohn(get_db(), company_id=str(company_id))

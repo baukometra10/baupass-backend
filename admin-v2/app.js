@@ -491,7 +491,7 @@ window.addEventListener("message", (event) => {
   }
   if (event.data.type === "baupass-sync-lang") {
     const lang = String(event.data.lang || "").trim().slice(0, 2);
-    if (lang) {
+    if (lang && lang !== getLang()) {
       setLang(lang);
       document.querySelectorAll("[data-lang-select]").forEach((sel) => {
         if (sel.value !== lang) sel.value = lang;
@@ -512,7 +512,7 @@ window.addEventListener("message", (event) => {
   }
   if (event.data.type !== "baupass-sync-token") return;
   const langFromParent = String(event.data.lang || "").trim().slice(0, 2);
-  if (langFromParent) {
+  if (langFromParent && langFromParent !== getLang()) {
     setLang(langFromParent);
     document.querySelectorAll("[data-lang-select]").forEach((sel) => {
       if (sel.value !== langFromParent) sel.value = langFromParent;
@@ -535,7 +535,7 @@ window.addEventListener("message", (event) => {
     bootSession().catch(() => {});
     return;
   }
-  // Parent re-posts the same session often — do not remount Tools/Geofence/Ops every time.
+  // Parent re-posts the same session often — do not remount Platform/Ops forms every time.
   if (!tokenChanged && !companyChanged) return;
   const activeTab = document.querySelector(".tab.active")?.dataset?.tab;
   if (!activeTab) return;
@@ -1268,11 +1268,14 @@ async function refreshLohnBadgeOnly() {
     return;
   }
   try {
-    const data = await api(`/api/payroll/accounting/messages/counts${q}`);
+    // sync=0: badge poll must not pull Lohn on every tick (that caused UI thrash).
+    const sep = q ? "&" : "?";
+    const data = await api(`/api/payroll/accounting/messages/counts${q}${sep}sync=0`);
     updateLohnNavBadge(data.count ?? data.unread ?? 0);
   } catch {
     try {
-      const data = await api(`/api/payroll/accounting/messages${q}`);
+      const sep = q ? "&" : "?";
+      const data = await api(`/api/payroll/accounting/messages${q}${sep}sync=0`);
       updateLohnNavBadge(data.count ?? (data.messages || []).length);
     } catch {
       /* Lohn optional per company */
@@ -2918,13 +2921,18 @@ async function loadPlatform() {
     return;
   }
   const panel = $("platformPanel");
-  panel.innerHTML = `
+  const gen = (loadPlatform._gen = (loadPlatform._gen || 0) + 1);
+  const hasContent = Boolean(panel?.querySelector("#lohnPlatformLinkPanel, .platform-panel-grid"));
+  // Avoid wiping the WorkPass Lohn form on every parent sync / lang no-op remount.
+  if (!hasContent) {
+    panel.innerHTML = `
     <p class="muted">${t("common.loading")}</p>
     <div class="platform-panel-grid platform-loading-skel" aria-hidden="true">
       <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
       <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
       <div class="panel-block platform-skel-card"><span class="skel-bar"></span><span class="skel-bar short"></span></div>
     </div>`;
+  }
   const cid = activeCompanyId();
   try {
     const [caps, ready, health, setup] = await Promise.all([
@@ -2933,8 +2941,10 @@ async function loadPlatform() {
       withTimeout(fetch("/api/health").then((r) => r.json()).catch(() => ({})), 4000, {}),
       apiSoft("/api/platform/setup-status", null, 5000),
     ]);
+    if (gen !== loadPlatform._gen) return;
     const dbEarly = setup?.database || {};
     const bgEarly = setup?.backgroundJobs || health.checks?.backgroundJobs || {};
+    if (!hasContent) {
     panel.innerHTML = `
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       <div class="platform-setup-banner ${dbEarly.loginReady === false ? "warn" : "ok"}">
@@ -2953,6 +2963,7 @@ async function loadPlatform() {
         <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
         <div class="panel-block platform-skel-card"><p class="muted small">${t("common.loading")}</p><span class="skel-bar"></span></div>
       </div>`;
+    }
 
     // Cap each call — one slow SQLite/wallet/billing probe used to freeze this panel 1–2 min.
     const softMs = 7000;
@@ -2970,6 +2981,7 @@ async function loadPlatform() {
       apiSoft("/api/v2/billing/revenue-metrics", null, softMs),
       apiSoft("/api/payroll/accounting/platform-link", null, softMs),
     ]);
+    if (gen !== loadPlatform._gen) return;
     const lohnLink = lohnLinkPayload?.link || {};
     const lohnEnabled = Boolean(lohnLink.enabled || lohnLink.configured);
     const lohnBase = String(lohnLink.baseUrl || lohnLink.base_url || "").trim();
@@ -8596,7 +8608,11 @@ window.addEventListener("baupass-admin-lang", (event) => {
   } else {
     $("overviewQuickBar")?.classList.add("hidden");
   }
-  refreshActiveTab().catch(() => {});
+  // Debounce: language events must not hammer Platform-Link / Ops remounts.
+  clearTimeout(window.__adminLangRefreshT);
+  window.__adminLangRefreshT = setTimeout(() => {
+    refreshActiveTab().catch(() => {});
+  }, 350);
 });
 applyI18n();
 
