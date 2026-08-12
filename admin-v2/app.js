@@ -2922,7 +2922,7 @@ async function loadPlatform() {
   }
   const panel = $("platformPanel");
   const gen = (loadPlatform._gen = (loadPlatform._gen || 0) + 1);
-  const hasContent = Boolean(panel?.querySelector("#lohnPlatformLinkPanel, .platform-panel-grid"));
+  const hasContent = Boolean(panel?.querySelector("#lohnPlatformLinkPanel, .platform-studio, .platform-panel-grid"));
   // Avoid wiping the WorkPass Lohn form on every parent sync / lang no-op remount.
   if (!hasContent) {
     panel.innerHTML = `
@@ -2988,46 +2988,70 @@ async function loadPlatform() {
     const lohnUi = String(lohnLink.uiBaseUrl || lohnLink.ui_base_url || "").trim();
     const lohnAuto = lohnLink.autoProvision ?? lohnLink.auto_provision;
     const lohnAutoOn = lohnAuto === true || Number(lohnAuto) === 1 || lohnAuto == null;
-    const lohnPanel = `<div class="panel-block" id="lohnPlatformLinkPanel">
-        <h3>${t("lohnLink.title") || "WorkPass Lohn — Plattform-Link"}</h3>
-        <p class="muted small">${t("lohnLink.hint") || "Einmalige Verbindung zur Buchhaltungs-App. Firmen danach einzeln in Einstellungen aktivieren."}</p>
-        <p class="muted small">${lohnEnabled && lohnBase ? `✓ ${escapeHtml(lohnBase)}` : (t("lohnLink.off") || "Nicht verbunden")}</p>
-        <form id="lohnPlatformLinkForm" class="tool-form" style="display:grid;gap:0.5rem;grid-template-columns:1fr 1fr;">
-          <label>${t("lohnLink.enabled") || "Aktiv"}
-            <select name="enabled"><option value="1" ${lohnEnabled ? "selected" : ""}>Ja</option><option value="0" ${!lohnEnabled ? "selected" : ""}>Nein</option></select>
-          </label>
-          <label>${t("lohnLink.auto") || "Auto-Provision"}
-            <select name="autoProvision"><option value="1" ${lohnAutoOn ? "selected" : ""}>Ja</option><option value="0" ${!lohnAutoOn ? "selected" : ""}>Nein</option></select>
-          </label>
-          <label class="full" style="grid-column:1/-1">${t("lohnLink.baseUrl") || "API-Basis-URL"}
-            <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://lohn-api.example.com" />
-          </label>
-          <label class="full" style="grid-column:1/-1">${t("lohnLink.uiBaseUrl") || "UI-URL (Browser)"}
-            <input name="uiBaseUrl" type="url" value="${escapeAttr(lohnUi)}" placeholder="https://lohn-app.example.com" />
-          </label>
-          <p class="muted small" style="grid-column:1/-1">${t("lohnLink.uiHint") || "API-URL oft nicht im Browser öffenbar (X-WorkPass-Key). Hier die Web-App-URL für «Buchhaltung öffnen»."}</p>
-          <label class="full" style="grid-column:1/-1">${t("lohnLink.masterKey") || "Master-API-Key"}
-            <input name="masterApiKey" type="password" placeholder="${lohnLink.masterApiKeySet ? escapeAttr(lohnLink.masterApiKeyPreview || "***") : ""}" autocomplete="new-password" />
-          </label>
-          <label class="full" style="grid-column:1/-1">${t("lohnLink.platformUrl") || "Plattform-URL"}
-            <input name="platformPublicUrl" type="url" value="${escapeAttr(String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com"))}" />
-          </label>
-          <label>${t("lohnLink.upsertPath") || "Upsert-Pfad"}
-            <input name="companyUpsertPath" value="${escapeAttr(String(lohnLink.companyUpsertPath || lohnLink.company_upsert_path || "/v1/company/upsert"))}" />
-          </label>
-          <label>${t("lohnLink.webhookPath") || "Webhook-Pfad"}
-            <input name="hoursWebhookPath" value="${escapeAttr(String(lohnLink.hoursWebhookPath || lohnLink.hours_webhook_path || "/hooks/suppix-hours"))}" />
-          </label>
-          <label>${t("lohnLink.runDay") || "Export-Tag"}
-            <input name="runDay" type="number" min="1" max="28" value="${escapeAttr(String(lohnLink.runDay || lohnLink.default_run_day || 1))}" />
-          </label>
-          <div style="grid-column:1/-1;display:flex;gap:0.5rem;flex-wrap:wrap;">
+    const lohnUiResolved = lohnUi || (lohnBase ? lohnBase.replace(/\/$/, "") : "");
+    const lohnStatusClass = lohnEnabled && lohnBase ? "is-on" : "is-off";
+    const lohnStatusLabel = lohnEnabled && lohnBase
+      ? (t("lohnLink.connected") || "Verbunden")
+      : (t("lohnLink.off") || "Nicht verbunden");
+    const lohnPanel = `<section class="platform-section platform-section--lohn" id="lohnPlatformLinkPanel">
+        <header class="platform-section-head">
+          <div>
+            <p class="platform-section-kicker">${t("lohnLink.kicker") || "Buchhaltung"}</p>
+            <h3>${t("lohnLink.title") || "WorkPass Lohn — Plattform-Link"}</h3>
+            <p class="muted small">${t("lohnLink.hint") || "Einmalige Verbindung zur Buchhaltungs-App. Firmen danach einzeln in Einstellungen aktivieren."}</p>
+          </div>
+          <span class="platform-status-pill ${lohnStatusClass}">${lohnStatusLabel}</span>
+        </header>
+        ${lohnEnabled && lohnBase ? `<p class="lohn-link-endpoint mono">✓ ${escapeHtml(lohnBase)}</p>` : ""}
+        <form id="lohnPlatformLinkForm" class="lohn-link-form">
+          <div class="lohn-link-grid lohn-link-grid--toggles">
+            <label class="lohn-field">
+              <span>${t("lohnLink.enabled") || "Aktiv"}</span>
+              <select name="enabled"><option value="1" ${lohnEnabled ? "selected" : ""}>Ja</option><option value="0" ${!lohnEnabled ? "selected" : ""}>Nein</option></select>
+            </label>
+            <label class="lohn-field">
+              <span>${t("lohnLink.auto") || "Auto-Provision"}</span>
+              <select name="autoProvision"><option value="1" ${lohnAutoOn ? "selected" : ""}>Ja</option><option value="0" ${!lohnAutoOn ? "selected" : ""}>Nein</option></select>
+            </label>
+            <label class="lohn-field">
+              <span>${t("lohnLink.runDay") || "Export-Tag"}</span>
+              <input name="runDay" type="number" min="1" max="28" value="${escapeAttr(String(lohnLink.runDay || lohnLink.default_run_day || 1))}" />
+            </label>
+          </div>
+          <div class="lohn-link-grid">
+            <label class="lohn-field lohn-field--full">
+              <span>${t("lohnLink.baseUrl") || "API-Basis-URL"}</span>
+              <input name="baseUrl" type="url" value="${escapeAttr(lohnBase)}" placeholder="https://workpass-lohn.up.railway.app" />
+            </label>
+            <label class="lohn-field lohn-field--full">
+              <span>${t("lohnLink.uiBaseUrl") || "UI-URL (Browser)"}</span>
+              <input name="uiBaseUrl" type="url" value="${escapeAttr(lohnUiResolved)}" placeholder="https://workpass-lohn.up.railway.app" />
+            </label>
+            <p class="muted small lohn-field--full">${t("lohnLink.uiHint") || "API-URL oft nicht im Browser öffenbar (X-WorkPass-Key). Hier die Web-App-URL für «Buchhaltung öffnen»."}</p>
+            <label class="lohn-field lohn-field--full">
+              <span>${t("lohnLink.masterKey") || "Master-API-Key"}</span>
+              <input name="masterApiKey" type="password" placeholder="${lohnLink.masterApiKeySet ? escapeAttr(lohnLink.masterApiKeyPreview || "***") : ""}" autocomplete="new-password" />
+            </label>
+            <label class="lohn-field lohn-field--full">
+              <span>${t("lohnLink.platformUrl") || "Plattform-URL"}</span>
+              <input name="platformPublicUrl" type="url" value="${escapeAttr(String(lohnLink.platformPublicUrl || lohnLink.platform_public_url || "https://suppix-ai-workpass.com"))}" />
+            </label>
+            <label class="lohn-field">
+              <span>${t("lohnLink.upsertPath") || "Upsert-Pfad"}</span>
+              <input name="companyUpsertPath" value="${escapeAttr(String(lohnLink.companyUpsertPath || lohnLink.company_upsert_path || "/v1/company/upsert"))}" />
+            </label>
+            <label class="lohn-field">
+              <span>${t("lohnLink.webhookPath") || "Webhook-Pfad"}</span>
+              <input name="hoursWebhookPath" value="${escapeAttr(String(lohnLink.hoursWebhookPath || lohnLink.hours_webhook_path || "/hooks/suppix-hours"))}" />
+            </label>
+          </div>
+          <div class="lohn-link-actions">
             <button type="submit">${t("lohnLink.save") || "Speichern"}</button>
             <button type="button" class="ghost" id="lohnLinkTestBtn">${t("lohnLink.test") || "Testen"}</button>
+            <p id="lohnLinkMsg" class="muted small lohn-link-msg"></p>
           </div>
-          <p id="lohnLinkMsg" class="muted small" style="grid-column:1/-1"></p>
         </form>
-      </div>`;
+      </section>`;
     const ap = autopilot?.settings || {};
     const autopilotToggles = AUTOPILOT_KEYS.map(
       (key) => `
@@ -3038,21 +3062,21 @@ async function loadPlatform() {
     ).join("");
     const db = setup?.database || {};
     const dbBannerClass = db.loginReady === false ? "warn" : "ok";
-    const dbBanner = setup
-      ? `<div class="platform-setup-banner ${dbBannerClass}">
-        <strong>${t("platform.dbHealth")}</strong>
-        <p class="muted small">${db.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
-        · ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")}
-        · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}
-        ${db.sqliteSizeBytes ? ` · ${Math.round(Number(db.sqliteSizeBytes) / 1024)} KB` : ""}</p>
-        ${(db.railwayHints || []).map((h) => `<p class="muted small">${escapeHtml(h)}</p>`).join("")}
-      </div>`
-      : "";
+    const maturityScore = caps.maturityScore ?? "—";
+    const maturityLevel = caps.maturityLevel || "";
+    const runtimeLabel = caps.dataLayer?.runtime || "—";
+    const redisOk = !!caps.dataLayer?.redisConfigured;
+    const readyOk = !!ready.ready;
+    const workersActive = bgEarly.workers?.active ?? health.checks?.workers?.active ?? "—";
     const setupLines = (setup?.readyScore?.missing || [])
       .map((m) => `<li class="miss">○ ${escapeHtml(m)}</li>`)
       .join("");
     const setupOk = setup
-      ? `<p>${t("platform.setup.railway")}: <strong>${setup.readyScore?.percent ?? 0}%</strong></p><ul class="setup-checklist">${setupLines || `<li class="ok">${t("platform.setup.allOk")}</li>`}</ul>`
+      ? `<div class="panel-block">
+          <h3>${t("platform.setupTitle") || "Setup"}</h3>
+          <p>${t("platform.setup.railway")}: <strong>${setup.readyScore?.percent ?? 0}%</strong></p>
+          <ul class="setup-checklist">${setupLines || `<li class="ok">${t("platform.setup.allOk")}</li>`}</ul>
+        </div>`
       : "";
     const steps = (caps.nextSteps || [])
       .map((s) => `<li>${s}</li>`)
@@ -3113,144 +3137,210 @@ async function loadPlatform() {
       </div>`
       : "";
     panel.innerHTML = `
-      <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
-      ${dbBanner}
-      ${channelsHtml}
-      ${lohnPanel}
-      <div class="platform-panel-grid">
-      ${
-        revenue
-          ? `<div class="panel-block">
-        <h3>${t("billing.revenueTitle")}</h3>
-        <p class="muted small">${t("billing.revenueHint")}</p>
-        <div class="billing-summary-grid">
-          <div class="metric"><span>${t("billing.paidInvoices")}</span><strong>${revenue.paidInvoices?.count ?? 0} · ${formatEur(revenue.paidInvoices?.totalEur)}</strong></div>
-          <div class="metric"><span>${t("billing.openInvoices")}</span><strong>${revenue.openInvoices?.count ?? 0} · ${formatEur(revenue.openInvoices?.totalEur)}</strong></div>
-          <div class="metric"><span>${t("billing.mrrEstimate")}</span><strong>${formatEur(revenue.estimatedMrrNetEur)}</strong></div>
+      <div class="platform-studio">
+        <header class="platform-studio-hero">
+          <div>
+            <p class="platform-section-kicker">${t("tab.platform") || "Plattform"}</p>
+            <h2 class="platform-studio-title">${t("section.platform.hint") || "Globale Plattform-Bereitschaft"}</h2>
+            <p class="admin-superadmin-banner platform-studio-note">${t("platform.superadminOnly")}</p>
+          </div>
+          <div class="platform-kpi-strip">
+            <div class="platform-kpi">
+              <span>${t("platform.globalMaturity")}</span>
+              <strong>${maturityScore}<small>/100</small></strong>
+              <em>${escapeHtml(maturityLevel)}</em>
+            </div>
+            <div class="platform-kpi">
+              <span>${t("platform.dbHealth")}</span>
+              <strong>${escapeHtml(runtimeLabel)}</strong>
+              <em>${db.loginReady === false ? t("platform.dbNotReady") : t("platform.dbReady")}</em>
+            </div>
+            <div class="platform-kpi">
+              <span>${t("platform.readiness")}</span>
+              <strong>${readyOk ? t("badge.ready") : t("badge.needsSetup")}</strong>
+              <em>Redis ${redisOk ? "OK" : "—"} · RQ ${escapeHtml(String(workersActive))}</em>
+            </div>
+          </div>
+        </header>
+
+        <div class="platform-setup-banner ${dbBannerClass}">
+          <strong>${t("platform.dbHealth")}</strong>
+          <p class="muted small">${db.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
+          · ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")}
+          · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}
+          ${db.sqliteSizeBytes ? ` · ${Math.round(Number(db.sqliteSizeBytes) / 1024)} KB` : ""}</p>
+          ${(db.railwayHints || []).map((h) => `<p class="muted small">${escapeHtml(h)}</p>`).join("")}
         </div>
-        <button type="button" class="ghost" data-goto-tab="billing">${t("billing.openInvoicesUi")}</button>
-      </div>`
-          : ""
-      }
-      ${cid && billingOv ? renderBillingSummaryHtml(billingOv) : ""}
-      ${
-        cid
-          ? `<div class="panel-block autopilot-panel" id="autopilotPanel">
-        <h3>${t("autopilot.title")}</h3>
-        <p class="muted small">${t("autopilot.desc")}</p>
-        <div class="autopilot-toggles">${autopilotToggles}</div>
-        <div class="autopilot-actions">
-          <button type="button" id="autopilotSaveBtn">${t("common.save")}</button>
-          <button type="button" class="ghost" id="autopilotRunBtn">${t("autopilot.runNow")}</button>
+
+        ${lohnPanel}
+
+        <section class="platform-section">
+          <header class="platform-section-head">
+            <div>
+              <p class="platform-section-kicker">${t("platform.secOps") || "Betrieb"}</p>
+              <h3>${t("platform.secOpsTitle") || "Automatisierung & Abrechnung"}</h3>
+            </div>
+          </header>
+          <div class="platform-panel-grid">
+            ${channelsHtml}
+            ${
+              revenue
+                ? `<div class="panel-block">
+              <h3>${t("billing.revenueTitle")}</h3>
+              <p class="muted small">${t("billing.revenueHint")}</p>
+              <div class="billing-summary-grid">
+                <div class="metric"><span>${t("billing.paidInvoices")}</span><strong>${revenue.paidInvoices?.count ?? 0} · ${formatEur(revenue.paidInvoices?.totalEur)}</strong></div>
+                <div class="metric"><span>${t("billing.openInvoices")}</span><strong>${revenue.openInvoices?.count ?? 0} · ${formatEur(revenue.openInvoices?.totalEur)}</strong></div>
+                <div class="metric"><span>${t("billing.mrrEstimate")}</span><strong>${formatEur(revenue.estimatedMrrNetEur)}</strong></div>
+              </div>
+              <button type="button" class="ghost" data-goto-tab="billing">${t("billing.openInvoicesUi")}</button>
+            </div>`
+                : ""
+            }
+            ${cid && billingOv ? renderBillingSummaryHtml(billingOv) : ""}
+            ${
+              cid
+                ? `<div class="panel-block autopilot-panel" id="autopilotPanel">
+              <h3>${t("autopilot.title")}</h3>
+              <p class="muted small">${t("autopilot.desc")}</p>
+              <div class="autopilot-toggles">${autopilotToggles}</div>
+              <div class="autopilot-actions">
+                <button type="button" id="autopilotSaveBtn">${t("common.save")}</button>
+                <button type="button" class="ghost" id="autopilotRunBtn">${t("autopilot.runNow")}</button>
+              </div>
+            </div>`
+                : `<p class="muted small panel-block">${t("common.selectCompany")}</p>`
+            }
+            ${setupOk}
+          </div>
+        </section>
+
+        <section class="platform-section">
+          <header class="platform-section-head">
+            <div>
+              <p class="platform-section-kicker">${t("platform.secInfra") || "Infrastruktur"}</p>
+              <h3>${t("platform.infrastructure")}</h3>
+            </div>
+          </header>
+          <div class="platform-panel-grid">
+            <div class="panel-block">
+              <h3>${t("platform.globalMaturity")} <span class="badge badge-ok">${maturityScore}/100</span></h3>
+              <p class="muted">${escapeHtml(maturityLevel)}</p>
+              ${steps ? `<ul class="muted small">${steps}</ul>` : ""}
+            </div>
+            <div class="panel-block">
+              <h3>${t("platform.infrastructure")}</h3>
+              <p>${t("platform.runtime")}: <strong>${escapeHtml(runtimeLabel)}</strong> · Redis: ${statusBadge(redisOk)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
+              <p>${t("platform.readiness")}: ${statusBadge(readyOk)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"} · ${t("platform.rqWorkers")}: <strong>${escapeHtml(String(workersActive))}</strong></p>
+              ${
+                bgJobRows
+                  ? `<h4 class="muted small">${t("platform.backgroundJobs")}</h4><div class="table-wrap"><table><thead><tr><th>Job</th><th>${t("common.lastRun") || "Last run"}</th><th>${t("common.status") || "Status"}</th></tr></thead><tbody>${bgJobRows}</tbody></table></div>${bgDegraded}`
+                  : ""
+              }
+              <details class="platform-tech-details muted small">
+                <summary>${t("platform.techDetails") || "Technische Details"}</summary>
+                <p>DB: ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")} · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}</p>
+                <p class="mono">${escapeHtml(caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—")}</p>
+              </details>
+            </div>
+            <div class="panel-block" id="backupPanel">
+              <h3>${t("platform.backupsTitle") || "Database backups"}</h3>
+              <p class="muted small">Retention: ${escapeHtml(String(backups?.retentionDays ?? "—"))} days · Dir: <span class="mono">${escapeHtml(String(backups?.backupDir || ""))}</span></p>
+              <div class="autopilot-actions" style="margin-bottom:0.75rem">
+                <button type="button" id="backupNowBtn">Backup now</button>
+                <button type="button" class="ghost" id="backupVerifyLatestBtn">Verify latest</button>
+              </div>
+              <div class="table-wrap"><table>
+                <thead><tr><th>File</th><th>Created</th><th>Size</th><th>SHA</th><th>Integrity</th><th>Offsite</th><th></th></tr></thead>
+                <tbody>${backupRows || `<tr><td colspan="7" class="muted">No backups yet</td></tr>`}</tbody>
+              </table></div>
+              <pre id="backupActionLog" class="ai-answer muted small"></pre>
+            </div>
+            <div class="panel-block">
+              <h3>${t("platform.attendanceCaps")}</h3>
+              <div class="table-wrap"><table><tbody>${attRows}</tbody></table></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="platform-section">
+          <header class="platform-section-head">
+            <div>
+              <p class="platform-section-kicker">${t("platform.secServices") || "Dienste"}</p>
+              <h3>${t("platform.secServicesTitle") || "Plan, KI, App & Wallet"}</h3>
+            </div>
+          </header>
+          <div class="platform-panel-grid">
+            ${
+              ent
+                ? `<div class="panel-block">
+              <h3>${t("platform.yourPlan")}: ${resolvePlanLabel(ent.planMeta, ent.plan)}</h3>
+              <p>${t("platform.planSummary", {
+                enabled: ent.entitlements?.enabledCount || 0,
+                locked: ent.entitlements?.lockedCount || 0,
+                pct: ent.entitlements?.coveragePercent || 0,
+              })}</p>
+              <div class="platform-plan-actions">
+                <button type="button" class="feature-card" id="platformOpenEnterpriseBtn">${t("platform.openEnterprise")}</button>
+                <button type="button" class="feature-card" id="platformOpenAiBtn">${t("platform.openAiCenter")}</button>
+              </div>
+            </div>`
+                : ""
+            }
+            ${
+              cid
+                ? `<div class="panel-block">
+              <h3>${t("platform.brandingPdfTitle")}</h3>
+              <p class="muted small">${t("platform.brandingPdfHint")}</p>
+              <button type="button" class="ghost" id="platformBrandingPdfBtn">${t("platform.brandingPdfBtn")}</button>
+            </div>`
+                : ""
+            }
+            <div class="panel-block">
+              <h3>${t("platform.aiAssistant")} ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
+              <p class="muted small">${t("platform.aiRequires")}</p>
+              <form id="aiQuickForm" class="tool-form">
+                <input name="question" placeholder="${t("platform.aiPlaceholder")}" required />
+                <button type="submit">${t("common.send")}</button>
+              </form>
+              <pre id="aiQuickAnswer" class="ai-answer muted small"></pre>
+            </div>
+            <div class="panel-block">
+              <h3>${t("platform.hybridApp")}</h3>
+              <p>${pushSt?.fcmConfigured ? statusBadge(true) : statusBadge(false)} FCM · ${t("platform.hybridWorkers", { workers: pushSt?.workersWithPush ?? 0, devices: pushSt?.registeredDevices ?? 0 })}</p>
+              <p class="muted small">${t("platform.hybridChannel")}: ${pushSt?.primaryChannel || "fcm"} · ${pushSt?.workerAppKind || "hybrid_native"}</p>
+              ${
+                mobileDist?.install
+                  ? `<p class="muted small">APK: ${mobileDist.install.apkUrl ? `<a href="${mobileDist.install.apkUrl}" target="_blank" rel="noopener">${t("common.download")}</a>` : t("platform.apkSet")}</p>`
+                  : ""
+              }
+              <button type="button" class="feature-card" data-goto-tab="mobile">${t("platform.mobileTab")}</button>
+            </div>
+            <div class="panel-block">
+              <h3>${t("platform.wallet")}</h3>
+              <p class="muted small">${wallet?.ok || wallet?.wallet?.ok ? statusBadge(true) : statusBadge(false)}
+                Apple: ${wallet?.wallet?.runtime?.apple?.ok ? statusBadge(true) : statusBadge(false)}
+                · Google: ${wallet?.wallet?.runtime?.google?.ok ? statusBadge(true) : statusBadge(false)}
+              </p>
+              ${
+                wallet?.wallet?.runtime?.apple?.error
+                  ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.apple.error).slice(0, 160))}</p>`
+                  : ""
+              }
+              ${
+                wallet?.wallet?.runtime?.google?.error
+                  ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.google.error).slice(0, 160))}</p>`
+                  : ""
+              }
+            </div>
+          </div>
+        </section>
+
+        <div class="link-row platform-studio-links">
+          <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
+          <a href="/enterprise-hub.html?v=20260528a">${t("common.enterpriseHub")}</a>
+          <a href="/index.html" class="legacy-dashboard-link" data-legacy-dashboard="auto">${t("common.legacyDashboard")}</a>
         </div>
-      </div>`
-          : `<p class="muted small panel-block">${t("common.selectCompany")}</p>`
-      }
-      <div class="panel-block">${setupOk}</div>
-      <div class="panel-block">
-        <h3>${t("platform.globalMaturity")} <span class="badge badge-ok">${caps.maturityScore}/100</span></h3>
-        <p class="muted">${caps.maturityLevel || ""}</p>
-        ${steps ? `<ul class="muted small">${steps}</ul>` : ""}
-      </div>
-      <div class="panel-block">
-        <h3>${t("platform.infrastructure")}</h3>
-        <p>${t("platform.runtime")}: <strong>${caps.dataLayer?.runtime || "—"}</strong> · Redis: ${statusBadge(caps.dataLayer?.redisConfigured)} · Queues: ${statusBadge(caps.dataLayer?.taskQueuesReady)}</p>
-        <p>${t("platform.readiness")}: ${statusBadge(ready.ready)} · Redis: ${health.checks?.redis?.status || health.redis?.status || ready.checks?.redis?.status || "—"} · ${t("platform.rqWorkers")}: <strong>${bgJobs.workers?.active ?? health.checks?.workers?.active ?? "—"}</strong></p>
-        ${
-          bgJobRows
-            ? `<h4 class="muted small">${t("platform.backgroundJobs")}</h4><div class="table-wrap"><table><thead><tr><th>Job</th><th>${t("common.lastRun") || "Last run"}</th><th>${t("common.status") || "Status"}</th></tr></thead><tbody>${bgJobRows}</tbody></table></div>${bgDegraded}`
-            : ""
-        }
-        <details class="platform-tech-details muted small">
-          <summary>${t("platform.techDetails") || "Technische Details"}</summary>
-          <p>DB: ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")} · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}</p>
-          <p class="mono">${escapeHtml(caps.dataLayer?.sqlitePath || ready.checks?.database?.path || "—")}</p>
-        </details>
-      </div>
-      <div class="panel-block" id="backupPanel">
-        <h3>Database backups</h3>
-        <p class="muted small">Retention: ${escapeHtml(String(backups?.retentionDays ?? "—"))} days · Dir: <span class="mono">${escapeHtml(String(backups?.backupDir || ""))}</span></p>
-        <div class="autopilot-actions" style="margin-bottom:0.75rem">
-          <button type="button" id="backupNowBtn">Backup now</button>
-          <button type="button" class="ghost" id="backupVerifyLatestBtn">Verify latest</button>
-        </div>
-        <div class="table-wrap"><table>
-          <thead><tr><th>File</th><th>Created</th><th>Size</th><th>SHA</th><th>Integrity</th><th>Offsite</th><th></th></tr></thead>
-          <tbody>${backupRows || `<tr><td colspan="7" class="muted">No backups yet</td></tr>`}</tbody>
-        </table></div>
-        <pre id="backupActionLog" class="ai-answer muted small"></pre>
-      </div>
-      <div class="panel-block">
-        <h3>${t("platform.attendanceCaps")}</h3>
-        <div class="table-wrap"><table><tbody>${attRows}</tbody></table></div>
-      </div>
-      ${
-        ent
-          ? `<div class="panel-block">
-        <h3>${t("platform.yourPlan")}: ${resolvePlanLabel(ent.planMeta, ent.plan)}</h3>
-        <p>${t("platform.planSummary", {
-          enabled: ent.entitlements?.enabledCount || 0,
-          locked: ent.entitlements?.lockedCount || 0,
-          pct: ent.entitlements?.coveragePercent || 0,
-        })}</p>
-        <div class="platform-plan-actions">
-          <button type="button" class="feature-card" id="platformOpenEnterpriseBtn">${t("platform.openEnterprise")}</button>
-          <button type="button" class="feature-card" id="platformOpenAiBtn">${t("platform.openAiCenter")}</button>
-        </div>
-      </div>`
-          : ""
-      }
-      ${
-        cid
-          ? `<div class="panel-block">
-        <h3>${t("platform.brandingPdfTitle")}</h3>
-        <p class="muted small">${t("platform.brandingPdfHint")}</p>
-        <button type="button" class="ghost" id="platformBrandingPdfBtn">${t("platform.brandingPdfBtn")}</button>
-      </div>`
-          : ""
-      }
-      <div class="panel-block">
-        <h3>${t("platform.aiAssistant")} ${aiSt?.configured ? statusBadge(true) : statusBadge(false)}</h3>
-        <p class="muted small">${t("platform.aiRequires")}</p>
-        <form id="aiQuickForm" class="tool-form">
-          <input name="question" placeholder="${t("platform.aiPlaceholder")}" required />
-          <button type="submit">${t("common.send")}</button>
-        </form>
-        <pre id="aiQuickAnswer" class="ai-answer muted small"></pre>
-      </div>
-      <div class="panel-block">
-        <h3>${t("platform.hybridApp")}</h3>
-        <p>${pushSt?.fcmConfigured ? statusBadge(true) : statusBadge(false)} FCM · ${t("platform.hybridWorkers", { workers: pushSt?.workersWithPush ?? 0, devices: pushSt?.registeredDevices ?? 0 })}</p>
-        <p class="muted small">${t("platform.hybridChannel")}: ${pushSt?.primaryChannel || "fcm"} · ${pushSt?.workerAppKind || "hybrid_native"}</p>
-        ${
-          mobileDist?.install
-            ? `<p class="muted small">APK: ${mobileDist.install.apkUrl ? `<a href="${mobileDist.install.apkUrl}" target="_blank" rel="noopener">${t("common.download")}</a>` : t("platform.apkSet")}</p>`
-            : ""
-        }
-        <button type="button" class="feature-card" data-goto-tab="mobile">${t("platform.mobileTab")}</button>
-      </div>
-      <div class="panel-block">
-        <h3>${t("platform.wallet")}</h3>
-        <p class="muted small">${wallet?.ok || wallet?.wallet?.ok ? statusBadge(true) : statusBadge(false)}
-          Apple: ${wallet?.wallet?.runtime?.apple?.ok ? statusBadge(true) : statusBadge(false)}
-          · Google: ${wallet?.wallet?.runtime?.google?.ok ? statusBadge(true) : statusBadge(false)}
-        </p>
-        ${
-          wallet?.wallet?.runtime?.apple?.error
-            ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.apple.error).slice(0, 160))}</p>`
-            : ""
-        }
-        ${
-          wallet?.wallet?.runtime?.google?.error
-            ? `<p class="muted small">${escapeHtml(String(wallet.wallet.runtime.google.error).slice(0, 160))}</p>`
-            : ""
-        }
-      </div>
-      </div>
-      <div class="link-row">
-        <a href="/api/health/ready" target="_blank" rel="noopener">health/ready</a>
-        <a href="/enterprise-hub.html?v=20260528a">${t("common.enterpriseHub")}</a>
-        <a href="/index.html" class="legacy-dashboard-link" data-legacy-dashboard="auto">${t("common.legacyDashboard")}</a>
       </div>
     `;
     await loadCompanyWorkTimesForm(cid);

@@ -3101,6 +3101,242 @@ body.theme-white #geofenceMap .leaflet-popup-tip {
   box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);
 }
 
+.platform-studio {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.platform-studio-hero {
+  display: grid;
+  gap: 1.1rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 156, 255, 0.18);
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(56, 189, 248, 0.12), transparent 55%),
+    linear-gradient(180deg, rgba(13, 20, 38, 0.96), rgba(8, 13, 26, 0.98));
+}
+
+.platform-studio-title {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 1.25rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.platform-studio-note {
+  margin: 0;
+  max-width: 42rem;
+}
+
+.platform-section-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(125, 211, 252, 0.85);
+}
+
+.platform-kpi-strip {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.platform-kpi {
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.platform-kpi span {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.platform-kpi strong {
+  font-size: 1.35rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.platform-kpi strong small {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-left: 0.15rem;
+}
+
+.platform-kpi em {
+  font-style: normal;
+  font-size: 0.78rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.platform-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.15rem 1.2rem;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 156, 255, 0.14);
+  background: linear-gradient(180deg, rgba(13, 20, 38, 0.72), rgba(8, 13, 26, 0.55));
+}
+
+.platform-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.platform-section-head h3 {
+  margin: 0.2rem 0 0.35rem;
+  font-size: 1.05rem;
+}
+
+.platform-section--lohn {
+  border-color: rgba(56, 189, 248, 0.28);
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(56, 189, 248, 0.1), transparent 50%),
+    linear-gradient(180deg, rgba(13, 24, 42, 0.92), rgba(8, 14, 28, 0.88));
+}
+
+.platform-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.platform-status-pill.is-on {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.12);
+  border-color: rgba(34, 197, 94, 0.28);
+}
+
+.platform-status-pill.is-off {
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.lohn-link-endpoint {
+  margin: 0;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: rgba(16, 185, 129, 0.08);
+  font-size: 0.85rem;
+  word-break: break-all;
+}
+
+.lohn-link-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.lohn-link-grid {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.lohn-link-grid--toggles {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lohn-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  min-width: 0;
+}
+
+.lohn-field span {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.lohn-field input,
+.lohn-field select {
+  width: 100%;
+  min-height: 2.4rem;
+}
+
+.lohn-field--full {
+  grid-column: 1 / -1;
+}
+
+.lohn-link-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.lohn-link-msg {
+  margin: 0;
+  flex: 1 1 12rem;
+}
+
+.platform-studio-links {
+  margin-top: 0.25rem;
+  padding-top: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  .platform-kpi-strip,
+  .lohn-link-grid--toggles {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .lohn-link-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .platform-studio-hero,
+  .platform-section {
+    padding: 1rem;
+  }
+}
+
+body.theme-white .platform-studio-hero,
+body.theme-white .platform-section {
+  background: linear-gradient(180deg, #fff, #f7fafc);
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.theme-white .platform-kpi {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+body.theme-white .platform-section-kicker {
+  color: #0369a1;
+}
+
 .platform-skel-card {
   min-height: 5.5rem;
 }
