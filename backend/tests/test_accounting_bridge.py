@@ -1110,8 +1110,9 @@ def test_explicit_lohn_bridge_credentials_ignore_admin_session():
     key, cid = extract_explicit_lohn_bridge_credentials(
         {
             "Authorization": "Bearer session-token-abc",
-            # no X-WorkPass-Company-Id — admin UI only uses query company_id
-        }
+        },
+        query_company="c1",
+        db=None,
     )
     assert key == ""
     assert cid == ""

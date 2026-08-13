@@ -92,6 +92,15 @@ def register_accounting_blueprint(flask_app) -> None:
                 },
                 401,
             )
+        if integ.get("lohnDisabled"):
+            return None, (
+                {
+                    "error": "workpass_lohn_disabled",
+                    "hint": "WorkPass Lohn für diese Firma in der Plattform aktivieren",
+                    "companyId": company_id,
+                },
+                403,
+            )
         if str(integ.get("company_id") or "") != company_id:
             return None, ({"error": "company_scope_mismatch"}, 403)
         return integ, None

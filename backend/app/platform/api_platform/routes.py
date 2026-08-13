@@ -36,9 +36,21 @@ def v1_company_info():
     from backend.server import get_db
 
     db = get_db()
+    company_id = str(getattr(g, "api_company_id", "") or "").strip()
+    # Richer payload for WorkPass Lohn bridge pulls
+    if getattr(g, "lohn_bridge_auth", False) and company_id:
+        try:
+            from backend.app.platform.accounting.company_sync import company_upsert_payload
+
+            return jsonify(company_upsert_payload(db, company_id)), 200
+        except LookupError:
+            return jsonify({"error": "not_found", "companyId": company_id}), 404
+        except Exception as exc:
+            return jsonify({"error": "company_payload_failed", "message": str(exc)[:160]}), 500
+
     row = db.execute(
         "SELECT id, name, status, plan, access_mode FROM companies WHERE id = ?",
-        (g.api_company_id,),
+        (company_id,),
     ).fetchone()
     if not row:
         return jsonify({"error": "not_found"}), 404

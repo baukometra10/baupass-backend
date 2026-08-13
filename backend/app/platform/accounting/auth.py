@@ -73,20 +73,60 @@ def extract_lohn_api_key_from_headers(headers) -> str:
     return ""
 
 
-def extract_explicit_lohn_bridge_credentials(headers) -> tuple[str, str]:
+def list_accepted_lohn_platform_keys(db=None) -> list[str]:
+    """All shared keys the platform accepts from WorkPass Lohn."""
+    import os
+
+    from .platform_link import get_platform_link, resolve_lohn_api_keys, resolve_master_api_keys
+
+    link = get_platform_link(db) if db is not None else {}
+    accepted: list[str] = []
+    seen: set[str] = set()
+    for candidate in (*resolve_lohn_api_keys(link), *resolve_master_api_keys(link)):
+        value = str(candidate or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            accepted.append(value)
+    for env_name in (
+        "WORKPASS_API_KEY",
+        "WORKPASS_PLATFORM_API_KEY",
+        "WORKPASS_LOHN_MASTER_KEY",
+        "WORKPASS_PLATFORM_WEBHOOK_KEY",
+    ):
+        value = str(os.environ.get(env_name) or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            accepted.append(value)
+    return accepted
+
+
+def is_known_lohn_platform_key(db, api_key: str) -> bool:
+    key = str(api_key or "").strip()
+    if not key:
+        return False
+    if key.startswith(API_KEY_PREFIX):
+        return True
+    for candidate in list_accepted_lohn_platform_keys(db):
+        if len(candidate) == len(key) and hmac.compare_digest(candidate, key):
+            return True
+    return False
+
+
+def extract_explicit_lohn_bridge_credentials(headers, *, query_company: str = "", db=None) -> tuple[str, str]:
     """
     Credentials for shared admin routes (e.g. GET /api/contracts).
 
-    Only treat as Lohn when a company header is present. Never treat a bare
-    Authorization Bearer session token + ?company_id= as Lohn auth — that broke
-    the admin contracts UI (401 → empty list).
+    Enter Lohn bridge when:
+    - X-WorkPass-Company-Id (+ key headers / Bearer), OR
+    - Bearer/X-WorkPass-Key matches a known WORKPASS_* key and company is in header or query.
+
+    Admin session Bearer tokens do not match WORKPASS_* keys, so admin UI stays intact.
     """
     get = headers.get if hasattr(headers, "get") else (lambda *_a, **_k: "")
     company_id = str(
-        get("X-WorkPass-Company-Id") or get("X-Company-Id") or ""
+        get("X-WorkPass-Company-Id") or get("X-Company-Id") or query_company or ""
     ).strip()
-    if not company_id:
-        return "", ""
+    key = ""
     for name in (
         "X-Accounting-Key",
         "X-WorkPass-Accounting-Key",
@@ -98,10 +138,47 @@ def extract_explicit_lohn_bridge_credentials(headers) -> tuple[str, str]:
     ):
         raw = _extract_bearer(str(get(name) or ""))
         if raw:
-            return raw, company_id
-    # Lohn may send only Authorization Bearer + X-WorkPass-Company-Id
-    auth = _extract_bearer(str(get("Authorization") or ""))
-    return (auth, company_id) if auth else ("", "")
+            key = raw
+            break
+    if not key:
+        key = _extract_bearer(str(get("Authorization") or ""))
+
+    if not key:
+        return "", ""
+
+    # Without a company id we cannot scope the pull
+    if not company_id:
+        # Only claim Lohn mode when key is explicitly a WorkPass header (not bare Authorization)
+        has_explicit = any(
+            str(get(n) or "").strip()
+            for n in (
+                "X-WorkPass-Key",
+                "X-WorkPass-Company-Id",
+                "X-Accounting-Key",
+                "X-WorkPass-Accounting-Key",
+            )
+        )
+        return (key, "") if has_explicit else ("", "")
+
+    # If only Authorization + ?company_id (admin UI), require known platform key
+    has_company_header = bool(
+        str(get("X-WorkPass-Company-Id") or get("X-Company-Id") or "").strip()
+    )
+    has_explicit_key_header = any(
+        str(get(n) or "").strip()
+        for n in (
+            "X-WorkPass-Key",
+            "X-Accounting-Key",
+            "X-WorkPass-Accounting-Key",
+            "X-Api-Key",
+            "X-Platform-Api-Key",
+        )
+    )
+    if has_company_header or has_explicit_key_header:
+        return key, company_id
+    if db is not None and is_known_lohn_platform_key(db, key):
+        return key, company_id
+    return "", ""
 
 
 def authenticate_accounting_request(
@@ -157,7 +234,6 @@ def authenticate_lohn_pull_request(
     Lohn UI often sends WORKPASS_API_KEY with X-WorkPass-Company-Id.
     """
     from .company_opt_in import is_workpass_lohn_enabled
-    from .platform_link import get_platform_link, resolve_lohn_api_keys, resolve_master_api_keys
     from .schema import ensure_accounting_schema
 
     company_id = (company_id or "").strip()
@@ -178,38 +254,30 @@ def authenticate_lohn_pull_request(
         return integ
 
     ensure_accounting_schema(db)
-    if not is_workpass_lohn_enabled(db, company_id):
-        return None
+    lohn_enabled = is_workpass_lohn_enabled(db, company_id)
 
-    link = get_platform_link(db)
-    accepted: list[str] = []
-    seen: set[str] = set()
-    for candidate in (
-        *resolve_lohn_api_keys(link),
-        *resolve_master_api_keys(link),
-    ):
-        value = str(candidate or "").strip()
-        if value and value not in seen:
-            seen.add(value)
-            accepted.append(value)
+    accepted = list_accepted_lohn_platform_keys(db)
 
-    # Extra env aliases Lohn docs mention
-    import os
-
-    for env_name in (
-        "WORKPASS_API_KEY",
-        "WORKPASS_PLATFORM_API_KEY",
-        "WORKPASS_LOHN_MASTER_KEY",
-        "WORKPASS_PLATFORM_WEBHOOK_KEY",
-    ):
-        value = str(os.environ.get(env_name) or "").strip()
-        if value and value not in seen:
-            seen.add(value)
-            accepted.append(value)
-
-    matched = next((k for k in accepted if hmac.compare_digest(k, api_key)), None)
+    matched = None
+    for k in accepted:
+        if len(k) == len(api_key) and hmac.compare_digest(k, api_key):
+            matched = k
+            break
     if not matched:
         return None
+    if not lohn_enabled:
+        # Distinguish bad key vs opt-out (routes can map to 403)
+        return {
+            "id": f"master-{company_id}",
+            "company_id": company_id,
+            "enabled": 0,
+            "webhook_url": "",
+            "api_key_hash": "",
+            "signing_secret": "",
+            "run_day": 1,
+            "authMode": "platform_master_key",
+            "lohnDisabled": True,
+        }
 
     # Prefer existing integration row when present; otherwise synthetic master auth.
     row = db.execute(

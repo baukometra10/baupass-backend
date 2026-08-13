@@ -476,19 +476,23 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts")
     def list_contracts():
-        # WorkPass Lohn pull only when X-WorkPass-Company-Id (+ key) is set.
-        # Admin UI uses ?company_id= + session Bearer — must NOT enter this branch.
+        # WorkPass Lohn: known WORKPASS_* key (+ company header/query).
+        # Admin UI: session Bearer + ?company_id= — session is NOT a known key → admin path.
         try:
             from backend.app.platform.accounting.auth import (
                 authenticate_lohn_pull_request,
                 extract_explicit_lohn_bridge_credentials,
             )
-            from backend.app.platform.accounting.company_opt_in import is_workpass_lohn_enabled
             from backend.app.platform.accounting.hours_service import build_employee_master_list
 
-            api_key, company_hint = extract_explicit_lohn_bridge_credentials(request.headers)
+            db = get_db()
+            query_company = (
+                request.args.get("company_id") or request.args.get("companyId") or ""
+            ).strip()
+            api_key, company_hint = extract_explicit_lohn_bridge_credentials(
+                request.headers, query_company=query_company, db=db
+            )
             if api_key and company_hint:
-                db = get_db()
                 integ = authenticate_lohn_pull_request(
                     db, company_id=company_hint, api_key=api_key
                 )
@@ -501,7 +505,7 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                             "companyId": company_hint,
                         }
                     ), 401
-                if not is_workpass_lohn_enabled(db, company_hint):
+                if integ.get("lohnDisabled"):
                     return jsonify(
                         {
                             "ok": False,
@@ -548,11 +552,22 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                         "format": "platform.employees.v1",
                     }
                 )
+            if api_key and not company_hint:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "error": "company_id_required",
+                        "hint": "X-WorkPass-Company-Id oder company_id fehlt",
+                    }
+                ), 400
         except Exception as exc:
-            # Only surface bridge errors for explicit Lohn headers — never hide admin UI
             from backend.app.platform.accounting.auth import extract_explicit_lohn_bridge_credentials
 
-            _key, _cid = extract_explicit_lohn_bridge_credentials(request.headers)
+            _key, _cid = extract_explicit_lohn_bridge_credentials(
+                request.headers,
+                query_company=(request.args.get("company_id") or ""),
+                db=None,
+            )
             if _key and _cid:
                 return jsonify(
                     {
