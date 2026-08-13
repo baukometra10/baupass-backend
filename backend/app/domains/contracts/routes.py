@@ -476,24 +476,17 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
 
     @contracts_core_bp.get("/contracts")
     def list_contracts():
-        # WorkPass Lohn pull: WORKPASS_API_KEY + company header (no admin session)
-        company_hint = (
-            request.headers.get("X-WorkPass-Company-Id")
-            or request.headers.get("X-Company-Id")
-            or request.args.get("company_id")
-            or request.args.get("companyId")
-            or ""
-        ).strip()
+        # WorkPass Lohn pull only when X-WorkPass-Company-Id (+ key) is set.
+        # Admin UI uses ?company_id= + session Bearer — must NOT enter this branch.
         try:
             from backend.app.platform.accounting.auth import (
                 authenticate_lohn_pull_request,
-                extract_lohn_api_key_from_headers,
+                extract_explicit_lohn_bridge_credentials,
             )
             from backend.app.platform.accounting.company_opt_in import is_workpass_lohn_enabled
             from backend.app.platform.accounting.hours_service import build_employee_master_list
 
-            api_key = extract_lohn_api_key_from_headers(request.headers)
-            # If Lohn-style credentials are present, never fall through to admin-session 401
+            api_key, company_hint = extract_explicit_lohn_bridge_credentials(request.headers)
             if api_key and company_hint:
                 db = get_db()
                 integ = authenticate_lohn_pull_request(
@@ -555,16 +548,12 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                         "format": "platform.employees.v1",
                     }
                 )
-            if api_key and not company_hint:
-                return jsonify(
-                    {
-                        "ok": False,
-                        "error": "company_id_required",
-                        "hint": "X-WorkPass-Company-Id fehlt",
-                    }
-                ), 400
         except Exception as exc:
-            if company_hint:
+            # Only surface bridge errors for explicit Lohn headers — never hide admin UI
+            from backend.app.platform.accounting.auth import extract_explicit_lohn_bridge_credentials
+
+            _key, _cid = extract_explicit_lohn_bridge_credentials(request.headers)
+            if _key and _cid:
                 return jsonify(
                     {
                         "ok": False,

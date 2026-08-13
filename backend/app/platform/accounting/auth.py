@@ -73,6 +73,37 @@ def extract_lohn_api_key_from_headers(headers) -> str:
     return ""
 
 
+def extract_explicit_lohn_bridge_credentials(headers) -> tuple[str, str]:
+    """
+    Credentials for shared admin routes (e.g. GET /api/contracts).
+
+    Only treat as Lohn when a company header is present. Never treat a bare
+    Authorization Bearer session token + ?company_id= as Lohn auth — that broke
+    the admin contracts UI (401 → empty list).
+    """
+    get = headers.get if hasattr(headers, "get") else (lambda *_a, **_k: "")
+    company_id = str(
+        get("X-WorkPass-Company-Id") or get("X-Company-Id") or ""
+    ).strip()
+    if not company_id:
+        return "", ""
+    for name in (
+        "X-Accounting-Key",
+        "X-WorkPass-Accounting-Key",
+        "X-WorkPass-Key",
+        "X-WorkPass-Master-Key",
+        "X-WorkPass-Webhook-Key",
+        "X-Api-Key",
+        "X-Platform-Api-Key",
+    ):
+        raw = _extract_bearer(str(get(name) or ""))
+        if raw:
+            return raw, company_id
+    # Lohn may send only Authorization Bearer + X-WorkPass-Company-Id
+    auth = _extract_bearer(str(get("Authorization") or ""))
+    return (auth, company_id) if auth else ("", "")
+
+
 def authenticate_accounting_request(
     db,
     *,

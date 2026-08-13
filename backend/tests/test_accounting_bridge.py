@@ -1101,3 +1101,26 @@ def test_lohn_master_api_key_can_pull_employees(monkeypatch):
     assert ok.get("authMode") == "platform_master_key"
     bad = authenticate_lohn_pull_request(db, company_id="c1", api_key="wrong")
     assert bad is None
+
+
+def test_explicit_lohn_bridge_credentials_ignore_admin_session():
+    """Admin ?company_id= + Bearer session must not be treated as Lohn pull."""
+    from backend.app.platform.accounting.auth import extract_explicit_lohn_bridge_credentials
+
+    key, cid = extract_explicit_lohn_bridge_credentials(
+        {
+            "Authorization": "Bearer session-token-abc",
+            # no X-WorkPass-Company-Id — admin UI only uses query company_id
+        }
+    )
+    assert key == ""
+    assert cid == ""
+
+    key2, cid2 = extract_explicit_lohn_bridge_credentials(
+        {
+            "Authorization": "Bearer lohn-shared-secret",
+            "X-WorkPass-Company-Id": "c1",
+        }
+    )
+    assert key2 == "lohn-shared-secret"
+    assert cid2 == "c1"
