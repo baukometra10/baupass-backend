@@ -245,9 +245,41 @@ Example response:
 Each hours / payroll-batch employee row includes the **same master fields** as `/employees`
 so Lohn never needs a second round-trip for IBAN/Steuer-ID when pulling Abrechnung inputs.
 
+Preferred nested shape for WorkPass Lohn (`kind` / `format` = `platform.payroll.batch.v1`):
+
+```json
+{
+  "kind": "platform.payroll.batch.v1",
+  "period": "2026-07",
+  "company": { "id": "cmp-…", "name": "Demo GmbH" },
+  "employees": [
+    {
+      "employee": {
+        "badgeId": "BP-…",
+        "name": "Ali Hassan",
+        "taxClass": "I",
+        "hourlyRate": 13,
+        "stundenlohn": 13,
+        "insuranceNo": "12050855X123",
+        "insuranceNumber": "12050855X123",
+        "healthFund": "TK",
+        "bank": { "name": "Sparkasse", "iban": "DE89…" }
+      },
+      "attendance": { "days": 20, "hours": 160 },
+      "hours": 160,
+      "days": 20,
+      "hourlyRate": 13,
+      "grossEstimate": 2080
+    }
+  ]
+}
+```
+
 Notes:
-- `grossEstimate` is a **hint only** — WorkPass Lohn computes official payroll.
+- `grossEstimate` / `bruttoHint` is a **hint only** (`hours × hourlyRate`) — WorkPass Lohn computes official payroll.
+- Flat fields remain for backward compatibility; nested `employee` + `attendance` are authoritative for Lohn.
 - `employeeId` / `workerId` = platform worker UUID/id (use this in `storageKey`, not the display name).
+- Missing KK / bank name / SV are reported in `missingFields` (`healthFund`, `bankName`, `insuranceNumber`, …).
 
 ### 3.1b Pull payroll batch (`platform.payroll.batch.v1`)
 

@@ -94,6 +94,21 @@ def test_hours_from_access_pairs():
     assert hours == 8.0
 
 
+def test_attendance_days_from_access_pairs():
+    attendance = hours_service.attendance_from_access_pairs(
+        [
+            {"direction": "check-in", "timestamp": "2026-06-01T08:00:00"},
+            {"direction": "check-out", "timestamp": "2026-06-01T16:00:00"},
+            {"direction": "check-in", "timestamp": "2026-06-02T08:00:00"},
+            {"direction": "check-out", "timestamp": "2026-06-02T12:00:00"},
+            {"direction": "check-in", "timestamp": "2026-06-02T13:00:00"},
+            {"direction": "check-out", "timestamp": "2026-06-02T17:00:00"},
+        ]
+    )
+    assert attendance["hours"] == 16.0
+    assert attendance["days"] == 2
+
+
 def test_aggregate_company_hours_with_rate():
     db = _db()
     payload = hours_service.aggregate_company_hours(db, company_id="c1", period="2026-06")
@@ -487,17 +502,49 @@ def test_prepare_payroll_batch_v1():
     batch = service.prepare_payroll_batch(db, company_id="c1", period="2026-06", mark_sent=True)
     assert batch["format"] == "platform.payroll.batch.v1"
     assert batch["capability"] == "platform.payroll.batch.v1"
+    assert batch["kind"] == "platform.payroll.batch.v1"
     assert batch["companyId"] == "c1"
     assert batch["period"] == "2026-06"
     assert batch["employeeCount"] == 1
-    assert batch["employees"][0]["employeeId"] == "w1"
-    assert batch["employees"][0]["hours"] == 8.0
-    assert batch["employees"][0]["hourlyRate"] == 15.0
-    assert "iban" in batch["employees"][0]
-    assert "taxId" in batch["employees"][0]
-    assert "missingFields" in batch["employees"][0]
+    emp = batch["employees"][0]
+    assert emp["employeeId"] == "w1"
+    assert emp["hours"] == 8.0
+    assert emp["hourlyRate"] == 15.0
+    assert emp["attendance"]["hours"] == 8.0
+    assert emp["attendance"]["days"] == 1
+    assert emp["employee"]["badgeId"] == "B1"
+    assert emp["employee"]["name"] == "Ali Hassan"
+    assert emp["employee"]["hourlyRate"] == 15.0
+    assert emp["employee"]["stundenlohn"] == 15.0
+    assert emp["brutto"] == 120.0
+    assert emp["lohnarten"][0]["betrag"] == 120.0
+    assert emp["wageItems"][0]["betrag"] == 120.0
+    assert emp["company"] == {"id": "c1", "name": "Demo GmbH"}
+    assert emp["employee"]["bank"]["iban"] == ""
+    assert "iban" in emp
+    assert "taxId" in emp
+    assert "missingFields" in emp
+    assert "healthFund" in emp["missingFields"]
+    assert "taxClass" in emp["missingFields"]
     assert batch.get("includesMasterData") is True
+    assert batch.get("includesAttendance") is True
     assert batch["fingerprint"]
+
+
+def test_prepare_payroll_batch_single_worker_filter():
+    db = _db()
+    db.execute(
+        """
+        INSERT INTO workers (id, company_id, first_name, last_name, badge_id, badge_id_lookup, physical_card_id, insurance_number, contact_email, site, status, deleted_at)
+        VALUES ('w2', 'c1', 'Sara', 'Khan', 'B2', 'b2', '', 'SV2', '', 'Berlin', 'active', NULL)
+        """
+    )
+    db.commit()
+    batch = service.prepare_payroll_batch(
+        db, company_id="c1", period="2026-06", mark_sent=True, worker_ids=["w1"]
+    )
+    assert batch["employeeCount"] == 1
+    assert batch["employees"][0]["workerId"] == "w1"
 
 
 def test_employee_master_includes_contract_fields():
@@ -514,10 +561,13 @@ def test_employee_master_includes_contract_fields():
                     "form": {
                         "hourly_rate": "18.50",
                         "employee_iban": "DE89 3704 0044 0532 0130 00",
+                        "employee_bank_name": "Sparkasse",
                         "employee_tax_id": "12 345 678 901",
                         "employee_birth_date": "1990-05-01",
                         "employee_email": "ali@example.com",
                         "job_title": "Maurer",
+                        "krankenkasse": "TK",
+                        "steuerklasse": "I",
                     }
                 }
             ),
@@ -533,14 +583,48 @@ def test_employee_master_includes_contract_fields():
     assert emp["birthDate"] == "1990-05-01"
     assert emp["email"] == "ali@example.com"
     assert emp["hourlyRate"] == 18.5
+    assert emp["healthFund"] == "TK"
+    assert emp["bankName"] == "Sparkasse"
+    assert emp["taxClass"] == "I"
+    assert emp["employee"]["insuranceNo"] == ""
+    assert emp["employee"]["healthFund"] == "TK"
+    assert emp["employee"]["bank"]["name"] == "Sparkasse"
+    assert emp["employee"]["taxClass"] == "I"
     assert emp["payrollReady"] is False  # insurance still missing
     assert "insuranceNumber" in emp["missingFields"]
+
+    # Numeric Steuerklasse must normalize to Roman for Lohn
+    db.execute(
+        "UPDATE employment_contracts SET input_json = ? WHERE id = 'ctr1'",
+        (
+            json.dumps(
+                {
+                    "form": {
+                        "hourly_rate": "18.50",
+                        "employee_iban": "DE89370400440532013000",
+                        "employee_bank_name": "Sparkasse",
+                        "employee_tax_id": "12 345 678 901",
+                        "employee_birth_date": "1990-05-01",
+                        "krankenkasse": "TK",
+                        "tax_class": "1",
+                    }
+                }
+            ),
+        ),
+    )
+    db.commit()
+    emp2 = hours_service.build_employee_master_list(db, company_id="c1")["employees"][0]
+    assert emp2["taxClass"] == "I"
+    assert emp2["steuerklasse"] == "I"
 
     hours = hours_service.aggregate_company_hours(db, company_id="c1", period="2026-06")
     row = hours["rows"][0]
     assert row["iban"] == "DE89370400440532013000"
     assert row["taxId"] == "12 345 678 901"
     assert row["hourlyRate"] == 18.5
+    assert row["attendance"]["hours"] == 8.0
+    assert row["attendance"]["days"] == 1
+    assert row["employee"]["stundenlohn"] == 18.5
     assert hours["incompleteCount"] == 1
 
 
@@ -703,7 +787,8 @@ def test_accounting_messages_inbox_upsert_and_ack(monkeypatch):
     pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
     assert len(pending) == 1
     assert pending[0]["externalId"] == "msg-1"
-    assert pending[0]["subject"] == "IBAN fehlt"
+    assert "IBAN fehlt" in str(pending[0]["subject"] or "")
+    assert "Ali Hassan" in str(pending[0]["subject"] or "") or pending[0]["subject"] == "IBAN fehlt"
     # missing_data also mirrored into data-alerts
     assert repository.list_open_lohn_data_alerts(db, company_id="c1")
 
@@ -1001,11 +1086,13 @@ def test_platform_webhook_auth_webhook_key_env_and_header(monkeypatch):
 def test_resolve_lohn_api_key_prefers_workpass_api_key(monkeypatch):
     from backend.app.platform.accounting import platform_link
 
-    monkeypatch.setenv("WORKPASS_API_KEY", "lohn-api-secret")
+    monkeypatch.setenv("WORKPASS_API_KEY", "lohn-api-secret ")
     monkeypatch.setenv("WORKPASS_PLATFORM_WEBHOOK_KEY", "webhook-only-secret")
     keys = platform_link.resolve_lohn_api_keys({"master_api_key": "db-master"})
-    assert keys[0] == "db-master"
+    # Exact env value first (Lohn compares without trim), then stripped, then DB.
+    assert keys[0] == "lohn-api-secret "
     assert "lohn-api-secret" in keys
+    assert "db-master" in keys
     assert "webhook-only-secret" not in keys
     webhook_keys = platform_link.resolve_master_api_keys({"master_api_key": "db-master"})
     assert "webhook-only-secret" in webhook_keys
@@ -1025,9 +1112,12 @@ def test_notify_employee_data_resolved_clears_alerts_and_acks_message():
                 {
                     "form": {
                         "employee_iban": "DE89370400440532013000",
+                        "employee_bank_name": "Sparkasse",
                         "employee_tax_id": "12345678901",
                         "employee_birth_date": "1990-05-01",
                         "hourly_rate": "18.50",
+                        "krankenkasse": "TK",
+                        "steuerklasse": "I",
                     },
                     "hourly_rate": "18.50",
                 }

@@ -16,12 +16,20 @@ from .company_sync import company_upsert_payload
 from .schema import ensure_accounting_schema
 
 
-def _workpass_raw_env(var_name: str) -> str:
+def _workpass_raw_env(var_name: str, *, keep_padding: bool = False) -> str:
     """Read WORKPASS_* from Railway env plus SUPPIX_/BAUPASS_ mirrors."""
     for key in (var_name, f"SUPPIX_{var_name}", f"BAUPASS_{var_name}"):
-        value = (os.environ.get(key) or "").strip()
-        if value:
-            return value
+        value = os.environ.get(key)
+        if value is None:
+            continue
+        if keep_padding:
+            # WorkPass Lohn compares API keys without trim — preserve trailing spaces.
+            if value != "":
+                return value
+        else:
+            value = value.strip()
+            if value:
+                return value
     return ""
 
 
@@ -35,40 +43,49 @@ def resolve_master_api_keys(link: dict[str, Any] | None = None) -> list[str]:
     seen: set[str] = set()
 
     def add(raw: str) -> None:
-        candidate = str(raw or "").strip()
-        if candidate and candidate not in seen:
-            seen.add(candidate)
-            keys.append(candidate)
+        candidate = str(raw or "")
+        if not candidate:
+            return
+        # Keep exact value for outbound parity with Lohn; also accept trimmed twin.
+        for variant in (candidate, candidate.strip()):
+            if variant and variant not in seen:
+                seen.add(variant)
+                keys.append(variant)
 
     add(str(link.get("master_api_key") or ""))
     add(platform_env("WORKPASS_LOHN_MASTER_KEY", ""))
-    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY"))
-    add(_workpass_raw_env("WORKPASS_PLATFORM_WEBHOOK_KEY"))
+    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY", keep_padding=True))
+    add(_workpass_raw_env("WORKPASS_PLATFORM_WEBHOOK_KEY", keep_padding=True))
     return keys
 
 
 def resolve_lohn_api_keys(link: dict[str, Any] | None = None) -> list[str]:
     """
     Secrets for outbound calls to WorkPass Lohn API (messages, upsert, import).
-    Uses Lohn WORKPASS_API_KEY — not the platform webhook secret.
+    Prefer env WORKPASS_API_KEY (exact bytes, including trailing spaces) because Lohn
+    compares with secureCompare(provided, process.env.WORKPASS_API_KEY) without trim.
     """
     link = link or {}
     keys: list[str] = []
     seen: set[str] = set()
 
     def add(raw: str) -> None:
-        candidate = str(raw or "").strip()
-        if candidate and candidate not in seen:
-            seen.add(candidate)
-            keys.append(candidate)
+        candidate = str(raw or "")
+        if not candidate:
+            return
+        for variant in (candidate, candidate.strip()):
+            if variant and variant not in seen:
+                seen.add(variant)
+                keys.append(variant)
 
-    add(str(link.get("master_api_key") or ""))
-    add(_workpass_raw_env("WORKPASS_API_KEY"))
+    # Env first — matches what Lohn process.env holds (may include trailing space).
+    add(_workpass_raw_env("WORKPASS_API_KEY", keep_padding=True))
     add(platform_env("WORKPASS_API_KEY", ""))
-    add(_workpass_raw_env("WORKPASS_PLATFORM_API_KEY"))
+    add(_workpass_raw_env("WORKPASS_PLATFORM_API_KEY", keep_padding=True))
     add(platform_env("WORKPASS_PLATFORM_API_KEY", ""))
+    add(str(link.get("master_api_key") or ""))
     add(platform_env("WORKPASS_LOHN_MASTER_KEY", ""))
-    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY"))
+    add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY", keep_padding=True))
     return keys
 
 
@@ -515,19 +532,8 @@ def _post_lohn_json(
             "message": "Master-API-Key fehlt im Plattform-Link.",
             "url": url,
         }
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
-        "X-WorkPass-Company-Id": company_id,
-        "X-Suppix-Timestamp": ts,
-        "X-Suppix-Event": event,
-        "X-Suppix-Product": "WorkPass Lohn",
-        "X-WorkPass-Key": master,
-        "Authorization": f"Bearer {master}",
-        "X-WorkPass-Master-Key": master,
-        "X-Suppix-Signature": sign_payload(master, timestamp=ts, body=raw),
-    }
-    req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
+    key_candidates = resolve_lohn_api_keys(link) or [master]
+
     def _decode_body(raw: bytes, limit: int = 8000) -> tuple[str, dict[str, Any] | None]:
         text = (raw or b"")[:limit].decode("utf-8", errors="replace")
         parsed: dict[str, Any] | None = None
@@ -540,31 +546,56 @@ def _post_lohn_json(
                 parsed = None
         return text, parsed
 
-    try:
-        with urlrequest.urlopen(req, timeout=max(2.0, float(timeout or 20))) as resp:
-            text, parsed = _decode_body(resp.read())
-            out = {
-                "ok": True,
-                "status": int(resp.status),
+    last_fail: dict[str, Any] = {"ok": False, "error": "lohn_unauthorized"}
+    for key_try in key_candidates:
+        headers = {
+            "Content-Type": "application/json",
+            "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
+            "X-WorkPass-Company-Id": company_id,
+            "X-Suppix-Timestamp": ts,
+            "X-Suppix-Event": event,
+            "X-Suppix-Product": "WorkPass Lohn",
+            "X-WorkPass-Key": key_try,
+            "Authorization": f"Bearer {key_try}",
+            "X-WorkPass-Master-Key": key_try,
+            "X-Suppix-Signature": sign_payload(key_try, timestamp=ts, body=raw),
+        }
+        req = urlrequest.Request(url, data=raw, headers=headers, method="POST")
+        try:
+            with urlrequest.urlopen(req, timeout=max(2.0, float(timeout or 20))) as resp:
+                text, parsed = _decode_body(resp.read())
+                out = {
+                    "ok": True,
+                    "status": int(resp.status),
+                    "url": url,
+                    "body": text[:800],
+                }
+                if parsed is not None:
+                    out["json"] = parsed
+                return out
+        except urlerror.HTTPError as exc:
+            detail = ""
+            parsed = None
+            try:
+                detail, parsed = _decode_body(exc.read(), limit=4000)
+            except Exception:
+                detail = str(exc)
+            last_fail = {
+                "ok": False,
+                "status": int(exc.code),
                 "url": url,
-                "body": text[:800],
+                "error": (detail or str(exc))[:200],
+                "body": detail[:800] if detail else "",
             }
             if parsed is not None:
-                out["json"] = parsed
-            return out
-    except urlerror.HTTPError as exc:
-        detail = ""
-        parsed = None
-        try:
-            detail, parsed = _decode_body(exc.read(), limit=4000)
-        except Exception:
-            detail = str(exc)
-        out = {"ok": False, "status": int(exc.code), "url": url, "error": (detail or str(exc))[:200], "body": detail[:800] if detail else ""}
-        if parsed is not None:
-            out["json"] = parsed
-        return out
-    except Exception as exc:
-        return {"ok": False, "error": str(exc)[:200], "url": url}
+                last_fail["json"] = parsed
+            # Retry next key variant on auth failures only.
+            if int(exc.code) in {401, 403}:
+                continue
+            return last_fail
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)[:200], "url": url}
+    return last_fail
 
 
 def _post_lohn_upsert(link: dict[str, Any], body: dict[str, Any]) -> dict[str, Any]:

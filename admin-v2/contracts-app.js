@@ -431,7 +431,12 @@
           employee_nationality: document.getElementById("employeeNationality").value,
           employee_work_permit: document.getElementById("employeeWorkPermit").value,
           employee_iban: document.getElementById("employeeIban").value,
+          employee_bank_name: document.getElementById("employeeBankName")?.value || "",
           employee_tax_id: document.getElementById("employeeTaxId").value,
+          tax_class: document.getElementById("employeeTaxClass")?.value || "",
+          krankenkasse: document.getElementById("employeeHealthFund")?.value || "",
+          health_fund: document.getElementById("employeeHealthFund")?.value || "",
+          personnel_number: document.getElementById("employeePersonnelNumber")?.value || "",
           collective_agreement: document.getElementById("collectiveAgreement").value === "yes" ? "yes" : "",
           collective_agreement_name: document.getElementById("collectiveAgreementName").value,
           job_title: document.getElementById("jobTitle").value,
@@ -696,7 +701,23 @@
       document.getElementById("employeeNationality").value = form.employee_nationality || "";
       document.getElementById("employeeWorkPermit").value = form.employee_work_permit || "";
       document.getElementById("employeeIban").value = form.employee_iban || "";
+      if (document.getElementById("employeeBankName")) {
+        document.getElementById("employeeBankName").value = form.employee_bank_name || form.bank_name || "";
+      }
       document.getElementById("employeeTaxId").value = form.employee_tax_id || "";
+      if (document.getElementById("employeeTaxClass")) {
+        const rawTaxClass = String(form.tax_class || form.steuerklasse || "").trim().toUpperCase();
+        const taxMap = { "1": "I", "01": "I", "I": "I", "2": "II", "02": "II", "II": "II", "3": "III", "03": "III", "III": "III", "4": "IV", "04": "IV", "IV": "IV", "5": "V", "05": "V", "V": "V", "6": "VI", "06": "VI", "VI": "VI" };
+        document.getElementById("employeeTaxClass").value = taxMap[rawTaxClass] || "";
+      }
+      if (document.getElementById("employeeHealthFund")) {
+        document.getElementById("employeeHealthFund").value =
+          form.krankenkasse || form.health_fund || form.health_insurance || "";
+      }
+      if (document.getElementById("employeePersonnelNumber")) {
+        document.getElementById("employeePersonnelNumber").value =
+          form.personnel_number || form.personalnummer || "";
+      }
       document.getElementById("collectiveAgreement").value = form.collective_agreement === "yes" ? "yes" : "";
       document.getElementById("collectiveAgreementName").value = form.collective_agreement_name || "";
       document.getElementById("jobTitle").value = form.job_title || "";

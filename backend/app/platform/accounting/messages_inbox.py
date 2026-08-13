@@ -1126,6 +1126,8 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             "period": period or None,
             "status": fulfilled.get("status") or "delivered",
             "replies": replies,
+            "payload": fulfilled.get("payload"),
+            "mode": fulfilled.get("mode"),
             "message": fulfilled.get("message") or "Employees delivered to WorkPass Lohn",
             "tenantIsolation": "companyId",
             "error": fulfilled.get("error"),
@@ -1165,6 +1167,8 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             "period": period,
             "status": fulfilled.get("status") or "delivered",
             "replies": replies,
+            "payload": fulfilled.get("payload") or (replies.get("delivery") if isinstance(replies, dict) else None),
+            "mode": fulfilled.get("mode"),
             "message": fulfilled.get("message")
             or "Employees + hours/payroll batch auto-delivered to WorkPass Lohn",
             "tenantIsolation": "companyId",

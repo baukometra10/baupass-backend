@@ -129,12 +129,43 @@ def register_accounting_blueprint(flask_app) -> None:
                     "insuranceNumber": emp.get("insuranceNumber"),
                     "hourlyRate": emp.get("hourlyRate"),
                     "salaryGrossMonthly": emp.get("salaryGrossMonthly"),
-                    "brutto": emp.get("salaryGrossMonthly") or emp.get("hourlyRate"),
-                    "healthInsurance": emp.get("healthInsurance") or emp.get("krankenkasse") or "",
-                    "bank": emp.get("iban"),
+                    "brutto": emp.get("brutto")
+                    or emp.get("salaryGrossMonthly")
+                    or emp.get("grossEstimate")
+                    or emp.get("hourlyRate"),
+                    "lohnarten": emp.get("lohnarten") or emp.get("wageTypes") or [],
+                    "wageTypes": emp.get("wageTypes") or emp.get("lohnarten") or [],
+                    "steuerklasse": emp.get("steuerklasse") or emp.get("taxClass") or "",
+                    "taxClass": emp.get("taxClass") or emp.get("steuerklasse") or "",
+                    "healthInsurance": emp.get("healthInsurance")
+                    or emp.get("healthFund")
+                    or emp.get("krankenkasse")
+                    or "",
+                    "healthFund": emp.get("healthFund")
+                    or emp.get("krankenkasse")
+                    or emp.get("healthInsurance")
+                    or "",
+                    "krankenkasse": emp.get("krankenkasse")
+                    or emp.get("healthFund")
+                    or emp.get("healthInsurance")
+                    or "",
+                    "insuranceNo": emp.get("insuranceNo") or emp.get("insuranceNumber") or "",
+                    "bank": emp.get("bank")
+                    or {"name": emp.get("bankName") or "", "iban": emp.get("iban") or ""},
+                    "bankName": emp.get("bankName") or "",
+                    "personnelNumber": emp.get("personnelNumber")
+                    or emp.get("personalnummer")
+                    or emp.get("badgeId")
+                    or "",
+                    "name": emp.get("name")
+                    or " ".join(
+                        part
+                        for part in (str(emp.get("firstName") or "").strip(), str(emp.get("lastName") or "").strip())
+                        if part
+                    ),
                     "missingFields": emp.get("missingFields") or [],
                     "payrollReady": emp.get("payrollReady"),
-                    "employee": emp,
+                    "employee": emp.get("employee") or emp,
                 }
             )
         return {

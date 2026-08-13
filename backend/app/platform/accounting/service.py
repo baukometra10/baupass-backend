@@ -65,8 +65,15 @@ def _auto_fulfill_ungate(key: str, *, mark_done: bool) -> None:
             _AUTO_FULFILL_RECENT[key] = time.time()
 
 
-def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
-    payload = aggregate_company_hours(db, company_id=company_id, period=period)
+def prepare_hour_export(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    mark_sent: bool = False,
+    worker_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    payload = aggregate_company_hours(db, company_id=company_id, period=period, worker_ids=worker_ids)
     status = "sent" if mark_sent else "queued"
     meta = repo.save_hour_export(db, company_id=company_id, period=payload["period"], payload=payload, status=status)
     payload["exportId"] = meta["id"]
@@ -75,31 +82,69 @@ def prepare_hour_export(db, *, company_id: str, period: str, mark_sent: bool = F
     return payload
 
 
-def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool = False) -> dict[str, Any]:
+def prepare_payroll_batch(
+    db,
+    *,
+    company_id: str,
+    period: str,
+    mark_sent: bool = False,
+    worker_ids: list[str] | None = None,
+) -> dict[str, Any]:
     """
     Capability platform.payroll.batch.v1 — same hours rows, packaged for Lohn pull/push.
     Body contract: { companyId, period } → full batch with employees[].
+    Each employees[] entry includes nested employee + attendance for WorkPass Lohn.
     """
-    hours = prepare_hour_export(db, company_id=company_id, period=period, mark_sent=mark_sent)
+    hours = prepare_hour_export(
+        db,
+        company_id=company_id,
+        period=period,
+        mark_sent=mark_sent,
+        worker_ids=worker_ids,
+    )
     company_id = require_company_id(company_id)
     period = normalize_period(period)
+    company = hours.get("company") or {"id": company_id}
+    if isinstance(company, dict) and not company.get("name"):
+        company = {**company, "name": hours.get("companyName") or ""}
+    company_name = str((company or {}).get("name") or hours.get("companyName") or "").strip()
+    company_ref = {"id": company_id, "name": company_name}
     employees = []
     for row in hours.get("rows") or []:
-        employees.append(
-            {
-                **row,
-                "employeeId": row.get("employeeId") or row.get("workerId"),
-                "workerId": row.get("workerId") or row.get("employeeId"),
-            }
+        wage_items = (
+            row.get("wageItems")
+            or row.get("lohnarten")
+            or row.get("wageTypes")
+            or []
         )
+        bank = row.get("bank") if isinstance(row.get("bank"), dict) else {
+            "name": row.get("bankName") or "",
+            "iban": row.get("iban") or "",
+        }
+        entry = {
+            **row,
+            "employeeId": row.get("employeeId") or row.get("workerId"),
+            "workerId": row.get("workerId") or row.get("employeeId"),
+            "company": company_ref,
+            "companyName": company_name,
+            # Lohn ingestPayrollBatch reads these top-level keys only:
+            "attendance": row.get("attendance") or {"hours": row.get("hours") or 0, "days": row.get("days") or 0},
+            "bank": bank,
+            "wageItems": wage_items,
+            "lohnarten": wage_items,
+            "wageTypes": wage_items,
+            "brutto": row.get("brutto") or row.get("gross") or row.get("grossEstimate") or 0,
+        }
+        employees.append(entry)
     return {
         "ok": True,
+        "kind": PAYROLL_BATCH_FORMAT,
         "capability": PAYROLL_BATCH_FORMAT,
         "format": PAYROLL_BATCH_FORMAT,
         "product": "WorkPass Lohn",
         "companyId": company_id,
-        "company": hours.get("company") or {"id": company_id},
-        "companyName": hours.get("companyName") or "",
+        "company": company_ref,
+        "companyName": company_name or hours.get("companyName") or "",
         "period": period,
         "periodStart": hours.get("periodStart"),
         "periodEnd": hours.get("periodEnd"),
@@ -109,6 +154,7 @@ def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool =
         "incompleteCount": hours.get("incompleteCount"),
         "incompleteEmployees": hours.get("incompleteEmployees") or [],
         "totalHours": hours.get("totalHours"),
+        "totalDays": hours.get("totalDays"),
         "totalGrossEstimate": hours.get("totalGrossEstimate"),
         "currency": hours.get("currency") or "EUR",
         "tenantIsolation": "companyId::employeeId::period",
@@ -119,7 +165,12 @@ def prepare_payroll_batch(db, *, company_id: str, period: str, mark_sent: bool =
         "employees": employees,
         "hoursFormat": "suppix_workpass_lohn_hours_v1",
         "includesMasterData": True,
-        "note": "Full employee master + hours for period. grossEstimate is platform hint only; WorkPass Lohn computes official payroll",
+        "includesAttendance": True,
+        "note": (
+            "Full employee master + attendance for period. "
+            "Brutto hint = hours × hourlyRate when hourly. "
+            "WorkPass Lohn computes official payroll."
+        ),
     }
 
 
@@ -162,6 +213,7 @@ def push_payroll_batch_to_lohn(
     company_id: str,
     period: str,
     batch: dict[str, Any] | None = None,
+    worker_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Platform → Lohn POST /v1/payroll/batch with platform.payroll.batch.v1 payload.
@@ -184,10 +236,17 @@ def push_payroll_batch_to_lohn(
             "skipped": True,
         }
     if batch is None:
-        batch = prepare_payroll_batch(db, company_id=company_id, period=period, mark_sent=True)
+        batch = prepare_payroll_batch(
+            db,
+            company_id=company_id,
+            period=period,
+            mark_sent=True,
+            worker_ids=worker_ids,
+        )
     platform_url = str(link.get("platform_public_url") or "").rstrip("/")
     body = {
         **batch,
+        "kind": PAYROLL_BATCH_FORMAT,
         "event": "payroll.batch",
         "pullUrl": (
             f"{platform_url}/api/v2/accounting/payroll-batch?period={batch['period']}"
@@ -231,6 +290,7 @@ def push_payroll_batch_to_lohn(
     return {
         "ok": bool(result.get("ok")),
         "capability": PAYROLL_BATCH_FORMAT,
+        "kind": PAYROLL_BATCH_FORMAT,
         "path": PAYROLL_BATCH_PATH,
         "push": result,
         "batch": {
@@ -242,7 +302,9 @@ def push_payroll_batch_to_lohn(
             "payrollReadyCount": batch.get("payrollReadyCount"),
             "incompleteCount": batch.get("incompleteCount"),
             "totalHours": batch.get("totalHours"),
+            "totalDays": batch.get("totalDays"),
             "totalGrossEstimate": batch.get("totalGrossEstimate"),
+            "employees": batch.get("employees") or [],
         },
     }
 
@@ -537,6 +599,7 @@ def notify_employee_data_resolved(
 
     link = get_platform_link(db)
     push: dict[str, Any] = {"ok": False, "skipped": True, "error": "platform_link_disabled"}
+    payroll_push: dict[str, Any] = {"ok": False, "skipped": True}
     if link.get("enabled") and str(link.get("base_url") or "").strip():
         body = {
             "ok": True,
@@ -567,17 +630,65 @@ def notify_employee_data_resolved(
             event="employees.updated",
             timeout=min(float(timeout or 10), 8.0),
         )
+        # Also push hours/Brutto for the active payroll month so Lohn does not stay on «Brutto fehlt».
+        try:
+            from .monthly_job import previous_period
+
+            period_for_batch = previous_period()
+            open_alert = db.execute(
+                """
+                SELECT period FROM lohn_data_alerts
+                WHERE company_id = ? AND worker_id = ? AND status = 'open'
+                  AND COALESCE(period, '') != ''
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (company_id, worker_id),
+            ).fetchone()
+            if open_alert and str(open_alert["period"] or "").strip():
+                period_for_batch = str(open_alert["period"]).strip()[:7]
+            else:
+                msg_period = db.execute(
+                    """
+                    SELECT period FROM accounting_messages
+                    WHERE company_id = ? AND worker_id = ?
+                      AND COALESCE(period, '') != ''
+                    ORDER BY received_at DESC
+                    LIMIT 1
+                    """,
+                    (company_id, worker_id),
+                ).fetchone()
+                if msg_period and str(msg_period["period"] or "").strip():
+                    period_for_batch = str(msg_period["period"]).strip()[:7]
+            single_batch = prepare_payroll_batch(
+                db,
+                company_id=company_id,
+                period=period_for_batch,
+                mark_sent=True,
+                worker_ids=[worker_id],
+            )
+            payroll_push = push_payroll_batch_to_lohn(
+                db,
+                company_id=company_id,
+                period=period_for_batch,
+                batch=single_batch,
+                worker_ids=[worker_id],
+            )
+        except Exception as exc:
+            payroll_push = {"ok": False, "error": str(exc)[:160]}
 
     return {
-        "ok": bool(push.get("ok")) or int(alerts.get("dismissed") or 0) > 0 or any(
-            bool(a.get("ok")) for a in message_acks if isinstance(a, dict)
-        ),
+        "ok": bool(push.get("ok"))
+        or bool(payroll_push.get("ok"))
+        or int(alerts.get("dismissed") or 0) > 0
+        or any(bool(a.get("ok")) for a in message_acks if isinstance(a, dict)),
         "companyId": company_id,
         "workerId": worker_id,
         "payrollReady": payroll_ready,
         "missingFields": missing,
         "employee": employee,
         "push": push,
+        "payrollBatchPush": payroll_push,
         "alerts": alerts,
         "messageAcks": message_acks,
         "path": "/v1/employees/import",
@@ -788,12 +899,67 @@ def auto_fulfill_lohn_data_request(
             except Exception as exc:
                 replies["employeeResolved"] = {"ok": False, "error": str(exc)[:160]}
             mark_done = bool((replies.get("employeeResolved") or {}).get("ok"))
+            employee_payload = (replies.get("employeeResolved") or {}).get("employee")
             return {
                 "ok": mark_done,
                 "status": "delivered" if mark_done else "partial",
                 "mode": "employee",
                 "replies": replies,
+                "payload": {
+                    "companyId": company_id,
+                    "workerId": worker_id,
+                    "employees": [employee_payload] if employee_payload else [],
+                },
                 "message": "Employee master pushed to WorkPass Lohn",
+            }
+
+        if worker_id and period_norm and want_payroll:
+            # Single-person payroll repair: hours/SV/KK for one employee only
+            single_batch: dict[str, Any] = {
+                "ok": False,
+                "kind": PAYROLL_BATCH_FORMAT,
+                "companyId": company_id,
+                "period": period_norm,
+                "employees": [],
+            }
+            try:
+                replies["employeeResolved"] = notify_employee_data_resolved(
+                    db,
+                    company_id=company_id,
+                    worker_id=worker_id,
+                    actor_user_id="system-lohn-auto",
+                    source=source,
+                )
+            except Exception as exc:
+                replies["employeeResolved"] = {"ok": False, "error": str(exc)[:160]}
+            try:
+                single_batch = prepare_payroll_batch(
+                    db,
+                    company_id=company_id,
+                    period=period_norm,
+                    mark_sent=True,
+                    worker_ids=[worker_id],
+                )
+                replies["payrollBatch"] = push_payroll_batch_to_lohn(
+                    db,
+                    company_id=company_id,
+                    period=period_norm,
+                    batch=single_batch,
+                    worker_ids=[worker_id],
+                )
+            except Exception as exc:
+                replies["payrollBatch"] = {"ok": False, "error": str(exc)[:160]}
+            mark_done = bool(
+                (replies.get("payrollBatch") or {}).get("ok")
+                or (replies.get("employeeResolved") or {}).get("ok")
+            )
+            return {
+                "ok": mark_done,
+                "status": "delivered" if mark_done else "partial",
+                "mode": "employee_period",
+                "replies": replies,
+                "payload": single_batch,
+                "message": "Single-employee payroll batch pushed to WorkPass Lohn",
             }
 
         if period_norm and (want_employees or want_payroll):
@@ -868,6 +1034,12 @@ def auto_fulfill_lohn_data_request(
                 "status": delivery.get("status") or "delivered",
                 "mode": "period",
                 "replies": replies,
+                "payload": {
+                    "kind": PAYROLL_BATCH_FORMAT,
+                    "companyId": company_id,
+                    "period": period_norm,
+                    "delivery": delivery,
+                },
                 "message": delivery.get("message")
                 or "Mitarbeiter und Abrechnungsdaten automatisch an WorkPass Lohn übergeben",
                 "error": delivery.get("error"),

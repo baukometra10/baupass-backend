@@ -467,7 +467,21 @@
               <label><span data-cpi18n="employeeNationality">Staatsangehörigkeit</span><input id="employeeNationality" /></label>
               <label><span data-cpi18n="employeeWorkPermit">Arbeitserlaubnis</span><input id="employeeWorkPermit" /></label>
               <label><span data-cpi18n="employeeIban">IBAN</span><input id="employeeIban" /></label>
+              <label><span data-cpi18n="employeeBankName">Bank</span><input id="employeeBankName" data-cpi18n="employeeBankNamePh" data-cpi18n-attr="placeholder" placeholder="z. B. Berliner Sparkasse" /></label>
               <label><span data-cpi18n="employeeTaxId">Steuer-ID</span><input id="employeeTaxId" /></label>
+              <label><span data-cpi18n="employeeTaxClass">Steuerklasse</span>
+                <select id="employeeTaxClass">
+                  <option value="">—</option>
+                  <option value="I">I</option>
+                  <option value="II">II</option>
+                  <option value="III">III</option>
+                  <option value="IV">IV</option>
+                  <option value="V">V</option>
+                  <option value="VI">VI</option>
+                </select>
+              </label>
+              <label><span data-cpi18n="employeeHealthFund">Krankenkasse (KK)</span><input id="employeeHealthFund" data-cpi18n="employeeHealthFundPh" data-cpi18n-attr="placeholder" placeholder="z. B. AOK, TK" /></label>
+              <label><span data-cpi18n="employeePersonnelNumber">Personalnummer</span><input id="employeePersonnelNumber" /></label>
             </div>
           </section>
           <section class="field-section">
@@ -582,7 +596,7 @@
       </form>
     </div>
   </div>
-  <script src="/admin-v2/contracts-i18n.js?v=20260811pwd2"></script>
+  <script src="/admin-v2/contracts-i18n.js?v=20260813lohn1"></script>
   <script src="/admin-v2/contracts-validate.js?v=20260723harden2"></script>
   <script src="/e2e-i18n.js?v=20260810e2e2"></script>
   <script src="/e2e-crypto.js?v=20260707e2e3"></script>
@@ -595,6 +609,6 @@
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/ai-operator-fab.js?v=20260725p"></script>
   <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
-  <script src="/admin-v2/contracts-app.js?v=20260811pwd2"></script>
+  <script src="/admin-v2/contracts-app.js?v=20260813lohn1"></script>
 </body>
 </html>
