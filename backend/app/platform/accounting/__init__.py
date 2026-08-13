@@ -380,11 +380,18 @@ def register_accounting_blueprint(flask_app) -> None:
             from .monthly_job import previous_period
 
             period = previous_period()
+        allow_incomplete = str(request.args.get("allowIncomplete") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         try:
             gate = period_handoff_gate(get_db(), company_id=integ["company_id"], period=period)
         except ValueError:
             return jsonify({"error": "invalid_period"}), 400
-        if gate:
+        # Lohn auto-pull always sends allowIncomplete=1; blocking with 409 forced fallback
+        # to /api/contracts which overwrote real hours with empty wageItems.
+        if gate and not allow_incomplete:
             return jsonify(gate), 409
         try:
             payload = prepare_hour_export(
@@ -396,7 +403,7 @@ def register_accounting_blueprint(flask_app) -> None:
         except ValueError as exc:
             code = "company_id_required" if "company" in str(exc) else "invalid_period"
             return jsonify({"error": code}), 400
-        payload["handoffStatus"] = "confirmed"
+        payload["handoffStatus"] = "confirmed" if not gate else "allow_incomplete"
         return jsonify(payload), 200
 
     @accounting_bp.get("/v2/accounting/payroll-batch")
@@ -425,11 +432,15 @@ def register_accounting_blueprint(flask_app) -> None:
             from .monthly_job import previous_period
 
             period = previous_period()
+        allow_incomplete = (
+            str(request.args.get("allowIncomplete") or "").strip().lower() in {"1", "true", "yes"}
+            or bool(data.get("allowIncomplete"))
+        )
         try:
             gate = period_handoff_gate(get_db(), company_id=integ["company_id"], period=period)
         except ValueError:
             return jsonify({"error": "invalid_period"}), 400
-        if gate:
+        if gate and not allow_incomplete:
             return jsonify(gate), 409
         try:
             payload = prepare_payroll_batch(
@@ -441,7 +452,7 @@ def register_accounting_blueprint(flask_app) -> None:
         except ValueError as exc:
             code = "company_id_required" if "company" in str(exc) else "invalid_period"
             return jsonify({"error": code}), 400
-        payload["handoffStatus"] = "confirmed"
+        payload["handoffStatus"] = "confirmed" if not gate else "allow_incomplete"
         return jsonify(payload), 200
 
     @accounting_bp.get("/v2/accounting/statements")

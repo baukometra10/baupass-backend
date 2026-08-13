@@ -564,14 +564,29 @@ def _post_lohn_json(
         try:
             with urlrequest.urlopen(req, timeout=max(2.0, float(timeout or 20))) as resp:
                 text, parsed = _decode_body(resp.read())
+                # HTTP 200 is not enough: Lohn may return ok:false with per-employee gaps.
+                body_ok = True
+                if isinstance(parsed, dict) and "ok" in parsed:
+                    body_ok = bool(parsed.get("ok"))
                 out = {
-                    "ok": True,
+                    "ok": body_ok,
                     "status": int(resp.status),
                     "url": url,
-                    "body": text[:800],
+                    "body": text[:2000],
                 }
                 if parsed is not None:
                     out["json"] = parsed
+                    if not body_ok:
+                        errs = parsed.get("errors") or []
+                        if not errs:
+                            for row in parsed.get("results") or []:
+                                if isinstance(row, dict) and row.get("errors"):
+                                    errs.extend(row.get("errors") or [])
+                        out["error"] = (
+                            "; ".join(str(e) for e in errs[:6])
+                            if errs
+                            else "lohn_payload_rejected"
+                        )
                 return out
         except urlerror.HTTPError as exc:
             detail = ""
