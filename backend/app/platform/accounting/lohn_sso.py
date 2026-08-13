@@ -474,44 +474,9 @@ def build_launch_payload(
             "message": "Buchhaltungs-Domain fehlt. Superadmin muss die Lohn-URL unter Plattform speichern.",
         }
 
-    # Prefer a real Lohn SSO URL (platform-handoff → /lohn.html#suppix-sso=…).
-    login = repo.get_lohn_login(db, company_id)
-    if login:
-        remote = request_lohn_sso_url(
-            link,
-            company_id=company_id,
-            login=login,
-            actor_user_id=actor_user_id,
-        )
-        remote_url = str(remote.get("url") or "")
-        remote_mode = str(remote.get("mode") or "")
-        if (
-            remote.get("ok")
-            and remote_url.startswith("http")
-            and remote_mode in ("platform_handoff", "session_handoff", "lohn_sso")
-            and "lohn.html" in remote_url
-        ):
-            return {
-                "ok": True,
-                "url": remote_url,
-                "baseUrl": api_base,
-                "companyId": company_id,
-                "mode": remote_mode or "lohn_sso",
-                "sso": True,
-                "message": "SSO-Link von WorkPass Lohn.",
-            }
-        # Accept any platform-handoff openUrl even if path varies
-        if remote.get("ok") and remote_url.startswith("http") and remote_mode == "platform_handoff":
-            return {
-                "ok": True,
-                "url": remote_url,
-                "baseUrl": api_base,
-                "companyId": company_id,
-                "mode": "platform_handoff",
-                "sso": True,
-                "message": "SSO-Link von WorkPass Lohn.",
-            }
-
+    # Always return a short SUPPIX ticket URL. Do NOT hand the browser a long
+    # lohn.html#suppix-sso=… URL — window.open(..., "noopener") often drops the
+    # hash fragment, which broke one-click login after we preferred openUrl.
     ticket = mint_sso_ticket(db, company_id=company_id, actor_user_id=actor_user_id)
     pub = (public_base or str(link.get("platform_public_url") or "")).rstrip("/")
     bridge_url = (

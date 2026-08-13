@@ -1251,7 +1251,18 @@ async function openLohnSystem() {
       showActionToast(res?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
       return;
     }
-    window.open(res.url, "_blank", "noopener,noreferrer");
+    // Same-tab navigation for SSO bridge (ticket → redirect with hash).
+    // window.open(..., "noopener") previously dropped #suppix-sso and broke login.
+    const url = String(res.url);
+    if (res.mode === "sso_bridge" || url.includes("sso-enter")) {
+      window.location.assign(url);
+      return;
+    }
+    const win = window.open(url, "_blank");
+    if (!win) {
+      window.location.assign(url);
+      return;
+    }
     if (res.sso) {
       showActionToast(t("lohn.ssoOpening") || "Buchhaltung — SSO-Anmeldung…");
     }

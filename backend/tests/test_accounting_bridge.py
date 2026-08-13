@@ -1347,6 +1347,26 @@ def test_session_handoff_url_uses_lohn_html():
     assert url.startswith("https://workpass-lohn.up.railway.app/lohn.html#suppix-sso=")
 
 
+def test_entgeltabrechnung_pdf_contains_totals():
+    pdf_b64 = service._generate_payslip_pdf_base64(
+        employee_name="Feras Almohammad",
+        employee_id="BP-FA-Z2CIE",
+        company_name="Lufthansa",
+        period="2026-08",
+        document={
+            "employee": {"id": "BP-FA-Z2CIE", "name": "Feras Almohammad"},
+            "company": {"name": "Lufthansa"},
+            "period": "2026-08",
+            "totals": {"gross": 338.58, "net": 266.97, "health": 29.63, "pension": 31.49, "svTotal": 71.61},
+            "wageItems": [{"code": "STD", "label": "Stundenlohn", "quantity": 18.81, "factor": 18, "amount": 338.58}],
+            "bank": {"iban": "DE00", "holder": "Feras"},
+        },
+    )
+    raw = base64.b64decode(pdf_b64)
+    assert raw.startswith(b"%PDF")
+    assert len(raw) > 1200
+
+
 def test_lohn_master_api_key_can_pull_employees(monkeypatch):
     """Lohn SPA sends WORKPASS_API_KEY — must authenticate accounting pulls."""
     from backend.app.platform.accounting.auth import authenticate_lohn_pull_request

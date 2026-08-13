@@ -1525,6 +1525,22 @@ def ingest_statements(
     }
 
 
+def _eur(value: Any) -> str:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return "—"
+    sign = "-" if n < 0 else ""
+    n = abs(n)
+    whole = int(n)
+    cents = int(round((n - whole) * 100))
+    if cents == 100:
+        whole += 1
+        cents = 0
+    whole_s = f"{whole:,}".replace(",", ".")
+    return f"{sign}{whole_s},{cents:02d} €"
+
+
 def _generate_payslip_pdf_base64(
     *,
     employee_name: str,
@@ -1534,34 +1550,169 @@ def _generate_payslip_pdf_base64(
     gross: Any = None,
     net: Any = None,
     title: str = "",
+    document: dict[str, Any] | None = None,
 ) -> str:
-    """Minimal PDF when Lohn delivers JSON payslip docs without pdfBase64."""
+    """
+    Render a German Entgeltabrechnung-style PDF from Lohn payslip JSON.
+    Lohn itself only has client-side html2canvas PDFs — no server PDF bytes.
+    """
     from io import BytesIO
 
+    from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas
+
+    doc = document if isinstance(document, dict) else {}
+    totals = doc.get("totals") if isinstance(doc.get("totals"), dict) else {}
+    bank = doc.get("bank") if isinstance(doc.get("bank"), dict) else {}
+    attendance = doc.get("attendance") if isinstance(doc.get("attendance"), dict) else {}
+    wage_items = doc.get("wageItems") or doc.get("lines") or doc.get("lohnarten") or []
+    if not isinstance(wage_items, list):
+        wage_items = []
+    emp = doc.get("employee") if isinstance(doc.get("employee"), dict) else {}
+    co = doc.get("company") if isinstance(doc.get("company"), dict) else {}
+
+    employee_name = str(employee_name or emp.get("name") or "").strip()
+    employee_id = str(employee_id or emp.get("id") or emp.get("badgeId") or "").strip()
+    company_name = str(company_name or co.get("name") or "").strip()
+    period = str(period or doc.get("period") or "").strip()
+    if gross is None:
+        gross = totals.get("gross")
+    if net is None:
+        net = totals.get("net")
 
     buf = BytesIO()
     c = canvas.Canvas(buf, pagesize=A4)
     width, height = A4
-    y = height - 56
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(48, y, (title or f"Entgeltabrechnung {period}").strip()[:90])
-    y -= 28
-    c.setFont("Helvetica", 11)
-    lines = [
-        f"Firma: {company_name or '—'}",
-        f"Mitarbeiter: {employee_name or employee_id or '—'}",
-        f"Mitarbeiter-ID: {employee_id or '—'}",
-        f"Periode: {period or '—'}",
-        f"Brutto: {gross if gross is not None else '—'}",
-        f"Netto: {net if net is not None else '—'}",
-        "",
-        "Quelle: WorkPass Lohn (JSON-Lieferung). Originaldaten in der Buchhaltung.",
-    ]
-    for line in lines:
-        c.drawString(48, y, str(line)[:110])
-        y -= 18
+    left = 16 * mm
+    right = width - 16 * mm
+    y = height - 16 * mm
+
+    def line(x1: float, y1: float, x2: float, y2: float, w: float = 0.6) -> None:
+        c.setStrokeColor(colors.HexColor("#111111"))
+        c.setLineWidth(w)
+        c.line(x1, y1, x2, y2)
+
+    def text(x: float, yy: float, s: str, *, size: float = 9, bold: bool = False, color="#111111") -> None:
+        c.setFillColor(colors.HexColor(color))
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawString(x, yy, str(s)[:110])
+
+    def text_right(x: float, yy: float, s: str, *, size: float = 9, bold: bool = False) -> None:
+        c.setFillColor(colors.HexColor("#111111"))
+        c.setFont("Helvetica-Bold" if bold else "Helvetica", size)
+        c.drawRightString(x, yy, str(s)[:40])
+
+    # Header
+    text(left, y, company_name or "Arbeitgeber", size=12, bold=True)
+    text_right(right, y, "Entgeltabrechnung", size=12, bold=True)
+    y -= 14
+    text(left, y, f"Mitarbeiter: {employee_name or '—'}", size=10)
+    text_right(right, y, f"Periode {period or '—'}", size=10, bold=True)
+    y -= 12
+    text(left, y, f"Personal-/Badge-Nr.: {employee_id or '—'}", size=9, color="#333333")
+    if attendance:
+        hours = attendance.get("hours") or attendance.get("totalHours") or attendance.get("workedHours")
+        days = attendance.get("days") or attendance.get("workedDays")
+        bits = []
+        if hours is not None:
+            bits.append(f"Stunden: {hours}")
+        if days is not None:
+            bits.append(f"Tage: {days}")
+        if bits:
+            text_right(right, y, " · ".join(bits), size=9)
+    y -= 8
+    line(left, y, right, y, 1.1)
+    y -= 16
+
+    # Wage items table
+    text(left, y, "Bezüge / Lohnarten", size=10, bold=True)
+    y -= 12
+    cols = [left, left + 28 * mm, left + 95 * mm, left + 118 * mm, left + 140 * mm]
+    headers = ["Code", "Bezeichnung", "Menge", "Faktor", "Betrag"]
+    for i, h in enumerate(headers):
+        (text if i < 2 else text_right)(cols[i] if i < 2 else (cols[i] + (22 * mm if i > 2 else 18 * mm)), y, h, size=8, bold=True)
+    y -= 4
+    line(left, y, right, y, 0.5)
+    y -= 12
+    if not wage_items and gross is not None:
+        wage_items = [{"code": "STD", "label": "Stundenlohn", "quantity": "", "factor": "", "amount": gross}]
+    for item in wage_items[:24]:
+        if not isinstance(item, dict):
+            continue
+        if y < 40 * mm:
+            c.showPage()
+            y = height - 20 * mm
+        code = str(item.get("code") or item.get("lohnart") or "")
+        label = str(item.get("label") or item.get("name") or item.get("bezeichnung") or "")
+        qty = item.get("quantity") if item.get("quantity") is not None else item.get("menge")
+        factor = item.get("factor") if item.get("factor") is not None else item.get("satz")
+        amount = item.get("amount") if item.get("amount") is not None else item.get("betrag")
+        text(cols[0], y, code, size=8)
+        text(cols[1], y, label or ("Stundenlohn" if code == "STD" else "—"), size=8)
+        text_right(cols[2] + 18 * mm, y, "" if qty in (None, "") else str(qty), size=8)
+        text_right(cols[3] + 18 * mm, y, "" if factor in (None, "") else _eur(factor).replace(" €", ""), size=8)
+        text_right(right, y, _eur(amount), size=8)
+        y -= 11
+
+    y -= 4
+    line(left, y, right, y, 0.5)
+    y -= 14
+
+    # Totals block
+    text(left, y, "Abrechnung Brutto / Netto", size=10, bold=True)
+    y -= 14
+
+    def row(label: str, value: Any, *, bold: bool = False, emphasize: bool = False) -> None:
+        nonlocal y
+        if y < 28 * mm:
+            c.showPage()
+            y = height - 20 * mm
+        text(left, y, label, size=9, bold=bold)
+        text_right(right, y, _eur(value), size=9, bold=bold or emphasize)
+        y -= 12
+
+    row("Abrechnungs-Brutto", gross if gross is not None else totals.get("gross"), bold=True)
+    row("Lohnsteuer", totals.get("payrollTax"))
+    row("Solidaritätszuschlag", totals.get("solidarity"))
+    row("Kirchensteuer", totals.get("churchTax"))
+    row("Krankenversicherung", totals.get("health"))
+    row("Rentenversicherung", totals.get("pension"))
+    row("Pflegeversicherung", totals.get("care"))
+    row("Arbeitslosenversicherung", totals.get("unemployment"))
+    row("SV gesamt (AN)", totals.get("svTotal"))
+    y -= 2
+    line(left, y, right, y, 0.8)
+    y -= 14
+    row("Abrechnungs-Netto", net if net is not None else totals.get("net"), bold=True, emphasize=True)
+    y -= 6
+    row("AG-Anteil SV", totals.get("employerShare"))
+    row("Umlagen gesamt", totals.get("umlagenTotal"))
+
+    y -= 8
+    line(left, y, right, y, 0.5)
+    y -= 14
+    text(left, y, "Bankverbindung", size=10, bold=True)
+    y -= 12
+    iban = str(bank.get("iban") or bank.get("IBAN") or "—")
+    holder = str(bank.get("holder") or bank.get("accountHolder") or bank.get("name") or "—")
+    bank_name = str(bank.get("bankName") or bank.get("name") or bank.get("bank") or "")
+    text(left, y, f"Kontoinhaber: {holder}", size=9)
+    y -= 11
+    text(left, y, f"IBAN: {iban}", size=9)
+    if bank_name:
+        y -= 11
+        text(left, y, f"Bank: {bank_name}", size=9)
+
+    y = 18 * mm
+    text(
+        left,
+        y,
+        "Entgeltabrechnung nach § 108 Abs. 3 GewO · Datenquelle: WorkPass Lohn",
+        size=7,
+        color="#555555",
+    )
     c.showPage()
     c.save()
     return base64.b64encode(buf.getvalue()).decode("ascii")
@@ -1615,12 +1766,28 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
     net = summary.get("net")
     if net is None:
         net = totals.get("net")
-    hours = document.get("hours") or document.get("totalHours") or summary.get("hours") or 0
+    hours = (
+        document.get("hours")
+        or document.get("totalHours")
+        or (document.get("attendance") or {}).get("hours")
+        or (document.get("attendance") or {}).get("totalHours")
+        or summary.get("hours")
+        or 0
+    )
     hourly = document.get("hourlyRate") or document.get("hourly_rate") or 0
+    if not hourly:
+        for wi in document.get("wageItems") or []:
+            if isinstance(wi, dict) and wi.get("factor") and (wi.get("code") or "") in {"STD", "STDLOHN", ""}:
+                try:
+                    hourly = float(wi.get("factor") or 0)
+                    break
+                except (TypeError, ValueError):
+                    pass
     name = str(employee.get("name") or doc_emp.get("name") or "").strip()
     company_name = str(company.get("name") or doc_co.get("name") or "").strip()
     title = str(delivery.get("title") or f"Entgeltabrechnung {period}").strip()
     delivery_id = str(delivery.get("deliveryId") or delivery.get("jobId") or "").strip()
+    job_id = str(delivery.get("jobId") or document.get("jobId") or "").strip()
     pdf_b64 = (
         delivery.get("pdfBase64")
         or delivery.get("pdf_base64")
@@ -1637,6 +1804,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
             gross=gross,
             net=net,
             title=title,
+            document=document,
         )
     return {
         "companyId": company_id,
@@ -1654,7 +1822,7 @@ def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any
         "employeeName": name,
         "companyName": company_name,
         "deliveryId": delivery_id,
-        "jobId": str(delivery.get("jobId") or ""),
+        "jobId": job_id or str(delivery.get("jobId") or ""),
         "source": "lohn_delivery",
         "document": document or None,
     }
@@ -1837,6 +2005,22 @@ def pull_payslips_from_lohn(
             if d.get("kind") == "platform.employee.delivery.v1" and str(d.get("type") or "") == "invoice":
                 skipped.append({"deliveryId": d.get("deliveryId"), "reason": "invoice_skipped"})
                 continue
+        # Prefer full payroll JSON from Lohn (delivery.document can be thin).
+        job_id = str(d.get("jobId") or "").strip()
+        if job_id:
+            from urllib.parse import quote as _q
+
+            _db_commit(db)
+            full = _lohn_http_get(
+                link,
+                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip",
+                company_id=company_id,
+                event="payroll.payslip",
+            )
+            body_full = full.get("body") if isinstance(full.get("body"), dict) else {}
+            payslip = body_full.get("payslip") if isinstance(body_full.get("payslip"), dict) else None
+            if payslip:
+                d = {**d, "document": payslip}
         stmt = lohn_delivery_to_statement(d)
         if not stmt:
             skipped.append({"deliveryId": d.get("deliveryId"), "reason": "unmapped"})
@@ -1900,6 +2084,145 @@ def pull_payslips_from_lohn(
             else "Keine neuen Abrechnungen in der Lohn-Warteschlange."
         ),
         "note": "Never auto-approve payslips to employees",
+    }
+
+
+def refresh_pending_payslip_pdfs_from_lohn(
+    db,
+    *,
+    company_id: str,
+    period: str | None = None,
+) -> dict[str, Any]:
+    """
+    Rebuild pending statement PDFs from live Lohn payslip JSON
+    (replaces earlier stub one-pagers).
+    """
+    from urllib.parse import quote as _q
+
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .platform_link import get_platform_link
+
+    try:
+        company_id = require_company_id(company_id)
+    except ValueError:
+        return {"ok": False, "error": "company_id_required"}
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
+    link = get_platform_link(db)
+    if not link.get("enabled") or not str(link.get("base_url") or "").strip():
+        return {"ok": False, "error": "platform_link_disabled"}
+
+    period_n = ""
+    if period:
+        try:
+            period_n = normalize_period(str(period).strip()[:7])
+        except ValueError:
+            return {"ok": False, "error": "invalid_period"}
+
+    ensure_accounting_schema(db)
+    sql = """
+        SELECT s.*, w.badge_id, w.first_name, w.last_name
+        FROM payroll_statements s
+        JOIN payroll_statement_batches b ON b.id = s.batch_id
+        LEFT JOIN workers w ON w.id = s.worker_id
+        WHERE s.company_id = ?
+          AND b.status = 'pending_approval'
+          AND s.status IN ('pending', 'unmatched')
+    """
+    args: list[Any] = [company_id]
+    if period_n:
+        sql += " AND s.period = ?"
+        args.append(period_n)
+    rows = db.execute(sql, tuple(args)).fetchall()
+
+    updated: list[str] = []
+    errors: list[dict[str, Any]] = []
+    for row in rows:
+        stmt = dict(row)
+        stmt_id = str(stmt.get("id") or "")
+        try:
+            meta = json.loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        job_id = str(meta.get("jobId") or "").strip()
+        badge = str(
+            meta.get("externalEmployeeId")
+            or meta.get("employeeId")
+            or stmt.get("badge_id")
+            or ""
+        ).strip()
+        per = str(stmt.get("period") or "").strip()
+        if not job_id and badge and per:
+            job_id = f"{company_id}::{badge}::{per}"
+        if not job_id:
+            errors.append({"statementId": stmt_id, "error": "job_id_missing"})
+            continue
+        _db_commit(db)
+        fetched = _lohn_http_get(
+            link,
+            path=f"/v1/payroll/{_q(job_id, safe='')}/payslip",
+            company_id=company_id,
+            event="payroll.payslip.refresh",
+        )
+        body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+        payslip = body.get("payslip") if isinstance(body.get("payslip"), dict) else None
+        if not payslip:
+            errors.append({"statementId": stmt_id, "jobId": job_id, "error": "payslip_not_found"})
+            continue
+        display = f"{stmt.get('first_name') or ''} {stmt.get('last_name') or ''}".strip()
+        pdf_b64 = _generate_payslip_pdf_base64(
+            employee_name=str((payslip.get("employee") or {}).get("name") or display),
+            employee_id=str((payslip.get("employee") or {}).get("id") or badge),
+            company_name=str((payslip.get("company") or {}).get("name") or ""),
+            period=str(payslip.get("period") or per),
+            gross=(payslip.get("totals") or {}).get("gross"),
+            net=(payslip.get("totals") or {}).get("net"),
+            document=payslip,
+        )
+        try:
+            raw = base64.b64decode(pdf_b64)
+        except Exception as exc:
+            errors.append({"statementId": stmt_id, "error": f"pdf_decode:{exc}"})
+            continue
+        file_path = str(stmt.get("file_path") or "").strip()
+        if not file_path:
+            dest_dir = _storage_dir(company_id, per)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            file_path = str(dest_dir / f"{badge or stmt_id}_{secrets.token_hex(3)}.pdf")
+        Path(file_path).write_bytes(raw)
+        meta = {**meta, "jobId": job_id, "document": payslip, "pdfSource": "lohn_refresh"}
+        net_v = (payslip.get("totals") or {}).get("net")
+        db.execute(
+            """
+            UPDATE payroll_statements
+            SET file_path = ?, file_size = ?, meta_json = ?,
+                gross_amount = ?, net_amount = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                file_path,
+                len(raw),
+                json.dumps(meta, ensure_ascii=False),
+                float((payslip.get("totals") or {}).get("gross") or stmt.get("gross_amount") or 0),
+                float(net_v) if net_v is not None else stmt.get("net_amount"),
+                time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                stmt_id,
+            ),
+        )
+        updated.append(stmt_id)
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return {
+        "ok": True,
+        "companyId": company_id,
+        "updatedCount": len(updated),
+        "updated": updated,
+        "errors": errors,
+        "message": f"{len(updated)} Abrechnungs-PDF(s) aus WorkPass Lohn neu aufgebaut.",
     }
 
 

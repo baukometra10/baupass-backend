@@ -56,6 +56,7 @@ def register_accounting_blueprint(flask_app) -> None:
         pull_payslips_from_lohn,
         push_payroll_batch_to_lohn,
         push_stammdaten_to_lohn,
+        refresh_pending_payslip_pdfs_from_lohn,
         reject_batch,
         reject_period_handoff,
         reject_statement,
@@ -989,9 +990,21 @@ def register_accounting_blueprint(flask_app) -> None:
                 status=400,
                 mimetype="text/html; charset=utf-8",
             )
-        # Prefer redirect to Lohn (hash SSO) so navigation stays on Lohn origin.
-        if result.get("redirect"):
-            return redirect(str(result["redirect"]), code=302)
+        # Prefer HTML handoff when URL contains a hash — HTTP Location drops #fragments.
+        redirect_url = str(result.get("redirect") or "").strip()
+        if redirect_url and "#" in redirect_url:
+            html_body = str(result.get("html") or "").strip()
+            if not html_body:
+                from .lohn_sso import render_sso_help_html
+
+                html_body = render_sso_help_html(
+                    ui_url=redirect_url,
+                    email="",
+                    message="Weiterleitung zu WorkPass Lohn (SSO)…",
+                )
+            return Response(html_body, mimetype="text/html; charset=utf-8")
+        if redirect_url:
+            return redirect(redirect_url, code=302)
         if result.get("html"):
             resp = Response(str(result["html"]), mimetype="text/html; charset=utf-8")
             if result.get("mode") == "shell_autologin":
@@ -1123,6 +1136,15 @@ def register_accounting_blueprint(flask_app) -> None:
             period=period,
             redeliver=redeliver,
         )
+        # Always refresh pending PDFs from live Lohn JSON (fixes stub one-pagers).
+        refresh = refresh_pending_payslip_pdfs_from_lohn(
+            get_db(),
+            company_id=company_id,
+            period=period,
+        )
+        result["pdfRefresh"] = refresh
+        if int(refresh.get("updatedCount") or 0) and not int(result.get("createdCount") or 0):
+            result["message"] = refresh.get("message") or result.get("message")
         code = 200 if result.get("ok") else 400
         return jsonify(result), code
 
