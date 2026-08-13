@@ -1475,7 +1475,7 @@ function renderPayslipStudioList() {
       return `<div class="payslip-batch-group" data-batch="${escapeAttr(bid)}">
         <div class="payslip-batch-head">
           <strong>${escapeHtml(batch.companyName || batch.companyId || "—")} · ${escapeHtml(batch.period || "")}</strong>
-          <span>${escapeHtml(String(stmts.length))} PDF · ${escapeHtml(String(releasable))} bereit</span>
+          <span>${escapeHtml(String(stmts.length))} · ${escapeHtml(String(releasable))} ${escapeHtml(t("lohn.ready") || "bereit")}</span>
           <div class="payslip-batch-actions">
             <button type="button" class="primary" data-payslip-batch="release-reviewed" data-batch-id="${escapeAttr(bid)}" ${releasable ? "" : "disabled"}>${escapeHtml(t("lohn.releaseReviewed") || "Alle geprüften senden")}</button>
             <button type="button" data-payslip-batch="reject" data-batch-id="${escapeAttr(bid)}">${escapeHtml(t("lohn.rejectBatch") || "Stapel ablehnen")}</button>
@@ -1505,15 +1505,8 @@ async function renderPayslipIdentity(stmt) {
   card.innerHTML = `
     <h3>${escapeHtml(stmt.displayName || "—")}</h3>
     <span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>
-    <dl>
-      <dt>${escapeHtml(t("lohn.fieldBadge") || "Badge")}</dt><dd>${escapeHtml(stmt.badgeId || "—")}</dd>
-      <dt>${escapeHtml(t("lohn.fieldWorkerId") || "Mitarbeiter-ID")}</dt><dd class="mono">${escapeHtml(stmt.workerId || "—")}</dd>
-      <dt>${escapeHtml(t("lohn.fieldPeriod") || "Periode")}</dt><dd>${escapeHtml(stmt.period || "—")}</dd>
-      <dt>${escapeHtml(t("lohn.fieldNet") || "Netto")}</dt><dd>${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</dd>
-      <dt>${escapeHtml(t("lohn.fieldGross") || "Brutto")}</dt><dd>${escapeHtml(formatPayslipMoney(stmt.grossAmount, stmt.currency))}</dd>
-      <dt>${escapeHtml(t("lohn.fieldMatch") || "Zuordnung")}</dt><dd>${escapeHtml(stmt.matchedBy || "—")} · ${escapeHtml(stmt.matchConfidence || "—")}</dd>
-      <dt>${escapeHtml(t("lohn.fieldFile") || "Datei")}</dt><dd>${escapeHtml(stmt.filename || "—")}</dd>
-    </dl>`;
+    <p class="muted small" style="margin:0.55rem 0 0">${escapeHtml(stmt.period || "")} · ${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</p>
+    <p class="muted small" style="margin:0.25rem 0 0">${escapeHtml(stmt.badgeId || stmt.workerId || "")}</p>`;
 
   let workerOptions = "";
   try {
@@ -1532,18 +1525,59 @@ async function renderPayslipIdentity(stmt) {
 
   const canSend = !!stmt.canRelease;
   actions.innerHTML = `
-    <label class="muted small">${escapeHtml(t("lohn.assignWorker") || "Mitarbeiter zuweisen / korrigieren")}</label>
-    <select id="payslipAssignSelect">
-      <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter wählen —")}</option>
+    <select id="payslipAssignSelect" aria-label="${escapeAttr(t("lohn.assignWorker") || "Mitarbeiter")}">
+      <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter —")}</option>
       ${workerOptions}
     </select>
     <button type="button" data-payslip-action="assign">${escapeHtml(t("lohn.applyAssign") || "Zuordnung speichern")}</button>
-    <button type="button" class="primary" data-payslip-action="release" ${canSend ? "" : "disabled"} title="${escapeAttr(canSend ? "" : t("lohn.releaseBlockedHint") || "Zuerst PDF öffnen und Mitarbeiter zuordnen")}">${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
+    <button type="button" class="primary" data-payslip-action="release" ${canSend ? "" : "disabled"}>${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
     <button type="button" data-payslip-action="reject">${escapeHtml(t("lohn.rejectStatement") || "Ablehnen")}</button>
-    <button type="button" data-payslip-action="next">${escapeHtml(t("lohn.nextStatement") || "Nächstes")}</button>
-    ${!stmt.reviewed ? `<p class="muted small">${escapeHtml(t("lohn.openPdfHint") || "PDF wird geöffnet — danach ist Senden freigeschaltet.")}</p>` : ""}
-    ${canSend ? "" : `<p class="muted small">${escapeHtml(t("lohn.releaseBlockedHint") || "Senden erst nach PDF-Prüfung und gültiger Mitarbeiter-Zuordnung.")}</p>`}
   `;
+}
+
+function loadScriptOnce(src) {
+  return new Promise((resolve) => {
+    if ([...document.scripts].some((s) => s.src === src || s.getAttribute("src") === src)) {
+      resolve(true);
+      return;
+    }
+    const el = document.createElement("script");
+    el.src = src;
+    el.async = true;
+    el.onload = () => resolve(true);
+    el.onerror = () => resolve(false);
+    document.head.appendChild(el);
+  });
+}
+
+async function ensurePayslipCaptureLibs() {
+  const okCanvas = await loadScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+  );
+  const okPdf = await loadScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+  );
+  return !!(okCanvas && okPdf && window.html2canvas && (window.jspdf?.jsPDF || window.jsPDF));
+}
+
+async function captureLohnSheetPdf(iframe) {
+  const ready = await ensurePayslipCaptureLibs();
+  if (!ready) throw new Error("PDF-Capture nicht verfügbar");
+  const doc = iframe?.contentDocument;
+  const sheet = doc?.querySelector("#datevSheetA4");
+  if (!sheet) throw new Error("Lohn-Abrechnungsblatt nicht gefunden");
+  const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
+  const canvas = await window.html2canvas(sheet, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    width: Math.round(sheet.getBoundingClientRect().width) || 794,
+    height: Math.round(sheet.getBoundingClientRect().height) || 1123,
+  });
+  const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
+  return pdf.output("datauristring");
 }
 
 async function selectPayslipStatement(batchId, statementId) {
@@ -1568,21 +1602,45 @@ async function selectPayslipStatement(batchId, statementId) {
     } catch {
       /* ignore */
     }
+    payslipStudioState.pdfObjectUrl = "";
   }
   const iframe = $("payslipStudioPdf");
   try {
-    const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
-    payslipStudioState.pdfObjectUrl = url;
-    if (iframe) iframe.src = url;
-    // Mark reviewed after successful open
+    const token = wpGet(TOKEN_KEY);
+    const headers = { Accept: "text/html" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const sheetRes = await fetch(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet`,
+      { headers },
+    );
+    if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
+    const sheetHtml = await sheetRes.text();
+    if (iframe) {
+      iframe.removeAttribute("src");
+      iframe.srcdoc = sheetHtml;
+    }
     await api(
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
       { method: "POST", body: "{}" },
     );
+    // Capture exact Lohn sheet → PDF for worker delivery (same path Lohn uses).
+    try {
+      await new Promise((r) => setTimeout(r, 120));
+      const dataUri = await captureLohnSheetPdf(iframe);
+      await api(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
+        { method: "POST", body: JSON.stringify({ pdfBase64: dataUri }) },
+      );
+    } catch {
+      /* preview still works; send may require re-open */
+    }
     await refreshPayslipStudio({ keepSelection: true });
   } catch (err) {
-    if (iframe) iframe.src = "about:blank";
-    toast(err?.message || "PDF fehlgeschlagen", "error");
+    if (iframe) {
+      iframe.srcdoc = "";
+      iframe.src = "about:blank";
+    }
+    toast(err?.message || "Abrechnung fehlgeschlagen", "error");
   }
 }
 

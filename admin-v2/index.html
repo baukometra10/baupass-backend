@@ -578,9 +578,8 @@
     <div class="payslip-studio-shell" role="dialog" aria-modal="true" aria-labelledby="payslipStudioTitle">
       <header class="payslip-studio-head">
         <div>
-          <p class="payslip-studio-kicker" data-i18n="lohn.payslipKicker">WorkPass Lohn</p>
           <h2 id="payslipStudioTitle" data-i18n="lohn.payslipReviewTitle">Lohnabrechnungen — Freigabe</h2>
-          <p class="muted small" data-i18n="lohn.payslipReviewHint">PDF öffnen, Mitarbeiter prüfen, dann an die App senden.</p>
+          <p class="muted small" data-i18n="lohn.payslipReviewHint">Original-Abrechnung aus WorkPass Lohn prüfen, dann an die App senden.</p>
         </div>
         <button type="button" id="payslipStudioClose" class="ghost" data-i18n="common.close">Schließen</button>
       </header>
@@ -590,7 +589,7 @@
           <div class="payslip-studio-empty" id="payslipStudioEmpty" data-i18n="lohn.payslipPickOne">Bitte eine Abrechnung links wählen.</div>
           <div class="payslip-studio-work hidden" id="payslipStudioWork">
             <div class="payslip-studio-pdf-wrap">
-              <iframe id="payslipStudioPdf" title="Lohnabrechnung PDF" class="payslip-studio-pdf"></iframe>
+              <iframe id="payslipStudioPdf" title="Lohnabrechnung" class="payslip-studio-pdf"></iframe>
             </div>
             <aside class="payslip-studio-side">
               <div id="payslipIdentityCard" class="payslip-identity"></div>
@@ -606,7 +605,7 @@
   <script src="/tenant-brand-icon.js?v=20260629b"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="app.js?v=20260813payslipReview" type="module"></script>
+  <script src="app.js?v=20260813lohnSheetExact" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

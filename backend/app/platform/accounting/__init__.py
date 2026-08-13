@@ -1471,6 +1471,118 @@ def register_accounting_blueprint(flask_app) -> None:
             conditional=True,
         )
 
+    @accounting_bp.get("/payroll/statements/<batch_id>/<statement_id>/sheet")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_sheet(batch_id: str, statement_id: str):
+        """Exact WorkPass Lohn DatevSheet HTML (same print layout as accounting)."""
+        from flask import Response
+        from urllib.parse import quote as _q
+
+        from .lohn_sheet import build_payslip_print_html, payslip_document_from_meta
+        from .platform_link import get_platform_link
+        from .service import _lohn_http_get
+
+        user = g.current_user
+        db = get_db()
+        batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        meta = {}
+        try:
+            import json as _json
+
+            meta = _json.loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        payslip = payslip_document_from_meta(meta)
+        job_id = str(meta.get("jobId") or "").strip()
+        badge = str(meta.get("externalEmployeeId") or meta.get("employeeId") or stmt.get("badge_id") or "").strip()
+        period = str(stmt.get("period") or batch.get("period") or "")
+        company_id = str(stmt.get("company_id") or batch.get("company_id") or "")
+        if not job_id and company_id and badge and period:
+            job_id = f"{company_id}::{badge}::{period}"
+        if (not payslip or not payslip.get("totals")) and job_id:
+            link = get_platform_link(db)
+            fetched = _lohn_http_get(
+                link,
+                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip",
+                company_id=company_id,
+                event="payroll.payslip.sheet",
+            )
+            body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+            if isinstance(body.get("payslip"), dict):
+                payslip = body["payslip"]
+        # Prefer live Lohn print HTML when available (byte-identical DatevSheet module).
+        if job_id:
+            link = get_platform_link(db)
+            printed = _lohn_http_get(
+                link,
+                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip-print",
+                company_id=company_id,
+                event="payroll.payslip.print",
+            )
+            pbody = printed.get("body") if isinstance(printed.get("body"), dict) else {}
+            if printed.get("ok") and isinstance(pbody.get("html"), str) and len(pbody["html"]) > 200:
+                return Response(pbody["html"], mimetype="text/html; charset=utf-8")
+        html_doc = build_payslip_print_html(payslip or {}, job={"period": period, "employee": {"id": badge}})
+        return Response(html_doc, mimetype="text/html; charset=utf-8")
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/pdf")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_replace_pdf(batch_id: str, statement_id: str):
+        """Store captured Lohn-sheet PDF (html2canvas of exact DatevSheet)."""
+        import base64
+        import json as _json
+        import time
+        from pathlib import Path
+
+        user = g.current_user
+        db = get_db()
+        batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        data = request.get_json(silent=True) or {}
+        pdf_b64 = str(data.get("pdfBase64") or data.get("pdf_base64") or "")
+        if pdf_b64.startswith("data:") and "," in pdf_b64:
+            pdf_b64 = pdf_b64.split(",", 1)[1]
+        if not pdf_b64:
+            return jsonify({"ok": False, "error": "pdf_required"}), 400
+        try:
+            raw = base64.b64decode(pdf_b64)
+        except Exception:
+            return jsonify({"ok": False, "error": "invalid_pdf_base64"}), 400
+        if len(raw) < 20 or not raw.startswith(b"%PDF"):
+            return jsonify({"ok": False, "error": "not_a_pdf"}), 400
+        path = str(stmt.get("file_path") or "").strip()
+        if not path:
+            from .service import _storage_dir
+
+            dest = _storage_dir(str(batch["company_id"]), str(batch.get("period") or stmt.get("period") or "unknown"))
+            dest.mkdir(parents=True, exist_ok=True)
+            path = str(dest / f"{statement_id}_sheet.pdf")
+        Path(path).write_bytes(raw)
+        try:
+            meta = _json.loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        meta["pdfSource"] = "lohn_sheet_capture"
+        db.execute(
+            """
+            UPDATE payroll_statements
+            SET file_path = ?, file_size = ?, meta_json = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (path, len(raw), _json.dumps(meta, ensure_ascii=False), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), statement_id),
+        )
+        db.commit()
+        return jsonify({"ok": True, "statementId": statement_id, "fileSize": len(raw), "pdfSource": "lohn_sheet_capture"}), 200
+
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/review-open")
     @require_auth
     @require_roles("superadmin", "company-admin")
