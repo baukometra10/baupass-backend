@@ -378,6 +378,8 @@ export const EXT_STRINGS = {
     "platform.dbHealth": "Database & login",
     "platform.dbReady": "Login ready",
     "platform.dbNotReady": "Login blocked — check volume and BAUPASS_DB_PATH",
+    "platform.dbStatusUnknown": "Status unknown — check Setup API",
+    "platform.setupStatusFailed": "Setup-status API did not load — /api/health/ready is authoritative.",
     "platform.dbFileOk": "file present",
     "platform.dbFileMissing": "file missing",
     "platform.dbPersistent": "persistent (/data)",
