@@ -186,6 +186,16 @@ After confirmation the platform pushes `platform.payroll.batch.v1` (employees + 
 - `GET /api/v2/accounting/hours?period=2026-07`
 - `GET|POST /api/v2/accounting/payroll-batch?period=2026-07`
 
+**Lohn pull URL rule (critical):** auto-pull must use `payroll-batch` / `hours`, never `/api/contracts`
+as a payroll fallback (contracts overwrite real `wageItems` / `company.name` and create false gaps).
+Set `WORKPASS_PLATFORM_PAYROLL_PULL_URL=https://suppix-ai-workpass.com/api/v2/accounting/payroll-batch`
+on the Lohn service. If a live Lohn deploy still lists `/api/contracts` in `resolvePlatformPullUrls`,
+re-apply: `.\deploy\patch-lohn-payroll-pull-urls.ps1` (survives only until the next Lohn image redeploy
+from its own repo — merge the same change into Lohn source for permanence).
+
+`allowIncomplete=1` on hours/payroll-batch pulls is accepted so Lohn does not fall back to contracts
+when a period handoff is still pending.
+
 Status check:
 
 ```http
