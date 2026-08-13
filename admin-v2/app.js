@@ -3056,7 +3056,7 @@ async function loadPlatform() {
       <p class="admin-superadmin-banner">${t("platform.superadminOnly")}</p>
       <div class="platform-setup-banner ${dbEarly.loginReady === false ? "warn" : "ok"}">
         <strong>${t("platform.dbHealth")}</strong>
-        <p class="muted small">${dbEarly.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
+        <p class="muted small">${dbEarly.loginReady === false ? t("platform.dbNotReady") : (dbEarly.loginReady === true ? t("platform.dbReady") : (t("platform.dbStatusUnknown") || "Status wird geladen…"))}
         · ${t("platform.globalMaturity")}: <strong>${caps.maturityScore ?? "—"}/100</strong>
         · ${t("platform.readiness")}: ${statusBadge(ready.ready)}</p>
       </div>
@@ -3181,13 +3181,23 @@ async function loadPlatform() {
         </label>`,
     ).join("");
     const db = setup?.database || {};
-    const dbBannerClass = db.loginReady === false ? "warn" : "ok";
+    const dbKnown = typeof db.loginReady === "boolean";
+    const dbBannerClass = db.loginReady === false ? "warn" : (dbKnown ? "ok" : "info");
+    const dbReadyLabel = db.loginReady === false
+      ? t("platform.dbNotReady")
+      : (db.loginReady === true ? t("platform.dbReady") : (t("platform.dbStatusUnknown") || "Status unbekannt — Setup-API prüfen"));
+    const dbFileLabel = !dbKnown
+      ? (t("platform.dbStatusUnknown") || "Status unbekannt")
+      : (db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing"));
+    const dbPersistLabel = !dbKnown
+      ? ""
+      : (db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral"));
     const maturityScore = caps.maturityScore ?? "—";
     const maturityLevel = caps.maturityLevel || "";
-    const runtimeLabel = caps.dataLayer?.runtime || "—";
-    const redisOk = !!caps.dataLayer?.redisConfigured;
+    const runtimeLabel = caps.dataLayer?.runtime || ready.checks?.database?.backend || "—";
+    const redisOk = !!(caps.dataLayer?.redisConfigured || ready.checks?.redis?.ok);
     const readyOk = !!ready.ready;
-    const workersActive = bgEarly.workers?.active ?? health.checks?.workers?.active ?? "—";
+    const workersActive = bgEarly.workers?.active ?? health.checks?.workers?.active ?? ready.checks?.queues?.stats?.default?.started ?? "—";
     const setupLines = (setup?.readyScore?.missing || [])
       .map((m) => `<li class="miss">○ ${escapeHtml(m)}</li>`)
       .join("");
@@ -3273,23 +3283,25 @@ async function loadPlatform() {
             <div class="platform-kpi">
               <span>${t("platform.dbHealth")}</span>
               <strong>${escapeHtml(runtimeLabel)}</strong>
-              <em>${db.loginReady === false ? t("platform.dbNotReady") : t("platform.dbReady")}</em>
+              <em>${escapeHtml(dbReadyLabel)}</em>
             </div>
             <div class="platform-kpi">
               <span>${t("platform.readiness")}</span>
               <strong>${readyOk ? t("badge.ready") : t("badge.needsSetup")}</strong>
-              <em>Redis ${redisOk ? "OK" : "—"} · RQ ${escapeHtml(String(workersActive))}</em>
+              <em>Redis ${redisOk ? "OK" : (readyOk ? "OK*" : "—")} · RQ ${escapeHtml(String(workersActive))}</em>
             </div>
           </div>
         </header>
 
         <div class="platform-setup-banner ${dbBannerClass}">
           <strong>${t("platform.dbHealth")}</strong>
-          <p class="muted small">${db.loginReady ? t("platform.dbReady") : t("platform.dbNotReady")}
-          · ${db.sqliteFileExists ? t("platform.dbFileOk") : t("platform.dbFileMissing")}
-          · ${db.persistent ? t("platform.dbPersistent") : t("platform.dbEphemeral")}
-          ${db.sqliteSizeBytes ? ` · ${Math.round(Number(db.sqliteSizeBytes) / 1024)} KB` : ""}</p>
+          <p class="muted small">${escapeHtml(dbReadyLabel)}
+          · ${escapeHtml(dbFileLabel)}
+          ${dbPersistLabel ? ` · ${escapeHtml(dbPersistLabel)}` : ""}
+          ${db.sqliteSizeBytes ? ` · ${Math.round(Number(db.sqliteSizeBytes) / 1024)} KB` : ""}
+          ${readyOk && !dbKnown ? ` · health/ready: OK (${escapeHtml(String(ready.checks?.database?.path || ""))})` : ""}</p>
           ${(db.railwayHints || []).map((h) => `<p class="muted small">${escapeHtml(h)}</p>`).join("")}
+          ${!setup ? `<p class="muted small">${t("platform.setupStatusFailed") || "Setup-Status API nicht geladen — /api/health/ready ist maßgeblich."}</p>` : ""}
         </div>
 
         ${lohnPanel}
