@@ -158,11 +158,48 @@ def ensure_accounting_schema(db) -> None:
         db.execute(sql)
     _ensure_integration_login_columns(db)
     _ensure_accounting_message_banner_column(db)
+    _ensure_payroll_statement_review_columns(db)
     try:
         db.commit()
     except Exception:
         pass
     _ENSURED = True
+
+
+def _ensure_payroll_statement_review_columns(db) -> None:
+    """Human review gate before payslips reach the worker app."""
+    cols: set[str] = set()
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(payroll_statements)").fetchall()}
+    except Exception:
+        cols = set()
+    wanted = {
+        "reviewed_at": "TEXT",
+        "reviewed_by_user_id": "TEXT",
+        "matched_by": "TEXT NOT NULL DEFAULT ''",
+        "match_confidence": "TEXT NOT NULL DEFAULT ''",
+        "assigned_at": "TEXT",
+        "assigned_by_user_id": "TEXT",
+        "rejected_at": "TEXT",
+        "rejected_by_user_id": "TEXT",
+        "reject_reason": "TEXT NOT NULL DEFAULT ''",
+    }
+    if cols:
+        for name, decl in wanted.items():
+            if name in cols:
+                continue
+            try:
+                db.execute(f"ALTER TABLE payroll_statements ADD COLUMN {name} {decl}")
+            except Exception:
+                pass
+    else:
+        for name, decl in wanted.items():
+            try:
+                db.execute(
+                    f"ALTER TABLE payroll_statements ADD COLUMN IF NOT EXISTS {name} {decl}"
+                )
+            except Exception:
+                pass
 
 
 def _ensure_accounting_message_banner_column(db) -> None:

@@ -44,9 +44,10 @@ def register_accounting_blueprint(flask_app) -> None:
     )
     from .schema import ensure_accounting_schema
     from .service import (
-        approve_batch,
+        assign_statement_worker,
         confirm_period_handoff,
         ingest_statements,
+        mark_statement_reviewed,
         notify_employee_data_resolved,
         notify_hours_ready,
         period_handoff_gate,
@@ -56,6 +57,9 @@ def register_accounting_blueprint(flask_app) -> None:
         push_stammdaten_to_lohn,
         reject_batch,
         reject_period_handoff,
+        reject_statement,
+        release_reviewed_batch,
+        release_statement,
         request_period_handoff,
     )
 
@@ -1034,8 +1038,13 @@ def register_accounting_blueprint(flask_app) -> None:
         company_id = None if user["role"] == "superadmin" else user.get("company_id")
         if user["role"] == "superadmin" and request.args.get("company_id"):
             company_id = request.args.get("company_id")
-        batches = repo.list_pending_batches(get_db(), company_id=company_id)
-        return jsonify({"ok": True, "batches": batches}), 200
+        enrich = str(request.args.get("enrich") or "1").strip().lower() not in {"0", "false", "no"}
+        db = get_db()
+        if enrich:
+            batches = repo.list_pending_batches_enriched(db, company_id=company_id)
+        else:
+            batches = repo.list_pending_batches(db, company_id=company_id)
+        return jsonify({"ok": True, "batches": batches, "count": len(batches)}), 200
 
     @accounting_bp.get("/payroll/accounting/employees")
     @require_auth
@@ -1300,20 +1309,184 @@ def register_accounting_blueprint(flask_app) -> None:
         if user["role"] != "superadmin" and batch["company_id"] != user.get("company_id"):
             return jsonify({"error": "forbidden"}), 403
         statements = repo.list_batch_statements(db, batch_id)
-        return jsonify({"ok": True, "batch": batch, "statements": statements}), 200
+        company_name = ""
+        try:
+            crow = db.execute(
+                "SELECT name FROM companies WHERE id = ?", (batch["company_id"],)
+            ).fetchone()
+            company_name = str((crow["name"] if crow else "") or "")
+        except Exception:
+            company_name = ""
+        reviewed_n = sum(1 for s in statements if s.get("reviewed"))
+        releasable_n = sum(1 for s in statements if s.get("canRelease"))
+        return jsonify(
+            {
+                "ok": True,
+                "batch": {
+                    **batch,
+                    "companyId": batch.get("company_id"),
+                    "companyName": company_name,
+                    "reviewedCount": reviewed_n,
+                    "releasableCount": releasable_n,
+                },
+                "statements": statements,
+            }
+        ), 200
 
-    @accounting_bp.post("/payroll/statements/<batch_id>/approve")
+    def _statement_scope_or_error(db, batch_id: str, statement_id: str, user: dict):
+        batch = repo.get_batch(db, batch_id)
+        if not batch:
+            return None, None, (jsonify({"error": "batch_not_found"}), 404)
+        stmt = repo.get_statement(db, statement_id)
+        if not stmt or str(stmt.get("batch_id") or "") != str(batch_id):
+            return None, None, (jsonify({"error": "statement_not_found"}), 404)
+        if user["role"] != "superadmin" and batch["company_id"] != user.get("company_id"):
+            return None, None, (jsonify({"error": "forbidden"}), 403)
+        return batch, stmt, None
+
+    @accounting_bp.get("/payroll/statements/<batch_id>/<statement_id>/pdf")
     @require_auth
     @require_roles("superadmin", "company-admin")
-    def admin_approve_batch(batch_id: str):
+    def admin_statement_pdf(batch_id: str, statement_id: str):
+        from flask import send_file
+
+        user = g.current_user
+        db = get_db()
+        _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        from pathlib import Path
+
+        path = str(stmt.get("file_path") or "")
+        if not path or not Path(path).is_file():
+            return jsonify({"error": "missing_pdf"}), 404
+        download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
+        return send_file(
+            path,
+            mimetype="application/pdf",
+            as_attachment=download,
+            download_name=str(stmt.get("filename") or "lohnabrechnung.pdf"),
+            conditional=True,
+        )
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/review-open")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_review_open(batch_id: str, statement_id: str):
+        user = g.current_user
+        db = get_db()
+        _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = mark_statement_reviewed(
+            db,
+            statement_id=statement_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/assign")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_assign(batch_id: str, statement_id: str):
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        db = get_db()
+        _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = assign_statement_worker(
+            db,
+            statement_id=statement_id,
+            worker_id=str(data.get("workerId") or data.get("worker_id") or ""),
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        code = 200 if result.get("ok") else (
+            404 if result.get("error") == "worker_not_found" else (
+                403 if result.get("error") == "forbidden_company" else 400
+            )
+        )
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/release")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_release(batch_id: str, statement_id: str):
+        user = g.current_user
+        db = get_db()
+        _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = release_statement(
+            db,
+            statement_id=statement_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+            require_reviewed=True,
+        )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/reject")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_reject(batch_id: str, statement_id: str):
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        db = get_db()
+        _batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = reject_statement(
+            db,
+            statement_id=statement_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+            reason=str(data.get("reason") or ""),
+        )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/release-reviewed")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_release_reviewed_batch(batch_id: str):
         user = g.current_user
         company_scope = None if user["role"] == "superadmin" else user.get("company_id")
-        result = approve_batch(
+        result = release_reviewed_batch(
             get_db(),
             batch_id=batch_id,
             actor_user_id=str(user.get("id") or ""),
             company_id=company_scope,
         )
+        code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        return jsonify(result), code
+
+    @accounting_bp.post("/payroll/statements/<batch_id>/approve")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_approve_batch(batch_id: str):
+        """Legacy alias — only releases statements that were reviewed (never blind)."""
+        user = g.current_user
+        company_scope = None if user["role"] == "superadmin" else user.get("company_id")
+        result = release_reviewed_batch(
+            get_db(),
+            batch_id=batch_id,
+            actor_user_id=str(user.get("id") or ""),
+            company_id=company_scope,
+        )
+        if result.get("ok") and int(result.get("released") or 0) == 0:
+            result["hint"] = (
+                "Keine freigabefähigen Positionen — PDF öffnen, Mitarbeiter prüfen, "
+                "dann einzeln senden oder Alle geprüften senden"
+            )
         code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
         return jsonify(result), code
 

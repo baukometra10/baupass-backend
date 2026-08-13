@@ -32,7 +32,7 @@ _MISSING_DATA_KINDS = frozenset(
 def resolve_company_worker(db, company_id: str, raw_id: str) -> dict[str, Any] | None:
     """
     Map Lohn employeeId / workerId / badge to a SUPPIX worker row.
-    Returns id, names, badgeId, displayName — or None.
+    Returns id, names, badgeId, displayName, matchedBy, matchConfidence — or None.
     """
     company_id = str(company_id or "").strip()
     raw = str(raw_id or "").strip()
@@ -65,12 +65,30 @@ def resolve_company_worker(db, company_id: str, raw_id: str) -> dict[str, Any] |
     first = str(row["first_name"] or "").strip()
     last = str(row["last_name"] or "").strip()
     display = f"{first} {last}".strip() or str(row["badge_id"] or row["id"] or "").strip()
+    wid = str(row["id"] or "").strip()
+    matched_by = "id"
+    confidence = "exact"
+    raw_l = raw.lower()
+    if wid == raw:
+        matched_by, confidence = "id", "exact"
+    elif str(row["badge_id"] or "").strip().lower() == raw_l:
+        matched_by, confidence = "badge", "strong"
+    elif str(row["badge_id_lookup"] or "").strip().lower() == raw_l:
+        matched_by, confidence = "badge_lookup", "strong"
+    elif str(row["physical_card_id"] or "").strip().lower() == raw_l:
+        matched_by, confidence = "card", "strong"
+    elif str(row["insurance_number"] or "").strip().lower() == raw_l:
+        matched_by, confidence = "insurance", "weak"
+    elif str(row["contact_email"] or "").strip().lower() == raw_l:
+        matched_by, confidence = "email", "weak"
     return {
-        "id": str(row["id"] or "").strip(),
+        "id": wid,
         "firstName": first,
         "lastName": last,
         "badgeId": str(row["badge_id"] or "").strip(),
         "displayName": display,
+        "matchedBy": matched_by,
+        "matchConfidence": confidence,
     }
 
 

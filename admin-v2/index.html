@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260812lohnPolish" />
+  <link rel="stylesheet" href="styles.css?v=20260813payslipReview" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -565,17 +565,47 @@
       </header>
       <div id="lohnDrawerBody" class="lohn-drawer-body"></div>
       <footer class="lohn-drawer-foot">
+        <button type="button" id="lohnDrawerPayslips" class="primary" data-i18n="lohn.openPayslipReview">Lohnabrechnungen prüfen</button>
         <button type="button" id="lohnDrawerRefresh" data-i18n="lohn.drawerRefresh">Aktualisieren</button>
         <a id="lohnDrawerOpsLink" href="/ops-command-center.html#lohnHub" target="_blank" rel="noopener" data-i18n="lohn.drawerOpenOps">Ops Zentrale</a>
       </footer>
     </aside>
   </div>
 
+  <div id="payslipReviewStudio" class="payslip-studio hidden" aria-hidden="true">
+    <div class="payslip-studio-backdrop" id="payslipStudioBackdrop"></div>
+    <div class="payslip-studio-shell" role="dialog" aria-modal="true" aria-labelledby="payslipStudioTitle">
+      <header class="payslip-studio-head">
+        <div>
+          <p class="payslip-studio-kicker" data-i18n="lohn.payslipKicker">WorkPass Lohn</p>
+          <h2 id="payslipStudioTitle" data-i18n="lohn.payslipReviewTitle">Lohnabrechnungen — Freigabe</h2>
+          <p class="muted small" data-i18n="lohn.payslipReviewHint">PDF öffnen, Mitarbeiter prüfen, dann an die App senden.</p>
+        </div>
+        <button type="button" id="payslipStudioClose" class="ghost" data-i18n="common.close">Schließen</button>
+      </header>
+      <div class="payslip-studio-layout">
+        <aside class="payslip-studio-list" id="payslipStudioList"></aside>
+        <section class="payslip-studio-main" id="payslipStudioMain">
+          <div class="payslip-studio-empty" id="payslipStudioEmpty" data-i18n="lohn.payslipPickOne">Bitte eine Abrechnung links wählen.</div>
+          <div class="payslip-studio-work hidden" id="payslipStudioWork">
+            <div class="payslip-studio-pdf-wrap">
+              <iframe id="payslipStudioPdf" title="Lohnabrechnung PDF" class="payslip-studio-pdf"></iframe>
+            </div>
+            <aside class="payslip-studio-side">
+              <div id="payslipIdentityCard" class="payslip-identity"></div>
+              <div class="payslip-studio-actions" id="payslipStudioActions"></div>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
   <script src="/geo-precision.js?v=20260624geofence12"></script>
   <script src="/tenant-brand-icon.js?v=20260629b"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="app.js?v=20260812lohnPolish" type="module"></script>
+  <script src="app.js?v=20260813payslipReview" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

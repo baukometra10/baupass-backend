@@ -27,7 +27,8 @@ def _db():
         """
         CREATE TABLE workers (
             id TEXT PRIMARY KEY, company_id TEXT, first_name TEXT, last_name TEXT,
-            badge_id TEXT, insurance_number TEXT, status TEXT, deleted_at TEXT
+            badge_id TEXT, badge_id_lookup TEXT, physical_card_id TEXT,
+            insurance_number TEXT, contact_email TEXT, site TEXT, status TEXT, deleted_at TEXT
         )
         """
     )
@@ -60,8 +61,8 @@ def _db():
     conn.execute("INSERT INTO companies (id, name) VALUES ('c1', 'Demo GmbH')")
     conn.execute(
         """
-        INSERT INTO workers (id, company_id, first_name, last_name, badge_id, insurance_number, status, deleted_at)
-        VALUES ('w1', 'c1', 'Ali', 'Hassan', 'B1', '', 'active', NULL)
+        INSERT INTO workers (id, company_id, first_name, last_name, badge_id, badge_id_lookup, physical_card_id, insurance_number, contact_email, site, status, deleted_at)
+        VALUES ('w1', 'c1', 'Ali', 'Hassan', 'B1', 'b1', '', '', '', 'Berlin', 'active', NULL)
         """
     )
     conn.execute(
@@ -138,7 +139,6 @@ def test_ingest_and_approve_releases_document(tmp_path, monkeypatch):
         notified.append((worker_id, filename, doc_type))
 
     monkeypatch.setattr("backend.server._notify_worker_payroll_document", _fake_notify, raising=False)
-    # Patch import path used inside approve_batch
     import backend.server as server_mod
 
     monkeypatch.setattr(server_mod, "_notify_worker_payroll_document", _fake_notify, raising=False)
@@ -163,13 +163,138 @@ def test_ingest_and_approve_releases_document(tmp_path, monkeypatch):
     )
     assert result["ok"] is True
     batch_id = result["batchId"]
-    approved = service.approve_batch(db, batch_id=batch_id, actor_user_id="admin-1")
+    stmt_id = result["statementIds"][0]
+    # Blind approve must not release without review
+    blocked = service.approve_batch(db, batch_id=batch_id, actor_user_id="admin-1")
+    assert blocked["ok"] is True
+    assert blocked["released"] == 0
+    assert any(e.get("error") == "review_required" for e in blocked.get("errors") or [])
+
+    reviewed = service.mark_statement_reviewed(
+        db, statement_id=stmt_id, actor_user_id="admin-1"
+    )
+    assert reviewed["ok"] is True
+    approved = service.release_statement(
+        db, statement_id=stmt_id, actor_user_id="admin-1", require_reviewed=True
+    )
     assert approved["ok"] is True
-    assert approved["released"] == 1
     doc = db.execute("SELECT doc_type, worker_id FROM worker_documents").fetchone()
     assert doc["doc_type"] == "lohnabrechnung"
     assert doc["worker_id"] == "w1"
     assert notified
+
+
+def test_release_requires_review_and_blocks_cross_company_assign(tmp_path, monkeypatch):
+    db = _db()
+    db.execute("INSERT INTO companies (id, name) VALUES ('c2', 'Other')")
+    db.execute(
+        """
+        INSERT INTO workers (id, company_id, first_name, last_name, badge_id, badge_id_lookup, physical_card_id, insurance_number, contact_email, site, status, deleted_at)
+        VALUES ('w2', 'c2', 'Other', 'Worker', 'X2', '', '', '', '', '', 'active', NULL)
+        """
+    )
+    db.commit()
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    result = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-07",
+        statements=[
+            {
+                "workerId": "w1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+            }
+        ],
+    )
+    stmt_id = result["statementIds"][0]
+    blocked = service.release_statement(
+        db, statement_id=stmt_id, actor_user_id="admin-1", require_reviewed=True
+    )
+    assert blocked["ok"] is False
+    assert blocked["error"] == "review_required"
+
+    reviewed = service.mark_statement_reviewed(db, statement_id=stmt_id, actor_user_id="admin-1")
+    assert reviewed["ok"] is True
+
+    cross = service.assign_statement_worker(
+        db, statement_id=stmt_id, worker_id="w2", actor_user_id="admin-1"
+    )
+    assert cross["ok"] is False
+    assert cross["error"] == "worker_not_found"
+
+    ok_assign = service.assign_statement_worker(
+        db, statement_id=stmt_id, worker_id="w1", actor_user_id="admin-1"
+    )
+    assert ok_assign["ok"] is True
+    assert ok_assign["matchedBy"] == "manual"
+
+    monkeypatch.setattr(
+        "backend.server._notify_worker_payroll_document",
+        lambda *a, **k: None,
+        raising=False,
+    )
+    import backend.server as server_mod
+
+    monkeypatch.setattr(server_mod, "_notify_worker_payroll_document", lambda *a, **k: None, raising=False)
+
+    released = service.release_statement(
+        db, statement_id=stmt_id, actor_user_id="admin-1", require_reviewed=True
+    )
+    assert released["ok"] is True
+    assert db.execute("SELECT COUNT(*) AS c FROM worker_documents").fetchone()["c"] == 1
+
+
+def test_ingest_matches_badge_and_keeps_unmatched_pdf(tmp_path, monkeypatch):
+    db = _db()
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    by_badge = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-08",
+        statements=[
+            {
+                "employeeId": "B1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+            }
+        ],
+    )
+    assert by_badge["createdCount"] == 1
+    row = db.execute("SELECT worker_id, matched_by, status FROM payroll_statements").fetchone()
+    assert row["worker_id"] == "w1"
+    assert row["matched_by"] == "badge"
+    assert row["status"] == "pending"
+
+    unmatched = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-08",
+        statements=[
+            {
+                "employeeId": "unknown-emp",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+            }
+        ],
+    )
+    assert unmatched["createdCount"] == 1
+    u = db.execute(
+        "SELECT worker_id, status, file_path FROM payroll_statements WHERE status = 'unmatched' LIMIT 1"
+    ).fetchone()
+    assert u["worker_id"] == ""
+    assert u["status"] == "unmatched"
+    assert Path(u["file_path"]).is_file()
 
 
 def test_reject_batch_no_release(tmp_path, monkeypatch):

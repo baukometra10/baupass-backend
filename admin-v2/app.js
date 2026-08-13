@@ -1303,6 +1303,399 @@ function closeLohnDrawer() {
   document.body.classList.remove("lohn-drawer-open");
 }
 
+const payslipStudioState = {
+  batches: [],
+  activeBatchId: "",
+  activeStmtId: "",
+  pdfObjectUrl: "",
+  workersByCompany: {},
+};
+
+function toast(message, _kind = "ok") {
+  const text = String(message || "").trim();
+  if (!text) return;
+  try {
+    alert(text);
+  } catch {
+    /* ignore */
+  }
+}
+
+function closePayslipReviewStudio() {
+  const el = $("payslipReviewStudio");
+  el?.classList.add("hidden");
+  el?.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("payslip-studio-open");
+  if (payslipStudioState.pdfObjectUrl) {
+    try {
+      URL.revokeObjectURL(payslipStudioState.pdfObjectUrl);
+    } catch {
+      /* ignore */
+    }
+    payslipStudioState.pdfObjectUrl = "";
+  }
+  const iframe = $("payslipStudioPdf");
+  if (iframe) iframe.src = "about:blank";
+}
+
+function payslipMatchLabel(status) {
+  if (status === "unmatched") return t("lohn.matchUnmatched") || "Nicht zugeordnet";
+  if (status === "ambiguous") return t("lohn.matchAmbiguous") || "Bitte prüfen";
+  return t("lohn.matchMatched") || "Mitarbeiter erkannt";
+}
+
+function formatPayslipMoney(amount, currency) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return "—";
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: currency || "EUR",
+    }).format(n);
+  } catch {
+    return `${n.toFixed(2)} ${currency || "EUR"}`;
+  }
+}
+
+async function fetchPayslipPdfBlobUrl(batchId, statementId) {
+  const token = wpGet(TOKEN_KEY);
+  const headers = { Accept: "application/pdf" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(
+    `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
+    { headers },
+  );
+  if (!res.ok) {
+    let msg = `PDF ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j.error || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+async function loadPayslipWorkers(companyId) {
+  const cid = String(companyId || "").trim();
+  if (!cid) return [];
+  if (Array.isArray(payslipStudioState.workersByCompany[cid])) {
+    return payslipStudioState.workersByCompany[cid];
+  }
+  const data = await apiSoft(
+    `/api/payroll/accounting/employees?company_id=${encodeURIComponent(cid)}`,
+    { employees: [] },
+    8000,
+  );
+  const list = Array.isArray(data?.employees) ? data.employees : [];
+  payslipStudioState.workersByCompany[cid] = list;
+  return list;
+}
+
+function renderPayslipStudioList() {
+  const host = $("payslipStudioList");
+  if (!host) return;
+  const batches = payslipStudioState.batches || [];
+  if (!batches.length) {
+    host.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.")}</div>`;
+    return;
+  }
+  host.innerHTML = batches
+    .map((batch) => {
+      const bid = String(batch.id || "");
+      const stmts = Array.isArray(batch.statements) ? batch.statements : [];
+      const releasable = Number(batch.releasableCount || 0);
+      const items = stmts
+        .map((s) => {
+          const sid = String(s.statementId || s.id || "");
+          const active =
+            bid === payslipStudioState.activeBatchId && sid === payslipStudioState.activeStmtId
+              ? " is-active"
+              : "";
+          const match = String(s.matchStatus || "matched");
+          const badges = [
+            `<span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>`,
+          ];
+          if (s.reviewed) {
+            badges.push(
+              `<span class="payslip-match is-reviewed">${escapeHtml(t("lohn.reviewed") || "Geprüft")}</span>`,
+            );
+          }
+          return `<button type="button" class="payslip-stmt-item${active}" data-payslip-select="${escapeAttr(bid)}::${escapeAttr(sid)}">
+            <div class="name">${escapeHtml(s.displayName || s.workerId || "—")}</div>
+            <div class="meta">${escapeHtml([s.badgeId, s.period, formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency)].filter(Boolean).join(" · "))}</div>
+            ${badges.join(" ")}
+          </button>`;
+        })
+        .join("");
+      return `<div class="payslip-batch-group" data-batch="${escapeAttr(bid)}">
+        <div class="payslip-batch-head">
+          <strong>${escapeHtml(batch.companyName || batch.companyId || "—")} · ${escapeHtml(batch.period || "")}</strong>
+          <span>${escapeHtml(String(stmts.length))} PDF · ${escapeHtml(String(releasable))} bereit</span>
+          <div class="payslip-batch-actions">
+            <button type="button" class="primary" data-payslip-batch="release-reviewed" data-batch-id="${escapeAttr(bid)}" ${releasable ? "" : "disabled"}>${escapeHtml(t("lohn.releaseReviewed") || "Alle geprüften senden")}</button>
+            <button type="button" data-payslip-batch="reject" data-batch-id="${escapeAttr(bid)}">${escapeHtml(t("lohn.rejectBatch") || "Stapel ablehnen")}</button>
+          </div>
+        </div>
+        ${items}
+      </div>`;
+    })
+    .join("");
+}
+
+function currentPayslipStatement() {
+  const batch = (payslipStudioState.batches || []).find(
+    (b) => String(b.id) === String(payslipStudioState.activeBatchId),
+  );
+  if (!batch) return null;
+  return (batch.statements || []).find(
+    (s) => String(s.statementId || s.id) === String(payslipStudioState.activeStmtId),
+  );
+}
+
+async function renderPayslipIdentity(stmt) {
+  const card = $("payslipIdentityCard");
+  const actions = $("payslipStudioActions");
+  if (!card || !actions || !stmt) return;
+  const match = String(stmt.matchStatus || "matched");
+  card.innerHTML = `
+    <h3>${escapeHtml(stmt.displayName || "—")}</h3>
+    <span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>
+    <dl>
+      <dt>${escapeHtml(t("lohn.fieldBadge") || "Badge")}</dt><dd>${escapeHtml(stmt.badgeId || "—")}</dd>
+      <dt>${escapeHtml(t("lohn.fieldWorkerId") || "Mitarbeiter-ID")}</dt><dd class="mono">${escapeHtml(stmt.workerId || "—")}</dd>
+      <dt>${escapeHtml(t("lohn.fieldPeriod") || "Periode")}</dt><dd>${escapeHtml(stmt.period || "—")}</dd>
+      <dt>${escapeHtml(t("lohn.fieldNet") || "Netto")}</dt><dd>${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</dd>
+      <dt>${escapeHtml(t("lohn.fieldGross") || "Brutto")}</dt><dd>${escapeHtml(formatPayslipMoney(stmt.grossAmount, stmt.currency))}</dd>
+      <dt>${escapeHtml(t("lohn.fieldMatch") || "Zuordnung")}</dt><dd>${escapeHtml(stmt.matchedBy || "—")} · ${escapeHtml(stmt.matchConfidence || "—")}</dd>
+      <dt>${escapeHtml(t("lohn.fieldFile") || "Datei")}</dt><dd>${escapeHtml(stmt.filename || "—")}</dd>
+    </dl>`;
+
+  let workerOptions = "";
+  try {
+    const workers = await loadPayslipWorkers(stmt.companyId);
+    workerOptions = workers
+      .map((w) => {
+        const id = String(w.employeeId || w.workerId || w.id || "");
+        const label = `${w.firstName || ""} ${w.lastName || ""}`.trim() || id;
+        const selected = id && id === String(stmt.workerId || "") ? " selected" : "";
+        return `<option value="${escapeAttr(id)}"${selected}>${escapeHtml(label)}${w.badgeId ? ` (${escapeHtml(w.badgeId)})` : ""}</option>`;
+      })
+      .join("");
+  } catch {
+    workerOptions = "";
+  }
+
+  const canSend = !!stmt.canRelease;
+  actions.innerHTML = `
+    <label class="muted small">${escapeHtml(t("lohn.assignWorker") || "Mitarbeiter zuweisen / korrigieren")}</label>
+    <select id="payslipAssignSelect">
+      <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter wählen —")}</option>
+      ${workerOptions}
+    </select>
+    <button type="button" data-payslip-action="assign">${escapeHtml(t("lohn.applyAssign") || "Zuordnung speichern")}</button>
+    <button type="button" class="primary" data-payslip-action="release" ${canSend ? "" : "disabled"} title="${escapeAttr(canSend ? "" : t("lohn.releaseBlockedHint") || "Zuerst PDF öffnen und Mitarbeiter zuordnen")}">${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
+    <button type="button" data-payslip-action="reject">${escapeHtml(t("lohn.rejectStatement") || "Ablehnen")}</button>
+    <button type="button" data-payslip-action="next">${escapeHtml(t("lohn.nextStatement") || "Nächstes")}</button>
+    ${!stmt.reviewed ? `<p class="muted small">${escapeHtml(t("lohn.openPdfHint") || "PDF wird geöffnet — danach ist Senden freigeschaltet.")}</p>` : ""}
+    ${canSend ? "" : `<p class="muted small">${escapeHtml(t("lohn.releaseBlockedHint") || "Senden erst nach PDF-Prüfung und gültiger Mitarbeiter-Zuordnung.")}</p>`}
+  `;
+}
+
+async function selectPayslipStatement(batchId, statementId) {
+  payslipStudioState.activeBatchId = String(batchId || "");
+  payslipStudioState.activeStmtId = String(statementId || "");
+  renderPayslipStudioList();
+  const empty = $("payslipStudioEmpty");
+  const work = $("payslipStudioWork");
+  const stmt = currentPayslipStatement();
+  if (!stmt) {
+    empty?.classList.remove("hidden");
+    work?.classList.add("hidden");
+    return;
+  }
+  empty?.classList.add("hidden");
+  work?.classList.remove("hidden");
+  await renderPayslipIdentity(stmt);
+
+  if (payslipStudioState.pdfObjectUrl) {
+    try {
+      URL.revokeObjectURL(payslipStudioState.pdfObjectUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+  const iframe = $("payslipStudioPdf");
+  try {
+    const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
+    payslipStudioState.pdfObjectUrl = url;
+    if (iframe) iframe.src = url;
+    // Mark reviewed after successful open
+    await api(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
+      { method: "POST", body: "{}" },
+    );
+    await refreshPayslipStudio({ keepSelection: true });
+  } catch (err) {
+    if (iframe) iframe.src = "about:blank";
+    toast(err?.message || "PDF fehlgeschlagen", "error");
+  }
+}
+
+async function refreshPayslipStudio({ keepSelection = false } = {}) {
+  const cid = activeCompanyId();
+  const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
+  const data = await api(`/api/payroll/statements/pending${q}`);
+  payslipStudioState.batches = Array.isArray(data?.batches) ? data.batches : [];
+  renderPayslipStudioList();
+  if (keepSelection && payslipStudioState.activeBatchId && payslipStudioState.activeStmtId) {
+    const still = currentPayslipStatement();
+    if (still) {
+      await renderPayslipIdentity(still);
+      return;
+    }
+  }
+  const firstBatch = payslipStudioState.batches[0];
+  const firstStmt = firstBatch?.statements?.[0];
+  if (firstBatch && firstStmt) {
+    await selectPayslipStatement(firstBatch.id, firstStmt.statementId || firstStmt.id);
+  } else {
+    payslipStudioState.activeBatchId = "";
+    payslipStudioState.activeStmtId = "";
+    $("payslipStudioEmpty")?.classList.remove("hidden");
+    $("payslipStudioWork")?.classList.add("hidden");
+  }
+}
+
+async function openPayslipReviewStudio(opts = {}) {
+  closeLohnDrawer();
+  const el = $("payslipReviewStudio");
+  if (!el) return;
+  el.classList.remove("hidden");
+  el.setAttribute("aria-hidden", "false");
+  document.body.classList.add("payslip-studio-open");
+  $("payslipStudioList").innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
+  try {
+    await refreshPayslipStudio({ keepSelection: false });
+    if (opts.batchId && opts.statementId) {
+      await selectPayslipStatement(opts.batchId, opts.statementId);
+    } else if (opts.batchId) {
+      const batch = payslipStudioState.batches.find((b) => String(b.id) === String(opts.batchId));
+      const stmt = batch?.statements?.[0];
+      if (stmt) await selectPayslipStatement(batch.id, stmt.statementId || stmt.id);
+    }
+  } catch (err) {
+    toast(err?.message || "load_failed", "error");
+  }
+}
+
+function selectNextPayslipStatement() {
+  const flat = [];
+  for (const b of payslipStudioState.batches || []) {
+    for (const s of b.statements || []) {
+      flat.push({ batchId: b.id, statementId: s.statementId || s.id });
+    }
+  }
+  const idx = flat.findIndex(
+    (x) =>
+      String(x.batchId) === String(payslipStudioState.activeBatchId) &&
+      String(x.statementId) === String(payslipStudioState.activeStmtId),
+  );
+  const next = flat[idx + 1] || flat[0];
+  if (next) return selectPayslipStatement(next.batchId, next.statementId);
+}
+
+async function handlePayslipStudioClick(ev) {
+  const selectBtn = ev.target?.closest?.("[data-payslip-select]");
+  if (selectBtn) {
+    const [batchId, statementId] = String(selectBtn.getAttribute("data-payslip-select") || "").split("::");
+    if (batchId && statementId) await selectPayslipStatement(batchId, statementId);
+    return;
+  }
+  const batchAct = ev.target?.closest?.("[data-payslip-batch]");
+  if (batchAct) {
+    const action = batchAct.getAttribute("data-payslip-batch");
+    const batchId = batchAct.getAttribute("data-batch-id");
+    if (!batchId) return;
+    if (action === "release-reviewed") {
+      if (!window.confirm(t("lohn.confirmReleaseReviewed") || "Alle geprüften Abrechnungen an die Mitarbeiter-App senden?")) {
+        return;
+      }
+      const res = await api(`/api/payroll/statements/${encodeURIComponent(batchId)}/release-reviewed`, {
+        method: "POST",
+        body: "{}",
+      });
+      toast(res.message || `${res.released || 0} gesendet`, "ok");
+      await refreshPayslipStudio({ keepSelection: true });
+      broadcastLohnInboxChanged();
+      return;
+    }
+    if (action === "reject") {
+      const reason = window.prompt(t("lohn.rejectReason") || "Grund (optional)", "") || "";
+      if (!window.confirm(t("lohn.confirmRejectBatch") || "Gesamten Stapel ablehnen?")) return;
+      await api(`/api/payroll/statements/${encodeURIComponent(batchId)}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason }),
+      });
+      toast(t("lohn.batchRejected") || "Stapel abgelehnt", "ok");
+      await refreshPayslipStudio({ keepSelection: false });
+      broadcastLohnInboxChanged();
+    }
+    return;
+  }
+  const act = ev.target?.closest?.("[data-payslip-action]");
+  if (!act) return;
+  const action = act.getAttribute("data-payslip-action");
+  const batchId = payslipStudioState.activeBatchId;
+  const statementId = payslipStudioState.activeStmtId;
+  if (!batchId || !statementId) return;
+  if (action === "next") {
+    await selectNextPayslipStatement();
+    return;
+  }
+  if (action === "assign") {
+    const workerId = String($("payslipAssignSelect")?.value || "").trim();
+    if (!workerId) {
+      toast(t("lohn.pickWorker") || "Mitarbeiter wählen", "error");
+      return;
+    }
+    await api(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/assign`,
+      { method: "POST", body: JSON.stringify({ workerId }) },
+    );
+    toast(t("lohn.assignSaved") || "Zuordnung gespeichert", "ok");
+    await refreshPayslipStudio({ keepSelection: true });
+    return;
+  }
+  if (action === "release") {
+    if (!window.confirm(t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?")) {
+      return;
+    }
+    const res = await api(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
+      { method: "POST", body: "{}" },
+    );
+    toast(res.message || (t("lohn.sentToWorker") || "Gesendet"), "ok");
+    await refreshPayslipStudio({ keepSelection: false });
+    broadcastLohnInboxChanged();
+    await selectNextPayslipStatement();
+    return;
+  }
+  if (action === "reject") {
+    const reason = window.prompt(t("lohn.rejectReason") || "Grund (optional)", "") || "";
+    await api(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/reject`,
+      { method: "POST", body: JSON.stringify({ reason }) },
+    );
+    toast(t("lohn.statementRejected") || "Abgelehnt", "ok");
+    await refreshPayslipStudio({ keepSelection: false });
+    await selectNextPayslipStatement();
+  }
+}
+
 function lohnContractsUrl(companyId, workerId, fields, hint) {
   const cid = String(companyId || activeCompanyId() || "").trim();
   const wid = String(workerId || "").trim();
@@ -1350,8 +1743,9 @@ async function openLohnDrawer() {
   let messages = [];
   let alerts = [];
   let periodRequests = [];
+  let payslipBatches = [];
   try {
-    const [msgRes, alertRes, periodRes] = await Promise.all([
+    const [msgRes, alertRes, periodRes, payslipRes] = await Promise.all([
       apiSoft(msgUrl, { messages: [] }, 8000),
       apiSoft(`/api/payroll/accounting/data-alerts${cq}`, { alerts: [] }, 4000),
       apiSoft(
@@ -1359,24 +1753,41 @@ async function openLohnDrawer() {
         { requests: [] },
         4000,
       ),
+      apiSoft(`/api/payroll/statements/pending${cq}`, { batches: [] }, 5000),
     ]);
     messages = Array.isArray(msgRes?.messages) ? msgRes.messages : [];
     alerts = Array.isArray(alertRes?.alerts) ? alertRes.alerts : [];
     periodRequests = Array.isArray(periodRes?.requests) ? periodRes.requests : [];
+    payslipBatches = Array.isArray(payslipRes?.batches) ? payslipRes.batches : [];
   } catch (e) {
     body.innerHTML = `<div class="lohn-drawer-empty">${escapeHtml(e.message || "load_failed")}</div>`;
     return;
   }
 
-  updateLohnNavBadge(messages.length);
-  paintLohnBadge($("opsStripLohnBadge"), messages.length);
+  const payslipCount = payslipBatches.reduce(
+    (n, b) => n + (Array.isArray(b.statements) ? b.statements.length : Number(b.statement_count || 0)),
+    0,
+  );
+  updateLohnNavBadge(messages.length + payslipCount);
+  paintLohnBadge($("opsStripLohnBadge"), messages.length + payslipCount);
 
-  if (!messages.length && !alerts.length && !periodRequests.length) {
+  if (!messages.length && !alerts.length && !periodRequests.length && !payslipBatches.length) {
     body.innerHTML = `<div class="lohn-drawer-empty"><strong>${escapeHtml(t("lohn.drawerEmptyTitle") || "Alles erledigt")}</strong>${escapeHtml(t("lohn.drawerEmptyBody") || "Keine offenen Anfragen von WorkPass Lohn.")}</div>`;
     return;
   }
 
   const parts = [];
+
+  if (payslipBatches.length) {
+    parts.push(`
+      <article class="lohn-drawer-item is-alert">
+        <div class="lohn-drawer-item-title">${escapeHtml(t("lohn.payslipPendingTitle") || "Lohnabrechnungen zur Prüfung")}</div>
+        <div class="lohn-drawer-item-body">${escapeHtml(t("lohn.payslipPendingBody", { n: String(payslipCount) }) || `${payslipCount} PDF(s) warten auf Prüfung und Versand an die Mitarbeiter-App.`)}</div>
+        <div class="lohn-drawer-actions">
+          <button type="button" class="primary" data-lohn-drawer="open-payslips">${escapeHtml(t("lohn.openPayslipReview") || "Jetzt prüfen & senden")}</button>
+        </div>
+      </article>`);
+  }
 
   for (const req of periodRequests.slice(0, 8)) {
     const id = String(req.id || "");
@@ -1449,6 +1860,11 @@ async function handleLohnDrawerAction(ev) {
   const id = String(el.getAttribute("data-id") || el.getAttribute("data-alert-id") || "").trim();
 
   const removeRow = (sel) => document.querySelector(sel)?.remove();
+
+  if (action === "open-payslips") {
+    openPayslipReviewStudio().catch((err) => toast(err?.message || "error", "error"));
+    return;
+  }
 
   if (action === "open-msg-stammdaten" && id) {
     // Ack in background so the request leaves the inbox after opening contracts
@@ -1543,6 +1959,24 @@ function wireLohnDrawer() {
   $("lohnDrawerClose")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
+  $("lohnDrawerPayslips")?.addEventListener("click", () => openPayslipReviewStudio().catch(() => {}));
+  $("payslipStudioClose")?.addEventListener("click", () => closePayslipReviewStudio());
+  $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
+  $("payslipReviewStudio")?.addEventListener("click", (ev) => {
+    handlePayslipStudioClick(ev).catch((err) => toast(err?.message || "error", "error"));
+  });
+  // Deep-link: ?payslipReview=1&batch_id=…
+  try {
+    const params = new URLSearchParams(location.search);
+    if (params.get("payslipReview") === "1" || params.get("payslip_review") === "1") {
+      openPayslipReviewStudio({
+        batchId: params.get("batch_id") || params.get("batchId") || "",
+        statementId: params.get("statement_id") || params.get("statementId") || "",
+      }).catch(() => {});
+    }
+  } catch {
+    /* ignore */
+  }
   $("openLohnSystemBtn")?.addEventListener("click", () => {
     openLohnSystem().catch(() => {});
   });

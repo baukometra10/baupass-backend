@@ -322,14 +322,15 @@
         repairFailed: "Reparatur fehlgeschlagen",
         guardianFix: "Fix",
         payrollLabel: "WorkPass Lohn — Freigabe",
-        payrollPending: "{n} Stapel warten auf Freigabe",
+        payrollPending: "{n} Stapel warten auf Prüfung",
         payrollNone: "Keine Stapel von WorkPass Lohn zur Freigabe",
-        payrollApprove: "Freigeben & an Mitarbeiter senden",
+        payrollApprove: "Zur Prüfung öffnen",
         payrollReject: "Ablehnen",
         payrollConfirmApprove: "Lohnabrechnungen von WorkPass Lohn wirklich an die Mitarbeiter-App senden?",
         payrollConfirmReject: "Stapel ablehnen? Es wird nichts an Mitarbeiter gesendet.",
         payrollDone: "Freigabe ok",
         payrollFailed: "Freigabe fehlgeschlagen",
+        payrollReviewHint: "PDF prüfen und Mitarbeiter bestätigen — kein Blindversand",
         dataAlertsLabel: "WorkPass Lohn — Fehlende Mitarbeiterdaten",
         dataAlertsNone: "Keine offenen Hinweise zu fehlenden Daten",
         dataAlertsPending: "{n} offene Hinweise",
@@ -462,12 +463,13 @@
         payrollLabel: "WorkPass Lohn — approval",
         payrollPending: "{n} batches awaiting approval",
         payrollNone: "No WorkPass Lohn batches to approve",
-        payrollApprove: "Approve & send to workers",
+        payrollApprove: "Open for review",
         payrollReject: "Reject",
         payrollConfirmApprove: "Really send WorkPass Lohn payslips to the worker app?",
         payrollConfirmReject: "Reject batch? Nothing will be sent to workers.",
         payrollDone: "Approved",
         payrollFailed: "Approval failed",
+        payrollReviewHint: "Review PDF and confirm employee — no blind send",
         dataAlertsLabel: "WorkPass Lohn — missing employee data",
         dataAlertsNone: "No open missing-data notices",
         dataAlertsPending: "{n} open notices",
@@ -599,12 +601,13 @@
         payrollLabel: "WorkPass Lohn — تأكيد",
         payrollPending: "{n} دفعات بانتظار التأكيد",
         payrollNone: "لا توجد دفعات من WorkPass Lohn للتأكيد",
-        payrollApprove: "تأكيد وإرسال للموظفين",
+        payrollApprove: "فتح للمراجعة",
         payrollReject: "رفض",
         payrollConfirmApprove: "إرسال كشوفات WorkPass Lohn إلى تطبيق الموظفين؟",
         payrollConfirmReject: "رفض الدفعة؟ لن يُرسل شيء للموظفين.",
         payrollDone: "تم التأكيد",
         payrollFailed: "فشل التأكيد",
+        payrollReviewHint: "راجع PDF وتأكد من الموظف — بدون إرسال أعمى",
         dataAlertsLabel: "WorkPass Lohn — بيانات ناقصة",
         dataAlertsNone: "لا توجد تنبيهات بيانات ناقصة",
         dataAlertsPending: "{n} تنبيهات مفتوحة",
@@ -962,15 +965,17 @@
       const rows = list.slice(0, 12).map((b) => {
         const id = String(b.id || "");
         const period = String(b.period || "—");
-        const count = b.statement_count ?? b.statementCount ?? 0;
-        const company = String(b.company_id || b.companyId || "");
+        const count = b.statement_count ?? b.statementCount ?? (Array.isArray(b.statements) ? b.statements.length : 0);
+        const company = String(b.company_name || b.companyName || b.company_id || b.companyId || "");
+        const reviewUrl = `/admin-v2/index.html?payslipReview=1&batch_id=${encodeURIComponent(id)}${companyId ? `&company_id=${encodeURIComponent(companyId)}` : ""}`;
         return `<div class="lohn-item">
           <div>
-            <div class="lohn-item-title">${escapeLohnHtml(period)} · ${escapeLohnHtml(String(count))}</div>
+            <div class="lohn-item-title">${escapeLohnHtml(period)} · ${escapeLohnHtml(String(count))} PDF</div>
             <div class="lohn-item-meta">${escapeLohnHtml(company || "—")}</div>
+            <div class="lohn-item-meta">${escapeLohnHtml(tr("payrollReviewHint") || "")}</div>
           </div>
           <div class="lohn-item-actions">
-            <button type="button" class="primary" data-payroll="approve" data-id="${escapeLohnHtml(id)}">${tr("payrollApprove")}</button>
+            <a class="primary" href="${escapeLohnHtml(reviewUrl)}" data-payroll="review" data-id="${escapeLohnHtml(id)}">${tr("payrollApprove")}</a>
             <button type="button" data-payroll="reject" data-id="${escapeLohnHtml(id)}">${tr("payrollReject")}</button>
           </div>
         </div>`;
@@ -1536,14 +1541,17 @@
 
     function wirePayrollActions() {
       document.querySelectorAll("[data-payroll]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", async (ev) => {
           const id = btn.getAttribute("data-id");
           const action = btn.getAttribute("data-payroll");
           if (!id) return;
-          if (action === "approve" && !window.confirm(tr("payrollConfirmApprove"))) return;
+          if (action === "review") {
+            // Navigation handled by <a href> — allow default
+            return;
+          }
           if (action === "reject" && !window.confirm(tr("payrollConfirmReject"))) return;
           try {
-            await api(`/api/payroll/statements/${encodeURIComponent(id)}/${action}`, {
+            await api(`/api/payroll/statements/${encodeURIComponent(id)}/reject`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: "{}",

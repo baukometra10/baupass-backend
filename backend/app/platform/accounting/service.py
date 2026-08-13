@@ -1233,28 +1233,39 @@ def ingest_statements(
             # company.id is mandatory on every payroll row — reject if caller omitted it
             errors.append({"index": idx, "error": "company_id_required"})
             continue
-        worker_id = str(
+        worker_raw = str(
             item.get("workerId") or item.get("worker_id") or item.get("employeeId") or item.get("employee_id") or ""
         ).strip()
-        if not worker_id:
+        if not worker_raw:
             errors.append({"index": idx, "error": "employee_id_required"})
             continue
+        from .messages_inbox import resolve_company_worker
+
+        resolved = resolve_company_worker(db, company_id, worker_raw)
+        matched_by = ""
+        match_confidence = ""
+        stmt_status = "pending"
+        if resolved:
+            worker_id = str(resolved.get("id") or "").strip()
+            matched_by = str(resolved.get("matchedBy") or "id")
+            match_confidence = str(resolved.get("matchConfidence") or "exact")
+        else:
+            # Keep PDF for human assignment — never auto-release unmatched
+            worker_id = ""
+            matched_by = ""
+            match_confidence = ""
+            stmt_status = "unmatched"
         try:
             storage_key = str(item.get("storageKey") or "").strip() or payroll_storage_key(
-                company_id=company_id, employee_id=worker_id, period=period
+                company_id=company_id,
+                employee_id=worker_id or worker_raw,
+                period=period,
             )
         except ValueError as exc:
             errors.append({"index": idx, "error": str(exc)})
             continue
-        worker = db.execute(
-            "SELECT id FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
-            (worker_id, company_id),
-        ).fetchone()
-        if not worker:
-            errors.append({"index": idx, "error": "worker_not_found", "employeeId": worker_id, "storageKey": storage_key})
-            continue
         pdf_b64 = item.get("pdfBase64") or item.get("pdf_base64") or ""
-        filename = str(item.get("filename") or f"lohnabrechnung_{period}_{worker_id}.pdf").strip()
+        filename = str(item.get("filename") or f"lohnabrechnung_{period}_{worker_id or worker_raw}.pdf").strip()
         if not filename.lower().endswith(".pdf"):
             filename = f"{filename}.pdf"
         file_path = ""
@@ -1263,17 +1274,17 @@ def ingest_statements(
             try:
                 raw = base64.b64decode(pdf_b64)
             except Exception:
-                errors.append({"index": idx, "error": "invalid_pdf_base64", "employeeId": worker_id})
+                errors.append({"index": idx, "error": "invalid_pdf_base64", "employeeId": worker_raw})
                 continue
             if len(raw) < 20 or not raw.startswith(b"%PDF"):
-                errors.append({"index": idx, "error": "not_a_pdf", "employeeId": worker_id})
+                errors.append({"index": idx, "error": "not_a_pdf", "employeeId": worker_raw})
                 continue
             if len(raw) > 15 * 1024 * 1024:
-                errors.append({"index": idx, "error": "pdf_too_large", "employeeId": worker_id})
+                errors.append({"index": idx, "error": "pdf_too_large", "employeeId": worker_raw})
                 continue
             dest_dir = _storage_dir(company_id, period)
             dest_dir.mkdir(parents=True, exist_ok=True)
-            dest = dest_dir / f"{worker_id}_{secrets.token_hex(4)}.pdf"
+            dest = dest_dir / f"{(worker_id or 'unmatched')}_{secrets.token_hex(4)}.pdf"
             dest.write_bytes(raw)
             file_path = str(dest)
             file_size = len(raw)
@@ -1288,7 +1299,10 @@ def ingest_statements(
         meta = {k: v for k, v in item.items() if k not in {"pdfBase64", "pdf_base64"}}
         meta["storageKey"] = storage_key
         meta["companyId"] = company_id
-        meta["employeeId"] = worker_id
+        meta["employeeId"] = worker_id or worker_raw
+        meta["externalEmployeeId"] = worker_raw
+        meta["matchedBy"] = matched_by
+        meta["matchConfidence"] = match_confidence
         if invoice_key:
             meta["invoiceStorageKey"] = invoice_key
         stmt_id = repo.add_statement(
@@ -1311,8 +1325,21 @@ def ingest_statements(
             file_size=file_size,
             external_ref=str(item.get("externalRef") or item.get("external_ref") or storage_key)[:120],
             meta=meta,
+            status=stmt_status,
+            matched_by=matched_by,
+            match_confidence=match_confidence,
         )
         created.append(stmt_id)
+        if stmt_status == "unmatched":
+            errors.append(
+                {
+                    "index": idx,
+                    "error": "worker_unmatched",
+                    "employeeId": worker_raw,
+                    "statementId": stmt_id,
+                    "hint": "PDF gespeichert — Mitarbeiter manuell zuweisen",
+                }
+            )
     return {
         "ok": True,
         "batchId": batch_id,
@@ -1398,6 +1425,15 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
     for stmt in statements:
         if stmt.get("status") == "released" and stmt.get("worker_document_id"):
             skipped += 1
+            continue
+        if not str(stmt.get("reviewed_at") or stmt.get("reviewedAt") or "").strip():
+            errors.append({"statementId": stmt["id"], "error": "review_required"})
+            continue
+        if not str(stmt.get("worker_id") or stmt.get("workerId") or "").strip():
+            errors.append({"statementId": stmt["id"], "error": "worker_unassigned"})
+            continue
+        if str(stmt.get("status") or "") == "unmatched":
+            errors.append({"statementId": stmt["id"], "error": "worker_unassigned"})
             continue
         path = str(stmt.get("file_path") or "")
         if not path or not Path(path).is_file():
@@ -1517,6 +1553,352 @@ def reject_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | Non
     except Exception as exc:
         inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
     return {"ok": True, "batchId": batch_id, "status": "rejected", "inboxCleared": inbox_clear}
+
+
+def _statement_company_guard(
+    stmt: dict[str, Any] | None,
+    *,
+    company_id: str | None,
+) -> dict[str, Any] | None:
+    if not stmt:
+        return {"ok": False, "error": "statement_not_found"}
+    if company_id and str(stmt.get("company_id") or "") != str(company_id):
+        return {"ok": False, "error": "forbidden_company"}
+    return None
+
+
+def mark_statement_reviewed(
+    db,
+    *,
+    statement_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    """Record that an admin opened the PDF (required before release)."""
+    from datetime import datetime, timezone
+
+    ensure = repo.get_statement
+    stmt = ensure(db, statement_id)
+    guard = _statement_company_guard(stmt, company_id=company_id)
+    if guard:
+        return guard
+    assert stmt is not None
+    if str(stmt.get("status") or "") in {"released", "rejected"}:
+        return {"ok": False, "error": "invalid_status", "status": stmt.get("status")}
+    path = str(stmt.get("file_path") or "")
+    if not path or not Path(path).is_file():
+        return {"ok": False, "error": "missing_pdf"}
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    db.execute(
+        """
+        UPDATE payroll_statements
+        SET reviewed_at = ?, reviewed_by_user_id = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (now, actor_user_id, now, statement_id),
+    )
+    db.commit()
+    refreshed = repo.get_statement(db, statement_id) or stmt
+    return {
+        "ok": True,
+        "statement": repo.enrich_statement_row(db, refreshed),
+        "reviewedAt": now,
+    }
+
+
+def assign_statement_worker(
+    db,
+    *,
+    statement_id: str,
+    worker_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    """Human rematch: bind payslip PDF to a worker in the same company."""
+    from datetime import datetime, timezone
+
+    stmt = repo.get_statement(db, statement_id)
+    guard = _statement_company_guard(stmt, company_id=company_id)
+    if guard:
+        return guard
+    assert stmt is not None
+    if str(stmt.get("status") or "") in {"released", "rejected"}:
+        return {"ok": False, "error": "invalid_status", "status": stmt.get("status")}
+    worker_id = str(worker_id or "").strip()
+    if not worker_id:
+        return {"ok": False, "error": "worker_id_required"}
+    row = db.execute(
+        """
+        SELECT id, first_name, last_name, badge_id
+        FROM workers
+        WHERE id = ? AND company_id = ? AND deleted_at IS NULL
+        LIMIT 1
+        """,
+        (worker_id, stmt["company_id"]),
+    ).fetchone()
+    if not row:
+        return {"ok": False, "error": "worker_not_found"}
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    db.execute(
+        """
+        UPDATE payroll_statements
+        SET worker_id = ?,
+            status = 'pending',
+            matched_by = 'manual',
+            match_confidence = 'exact',
+            assigned_at = ?,
+            assigned_by_user_id = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (worker_id, now, actor_user_id, now, statement_id),
+    )
+    db.commit()
+    refreshed = repo.get_statement(db, statement_id) or {}
+    return {
+        "ok": True,
+        "statement": repo.enrich_statement_row(db, refreshed),
+        "workerId": worker_id,
+        "matchedBy": "manual",
+    }
+
+
+def release_statement(
+    db,
+    *,
+    statement_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+    require_reviewed: bool = True,
+) -> dict[str, Any]:
+    """Send one reviewed payslip to the worker app (document + push)."""
+    from datetime import datetime, timezone
+
+    stmt = repo.get_statement(db, statement_id)
+    guard = _statement_company_guard(stmt, company_id=company_id)
+    if guard:
+        return guard
+    assert stmt is not None
+    status = str(stmt.get("status") or "")
+    if status == "released" and stmt.get("worker_document_id"):
+        return {
+            "ok": True,
+            "skipped": "already_released",
+            "statementId": statement_id,
+            "workerDocumentId": stmt.get("worker_document_id"),
+        }
+    if status in {"rejected"}:
+        return {"ok": False, "error": "invalid_status", "status": status}
+    if status == "unmatched" or not str(stmt.get("worker_id") or "").strip():
+        return {"ok": False, "error": "worker_unassigned", "hint": "Mitarbeiter zuweisen"}
+    if require_reviewed and not str(stmt.get("reviewed_at") or "").strip():
+        return {"ok": False, "error": "review_required", "hint": "PDF zuerst öffnen und prüfen"}
+    path = str(stmt.get("file_path") or "")
+    if not path or not Path(path).is_file():
+        return {"ok": False, "error": "missing_pdf"}
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    try:
+        doc_id = _attach_worker_document(
+            db,
+            company_id=stmt["company_id"],
+            worker_id=stmt["worker_id"],
+            filename=stmt.get("filename") or "lohnabrechnung.pdf",
+            file_path=path,
+            file_size=int(stmt.get("file_size") or 0),
+            uploaded_by_user_id=actor_user_id,
+            period=stmt.get("period") or "",
+        )
+        db.execute(
+            """
+            UPDATE payroll_statements
+            SET status = 'released', worker_document_id = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (doc_id, now, statement_id),
+        )
+        try:
+            from backend.server import _notify_worker_payroll_document
+
+            _notify_worker_payroll_document(
+                db,
+                stmt["worker_id"],
+                stmt.get("filename") or "lohnabrechnung.pdf",
+                doc_type="lohnabrechnung",
+            )
+        except Exception:
+            pass
+        batch_id = str(stmt.get("batch_id") or "")
+        _refresh_batch_after_statement_change(db, batch_id=batch_id, actor_user_id=actor_user_id, now=now)
+        db.commit()
+        inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
+        batch = repo.get_batch(db, batch_id) or {}
+        if str(batch.get("status") or "") == "released":
+            try:
+                from .messages_inbox import clear_payslip_released_messages
+
+                inbox_clear = clear_payslip_released_messages(
+                    db,
+                    company_id=str(stmt.get("company_id") or ""),
+                    period=str(stmt.get("period") or ""),
+                    batch_id=batch_id,
+                    actor_user_id=str(actor_user_id or ""),
+                )
+            except Exception as exc:
+                inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
+        refreshed = repo.get_statement(db, statement_id) or {}
+        return {
+            "ok": True,
+            "statementId": statement_id,
+            "workerDocumentId": doc_id,
+            "statement": repo.enrich_statement_row(db, refreshed),
+            "batchStatus": (repo.get_batch(db, batch_id) or {}).get("status"),
+            "inboxCleared": inbox_clear,
+            "message": "Lohnabrechnung an Mitarbeiter-App gesendet",
+        }
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:160]}
+
+
+def reject_statement(
+    db,
+    *,
+    statement_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+    reason: str = "",
+) -> dict[str, Any]:
+    from datetime import datetime, timezone
+
+    stmt = repo.get_statement(db, statement_id)
+    guard = _statement_company_guard(stmt, company_id=company_id)
+    if guard:
+        return guard
+    assert stmt is not None
+    if str(stmt.get("status") or "") == "released":
+        return {"ok": False, "error": "already_released"}
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    db.execute(
+        """
+        UPDATE payroll_statements
+        SET status = 'rejected',
+            rejected_at = ?,
+            rejected_by_user_id = ?,
+            reject_reason = ?,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (now, actor_user_id, (reason or "")[:500], now, statement_id),
+    )
+    batch_id = str(stmt.get("batch_id") or "")
+    _refresh_batch_after_statement_change(db, batch_id=batch_id, actor_user_id=actor_user_id, now=now)
+    db.commit()
+    refreshed = repo.get_statement(db, statement_id) or {}
+    return {"ok": True, "statement": repo.enrich_statement_row(db, refreshed), "status": "rejected"}
+
+
+def release_reviewed_batch(
+    db,
+    *,
+    batch_id: str,
+    actor_user_id: str,
+    company_id: str | None = None,
+) -> dict[str, Any]:
+    """Release only statements that were opened (reviewed) and assigned — never blind."""
+    batch = repo.get_batch(db, batch_id)
+    if not batch:
+        return {"ok": False, "error": "batch_not_found"}
+    if company_id and batch["company_id"] != company_id:
+        return {"ok": False, "error": "forbidden_company"}
+    statements = repo.list_batch_statements(db, batch_id)
+    released = 0
+    skipped: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
+    for stmt in statements:
+        sid = str(stmt.get("id") or stmt.get("statementId") or "")
+        if stmt.get("status") == "released":
+            skipped.append({"statementId": sid, "reason": "already_released"})
+            continue
+        if not stmt.get("canRelease"):
+            skipped.append(
+                {
+                    "statementId": sid,
+                    "reason": "not_ready",
+                    "reviewed": bool(stmt.get("reviewed")),
+                    "hasPdf": bool(stmt.get("hasPdf")),
+                    "workerId": stmt.get("workerId"),
+                    "status": stmt.get("status"),
+                }
+            )
+            continue
+        out = release_statement(
+            db,
+            statement_id=sid,
+            actor_user_id=actor_user_id,
+            company_id=company_id,
+            require_reviewed=True,
+        )
+        results.append(out)
+        if out.get("ok") and not out.get("skipped"):
+            released += 1
+        elif not out.get("ok"):
+            errors.append({"statementId": sid, "error": out.get("error")})
+    refreshed = repo.get_batch(db, batch_id) or {}
+    return {
+        "ok": True,
+        "batchId": batch_id,
+        "released": released,
+        "skipped": skipped,
+        "errors": errors,
+        "results": results,
+        "status": refreshed.get("status"),
+        "message": f"{released} geprüfte Lohnabrechnung(en) an Mitarbeiter gesendet",
+    }
+
+
+def _refresh_batch_after_statement_change(
+    db,
+    *,
+    batch_id: str,
+    actor_user_id: str,
+    now: str,
+) -> None:
+    if not batch_id:
+        return
+    rows = db.execute(
+        "SELECT status FROM payroll_statements WHERE batch_id = ?",
+        (batch_id,),
+    ).fetchall()
+    if not rows:
+        return
+    statuses = [str(r["status"] or "") for r in rows]
+    all_released = statuses and all(s == "released" for s in statuses)
+    all_done = statuses and all(s in {"released", "rejected"} for s in statuses)
+    any_released = any(s == "released" for s in statuses)
+    if all_released:
+        new_status = "released"
+    elif all_done and any_released:
+        new_status = "released"
+    elif all_done:
+        new_status = "rejected"
+    elif any_released:
+        new_status = "approved"
+    else:
+        return
+    db.execute(
+        """
+        UPDATE payroll_statement_batches
+        SET status = ?,
+            approved_at = COALESCE(approved_at, ?),
+            approved_by_user_id = COALESCE(approved_by_user_id, ?),
+            released_at = CASE WHEN ? = 'released' THEN COALESCE(released_at, ?) ELSE released_at END,
+            rejected_at = CASE WHEN ? = 'rejected' THEN COALESCE(rejected_at, ?) ELSE rejected_at END,
+            updated_at = ?
+        WHERE id = ?
+        """,
+        (new_status, now, actor_user_id, new_status, now, new_status, now, now, batch_id),
+    )
 
 
 def fingerprint_payload(payload: dict[str, Any]) -> str:

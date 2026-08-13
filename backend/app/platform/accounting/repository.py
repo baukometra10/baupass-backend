@@ -293,22 +293,27 @@ def add_statement(
     file_size: int,
     external_ref: str = "",
     meta: dict[str, Any] | None = None,
+    status: str = "pending",
+    matched_by: str = "",
+    match_confidence: str = "",
 ) -> str:
     ensure_accounting_schema(db)
     stmt_id = f"pst-{uuid.uuid4().hex[:12]}"
     now = _now()
+    status_norm = str(status or "pending").strip() or "pending"
     db.execute(
         """
         INSERT INTO payroll_statements
         (id, batch_id, company_id, worker_id, period, hours, hourly_rate, gross_amount, net_amount,
-         currency, filename, file_path, file_size, status, external_ref, meta_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)
+         currency, filename, file_path, file_size, status, external_ref, meta_json, created_at, updated_at,
+         matched_by, match_confidence)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             stmt_id,
             batch_id,
             company_id,
-            worker_id,
+            worker_id or "",
             period,
             float(hours or 0),
             float(hourly_rate or 0),
@@ -318,10 +323,13 @@ def add_statement(
             (filename or "")[:255],
             file_path or "",
             int(file_size or 0),
+            status_norm[:32],
             (external_ref or "")[:120],
             json.dumps(meta or {}, ensure_ascii=False),
             now,
             now,
+            (matched_by or "")[:40],
+            (match_confidence or "")[:20],
         ),
     )
     db.execute(
@@ -335,6 +343,110 @@ def add_statement(
     )
     db.commit()
     return stmt_id
+
+
+def get_statement(db, statement_id: str) -> dict[str, Any] | None:
+    ensure_accounting_schema(db)
+    row = db.execute(
+        """
+        SELECT s.*, w.first_name, w.last_name, w.badge_id, w.site, w.contact_email,
+               c.name AS company_name
+        FROM payroll_statements s
+        LEFT JOIN workers w ON w.id = s.worker_id
+        LEFT JOIN companies c ON c.id = s.company_id
+        WHERE s.id = ?
+        LIMIT 1
+        """,
+        (statement_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
+def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
+    """UI-facing statement with match status and worker identity."""
+    from pathlib import Path
+
+    out = dict(row or {})
+    worker_id = str(out.get("worker_id") or "").strip()
+    status = str(out.get("status") or "").strip()
+    path = str(out.get("file_path") or "").strip()
+    has_pdf = bool(path and Path(path).is_file())
+    first = str(out.get("first_name") or "").strip()
+    last = str(out.get("last_name") or "").strip()
+    display = f"{first} {last}".strip()
+    confidence = str(out.get("match_confidence") or "").strip()
+    matched_by = str(out.get("matched_by") or "").strip()
+
+    if status == "unmatched" or not worker_id:
+        match_status = "unmatched"
+    elif confidence == "weak":
+        match_status = "ambiguous"
+    else:
+        match_status = "matched"
+
+    if not confidence:
+        if match_status == "matched" and matched_by in {"", "id", "exact"}:
+            confidence = "exact"
+        elif match_status == "ambiguous":
+            confidence = "weak"
+        elif match_status == "matched":
+            confidence = "strong"
+
+    reviewed = bool(str(out.get("reviewed_at") or "").strip())
+    out.update(
+        {
+            "statementId": out.get("id"),
+            "batchId": out.get("batch_id"),
+            "companyId": out.get("company_id"),
+            "companyName": out.get("company_name") or "",
+            "workerId": worker_id,
+            "employeeId": worker_id,
+            "period": out.get("period"),
+            "firstName": first,
+            "lastName": last,
+            "displayName": display or worker_id or "—",
+            "badgeId": str(out.get("badge_id") or "").strip(),
+            "site": str(out.get("site") or "").strip(),
+            "email": str(out.get("contact_email") or "").strip(),
+            "grossAmount": out.get("gross_amount"),
+            "netAmount": out.get("net_amount"),
+            "hours": out.get("hours"),
+            "hourlyRate": out.get("hourly_rate"),
+            "currency": out.get("currency") or "EUR",
+            "filename": out.get("filename") or "",
+            "hasPdf": has_pdf,
+            "fileSize": int(out.get("file_size") or 0),
+            "status": status,
+            "matchedBy": matched_by,
+            "matchConfidence": confidence,
+            "matchStatus": match_status,
+            "reviewedAt": out.get("reviewed_at"),
+            "reviewedByUserId": out.get("reviewed_by_user_id"),
+            "reviewed": reviewed,
+            "workerDocumentId": out.get("worker_document_id"),
+            "canRelease": bool(has_pdf and reviewed and worker_id and status == "pending"),
+        }
+    )
+    return out
+
+
+def list_batch_statements(db, batch_id: str) -> list[dict[str, Any]]:
+    ensure_accounting_schema(db)
+    rows = db.execute(
+        """
+        SELECT s.*, w.first_name, w.last_name, w.badge_id, w.site, w.contact_email,
+               c.name AS company_name
+        FROM payroll_statements s
+        LEFT JOIN workers w ON w.id = s.worker_id
+        LEFT JOIN companies c ON c.id = s.company_id
+        WHERE s.batch_id = ?
+        ORDER BY
+          CASE WHEN s.status = 'unmatched' THEN 0 WHEN s.reviewed_at IS NULL OR s.reviewed_at = '' THEN 1 ELSE 2 END,
+          w.last_name, w.first_name, s.created_at
+        """,
+        (batch_id,),
+    ).fetchall()
+    return [enrich_statement_row(db, dict(r)) for r in rows]
 
 
 def list_pending_batches(db, *, company_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
@@ -402,19 +514,37 @@ def get_batch(db, batch_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def list_batch_statements(db, batch_id: str) -> list[dict[str, Any]]:
-    ensure_accounting_schema(db)
-    rows = db.execute(
-        """
-        SELECT s.*, w.first_name, w.last_name, w.badge_id
-        FROM payroll_statements s
-        LEFT JOIN workers w ON w.id = s.worker_id
-        WHERE s.batch_id = ?
-        ORDER BY w.last_name, w.first_name
-        """,
-        (batch_id,),
-    ).fetchall()
-    return [dict(r) for r in rows]
+def list_pending_batches_enriched(db, *, company_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    batches = list_pending_batches(db, company_id=company_id, limit=limit)
+    out: list[dict[str, Any]] = []
+    for batch in batches:
+        statements = list_batch_statements(db, batch["id"])
+        company_name = ""
+        try:
+            crow = db.execute(
+                "SELECT name FROM companies WHERE id = ?", (batch["company_id"],)
+            ).fetchone()
+            company_name = str((crow["name"] if crow else "") or "")
+        except Exception:
+            company_name = ""
+        reviewed_n = sum(1 for s in statements if s.get("reviewed"))
+        releasable_n = sum(1 for s in statements if s.get("canRelease"))
+        unmatched_n = sum(
+            1 for s in statements if s.get("matchStatus") == "unmatched" or s.get("status") == "unmatched"
+        )
+        out.append(
+            {
+                **batch,
+                "companyId": batch.get("company_id"),
+                "companyName": company_name,
+                "statements": statements,
+                "reviewedCount": reviewed_n,
+                "releasableCount": releasable_n,
+                "unmatchedCount": unmatched_n,
+                "pendingReviewCount": max(0, len(statements) - reviewed_n),
+            }
+        )
+    return out
 
 
 def list_enabled_integrations(db) -> list[dict[str, Any]]:
