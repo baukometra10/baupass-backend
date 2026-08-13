@@ -1282,6 +1282,7 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
         },
     )
     assert out["ok"] is True
+    assert out.get("accepted") is True
     assert out["status"] == "pending_approval"
     assert out.get("note") == "Never auto-approve payslips to employees"
     ingest = out.get("ingest") or {}
@@ -1290,6 +1291,60 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
     assert ingest.get("companyId") == "c1"
     pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1", limit=50)
     assert any(m.get("kind") == "payslip_released" for m in pending)
+
+
+def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
+    """Lohn sends delivery (not statements[]) — must still ingest + generate PDF."""
+    from backend.app.platform.accounting import messages_inbox
+
+    db = _db()
+    repository.upsert_integration(db, company_id="c1", rotate_key=True)
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    out = messages_inbox.handle_inbound_lohn_webhook(
+        db,
+        data={
+            "event": "payslip.released",
+            "company": {"id": "c1", "name": "Demo"},
+            "delivery": {
+                "kind": "platform.employee.delivery.v1",
+                "type": "payslip",
+                "deliveryId": "pay:job-1",
+                "jobId": "job-1",
+                "period": "2026-06",
+                "employee": {"id": "w1", "name": "Worker One"},
+                "company": {"id": "c1", "name": "Demo"},
+                "summary": {"gross": 1200, "net": 900, "currency": "EUR"},
+                "document": {"totals": {"gross": 1200, "net": 900}, "period": "2026-06"},
+                "title": "Entgeltabrechnung 2026-06",
+            },
+        },
+    )
+    assert out["ok"] is True
+    assert out.get("accepted") is True
+    ingest = out.get("ingest") or {}
+    assert ingest.get("ok") is True
+    assert ingest.get("createdCount") == 1
+    row = db.execute(
+        "SELECT worker_id, file_path, status FROM payroll_statements LIMIT 1"
+    ).fetchone()
+    assert row is not None
+    assert row["worker_id"] in ("w1", "") or row["status"] in ("pending", "unmatched")
+    assert row["file_path"]
+    assert Path(row["file_path"]).read_bytes()[:4] == b"%PDF"
+
+
+def test_session_handoff_url_uses_lohn_html():
+    from backend.app.platform.accounting.lohn_sso import build_session_handoff_url
+
+    url = build_session_handoff_url(
+        "https://workpass-lohn.up.railway.app",
+        {"token": "tok", "expiresAt": "2099-01-01T00:00:00Z", "user": {"email": "a@b.c"}},
+    )
+    assert url.startswith("https://workpass-lohn.up.railway.app/lohn.html#suppix-sso=")
 
 
 def test_lohn_master_api_key_can_pull_employees(monkeypatch):

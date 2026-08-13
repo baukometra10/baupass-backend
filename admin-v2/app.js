@@ -1321,6 +1321,36 @@ function toast(message, _kind = "ok") {
   }
 }
 
+async function pullPayslipsFromLohn() {
+  const cid = activeCompanyId();
+  if (!cid) {
+    showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
+    return;
+  }
+  try {
+    showActionToast(t("lohn.pullPayslips") || "Abrechnungen werden geholt…");
+    const res = await api(`/api/payroll/statements/pull-from-lohn`, {
+      method: "POST",
+      body: JSON.stringify({ companyId: cid, redeliver: true }),
+    });
+    if (!res?.ok) {
+      showActionToast(res?.message || res?.error || t("lohn.pullPayslipsFailed") || "Abruf fehlgeschlagen", true);
+      return;
+    }
+    const n = Number(res.createdCount || 0);
+    if (n > 0) {
+      showActionToast((t("lohn.pullPayslipsOk") || "Abrechnungen übernommen") + ` (${n})`);
+      broadcastLohnInboxChanged();
+      openPayslipReviewStudio().catch(() => {});
+    } else {
+      showActionToast(res.message || t("lohn.pullPayslipsEmpty") || "Keine neuen Abrechnungen");
+    }
+    refreshLohnBadgeOnly().catch(() => {});
+  } catch (e) {
+    showActionToast(e?.message || t("lohn.pullPayslipsFailed") || "Abruf fehlgeschlagen", true);
+  }
+}
+
 function closePayslipReviewStudio() {
   const el = $("payslipReviewStudio");
   el?.classList.add("hidden");
@@ -1960,6 +1990,7 @@ function wireLohnDrawer() {
   $("lohnDrawerBackdrop")?.addEventListener("click", closeLohnDrawer);
   $("lohnDrawerRefresh")?.addEventListener("click", () => openLohnDrawer().catch(() => {}));
   $("lohnDrawerPayslips")?.addEventListener("click", () => openPayslipReviewStudio().catch(() => {}));
+  $("lohnDrawerPullPayslips")?.addEventListener("click", () => pullPayslipsFromLohn().catch(() => {}));
   $("payslipStudioClose")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipReviewStudio")?.addEventListener("click", (ev) => {

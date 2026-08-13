@@ -17,6 +17,7 @@ from .platform_link import _post_lohn_json, get_platform_link
 
 # Master-key SSO (optional). Public company login is handled separately.
 SSO_API_PATHS = (
+    "/v1/auth/platform-handoff",
     "/v1/auth/platform-sso",
     "/v1/company/sso",
     "/v1/auth/sso",
@@ -25,6 +26,7 @@ SSO_API_PATHS = (
 )
 TICKET_TTL_SEC = 90
 _HTML_UI_CACHE: dict[str, tuple[float, bool]] = {}
+LOHN_SSO_ENTRY = "/lohn.html"  # live Lohn auth-gate consumes #suppix-sso on lohn.html only
 
 
 def _ensure_sso_tickets(db) -> None:
@@ -141,14 +143,15 @@ def _extract_sso_url(payload: dict[str, Any], *, browser_base: str = "") -> str:
 
 def build_session_handoff_url(browser_base: str, session_payload: dict[str, Any]) -> str:
     """
-    Hand off session to Lohn SPA via hash fragment.
-    Lohn auth-gate should consume #suppix-sso=… (see docs snippet).
+    Hand off session to Lohn SPA via hash fragment on /lohn.html
+    (live auth-gate consumes #suppix-sso=… there — not on bare /).
     """
     base = (browser_base or "").rstrip("/")
     if not base or not session_payload.get("token"):
         return base
     blob = quote(json.dumps(session_payload, ensure_ascii=False, separators=(",", ":")), safe="")
-    return f"{base}/#suppix-sso={blob}"
+    entry = LOHN_SSO_ENTRY if LOHN_SSO_ENTRY.startswith("/") else f"/{LOHN_SSO_ENTRY}"
+    return f"{base}{entry}#suppix-sso={blob}"
 
 
 def mint_sso_ticket(db, *, company_id: str, actor_user_id: str = "") -> str:
@@ -300,11 +303,69 @@ def request_lohn_sso_url(
     login: dict[str, Any],
     actor_user_id: str = "",
 ) -> dict[str, Any]:
-    """Ask WorkPass Lohn for a one-time browser URL (master-key SSO), else public login session."""
-    # 1) Public SPA login (preferred — matches auth-gate.js)
+    """Ask WorkPass Lohn for a one-time browser URL (platform-handoff preferred)."""
+    email = _lohn_email(company_id)
+    username = str(login.get("username") or "").strip()
+    password = str(login.get("password") or "")
+    browser_base = _browser_base(link)
+
+    # 1) Official Lohn platform-handoff → /lohn.html#suppix-sso=…
+    if str(link.get("master_api_key") or "").strip():
+        hand = _post_lohn_json(
+            link,
+            path="/v1/auth/platform-handoff",
+            body={
+                "companyId": company_id,
+                "firmaId": company_id,
+                "id": company_id,
+                "email": email,
+                "username": username,
+                "password": password,
+                "login": {"email": email, "username": username, "password": password},
+                "actorUserId": actor_user_id or "",
+                "source": "suppix",
+                "product": "WorkPass Lohn",
+                "autoProvision": True,
+            },
+            event="auth.platform-handoff",
+            timeout=15,
+        )
+        parsed = _parse_lohn_json(hand)
+        url = str(
+            parsed.get("openUrl")
+            or parsed.get("url")
+            or parsed.get("ssoUrl")
+            or parsed.get("redirectUrl")
+            or ""
+        ).strip()
+        if not url and parsed.get("openPath") and browser_base:
+            path = str(parsed.get("openPath") or "")
+            if not path.startswith("/"):
+                path = "/" + path
+            url = f"{browser_base.rstrip('/')}{path}"
+        if not url and parsed.get("session") and browser_base:
+            url = build_session_handoff_url(
+                browser_base,
+                {
+                    "token": parsed.get("session") or parsed.get("token"),
+                    "expiresAt": parsed.get("expiresAt"),
+                    "user": parsed.get("user"),
+                    "via": parsed.get("via") or "platform-handoff",
+                },
+            )
+        if url and (hand.get("ok") or parsed.get("ok") is True):
+            return {
+                "ok": True,
+                "url": url,
+                "path": "/v1/auth/platform-handoff",
+                "mode": "platform_handoff",
+                "status": hand.get("status"),
+            }
+
+    # 2) Public SPA login → build /lohn.html hash ourselves
     public = login_lohn_company_session(link, company_id=company_id, login=login)
     if public.get("ok") and public.get("token"):
-        ui = _browser_base(link)
+        ui = browser_base
         url = build_session_handoff_url(
             ui,
             {
@@ -316,11 +377,7 @@ def request_lohn_sso_url(
         )
         return {"ok": True, "url": url, "path": "/v1/auth/login", "mode": "session_handoff"}
 
-    # 2) Master-key platform SSO (optional)
-    email = _lohn_email(company_id)
-    username = str(login.get("username") or "").strip()
-    password = str(login.get("password") or "")
-    browser_base = _browser_base(link)
+    # 3) Legacy master-key SSO paths
     body = {
         "companyId": company_id,
         "firmaId": company_id,
@@ -338,6 +395,8 @@ def request_lohn_sso_url(
     last: dict[str, Any] = {"ok": False, "error": public.get("error") or "sso_unsupported"}
     if str(link.get("master_api_key") or "").strip():
         for path in SSO_API_PATHS:
+            if path == "/v1/auth/platform-handoff":
+                continue
             result = _post_lohn_json(link, path=path, body=body, event="auth.platform-sso", timeout=12)
             parsed = _parse_lohn_json(result)
             url = _extract_sso_url(parsed, browser_base=browser_base)
@@ -415,8 +474,7 @@ def build_launch_payload(
             "message": "Buchhaltungs-Domain fehlt. Superadmin muss die Lohn-URL unter Plattform speichern.",
         }
 
-    # Always open via SUPPIX sso-enter (autologin shell). Do NOT send the browser to
-    # Lohn #suppix-sso=… — live Lohn auth-gate does not consume that hash yet.
+    # Prefer a real Lohn SSO URL (platform-handoff → /lohn.html#suppix-sso=…).
     login = repo.get_lohn_login(db, company_id)
     if login:
         remote = request_lohn_sso_url(
@@ -427,12 +485,11 @@ def build_launch_payload(
         )
         remote_url = str(remote.get("url") or "")
         remote_mode = str(remote.get("mode") or "")
-        # Accept only a real magic-link from Lohn master-key SSO (not our hash handoff).
         if (
             remote.get("ok")
             and remote_url.startswith("http")
-            and remote_mode not in ("session_handoff", "ui_login", "")
-            and "suppix-sso=" not in remote_url
+            and remote_mode in ("platform_handoff", "session_handoff", "lohn_sso")
+            and "lohn.html" in remote_url
         ):
             return {
                 "ok": True,
@@ -440,6 +497,17 @@ def build_launch_payload(
                 "baseUrl": api_base,
                 "companyId": company_id,
                 "mode": remote_mode or "lohn_sso",
+                "sso": True,
+                "message": "SSO-Link von WorkPass Lohn.",
+            }
+        # Accept any platform-handoff openUrl even if path varies
+        if remote.get("ok") and remote_url.startswith("http") and remote_mode == "platform_handoff":
+            return {
+                "ok": True,
+                "url": remote_url,
+                "baseUrl": api_base,
+                "companyId": company_id,
+                "mode": "platform_handoff",
                 "sso": True,
                 "message": "SSO-Link von WorkPass Lohn.",
             }
@@ -654,7 +722,13 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
 
     session_payload: dict[str, Any] | None = None
     login_err = ""
+    handoff_url = ""
     if login:
+        remote = request_lohn_sso_url(
+            link, company_id=company_id, login=login, actor_user_id=actor
+        )
+        if remote.get("ok") and str(remote.get("url") or "").startswith("http"):
+            handoff_url = str(remote["url"])
         public = login_lohn_company_session(link, company_id=company_id, login=login)
         if public.get("ok") and public.get("token"):
             session_payload = {
@@ -665,24 +739,24 @@ def resolve_sso_enter(db, ticket_id: str) -> dict[str, Any]:
             }
         else:
             login_err = str(public.get("error") or "login_failed")
-            remote = request_lohn_sso_url(
-                link, company_id=company_id, login=login, actor_user_id=actor
-            )
-            if remote.get("ok") and remote.get("mode") == "session_handoff" and remote.get("url"):
-                # Prefer shell if we can re-login; otherwise hash handoff (needs Lohn snippet).
-                public2 = login_lohn_company_session(link, company_id=company_id, login=login)
-                if public2.get("ok") and public2.get("token"):
-                    session_payload = {
-                        "token": public2["token"],
-                        "expiresAt": _normalize_expires_at(public2.get("expiresAt")),
-                        "user": public2.get("user") or {"companyId": company_id, "email": email},
-                        "via": public2.get("via") or "suppix",
-                    }
+
+    # Prefer official Lohn openUrl (/lohn.html#suppix-sso=…) — this is what auth-gate consumes.
+    if handoff_url and "suppix-sso=" in handoff_url:
+        return {
+            "ok": True,
+            "redirect": handoff_url,
+            "html": render_sso_help_html(
+                ui_url=handoff_url,
+                email=email,
+                message="Weiterleitung zu WorkPass Lohn (SSO)…",
+            ),
+            "mode": "platform_handoff",
+            "lohn_origin": lohn_origin,
+        }
 
     if session_payload and _has_browser_ui(link):
-        # Prefer Lohn-origin hash handoff so in-app navigation stays on WorkPass Lohn.
         handoff = build_session_handoff_url(lohn_origin, session_payload)
-        if handoff and "suppix-sso=" in handoff:
+        if handoff and "lohn.html" in handoff and "suppix-sso=" in handoff:
             return {
                 "ok": True,
                 "redirect": handoff,

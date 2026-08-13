@@ -53,6 +53,7 @@ def register_accounting_blueprint(flask_app) -> None:
         period_handoff_gate,
         prepare_hour_export,
         prepare_payroll_batch,
+        pull_payslips_from_lohn,
         push_payroll_batch_to_lohn,
         push_stammdaten_to_lohn,
         reject_batch,
@@ -1087,6 +1088,43 @@ def register_accounting_blueprint(flask_app) -> None:
         else:
             batches = repo.list_pending_batches(db, company_id=company_id)
         return jsonify({"ok": True, "batches": batches, "count": len(batches)}), 200
+
+    @accounting_bp.post("/payroll/statements/pull-from-lohn")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_pull_payslips_from_lohn():
+        """Pull released payslips from WorkPass Lohn (/v1/delivery/pending) into review inbox."""
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = (
+            data.get("companyId")
+            or data.get("company_id")
+            or request.args.get("company_id")
+            or (user.get("company_id") if user["role"] != "superadmin" else "")
+        )
+        company_id = str(company_id or "").strip()
+        if not company_id:
+            return jsonify({"ok": False, "error": "company_id_required", "message": "Bitte Firma wählen."}), 400
+        if user["role"] != "superadmin" and company_id != user.get("company_id"):
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        if not is_workpass_lohn_enabled(get_db(), company_id):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "lohn_not_enabled",
+                    "message": "Buchhaltung ist für diese Firma nicht freigeschaltet.",
+                }
+            ), 403
+        period = str(data.get("period") or request.args.get("period") or "").strip()[:7] or None
+        redeliver = bool(data.get("redeliver") if "redeliver" in data else True)
+        result = pull_payslips_from_lohn(
+            get_db(),
+            company_id=company_id,
+            period=period,
+            redeliver=redeliver,
+        )
+        code = 200 if result.get("ok") else 400
+        return jsonify(result), code
 
     @accounting_bp.get("/payroll/accounting/employees")
     @require_auth

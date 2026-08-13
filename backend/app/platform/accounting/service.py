@@ -1525,6 +1525,384 @@ def ingest_statements(
     }
 
 
+def _generate_payslip_pdf_base64(
+    *,
+    employee_name: str,
+    employee_id: str,
+    company_name: str,
+    period: str,
+    gross: Any = None,
+    net: Any = None,
+    title: str = "",
+) -> str:
+    """Minimal PDF when Lohn delivers JSON payslip docs without pdfBase64."""
+    from io import BytesIO
+
+    from reportlab.lib.pagesizes import A4
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    y = height - 56
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(48, y, (title or f"Entgeltabrechnung {period}").strip()[:90])
+    y -= 28
+    c.setFont("Helvetica", 11)
+    lines = [
+        f"Firma: {company_name or '—'}",
+        f"Mitarbeiter: {employee_name or employee_id or '—'}",
+        f"Mitarbeiter-ID: {employee_id or '—'}",
+        f"Periode: {period or '—'}",
+        f"Brutto: {gross if gross is not None else '—'}",
+        f"Netto: {net if net is not None else '—'}",
+        "",
+        "Quelle: WorkPass Lohn (JSON-Lieferung). Originaldaten in der Buchhaltung.",
+    ]
+    for line in lines:
+        c.drawString(48, y, str(line)[:110])
+        y -= 18
+    c.showPage()
+    c.save()
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def lohn_delivery_to_statement(delivery: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Map Lohn platform.employee.delivery.v1 (payslip) → ingest_statements row."""
+    if not isinstance(delivery, dict):
+        return None
+    dtype = str(delivery.get("type") or "").strip().lower()
+    kind = str(delivery.get("kind") or "").strip().lower()
+    if dtype == "invoice":
+        return None
+    if dtype and dtype not in {"payslip", "payroll", "statement"}:
+        if kind != "platform.employee.delivery.v1":
+            return None
+    company = delivery.get("company") if isinstance(delivery.get("company"), dict) else {}
+    employee = delivery.get("employee") if isinstance(delivery.get("employee"), dict) else {}
+    summary = delivery.get("summary") if isinstance(delivery.get("summary"), dict) else {}
+    document = delivery.get("document") if isinstance(delivery.get("document"), dict) else {}
+    doc_emp = document.get("employee") if isinstance(document.get("employee"), dict) else {}
+    doc_co = document.get("company") if isinstance(document.get("company"), dict) else {}
+    totals = document.get("totals") if isinstance(document.get("totals"), dict) else {}
+
+    company_id = str(
+        company.get("id") or doc_co.get("id") or delivery.get("companyId") or ""
+    ).strip()
+    employee_id = str(
+        employee.get("id")
+        or employee.get("badgeId")
+        or doc_emp.get("id")
+        or doc_emp.get("badgeId")
+        or delivery.get("employeeId")
+        or ""
+    ).strip()
+    if not company_id or not employee_id:
+        return None
+    period = str(
+        delivery.get("period") or document.get("period") or summary.get("period") or ""
+    ).strip()[:7]
+    if not period:
+        return None
+    try:
+        period = normalize_period(period)
+    except ValueError:
+        return None
+
+    gross = summary.get("gross")
+    if gross is None:
+        gross = totals.get("gross")
+    net = summary.get("net")
+    if net is None:
+        net = totals.get("net")
+    hours = document.get("hours") or document.get("totalHours") or summary.get("hours") or 0
+    hourly = document.get("hourlyRate") or document.get("hourly_rate") or 0
+    name = str(employee.get("name") or doc_emp.get("name") or "").strip()
+    company_name = str(company.get("name") or doc_co.get("name") or "").strip()
+    title = str(delivery.get("title") or f"Entgeltabrechnung {period}").strip()
+    delivery_id = str(delivery.get("deliveryId") or delivery.get("jobId") or "").strip()
+    pdf_b64 = (
+        delivery.get("pdfBase64")
+        or delivery.get("pdf_base64")
+        or document.get("pdfBase64")
+        or document.get("pdf_base64")
+        or ""
+    )
+    if not pdf_b64:
+        pdf_b64 = _generate_payslip_pdf_base64(
+            employee_name=name,
+            employee_id=employee_id,
+            company_name=company_name,
+            period=period,
+            gross=gross,
+            net=net,
+            title=title,
+        )
+    return {
+        "companyId": company_id,
+        "employeeId": employee_id,
+        "workerId": employee_id,
+        "period": period,
+        "hours": float(hours or 0),
+        "hourlyRate": float(hourly or 0),
+        "grossAmount": float(gross or 0) if gross is not None else 0,
+        "netAmount": float(net) if net is not None else None,
+        "currency": str(summary.get("currency") or document.get("currency") or "EUR"),
+        "filename": f"lohnabrechnung_{period}_{employee_id}.pdf",
+        "pdfBase64": pdf_b64,
+        "externalRef": delivery_id[:120],
+        "employeeName": name,
+        "companyName": company_name,
+        "deliveryId": delivery_id,
+        "jobId": str(delivery.get("jobId") or ""),
+        "source": "lohn_delivery",
+        "document": document or None,
+    }
+
+
+def statements_from_lohn_payload(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract ingestable statements from webhook/pull payloads (statements or delivery)."""
+    if not isinstance(data, dict):
+        return []
+    out: list[dict[str, Any]] = []
+    raw_list = data.get("statements") or data.get("items") or data.get("payslips") or []
+    if isinstance(data.get("statement"), dict):
+        raw_list = [data["statement"]]
+    if isinstance(raw_list, list):
+        for item in raw_list:
+            if not isinstance(item, dict):
+                continue
+            # Already platform-shaped
+            if item.get("pdfBase64") or item.get("pdf_base64") or item.get("employeeId") or item.get("workerId"):
+                if not (item.get("companyId") or item.get("company_id")):
+                    cid = str(
+                        data.get("companyId")
+                        or data.get("company_id")
+                        or (data.get("company") or {}).get("id")
+                        or ""
+                    ).strip()
+                    if cid:
+                        item = {**item, "companyId": cid}
+                out.append(item)
+                continue
+            converted = lohn_delivery_to_statement(item)
+            if converted:
+                out.append(converted)
+
+    deliveries: list[Any] = []
+    if isinstance(data.get("delivery"), dict):
+        deliveries.append(data["delivery"])
+    if isinstance(data.get("deliveries"), list):
+        deliveries.extend(data["deliveries"])
+    for d in deliveries:
+        converted = lohn_delivery_to_statement(d if isinstance(d, dict) else None)
+        if converted:
+            out.append(converted)
+    return out
+
+
+def _lohn_http_get(link: dict[str, Any], *, path: str, company_id: str = "", event: str = "delivery.pull") -> dict[str, Any]:
+    from .platform_link import primary_lohn_api_key, resolve_lohn_api_keys
+
+    base = str(link.get("base_url") or "").rstrip("/")
+    keys = resolve_lohn_api_keys(link) or []
+    if not keys:
+        primary = primary_lohn_api_key(link)
+        if primary:
+            keys = [primary]
+    if not base:
+        return {"ok": False, "error": "lohn_base_url_missing"}
+    if not keys:
+        return {"ok": False, "error": "master_api_key_missing"}
+    if not path.startswith("/"):
+        path = "/" + path
+    url = f"{base}{path}"
+    last: dict[str, Any] = {"ok": False, "error": "lohn_unauthorized"}
+    for key_try in keys:
+        ts = str(int(time.time()))
+        headers = {
+            "Accept": "application/json",
+            "User-Agent": "SUPPIX-WorkPass-Lohn-Bridge/1.0",
+            "X-WorkPass-Key": key_try,
+            "Authorization": f"Bearer {key_try}",
+            "X-WorkPass-Master-Key": key_try,
+            "X-WorkPass-Company-Id": company_id,
+            "X-Suppix-Timestamp": ts,
+            "X-Suppix-Event": event,
+            "X-Suppix-Product": "WorkPass Lohn",
+            "X-Suppix-Signature": sign_payload(key_try, timestamp=ts, body=b""),
+        }
+        req = urlrequest.Request(url, headers=headers, method="GET")
+        try:
+            with urlrequest.urlopen(req, timeout=30) as resp:
+                raw = resp.read().decode("utf-8", errors="replace")
+                try:
+                    parsed = json.loads(raw) if raw else {}
+                except Exception:
+                    parsed = {"raw": raw[:500]}
+                return {"ok": True, "status": int(resp.status), "url": url, "body": parsed}
+        except urlerror.HTTPError as exc:
+            detail = ""
+            try:
+                detail = exc.read()[:400].decode("utf-8", errors="replace")
+            except Exception:
+                detail = str(exc)
+            last = {"ok": False, "status": int(exc.code), "url": url, "error": detail or str(exc)[:200]}
+            if int(exc.code) not in {401, 403}:
+                return last
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)[:200], "url": url}
+    return last
+
+
+def pull_payslips_from_lohn(
+    db,
+    *,
+    company_id: str,
+    period: str | None = None,
+    redeliver: bool = False,
+) -> dict[str, Any]:
+    """
+    Pull released payslips from WorkPass Lohn into pending_approval batches.
+
+    1) Optional POST /v1/payroll/deliver-period (re-enqueue released jobs)
+    2) GET /v1/delivery/pending?companyId=
+    3) ingest + ACK each payslip delivery
+    """
+    from urllib.parse import urlencode
+
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .platform_link import _post_lohn_json, get_platform_link
+
+    try:
+        company_id = require_company_id(company_id)
+    except ValueError:
+        return {"ok": False, "error": "company_id_required"}
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "skipped": True}
+
+    link = get_platform_link(db)
+    if not link.get("enabled") or not str(link.get("base_url") or "").strip():
+        return {"ok": False, "error": "platform_link_disabled"}
+
+    period_n = ""
+    if period:
+        try:
+            period_n = normalize_period(str(period).strip()[:7])
+        except ValueError:
+            return {"ok": False, "error": "invalid_period"}
+
+    redeliver_result: dict[str, Any] | None = None
+    if redeliver or period_n:
+        _db_commit(db)
+        redeliver_result = _post_lohn_json(
+            link,
+            path="/v1/payroll/deliver-period",
+            body={
+                "companyId": company_id,
+                "period": period_n or None,
+                "reason": "suppix_pull_payslips",
+            },
+            event="payroll.deliver-period",
+            timeout=45,
+        )
+
+    q = urlencode({"companyId": company_id})
+    _db_commit(db)
+    fetched = _lohn_http_get(
+        link,
+        path=f"/v1/delivery/pending?{q}",
+        company_id=company_id,
+        event="delivery.pending",
+    )
+    if not fetched.get("ok"):
+        return {
+            "ok": False,
+            "error": fetched.get("error") or "delivery_pull_failed",
+            "pull": fetched,
+            "redeliver": redeliver_result,
+        }
+
+    body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+    deliveries = body.get("deliveries") or body.get("items") or []
+    if not isinstance(deliveries, list):
+        deliveries = []
+
+    by_period: dict[str, list[dict[str, Any]]] = {}
+    skipped: list[dict[str, Any]] = []
+    for d in deliveries:
+        if not isinstance(d, dict):
+            continue
+        if str(d.get("type") or "").lower() not in {"payslip", "payroll", ""}:
+            if d.get("kind") == "platform.employee.delivery.v1" and str(d.get("type") or "") == "invoice":
+                skipped.append({"deliveryId": d.get("deliveryId"), "reason": "invoice_skipped"})
+                continue
+        stmt = lohn_delivery_to_statement(d)
+        if not stmt:
+            skipped.append({"deliveryId": d.get("deliveryId"), "reason": "unmapped"})
+            continue
+        if period_n and stmt.get("period") != period_n:
+            skipped.append({"deliveryId": d.get("deliveryId"), "reason": "period_filter", "period": stmt.get("period")})
+            continue
+        if str(stmt.get("companyId") or "") != company_id:
+            skipped.append({"deliveryId": d.get("deliveryId"), "reason": "company_mismatch"})
+            continue
+        by_period.setdefault(str(stmt["period"]), []).append(stmt)
+
+    batches: list[dict[str, Any]] = []
+    acked: list[str] = []
+    ack_errors: list[dict[str, Any]] = []
+    for per, stmts in by_period.items():
+        ingest = ingest_statements(
+            db,
+            company_id=company_id,
+            period=per,
+            statements=stmts,
+            external_ref=f"lohn-pull-{per}",
+            notes="pull /v1/delivery/pending",
+        )
+        batches.append(ingest)
+        if not ingest.get("ok"):
+            continue
+        for stmt in stmts:
+            did = str(stmt.get("deliveryId") or "").strip()
+            if not did:
+                continue
+            _db_commit(db)
+            ack = _post_lohn_json(
+                link,
+                path=f"/v1/delivery/{did}/ack",
+                body={"via": "suppix_pull", "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())},
+                event="delivery.ack",
+                timeout=15,
+            )
+            if ack.get("ok"):
+                acked.append(did)
+            else:
+                ack_errors.append({"deliveryId": did, "error": ack.get("error") or ack.get("status")})
+
+    created = sum(int(b.get("createdCount") or 0) for b in batches)
+    return {
+        "ok": True,
+        "companyId": company_id,
+        "period": period_n or None,
+        "pendingCount": len(deliveries),
+        "createdCount": created,
+        "batches": batches,
+        "acked": acked,
+        "ackErrors": ack_errors,
+        "skipped": skipped,
+        "redeliver": redeliver_result,
+        "status": "pending_approval",
+        "message": (
+            f"{created} Lohnabrechnung(en) übernommen — bitte prüfen und freigeben."
+            if created
+            else "Keine neuen Abrechnungen in der Lohn-Warteschlange."
+        ),
+        "note": "Never auto-approve payslips to employees",
+    }
+
+
 def _attach_worker_document(
     db,
     *,

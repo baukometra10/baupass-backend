@@ -1177,13 +1177,15 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
 
     # ── payslip.released ──────────────────────────────────────────────
     if event in {"payslip.released", "payslips.released", "statement.released", "statements.released"}:
-        statements = data.get("statements") or data.get("items") or data.get("payslips") or []
-        if isinstance(data.get("statement"), dict):
-            statements = [data["statement"]]
+        from .service import statements_from_lohn_payload
+
+        statements = statements_from_lohn_payload(data)
+        if not company_id and statements:
+            company_id = str((statements[0] or {}).get("companyId") or "").strip()
+        if not period and statements:
+            period = str((statements[0] or {}).get("period") or "").strip()[:7]
         ingest_result: dict[str, Any] = {"skipped": "no_statements"}
         if company_id and isinstance(statements, list) and statements:
-            if not period:
-                period = str((statements[0] or {}).get("period") or "").strip()[:7]
             try:
                 if period:
                     normalize_period(period)
@@ -1192,7 +1194,12 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                     company_id=company_id,
                     period=period or previous_period_safe(),
                     statements=statements,
-                    external_ref=str(data.get("externalRef") or data.get("id") or ""),
+                    external_ref=str(
+                        data.get("externalRef")
+                        or data.get("id")
+                        or (data.get("delivery") or {}).get("deliveryId")
+                        or ""
+                    ),
                     notes=str(data.get("notes") or "payslip.released webhook"),
                 )
             except Exception as exc:
@@ -1232,6 +1239,7 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         ) if company_id else {"ok": True, "createdCount": 0, "updatedCount": 0, "ids": []}
         return {
             "ok": True,
+            "accepted": True,
             "event": event,
             "companyId": company_id or None,
             "period": period_label or None,
