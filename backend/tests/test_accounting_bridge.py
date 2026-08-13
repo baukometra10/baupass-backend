@@ -1125,3 +1125,50 @@ def test_explicit_lohn_bridge_credentials_ignore_admin_session():
     )
     assert key2 == "lohn-shared-secret"
     assert cid2 == "c1"
+
+
+def test_explicit_lohn_bridge_accepts_firma_id_header():
+    from backend.app.platform.accounting.auth import extract_explicit_lohn_bridge_credentials
+
+    key, cid = extract_explicit_lohn_bridge_credentials(
+        {
+            "X-WorkPass-Key": "lohn-shared-secret",
+            "X-Firma-Id": "cmp-cd3c66a0b71a",
+        }
+    )
+    assert key == "lohn-shared-secret"
+    assert cid == "cmp-cd3c66a0b71a"
+
+
+def test_api_key_variants_tolerate_plus_as_space():
+    from backend.app.platform.accounting.auth import keys_match
+
+    assert keys_match("abc+def=", "abc def=")
+    assert not keys_match("abc+def=", "other")
+
+
+def test_push_stammdaten_to_lohn_calls_company_and_employees(monkeypatch):
+    from backend.app.platform.accounting import service
+
+    db = _db()
+    calls = {"company": 0, "employees": 0}
+
+    monkeypatch.setattr(
+        service,
+        "push_employees_to_lohn",
+        lambda *a, **k: calls.__setitem__("employees", calls["employees"] + 1)
+        or {"ok": True, "imported": 1},
+    )
+
+    def _notify(db, company_id, enabled=True):
+        calls["company"] += 1
+        return {"ok": True, "companyId": company_id}
+
+    monkeypatch.setattr(
+        "backend.app.platform.accounting.platform_link.notify_company_lohn_status",
+        _notify,
+    )
+    out = service.push_stammdaten_to_lohn(db, company_id="c1")
+    assert out.get("ok") is True
+    assert calls["company"] == 1
+    assert calls["employees"] == 1

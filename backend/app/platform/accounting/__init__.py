@@ -53,6 +53,7 @@ def register_accounting_blueprint(flask_app) -> None:
         prepare_hour_export,
         prepare_payroll_batch,
         push_payroll_batch_to_lohn,
+        push_stammdaten_to_lohn,
         reject_batch,
         reject_period_handoff,
         request_period_handoff,
@@ -62,13 +63,13 @@ def register_accounting_blueprint(flask_app) -> None:
         """Returns (integration, None) or (None, (payload, http_status))."""
         db = get_db()
         ensure_accounting_schema(db)
-        company_id = (
-            request.headers.get("X-WorkPass-Company-Id")
-            or request.headers.get("X-Company-Id")
-            or request.args.get("company_id")
-            or request.args.get("companyId")
-            or ""
-        ).strip()
+        from .auth import extract_company_id_from_request
+
+        company_id = extract_company_id_from_request(
+            request.headers,
+            args=request.args,
+            json_body=request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH"} else None,
+        )
         if not company_id:
             return None, ({"error": "company_id_required", "hint": "Send X-WorkPass-Company-Id"}, 400)
         api_key = extract_lohn_api_key_from_headers(request.headers)
@@ -212,6 +213,63 @@ def register_accounting_blueprint(flask_app) -> None:
         if blocked:
             return jsonify(blocked), 403
         return jsonify(_lohn_contracts_payload(get_db(), integ["company_id"])), 200
+
+    @accounting_bp.get("/workpass/stammdaten")
+    @accounting_bp.get("/v2/accounting/stammdaten")
+    def accounting_pull_stammdaten():
+        """Unambiguous Lohn pull: company + employees/contracts in one response."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        db = get_db()
+        company = company_upsert_payload(db, integ["company_id"])
+        contracts = _lohn_contracts_payload(db, integ["company_id"])
+        return jsonify(
+            {
+                "ok": True,
+                "product": "WorkPass Lohn",
+                "companyId": integ["company_id"],
+                "company": company.get("company") or company,
+                "contracts": contracts.get("contracts") or [],
+                "employees": contracts.get("employees") or [],
+                "employeeCount": contracts.get("employeeCount"),
+                "payrollReadyCount": contracts.get("payrollReadyCount"),
+                "incompleteCount": contracts.get("incompleteCount"),
+                "format": "platform.stammdaten.v1",
+            }
+        ), 200
+
+    @accounting_bp.post("/payroll/accounting/push-stammdaten")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_push_stammdaten():
+        """Force Platform → Lohn company + employees push (bypass Lohn GET 401 loop)."""
+        user = g.current_user
+        data = request.get_json(silent=True) or {}
+        company_id = (
+            data.get("companyId")
+            or data.get("company_id")
+            or request.args.get("company_id")
+            or (user.get("company_id") if user.get("role") != "superadmin" else "")
+            or ""
+        )
+        if user.get("role") != "superadmin" and str(company_id) != str(user.get("company_id") or ""):
+            return jsonify({"error": "forbidden_company"}), 403
+        if not company_id:
+            return jsonify({"error": "company_id_required"}), 400
+        period = str(data.get("period") or request.args.get("period") or "").strip()[:7]
+        result = push_stammdaten_to_lohn(
+            get_db(),
+            company_id=str(company_id),
+            period=period or None,
+            include_payroll=bool(data.get("includePayroll") or period),
+        )
+        return jsonify(result), (200 if result.get("ok") else 400)
 
     @accounting_bp.post("/v2/accounting/period-request")
     @accounting_bp.get("/v2/accounting/period-request")

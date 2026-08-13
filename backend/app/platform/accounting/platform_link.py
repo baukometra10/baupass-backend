@@ -65,6 +65,8 @@ def resolve_lohn_api_keys(link: dict[str, Any] | None = None) -> list[str]:
     add(str(link.get("master_api_key") or ""))
     add(_workpass_raw_env("WORKPASS_API_KEY"))
     add(platform_env("WORKPASS_API_KEY", ""))
+    add(_workpass_raw_env("WORKPASS_PLATFORM_API_KEY"))
+    add(platform_env("WORKPASS_PLATFORM_API_KEY", ""))
     add(platform_env("WORKPASS_LOHN_MASTER_KEY", ""))
     add(_workpass_raw_env("WORKPASS_LOHN_MASTER_KEY"))
     return keys

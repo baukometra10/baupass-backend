@@ -54,6 +54,72 @@ def _extract_bearer(raw: str) -> str:
     return value
 
 
+def api_key_variants(raw: str) -> list[str]:
+    """Tolerate +/space/URL-encoding differences common with shared API keys."""
+    from urllib.parse import unquote
+
+    base = str(raw or "").strip()
+    if not base:
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str) -> None:
+        v = str(value or "").strip()
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+
+    add(base)
+    add(base.replace(" ", "+"))
+    add(base.replace("+", " "))
+    try:
+        add(unquote(base))
+        add(unquote(base).replace(" ", "+"))
+    except Exception:
+        pass
+    return out
+
+
+def keys_match(left: str, right: str) -> bool:
+    for a in api_key_variants(left):
+        for b in api_key_variants(right):
+            if len(a) == len(b) and hmac.compare_digest(a, b):
+                return True
+    return False
+
+
+def extract_company_id_from_request(
+    headers=None,
+    *,
+    args=None,
+    json_body: dict | None = None,
+) -> str:
+    get = headers.get if headers is not None and hasattr(headers, "get") else (lambda *_a, **_k: "")
+    args = args or {}
+    json_body = json_body if isinstance(json_body, dict) else {}
+    candidates = [
+        get("X-WorkPass-Company-Id"),
+        get("X-Company-Id"),
+        get("X-Firma-Id"),
+        get("X-WorkPass-Firma-Id"),
+        get("X-Suppix-Company-Id"),
+        args.get("company_id"),
+        args.get("companyId"),
+        args.get("firmaId"),
+        args.get("firma_id"),
+        args.get("id"),
+        json_body.get("companyId"),
+        json_body.get("company_id"),
+        (json_body.get("company") or {}).get("id") if isinstance(json_body.get("company"), dict) else "",
+    ]
+    for raw in candidates:
+        value = str(raw or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def extract_lohn_api_key_from_headers(headers) -> str:
     """Read accounting / master key from common Lohn + platform header names."""
     get = headers.get if hasattr(headers, "get") else (lambda *_a, **_k: "")
@@ -63,8 +129,9 @@ def extract_lohn_api_key_from_headers(headers) -> str:
         "X-WorkPass-Key",
         "X-WorkPass-Master-Key",
         "X-WorkPass-Webhook-Key",
-        "X-Api-Key",
+        "X-WorkPass-Platform-Api-Key",
         "X-Platform-Api-Key",
+        "X-Api-Key",
         "Authorization",
     ):
         raw = _extract_bearer(str(get(name) or ""))
@@ -107,7 +174,7 @@ def is_known_lohn_platform_key(db, api_key: str) -> bool:
     if key.startswith(API_KEY_PREFIX):
         return True
     for candidate in list_accepted_lohn_platform_keys(db):
-        if len(candidate) == len(key) and hmac.compare_digest(candidate, key):
+        if keys_match(candidate, key):
             return True
     return False
 
@@ -123,9 +190,9 @@ def extract_explicit_lohn_bridge_credentials(headers, *, query_company: str = ""
     Admin session Bearer tokens do not match WORKPASS_* keys, so admin UI stays intact.
     """
     get = headers.get if hasattr(headers, "get") else (lambda *_a, **_k: "")
-    company_id = str(
-        get("X-WorkPass-Company-Id") or get("X-Company-Id") or query_company or ""
-    ).strip()
+    company_id = extract_company_id_from_request(
+        headers, args={"company_id": query_company, "companyId": query_company}
+    )
     key = ""
     for name in (
         "X-Accounting-Key",
@@ -133,8 +200,9 @@ def extract_explicit_lohn_bridge_credentials(headers, *, query_company: str = ""
         "X-WorkPass-Key",
         "X-WorkPass-Master-Key",
         "X-WorkPass-Webhook-Key",
-        "X-Api-Key",
+        "X-WorkPass-Platform-Api-Key",
         "X-Platform-Api-Key",
+        "X-Api-Key",
     ):
         raw = _extract_bearer(str(get(name) or ""))
         if raw:
@@ -154,15 +222,23 @@ def extract_explicit_lohn_bridge_credentials(headers, *, query_company: str = ""
             for n in (
                 "X-WorkPass-Key",
                 "X-WorkPass-Company-Id",
+                "X-Firma-Id",
                 "X-Accounting-Key",
                 "X-WorkPass-Accounting-Key",
+                "X-WorkPass-Platform-Api-Key",
             )
         )
         return (key, "") if has_explicit else ("", "")
 
     # If only Authorization + ?company_id (admin UI), require known platform key
     has_company_header = bool(
-        str(get("X-WorkPass-Company-Id") or get("X-Company-Id") or "").strip()
+        str(
+            get("X-WorkPass-Company-Id")
+            or get("X-Company-Id")
+            or get("X-Firma-Id")
+            or get("X-WorkPass-Firma-Id")
+            or ""
+        ).strip()
     )
     has_explicit_key_header = any(
         str(get(n) or "").strip()
@@ -172,6 +248,7 @@ def extract_explicit_lohn_bridge_credentials(headers, *, query_company: str = ""
             "X-WorkPass-Accounting-Key",
             "X-Api-Key",
             "X-Platform-Api-Key",
+            "X-WorkPass-Platform-Api-Key",
         )
     )
     if has_company_header or has_explicit_key_header:
@@ -260,7 +337,7 @@ def authenticate_lohn_pull_request(
 
     matched = None
     for k in accepted:
-        if len(k) == len(api_key) and hmac.compare_digest(k, api_key):
+        if keys_match(k, api_key):
             matched = k
             break
     if not matched:

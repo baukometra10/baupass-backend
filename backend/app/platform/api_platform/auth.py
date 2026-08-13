@@ -11,7 +11,7 @@ from .api_keys import authenticate_api_key
 
 
 def require_api_key(scopes: str | None = None):
-    """Authenticate developer API key, or WorkPass Lohn platform key + company header."""
+    """Authenticate developer API key, or WorkPass Lohn platform key + company scope."""
 
     def decorator(handler):
         @wraps(handler)
@@ -23,17 +23,25 @@ def require_api_key(scopes: str | None = None):
             try:
                 from backend.app.platform.accounting.auth import (
                     authenticate_lohn_pull_request,
+                    extract_company_id_from_request,
                     extract_lohn_api_key_from_headers,
+                    is_known_lohn_platform_key,
                 )
 
-                company_id = (
-                    request.headers.get("X-WorkPass-Company-Id")
-                    or request.headers.get("X-Company-Id")
-                    or request.args.get("company_id")
-                    or request.args.get("companyId")
-                    or ""
-                ).strip()
+                company_id = extract_company_id_from_request(
+                    request.headers,
+                    args=request.args,
+                    json_body=request.get_json(silent=True) if request.method in {"POST", "PUT", "PATCH"} else None,
+                )
                 lohn_key = extract_lohn_api_key_from_headers(request.headers)
+                if lohn_key and is_known_lohn_platform_key(db, lohn_key) and not company_id:
+                    return jsonify(
+                        {
+                            "error": "company_id_required",
+                            "hint": "X-WorkPass-Company-Id (cmp-…) erforderlich",
+                            "ok": False,
+                        }
+                    ), 400
                 if lohn_key and company_id:
                     integ = authenticate_lohn_pull_request(
                         db, company_id=company_id, api_key=lohn_key

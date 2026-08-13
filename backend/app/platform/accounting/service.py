@@ -403,6 +403,50 @@ def push_employees_to_lohn(
     }
 
 
+def push_stammdaten_to_lohn(
+    db,
+    *,
+    company_id: str,
+    period: str | None = None,
+    include_payroll: bool = False,
+) -> dict[str, Any]:
+    """
+    Platform → Lohn: company upsert + full employee/contract master.
+    Use when Lohn cannot pull GET /api/contracts or /api/v1/company (401 loop).
+    """
+    from .hours_service import normalize_period as _norm_period
+    from .platform_link import notify_company_lohn_status
+
+    company_id = require_company_id(company_id)
+    out: dict[str, Any] = {"companyId": company_id, "ok": False}
+    _db_commit(db)
+    try:
+        out["companyUpsert"] = notify_company_lohn_status(db, company_id, enabled=True)
+    except Exception as exc:
+        out["companyUpsert"] = {"ok": False, "error": str(exc)[:160]}
+    out["employeesImport"] = push_employees_to_lohn(db, company_id=company_id, timeout=8)
+    if include_payroll and period:
+        try:
+            period_norm = _norm_period(str(period).strip()[:7])
+        except ValueError:
+            period_norm = str(period or "").strip()[:7]
+        if period_norm:
+            out["payrollBatch"] = push_payroll_batch_to_lohn(
+                db, company_id=company_id, period=period_norm
+            )
+    out["ok"] = bool(
+        (out.get("employeesImport") or {}).get("ok")
+        or (out.get("companyUpsert") or {}).get("ok")
+        or (out.get("payrollBatch") or {}).get("ok")
+    )
+    out["message"] = (
+        "Stammdaten an WorkPass Lohn übergeben"
+        if out["ok"]
+        else "Stammdaten-Push teilweise fehlgeschlagen"
+    )
+    return out
+
+
 def notify_employee_data_resolved(
     db,
     *,
@@ -829,14 +873,25 @@ def auto_fulfill_lohn_data_request(
                 "error": delivery.get("error"),
             }
 
-        # Master sync without month
-        if want_employees:
+        # Master sync without month — company + employees (bypass Lohn GET 401 loops)
+        if want_employees or want_branding:
             _db_commit(db)
-            replies["employeesImport"] = push_employees_to_lohn(
-                db, company_id=company_id, timeout=6
+            replies["stammdatenPush"] = push_stammdaten_to_lohn(
+                db,
+                company_id=company_id,
+                period=None,
+                include_payroll=False,
             )
+            if not replies.get("companyUpsert"):
+                replies["companyUpsert"] = (replies.get("stammdatenPush") or {}).get(
+                    "companyUpsert"
+                )
+            replies["employeesImport"] = (replies.get("stammdatenPush") or {}).get(
+                "employeesImport"
+            ) or replies.get("employeesImport")
         mark_done = bool(
-            (replies.get("employeesImport") or {}).get("ok")
+            (replies.get("stammdatenPush") or {}).get("ok")
+            or (replies.get("employeesImport") or {}).get("ok")
             or (replies.get("companyUpsert") or {}).get("ok")
         )
         return {
