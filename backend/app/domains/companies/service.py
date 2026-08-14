@@ -75,10 +75,12 @@ class CompaniesService:
         include_deleted: bool,
         preview_company_id: str = "",
     ) -> list[dict[str, Any]]:
+        from backend.app.platform.company_branding import serialize_company_row
+
         clause, params = self._visible_company_clause(user, preview_company_id)
         extra = None if include_deleted else "deleted_at IS NULL"
         where, where_params = self._build_where(clause, params, extra)
-        return self.companies.list_filtered(db, where, where_params)
+        return [serialize_company_row(row) for row in self.companies.list_filtered(db, where, where_params)]
 
     def list_subcompanies(
         self,
@@ -490,7 +492,14 @@ class CompaniesService:
             "audit": {"company_id": company_id, "company_name": company_name},
         }
 
-    def update_company(self, db, company_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    def update_company(
+        self,
+        db,
+        company_id: str,
+        payload: dict[str, Any],
+        *,
+        actor: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         from zoneinfo import ZoneInfo
 
         from backend.server import (
@@ -512,6 +521,21 @@ class CompaniesService:
         company = self.companies.get_by_id(db, company_id)
         if not company:
             return {"error": {"error": "company_not_found"}, "status": 404}
+
+        actor_role = str((actor or {}).get("role") or "").strip().lower()
+        if actor_role == "company-admin":
+            if str((actor or {}).get("company_id") or "") != str(company_id):
+                return {"error": {"error": "forbidden_company"}, "status": 403}
+            # Tenant admins may only change white-label / portal branding fields.
+            branding_only = {
+                "portalDisplayName": payload.get("portalDisplayName", payload.get("portal_display_name")),
+                "brandingAccentColor": payload.get("brandingAccentColor", payload.get("branding_accent_color")),
+                "brandingLogoData": payload.get("brandingLogoData", payload.get("branding_logo_data")),
+                "brandingPreset": payload.get("brandingPreset", payload.get("branding_preset")),
+                "reportTimezone": payload.get("reportTimezone", payload.get("report_timezone")),
+                "operatingSector": payload.get("operatingSector", payload.get("operating_sector")),
+            }
+            payload = {k: v for k, v in branding_only.items() if v is not None}
 
         company_name = clean_text_input(payload.get("name", company["name"]), max_len=120)
         company_customer_number = sanitize_customer_number(

@@ -18902,12 +18902,14 @@ def worker_app_verify_pin():
 
 
 @require_auth
-@require_roles("superadmin")
+@require_roles("superadmin", "company-admin")
 def update_company(company_id):
     from backend.app.domains.companies.service import CompaniesService
 
     payload = request.get_json(silent=True) or {}
-    result = CompaniesService().update_company(get_db(), company_id, payload)
+    result = CompaniesService().update_company(
+        get_db(), company_id, payload, actor=g.current_user
+    )
     if "error" in result:
         return jsonify(result["error"]), result.get("status", 400)
     audit = result.get("audit") or {}

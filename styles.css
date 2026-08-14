@@ -2482,7 +2482,7 @@ body.theme-black .ui-lang-select {
 }
 
 .stat-card .stat-value {
-  color: #06b6d4;
+  color: var(--accent, #06b6d4);
   font-weight: 700;
 }
 
@@ -2515,14 +2515,14 @@ body.theme-black .ui-lang-select {
 }
 
 .panel-heading .eyebrow {
-  color: #a855f7;
+  color: var(--accent, #a855f7);
   font-size: 0.82rem;
   letter-spacing: 0.18em;
 }
 
 .panel-heading h3 {
   margin: 0;
-  color: #06b6d4;
+  color: var(--accent, #06b6d4);
   font-size: 1.65rem;
   font-family: 'Space Grotesk', Arial, sans-serif;
   font-weight: 700;
@@ -3914,11 +3914,11 @@ body[data-branding-preset="premium"] {
 .invoice-quick-filters .ghost-button,
 .invoice-toolbar-refresh {
   border-radius: 999px;
-  border: 1px solid rgba(15, 76, 92, 0.26);
+  border: 1px solid color-mix(in srgb, var(--accent, #06b6d4) 26%, transparent);
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(238, 247, 249, 0.94));
-  color: #06b6d4;
+  color: var(--accent, #06b6d4);
   font-weight: 700;
-  box-shadow: 0 5px 14px rgba(15, 76, 92, 0.1);
+  box-shadow: 0 5px 14px color-mix(in srgb, var(--accent, #06b6d4) 10%, transparent);
 }
 
 .invoice-toolbar .ghost-button:hover,
@@ -3935,9 +3935,9 @@ body[data-branding-preset="premium"] {
 
 .doc-inbox-btn {
   border-radius: 999px;
-  border: 1px solid rgba(15, 76, 92, 0.26);
+  border: 1px solid color-mix(in srgb, var(--accent, #06b6d4) 26%, transparent);
   background: linear-gradient(135deg, #ffffff, #eef6f8);
-  color: #06b6d4;
+  color: var(--accent, #06b6d4);
   font-weight: 700;
 }
 
@@ -6029,9 +6029,9 @@ body.theme-black .bulk-action-bar .ghost-button {
 }
 
 #exportButton {
-  color: #fefaf6;
-  background: linear-gradient(135deg, #06b6d4, #1e6c74);
-  box-shadow: 0 10px 24px rgba(15, 76, 92, 0.28);
+  color: var(--accent-on, #fefaf6);
+  background: var(--accent, #06b6d4);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent, #06b6d4) 28%, transparent);
 }
 
 #logoutButton {
@@ -7799,6 +7799,12 @@ body.desktop-app .topbar {
     transition: transform 150ms ease, box-shadow 180ms ease, filter 180ms ease, border-color 180ms ease, background 180ms ease;
   }
 
+  #settingsForm .primary-button {
+    background: var(--accent, #06b6d4) !important;
+    color: var(--accent-on, #fff) !important;
+    border-color: var(--accent, #06b6d4) !important;
+  }
+
   #settingsForm .btn:hover,
   #settingsForm .primary-button:hover,
   #settingsForm .ghost-button:hover {
@@ -7819,10 +7825,10 @@ body.desktop-app .topbar {
   }
 
   #settingsForm .btn.btn-primary {
-    color: #fff;
-    background: linear-gradient(135deg, #06b6d4, #1f6a7c);
-    border-color: rgba(15, 76, 92, 0.4);
-    box-shadow: 0 10px 20px rgba(15, 76, 92, 0.24);
+    color: var(--accent-on, #fff);
+    background: var(--accent, #06b6d4);
+    border-color: color-mix(in srgb, var(--accent, #06b6d4) 40%, transparent);
+    box-shadow: 0 10px 20px color-mix(in srgb, var(--accent, #06b6d4) 24%, transparent);
   }
 
   #settingsForm .btn.btn-primary:hover {

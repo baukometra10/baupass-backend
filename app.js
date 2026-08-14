@@ -18347,7 +18347,7 @@ function shouldUseFullTenantWhiteLabel() {
     return true;
   }
   const role = String(getCurrentUser()?.role || "").toLowerCase();
-  if (role === "company-admin") {
+  if (role === "company-admin" || role === "office") {
     return true;
   }
   if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
@@ -25774,6 +25774,9 @@ function renderCompanyList() {
           ? "helper-text helper-text-ok"
           : "helper-text helper-text-info";
       const canManageCompanySettings = (canDeleteAny || canRepair) && !deleted && !isSupportReadOnlyMode();
+      const canEditWhiteLabel = !deleted && !isSupportReadOnlyMode() && (
+        canDeleteAny || (canRepairOwn && String(companyId) === String(userCompanyId || ""))
+      );
       const workpassLohnEnabled = isCompanyWorkpassLohnEnabled(company);
       const repairHistory = filterRepairHistoryByWindow(state.companyRepairHistory?.[companyId] || []);
       const docEmailSelftestStatusMarkup = docEmailSelftestStatus
@@ -25872,13 +25875,13 @@ function renderCompanyList() {
             return `<p>${otpIcon} <strong>${escapeHtml(runtimeText("companyOtpAdminLabel"))}:</strong> ${otpLabel}</p>`;
           })()}
           <div class="button-row" style="align-items:center; margin-top:2px;">
-            <select data-company-branding-select="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>
+            <select data-company-branding-select="${escapeHtml(companyId)}" ${canEditWhiteLabel ? "" : "disabled"}>
               <option value="construction" ${brandingPreset === "construction" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionConstruction"))}</option>
               <option value="industry" ${brandingPreset === "industry" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionIndustry"))}</option>
               <option value="premium" ${brandingPreset === "premium" ? "selected" : ""}>${escapeHtml(runtimeText("companyBrandingOptionPremium"))}</option>
             </select>
-            <button type="button" class="ghost-button small-button" data-company-branding-save="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingSaveBtn"))}</button>
-            <button type="button" class="ghost-button small-button" data-company-branding-reset="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingResetBtn"))}</button>
+            <button type="button" class="ghost-button small-button" data-company-branding-save="${escapeHtml(companyId)}" ${canEditWhiteLabel ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingSaveBtn"))}</button>
+            <button type="button" class="ghost-button small-button" data-company-branding-reset="${escapeHtml(companyId)}" ${canEditWhiteLabel ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingResetBtn"))}</button>
           </div>
           <div class="button-row" style="align-items:center; margin-top:2px;">
             <span class="company-branding-preview preview-${escapeHtml(brandingPreset)}" data-company-branding-preview="${escapeHtml(companyId)}" aria-hidden="true"></span>
@@ -25888,26 +25891,26 @@ function renderCompanyList() {
           <div class="meta-box" style="margin-top:6px;">
             <p><strong>White-Label (Miete)</strong></p>
             <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;">
-              <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:160px;" />
-              <input type="text" data-company-report-timezone="${escapeHtml(companyId)}" placeholder="${escapeAttr(uiT("reportTimezonePlaceholder"))}" maxlength="64" value="${escapeAttr(company.reportTimezone || company.report_timezone || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:140px;" title="${escapeAttr(uiT("labelReportTimezone"))}" />
+              <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canEditWhiteLabel ? "" : "disabled"} style="flex:1;min-width:160px;" />
+              <input type="text" data-company-report-timezone="${escapeHtml(companyId)}" placeholder="${escapeAttr(uiT("reportTimezonePlaceholder"))}" maxlength="64" value="${escapeAttr(company.reportTimezone || company.report_timezone || "")}" ${canEditWhiteLabel ? "" : "disabled"} style="flex:1;min-width:140px;" title="${escapeAttr(uiT("labelReportTimezone"))}" />
             </div>
             <div class="button-row company-branding-color-row" style="flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
-              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="${escapeAttr(runtimeText("companyBrandingAccentPicker") || "Akzentfarbe")}" />
-              <input type="text" data-company-accent-hex="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company).toUpperCase())}" maxlength="7" spellcheck="false" autocomplete="off" placeholder="#RRGGBB" ${canDeleteAny && !deleted ? "" : "disabled"} title="Hex" style="width:7.2rem;font-family:ui-monospace,Consolas,monospace;" />
+              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company))}" ${canEditWhiteLabel ? "" : "disabled"} title="${escapeAttr(runtimeText("companyBrandingAccentPicker") || "Akzentfarbe")}" />
+              <input type="text" data-company-accent-hex="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company).toUpperCase())}" maxlength="7" spellcheck="false" autocomplete="off" placeholder="#RRGGBB" ${canEditWhiteLabel ? "" : "disabled"} title="Hex" style="width:7.2rem;font-family:ui-monospace,Consolas,monospace;" />
               <span class="helper-text" style="margin:0;">RGB</span>
-              <input type="number" data-company-accent-r="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).r))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="R" style="width:4.2rem;" />
-              <input type="number" data-company-accent-g="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).g))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="G" style="width:4.2rem;" />
-              <input type="number" data-company-accent-b="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).b))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="B" style="width:4.2rem;" />
+              <input type="number" data-company-accent-r="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).r))}" ${canEditWhiteLabel ? "" : "disabled"} title="R" style="width:4.2rem;" />
+              <input type="number" data-company-accent-g="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).g))}" ${canEditWhiteLabel ? "" : "disabled"} title="G" style="width:4.2rem;" />
+              <input type="number" data-company-accent-b="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).b))}" ${canEditWhiteLabel ? "" : "disabled"} title="B" style="width:4.2rem;" />
               <button type="button" class="small-button" data-company-accent-swatch="${escapeHtml(companyId)}" disabled style="min-width:7rem;cursor:default;pointer-events:none;">${escapeHtml(runtimeText("companyBrandingAccentPreview") || "Button-Vorschau")}</button>
             </div>
             <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
               <label class="ghost-button small-button" style="cursor:pointer;margin:0;">
                 Logo
-                <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canDeleteAny && !deleted ? "" : "disabled"} />
+                <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canEditWhiteLabel ? "" : "disabled"} />
               </label>
-              <button type="button" class="ghost-button small-button" data-company-branding-pdf-preview="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingPdfPreviewBtn"))}</button>
+              <button type="button" class="ghost-button small-button" data-company-branding-pdf-preview="${escapeHtml(companyId)}" ${canEditWhiteLabel ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingPdfPreviewBtn"))}</button>
             </div>
-            <p class="helper-text">${escapeHtml(runtimeText("companyBrandingAccentHint") || "Exakte Markenfarbe (#RRGGBB / RGB). Logo-, PDF- und Speicher-Buttons auf dieser Karte verwenden genau diese Farbe.")}</p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyBrandingAccentHint") || "Exakte Markenfarbe (#RRGGBB / RGB). Wird automatisch gespeichert und gilt für die gesamte Plattform (Buttons, Texte, Navigation).")}</p>
           </div>
           ${turnstileMarkup}
           <div class="meta-box">
@@ -28347,22 +28350,38 @@ function applyActiveCompanyBrandingPreset() {
     return;
   }
   if (role === "superadmin" && companyBrandingPreviewOverride) {
-    // Temporary preset preview from company list dropdown — do not wipe tenant accents.
+    // Temporary preset preview from company list dropdown — keep platform/settings colors.
     document.body.setAttribute("data-branding-preset", normalizeCompanyBrandingPresetValue(companyBrandingPreviewOverride));
+    applyPlatformSettingsBrandColors();
     return;
   }
   const companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
   const activeCompany = companyId ? state.companies.find((entry) => String(entry?.id || "") === companyId) : null;
   const activePreset = role === "superadmin" ? "construction" : getCompanyBrandingPreset(activeCompany);
   document.body.setAttribute("data-branding-preset", activePreset);
-  if (role !== "superadmin") {
+  if (role === "company-admin" || role === "office") {
     applyCompanyWhiteLabelStyles(activeCompany);
-  } else {
-    applyCompanyWhiteLabelStyles(null);
-    applyWebsiteLogo(state.settings?.invoiceLogoData || "");
+  } else if (role === "superadmin") {
     document.body.classList.remove("tenant-white-label");
     state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
+    applyWebsiteLogo(state.settings?.invoiceLogoData || "");
+    applyPlatformSettingsBrandColors();
+  } else {
+    applyCompanyWhiteLabelStyles(activeCompany);
   }
+}
+
+function applyPlatformSettingsBrandColors() {
+  const primary = normalizeHexColor(state.settings?.invoicePrimaryColor || state.settings?.invoice_primary_color, "");
+  const accent = normalizeHexColor(
+    state.settings?.invoiceAccentColor || state.settings?.invoice_accent_color || primary,
+    primary || "#06b6d4",
+  );
+  const color = accent || primary;
+  if (!color || !window.TenantBrandIcon?.applyAccentVariables) {
+    return;
+  }
+  window.TenantBrandIcon.applyAccentVariables(document.documentElement, color);
 }
 
 async function refreshTenantBrandingFromApi() {
@@ -28373,10 +28392,13 @@ async function refreshTenantBrandingFromApi() {
   let companyId = "";
   if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
     companyId = String(superadminUiPreviewCompanyId || "").trim();
-  } else if (role !== "superadmin") {
+  } else if (role === "company-admin" || role === "office") {
     companyId = String(state.currentUser?.company_id || state.currentUser?.companyId || "").trim();
   }
   if (!companyId) {
+    if (role === "superadmin") {
+      applyPlatformSettingsBrandColors();
+    }
     return;
   }
   try {
@@ -28791,6 +28813,26 @@ function renderAdminSettingsForm() {
   if (rentalModel) rentalModel.value = state.settings.rentalModel || "tageskarte";
   if (invoicePrimaryColor) invoicePrimaryColor.value = state.settings.invoicePrimaryColor || "#06b6d4";
   if (invoiceAccentColor) invoiceAccentColor.value = state.settings.invoiceAccentColor || "#a855f7";
+  if (
+    String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
+    && !isSuperadminCompanyPreviewMode()
+  ) {
+    applyPlatformSettingsBrandColors();
+  }
+  if (!document.body.dataset.invoiceBrandColorBound) {
+    document.body.dataset.invoiceBrandColorBound = "1";
+    const onInvoiceColorInput = () => {
+      const role = String(getCurrentUser()?.role || "").toLowerCase();
+      if (role !== "superadmin" || isSuperadminCompanyPreviewMode()) return;
+      const primaryEl = document.querySelector("#invoicePrimaryColor");
+      const accentEl = document.querySelector("#invoiceAccentColor");
+      if (primaryEl) state.settings.invoicePrimaryColor = primaryEl.value;
+      if (accentEl) state.settings.invoiceAccentColor = accentEl.value;
+      applyPlatformSettingsBrandColors();
+    };
+    document.querySelector("#invoicePrimaryColor")?.addEventListener("input", onInvoiceColorInput);
+    document.querySelector("#invoiceAccentColor")?.addEventListener("input", onInvoiceColorInput);
+  }
   if (smtpHost) smtpHost.value = state.settings.smtpHost || "";
   if (smtpPort) smtpPort.value = String(state.settings.smtpPort || 587);
   if (smtpUsername) smtpUsername.value = state.settings.smtpUsername || "";
@@ -33143,6 +33185,19 @@ function readCompanyAccentColorFromCard(companyId, fallbackCompany) {
   return normalizeHexColor(colorInput?.value, companyAccentColorInputValue(fallbackCompany));
 }
 
+function isActiveTenantBrandingCompany(companyId) {
+  const id = String(companyId || "").trim();
+  if (!id) return false;
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  if (role === "company-admin" || role === "office") {
+    return id === String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
+  }
+  if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
+    return id === String(superadminUiPreviewCompanyId || "").trim();
+  }
+  return false;
+}
+
 function syncCompanyAccentColorControls(companyId, hexValue, { source = "" } = {}) {
   const list = elements.companyList;
   if (!list) return;
@@ -33166,19 +33221,77 @@ function syncCompanyAccentColorControls(companyId, hexValue, { source = "" } = {
     swatch.style.background = hex;
     swatch.style.color = (window.TenantBrandIcon?.contrastOnAccent?.(hex) || "#fff");
   }
-  // Scope live preview to this company card — never paint the whole admin UI with the last card's color.
   if (card && window.TenantBrandIcon?.applyAccentVariables) {
     window.TenantBrandIcon.applyAccentVariables(card, hex);
     card.setAttribute("data-has-brand-accent", "1");
   }
-  // If superadmin is previewing this same company, also update the global shell.
-  if (
-    String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
-    && isSuperadminCompanyPreviewMode()
-    && String(superadminUiPreviewCompanyId || "") === String(companyId)
-    && window.TenantBrandIcon?.applyAccentVariables
-  ) {
+  const userEdit = Boolean(source);
+  if ((userEdit || isActiveTenantBrandingCompany(companyId)) && window.TenantBrandIcon?.applyAccentVariables) {
     window.TenantBrandIcon.applyAccentVariables(document.documentElement, hex);
+  }
+  if (userEdit) {
+    const company = state.companies.find((entry) => String(entry?.id || "") === String(companyId));
+    if (company) {
+      company.brandingAccentColor = hex;
+      company.branding_accent_color = hex;
+    }
+    scheduleCompanyBrandingAutoSave(companyId);
+  }
+}
+
+let _companyBrandingAutoSaveTimers = Object.create(null);
+
+function scheduleCompanyBrandingAutoSave(companyId) {
+  const id = String(companyId || "").trim();
+  if (!id) return;
+  if (_companyBrandingAutoSaveTimers[id]) {
+    clearTimeout(_companyBrandingAutoSaveTimers[id]);
+  }
+  _companyBrandingAutoSaveTimers[id] = setTimeout(() => {
+    delete _companyBrandingAutoSaveTimers[id];
+    void persistCompanyBrandingQuiet(id);
+  }, 900);
+}
+
+async function persistCompanyBrandingQuiet(companyId) {
+  const company = state.companies.find((entry) => entry.id === companyId);
+  if (!company || company.deleted_at) return;
+  const role = String(getCurrentUser()?.role || "").toLowerCase();
+  const ownId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
+  if (role !== "superadmin" && !(role === "company-admin" && String(companyId) === ownId)) {
+    return;
+  }
+  try {
+    const portalNameInput = elements.companyList?.querySelector(`[data-company-portal-name="${companyId}"]`);
+    const tzInput = elements.companyList?.querySelector(`[data-company-report-timezone="${companyId}"]`);
+    const presetSelect = elements.companyList?.querySelector(`[data-company-branding-select="${companyId}"]`);
+    const accent = readCompanyAccentColorFromCard(companyId, company);
+    await apiRequest(`${API_BASE}/api/companies/${companyId}`, {
+      method: "PUT",
+      body: {
+        name: company.name,
+        contact: company.contact,
+        billingEmail: getCompanyBillingEmail(company),
+        documentEmail: getCompanyDocumentEmail(company),
+        accessHost: company.accessHost || company.access_host || "",
+        brandingPreset: normalizeCompanyBrandingPresetValue(presetSelect?.value || company.brandingPreset || company.branding_preset || "construction"),
+        portalDisplayName: String(portalNameInput?.value || company.portalDisplayName || company.portal_display_name || "").trim(),
+        reportTimezone: String(tzInput?.value || company.reportTimezone || company.report_timezone || "").trim(),
+        operatingSector: String(company.operating_sector || company.operatingSector || "construction").trim(),
+        brandingAccentColor: accent,
+        brandingLogoData: company.brandingLogoData || company.branding_logo_data || "",
+        plan: company.plan,
+        status: company.status,
+        invoiceEmailLang: company.invoiceEmailLang || "de",
+      },
+    });
+    company.brandingAccentColor = accent;
+    company.branding_accent_color = accent;
+    company.portalDisplayName = String(portalNameInput?.value || company.portalDisplayName || "").trim();
+    const dirty = elements.companyList?.querySelector(`[data-company-branding-dirty="${companyId}"]`);
+    if (dirty) dirty.textContent = "";
+  } catch (error) {
+    console.warn("[branding] auto-save failed", error);
   }
 }
 

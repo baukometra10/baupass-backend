@@ -63,3 +63,21 @@ def company_white_label_from_row(row: Any) -> dict[str, str]:
         "brandingAccentColor": _get("branding_accent_color"),
         "brandingLogoData": _get("branding_logo_data"),
     }
+
+
+def serialize_company_row(row: Any) -> dict[str, Any]:
+    """API company payload with camelCase white-label fields always present."""
+    if not row:
+        return {}
+    data = dict(row) if not isinstance(row, dict) else dict(row)
+    wl = company_white_label_from_row(data)
+    data["portalDisplayName"] = wl.get("portalDisplayName") or ""
+    data["brandingAccentColor"] = wl.get("brandingAccentColor") or ""
+    data["brandingLogoData"] = wl.get("brandingLogoData") or ""
+    if "branding_preset" in data and "brandingPreset" not in data:
+        data["brandingPreset"] = data.get("branding_preset") or "construction"
+    if "report_timezone" in data and "reportTimezone" not in data:
+        data["reportTimezone"] = data.get("report_timezone") or ""
+    if "operating_sector" in data and "operatingSector" not in data:
+        data["operatingSector"] = data.get("operating_sector") or "construction"
+    return data
