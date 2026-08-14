@@ -163,24 +163,26 @@ def notify_worker_new_document(
         title = "Neue Lohnabrechnung"
         action_url = "documents"
         push_tag = "payroll-document"
+        message = f"{name} steht als PDF unter «Dokumente» zum Download bereit."
     elif str(doc_type or "").strip().lower() == "einsatzplan":
         notif_type = "deployment_plan"
         title = "Einsatzplan"
         action_url = "deployment-plan"
         push_tag = "deployment-plan"
+        message = f"{name} ist im Chat unter «Chat mit Firma» zum Download bereit."
     else:
         notif_type = "worker_document"
         title = f"Neues Dokument: {label}"
         action_url = "documents"
         push_tag = "worker-document"
-    message = f"{name} ist im Chat unter «Chat mit Firma» zum Download bereit."
+        message = f"{name} ist im Chat unter «Chat mit Firma» zum Download bereit."
     return notify_worker_mitteilung(
         db,
         worker_id,
         notif_type=notif_type,
         title=title,
         message=message,
-        action_url="chat",
+        action_url=action_url,
         push_tag=push_tag,
     )
 

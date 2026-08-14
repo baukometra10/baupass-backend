@@ -1373,6 +1373,149 @@ def _storage_dir(company_id: str, period: str) -> Path:
     return target
 
 
+def _delivery_pdf_filename(stmt: dict[str, Any], period: str) -> str:
+    last = str(stmt.get("last_name") or "").strip()
+    first = str(stmt.get("first_name") or "").strip()
+    who = last or first or "Mitarbeiter"
+    safe = "".join(ch if ch.isalnum() or ch in "-_" else "-" for ch in who)[:40].strip("-") or "Mitarbeiter"
+    per = str(period or stmt.get("period") or "periode").replace("/", "-")[:7]
+    return f"Lohnabrechnung_{per}_{safe}.pdf"
+
+
+def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Live Lohn payslip + DatevSheet data used by HTML preview and worker PDF."""
+    from urllib.parse import quote as _q
+
+    from .hours_service import get_employee_master_item
+    from .lohn_sheet import (
+        apply_sheet_chrome,
+        build_payslip_print_html,
+        enrich_payslip_with_master,
+        fill_empty_sheet_fields,
+        payslip_document_from_meta,
+        payslip_to_sheet_data,
+    )
+    from .platform_link import get_platform_link
+
+    batch = batch if isinstance(batch, dict) else {}
+    try:
+        meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    payslip = payslip_document_from_meta(meta)
+    job_id = str(meta.get("jobId") or "").strip()
+    badge = str(meta.get("externalEmployeeId") or meta.get("employeeId") or stmt.get("badge_id") or "").strip()
+    period = str(
+        (payslip or {}).get("period") or stmt.get("period") or batch.get("period") or ""
+    ).strip()[:7]
+    company_id = str(stmt.get("company_id") or batch.get("company_id") or "")
+    if not job_id and company_id and badge and period:
+        job_id = f"{company_id}::{badge}::{period}"
+
+    if job_id:
+        link = get_platform_link(db)
+        if link.get("configured"):
+            fetched = _lohn_http_get(
+                link,
+                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip",
+                company_id=company_id,
+                event="payroll.payslip.sheet",
+            )
+            body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
+            if isinstance(body.get("payslip"), dict):
+                payslip = body["payslip"]
+                period = str(payslip.get("period") or period).strip()[:7]
+
+    master = None
+    try:
+        if company_id:
+            master = get_employee_master_item(
+                db,
+                company_id=company_id,
+                worker_id=str(stmt.get("worker_id") or ""),
+                badge_id=badge,
+            )
+    except Exception:
+        master = None
+    payslip = enrich_payslip_with_master(payslip, master)
+    sheet_data = payslip_to_sheet_data(
+        payslip or {},
+        job={"period": period, "employee": (payslip or {}).get("employee") or {}},
+    )
+    html_doc = ""
+    if job_id:
+        link = get_platform_link(db)
+        if link.get("configured"):
+            printed = _lohn_http_get(
+                link,
+                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip-print",
+                company_id=company_id,
+                event="payroll.payslip.print",
+            )
+            pbody = printed.get("body") if isinstance(printed.get("body"), dict) else {}
+            if printed.get("ok") and isinstance(pbody.get("html"), str) and len(pbody["html"]) > 200:
+                html_doc = fill_empty_sheet_fields(pbody["html"], sheet_data)
+                html_doc = apply_sheet_chrome(html_doc, theme="light")
+    if not html_doc:
+        html_doc = build_payslip_print_html(
+            payslip or {},
+            job={"period": period, "employee": (payslip or {}).get("employee") or {}},
+            theme="light",
+        )
+    return {
+        "payslip": payslip or {},
+        "sheet_data": sheet_data,
+        "period": period,
+        "job_id": job_id,
+        "html": html_doc,
+        "company_id": company_id,
+    }
+
+
+def ensure_statement_delivery_pdf(
+    db,
+    stmt: dict[str, Any],
+    batch: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Write a real DatevSheet PDF for worker delivery (does not depend on browser capture)."""
+    from .lohn_sheet_pdf import render_datev_sheet_pdf
+
+    resolved = resolve_statement_sheet(db, stmt, batch)
+    period = str(resolved.get("period") or stmt.get("period") or (batch or {}).get("period") or "unknown")[:7]
+    pdf_bytes = render_datev_sheet_pdf(resolved.get("sheet_data") or {})
+    if not pdf_bytes.startswith(b"%PDF"):
+        return {"ok": False, "error": "pdf_render_failed"}
+    dest = _storage_dir(str(stmt.get("company_id") or resolved.get("company_id") or "unknown"), period)
+    filename = _delivery_pdf_filename(stmt, period)
+    path = str(dest / f"{stmt.get('id')}_{filename}")
+    Path(path).write_bytes(pdf_bytes)
+    try:
+        meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    if not isinstance(meta, dict):
+        meta = {}
+    meta["pdfSource"] = "datev_sheet_server"
+    meta["documentPeriod"] = period
+    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    db.execute(
+        """
+        UPDATE payroll_statements
+        SET file_path = ?, file_size = ?, filename = ?, meta_json = ?, updated_at = ?
+        WHERE id = ?
+        """,
+        (path, len(pdf_bytes), filename, json.dumps(meta, ensure_ascii=False), now, stmt["id"]),
+    )
+    db.commit()
+    stmt["file_path"] = path
+    stmt["file_size"] = len(pdf_bytes)
+    stmt["filename"] = filename
+    stmt["meta_json"] = json.dumps(meta, ensure_ascii=False)
+    return {"ok": True, "path": path, "fileSize": len(pdf_bytes), "filename": filename, "period": period}
+
+
 def ingest_statements(
     db,
     *,
@@ -2308,6 +2451,11 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
         if str(stmt.get("status") or "") == "unmatched":
             errors.append({"statementId": stmt["id"], "error": "worker_unassigned"})
             continue
+        built = ensure_statement_delivery_pdf(db, stmt, batch)
+        if not built.get("ok"):
+            errors.append({"statementId": stmt["id"], "error": built.get("error") or "missing_pdf"})
+            continue
+        stmt = repo.get_statement(db, stmt["id"]) or stmt
         path = str(stmt.get("file_path") or "")
         if not path or not Path(path).is_file():
             errors.append({"statementId": stmt["id"], "error": "missing_pdf"})
@@ -2458,6 +2606,11 @@ def mark_statement_reviewed(
     assert stmt is not None
     if str(stmt.get("status") or "") in {"released", "rejected"}:
         return {"ok": False, "error": "invalid_status", "status": stmt.get("status")}
+    batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
+    built = ensure_statement_delivery_pdf(db, stmt, batch)
+    if not built.get("ok"):
+        return {"ok": False, "error": built.get("error") or "missing_pdf"}
+    stmt = repo.get_statement(db, statement_id) or stmt
     path = str(stmt.get("file_path") or "")
     if not path or not Path(path).is_file():
         return {"ok": False, "error": "missing_pdf"}
@@ -2566,6 +2719,11 @@ def release_statement(
         return {"ok": False, "error": "worker_unassigned", "hint": "Mitarbeiter zuweisen"}
     if require_reviewed and not str(stmt.get("reviewed_at") or "").strip():
         return {"ok": False, "error": "review_required", "hint": "PDF zuerst öffnen und prüfen"}
+    batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
+    built = ensure_statement_delivery_pdf(db, stmt, batch)
+    if not built.get("ok"):
+        return {"ok": False, "error": built.get("error") or "missing_pdf"}
+    stmt = repo.get_statement(db, statement_id) or stmt
     path = str(stmt.get("file_path") or "")
     if not path or not Path(path).is_file():
         return {"ok": False, "error": "missing_pdf"}

@@ -1770,17 +1770,6 @@ async function selectPayslipStatement(batchId, statementId) {
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
       { method: "POST", body: "{}" },
     );
-    // Capture exact Lohn sheet → PDF for worker delivery (same path Lohn uses).
-    try {
-      await new Promise((r) => setTimeout(r, 120));
-      const dataUri = await captureLohnSheetPdf(iframe);
-      await api(
-        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
-        { method: "POST", body: JSON.stringify({ pdfBase64: dataUri }) },
-      );
-    } catch {
-      /* preview still works; send may require re-open */
-    }
     await refreshPayslipStudio({ keepSelection: true });
   } catch (err) {
     if (iframe) {

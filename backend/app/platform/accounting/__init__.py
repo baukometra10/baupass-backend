@@ -1477,19 +1477,9 @@ def register_accounting_blueprint(flask_app) -> None:
     def admin_statement_sheet(batch_id: str, statement_id: str):
         """Serve the WorkPass Lohn DatevSheet; fill empty Stammdaten only (Krankenkasse, Pers.-Nr.)."""
         from flask import Response
-        from urllib.parse import quote as _q
 
-        from .hours_service import get_employee_master_item
-        from .lohn_sheet import (
-            apply_sheet_chrome,
-            build_payslip_print_html,
-            enrich_payslip_with_master,
-            fill_empty_sheet_fields,
-            payslip_document_from_meta,
-            payslip_to_sheet_data,
-        )
-        from .platform_link import get_platform_link
-        from .service import _lohn_http_get
+        from .lohn_sheet import apply_sheet_chrome
+        from .service import resolve_statement_sheet
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
@@ -1497,77 +1487,11 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
-        meta = {}
-        try:
-            import json as _json
-
-            meta = _json.loads(stmt.get("meta_json") or "{}")
-        except Exception:
-            meta = {}
-        if not isinstance(meta, dict):
-            meta = {}
-        payslip = payslip_document_from_meta(meta)
-        job_id = str(meta.get("jobId") or "").strip()
-        badge = str(meta.get("externalEmployeeId") or meta.get("employeeId") or stmt.get("badge_id") or "").strip()
-        period = str(
-            (payslip or {}).get("period")
-            or stmt.get("period")
-            or batch.get("period")
-            or ""
-        ).strip()[:7]
-        company_id = str(stmt.get("company_id") or batch.get("company_id") or "")
-        if not job_id and company_id and badge and period:
-            job_id = f"{company_id}::{badge}::{period}"
-
-        # Live Lohn payslip JSON is the source of truth; fill empty Stammdaten only.
-        if job_id:
-            link = get_platform_link(db)
-            fetched = _lohn_http_get(
-                link,
-                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip",
-                company_id=company_id,
-                event="payroll.payslip.sheet",
-            )
-            body = fetched.get("body") if isinstance(fetched.get("body"), dict) else {}
-            if isinstance(body.get("payslip"), dict):
-                payslip = body["payslip"]
-                period = str(payslip.get("period") or period).strip()[:7]
-
-        master = get_employee_master_item(
-            db,
-            company_id=company_id,
-            worker_id=str(stmt.get("worker_id") or ""),
-            badge_id=badge,
+        resolved = resolve_statement_sheet(db, stmt, batch)
+        return Response(
+            apply_sheet_chrome(resolved.get("html") or "", theme=theme),
+            mimetype="text/html; charset=utf-8",
         )
-        payslip = enrich_payslip_with_master(payslip, master)
-        sheet_data = payslip_to_sheet_data(
-            payslip or {},
-            job={"period": period, "employee": (payslip or {}).get("employee") or {}},
-        )
-
-        # Prefer Lohn DatevSheet print HTML; patch empty cells from Lohn/master gaps.
-        if job_id:
-            link = get_platform_link(db)
-            printed = _lohn_http_get(
-                link,
-                path=f"/v1/payroll/{_q(job_id, safe='')}/payslip-print",
-                company_id=company_id,
-                event="payroll.payslip.print",
-            )
-            pbody = printed.get("body") if isinstance(printed.get("body"), dict) else {}
-            if printed.get("ok") and isinstance(pbody.get("html"), str) and len(pbody["html"]) > 200:
-                html_live = fill_empty_sheet_fields(pbody["html"], sheet_data)
-                return Response(
-                    apply_sheet_chrome(html_live, theme=theme),
-                    mimetype="text/html; charset=utf-8",
-                )
-
-        html_doc = build_payslip_print_html(
-            payslip or {},
-            job={"period": period, "employee": (payslip or {}).get("employee") or {}},
-            theme=theme,
-        )
-        return Response(html_doc, mimetype="text/html; charset=utf-8")
 
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/pdf")
     @require_auth

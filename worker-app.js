@@ -14080,6 +14080,7 @@ async function loadMyDocuments() {
         </div>
         <div class="doc-meta">
           ${received ? `<span>${t("documentsReceived")}: ${formatDate(received)}</span>` : ""}
+          ${isPayroll && doc.filename ? `<span>${escapeHtmlBasic(doc.filename)}</span>` : ""}
           ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
           <span class="doc-status-badge ${statusClass}">${statusLabel}${expiryDeltaLabel ? ` · ${expiryDeltaLabel}` : ""}</span>
         </div>
