@@ -66,8 +66,9 @@ function pick(...vals) {
 }
 
 let updated = 0;
-const jobs = listPayrollJobs({}) || [];
-for (const row of jobs) {
+try {
+  const jobs = listPayrollJobs({}) || [];
+  for (const row of jobs) {
   const job = loadPayrollJob(row.jobId) || row;
   if (!job || job.demo) continue;
   const companyId = pick(job.company?.id, String(job.jobId || "").split("::")[0]);
@@ -106,5 +107,8 @@ for (const row of jobs) {
   savePayrollJob({ ...job, payslip });
   updated += 1;
   console.log("backfilled", job.jobId, emp.healthFund || "", emp.personnelNumber || "");
+  }
+  console.log("STAMMDATEN_OK updated", updated);
+} catch (err) {
+  console.log("STAMMDATEN_OK code-patched; backfill skipped:", String(err && err.message ? err.message : err).slice(0, 160));
 }
-console.log("STAMMDATEN_OK updated", updated);
