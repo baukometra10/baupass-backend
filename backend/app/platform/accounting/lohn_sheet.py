@@ -59,6 +59,7 @@ def _period_label(period: str) -> str:
     return p
 
 
+# Exact CSS from WorkPass Lohn datev-sheet.js (print path).
 _CSS = r"""
 @page { size: A4 portrait; margin: 0; }
 html, body { margin: 0; padding: 0; background: #fff; }
@@ -69,12 +70,21 @@ html, body { margin: 0; padding: 0; background: #fff; }
   background: #fff; color: #151a22;
   font-family: "IBM Plex Mono", "Courier New", Courier, monospace;
   font-size: 7pt; line-height: 1.15;
-  display: flex; flex-direction: column; overflow: visible; flex-shrink: 0;
-  justify-content: flex-start; gap: 2.2mm;
-  margin: 12px auto;
+  display: flex; flex-direction: column; overflow: hidden;
+  flex-shrink: 0; justify-content: flex-start; gap: 2.2mm;
 }
+.datev-sheet-a4.is-empty .ds-val:empty::after,
+.datev-sheet-a4.is-empty .ds-hints:empty::after,
+.datev-sheet-a4.is-empty #dsv_sender:empty::after,
+.datev-sheet-a4.is-empty #dsv_empName:empty::after {
+  content: ""; display: block; min-height: 2mm; border-bottom: 0.35pt dotted #c5ced4;
+}
+.datev-sheet-a4.is-empty .ds-pay { opacity: 0.55; }
 .ds-zone { display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; }
+.ds-zone-head { gap: 1.2mm; }
+.ds-zone-master { gap: 1.6mm; }
 .ds-zone-wage { gap: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.ds-zone-calc { gap: 1.6mm; }
 .ds-zone-pay { gap: 1.4mm; margin-top: auto; }
 .ds-brandbar {
   display: flex; justify-content: space-between; align-items: center;
@@ -82,10 +92,10 @@ html, body { margin: 0; padding: 0; background: #fff; }
 }
 .ds-brand { font-size: 8.5pt; font-weight: 700; letter-spacing: 0.03em; color: #1e3a5f; display: flex; align-items: center; gap: 2mm; }
 .ds-brand span { font-weight: 500; font-size: 6.3pt; color: #5a6a75; margin-left: 2mm; }
+.ds-brand-logo { max-height: 7.5mm; max-width: 28mm; width: auto; height: auto; object-fit: contain; display: block; }
 .ds-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
 .ds-brand-company { font-size: 7.2pt; font-weight: 700; color: #0f172a; }
 .ds-brand-product { font-size: 5.6pt; font-weight: 500; color: #5a6a75; }
-.ds-mark { font-weight: 700; font-size: 6.5pt; letter-spacing: 0.06em; color: #1e3a5f; }
 .ds-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 5mm; margin: 0; }
 .ds-title { font-size: 9.5pt; font-weight: 700; letter-spacing: -0.01em; color: #0f172a; }
 .ds-title-sub { font-size: 7.2pt; margin-top: 0.35mm; min-height: 2.1mm; color: #334155; }
@@ -102,19 +112,22 @@ html, body { margin: 0; padding: 0; background: #fff; }
 .ds-cell:nth-child(8n) { border-right: none; }
 .ds-lab { display: block; font-size: 4.7pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; }
 .ds-val { display: block; margin-top: 0.25mm; font-size: 6.85pt; min-height: 2.1mm; font-weight: 500; }
+.ds-mid-meta { margin-top: 0.7mm; font-size: 6.2pt; color: #475569; }
 .ds-span2 { grid-column: span 2; }
 .ds-span3 { grid-column: span 3; }
-.ds-mid { display: grid; grid-template-columns: 1.25fr 0.85fr; gap: 1.5mm; margin: 0; }
+.ds-mid { display: grid; grid-template-columns: 1.25fr 0.85fr; gap: 1.5mm; margin: 0; align-items: stretch; }
+.ds-mid > .ds-box { display: flex; flex-direction: column; min-height: 20mm; }
+.ds-mid .ds-addr, .ds-mid .ds-hints { flex: 1 1 auto; }
 .ds-box { border: 0.35pt solid #1a2a33; padding: 1.05mm 1.35mm; background: #fff; }
 .ds-box h3 {
   margin: 0 0 0.5mm; font-size: 5.3pt; text-transform: uppercase;
   letter-spacing: 0.06em; color: #1e3a5f; font-weight: 700;
   padding-bottom: 0.4mm; border-bottom: 0.25pt solid #d8e0e6;
 }
-.ds-addr, .ds-hints { white-space: pre-wrap; font-size: 6.65pt; line-height: 1.22; }
-.ds-mid-meta { margin-top: 0.7mm; font-size: 6.2pt; color: #475569; }
+.ds-addr { white-space: pre-wrap; font-size: 6.65pt; line-height: 1.22; min-height: 0; }
+.ds-hints { white-space: pre-wrap; font-size: 6.45pt; line-height: 1.22; min-height: 0; }
 .ds-wage-wrap { margin: 0; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; }
-.ds-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.ds-table { width: 100%; border-collapse: collapse; table-layout: fixed; flex: 1 1 auto; height: 100%; }
 .ds-table th, .ds-table td {
   border: 0.25pt solid #9aa8b0; padding: 0.35mm 0.85mm; font-size: 6.55pt; vertical-align: middle;
 }
@@ -122,35 +135,64 @@ html, body { margin: 0; padding: 0; background: #fff; }
   background: #eef3f5; font-size: 5pt; text-transform: uppercase;
   letter-spacing: 0.04em; font-weight: 700; color: #1e3a5f;
 }
-.ds-num { text-align: right; font-variant-numeric: tabular-nums; }
-.ds-flags { text-align: center; font-size: 5.6pt; color: #475569; }
-.ds-sum-row td { font-weight: 700; background: #f8fafc; }
-.ds-two { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5mm; }
+.ds-table col.ds-col-code { width: 10%; }
+.ds-table col.ds-col-label { width: 40%; }
+.ds-table col.ds-col-qty { width: 16%; }
+.ds-table col.ds-col-amount { width: 22%; }
+.ds-table col.ds-col-flags { width: 12%; }
+.ds-table td:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-table tbody tr { height: 3.9mm; }
+.ds-table tbody tr.ds-pad td { color: transparent; border-color: #cfd8de; background: #fafbfc; }
+.ds-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ds-flags { text-align: center; font-size: 6.1pt; color: #333; }
+.ds-sum-row td { font-weight: 700; background: #f1f5f7; border-top: 0.8pt solid #1a2a33; height: 4.2mm; }
+.ds-two { display: grid; grid-template-columns: 1.2fr 0.9fr; gap: 1.5mm; margin: 0; align-items: stretch; }
 .ds-kv { width: 100%; border-collapse: collapse; }
-.ds-kv td { padding: 0.35mm 0; font-size: 6.45pt; }
-.ds-kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-.ds-net { border: 0.35pt solid #1a2a33; padding: 1.2mm 1.4mm; background: #f8fafc; }
-.ds-net-row { display: flex; justify-content: space-between; gap: 2mm; padding: 0.45mm 0; font-size: 6.7pt; }
-.ds-net-row strong { font-variant-numeric: tabular-nums; }
-.ds-verdienst { margin-top: 1.2mm; }
-.ds-foot { display: grid; grid-template-columns: 1.2fr 0.9fr 0.9fr; gap: 1.4mm; align-items: stretch; }
-.ds-bank { border: 0.35pt solid #1a2a33; padding: 1.1mm 1.3mm; font-size: 6.5pt; background: #fff; }
-.ds-meta-line { margin-top: 0.6mm; color: #334155; }
-.ds-ag { width: 100%; border-collapse: collapse; border: 0.35pt solid #1a2a33; }
-.ds-ag td { padding: 0.55mm 1mm; font-size: 6.4pt; border-bottom: 0.2pt solid #d8e0e6; }
-.ds-ag td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.ds-kv td { padding: 0.5mm 0; font-size: 6.55pt; border-bottom: 0.15pt solid #e2e8eb; }
+.ds-kv td:last-child { text-align: right; font-variant-numeric: tabular-nums; width: 22mm; }
+.ds-kv tr:last-child td { border-bottom: none; }
+.ds-net {
+  border: 0.8pt solid #1e3a5f; padding: 1.7mm 1.7mm; background: #f3f8f9;
+  display: flex; flex-direction: column; justify-content: center; gap: 1.2mm;
+}
+.ds-net-row { display: flex; justify-content: space-between; align-items: baseline; gap: 3mm; }
+.ds-net-row span { font-size: 6.4pt; color: #334155; }
+.ds-net-row strong { font-size: 8.2pt; color: #1e3a5f; }
+.ds-net-method { margin-top: 1.5mm; font-size: 5.8pt; color: #64748b; }
+.ds-verdienst { margin: 0; }
+.ds-verdienst .ds-two { margin: 0; gap: 3mm; }
+.ds-foot {
+  display: grid; grid-template-columns: 1.2fr 0.85fr 0.95fr;
+  gap: 1.6mm; align-items: stretch; border-top: 0.7pt solid #1a2a33;
+  padding-top: 1.5mm; margin: 0;
+}
+.ds-bank { font-size: 6.45pt; line-height: 1.28; }
+.ds-bank .ds-meta-line { margin-top: 0.5mm; color: #334155; }
+.ds-bank .ds-meta-line strong { color: #1e3a5f; }
+.ds-ag { width: 100%; border-collapse: collapse; align-self: center; }
+.ds-ag td { padding: 0.5mm 0; font-size: 6.55pt; }
+.ds-ag td:last-child { text-align: right; width: 20mm; }
 .ds-pay {
-  border: 0.9pt solid #1d4ed8; background: #eff6ff; padding: 1.4mm 1.5mm;
-  display: flex; flex-direction: column; justify-content: center; gap: 0.6mm;
+  border: 1pt solid #1d4ed8; padding: 1.8mm 1.9mm;
+  background: linear-gradient(165deg, #1e3a5f 0%, #152a45 100%);
+  color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 0.7mm;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
 }
-.ds-pay span { font-size: 5.6pt; text-transform: uppercase; letter-spacing: 0.05em; color: #1e3a5f; }
-.ds-pay strong { font-size: 11pt; font-variant-numeric: tabular-nums; color: #0f172a; }
+.ds-pay span { font-size: 5.3pt; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.88; }
+.ds-pay strong { font-size: 11.5pt; text-align: right; min-height: 4.2mm; letter-spacing: 0.01em; }
 .ds-legal {
-  display: grid; grid-template-columns: 1fr auto 1fr; gap: 2mm; align-items: center;
-  font-size: 5.2pt; color: #64748b; margin-top: 0.6mm;
+  margin: 0; padding-top: 0.7mm; display: flex; justify-content: space-between; align-items: end;
+  gap: 3mm; font-size: 5pt; color: #5a6a75; border-top: 0.3pt solid #c5ced4;
 }
-.ds-legal-center { text-align: center; }
-.ds-pad td { color: transparent; }
+.ds-legal-center { text-align: center; flex: 1; }
+.ds-mark { font-weight: 700; font-size: 6.5pt; letter-spacing: 0.06em; color: #1e3a5f; }
+body.sheet-chrome {
+  margin: 0; min-height: 100vh; box-sizing: border-box;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 16px; overflow: auto;
+}
+body.sheet-chrome.theme-light { background: #e8edf2; }
+body.sheet-chrome.theme-dark { background: #0b1220; }
 """
 
 
@@ -225,6 +267,7 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "grossTotal": _amt(gross),
         "taxTotal": _amt(tax_total),
         "svTotal": _amt(sv_total),
+        "netAbzug": _amt(t.get("netDeductions") or t.get("otherNetDeductions") or 0),
         "netTotal": _amt(net),
         "netVerdienst": _amt(net),
         "payout": _amt(net),
@@ -232,6 +275,15 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "lst": _amt(t.get("payrollTax")),
         "kist": _amt(t.get("churchTax")),
         "vbSoli": _amt(t.get("solidarity")),
+        "vbGross": _amt(gross),
+        "vbTaxGross": _amt(t.get("taxGross") if t.get("taxGross") is not None else gross),
+        "vbLst": _amt(t.get("payrollTax")),
+        "vbKist": _amt(t.get("churchTax")),
+        "vbSvGross": _amt(t.get("svGross") if t.get("svGross") is not None else gross),
+        "vbKv": _amt(t.get("health")),
+        "vbRv": _amt(t.get("pension")),
+        "vbAv": _amt(t.get("unemployment")),
+        "vbPv": _amt(t.get("care")),
         "kvB": _amt(t.get("svGross") if t.get("svGross") is not None else gross),
         "kvBeitrag": _amt(t.get("health")),
         "rvBeitrag": _amt(t.get("pension")),
@@ -243,6 +295,8 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "agExtra": _amt(t.get("umlagenTotal")),
         "agTotal": _amt(float(t.get("employerShare") or 0) + float(gross or 0) + float(t.get("umlagenTotal") or 0)),
         "payHint": "Überweisung auf das angegebene Konto",
+        "footerNote": str(p.get("footerNote") or ""),
+        "calcMethod": str(t.get("calcMethod") or ""),
     }
 
 
@@ -265,70 +319,114 @@ def _wage_rows_html(rows: list[dict[str, Any]]) -> str:
 
 def build_sheet_body_html(data: dict[str, Any]) -> str:
     d = data or {}
-    filled = bool(d.get("empName") or d.get("persNr") or d.get("sender") or d.get("grossTotal"))
-    brand = (
-        f'<div class="ds-brand"><div class="ds-brand-text">'
-        f'<span class="ds-brand-company">{_esc(d.get("companyName") or "")}</span>'
-        f'<span class="ds-brand-product">WorkPass Lohn</span></div></div>'
-        if d.get("companyName")
-        else '<div class="ds-brand">WorkPass Lohn<span>Suppix AI</span></div>'
+    filled = bool(
+        d.get("empName")
+        or d.get("persNr")
+        or d.get("sender")
+        or d.get("grossTotal")
+        or any((r.get("code") or r.get("label") or r.get("amount")) for r in (d.get("wageRows") or []) if isinstance(r, dict))
     )
+    logo = str(d.get("logoDataUrl") or d.get("logoUrl") or "").strip()
+    brand_company = str(d.get("companyName") or "").strip()
+    if logo or brand_company:
+        logo_html = f'<img class="ds-brand-logo" src="{_esc(logo)}" alt="" />' if logo else ""
+        company_html = (
+            f'<span class="ds-brand-company">{_esc(brand_company)}</span>' if brand_company else ""
+        )
+        brand = (
+            f'<div class="ds-brand">{logo_html}'
+            f'<div class="ds-brand-text">{company_html}'
+            f'<span class="ds-brand-product">WorkPass Lohn</span></div></div>'
+        )
+    else:
+        brand = '<div class="ds-brand">WorkPass Lohn<span>Suppix AI</span></div>'
+    mid_meta = (
+        f'Eintritt: <span id="dsv_entry">{_esc(d.get("entry") or "")}</span>'
+        f' · Steuer-ID: <span id="dsv_taxIdMid">{_esc(d.get("taxIdMid") or "")}</span>'
+        if filled
+        else '<span id="dsv_entry" hidden></span><span id="dsv_taxIdMid" hidden></span>'
+    )
+    pay_hint = (d.get("payHint") or "Überweisung auf das angegebene Konto") if filled else ""
+    footer_note = (d.get("footerNote") or d.get("hints") or "") if filled else ""
     wage_html = _wage_rows_html(list(d.get("wageRows") or []))
+    calc_method = (
+        f'<div class="ds-net-method">{_esc(d.get("calcMethod") or "")}</div>' if d.get("calcMethod") else ""
+    )
+    footer_note_html = (
+        f'<div class="ds-meta-line"><strong>Bemerkung:</strong> <span id="dsv_footerNote">{_esc(footer_note)}</span></div>'
+        if footer_note
+        else '<span id="dsv_footerNote" hidden></span>'
+    )
     return f"""
-<div class="datev-sheet-a4{' is-empty' if not filled else ''}" id="datevSheetA4">
+<div class="datev-sheet-a4{' is-empty' if not filled else ''}" id="datevSheetA4" data-filled="{'1' if filled else '0'}">
   <div class="ds-zone ds-zone-head">
     <div class="ds-brandbar">{brand}<div class="ds-mark">Entgeltabrechnung</div></div>
     <div class="ds-head">
       <div>
         <div class="ds-title">Abrechnung der Brutto/Netto-Bezüge</div>
-        <div class="ds-title-sub">{_esc(d.get("titleMonth") or "")}</div>
+        <div class="ds-title-sub" id="dsv_titleMonth">{_esc(d.get("titleMonth") or "")}</div>
       </div>
       <div class="ds-meta">
-        <div>{_esc(d.get("usa") or "")}</div>
-        <div>{_esc(d.get("headDate") or "")}</div>
-        <div>{_esc(d.get("headPage") or "")}</div>
+        <div id="dsv_usa">{_esc(d.get("usa") or "")}</div>
+        <div id="dsv_headDate">{_esc(d.get("headDate") or "")}</div>
+        <div id="dsv_headPage">{_esc(d.get("headPage") or "")}</div>
       </div>
     </div>
   </div>
   <div class="ds-zone ds-zone-master">
     <div class="ds-grid">
-      <div class="ds-cell"><span class="ds-lab">Personal-Nr.</span><span class="ds-val">{_esc(d.get("persNr") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">Geburtsdatum</span><span class="ds-val">{_esc(d.get("birth") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">StKl</span><span class="ds-val">{_esc(d.get("stkl") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">Konf</span><span class="ds-val">{_esc(d.get("konf") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">St-Tg</span><span class="ds-val">{_esc(d.get("stTg") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">PGRS</span><span class="ds-val">{_esc(d.get("pgrs") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">BGRS</span><span class="ds-val">{_esc(d.get("bgrs") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">SV-Tg</span><span class="ds-val">{_esc(d.get("svTg") or "")}</span></div>
-      <div class="ds-cell ds-span2"><span class="ds-lab">SV-Nummer</span><span class="ds-val">{_esc(d.get("svNr") or "")}</span></div>
-      <div class="ds-cell ds-span3"><span class="ds-lab">Krankenkasse</span><span class="ds-val">{_esc(d.get("kkName") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">KK %</span><span class="ds-val">{_esc(d.get("kkPct") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">Arbeitstage</span><span class="ds-val">{_esc(d.get("workDays") or "")}</span></div>
-      <div class="ds-cell"><span class="ds-lab">Stunden</span><span class="ds-val">{_esc(d.get("workHours") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">Personal-Nr.</span><span class="ds-val" id="dsv_persNr">{_esc(d.get("persNr") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">Geburtsdatum</span><span class="ds-val" id="dsv_birth">{_esc(d.get("birth") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">StKl</span><span class="ds-val" id="dsv_stkl">{_esc(d.get("stkl") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">Konf</span><span class="ds-val" id="dsv_konf">{_esc(d.get("konf") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">St-Tg</span><span class="ds-val" id="dsv_stTg">{_esc(d.get("stTg") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">PGRS</span><span class="ds-val" id="dsv_pgrs">{_esc(d.get("pgrs") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">BGRS</span><span class="ds-val" id="dsv_bgrs">{_esc(d.get("bgrs") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">SV-Tg</span><span class="ds-val" id="dsv_svTg">{_esc(d.get("svTg") or "")}</span></div>
+      <div class="ds-cell ds-span2"><span class="ds-lab">SV-Nummer</span><span class="ds-val" id="dsv_svNr">{_esc(d.get("svNr") or "")}</span></div>
+      <div class="ds-cell ds-span3"><span class="ds-lab">Krankenkasse</span><span class="ds-val" id="dsv_kkName">{_esc(d.get("kkName") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">KK %</span><span class="ds-val" id="dsv_kkPct">{_esc(d.get("kkPct") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">Arbeitstage</span><span class="ds-val" id="dsv_workDays">{_esc(d.get("workDays") or "")}</span></div>
+      <div class="ds-cell"><span class="ds-lab">Stunden</span><span class="ds-val" id="dsv_workHours">{_esc(d.get("workHours") or "")}</span></div>
     </div>
     <div class="ds-mid">
       <div class="ds-box">
         <h3>Arbeitgeber / Mitarbeiter</h3>
         <div class="ds-addr">
-          <div>{_esc(d.get("sender") or "")}</div>
-          <div>{_esc(d.get("empMeta") or "")}</div>
-          <div>{_esc(d.get("empName") or "")}</div>
-          <div>{_esc(d.get("empAddr") or "")}</div>
-          <div class="ds-mid-meta">Eintritt: {_esc(d.get("entry") or "")} · Steuer-ID: {_esc(d.get("taxIdMid") or "")}</div>
+          <div id="dsv_sender">{_esc(d.get("sender") or "")}</div>
+          <div id="dsv_empMeta">{_esc(d.get("empMeta") or "")}</div>
+          <div id="dsv_empName">{_esc(d.get("empName") or "")}</div>
+          <div id="dsv_empAddr">{_esc(d.get("empAddr") or "")}</div>
+          <div class="ds-mid-meta">{mid_meta}</div>
         </div>
       </div>
       <div class="ds-box">
         <h3>Hinweise zur Abrechnung</h3>
-        <div class="ds-hints">{_esc(d.get("hints") or "")}</div>
+        <div class="ds-hints" id="dsv_hints">{_esc(d.get("hints") or "")}</div>
       </div>
     </div>
   </div>
   <div class="ds-zone ds-zone-wage">
     <div class="ds-wage-wrap">
       <table class="ds-table">
-        <thead><tr><th>Lohnart</th><th>Bezeichnung</th><th class="ds-num">Anzahl</th><th class="ds-num">Betrag</th><th>St/SV</th></tr></thead>
-        <tbody>{wage_html}</tbody>
-        <tfoot><tr class="ds-sum-row"><td colspan="3">Gesamt-Brutto</td><td class="ds-num">{_esc(d.get("grossTotal") or "")}</td><td></td></tr></tfoot>
+        <colgroup>
+          <col class="ds-col-code" /><col class="ds-col-label" /><col class="ds-col-qty" />
+          <col class="ds-col-amount" /><col class="ds-col-flags" />
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Lohnart</th><th>Bezeichnung</th><th class="ds-num">Anzahl</th>
+            <th class="ds-num">Betrag</th><th>St/SV</th>
+          </tr>
+        </thead>
+        <tbody id="datevWageRows">{wage_html}</tbody>
+        <tfoot>
+          <tr class="ds-sum-row">
+            <td colspan="3">Gesamt-Brutto</td>
+            <td class="ds-num" id="dsv_grossTotal">{_esc(d.get("grossTotal") or "")}</td>
+            <td></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   </div>
@@ -337,37 +435,62 @@ def build_sheet_body_html(data: dict[str, Any]) -> str:
       <div class="ds-box">
         <h3>Steuer / Sozialversicherung</h3>
         <table class="ds-kv">
-          <tr><td>Steuer-Brutto</td><td>{_esc(d.get("stBrutto") or "")}</td></tr>
-          <tr><td>Lohnsteuer</td><td>{_esc(d.get("lst") or "")}</td></tr>
-          <tr><td>Kirchensteuer</td><td>{_esc(d.get("kist") or "")}</td></tr>
-          <tr><td>Solidaritätszuschlag</td><td>{_esc(d.get("vbSoli") or "")}</td></tr>
-          <tr><td>KV-/RV-Brutto</td><td>{_esc(d.get("kvB") or "")}</td></tr>
-          <tr><td>KV-Beitrag</td><td>{_esc(d.get("kvBeitrag") or "")}</td></tr>
-          <tr><td>RV-Beitrag</td><td>{_esc(d.get("rvBeitrag") or "")}</td></tr>
-          <tr><td>AV-Beitrag</td><td>{_esc(d.get("avBeitrag") or "")}</td></tr>
-          <tr><td>PV-Beitrag</td><td>{_esc(d.get("pvBeitrag") or "")}</td></tr>
+          <tr><td>Steuer-Brutto</td><td id="dsv_stBrutto">{_esc(d.get("stBrutto") or "")}</td></tr>
+          <tr><td>Lohnsteuer</td><td id="dsv_lst">{_esc(d.get("lst") or "")}</td></tr>
+          <tr><td>Kirchensteuer</td><td id="dsv_kist">{_esc(d.get("kist") or "")}</td></tr>
+          <tr><td>Solidaritätszuschlag</td><td id="dsv_soliMini">{_esc(d.get("vbSoli") or "")}</td></tr>
+          <tr><td>KV-/RV-Brutto</td><td id="dsv_kvB">{_esc(d.get("kvB") or "")}</td></tr>
+          <tr><td>KV-Beitrag</td><td id="dsv_kvBeitrag">{_esc(d.get("kvBeitrag") or "")}</td></tr>
+          <tr><td>RV-Beitrag</td><td id="dsv_rvBeitrag">{_esc(d.get("rvBeitrag") or "")}</td></tr>
+          <tr><td>AV-Beitrag</td><td id="dsv_avBeitrag">{_esc(d.get("avBeitrag") or "")}</td></tr>
+          <tr><td>PV-Beitrag</td><td id="dsv_pvBeitrag">{_esc(d.get("pvBeitrag") or "")}</td></tr>
         </table>
       </div>
       <div class="ds-net">
-        <div class="ds-net-row"><span>Steuerabzüge</span><strong>{_esc(d.get("taxTotal") or "")}</strong></div>
-        <div class="ds-net-row"><span>SV-Abzüge</span><strong>{_esc(d.get("svTotal") or "")}</strong></div>
-        <div class="ds-net-row"><span>Netto-Verdienst</span><strong>{_esc(d.get("netVerdienst") or d.get("netTotal") or "")}</strong></div>
+        <div class="ds-net-row"><span>Steuerabzüge</span><strong id="dsv_taxTotal">{_esc(d.get("taxTotal") or "")}</strong></div>
+        <div class="ds-net-row"><span>SV-Abzüge</span><strong id="dsv_svTotal">{_esc(d.get("svTotal") or "")}</strong></div>
+        <div class="ds-net-row"><span>Sonst. Netto-Abzüge</span><strong id="dsv_netAbzug">{_esc(d.get("netAbzug") or "")}</strong></div>
+        <div class="ds-net-row"><span>Netto-Verdienst</span><strong id="dsv_netVerdienst">{_esc(d.get("netVerdienst") or d.get("netTotal") or "")}</strong></div>
+        {calc_method}
+      </div>
+    </div>
+    <div class="ds-box ds-verdienst">
+      <h3>Verdienstbescheinigung</h3>
+      <div class="ds-two">
+        <table class="ds-kv">
+          <tr><td>Gesamt-Brutto</td><td id="dsv_vbGross">{_esc(d.get("vbGross") or d.get("grossTotal") or "")}</td></tr>
+          <tr><td>Steuer-Brutto</td><td id="dsv_vbTaxGross">{_esc(d.get("vbTaxGross") or d.get("stBrutto") or "")}</td></tr>
+          <tr><td>Lohnsteuer</td><td id="dsv_vbLst">{_esc(d.get("vbLst") or d.get("lst") or "")}</td></tr>
+          <tr><td>Kirchensteuer</td><td id="dsv_vbKist">{_esc(d.get("vbKist") or d.get("kist") or "")}</td></tr>
+          <tr><td>Solidaritätszuschlag</td><td id="dsv_vbSoli">{_esc(d.get("vbSoli") or "")}</td></tr>
+        </table>
+        <table class="ds-kv">
+          <tr><td>SV-Brutto</td><td id="dsv_vbSvGross">{_esc(d.get("vbSvGross") or d.get("kvB") or "")}</td></tr>
+          <tr><td>KV-Beitrag</td><td id="dsv_vbKv">{_esc(d.get("vbKv") or d.get("kvBeitrag") or "")}</td></tr>
+          <tr><td>RV-Beitrag</td><td id="dsv_vbRv">{_esc(d.get("vbRv") or d.get("rvBeitrag") or "")}</td></tr>
+          <tr><td>AV-Beitrag</td><td id="dsv_vbAv">{_esc(d.get("vbAv") or d.get("avBeitrag") or "")}</td></tr>
+          <tr><td>PV-Beitrag</td><td id="dsv_vbPv">{_esc(d.get("vbPv") or d.get("pvBeitrag") or "")}</td></tr>
+        </table>
       </div>
     </div>
   </div>
   <div class="ds-zone ds-zone-pay">
     <div class="ds-foot">
       <div class="ds-bank">
-        <div>{_esc(d.get("bank") or "")}</div>
-        <div>{_esc(d.get("konto") or "")}</div>
-        <div class="ds-meta-line"><strong>Zahlungsweg:</strong> {_esc(d.get("payHint") or "")}</div>
+        <div id="dsv_bank">{_esc(d.get("bank") or "")}</div>
+        <div id="dsv_konto">{_esc(d.get("konto") or "")}</div>
+        <div class="ds-meta-line"><strong>Zahlungsweg:</strong> <span id="dsv_payHint">{_esc(pay_hint)}</span></div>
+        {footer_note_html}
       </div>
       <table class="ds-ag">
-        <tr><td>SV-AG-Anteil</td><td>{_esc(d.get("agSv") or "")}</td></tr>
-        <tr><td>Zus. AG-Kosten</td><td>{_esc(d.get("agExtra") or "")}</td></tr>
-        <tr><td>Gesamtkosten</td><td>{_esc(d.get("agTotal") or "")}</td></tr>
+        <tr><td>SV-AG-Anteil</td><td id="dsv_agSv">{_esc(d.get("agSv") or "")}</td></tr>
+        <tr><td>Zus. AG-Kosten</td><td id="dsv_agExtra">{_esc(d.get("agExtra") or "")}</td></tr>
+        <tr><td>Gesamtkosten</td><td id="dsv_agTotal">{_esc(d.get("agTotal") or "")}</td></tr>
       </table>
-      <div class="ds-pay"><span>Auszahlungsbetrag</span><strong>{_esc(d.get("payout") or "")}</strong></div>
+      <div class="ds-pay">
+        <span>Auszahlungsbetrag</span>
+        <strong id="dsv_payout">{_esc(d.get("payout") or "")}</strong>
+      </div>
     </div>
     <div class="ds-legal">
       <div>WorkPass Lohn · Form LOHN</div>
@@ -379,20 +502,76 @@ def build_sheet_body_html(data: dict[str, Any]) -> str:
 """.strip()
 
 
-def build_payslip_print_html(payslip: dict[str, Any] | None, *, job: dict[str, Any] | None = None) -> str:
+def normalize_sheet_theme(theme: Any) -> str:
+    raw = str(theme or "").strip().lower()
+    if raw in {"black", "dark", "theme-black", "theme-dark"}:
+        return "dark"
+    return "light"
+
+
+def apply_sheet_chrome(html_doc: str, *, theme: Any = "light") -> str:
+    """Center A4 sheet and tint page chrome to match admin theme (paper stays white)."""
+    doc = str(html_doc or "")
+    mode = normalize_sheet_theme(theme)
+    chrome_class = f"sheet-chrome theme-{mode}"
+    chrome_style = (
+        "margin:0;min-height:100vh;box-sizing:border-box;"
+        "display:flex;justify-content:center;align-items:flex-start;"
+        f"padding:16px;overflow:auto;background:{'#0b1220' if mode == 'dark' else '#e8edf2'};"
+    )
+    # Prefer rewriting an existing body tag (Lohn live HTML or local).
+    import re
+
+    def _body_repl(match: re.Match[str]) -> str:
+        attrs = match.group(1) or ""
+        # Drop old style/class so chrome wins.
+        attrs = re.sub(r'\sclass=(["\']).*?\1', "", attrs, flags=re.I)
+        attrs = re.sub(r'\sstyle=(["\']).*?\1', "", attrs, flags=re.I)
+        return f'<body class="{chrome_class}" style="{chrome_style}"{attrs}>'
+
+    if re.search(r"<body\b", doc, flags=re.I):
+        doc = re.sub(r"<body([^>]*)>", _body_repl, doc, count=1, flags=re.I)
+    else:
+        doc = f'<body class="{chrome_class}" style="{chrome_style}">{doc}</body>'
+    # Ensure chrome CSS exists even for live Lohn HTML that lacks it.
+    if "body.sheet-chrome" not in doc:
+        inject = (
+            "<style>"
+            "body.sheet-chrome{margin:0;min-height:100vh;box-sizing:border-box;"
+            "display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow:auto}"
+            "body.sheet-chrome.theme-light{background:#e8edf2}"
+            "body.sheet-chrome.theme-dark{background:#0b1220}"
+            ".datev-sheet-a4{margin:0 auto}"
+            "</style>"
+        )
+        if re.search(r"</head>", doc, flags=re.I):
+            doc = re.sub(r"</head>", inject + "</head>", doc, count=1, flags=re.I)
+        else:
+            doc = inject + doc
+    return doc
+
+
+def build_payslip_print_html(
+    payslip: dict[str, Any] | None,
+    *,
+    job: dict[str, Any] | None = None,
+    theme: Any = "light",
+) -> str:
     data = payslip_to_sheet_data(payslip, job=job)
     body = build_sheet_body_html(data)
     period = str((payslip or {}).get("period") or (job or {}).get("period") or "")
-    return f"""<!DOCTYPE html>
+    mode = normalize_sheet_theme(theme)
+    html_doc = f"""<!DOCTYPE html>
 <html lang="de"><head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Entgeltabrechnung {_esc(period)}</title>
 <style>{_CSS}</style>
 </head>
-<body style="margin:0;background:#e8edf2;overflow:auto;padding:12px;">
+<body class="sheet-chrome theme-{mode}">
 {body}
 </body></html>"""
+    return apply_sheet_chrome(html_doc, theme=mode)
 
 
 def payslip_document_from_meta(meta: Any) -> dict[str, Any] | None:

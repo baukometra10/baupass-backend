@@ -1479,11 +1479,12 @@ def register_accounting_blueprint(flask_app) -> None:
         from flask import Response
         from urllib.parse import quote as _q
 
-        from .lohn_sheet import build_payslip_print_html, payslip_document_from_meta
+        from .lohn_sheet import apply_sheet_chrome, build_payslip_print_html, payslip_document_from_meta
         from .platform_link import get_platform_link
         from .service import _lohn_http_get
 
         user = g.current_user
+        theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
         db = get_db()
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
@@ -1526,8 +1527,15 @@ def register_accounting_blueprint(flask_app) -> None:
             )
             pbody = printed.get("body") if isinstance(printed.get("body"), dict) else {}
             if printed.get("ok") and isinstance(pbody.get("html"), str) and len(pbody["html"]) > 200:
-                return Response(pbody["html"], mimetype="text/html; charset=utf-8")
-        html_doc = build_payslip_print_html(payslip or {}, job={"period": period, "employee": {"id": badge}})
+                return Response(
+                    apply_sheet_chrome(pbody["html"], theme=theme),
+                    mimetype="text/html; charset=utf-8",
+                )
+        html_doc = build_payslip_print_html(
+            payslip or {},
+            job={"period": period, "employee": {"id": badge}},
+            theme=theme,
+        )
         return Response(html_doc, mimetype="text/html; charset=utf-8")
 
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/pdf")

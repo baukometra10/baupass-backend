@@ -1538,6 +1538,10 @@ async function renderPayslipIdentity(stmt) {
   `;
 }
 
+function currentUiTheme() {
+  return document.body?.classList?.contains("theme-black") ? "dark" : "light";
+}
+
 function openPayslipSheetWindow(html) {
   const docHtml = String(html || payslipStudioState.sheetHtml || "").trim();
   if (!docHtml) {
@@ -1566,6 +1570,11 @@ function openPayslipSheetWindow(html) {
     win.document.open();
     win.document.write(docHtml);
     win.document.close();
+    try {
+      win.document.documentElement.style.colorScheme = currentUiTheme() === "dark" ? "dark" : "light";
+    } catch {
+      /* ignore */
+    }
     win.focus();
   } catch {
     showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
@@ -1647,7 +1656,7 @@ async function selectPayslipStatement(batchId, statementId) {
     const headers = { Accept: "text/html" };
     if (token) headers.Authorization = `Bearer ${token}`;
     const sheetRes = await fetch(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet`,
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet?theme=${encodeURIComponent(currentUiTheme())}`,
       { headers },
     );
     if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
