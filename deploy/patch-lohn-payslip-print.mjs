@@ -176,7 +176,7 @@ export function payslipToSheetData(job) {
     empName: emp.name || "",
     empAddr: emp.address || "",
     entry: emp.entryDate || emp.startDate || "",
-    taxIdMid: String(emp.taxId || emp.steuerId || "").slice(0, 4),
+    taxIdMid: String(emp.taxId || emp.steuerId || ""),
     hints: p.note || "",
     wageRows,
     grossTotal: formatAmount(gross),

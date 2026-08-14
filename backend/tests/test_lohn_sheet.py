@@ -16,6 +16,16 @@ def test_fill_empty_krankenkasse_only():
     assert "9999" not in out
 
 
+def test_steuer_id_is_printed_in_full():
+    payslip = {"employee": {"taxId": "88211234567", "personnelNumber": "1001"}}
+    data = payslip_to_sheet_data(payslip)
+    assert data["taxIdMid"] == "88211234567"
+    html = '<span id="dsv_taxIdMid">8821</span>'
+    out = fill_empty_sheet_fields(html, data)
+    assert "88211234567" in out
+    assert ">8821<" not in out
+
+
 def test_enrich_fills_health_fund_gap():
     payslip = {"employee": {"name": "Feras", "personnelNumber": "1001"}}
     master = {"healthFund": "AOK Nordost", "healthPercent": "8,75"}

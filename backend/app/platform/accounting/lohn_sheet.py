@@ -222,6 +222,15 @@ def _first_filled(*values: Any) -> str:
     return ""
 
 
+def _digits_only(value: Any) -> str:
+    return "".join(ch for ch in str(value or "") if ch.isdigit())
+
+
+def _tax_id_display(*values: Any) -> str:
+    """Full Steuer-ID (11 digits); never truncate to the DATEV 4-digit preview."""
+    return _first_filled(*values)
+
+
 def enrich_payslip_with_master(
     payslip: dict[str, Any] | None,
     master: dict[str, Any] | None,
@@ -432,7 +441,7 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "empName": str(emp.get("name") or ""),
         "empAddr": str(emp.get("address") or ""),
         "entry": str(emp.get("entryDate") or emp.get("startDate") or ""),
-        "taxIdMid": str(emp.get("taxId") or emp.get("steuerId") or "")[:4],
+        "taxIdMid": _tax_id_display(emp.get("taxId"), emp.get("steuerId")),
         "hints": str(p.get("note") or ""),
         "wageRows": wage_rows,
         "grossTotal": _amt(gross),
@@ -681,7 +690,7 @@ def normalize_sheet_theme(theme: Any) -> str:
 
 
 def fill_empty_sheet_fields(html_doc: str, data: dict[str, Any] | None) -> str:
-    """Insert Stammdaten into empty DatevSheet cells (id=dsv_*) without changing filled values."""
+    """Fill empty DatevSheet cells; also replace a truncated Steuer-ID with the full number."""
     import re
 
     data = data if isinstance(data, dict) else {}
@@ -693,16 +702,24 @@ def fill_empty_sheet_fields(html_doc: str, data: dict[str, Any] | None) -> str:
         "dsv_stkl": data.get("stkl"),
         "dsv_svNr": data.get("svNr"),
         "dsv_konf": data.get("konf"),
+        "dsv_taxIdMid": data.get("taxIdMid"),
     }
 
     def _repl(match: re.Match[str]) -> str:
         attrs, inner = match.group(1), match.group(2)
         eid_m = re.search(r'\bid=["\'](dsv_[^"\']+)["\']', attrs, flags=re.I)
-        if not eid_m or str(inner or "").strip():
+        if not eid_m:
             return match.group(0)
         value = _first_filled(mapping.get(eid_m.group(1)))
         if not value:
             return match.group(0)
+        inner_s = str(inner or "").strip()
+        if inner_s:
+            # DATEV print often stores only the first 4 Steuer-ID digits — replace with the full number.
+            if eid_m.group(1) != "dsv_taxIdMid":
+                return match.group(0)
+            if len(_digits_only(value)) <= len(_digits_only(inner_s)):
+                return match.group(0)
         return f"<span{attrs}>{_esc(value)}</span>"
 
     return re.sub(
