@@ -1251,19 +1251,16 @@ async function openLohnSystem() {
       showActionToast(res?.message || t("lohn.openFailed") || "Buchhaltung nicht erreichbar", true);
       return;
     }
-    // Same-tab navigation for SSO bridge (ticket → redirect with hash).
-    // window.open(..., "noopener") previously dropped #suppix-sso and broke login.
     const url = String(res.url);
-    if (res.mode === "sso_bridge" || url.includes("sso-enter")) {
-      window.location.assign(url);
-      return;
-    }
+    // Prefer a new tab so a brief platform restart (railway up) cannot
+    // wipe the admin UI with "Verbindung abgelehnt".
+    // Do NOT pass "noopener" — Chromium drops hash fragments used by SSO.
     const win = window.open(url, "_blank");
     if (!win) {
       window.location.assign(url);
       return;
     }
-    if (res.sso) {
+    if (res.sso || res.mode === "sso_bridge" || url.includes("sso-enter")) {
       showActionToast(t("lohn.ssoOpening") || "Buchhaltung — SSO-Anmeldung…");
     }
   } catch (e) {
