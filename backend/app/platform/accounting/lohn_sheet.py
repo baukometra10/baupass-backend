@@ -680,6 +680,39 @@ def normalize_sheet_theme(theme: Any) -> str:
     return "light"
 
 
+def fill_empty_sheet_fields(html_doc: str, data: dict[str, Any] | None) -> str:
+    """Insert Stammdaten into empty DatevSheet cells (id=dsv_*) without changing filled values."""
+    import re
+
+    data = data if isinstance(data, dict) else {}
+    mapping = {
+        "dsv_kkName": data.get("kkName"),
+        "dsv_kkPct": data.get("kkPct"),
+        "dsv_persNr": data.get("persNr"),
+        "dsv_birth": data.get("birth"),
+        "dsv_stkl": data.get("stkl"),
+        "dsv_svNr": data.get("svNr"),
+        "dsv_konf": data.get("konf"),
+    }
+
+    def _repl(match: re.Match[str]) -> str:
+        attrs, inner = match.group(1), match.group(2)
+        eid_m = re.search(r'\bid=["\'](dsv_[^"\']+)["\']', attrs, flags=re.I)
+        if not eid_m or str(inner or "").strip():
+            return match.group(0)
+        value = _first_filled(mapping.get(eid_m.group(1)))
+        if not value:
+            return match.group(0)
+        return f"<span{attrs}>{_esc(value)}</span>"
+
+    return re.sub(
+        r'<span([^>]*\bid=["\']dsv_[^"\']+["\'][^>]*)>(.*?)</span>',
+        _repl,
+        str(html_doc or ""),
+        flags=re.I | re.S,
+    )
+
+
 def apply_sheet_chrome(html_doc: str, *, theme: Any = "light") -> str:
     """Center A4 sheet and tint page chrome to match admin theme (paper stays white)."""
     doc = str(html_doc or "")

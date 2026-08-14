@@ -1475,11 +1475,19 @@ def register_accounting_blueprint(flask_app) -> None:
     @require_auth
     @require_roles("superadmin", "company-admin")
     def admin_statement_sheet(batch_id: str, statement_id: str):
-        """Serve the exact WorkPass Lohn DatevSheet — no platform Stammdaten rewrite."""
+        """Serve the WorkPass Lohn DatevSheet; fill empty Stammdaten only (Krankenkasse, Pers.-Nr.)."""
         from flask import Response
         from urllib.parse import quote as _q
 
-        from .lohn_sheet import apply_sheet_chrome, build_payslip_print_html, payslip_document_from_meta
+        from .hours_service import get_employee_master_item
+        from .lohn_sheet import (
+            apply_sheet_chrome,
+            build_payslip_print_html,
+            enrich_payslip_with_master,
+            fill_empty_sheet_fields,
+            payslip_document_from_meta,
+            payslip_to_sheet_data,
+        )
         from .platform_link import get_platform_link
         from .service import _lohn_http_get
 
@@ -1511,7 +1519,7 @@ def register_accounting_blueprint(flask_app) -> None:
         if not job_id and company_id and badge and period:
             job_id = f"{company_id}::{badge}::{period}"
 
-        # Pull live Lohn payslip JSON (source of truth) — never rewrite employee fields.
+        # Live Lohn payslip JSON is the source of truth; fill empty Stammdaten only.
         if job_id:
             link = get_platform_link(db)
             fetched = _lohn_http_get(
@@ -1525,7 +1533,19 @@ def register_accounting_blueprint(flask_app) -> None:
                 payslip = body["payslip"]
                 period = str(payslip.get("period") or period).strip()[:7]
 
-        # Prefer byte-identical Lohn DatevSheet print HTML when available.
+        master = get_employee_master_item(
+            db,
+            company_id=company_id,
+            worker_id=str(stmt.get("worker_id") or ""),
+            badge_id=badge,
+        )
+        payslip = enrich_payslip_with_master(payslip, master)
+        sheet_data = payslip_to_sheet_data(
+            payslip or {},
+            job={"period": period, "employee": (payslip or {}).get("employee") or {}},
+        )
+
+        # Prefer Lohn DatevSheet print HTML; patch empty cells from Lohn/master gaps.
         if job_id:
             link = get_platform_link(db)
             printed = _lohn_http_get(
@@ -1536,15 +1556,15 @@ def register_accounting_blueprint(flask_app) -> None:
             )
             pbody = printed.get("body") if isinstance(printed.get("body"), dict) else {}
             if printed.get("ok") and isinstance(pbody.get("html"), str) and len(pbody["html"]) > 200:
+                html_live = fill_empty_sheet_fields(pbody["html"], sheet_data)
                 return Response(
-                    apply_sheet_chrome(pbody["html"], theme=theme),
+                    apply_sheet_chrome(html_live, theme=theme),
                     mimetype="text/html; charset=utf-8",
                 )
 
-        # Fallback: render the same DatevSheet locally from Lohn payslip JSON only.
         html_doc = build_payslip_print_html(
             payslip or {},
-            job={"period": period},
+            job={"period": period, "employee": (payslip or {}).get("employee") or {}},
             theme=theme,
         )
         return Response(html_doc, mimetype="text/html; charset=utf-8")

@@ -641,21 +641,38 @@ def _employee_master_item_from_worker(db, *, company_id: str, worker) -> dict[st
     return enrich_lohn_compat_fields(item, include_attendance=False)
 
 
-def get_employee_master_item(db, *, company_id: str, worker_id: str) -> dict[str, Any] | None:
+def get_employee_master_item(
+    db,
+    *,
+    company_id: str,
+    worker_id: str = "",
+    badge_id: str = "",
+) -> dict[str, Any] | None:
     """Single employee master row for Lohn push after missing-data fix."""
     company_id = require_company_id(company_id)
     worker_id = str(worker_id or "").strip()
-    if not worker_id:
-        return None
-    worker = db.execute(
-        """
-        SELECT *
-        FROM workers
-        WHERE id = ? AND company_id = ? AND deleted_at IS NULL
-        LIMIT 1
-        """,
-        (worker_id, company_id),
-    ).fetchone()
+    badge_id = str(badge_id or "").strip()
+    worker = None
+    if worker_id:
+        worker = db.execute(
+            """
+            SELECT *
+            FROM workers
+            WHERE id = ? AND company_id = ? AND deleted_at IS NULL
+            LIMIT 1
+            """,
+            (worker_id, company_id),
+        ).fetchone()
+    if not worker and badge_id:
+        worker = db.execute(
+            """
+            SELECT *
+            FROM workers
+            WHERE company_id = ? AND deleted_at IS NULL AND badge_id = ?
+            LIMIT 1
+            """,
+            (company_id, badge_id),
+        ).fetchone()
     if not worker:
         return None
     return _employee_master_item_from_worker(db, company_id=company_id, worker=worker)
