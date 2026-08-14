@@ -161,6 +161,37 @@ def test_arabic_company_name_auto_usernames_are_ascii(client_and_db):
         assert login.status_code == 200, (cred, login.get_json())
 
 
+def test_company_admin_login_with_office_scope(client_and_db):
+    """Leaving the dropdown on office must not lock out the company admin."""
+    client, _ = client_and_db
+    headers = _superadmin_headers(client)
+    created = client.post(
+        "/api/companies",
+        json={
+            "name": "ScopeFlexCo",
+            "contact": "x",
+            "adminUsername": "scopeadmin01",
+            "adminPassword": "Admin!23456",
+            "officeUsername": "scopeoffice01",
+            "officePassword": "Office!23456",
+            "turnstilePassword": "Gate!234",
+            "turnstileCount": 1,
+        },
+        headers=headers,
+    )
+    assert created.status_code in (200, 201), created.get_json()
+    login = client.post(
+        "/api/login",
+        json={
+            "username": "scopeadmin01",
+            "password": "Admin!23456",
+            "loginScope": "office",
+        },
+    )
+    assert login.status_code == 200, login.get_json()
+    assert ((login.get_json() or {}).get("user") or {}).get("role") == "company-admin"
+
+
 def test_ensure_office_user_endpoint(client_and_db):
     client, _ = client_and_db
     headers = _superadmin_headers(client)

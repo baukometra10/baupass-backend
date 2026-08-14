@@ -170,13 +170,18 @@ def _perform_login_core(srv, login_error):
     }
     required_role = required_role_by_scope.get(login_scope)
     user_role = str(_user_value(user, "role", "") or "")
-    # Firmen-Login scope accepts both owner and office operator.
+    # Firmen-Zugänge: Firmen-Admin und Büro-Operator dürfen sich gegenseitig
+    # über den Firmen-Scope anmelden (Rolle kommt weiterhin aus der DB).
+    # Verhindert Lockouts, wenn der Zugangstyp nach dem Mitarbeiter-Login auf
+    # „Büro-Operator“ stehen bleibt.
+    company_login_roles = {"company-admin", "office"}
     if required_role:
         scope_ok = user_role == required_role or (
-            login_scope == "company-admin" and user_role in {"company-admin", "office"}
+            login_scope in {"company-admin", "office"} and user_role in company_login_roles
         )
         if not scope_ok:
-            srv.register_login_failure(throttle_key)
+            # Scope mismatch is a UI mistake, not a credential attack — do not
+            # inflate IP/login lockouts.
             _log_login_failed(srv, username, "scope_mismatch")
             return login_error("login_scope_mismatch")
 

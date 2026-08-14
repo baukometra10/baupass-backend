@@ -1472,7 +1472,7 @@ const UI_TRANSLATIONS = {
     alertLoginCompanyLocked: "Diese Firma ist gesperrt. Bitte zuerst offene Rechnungen begleichen oder die Sperre im Superadmin aufheben.",
     alertInvalidCredentials: "Benutzername oder Passwort ist falsch. Bitte Daten pruefen und erneut versuchen.",
     alertAdminIpNotAllowed: "Admin-Zugriff von dieser IP ist nicht erlaubt.",
-    alertLoginScopeMismatch: "Zugangstyp passt nicht zum Konto. Bitte Server-Admin/Firmen-Admin korrekt auswaehlen.",
+    alertLoginScopeMismatch: "Zugangstyp passt nicht zum Konto. Bitte „Automatisch“ oder den passenden Typ wählen (Firmen-Admin / Büro-Operator).",
     alertLoginHttp405: "Login fehlgeschlagen: 405. Der Login-Request landet aktuell auf {target}. Fuer GitHub Pages muss das Frontend dein Render-Backend nutzen.",
     alertLoginFailed: "Login fehlgeschlagen: {error}",
     alertPasswordResetEnterUsername: "Bitte zuerst Benutzername oder E-Mail eintragen.",
@@ -2712,7 +2712,7 @@ const UI_TRANSLATIONS = {
     alertLoginCompanyLocked: "This company is locked. Please settle outstanding invoices or lift the lock in superadmin.",
     alertInvalidCredentials: "Username or password is incorrect. Please check your details and try again.",
     alertAdminIpNotAllowed: "Admin access from this IP is not allowed.",
-    alertLoginScopeMismatch: "Access type does not match the account. Please select server admin / company admin correctly.",
+    alertLoginScopeMismatch: "Access type does not match the account. Choose “Automatic” or the matching type (company admin / office).",
     alertLoginHttp405: "Login failed: 405. The login request is currently landing on {target}. For GitHub Pages, the frontend must use your Render backend.",
     alertLoginFailed: "Login failed: {error}",
     alertPasswordResetEnterUsername: "Please enter a username or email first.",
@@ -4434,7 +4434,7 @@ const UI_TRANSLATIONS = {
     alertLoginCompanyLocked: "هذه الشركة مقفلة. يرجى تسديد الفواتير المعلقة أو رفع القفل في لوحة المسؤول العام.",
     alertInvalidCredentials: "اسم المستخدم أو كلمة المرور غير صحيحة. يرجى التحقق من البيانات والمحاولة مرة أخرى.",
     alertAdminIpNotAllowed: "الوصول كمسؤول من هذا العنوان IP غير مسموح.",
-    alertLoginScopeMismatch: "نوع الوصول لا يطابق الحساب. يرجى اختيار مسؤول الخادم / مسؤول الشركة بشكل صحيح.",
+    alertLoginScopeMismatch: "نوع الوصول لا يطابق الحساب. اختر «تلقائي» أو النوع المناسب (مدير الشركة / مشغّل المكتب).",
     alertLoginHttp405: "فشل تسجيل الدخول: 405. طلب تسجيل الدخول يصل حالياً إلى {target}. بالنسبة لـ GitHub Pages، يجب أن يستخدم الواجهة الأمامية خلفيتك على Render.",
     alertLoginFailed: "فشل تسجيل الدخول: {error}",
     alertPasswordResetEnterUsername: "يرجى إدخال اسم المستخدم أو البريد الإلكتروني أولاً.",
@@ -35409,7 +35409,17 @@ async function handleLoginSubmit(event) {
       return;
     }
     if (error.message === "login_scope_mismatch") {
-      showToast(uiT("alertLoginScopeMismatch"), "error", 3600);
+      const scopeEl = document.querySelector("#loginScope");
+      if (scopeEl) scopeEl.value = "auto";
+      showToast(uiT("alertLoginScopeMismatch"), "error", 4200);
+      return;
+    }
+    if (error.message === "ip_blocked") {
+      showToast(
+        (error?.payload?.message || uiT("alertLoginFailed").replace("{error}", "IP vorübergehend gesperrt")),
+        "error",
+        5000,
+      );
       return;
     }
     if (error.message === "http_405") {
@@ -35526,6 +35536,7 @@ async function handleLogout(options = {}) {
     );
   }
   clearSession();
+  resetSupportLoginScopeUi();
   setView("dashboard");
   stopCamera();
   refreshAll();
