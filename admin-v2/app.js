@@ -1319,6 +1319,7 @@ const payslipStudioState = {
   sheetHtml: "",
   sheetWindow: null,
   workersByCompany: {},
+  inbox: "open",
 };
 
 function toast(message, _kind = "ok") {
@@ -1377,6 +1378,19 @@ function closePayslipReviewStudio() {
   }
   const iframe = $("payslipStudioPdf");
   if (iframe) iframe.src = "about:blank";
+}
+
+function payslipStatusLabel(status) {
+  const s = String(status || "").toLowerCase();
+  if (s === "released") return t("lohn.statusReleased") || "Gesendet";
+  if (s === "rejected") return t("lohn.statusRejected") || "Abgelehnt";
+  if (s === "pending") return t("lohn.statusOpen") || "Offen";
+  return s || "";
+}
+
+function isPayslipLocked(stmt) {
+  const s = String(stmt?.status || "").toLowerCase();
+  return s === "released" || s === "rejected" || Boolean(stmt?.deliveryLocked);
 }
 
 function payslipMatchLabel(status) {
@@ -1439,16 +1453,25 @@ async function loadPayslipWorkers(companyId) {
 function renderPayslipStudioList() {
   const host = $("payslipStudioList");
   if (!host) return;
+  const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
+  const tabs = `<div class="payslip-inbox-tabs">
+    <button type="button" class="${inbox === "open" ? "is-active" : ""}" data-payslip-inbox="open">${escapeHtml(t("lohn.inboxOpen") || "Offen")}</button>
+    <button type="button" class="${inbox === "archive" ? "is-active" : ""}" data-payslip-inbox="archive">${escapeHtml(t("lohn.inboxArchive") || "Archiv")}</button>
+  </div>`;
   const batches = payslipStudioState.batches || [];
   if (!batches.length) {
-    host.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.")}</div>`;
+    const empty = inbox === "archive"
+      ? (t("lohn.payslipArchiveNone") || "Kein Archiv für diese Firma.")
+      : (t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.");
+    host.innerHTML = `${tabs}<div class="payslip-studio-empty">${escapeHtml(empty)}</div>`;
     return;
   }
-  host.innerHTML = batches
+  host.innerHTML = tabs + batches
     .map((batch) => {
       const bid = String(batch.id || "");
       const stmts = Array.isArray(batch.statements) ? batch.statements : [];
       const releasable = Number(batch.releasableCount || 0);
+      const archived = inbox === "archive";
       const items = stmts
         .map((s) => {
           const sid = String(s.statementId || s.id || "");
@@ -1457,29 +1480,40 @@ function renderPayslipStudioList() {
               ? " is-active"
               : "";
           const match = String(s.matchStatus || "matched");
+          const st = String(s.status || "pending");
           const badges = [
             `<span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>`,
           ];
-          if (s.reviewed) {
+          if (st === "released" || st === "rejected") {
+            badges.push(
+              `<span class="payslip-match is-${escapeAttr(st)}">${escapeHtml(payslipStatusLabel(st))}</span>`,
+            );
+          } else if (s.reviewed) {
             badges.push(
               `<span class="payslip-match is-reviewed">${escapeHtml(t("lohn.reviewed") || "Geprüft")}</span>`,
             );
           }
+          if (s.locked || s.deliveryLocked) {
+            badges.push(`<span class="payslip-match is-locked">${escapeHtml(t("lohn.locked") || "Gesperrt")}</span>`);
+          }
           return `<button type="button" class="payslip-stmt-item${active}" data-payslip-select="${escapeAttr(bid)}::${escapeAttr(sid)}">
             <div class="name">${escapeHtml(s.displayName || s.workerId || "—")}</div>
-            <div class="meta">${escapeHtml([s.badgeId, s.period, formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency)].filter(Boolean).join(" · "))}</div>
+            <div class="meta">${escapeHtml([s.badgeId, s.documentPeriod || s.period, formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency)].filter(Boolean).join(" · "))}</div>
             ${badges.join(" ")}
           </button>`;
         })
         .join("");
+      const batchActions = archived
+        ? ""
+        : `<div class="payslip-batch-actions">
+            <button type="button" class="primary" data-payslip-batch="release-reviewed" data-batch-id="${escapeAttr(bid)}" ${releasable ? "" : "disabled"}>${escapeHtml(t("lohn.releaseReviewed") || "Alle geprüften senden")}</button>
+            <button type="button" data-payslip-batch="reject" data-batch-id="${escapeAttr(bid)}">${escapeHtml(t("lohn.rejectBatch") || "Stapel ablehnen")}</button>
+          </div>`;
       return `<div class="payslip-batch-group" data-batch="${escapeAttr(bid)}">
         <div class="payslip-batch-head">
           <strong>${escapeHtml(batch.companyName || batch.companyId || "—")} · ${escapeHtml(batch.period || "")}</strong>
-          <span>${escapeHtml(String(stmts.length))} · ${escapeHtml(String(releasable))} ${escapeHtml(t("lohn.ready") || "bereit")}</span>
-          <div class="payslip-batch-actions">
-            <button type="button" class="primary" data-payslip-batch="release-reviewed" data-batch-id="${escapeAttr(bid)}" ${releasable ? "" : "disabled"}>${escapeHtml(t("lohn.releaseReviewed") || "Alle geprüften senden")}</button>
-            <button type="button" data-payslip-batch="reject" data-batch-id="${escapeAttr(bid)}">${escapeHtml(t("lohn.rejectBatch") || "Stapel ablehnen")}</button>
-          </div>
+          <span>${escapeHtml(String(stmts.length))}${archived ? "" : ` · ${escapeHtml(String(releasable))} ${escapeHtml(t("lohn.ready") || "bereit")}`}</span>
+          ${batchActions}
         </div>
         ${items}
       </div>`;
@@ -1502,11 +1536,30 @@ async function renderPayslipIdentity(stmt) {
   const actions = $("payslipStudioActions");
   if (!card || !actions || !stmt) return;
   const match = String(stmt.matchStatus || "matched");
+  const locked = isPayslipLocked(stmt);
+  const warnings = Array.isArray(stmt.stammdatenWarnings) ? stmt.stammdatenWarnings : [];
+  const warnHtml = warnings.length
+    ? `<ul class="payslip-warn">${warnings.map((w) => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>`
+    : "";
+  const lockNote = locked
+    ? `<p class="muted small" style="margin:0.45rem 0 0">${escapeHtml(t("lohn.lockedHint") || "Nach dem Versand sind Stammdaten dieser Abrechnung gesperrt.")}</p>`
+    : "";
   card.innerHTML = `
     <h3>${escapeHtml(stmt.displayName || "—")}</h3>
     <span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>
+    ${locked ? `<span class="payslip-match is-${escapeAttr(stmt.status || "released")}">${escapeHtml(payslipStatusLabel(stmt.status))}</span>` : ""}
     <p class="muted small" style="margin:0.55rem 0 0">${escapeHtml(stmt.documentPeriod || stmt.period || "")} · ${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</p>
-    <p class="muted small" style="margin:0.25rem 0 0">${escapeHtml(stmt.badgeId || stmt.workerId || "")}</p>`;
+    <p class="muted small" style="margin:0.25rem 0 0">${escapeHtml(stmt.badgeId || stmt.workerId || "")}</p>
+    ${lockNote}${warnHtml}`;
+
+  const viewBtns = `
+    <button type="button" class="primary" data-payslip-action="open-window">${escapeHtml(t("lohn.openSheetWindow") || "Vollbild prüfen")}</button>
+    <button type="button" data-payslip-action="focus-sheet">${escapeHtml(t("lohn.focusSheet") || "Nur Abrechnung anzeigen")}</button>
+    <button type="button" data-payslip-action="download-pdf">${escapeHtml(t("lohn.downloadPdf") || "PDF herunterladen")}</button>`;
+  if (locked) {
+    actions.innerHTML = viewBtns;
+    return;
+  }
 
   let workerOptions = "";
   try {
@@ -1525,8 +1578,7 @@ async function renderPayslipIdentity(stmt) {
 
   const canSend = !!stmt.canRelease;
   actions.innerHTML = `
-    <button type="button" class="primary" data-payslip-action="open-window">${escapeHtml(t("lohn.openSheetWindow") || "Vollbild prüfen")}</button>
-    <button type="button" data-payslip-action="focus-sheet">${escapeHtml(t("lohn.focusSheet") || "Nur Abrechnung anzeigen")}</button>
+    ${viewBtns}
     <select id="payslipAssignSelect" aria-label="${escapeAttr(t("lohn.assignWorker") || "Mitarbeiter")}">
       <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter —")}</option>
       ${workerOptions}
@@ -1782,8 +1834,11 @@ async function selectPayslipStatement(batchId, statementId) {
 
 async function refreshPayslipStudio({ keepSelection = false } = {}) {
   const cid = activeCompanyId();
-  const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
-  const data = await api(`/api/payroll/statements/pending${q}`);
+  const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
+  const params = new URLSearchParams();
+  if (cid) params.set("company_id", cid);
+  params.set("inbox", inbox);
+  const data = await api(`/api/payroll/statements/pending?${params.toString()}`);
   payslipStudioState.batches = Array.isArray(data?.batches) ? data.batches : [];
   renderPayslipStudioList();
   if (keepSelection && payslipStudioState.activeBatchId && payslipStudioState.activeStmtId) {
@@ -1844,6 +1899,17 @@ function selectNextPayslipStatement() {
 }
 
 async function handlePayslipStudioClick(ev) {
+  const inboxBtn = ev.target?.closest?.("[data-payslip-inbox]");
+  if (inboxBtn) {
+    const next = inboxBtn.getAttribute("data-payslip-inbox") === "archive" ? "archive" : "open";
+    if (payslipStudioState.inbox !== next) {
+      payslipStudioState.inbox = next;
+      payslipStudioState.activeBatchId = "";
+      payslipStudioState.activeStmtId = "";
+      await refreshPayslipStudio({ keepSelection: false });
+    }
+    return;
+  }
   const selectBtn = ev.target?.closest?.("[data-payslip-select]");
   if (selectBtn) {
     const [batchId, statementId] = String(selectBtn.getAttribute("data-payslip-select") || "").split("::");
@@ -1899,6 +1965,23 @@ async function handlePayslipStudioClick(ev) {
     $("payslipReviewStudio")?.classList.toggle("is-sheet-focus");
     return;
   }
+  if (action === "download-pdf") {
+    try {
+      const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = currentPayslipStatement()?.filename || "Lohnabrechnung.pdf";
+      a.click();
+    } catch (err) {
+      toast(err?.message || "PDF", "error");
+    }
+    return;
+  }
+  const stmtNow = currentPayslipStatement();
+  if (isPayslipLocked(stmtNow) && (action === "assign" || action === "release" || action === "reject")) {
+    toast(t("lohn.lockedHint") || "Abrechnung ist gesperrt", "error");
+    return;
+  }
   if (action === "assign") {
     const workerId = String($("payslipAssignSelect")?.value || "").trim();
     if (!workerId) {
@@ -1914,7 +1997,9 @@ async function handlePayslipStudioClick(ev) {
     return;
   }
   if (action === "release") {
-    if (!window.confirm(t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?")) {
+    const warns = Array.isArray(stmtNow?.stammdatenWarnings) ? stmtNow.stammdatenWarnings : [];
+    const extra = warns.length ? `\n\n${warns.join("\n")}` : "";
+    if (!window.confirm((t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?") + extra)) {
       return;
     }
     const res = await api(

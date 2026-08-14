@@ -1095,12 +1095,17 @@ def register_accounting_blueprint(flask_app) -> None:
         if user["role"] == "superadmin" and request.args.get("company_id"):
             company_id = request.args.get("company_id")
         enrich = str(request.args.get("enrich") or "1").strip().lower() not in {"0", "false", "no"}
+        inbox = str(request.args.get("inbox") or "open").strip().lower()
         db = get_db()
         if enrich:
-            batches = repo.list_pending_batches_enriched(db, company_id=company_id)
+            batches = repo.list_inbox_batches_enriched(db, company_id=company_id, inbox=inbox)
+        elif inbox in {"archive", "sent", "history"}:
+            batches = repo.list_statement_batches(
+                db, company_id=company_id, statuses=("released", "rejected", "approved")
+            )
         else:
             batches = repo.list_pending_batches(db, company_id=company_id)
-        return jsonify({"ok": True, "batches": batches, "count": len(batches)}), 200
+        return jsonify({"ok": True, "batches": batches, "count": len(batches), "inbox": inbox}), 200
 
     @accounting_bp.post("/payroll/statements/pull-from-lohn")
     @require_auth
@@ -1563,6 +1568,21 @@ def register_accounting_blueprint(flask_app) -> None:
             company_id=company_scope,
         )
         code = 200 if result.get("ok") else (403 if result.get("error") == "forbidden_company" else 400)
+        if result.get("ok") and not result.get("skipped"):
+            try:
+                cid = str(stmt.get("company_id") or "")
+                wid = str(stmt.get("worker_id") or "")
+                if cid and wid:
+                    notify_employee_data_resolved(
+                        db,
+                        company_id=cid,
+                        worker_id=wid,
+                        actor_user_id=str(user.get("id") or ""),
+                        source="payslip_review",
+                        timeout=4,
+                    )
+            except Exception:
+                pass
         return jsonify(result), code
 
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/assign")

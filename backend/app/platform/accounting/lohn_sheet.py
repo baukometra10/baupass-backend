@@ -323,6 +323,82 @@ def enrich_payslip_with_master(
     return out
 
 
+def snapshot_stammdaten(sheet_data: dict[str, Any] | None, payslip: dict[str, Any] | None) -> dict[str, Any]:
+    """Frozen Stammdaten copied onto the statement so later Lohn/master edits cannot change a sent slip."""
+    d = sheet_data if isinstance(sheet_data, dict) else {}
+    emp = (payslip or {}).get("employee") if isinstance((payslip or {}).get("employee"), dict) else {}
+    return {
+        "healthFund": _first_filled(d.get("kkName"), emp.get("healthFund"), emp.get("krankenkasse")),
+        "healthPercent": _first_filled(d.get("kkPct"), emp.get("healthPercent")),
+        "taxId": _first_filled(d.get("taxIdMid"), emp.get("taxId"), emp.get("steuerId")),
+        "personnelNumber": _first_filled(d.get("persNr"), emp.get("personnelNumber")),
+        "birthDate": _first_filled(d.get("birth"), emp.get("birthDate")),
+        "taxClass": _first_filled(d.get("stkl"), emp.get("taxClass")),
+        "insuranceNo": _first_filled(d.get("svNr"), emp.get("insuranceNo")),
+        "name": _first_filled(d.get("empName"), emp.get("name")),
+        "address": _first_filled(d.get("empAddr"), emp.get("address")),
+        "krankenkasse": _first_filled(d.get("kkName"), emp.get("healthFund")),
+        "steuerId": _first_filled(d.get("taxIdMid"), emp.get("taxId")),
+    }
+
+
+def overlay_stammdaten(
+    payslip: dict[str, Any] | None,
+    lock: dict[str, Any] | None,
+    *,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Apply locked Stammdaten. overwrite=True after release (lock wins)."""
+    out = dict(payslip or {})
+    lock = lock if isinstance(lock, dict) else {}
+    if not lock:
+        return out
+    if overwrite:
+        emp = dict(out.get("employee") if isinstance(out.get("employee"), dict) else {})
+        mapping = {
+            "healthFund": lock.get("healthFund") or lock.get("krankenkasse"),
+            "krankenkasse": lock.get("healthFund") or lock.get("krankenkasse"),
+            "healthInsurance": lock.get("healthFund") or lock.get("krankenkasse"),
+            "healthPercent": lock.get("healthPercent"),
+            "taxId": lock.get("taxId") or lock.get("steuerId"),
+            "steuerId": lock.get("taxId") or lock.get("steuerId"),
+            "personnelNumber": lock.get("personnelNumber"),
+            "birthDate": lock.get("birthDate"),
+            "taxClass": lock.get("taxClass"),
+            "insuranceNo": lock.get("insuranceNo"),
+            "name": lock.get("name"),
+            "address": lock.get("address"),
+        }
+        for key, value in mapping.items():
+            if _first_filled(value):
+                emp[key] = value
+        out["employee"] = emp
+        return out
+    return enrich_payslip_with_master(out, lock)
+
+
+def stammdaten_warnings(sheet_data: dict[str, Any] | None, live: dict[str, Any] | None) -> list[str]:
+    """Warn when the sheet value differs from current employee master (before send)."""
+    d = sheet_data if isinstance(sheet_data, dict) else {}
+    live = live if isinstance(live, dict) else {}
+    checks = [
+        ("Krankenkasse", d.get("kkName"), live.get("healthFund") or live.get("krankenkasse")),
+        ("Steuer-ID", d.get("taxIdMid"), live.get("taxId") or live.get("steuerId")),
+        ("Personal-Nr.", d.get("persNr"), live.get("personnelNumber") or live.get("personalnummer")),
+    ]
+    out: list[str] = []
+    for label, sheet_val, live_val in checks:
+        a = _first_filled(sheet_val)
+        b = _first_filled(live_val)
+        if not a or not b:
+            continue
+        a_key = _digits_only(a) or a.lower()
+        b_key = _digits_only(b) or b.lower()
+        if a_key != b_key:
+            out.append(f"{label}: Abrechnung «{a}» ≠ Stammdaten «{b}»")
+    return out
+
+
 def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any] | None = None) -> dict[str, Any]:
     p = payslip if isinstance(payslip, dict) else {}
     job = job if isinstance(job, dict) else {}

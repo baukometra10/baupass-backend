@@ -45,6 +45,30 @@ def test_datev_sheet_pdf_is_pdf_bytes():
     assert len(raw) > 800
 
 
+def test_stammdaten_lock_overwrites_after_release():
+    from backend.app.platform.accounting.lohn_sheet import overlay_stammdaten, snapshot_stammdaten
+
+    payslip = {"employee": {"healthFund": "TK", "taxId": "111", "personnelNumber": "9"}}
+    data = payslip_to_sheet_data(
+        {"employee": {"healthFund": "AOK Nordost", "taxId": "88211234567", "personnelNumber": "1001"}}
+    )
+    lock = snapshot_stammdaten(data, {"employee": {"healthFund": "AOK Nordost", "taxId": "88211234567"}})
+    out = overlay_stammdaten(payslip, lock, overwrite=True)
+    assert out["employee"]["healthFund"] == "AOK Nordost"
+    assert out["employee"]["taxId"] == "88211234567"
+
+
+def test_stammdaten_warnings_on_mismatch():
+    from backend.app.platform.accounting.lohn_sheet import stammdaten_warnings
+
+    warns = stammdaten_warnings(
+        {"kkName": "AOK Nordost", "taxIdMid": "88211234567", "persNr": "1001"},
+        {"healthFund": "TK", "taxId": "88211234567", "personnelNumber": "1001"},
+    )
+    assert any("Krankenkasse" in w for w in warns)
+    assert not any("Steuer-ID" in w for w in warns)
+
+
 def test_enrich_fills_health_fund_gap():
     payslip = {"employee": {"name": "Feras", "personnelNumber": "1001"}}
     master = {"healthFund": "AOK Nordost", "healthPercent": "8,75"}

@@ -394,6 +394,9 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
 
     reviewed = bool(str(out.get("reviewed_at") or "").strip())
     doc_period = ""
+    lock: dict[str, Any] = {}
+    warnings: list[Any] = []
+    locked = False
     try:
         import json as _json
 
@@ -401,8 +404,12 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
         if isinstance(meta, dict):
             doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
             doc_period = str(doc.get("period") or meta.get("period") or "").strip()[:7]
+            lock = meta.get("lockedStammdaten") if isinstance(meta.get("lockedStammdaten"), dict) else {}
+            warnings = meta.get("stammdatenWarnings") if isinstance(meta.get("stammdatenWarnings"), list) else []
+            locked = bool(lock) or bool(meta.get("deliveryLocked"))
     except Exception:
         doc_period = ""
+        lock, warnings, locked = {}, [], False
     out.update(
         {
             "statementId": out.get("id"),
@@ -436,6 +443,9 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "reviewed": reviewed,
             "workerDocumentId": out.get("worker_document_id"),
             "canRelease": bool(has_pdf and reviewed and worker_id and status == "pending"),
+            "locked": locked,
+            "deliveryLocked": locked,
+            "stammdatenWarnings": warnings,
         }
     )
     return out
@@ -460,28 +470,42 @@ def list_batch_statements(db, batch_id: str) -> list[dict[str, Any]]:
     return [enrich_statement_row(db, dict(r)) for r in rows]
 
 
-def list_pending_batches(db, *, company_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+def list_statement_batches(
+    db,
+    *,
+    company_id: str | None = None,
+    statuses: tuple[str, ...] | list[str] | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
     ensure_accounting_schema(db)
     limit = max(1, min(200, int(limit or 50)))
+    wanted = tuple(str(s).strip() for s in (statuses or ("pending_approval",)) if str(s).strip())
+    if not wanted:
+        wanted = ("pending_approval",)
+    placeholders = ",".join("?" * len(wanted))
     if company_id:
         rows = db.execute(
-            """
+            f"""
             SELECT * FROM payroll_statement_batches
-            WHERE company_id = ? AND status = 'pending_approval'
+            WHERE company_id = ? AND status IN ({placeholders})
             ORDER BY created_at DESC LIMIT ?
             """,
-            (company_id, limit),
+            (company_id, *wanted, limit),
         ).fetchall()
     else:
         rows = db.execute(
-            """
+            f"""
             SELECT * FROM payroll_statement_batches
-            WHERE status = 'pending_approval'
+            WHERE status IN ({placeholders})
             ORDER BY created_at DESC LIMIT ?
             """,
-            (limit,),
+            (*wanted, limit),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+def list_pending_batches(db, *, company_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+    return list_statement_batches(db, company_id=company_id, statuses=("pending_approval",), limit=limit)
 
 
 def list_company_statement_batches(
@@ -525,8 +549,28 @@ def get_batch(db, batch_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def list_inbox_batches_enriched(
+    db,
+    *,
+    company_id: str | None = None,
+    inbox: str = "open",
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    inbox_key = str(inbox or "open").strip().lower()
+    if inbox_key in {"archive", "sent", "history"}:
+        statuses = ("released", "rejected", "approved")
+        limit = max(limit, 80)
+    else:
+        statuses = ("pending_approval",)
+    batches = list_statement_batches(db, company_id=company_id, statuses=statuses, limit=limit)
+    return _enrich_batch_rows(db, batches, inbox=inbox_key)
+
+
 def list_pending_batches_enriched(db, *, company_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
-    batches = list_pending_batches(db, company_id=company_id, limit=limit)
+    return list_inbox_batches_enriched(db, company_id=company_id, inbox="open", limit=limit)
+
+
+def _enrich_batch_rows(db, batches: list[dict[str, Any]], *, inbox: str = "open") -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for batch in batches:
         statements = list_batch_statements(db, batch["id"])
@@ -553,6 +597,7 @@ def list_pending_batches_enriched(db, *, company_id: str | None = None, limit: i
                 "releasableCount": releasable_n,
                 "unmatchedCount": unmatched_n,
                 "pendingReviewCount": max(0, len(statements) - reviewed_n),
+                "inbox": inbox,
             }
         )
     return out

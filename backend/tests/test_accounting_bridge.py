@@ -197,6 +197,10 @@ def test_ingest_and_approve_releases_document(tmp_path, monkeypatch):
     assert doc["doc_type"] == "lohnabrechnung"
     assert doc["worker_id"] == "w1"
     assert notified
+    archive = repository.list_inbox_batches_enriched(db, company_id="c1", inbox="archive")
+    assert archive
+    assert archive[0]["statements"][0]["status"] == "released"
+    assert archive[0]["statements"][0].get("locked") or archive[0]["statements"][0].get("deliveryLocked")
 
 
 def test_release_requires_review_and_blocks_cross_company_assign(tmp_path, monkeypatch):

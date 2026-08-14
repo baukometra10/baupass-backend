@@ -1392,8 +1392,11 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
         build_payslip_print_html,
         enrich_payslip_with_master,
         fill_empty_sheet_fields,
+        overlay_stammdaten,
         payslip_document_from_meta,
         payslip_to_sheet_data,
+        snapshot_stammdaten,
+        stammdaten_warnings,
     )
     from .platform_link import get_platform_link
 
@@ -1413,8 +1416,10 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
     company_id = str(stmt.get("company_id") or batch.get("company_id") or "")
     if not job_id and company_id and badge and period:
         job_id = f"{company_id}::{badge}::{period}"
+    lock = meta.get("lockedStammdaten") if isinstance(meta.get("lockedStammdaten"), dict) else {}
+    delivery_locked = bool(meta.get("deliveryLocked")) or str(stmt.get("status") or "") in {"released", "rejected"}
 
-    if job_id:
+    if job_id and not delivery_locked:
         link = get_platform_link(db)
         if link.get("configured"):
             fetched = _lohn_http_get(
@@ -1430,7 +1435,7 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
 
     master = None
     try:
-        if company_id:
+        if company_id and not delivery_locked:
             master = get_employee_master_item(
                 db,
                 company_id=company_id,
@@ -1439,13 +1444,19 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
             )
     except Exception:
         master = None
-    payslip = enrich_payslip_with_master(payslip, master)
+    if delivery_locked and lock:
+        payslip = overlay_stammdaten(payslip, lock, overwrite=True)
+    else:
+        if lock:
+            payslip = overlay_stammdaten(payslip, lock, overwrite=False)
+        payslip = enrich_payslip_with_master(payslip, master)
     sheet_data = payslip_to_sheet_data(
         payslip or {},
         job={"period": period, "employee": (payslip or {}).get("employee") or {}},
     )
+    warnings = [] if delivery_locked else stammdaten_warnings(sheet_data, master)
     html_doc = ""
-    if job_id:
+    if job_id and not delivery_locked:
         link = get_platform_link(db)
         if link.get("configured"):
             printed = _lohn_http_get(
@@ -1471,6 +1482,9 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
         "job_id": job_id,
         "html": html_doc,
         "company_id": company_id,
+        "warnings": warnings,
+        "lock": lock,
+        "deliveryLocked": delivery_locked,
     }
 
 
@@ -1481,6 +1495,24 @@ def ensure_statement_delivery_pdf(
 ) -> dict[str, Any]:
     """Write a real DatevSheet PDF for worker delivery (does not depend on browser capture)."""
     from .lohn_sheet_pdf import render_datev_sheet_pdf
+
+    try:
+        existing_meta = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        existing_meta = {}
+    if not isinstance(existing_meta, dict):
+        existing_meta = {}
+    if existing_meta.get("deliveryLocked"):
+        path = str(stmt.get("file_path") or "").strip()
+        if path and Path(path).is_file():
+            return {
+                "ok": True,
+                "path": path,
+                "fileSize": int(stmt.get("file_size") or 0),
+                "filename": stmt.get("filename") or "",
+                "period": str(stmt.get("period") or ""),
+                "skipped": "locked",
+            }
 
     resolved = resolve_statement_sheet(db, stmt, batch)
     period = str(resolved.get("period") or stmt.get("period") or (batch or {}).get("period") or "unknown")[:7]
@@ -1499,6 +1531,12 @@ def ensure_statement_delivery_pdf(
         meta = {}
     meta["pdfSource"] = "datev_sheet_server"
     meta["documentPeriod"] = period
+    already_locked = bool(meta.get("deliveryLocked"))
+    if not already_locked:
+        from .lohn_sheet import snapshot_stammdaten
+
+        meta["lockedStammdaten"] = snapshot_stammdaten(resolved.get("sheet_data"), resolved.get("payslip"))
+        meta["stammdatenWarnings"] = list(resolved.get("warnings") or [])
     now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     db.execute(
         """
@@ -2605,7 +2643,11 @@ def mark_statement_reviewed(
         return guard
     assert stmt is not None
     if str(stmt.get("status") or "") in {"released", "rejected"}:
-        return {"ok": False, "error": "invalid_status", "status": stmt.get("status")}
+        return {
+            "ok": True,
+            "skipped": "locked",
+            "statement": repo.enrich_statement_row(db, stmt),
+        }
     batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
     built = ensure_statement_delivery_pdf(db, stmt, batch)
     if not built.get("ok"):
@@ -2747,6 +2789,18 @@ def release_statement(
             WHERE id = ?
             """,
             (doc_id, now, statement_id),
+        )
+        try:
+            meta = json.loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        if not isinstance(meta, dict):
+            meta = {}
+        meta["deliveryLocked"] = True
+        meta["lockedAt"] = now
+        db.execute(
+            "UPDATE payroll_statements SET meta_json = ? WHERE id = ?",
+            (json.dumps(meta, ensure_ascii=False), statement_id),
         )
         try:
             from backend.server import _notify_worker_payroll_document
