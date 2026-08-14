@@ -201,6 +201,136 @@ def test_ingest_and_approve_releases_document(tmp_path, monkeypatch):
     assert archive
     assert archive[0]["statements"][0]["status"] == "released"
     assert archive[0]["statements"][0].get("locked") or archive[0]["statements"][0].get("deliveryLocked")
+    opened = repository.list_inbox_batches_enriched(db, company_id="c1", inbox="open")
+    assert opened == []
+    doc_path = db.execute("SELECT file_path FROM worker_documents WHERE id = ?", (approved["workerDocumentId"],)).fetchone()
+    assert doc_path
+    assert "delivered" in str(doc_path["file_path"]).replace("\\", "/")
+
+
+def test_review_snapshot_does_not_lock_send(tmp_path, monkeypatch):
+    db = _db()
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    result = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-06",
+        statements=[
+            {
+                "workerId": "w1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+            }
+        ],
+    )
+    stmt_id = result["statementIds"][0]
+    reviewed = service.mark_statement_reviewed(db, statement_id=stmt_id, actor_user_id="admin-1")
+    assert reviewed["ok"] is True
+    row = reviewed["statement"]
+    assert row.get("deliveryLocked") is False
+    assert row.get("locked") is False
+    assert row.get("canRelease") is True
+    meta = json.loads((repository.get_statement(db, stmt_id) or {}).get("meta_json") or "{}")
+    assert isinstance(meta.get("lockedStammdaten"), dict)
+
+
+def test_partial_release_splits_open_and_archive(tmp_path, monkeypatch):
+    db = _db()
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    monkeypatch.setattr("backend.server._notify_worker_payroll_document", lambda *a, **k: None, raising=False)
+    import backend.server as server_mod
+
+    monkeypatch.setattr(server_mod, "_notify_worker_payroll_document", lambda *a, **k: None, raising=False)
+    result = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-08",
+        statements=[
+            {
+                "workerId": "w1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+                "filename": "a.pdf",
+            },
+            {
+                "workerId": "w1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+                "filename": "b.pdf",
+            },
+        ],
+    )
+    first, second = result["statementIds"]
+    for sid in (first, second):
+        assert service.mark_statement_reviewed(db, statement_id=sid, actor_user_id="admin-1")["ok"]
+    released = service.release_statement(db, statement_id=first, actor_user_id="admin-1")
+    assert released["ok"] is True
+    opened = repository.list_inbox_batches_enriched(db, company_id="c1", inbox="open")
+    archived = repository.list_inbox_batches_enriched(db, company_id="c1", inbox="archive")
+    assert len(opened) == 1
+    assert len(opened[0]["statements"]) == 1
+    assert opened[0]["statements"][0]["statementId"] == second
+    assert opened[0]["statements"][0]["status"] == "pending"
+    assert opened[0]["statements"][0].get("deliveryLocked") is False
+    assert len(archived) == 1
+    assert len(archived[0]["statements"]) == 1
+    assert archived[0]["statements"][0]["statementId"] == first
+    assert archived[0]["statements"][0]["status"] == "released"
+    assert archived[0]["statements"][0].get("deliveryLocked") is True
+    blocked = service.assign_statement_worker(
+        db, statement_id=first, worker_id="w1", actor_user_id="admin-1"
+    )
+    assert blocked["ok"] is False
+
+
+def test_delivery_lock_freezes_pdf_bytes(tmp_path, monkeypatch):
+    db = _db()
+    pdf = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
+    monkeypatch.setattr(
+        service,
+        "_storage_dir",
+        lambda company_id, period: Path(tmp_path) / company_id / period,
+    )
+    monkeypatch.setattr("backend.server._notify_worker_payroll_document", lambda *a, **k: None, raising=False)
+    import backend.server as server_mod
+
+    monkeypatch.setattr(server_mod, "_notify_worker_payroll_document", lambda *a, **k: None, raising=False)
+    result = service.ingest_statements(
+        db,
+        company_id="c1",
+        period="2026-08",
+        statements=[
+            {
+                "workerId": "w1",
+                "companyId": "c1",
+                "pdfBase64": base64.b64encode(pdf).decode("ascii"),
+            }
+        ],
+    )
+    stmt_id = result["statementIds"][0]
+    assert service.mark_statement_reviewed(db, statement_id=stmt_id, actor_user_id="admin-1")["ok"]
+    assert service.release_statement(db, statement_id=stmt_id, actor_user_id="admin-1")["ok"]
+    stmt = repository.get_statement(db, stmt_id)
+    path = Path(stmt["file_path"])
+    frozen = path.read_bytes()
+    path.write_bytes(frozen + b"\n%tamper-ignored\n")
+    again = service.ensure_statement_delivery_pdf(db, stmt, repository.get_batch(db, stmt["batch_id"]))
+    assert again.get("skipped") == "locked"
+    assert path.read_bytes().startswith(frozen)
+    worker_row = db.execute("SELECT file_path FROM worker_documents LIMIT 1").fetchone()
+    worker_pdf = Path(worker_row["file_path"])
+    assert worker_pdf.is_file()
+    assert worker_pdf.read_bytes() == frozen
 
 
 def test_release_requires_review_and_blocks_cross_company_assign(tmp_path, monkeypatch):

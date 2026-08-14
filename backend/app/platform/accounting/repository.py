@@ -394,9 +394,8 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
 
     reviewed = bool(str(out.get("reviewed_at") or "").strip())
     doc_period = ""
-    lock: dict[str, Any] = {}
     warnings: list[Any] = []
-    locked = False
+    delivery_locked = status in {"released", "rejected"}
     try:
         import json as _json
 
@@ -404,12 +403,11 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
         if isinstance(meta, dict):
             doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
             doc_period = str(doc.get("period") or meta.get("period") or "").strip()[:7]
-            lock = meta.get("lockedStammdaten") if isinstance(meta.get("lockedStammdaten"), dict) else {}
             warnings = meta.get("stammdatenWarnings") if isinstance(meta.get("stammdatenWarnings"), list) else []
-            locked = bool(lock) or bool(meta.get("deliveryLocked"))
+            delivery_locked = bool(meta.get("deliveryLocked")) or status in {"released", "rejected"}
     except Exception:
         doc_period = ""
-        lock, warnings, locked = {}, [], False
+        warnings, delivery_locked = [], status in {"released", "rejected"}
     out.update(
         {
             "statementId": out.get("id"),
@@ -442,9 +440,11 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "reviewedByUserId": out.get("reviewed_by_user_id"),
             "reviewed": reviewed,
             "workerDocumentId": out.get("worker_document_id"),
-            "canRelease": bool(has_pdf and reviewed and worker_id and status == "pending"),
-            "locked": locked,
-            "deliveryLocked": locked,
+            "canRelease": bool(
+                has_pdf and reviewed and worker_id and status == "pending" and not delivery_locked
+            ),
+            "locked": delivery_locked,
+            "deliveryLocked": delivery_locked,
             "stammdatenWarnings": warnings,
         }
     )
@@ -549,6 +549,10 @@ def get_batch(db, batch_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
+def _statement_is_archived(stmt: dict[str, Any]) -> bool:
+    return str(stmt.get("status") or "") in {"released", "rejected"}
+
+
 def list_inbox_batches_enriched(
     db,
     *,
@@ -558,10 +562,12 @@ def list_inbox_batches_enriched(
 ) -> list[dict[str, Any]]:
     inbox_key = str(inbox or "open").strip().lower()
     if inbox_key in {"archive", "sent", "history"}:
-        statuses = ("released", "rejected", "approved")
+        # Include pending/approved so a partially sent batch still archives the sent slips.
+        statuses = ("released", "rejected", "approved", "pending_approval")
         limit = max(limit, 80)
     else:
-        statuses = ("pending_approval",)
+        # "approved" = some slips already sent; remaining open slips stay in Offen.
+        statuses = ("pending_approval", "approved")
     batches = list_statement_batches(db, company_id=company_id, statuses=statuses, limit=limit)
     return _enrich_batch_rows(db, batches, inbox=inbox_key)
 
@@ -571,9 +577,16 @@ def list_pending_batches_enriched(db, *, company_id: str | None = None, limit: i
 
 
 def _enrich_batch_rows(db, batches: list[dict[str, Any]], *, inbox: str = "open") -> list[dict[str, Any]]:
+    archive = str(inbox or "open").strip().lower() in {"archive", "sent", "history"}
     out: list[dict[str, Any]] = []
     for batch in batches:
         statements = list_batch_statements(db, batch["id"])
+        if archive:
+            statements = [s for s in statements if _statement_is_archived(s)]
+        else:
+            statements = [s for s in statements if not _statement_is_archived(s)]
+        if not statements:
+            continue
         company_name = ""
         try:
             crow = db.execute(

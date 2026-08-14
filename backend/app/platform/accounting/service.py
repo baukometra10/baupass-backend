@@ -5,6 +5,7 @@ import base64
 import hashlib
 import json
 import secrets
+import shutil
 import threading
 import time
 import uuid
@@ -1382,6 +1383,36 @@ def _delivery_pdf_filename(stmt: dict[str, Any], period: str) -> str:
     return f"Lohnabrechnung_{per}_{safe}.pdf"
 
 
+def _meta_dict(stmt: dict[str, Any] | None) -> dict[str, Any]:
+    try:
+        meta = json.loads((stmt or {}).get("meta_json") or "{}")
+    except Exception:
+        meta = {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def statement_delivery_locked(stmt: dict[str, Any] | None, meta: dict[str, Any] | None = None) -> bool:
+    """True only after send/reject — a Stammdaten snapshot during review is not a lock."""
+    status = str((stmt or {}).get("status") or "")
+    if status in {"released", "rejected"}:
+        return True
+    blob = meta if isinstance(meta, dict) else _meta_dict(stmt)
+    return bool(blob.get("deliveryLocked"))
+
+
+def _lock_statement_delivery(db, stmt: dict[str, Any], now: str) -> dict[str, Any]:
+    meta = _meta_dict(stmt)
+    meta["deliveryLocked"] = True
+    meta["lockedAt"] = meta.get("lockedAt") or now
+    dumped = json.dumps(meta, ensure_ascii=False)
+    db.execute(
+        "UPDATE payroll_statements SET meta_json = ? WHERE id = ?",
+        (dumped, stmt["id"]),
+    )
+    stmt["meta_json"] = dumped
+    return meta
+
+
 def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | None = None) -> dict[str, Any]:
     """Live Lohn payslip + DatevSheet data used by HTML preview and worker PDF."""
     from urllib.parse import quote as _q
@@ -1417,7 +1448,7 @@ def resolve_statement_sheet(db, stmt: dict[str, Any], batch: dict[str, Any] | No
     if not job_id and company_id and badge and period:
         job_id = f"{company_id}::{badge}::{period}"
     lock = meta.get("lockedStammdaten") if isinstance(meta.get("lockedStammdaten"), dict) else {}
-    delivery_locked = bool(meta.get("deliveryLocked")) or str(stmt.get("status") or "") in {"released", "rejected"}
+    delivery_locked = statement_delivery_locked(stmt, meta)
 
     if job_id and not delivery_locked:
         link = get_platform_link(db)
@@ -1502,7 +1533,7 @@ def ensure_statement_delivery_pdf(
         existing_meta = {}
     if not isinstance(existing_meta, dict):
         existing_meta = {}
-    if existing_meta.get("deliveryLocked"):
+    if statement_delivery_locked(stmt, existing_meta):
         path = str(stmt.get("file_path") or "").strip()
         if path and Path(path).is_file():
             return {
@@ -1531,7 +1562,7 @@ def ensure_statement_delivery_pdf(
         meta = {}
     meta["pdfSource"] = "datev_sheet_server"
     meta["documentPeriod"] = period
-    already_locked = bool(meta.get("deliveryLocked"))
+    already_locked = statement_delivery_locked(stmt, meta)
     if not already_locked:
         from .lohn_sheet import snapshot_stammdaten
 
@@ -2423,6 +2454,18 @@ def _attach_worker_document(
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
     notes = f"payroll_period={period}"
+    stored_path = file_path
+    try:
+        src = Path(str(file_path or ""))
+        if src.is_file():
+            dest_dir = _storage_dir(company_id, period) / "delivered"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / f"{doc_id}_{src.name}"
+            shutil.copy2(src, dest)
+            stored_path = str(dest)
+            file_size = dest.stat().st_size
+    except Exception:
+        stored_path = file_path
     try:
         db.execute(
             """
@@ -2437,7 +2480,7 @@ def _attach_worker_document(
                 company_id,
                 "lohnabrechnung",
                 filename,
-                file_path,
+                stored_path,
                 file_size,
                 "accounting_bridge",
                 None,
@@ -2454,7 +2497,7 @@ def _attach_worker_document(
                 uploaded_by_user_id, created_at, notes)
             VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
-            (doc_id, worker_id, company_id, "lohnabrechnung", filename, file_path, file_size, uploaded_by_user_id, now, notes),
+            (doc_id, worker_id, company_id, "lohnabrechnung", filename, stored_path, file_size, uploaded_by_user_id, now, notes),
         )
     return doc_id
 
@@ -2517,6 +2560,8 @@ def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | No
                 """,
                 (doc_id, now, stmt["id"]),
             )
+            stmt["status"] = "released"
+            _lock_statement_delivery(db, stmt, now)
             try:
                 from backend.server import _notify_worker_payroll_document
 
@@ -2579,24 +2624,32 @@ def reject_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | Non
         return {"ok": False, "error": "batch_not_found"}
     if company_id and batch["company_id"] != company_id:
         return {"ok": False, "error": "forbidden_company"}
-    if batch["status"] != "pending_approval":
+    if batch["status"] not in {"pending_approval", "approved"}:
         return {"ok": False, "error": "invalid_status", "status": batch["status"]}
     from datetime import datetime, timezone
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
     notes = (batch.get("notes") or "") + (f"\nreject: {reason}" if reason else "")
     db.execute(
-        """
-        UPDATE payroll_statement_batches
-        SET status = 'rejected', rejected_at = ?, rejected_by_user_id = ?, notes = ?, updated_at = ?
-        WHERE id = ?
-        """,
-        (now, actor_user_id, notes[:1000], now, batch_id),
+        "UPDATE payroll_statement_batches SET notes = ?, updated_at = ? WHERE id = ?",
+        (notes[:1000], now, batch_id),
     )
     db.execute(
-        "UPDATE payroll_statements SET status = 'rejected', updated_at = ? WHERE batch_id = ?",
-        (now, batch_id),
+        """
+        UPDATE payroll_statements
+        SET status = 'rejected',
+            rejected_at = ?,
+            rejected_by_user_id = ?,
+            reject_reason = ?,
+            updated_at = ?
+        WHERE batch_id = ? AND status NOT IN ('released', 'rejected')
+        """,
+        (now, actor_user_id, (reason or "")[:500], now, batch_id),
     )
+    for row in repo.list_batch_statements(db, batch_id):
+        if str(row.get("status") or "") == "rejected":
+            _lock_statement_delivery(db, row, now)
+    _refresh_batch_after_statement_change(db, batch_id=batch_id, actor_user_id=actor_user_id, now=now)
     db.commit()
     inbox_clear: dict[str, Any] = {"ok": False, "cleared": 0}
     try:
@@ -2611,7 +2664,13 @@ def reject_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | Non
         )
     except Exception as exc:
         inbox_clear = {"ok": False, "error": str(exc)[:120], "cleared": 0}
-    return {"ok": True, "batchId": batch_id, "status": "rejected", "inboxCleared": inbox_clear}
+    refreshed = repo.get_batch(db, batch_id) or {}
+    return {
+        "ok": True,
+        "batchId": batch_id,
+        "status": refreshed.get("status") or "rejected",
+        "inboxCleared": inbox_clear,
+    }
 
 
 def _statement_company_guard(
@@ -2690,7 +2749,7 @@ def assign_statement_worker(
     if guard:
         return guard
     assert stmt is not None
-    if str(stmt.get("status") or "") in {"released", "rejected"}:
+    if str(stmt.get("status") or "") in {"released", "rejected"} or statement_delivery_locked(stmt):
         return {"ok": False, "error": "invalid_status", "status": stmt.get("status")}
     worker_id = str(worker_id or "").strip()
     if not worker_id:
@@ -2790,18 +2849,8 @@ def release_statement(
             """,
             (doc_id, now, statement_id),
         )
-        try:
-            meta = json.loads(stmt.get("meta_json") or "{}")
-        except Exception:
-            meta = {}
-        if not isinstance(meta, dict):
-            meta = {}
-        meta["deliveryLocked"] = True
-        meta["lockedAt"] = now
-        db.execute(
-            "UPDATE payroll_statements SET meta_json = ? WHERE id = ?",
-            (json.dumps(meta, ensure_ascii=False), statement_id),
-        )
+        stmt["status"] = "released"
+        _lock_statement_delivery(db, stmt, now)
         try:
             from backend.server import _notify_worker_payroll_document
 
@@ -2875,6 +2924,8 @@ def reject_statement(
         """,
         (now, actor_user_id, (reason or "")[:500], now, statement_id),
     )
+    stmt["status"] = "rejected"
+    _lock_statement_delivery(db, stmt, now)
     batch_id = str(stmt.get("batch_id") or "")
     _refresh_batch_after_statement_change(db, batch_id=batch_id, actor_user_id=actor_user_id, now=now)
     db.commit()

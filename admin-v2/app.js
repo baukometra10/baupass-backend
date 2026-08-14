@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnLock2";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1536,7 +1536,7 @@ async function renderPayslipIdentity(stmt) {
   const actions = $("payslipStudioActions");
   if (!card || !actions || !stmt) return;
   const match = String(stmt.matchStatus || "matched");
-  const locked = isPayslipLocked(stmt);
+  const locked = isPayslipLocked(stmt) || payslipStudioState.inbox === "archive";
   const warnings = Array.isArray(stmt.stammdatenWarnings) ? stmt.stammdatenWarnings : [];
   const warnHtml = warnings.length
     ? `<ul class="payslip-warn">${warnings.map((w) => `<li>${escapeHtml(String(w))}</li>`).join("")}</ul>`
@@ -1710,51 +1710,6 @@ function openPayslipSheetWindow(html) {
   }
 }
 
-function loadScriptOnce(src) {
-  return new Promise((resolve) => {
-    if ([...document.scripts].some((s) => s.src === src || s.getAttribute("src") === src)) {
-      resolve(true);
-      return;
-    }
-    const el = document.createElement("script");
-    el.src = src;
-    el.async = true;
-    el.onload = () => resolve(true);
-    el.onerror = () => resolve(false);
-    document.head.appendChild(el);
-  });
-}
-
-async function ensurePayslipCaptureLibs() {
-  const okCanvas = await loadScriptOnce(
-    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
-  );
-  const okPdf = await loadScriptOnce(
-    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-  );
-  return !!(okCanvas && okPdf && window.html2canvas && (window.jspdf?.jsPDF || window.jsPDF));
-}
-
-async function captureLohnSheetPdf(iframe) {
-  const ready = await ensurePayslipCaptureLibs();
-  if (!ready) throw new Error("PDF-Capture nicht verfügbar");
-  const doc = iframe?.contentDocument;
-  const sheet = doc?.querySelector("#datevSheetA4");
-  if (!sheet) throw new Error("Lohn-Abrechnungsblatt nicht gefunden");
-  const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
-  const canvas = await window.html2canvas(sheet, {
-    scale: 2,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
-    width: Math.round(sheet.getBoundingClientRect().width) || 794,
-    height: Math.round(sheet.getBoundingClientRect().height) || 1123,
-  });
-  const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
-  return pdf.output("datauristring");
-}
-
 async function selectPayslipStatement(batchId, statementId) {
   payslipStudioState.activeBatchId = String(batchId || "");
   payslipStudioState.activeStmtId = String(statementId || "");
@@ -1818,11 +1773,13 @@ async function selectPayslipStatement(batchId, statementId) {
         }
       };
     }
-    await api(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
-      { method: "POST", body: "{}" },
-    );
-    await refreshPayslipStudio({ keepSelection: true });
+    if (!isPayslipLocked(stmt) && payslipStudioState.inbox !== "archive") {
+      await api(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
+        { method: "POST", body: "{}" },
+      );
+      await refreshPayslipStudio({ keepSelection: true });
+    }
   } catch (err) {
     if (iframe) {
       iframe.srcdoc = "";
@@ -2006,10 +1963,9 @@ async function handlePayslipStudioClick(ev) {
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
       { method: "POST", body: "{}" },
     );
-    toast(res.message || (t("lohn.sentToWorker") || "Gesendet"), "ok");
+    toast(res.message || (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet"), "ok");
     await refreshPayslipStudio({ keepSelection: false });
     broadcastLohnInboxChanged();
-    await selectNextPayslipStatement();
     return;
   }
   if (action === "reject") {
@@ -2020,7 +1976,7 @@ async function handlePayslipStudioClick(ev) {
     );
     toast(t("lohn.statementRejected") || "Abgelehnt", "ok");
     await refreshPayslipStudio({ keepSelection: false });
-    await selectNextPayslipStatement();
+    broadcastLohnInboxChanged();
   }
 }
 

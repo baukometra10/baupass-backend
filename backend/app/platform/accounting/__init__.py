@@ -1466,6 +1466,14 @@ def register_accounting_blueprint(flask_app) -> None:
 
         path = str(stmt.get("file_path") or "")
         if not path or not Path(path).is_file():
+            from .service import ensure_statement_delivery_pdf
+
+            built = ensure_statement_delivery_pdf(db, stmt, _batch)
+            path = str((built or {}).get("path") or stmt.get("file_path") or "")
+            if built.get("ok") and path:
+                stmt = repo.get_statement(db, statement_id) or stmt
+                path = str(stmt.get("file_path") or path)
+        if not path or not Path(path).is_file():
             return jsonify({"error": "missing_pdf"}), 404
         download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
         return send_file(
@@ -1513,6 +1521,16 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
+        from .service import statement_delivery_locked
+
+        if statement_delivery_locked(stmt):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "locked",
+                    "message": "Abrechnung ist nach Versand gesperrt.",
+                }
+            ), 409
         data = request.get_json(silent=True) or {}
         pdf_b64 = str(data.get("pdfBase64") or data.get("pdf_base64") or "")
         if pdf_b64.startswith("data:") and "," in pdf_b64:

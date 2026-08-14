@@ -4269,7 +4269,22 @@ body.theme-black .payslip-studio-side {
   border-color: rgba(120, 156, 255, 0.14);
 }
 body.theme-black .payslip-studio-main { background: #0b1220; }
-body.theme-black .payslip-studio-empty { color: #94a3b8; }
+body.theme-black .payslip-inbox-tabs button {
+  background: #0f172a;
+  border-color: rgba(120, 156, 255, 0.18);
+  color: #cbd5e1;
+}
+body.theme-black .payslip-inbox-tabs button.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+body.theme-black .payslip-match.is-locked { background: #1e1b4b; color: #c7d2fe; }
+body.theme-black .payslip-warn {
+  background: rgba(154, 52, 18, 0.22);
+  border-color: rgba(251, 146, 60, 0.45);
+  color: #fdba74;
+}
 body.theme-black .payslip-batch-head strong { color: #e2e8f0; }
 body.theme-black .payslip-batch-head span,
 body.theme-black .payslip-stmt-item .meta { color: #94a3b8; }

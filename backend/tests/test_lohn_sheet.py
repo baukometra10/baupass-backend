@@ -58,6 +58,16 @@ def test_stammdaten_lock_overwrites_after_release():
     assert out["employee"]["taxId"] == "88211234567"
 
 
+def test_overlay_does_not_fill_when_overwrite_false_and_live_empty():
+    from backend.app.platform.accounting.lohn_sheet import overlay_stammdaten
+
+    payslip = {"employee": {"healthFund": "AOK Nordost"}}
+    out = overlay_stammdaten(payslip, {"healthFund": "TK"}, overwrite=False)
+    assert out["employee"]["healthFund"] == "AOK Nordost"
+    overwritten = overlay_stammdaten(payslip, {"healthFund": "TK"}, overwrite=True)
+    assert overwritten["employee"]["healthFund"] == "TK"
+
+
 def test_stammdaten_warnings_on_mismatch():
     from backend.app.platform.accounting.lohn_sheet import stammdaten_warnings
 
