@@ -1544,7 +1544,7 @@ def register_accounting_blueprint(flask_app) -> None:
         # Fallback: render the same DatevSheet locally from Lohn payslip JSON only.
         html_doc = build_payslip_print_html(
             payslip or {},
-            job={"period": period, "employee": {"id": badge, "badgeId": badge}},
+            job={"period": period},
             theme=theme,
         )
         return Response(html_doc, mimetype="text/html; charset=utf-8")

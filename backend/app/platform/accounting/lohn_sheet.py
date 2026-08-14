@@ -351,13 +351,30 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
     sv_total = float(t.get("health") or 0) + float(t.get("pension") or 0) + float(t.get("care") or 0) + float(
         t.get("unemployment") or 0
     )
-    emp_id = str(emp.get("badgeId") or emp.get("id") or emp.get("personnelNumber") or "")
+    emp_id_raw = _first_filled(emp.get("id"), emp.get("employeeId"))
+    badge_id = _first_filled(emp.get("badgeId"), emp.get("badge"))
+    personnel_number = _first_filled(
+        emp.get("personnelNumber"),
+        emp.get("personalnummer"),
+        emp.get("personnelNo"),
+        emp.get("persNrDisplay"),
+    )
+    # Same rule as Lohn payroll-core.js: never print badge; use Pers.-Nr.
+    if personnel_number:
+        print_pers_nr = personnel_number
+    elif badge_id and emp_id_raw and badge_id == emp_id_raw:
+        print_pers_nr = ""
+    elif emp_id_raw and emp_id_raw != badge_id:
+        print_pers_nr = emp_id_raw
+    else:
+        print_pers_nr = ""
     iban = str(bank.get("iban") or bank.get("IBAN") or "")
     bank_name = str(bank.get("bankName") or bank.get("name") or bank.get("bank") or "")
     period = str(p.get("period") or job.get("period") or "")
     rates = p.get("rates") if isinstance(p.get("rates"), dict) else {}
     if not rates and isinstance(t.get("rates"), dict):
         rates = t.get("rates") or {}
+    health_fund = _first_filled(emp.get("healthFund"), emp.get("krankenkasse"), emp.get("healthInsurance"))
     kk_pct_src = _first_filled(
         emp.get("healthPercent"),
         emp.get("kkPercent"),
@@ -372,32 +389,51 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         rates.get("additionalContribution"),
         p.get("healthPercent"),
     )
+    if not kk_pct_src and (health_fund or any(r.get("code") or r.get("amount") for r in wage_rows)):
+        try:
+            add = float(str(emp.get("healthAdditionalPercent") or "2.9").replace(",", "."))
+        except (TypeError, ValueError):
+            add = 2.9
+        kk_pct_src = 7.3 + (add / 2.0)
+    tax_class_raw = str(emp.get("taxClass") or emp.get("steuerklasse") or "").strip()
+    tax_class_map = {"I": "1", "II": "2", "III": "3", "IV": "4", "V": "5", "VI": "6"}
+    stkl = tax_class_map.get(tax_class_raw) or "".join(ch for ch in tax_class_raw if ch.isdigit())
+    days = att.get("days")
+    if days in (None, ""):
+        days = att.get("workedDays")
+    if days in (None, ""):
+        days = att.get("svDays")
+    hours = att.get("hours")
+    if hours in (None, ""):
+        hours = att.get("totalHours")
+    if hours in (None, ""):
+        hours = att.get("workedHours")
     return {
         "companyName": str(co.get("name") or ""),
         "titleMonth": _period_label(period),
         "usa": "USA/US",
         "headDate": str(p.get("releasedAt") or job.get("releasedAt") or "")[:10],
-        "headPage": "Blatt 1",
-        "persNr": emp_id,
+        "headPage": "Blatt: 1",
+        "persNr": print_pers_nr,
         "birth": str(emp.get("birthDate") or emp.get("dateOfBirth") or ""),
-        "stkl": str(emp.get("taxClass") or emp.get("steuerklasse") or ""),
+        "stkl": stkl,
         "konf": str(emp.get("confession") or emp.get("konfession") or ""),
-        "stTg": str(att.get("days") or att.get("workedDays") or att.get("svDays") or "30"),
-        "pgrs": "101",
-        "bgrs": "1112",
-        "svTg": str(att.get("days") or att.get("svDays") or "30"),
+        "stTg": "" if days in (None, "") else str(days),
+        "pgrs": _first_filled(emp.get("personengruppe"), emp.get("pgrs")) or "101",
+        "bgrs": _first_filled(emp.get("beitragsgruppe"), emp.get("bgrs")) or "1111",
+        "svTg": "" if days in (None, "") else str(days),
         "svNr": str(emp.get("insuranceNo") or emp.get("svNumber") or emp.get("insuranceNumber") or ""),
-        "kkName": str(emp.get("healthFund") or emp.get("krankenkasse") or emp.get("healthInsurance") or ""),
+        "kkName": health_fund,
         "kkPct": _qty(kk_pct_src) if kk_pct_src not in (None, "") else "",
-        "workDays": _qty(att.get("days") or att.get("workedDays")),
-        "workHours": _qty(att.get("hours") or att.get("totalHours") or att.get("workedHours")),
+        "workDays": _qty(days),
+        "workHours": _qty(hours),
         "sender": str(co.get("name") or ""),
-        "empMeta": f"*Pers.-Nr. {emp_id}*" if emp_id else "",
+        "empMeta": f"*Pers.-Nr. {print_pers_nr}*" if print_pers_nr else "",
         "empName": str(emp.get("name") or ""),
         "empAddr": str(emp.get("address") or ""),
         "entry": str(emp.get("entryDate") or emp.get("startDate") or ""),
         "taxIdMid": str(emp.get("taxId") or emp.get("steuerId") or "")[:4],
-        "hints": _clean_sheet_hint(p.get("note")),
+        "hints": str(p.get("note") or ""),
         "wageRows": wage_rows,
         "grossTotal": _amt(gross),
         "taxTotal": _amt(tax_total),
@@ -430,7 +466,7 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "agExtra": _amt(t.get("umlagenTotal")),
         "agTotal": _amt(float(t.get("employerShare") or 0) + float(gross or 0) + float(t.get("umlagenTotal") or 0)),
         "payHint": "Überweisung auf das angegebene Konto",
-        "footerNote": _clean_sheet_hint(p.get("footerNote")),
+        "footerNote": str(p.get("footerNote") or ""),
         "calcMethod": str(t.get("calcMethod") or ""),
     }
 

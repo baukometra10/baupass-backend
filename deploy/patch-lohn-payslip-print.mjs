@@ -63,6 +63,7 @@ function periodLabel(period) {
 export function payslipToSheetData(job) {
   const p = job?.payslip || {};
   const t = p.totals || {};
+  // Payslip employee wins; never let badge overwrite printed Pers.-Nr.
   const emp = { ...(job?.employee || {}), ...(p.employee || {}) };
   const co = { ...(job?.company || {}), ...(p.company || {}) };
   const bank = p.bank || {};
@@ -79,9 +80,30 @@ export function payslipToSheetData(job) {
   const svTotal = Number(t.health || 0) + Number(t.pension || 0) + Number(t.care || 0) + Number(t.unemployment || 0);
   const gross = t.gross;
   const net = t.net;
-  const empId = emp.badgeId || emp.id || "";
+  const badgeId = String(emp.badgeId || emp.badge || "").trim();
+  const empId = String(emp.id || emp.employeeId || "").trim();
+  const personnelNumber = String(
+    emp.personnelNumber || emp.personalnummer || emp.personnelNo || emp.persNrDisplay || ""
+  ).trim();
+  // Same rule as payroll-core.js: badge never on payslip; print personnel number.
+  const printPersNr =
+    personnelNumber || (badgeId && empId && badgeId === empId ? "" : empId && empId !== badgeId ? empId : "");
   const iban = bank.iban || bank.IBAN || "";
   const bankName = bank.bankName || bank.name || bank.bank || "";
+  const taxClassRaw = String(emp.taxClass || emp.steuerklasse || "").trim();
+  const taxClassMap = { I: "1", II: "2", III: "3", IV: "4", V: "5", VI: "6" };
+  const stkl = taxClassMap[taxClassRaw] || taxClassRaw.replace(/\D/g, "") || "";
+  const healthFund = String(emp.healthFund || emp.krankenkasse || emp.healthInsurance || "").trim();
+  let kkPct = "";
+  const hp = Number(String(emp.healthPercent ?? emp.kkPercent ?? "").replace(",", "."));
+  if (Number.isFinite(hp) && hp > 0) {
+    kkPct = formatQty(hp);
+  } else if (healthFund || wageRows.some((r) => r.code || r.amount)) {
+    const add = Number(String(emp.healthAdditionalPercent ?? "").replace(",", ".")) || 2.9;
+    kkPct = formatQty(7.3 + add / 2);
+  }
+  const days = att.days ?? att.workedDays ?? att.svDays;
+  const hours = att.hours ?? att.totalHours ?? att.workedHours;
   return {
     companyName: co.name || "",
     logoUrl: co.logoUrl || co.meta?.hubProfile?.logoUrl || "",
@@ -89,22 +111,22 @@ export function payslipToSheetData(job) {
     titleMonth: periodLabel(p.period || job.period),
     usa: "USA/US",
     headDate: String(p.releasedAt || job.releasedAt || "").slice(0, 10),
-    headPage: "Blatt 1",
-    persNr: empId,
+    headPage: "Blatt: 1",
+    persNr: printPersNr,
     birth: emp.birthDate || emp.dateOfBirth || "",
-    stkl: emp.taxClass || emp.steuerklasse || "",
-    konf: emp.confession || "",
-    stTg: String(att.days || att.workedDays || att.svDays || "30"),
-    pgrs: "101",
-    bgrs: "1112",
-    svTg: String(att.days || att.svDays || "30"),
-    svNr: emp.insuranceNo || emp.svNumber || "",
-    kkName: emp.healthFund || emp.krankenkasse || "",
-    kkPct: emp.healthPercent != null ? formatQty(emp.healthPercent) : "",
-    workDays: formatQty(att.days || att.workedDays),
-    workHours: formatQty(att.hours || att.totalHours || att.workedHours),
+    stkl,
+    konf: emp.confession || emp.konfession || "",
+    stTg: days != null && days !== "" ? String(days) : "",
+    pgrs: String(emp.personengruppe || emp.pgrs || "101"),
+    bgrs: String(emp.beitragsgruppe || emp.bgrs || "1111"),
+    svTg: days != null && days !== "" ? String(days) : "",
+    svNr: emp.insuranceNo || emp.svNumber || emp.insuranceNumber || "",
+    kkName: healthFund,
+    kkPct,
+    workDays: formatQty(days),
+    workHours: formatQty(hours),
     sender: co.name || "",
-    empMeta: empId ? \`*Pers.-Nr. \${empId}*\` : "",
+    empMeta: printPersNr ? \`*Pers.-Nr. \${printPersNr}*\` : "",
     empName: emp.name || "",
     empAddr: emp.address || "",
     entry: emp.entryDate || emp.startDate || "",
