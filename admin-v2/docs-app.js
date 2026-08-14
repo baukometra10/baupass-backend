@@ -4605,8 +4605,10 @@
   function hasCap(name, fallbackAdminOnly = true) {
     if (docsCaps && typeof docsCaps[name] === "boolean") return !!docsCaps[name];
     const role = currentUserRole();
-    if (!fallbackAdminOnly) return role === "superadmin" || role === "company-admin" || role === "turnstile";
-    return role === "superadmin" || role === "company-admin";
+    if (!fallbackAdminOnly) {
+      return role === "superadmin" || role === "company-admin" || role === "office" || role === "turnstile";
+    }
+    return role === "superadmin" || role === "company-admin" || role === "office";
   }
 
   async function loadDocsCapabilities() {

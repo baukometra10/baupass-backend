@@ -5492,9 +5492,22 @@ def require_roles(*roles):
         @wraps(handler)
         def wrapper(*args, **kwargs):
             user = g.current_user
-            if user["role"] not in roles:
-                return jsonify({"error": "forbidden"}), 403
-            return handler(*args, **kwargs)
+            role = str((user or {}).get("role") or "")
+            if role in roles:
+                return handler(*args, **kwargs)
+            # Office may use company-admin ops routes, but never owner-only surfaces
+            # (payroll, contracts, accounting, invoices, audit export, …).
+            if role == "office" and "company-admin" in roles:
+                try:
+                    from backend.app.platform.security.office_rbac import (
+                        office_may_use_company_admin_route,
+                    )
+
+                    if office_may_use_company_admin_route():
+                        return handler(*args, **kwargs)
+                except Exception:
+                    pass
+            return jsonify({"error": "forbidden"}), 403
 
         return wrapper
 
@@ -10522,7 +10535,7 @@ def system_recover_admin():
     user = db.execute("SELECT * FROM users WHERE lower(username) = ?", (username,)).fetchone()
     if not user:
         return jsonify({"ok": False, "error": "user_not_found"}), 404
-    if user["role"] not in {"superadmin", "company-admin", "turnstile"}:
+    if user["role"] not in {"superadmin", "company-admin", "office", "turnstile"}:
         return jsonify({"ok": False, "error": "recovery_not_allowed_for_role"}), 403
 
     db.execute("UPDATE users SET password_hash = ? WHERE id = ?", (generate_password_hash(new_password), user["id"]))
@@ -28807,7 +28820,7 @@ def device_heartbeat():
 @require_auth
 def export_timesheets():
     user = g.current_user
-    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+    if user["role"] not in ("superadmin", "company-admin", "office", "turnstile"):
         return jsonify({"error": "forbidden"}), 403
     db = get_db()
     company_id = user.get("company_id")
@@ -29339,7 +29352,7 @@ def _resolve_leave_admin_company_scope(user, db=None):
         return query_cid
 
     user_company = str(user.get("company_id") or user.get("companyId") or "").strip()
-    if user_company and role in ("company-admin", "turnstile"):
+    if user_company and role in ("company-admin", "office", "turnstile"):
         return user_company
 
     if role == "superadmin":
@@ -29410,7 +29423,7 @@ def get_leave_requests_stats():
 @require_auth
 def get_leave_requests():
     user = g.current_user
-    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+    if user["role"] not in ("superadmin", "company-admin", "office", "turnstile"):
         return jsonify({"error": "forbidden"}), 403
     db = get_db()
     _ensure_leave_requests_table(db)
@@ -29450,7 +29463,7 @@ def get_leave_requests():
 @require_auth
 def review_leave_request(req_id):
     user = g.current_user
-    if user["role"] not in ("superadmin", "company-admin", "turnstile"):
+    if user["role"] not in ("superadmin", "company-admin", "office", "turnstile"):
         return jsonify({"error": "forbidden"}), 403
     data = request.get_json(silent=True) or {}
     new_status = str(data.get("status", "")).strip()

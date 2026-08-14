@@ -165,6 +165,7 @@ def _perform_login_core(srv, login_error):
     required_role_by_scope = {
         "server-admin": "superadmin",
         "company-admin": "company-admin",
+        "office": "office",
         "turnstile": "turnstile",
     }
     required_role = required_role_by_scope.get(login_scope)

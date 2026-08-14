@@ -18,12 +18,14 @@ def _create_company(client, headers, name: str) -> str:
             "name": name,
             "contact": "x",
             "adminPassword": "1234",
+            "officePassword": "Office!234",
             "turnstilePassword": "1234",
-            "turnstileCount": 0,
+            "turnstileCount": 1,
+            "plan": "professional",
         },
         headers=headers,
     )
-    assert response.status_code in (200, 201)
+    assert response.status_code in (200, 201), response.get_json()
     payload = response.get_json() or {}
     company = payload.get("company") or {}
     return str(company.get("id") or payload.get("id") or "")
@@ -43,6 +45,7 @@ def test_contracts_open_without_owner_phone(client_and_db):
 
 
 def test_contracts_lock_otp_flow(client_and_db, monkeypatch):
+    """Owner phone setup remains available, but contracts stay open without step-up."""
     client, _db_path = client_and_db
     headers = _superadmin_headers(client)
     company_id = _create_company(client, headers, "LockedContractsCo")
@@ -66,7 +69,6 @@ def test_contracts_lock_otp_flow(client_and_db, monkeypatch):
     code = (req.get_json() or {}).get("debugCode")
     assert code
 
-    # Still open until phone is verified/saved
     open_before = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
     assert open_before.status_code == 200
 
@@ -82,40 +84,26 @@ def test_contracts_lock_otp_flow(client_and_db, monkeypatch):
         headers=headers,
     )
     assert verify.status_code == 200, verify.get_json()
-    assert verify.get_json().get("unlocked") is True
 
-    # Relock
+    status = client.get(f"/api/contracts/lock-status?company_id={company_id}", headers=headers)
+    assert status.status_code == 200
+    body = status.get_json()
+    assert body["lockRequired"] is False
+    assert body["unlocked"] is True
+    assert body["ownerSetupRequired"] is False
+
+    # Relock endpoint is a no-op for access — contracts remain usable.
     locked = client.post(
         "/api/contracts/lock",
         json={"company_id": company_id},
         headers=headers,
     )
     assert locked.status_code == 200
-
     soft = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
     assert soft.status_code == 200
-
     listed = client.get(f"/api/contracts?company_id={company_id}", headers=headers)
     assert listed.status_code == 200
-    assert listed.get_json().get("salaryRedacted") is True
-
-    # Request + verify again
-    req2 = client.post(
-        "/api/contracts/lock/request-otp",
-        json={"company_id": company_id},
-        headers=headers,
-    )
-    assert req2.status_code == 200
-    code2 = (req2.get_json() or {}).get("debugCode")
-    assert code2
-    verify2 = client.post(
-        "/api/contracts/lock/verify",
-        json={"company_id": company_id, "code": code2},
-        headers=headers,
-    )
-    assert verify2.status_code == 200
-    ok_again = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
-    assert ok_again.status_code == 200
+    assert listed.get_json().get("salaryRedacted") is not True
 
 
 def test_contracts_otp_persists_hashed_in_db(client_and_db, monkeypatch):
@@ -147,7 +135,7 @@ def test_contracts_otp_persists_hashed_in_db(client_and_db, monkeypatch):
     assert str(code) != str(row["code_hash"])
 
 
-def test_owner_step_up_blocks_worker_export(client_and_db, monkeypatch):
+def test_owner_step_up_no_longer_blocks_worker_export(client_and_db, monkeypatch):
     client, _ = client_and_db
     headers = _superadmin_headers(client)
     company_id = _create_company(client, headers, "ExportLockCo")
@@ -176,13 +164,12 @@ def test_owner_step_up_blocks_worker_export(client_and_db, monkeypatch):
     )
     client.post("/api/contracts/lock", json={"company_id": company_id}, headers=headers)
 
-    blocked = client.get(f"/api/workers/export.csv?company_id={company_id}", headers=headers)
-    assert blocked.status_code == 403
-    assert blocked.get_json().get("error") == "contracts_locked"
-    assert blocked.get_json().get("stepUpRequired") is True
+    # Role separation replaces OTP gate — company-admin/superadmin keep export access.
+    allowed = client.get(f"/api/workers/export.csv?company_id={company_id}", headers=headers)
+    assert allowed.status_code == 200
 
 
-def test_owner_step_up_enforced_without_phone(client_and_db, monkeypatch):
+def test_owner_step_up_enforced_env_ignored(client_and_db, monkeypatch):
     client, _ = client_and_db
     headers = _superadmin_headers(client)
     company_id = _create_company(client, headers, "EnforceOwnerCo")
@@ -192,14 +179,13 @@ def test_owner_step_up_enforced_without_phone(client_and_db, monkeypatch):
     status = client.get(f"/api/contracts/lock-status?company_id={company_id}", headers=headers)
     assert status.status_code == 200
     body = status.get_json()
-    assert body["setupEnforced"] is True
-    assert body["ownerSetupRequired"] is True
-    assert body["lockRequired"] is True
-    assert body["unlocked"] is False
+    assert body["setupEnforced"] is False
+    assert body["ownerSetupRequired"] is False
+    assert body["lockRequired"] is False
+    assert body["unlocked"] is True
 
-    blocked = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
-    assert blocked.status_code == 403
-    assert blocked.get_json().get("error") == "owner_setup_required"
+    ok = client.get(f"/api/contracts/templates?company_id={company_id}", headers=headers)
+    assert ok.status_code == 200
 
 
 def test_otp_debug_fallback_when_delivery_unavailable(client_and_db, monkeypatch):
@@ -284,7 +270,7 @@ def test_otp_request_rate_limit(client_and_db, monkeypatch):
     assert second.get_json().get("error") == "rate_limited"
 
 
-def test_contracts_salary_redacted_when_locked(client_and_db, monkeypatch):
+def test_contracts_salary_visible_without_step_up(client_and_db, monkeypatch):
     client, _ = client_and_db
     headers = _superadmin_headers(client)
     company_id = _create_company(client, headers, "SalaryRedactCo")
@@ -345,31 +331,28 @@ def test_contracts_salary_redacted_when_locked(client_and_db, monkeypatch):
     listed = client.get(f"/api/contracts?company_id={company_id}", headers=headers)
     assert listed.status_code == 200
     body = listed.get_json() or {}
-    assert body.get("salaryRedacted") is True
+    assert body.get("salaryRedacted") is not True
     rows = body.get("contracts") or []
     assert rows
-    assert "3200" not in str(rows[0].get("input_json") or "")
-    assert rows[0].get("final_text") in ("", None)
-    assert rows[0].get("draft_text") in ("", None)
 
     detail = client.get(f"/api/contracts/{contract_id}?company_id={company_id}", headers=headers)
     assert detail.status_code == 200
     d = detail.get_json() or {}
-    assert d.get("salaryRedacted") is True
-    assert d.get("bodyRedacted") is True
-    assert not (d.get("final_text") or d.get("draft_text"))
+    assert d.get("salaryRedacted") is not True
+    assert d.get("bodyRedacted") is not True
 
-    blocked_pdf = client.post(
+    pdf = client.post(
         f"/api/contracts/{contract_id}/generate-pdf",
         json={"company_id": company_id},
         headers=headers,
     )
-    assert blocked_pdf.status_code == 403
-    assert blocked_pdf.get_json().get("error") == "contracts_locked"
+    # May fail validation for incomplete drafts, but must not be the old OTP lock.
+    assert pdf.status_code != 403
+    assert (pdf.get_json() or {}).get("error") != "contracts_locked"
 
     soft_worker = client.get(
         f"/api/workers/w-any/employment-contracts?company_id={company_id}",
         headers=headers,
     )
     assert soft_worker.status_code == 200
-    assert soft_worker.get_json().get("salaryRedacted") is True
+    assert soft_worker.get_json().get("salaryRedacted") is not True

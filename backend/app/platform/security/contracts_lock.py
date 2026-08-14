@@ -151,24 +151,12 @@ def ensure_step_up_tables(db) -> None:
 
 
 def owner_step_up_enforced() -> bool:
-    """When true, owner phone setup is mandatory before contracts/exports."""
-    raw = str(os.getenv("BAUPASS_OWNER_STEP_UP_ENFORCE", "")).strip().lower()
-    if raw in {"0", "false", "off", "no"}:
-        return False
-    if raw in {"1", "true", "on", "yes"}:
-        return True
-    env = str(os.getenv("BAUPASS_ENV", "")).strip().lower()
-    if env in {"testing", "test", "dev", "development"}:
-        return False
-    try:
-        from flask import current_app
+    """Owner SMS/password step-up is retired.
 
-        if current_app and current_app.config.get("TESTING"):
-            return False
-    except Exception:
-        pass
-    # Production / staging default: enforce.
-    return True
+    Sensitive access is gated by role separation (company-admin vs office/turnstile).
+    Env BAUPASS_OWNER_STEP_UP_ENFORCE is ignored so new tenants are not blocked.
+    """
+    return False
 
 
 def otp_request_min_seconds() -> int:
@@ -534,23 +522,17 @@ def company_owner_email(db, company_id: str) -> str:
 
 
 def contracts_lock_required(db, company_id: str) -> bool:
-    """Active when contracts password or owner phone is set, or enforcement requires setup."""
-    if company_has_contract_password(db, company_id):
-        return True
-    if company_owner_phone(db, company_id):
-        return True
-    return owner_step_up_enforced()
+    """Contracts password / OTP gate is retired.
+
+    company-admin reaches contracts directly; office/turnstile stay blocked via
+    is_sensitive_role_blocked() on the route decorators.
+    """
+    return False
 
 
 def owner_setup_required(db, company_id: str) -> bool:
-    """Setup needed when enforcement is on and neither password nor phone exists."""
-    if not owner_step_up_enforced():
-        return False
-    if company_has_contract_password(db, company_id):
-        return False
-    if company_owner_phone(db, company_id):
-        return False
-    return True
+    """No mandatory owner phone/password setup anymore (role separation instead)."""
+    return False
 
 
 def is_contracts_unlocked(db, token: str | None, company_id: str) -> bool:
@@ -923,12 +905,12 @@ def _resolve_company_id_for_request(data: dict | None = None) -> str:
 
 
 def is_sensitive_role_blocked(user: dict | None) -> bool:
-    """Pförtner / turnstile must never access contracts or other sensitive surfaces.
+    """Pförtner / office must never access contracts or other sensitive surfaces.
 
-    Ordinary Docs editor (non-contract) is intentionally open for turnstile.
+    Ordinary Docs editor (non-contract) is intentionally open for turnstile/office.
     """
     role = str((user or {}).get("role") or "").strip().lower()
-    return role == "turnstile"
+    return role in {"turnstile", "office"}
 
 
 def notify_owner_sensitive_attempt(

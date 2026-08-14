@@ -1089,11 +1089,12 @@
         return;
       }
       if (!status?.lockRequired) {
-        badge.classList.remove("hidden");
-        badge.textContent = window.contractPageT("lockNudge") || "🔒 Passwort empfohlen";
-        badge.title = window.contractPageT("lockNudgeHint") || "Vertrags-Passwort einrichten";
+        badge.classList.add("hidden");
+        badge.textContent = "";
+        badge.title = "";
+        badge.onclick = null;
         lockBtn.classList.add("hidden");
-        badge.onclick = () => showLockOverlay({ ...overlayOpts, setup: true, enforced: false, authMode: "setup_password" });
+        document.getElementById("salaryUnlockBtn")?.classList.add("hidden");
         return;
       }
       if (status.unlocked) {

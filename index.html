@@ -224,6 +224,7 @@
             <option value="auto" data-ui-i18n="loginScopeAuto">Automatisch</option>
             <option value="server-admin" data-ui-i18n="loginScopeServerAdmin">Server-Admin</option>
             <option value="company-admin" data-ui-i18n="loginScopeCompanyAdmin">Firmen-Admin</option>
+            <option value="office" data-ui-i18n="loginScopeOffice">Büro-Operator</option>
             <option value="turnstile" data-ui-i18n="loginScopeTurnstile">Drehkreuz</option>
           </select>
         </label>
@@ -2265,6 +2266,11 @@
                 <input id="companyAdminPassword" type="password" placeholder="z.B. Sicher!2025" autocomplete="new-password" data-ui-i18n="companyAdminPasswordPlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
               <label>
+                <span data-ui-i18n="labelCompanyOfficePassword">Büro-Operator-Passwort</span>
+                <input id="companyOfficePassword" type="password" placeholder="z.B. Buero!2025" autocomplete="new-password" data-ui-i18n="companyOfficePasswordPlaceholder" data-ui-i18n-attr="placeholder" />
+              </label>
+              <p class="helper-text full-width" data-ui-i18n="companyOfficePasswordHint">Für den Mitarbeiter, der das System bedient — ohne Lohn/Verträge/Buchhaltung. Leer = sicheres Passwort wird erzeugt.</p>
+              <label>
                 <span data-ui-i18n="turnstilePasswordLabel">Drehkreuz-Startpasswort</span>
                 <input id="companyTurnstilePassword" type="password" placeholder="z.B. Gate!2025" autocomplete="new-password" />
               </label>
@@ -2455,6 +2461,7 @@
                   <option value="" data-ui-i18n="optAllDir">Alle</option>
                   <option value="superadmin" data-ui-i18n="optRoleSuperAdmin">Super-Admin</option>
                   <option value="company-admin" data-ui-i18n="optRoleCompanyAdmin">Firmen-Admin</option>
+                  <option value="office" data-ui-i18n="optRoleOffice">Büro-Operator</option>
                   <option value="turnstile" data-ui-i18n="optCheckin">Drehkreuz</option>
                 </select>
               </label>

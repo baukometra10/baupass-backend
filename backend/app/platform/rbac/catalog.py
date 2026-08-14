@@ -18,6 +18,17 @@ ENTERPRISE_ROLES: list[dict[str, Any]] = [
         "scope": "company",
     },
     {
+        "id": "office",
+        "legacy": ["office"],
+        "labels": {
+            "de": "Büro-Operator",
+            "en": "Office operator",
+            "ar": "مشغّل المكتب",
+        },
+        "scope": "company",
+        "notes": "Ops without payroll/contracts/accounting",
+    },
+    {
         "id": "department_admin",
         "legacy": ["company-admin"],
         "labels": {"de": "Abteilungs-Admin", "en": "Department admin", "ar": "مدير القسم"},

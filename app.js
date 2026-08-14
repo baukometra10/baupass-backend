@@ -841,6 +841,7 @@ const UI_TRANSLATIONS = {
     loginScopeAuto: "Automatisch",
     loginScopeServerAdmin: "Server-Admin",
     loginScopeCompanyAdmin: "Firmen-Admin",
+    loginScopeOffice: "Büro-Operator",
     loginScopeTurnstile: "Drehkreuz",
     supportReadOnlyAlert: "Dieser Support-Login ist nur lesend. Aenderungen sind in dieser Sitzung gesperrt.",
     supportReadOnlyTitle: "Support-Modus: nur lesen",
@@ -1603,6 +1604,9 @@ const UI_TRANSLATIONS = {
     optCompanyLocked: "Gesperrt wegen Zahlungsverzug",
     labelCompanyAdminPassword: "Admin-Startpasswort",
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
+    labelCompanyOfficePassword: "Büro-Operator-Passwort",
+    companyOfficePasswordPlaceholder: "z.B. Buero!2025",
+    companyOfficePasswordHint: "Für den Mitarbeiter, der das System bedient — ohne Lohn/Verträge/Buchhaltung. Leer = sicheres Passwort wird erzeugt.",
     btnCreateCompany: "Firma anlegen",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.",
@@ -2128,6 +2132,7 @@ const UI_TRANSLATIONS = {
     loginScopeAuto: "Automatic",
     loginScopeServerAdmin: "Server Admin",
     loginScopeCompanyAdmin: "Company Admin",
+    loginScopeOffice: "Office operator",
     loginScopeTurnstile: "Turnstile",
     supportReadOnlyAlert: "This support login is read-only. Changes are blocked in this session.",
     supportReadOnlyTitle: "Support mode: read-only",
@@ -2831,6 +2836,9 @@ const UI_TRANSLATIONS = {
     optCompanyLocked: "Blocked due to overdue payment",
     labelCompanyAdminPassword: "Admin start password",
     companyAdminPasswordPlaceholder: "e.g. Secure!2025",
+    labelCompanyOfficePassword: "Office operator password",
+    companyOfficePasswordPlaceholder: "e.g. Office!2025",
+    companyOfficePasswordHint: "For the employee who runs day-to-day ops — no payroll/contracts/accounting. Empty = generate a secure password.",
     btnCreateCompany: "Create company",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Enable only if this company should use the WorkPass Lohn accounting app. Default: off.",
@@ -4032,6 +4040,7 @@ const UI_TRANSLATIONS = {
     loginScopeAuto: "تلقائي",
     loginScopeServerAdmin: "مدير الخادم",
     loginScopeCompanyAdmin: "مدير الشركة",
+    loginScopeOffice: "مشغّل المكتب",
     loginScopeTurnstile: "البوابة الدوارة",
     supportReadOnlyAlert: "تسجيل الدعم هذا للقراءة فقط. التغييرات محظورة في هذه الجلسة.",
     supportReadOnlyTitle: "وضع الدعم: قراءة فقط",
@@ -4524,6 +4533,9 @@ const UI_TRANSLATIONS = {
     optCompanyLocked: "محظور بسبب تأخر الدفع",
     labelCompanyAdminPassword: "كلمة مرور المشرف الأولية",
     companyAdminPasswordPlaceholder: "مثال: آمن!2025",
+    labelCompanyOfficePassword: "كلمة مرور مشغّل المكتب",
+    companyOfficePasswordPlaceholder: "مثال: مكتب!2025",
+    companyOfficePasswordHint: "للموظف الذي يشغّل النظام يومياً — بدون أجور/عقود/محاسبة. فارغ = توليد كلمة مرور آمنة.",
     btnCreateCompany: "إنشاء شركة",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (اختياري)",
     companyCreateWorkpassLohnHint: "فعّل فقط إذا كانت هذه الشركة ستستخدم تطبيق المحاسبة WorkPass Lohn. الافتراضي: متوقف.",
@@ -9772,6 +9784,7 @@ function getRuntimeUiTexts() {
     roleUnknown: "Unknown",
     roleSuperadmin: "Superadmin",
     roleCompanyAdmin: "Company admin",
+    roleOffice: "Office operator",
     roleTurnstile: "Turnstile",
     statsWorkersTotal: "Workers total",
     statsWorkersActive: "Active workers",
@@ -10030,6 +10043,7 @@ function getRuntimeUiTexts() {
     companyCreatedIntro: "Access credentials and API keys are shown in full only now.",
     companyCreatedCopyLabel: "Copy access credentials",
     companyAdminAccessLabel: "Admin access",
+    companyOfficeAccessLabel: "Office operator access",
     turnstileAccessLabel: "Turnstile access {index}",
     turnstileApiKeyLabel: "Turnstile API key {index}",
     credentialUsernameLabel: "Username",
@@ -10660,6 +10674,7 @@ function getRuntimeUiTexts() {
       roleUnknown: "Unbekannt",
       roleSuperadmin: "Superadmin",
       roleCompanyAdmin: "Firmen-Admin",
+      roleOffice: "Büro-Operator",
       roleTurnstile: "Drehkreuz",
       statsWorkersTotal: "Mitarbeiter gesamt",
       statsWorkersActive: "Aktive Mitarbeiter",
@@ -10919,6 +10934,7 @@ function getRuntimeUiTexts() {
       companyCreatedIntro: "Zugangsdaten und API-Keys werden nur jetzt vollstaendig angezeigt.",
       companyCreatedCopyLabel: "Zugangsdaten kopieren",
       companyAdminAccessLabel: "Admin-Zugang",
+      companyOfficeAccessLabel: "Büro-Operator-Zugang",
       turnstileAccessLabel: "Drehkreuz-Zugang {index}",
       turnstileApiKeyLabel: "Drehkreuz-API-Key {index}",
       credentialUsernameLabel: "Benutzername",
@@ -12378,6 +12394,7 @@ function getRuntimeUiTexts() {
       roleUnknown: "غير معروف",
       roleSuperadmin: "مشرف عام",
       roleCompanyAdmin: "مسؤول الشركة",
+      roleOffice: "مشغّل المكتب",
       roleTurnstile: "البوابة",
       statsWorkersTotal: "إجمالي الموظفين",
       statsWorkersActive: "الموظفون النشطون",
@@ -12592,6 +12609,7 @@ function getRuntimeUiTexts() {
       companyCreatedIntro: "تُعرض بيانات الوصول ومفاتيح API كاملةً الآن فقط.",
       companyCreatedCopyLabel: "نسخ بيانات الوصول",
       companyAdminAccessLabel: "وصول المسؤول",
+      companyOfficeAccessLabel: "وصول مشغّل المكتب",
       turnstileAccessLabel: "وصول البوابة الدوارة {index}",
       turnstileApiKeyLabel: "مفتاح API للبوابة الدوارة {index}",
       credentialUsernameLabel: "اسم المستخدم",
@@ -16551,6 +16569,7 @@ function getRoleLabel(role) {
   const normalized = String(role || "").toLowerCase();
   if (normalized === "superadmin") return texts.roleSuperadmin;
   if (normalized === "company-admin") return texts.roleCompanyAdmin;
+  if (normalized === "office") return texts.roleOffice || "Büro-Operator";
   if (normalized === "turnstile") return texts.roleTurnstile;
   return normalized || texts.roleUnknown;
 }
@@ -16747,12 +16766,12 @@ function userCanManageSystem() {
 
 function userCanManageWorkers() {
   const role = getEffectiveUiRole();
-  return (role === "superadmin" || role === "company-admin") && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
+  return (role === "superadmin" || role === "company-admin" || role === "office") && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
 }
 
 function userCanManageAccess() {
   const role = getEffectiveUiRole();
-  return (role === "superadmin" || role === "company-admin" || role === "turnstile") && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
+  return (role === "superadmin" || role === "company-admin" || role === "office" || role === "turnstile") && !isSupportReadOnlyMode() && !isSuperadminCompanyPreviewMode();
 }
 
 function canRepairCompany(company) {
@@ -18751,7 +18770,7 @@ function canUseDeploymentPlan() {
 /** Einsatzplan-Editor lebt in Betrieb (admin-v2), wenn verfügbar. */
 function preferBetriebDeployment() {
   const role = String(getEffectiveUiRole() || "").toLowerCase();
-  if (!["superadmin", "company-admin"].includes(role)) {
+  if (!["superadmin", "company-admin", "office"].includes(role)) {
     return false;
   }
   return companyMeetsMinPlan(ADMIN_V2_EMBED_ITEM.minPlan || "starter");
@@ -18763,7 +18782,7 @@ function getAllowedViewsForRole(role) {
   if (normalized === "superadmin") {
     allowed = ["dashboard", "workers", "badge", "access", "documents", "invoices", "admin", "devices", "leave"];
   }
-  if (normalized === "company-admin") {
+  if (normalized === "company-admin" || normalized === "office") {
     allowed = ["dashboard", "workers", "badge", "access", "documents"];
     if (hasCompanyFeature("leave_management")) {
       allowed.push("leave");
@@ -18778,10 +18797,10 @@ function getAllowedViewsForRole(role) {
   if (!hasCompanyFeature("document_upload")) {
     allowed = allowed.filter((entry) => entry !== "documents");
   }
-  if (!hasCompanyFeature("invoicing")) {
+  if (!hasCompanyFeature("invoicing") || normalized === "office") {
     allowed = allowed.filter((entry) => entry !== "invoices");
   }
-  if (normalized === "superadmin" || normalized === "company-admin") {
+  if (normalized === "superadmin" || normalized === "company-admin" || normalized === "office") {
     const embedViews = getEnterpriseEmbedViews();
     allowed = [...new Set([...allowed, ...embedViews])];
   }
@@ -33035,6 +33054,7 @@ async function handleCompanySubmit(event) {
         status: companyStatusValue,
         trialEndsAt: companyTrialEndsAt || undefined,
         adminPassword: document.querySelector("#companyAdminPassword").value.trim() || undefined,
+        officePassword: (document.querySelector("#companyOfficePassword")?.value || "").trim() || undefined,
         turnstilePassword: (document.querySelector("#companyTurnstilePassword")?.value || "").trim() || undefined,
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),
         invoiceEmailLang: (document.querySelector("#companyInvoiceEmailLang")?.value || "de"),
@@ -33078,6 +33098,12 @@ async function handleCompanySubmit(event) {
       const accessLines = [
         `${runtimeText("companyAdminAccessLabel")}: ${response.adminCredentials.username} / ${response.adminCredentials.password}`,
       ];
+
+      if (response.officeCredentials?.username) {
+        accessLines.push(
+          `${runtimeText("companyOfficeAccessLabel")}: ${response.officeCredentials.username} / ${response.officeCredentials.password}`,
+        );
+      }
 
       const turnstileCredentials = Array.isArray(response.turnstileCredentialsList)
         ? response.turnstileCredentialsList

@@ -198,6 +198,13 @@ class CompaniesService:
             trial_ends_at = ""
         admin_password = (payload.get("adminPassword") or "").strip() or "1234"
         turnstile_password = (payload.get("turnstilePassword") or "").strip() or admin_password
+        office_password = (payload.get("officePassword") or "").strip()
+        if not office_password:
+            office_password = secrets.token_urlsafe(10)
+        office_username_override = clean_text_input(
+            payload.get("officeUsername") or payload.get("office_username") or "",
+            max_len=64,
+        )
 
         try:
             turnstile_count = int(payload.get("turnstileCount", 1) or 1)
@@ -231,6 +238,14 @@ class CompaniesService:
                 "error": {
                     "error": "turnstile_password_too_short",
                     "message": "Drehkreuz-Passwort muss mindestens 4 Zeichen haben.",
+                },
+                "status": 400,
+            }
+        if len(office_password) < 4:
+            return {
+                "error": {
+                    "error": "office_password_too_short",
+                    "message": "Büro-Operator-Passwort muss mindestens 4 Zeichen haben.",
                 },
                 "status": 400,
             }
@@ -318,6 +333,18 @@ class CompaniesService:
             company_id=company_id,
         )
 
+        office_username_base = office_username_override or f"{username_base}office"
+        office_username = self.users.allocate_username(db, office_username_base)
+        self.users.insert_user(
+            db,
+            user_id=f"usr-{secrets.token_hex(6)}",
+            username=office_username,
+            password_hash=generate_password_hash(office_password),
+            name=f"{company_name} Büro",
+            role="office",
+            company_id=company_id,
+        )
+
         turnstile_credentials: list[dict[str, str]] = []
         for index in range(turnstile_count):
             if turnstile_count == 1:
@@ -394,6 +421,7 @@ class CompaniesService:
             "body": {
                 "company": row,
                 "adminCredentials": {"username": username, "password": admin_password},
+                "officeCredentials": {"username": office_username, "password": office_password},
                 "turnstileCredentials": {
                     "username": turnstile_credentials[0]["username"],
                     "password": turnstile_credentials[0]["password"],

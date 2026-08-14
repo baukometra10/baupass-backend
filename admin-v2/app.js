@@ -707,6 +707,15 @@ function isSuperadminUser() {
   return String(getUser()?.role || "").toLowerCase() === "superadmin";
 }
 
+function isOfficeUser() {
+  return String(getUser()?.role || "").toLowerCase() === "office";
+}
+
+function canAccessOwnerFinance() {
+  const role = String(getUser()?.role || "").toLowerCase();
+  return role === "superadmin" || role === "company-admin";
+}
+
 /** Legacy SUPPIX dashboard (index.html) — invoices, devices, platform settings. */
 function resolveLegacyDashboardView(preset) {
   const requested = String(preset || "").trim().toLowerCase();
@@ -719,6 +728,9 @@ function resolveLegacyDashboardView(preset) {
   }
   if (role === "company-admin") {
     return "invoices";
+  }
+  if (role === "office") {
+    return "workers";
   }
   return "dashboard";
 }
@@ -777,11 +789,18 @@ function applyRoleNavigation() {
   const showAnalytics = canAccessAnalyticsTab();
   const showPlatform = isSuperadminUser();
   const showLegacy = isSuperadminUser();
+  const showOwnerFinance = canAccessOwnerFinance();
   document.querySelectorAll('.tab[data-tab="analytics"]').forEach((el) => {
     el.classList.toggle("hidden", !showAnalytics);
   });
   document.querySelectorAll('.tab[data-tab="platform"]').forEach((el) => {
     el.classList.toggle("hidden", !showPlatform);
+  });
+  document.querySelectorAll('.tab[data-tab="billing"], .tab[data-tab="audit"]').forEach((el) => {
+    el.classList.toggle("hidden", !showOwnerFinance);
+  });
+  document.querySelectorAll(".nav-item-lohn, #openLohnSystemBtn").forEach((el) => {
+    if (!showOwnerFinance) el.classList.add("hidden");
   });
   document.querySelectorAll(".legacy-dashboard-link, .sidebar-legacy-link").forEach((el) => {
     el.classList.toggle("hidden", !showLegacy);
@@ -791,6 +810,9 @@ function applyRoleNavigation() {
     switchToTab("overview");
   }
   if (!showPlatform && document.querySelector('.tab.active[data-tab="platform"]')) {
+    switchToTab("overview");
+  }
+  if (!showOwnerFinance && document.querySelector('.tab.active[data-tab="billing"], .tab.active[data-tab="audit"]')) {
     switchToTab("overview");
   }
 }
@@ -1216,7 +1238,7 @@ let lohnOpenEnabled = false;
 async function syncLohnOpenButton() {
   const btn = $("openLohnSystemBtn");
   const cid = activeCompanyId();
-  if (!cid) {
+  if (!cid || !canAccessOwnerFinance()) {
     lohnOpenEnabled = false;
     if (btn) btn.hidden = true;
     return;
@@ -1236,6 +1258,10 @@ async function syncLohnOpenButton() {
 }
 
 async function openLohnSystem() {
+  if (!canAccessOwnerFinance()) {
+    showActionToast(t("common.forbidden") || "Keine Berechtigung", true);
+    return;
+  }
   const cid = activeCompanyId();
   if (!cid) {
     showActionToast(t("common.selectCompany") || "Bitte Firma wählen", true);
@@ -2925,11 +2951,14 @@ function renderCommandPaletteList(query) {
     if (item.legacyView && !isSuperadminUser()) {
       return false;
     }
-    // Pförtner (turnstile): no Arbeitsverträge — Docs-Editor ist frei nutzbar.
+    // Pförtner / office: no Arbeitsverträge — Docs-Editor bleibt nutzbar.
     if (
-      String(getUser()?.role || "").toLowerCase() === "turnstile" &&
+      (String(getUser()?.role || "").toLowerCase() === "turnstile" || isOfficeUser()) &&
       String(item.href || "").includes("contracts.html")
     ) {
+      return false;
+    }
+    if (isOfficeUser() && (item.openLohn || item.tab === "billing" || item.tab === "audit")) {
       return false;
     }
     const title = t(item.titleKey).toLowerCase();
@@ -5186,8 +5215,9 @@ async function renderBetriebActionHub(companyId) {
   }
   const features = await loadLegacyFeatures(companyId);
   const isTurnstile = String(getUser()?.role || "").toLowerCase() === "turnstile";
+  const hideContracts = isTurnstile || isOfficeUser();
   host.innerHTML = [
-    !isTurnstile &&
+    !hideContracts &&
       renderBetriebActionCard({
         href: `/admin-v2/contracts.html${q}`,
         icon: "📄",
@@ -5725,7 +5755,7 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
     .map(([key, title, icon]) => renderOpsLayerCard(key, title, icon, layers[key]))
     .join("");
   const isTurnstile = String(getUser()?.role || "").toLowerCase() === "turnstile";
-  const contractsCard = isTurnstile
+  const contractsCard = isTurnstile || isOfficeUser()
     ? ""
     : renderBetriebActionCard({
         href: `/admin-v2/contracts.html${q}`,
