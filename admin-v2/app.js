@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview5";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview6";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1356,25 +1356,25 @@ function lockPayslipIframeChrome(iframe) {
   }
 }
 
-function measurePayslipSheetSize(iframe) {
+function resetPayslipInnerScale(doc) {
   try {
-    const doc = iframe?.contentDocument;
     const html = doc?.documentElement;
     const body = doc?.body;
-    if (html) html.style.zoom = "1";
-    if (body) body.style.zoom = "1";
-    const sheet =
-      doc?.querySelector?.("#datevSheetA4") ||
-      doc?.querySelector?.(".datev-sheet-a4") ||
-      body;
-    if (!sheet) return { w: PAYSLIP_A4_PX_W, h: PAYSLIP_A4_PX_H };
-    const rect = sheet.getBoundingClientRect?.() || { width: 0, height: 0 };
-    return {
-      w: Math.ceil(Math.max(rect.width || 0, sheet.offsetWidth || 0, sheet.scrollWidth || 0, PAYSLIP_A4_PX_W)),
-      h: Math.ceil(Math.max(rect.height || 0, sheet.offsetHeight || 0, sheet.scrollHeight || 0, PAYSLIP_A4_PX_H)),
-    };
+    if (html) {
+      html.style.zoom = "1";
+      html.style.transform = "none";
+    }
+    if (body) {
+      body.style.zoom = "1";
+      body.style.transform = "none";
+    }
+    const sheet = doc?.querySelector?.("#datevSheetA4") || doc?.querySelector?.(".datev-sheet-a4");
+    if (sheet) {
+      sheet.style.zoom = "1";
+      sheet.style.transform = "none";
+    }
   } catch {
-    return { w: PAYSLIP_A4_PX_W, h: PAYSLIP_A4_PX_H };
+    /* ignore */
   }
 }
 
@@ -1387,13 +1387,12 @@ function fitPayslipPreview() {
   const wrapH = wrap.clientHeight || 0;
   if (wrapW < 40 || wrapH < 40) return;
   lockPayslipIframeChrome(iframe);
-  const { w: sheetW, h: sheetH } = measurePayslipSheetSize(iframe);
-  const pad = 10;
-  const availW = Math.max(120, wrapW - pad);
-  const availH = Math.max(140, wrapH - pad);
-  const scale = Math.min(1, availW / sheetW, availH / sheetH);
-  const stageW = Math.max(1, Math.floor(sheetW * scale));
-  const stageH = Math.max(1, Math.floor(sheetH * scale));
+  const pad = 8;
+  const availW = Math.max(80, wrapW - pad);
+  const availH = Math.max(80, wrapH - pad);
+  const boxScale = Math.min(availW / PAYSLIP_A4_PX_W, availH / PAYSLIP_A4_PX_H);
+  const stageW = Math.max(1, Math.floor(PAYSLIP_A4_PX_W * boxScale));
+  const stageH = Math.max(1, Math.floor(PAYSLIP_A4_PX_H * boxScale));
   stage.style.width = `${stageW}px`;
   stage.style.height = `${stageH}px`;
   stage.style.aspectRatio = "auto";
@@ -1406,13 +1405,19 @@ function fitPayslipPreview() {
   iframe.style.pointerEvents = "none";
   try {
     const doc = iframe.contentDocument;
-    if (doc?.documentElement) doc.documentElement.style.zoom = String(scale);
-    if (doc?.body) doc.body.style.zoom = String(scale);
+    if (!doc) return;
+    resetPayslipInnerScale(doc);
+    const sheet =
+      doc.querySelector("#datevSheetA4") ||
+      doc.querySelector(".datev-sheet-a4") ||
+      doc.body;
+    const nw = Math.max(1, sheet.offsetWidth || PAYSLIP_A4_PX_W);
+    const nh = Math.max(1, sheet.offsetHeight || PAYSLIP_A4_PX_H);
+    const inner = Math.min(stageW / nw, stageH / nh);
+    sheet.style.transformOrigin = "top left";
+    sheet.style.transform = `scale(${inner})`;
   } catch {
-    iframe.style.transformOrigin = "top left";
-    iframe.style.transform = `scale(${scale})`;
-    iframe.style.width = `${sheetW}px`;
-    iframe.style.height = `${sheetH}px`;
+    /* iframe not ready */
   }
 }
 
