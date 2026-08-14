@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview4";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview5";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1320,6 +1320,7 @@ const payslipStudioState = {
   sheetWindow: null,
   workersByCompany: {},
   inbox: "open",
+  inboxSeq: 0,
   previewFitReady: false,
   previewObserver: null,
   archiveQuery: "",
@@ -1358,10 +1359,14 @@ function lockPayslipIframeChrome(iframe) {
 function measurePayslipSheetSize(iframe) {
   try {
     const doc = iframe?.contentDocument;
+    const html = doc?.documentElement;
+    const body = doc?.body;
+    if (html) html.style.zoom = "1";
+    if (body) body.style.zoom = "1";
     const sheet =
       doc?.querySelector?.("#datevSheetA4") ||
       doc?.querySelector?.(".datev-sheet-a4") ||
-      doc?.body;
+      body;
     if (!sheet) return { w: PAYSLIP_A4_PX_W, h: PAYSLIP_A4_PX_H };
     const rect = sheet.getBoundingClientRect?.() || { width: 0, height: 0 };
     return {
@@ -1383,20 +1388,32 @@ function fitPayslipPreview() {
   if (wrapW < 40 || wrapH < 40) return;
   lockPayslipIframeChrome(iframe);
   const { w: sheetW, h: sheetH } = measurePayslipSheetSize(iframe);
-  iframe.style.width = `${sheetW}px`;
-  iframe.style.height = `${sheetH}px`;
-  iframe.style.minHeight = `${sheetH}px`;
-  iframe.style.maxHeight = `${sheetH}px`;
-  iframe.style.overflow = "hidden";
   const pad = 10;
   const availW = Math.max(120, wrapW - pad);
   const availH = Math.max(140, wrapH - pad);
   const scale = Math.min(1, availW / sheetW, availH / sheetH);
-  iframe.style.transformOrigin = "top left";
-  iframe.style.transform = `scale(${scale})`;
-  stage.style.width = `${Math.max(1, Math.floor(sheetW * scale))}px`;
-  stage.style.height = `${Math.max(1, Math.floor(sheetH * scale))}px`;
+  const stageW = Math.max(1, Math.floor(sheetW * scale));
+  const stageH = Math.max(1, Math.floor(sheetH * scale));
+  stage.style.width = `${stageW}px`;
+  stage.style.height = `${stageH}px`;
   stage.style.aspectRatio = "auto";
+  iframe.style.width = `${stageW}px`;
+  iframe.style.height = `${stageH}px`;
+  iframe.style.minHeight = `${stageH}px`;
+  iframe.style.maxHeight = `${stageH}px`;
+  iframe.style.transform = "none";
+  iframe.style.overflow = "hidden";
+  iframe.style.pointerEvents = "none";
+  try {
+    const doc = iframe.contentDocument;
+    if (doc?.documentElement) doc.documentElement.style.zoom = String(scale);
+    if (doc?.body) doc.body.style.zoom = String(scale);
+  } catch {
+    iframe.style.transformOrigin = "top left";
+    iframe.style.transform = `scale(${scale})`;
+    iframe.style.width = `${sheetW}px`;
+    iframe.style.height = `${sheetH}px`;
+  }
 }
 
 function schedulePayslipPreviewFit() {
@@ -2060,16 +2077,28 @@ function selectNextPayslipStatement() {
   if (next) return selectPayslipStatement(next.batchId, next.statementId);
 }
 
+async function switchPayslipInbox(next) {
+  const inbox = next === "archive" ? "archive" : "open";
+  if (payslipStudioState.inbox === inbox) return;
+  const seq = ++payslipStudioState.inboxSeq;
+  payslipStudioState.inbox = inbox;
+  payslipStudioState.activeBatchId = "";
+  payslipStudioState.activeStmtId = "";
+  renderPayslipInboxChrome();
+  const host = $("payslipStudioList");
+  if (host) {
+    host.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
+  }
+  $("payslipStudioWork")?.classList.add("hidden");
+  $("payslipStudioEmpty")?.classList.remove("hidden");
+  await refreshPayslipStudio({ keepSelection: false });
+  if (seq !== payslipStudioState.inboxSeq) return;
+}
+
 async function handlePayslipStudioClick(ev) {
   const inboxBtn = ev.target?.closest?.("[data-payslip-inbox]");
   if (inboxBtn) {
-    const next = inboxBtn.getAttribute("data-payslip-inbox") === "archive" ? "archive" : "open";
-    if (payslipStudioState.inbox !== next) {
-      payslipStudioState.inbox = next;
-      payslipStudioState.activeBatchId = "";
-      payslipStudioState.activeStmtId = "";
-      await refreshPayslipStudio({ keepSelection: false });
-    }
+    await switchPayslipInbox(inboxBtn.getAttribute("data-payslip-inbox"));
     return;
   }
   const archiveStatus = ev.target?.closest?.("[data-payslip-archive-status]");
@@ -2459,6 +2488,13 @@ function wireLohnDrawer() {
   $("lohnDrawerPullPayslips")?.addEventListener("click", () => pullPayslipsFromLohn().catch(() => {}));
   $("payslipStudioClose")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
+  $("payslipInboxTabs")?.addEventListener("pointerdown", (ev) => {
+    const btn = ev.target?.closest?.("[data-payslip-inbox]");
+    if (!btn) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    switchPayslipInbox(btn.getAttribute("data-payslip-inbox")).catch((err) => toast(err?.message || "error", "error"));
+  });
   $("payslipReviewStudio")?.addEventListener("click", (ev) => {
     handlePayslipStudioClick(ev).catch((err) => toast(err?.message || "error", "error"));
   });
