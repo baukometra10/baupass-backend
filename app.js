@@ -10678,6 +10678,9 @@ function getRuntimeUiTexts() {
       companyBrandingSaveBtn: "Save design",
       companyBrandingResetBtn: "Reset",
       companyBrandingPdfPreviewBtn: "Deployment PDF (logo preview)",
+      companyBrandingAccentPicker: "Pick accent color",
+      companyBrandingAccentPreview: "Button preview",
+      companyBrandingAccentHint: "Exact brand color as Hex (#RRGGBB) or RGB. Buttons and portal follow this color (no orange/blue mix).",
       companyBrandingPdfPreviewTitle: "Deployment plan — logo preview",
       companyBrandingPdfPreviewHint: "Sample PDF with current logo and colors (portrait, one page).",
     companySectionSettings: "Settings",
@@ -11568,10 +11571,13 @@ function getRuntimeUiTexts() {
       companyBrandingOptionConstruction: "Bau",
       companyBrandingOptionIndustry: "Industrie",
       companyBrandingOptionPremium: "Premium",
-      companyBrandingSaveBtn: "Design speichern",
-      companyBrandingResetBtn: "Zuruecksetzen",
-      companyBrandingPdfPreviewBtn: "Einsatzplan-PDF (Logo-Vorschau)",
-      companyBrandingPdfPreviewTitle: "Einsatzplan — Logo-Vorschau",
+    companyBrandingSaveBtn: "Design speichern",
+    companyBrandingResetBtn: "Zuruecksetzen",
+    companyBrandingPdfPreviewBtn: "Einsatzplan-PDF (Logo-Vorschau)",
+    companyBrandingAccentPicker: "Akzentfarbe wählen",
+    companyBrandingAccentPreview: "Button-Vorschau",
+    companyBrandingAccentHint: "Exakte Markenfarbe als Hex (#RRGGBB) oder RGB. Buttons und Portal folgen dieser Farbe (ohne Orange/Blau-Mix).",
+    companyBrandingPdfPreviewTitle: "Einsatzplan — Logo-Vorschau",
       companyBrandingPdfPreviewHint: "Beispiel-PDF mit aktuellem Logo und Farben (Hochformat, eine Seite).",
       deploymentPdfPrint: "Drucken",
       companySectionSettings: "Einstellungen",
@@ -13238,6 +13244,9 @@ function getRuntimeUiTexts() {
       companyBrandingOptionPremium: "مميز",
       companyBrandingSaveBtn: "حفظ التصميم",
       companyBrandingResetBtn: "إعادة تعيين",
+      companyBrandingAccentPicker: "اختر لون العلامة",
+      companyBrandingAccentPreview: "معاينة الزر",
+      companyBrandingAccentHint: "لون العلامة بدقة عبر Hex (#RRGGBB) أو RGB. الأزرار والبوابة تتبع هذا اللون (بدون مزج برتقالي/أزرق).",
       companySectionSettings: "الإعدادات",
       companyBtnCustomerNumber: "🔢 رقم العميل",
       companyBtnDocEmail: "📧 بريد المستندات الإلكتروني",
@@ -23550,14 +23559,13 @@ async function collectBrandingPayloadFromCard(companyId) {
   const card = elements.companyList?.querySelector(`[data-company-branding-save="${companyId}"]`)?.closest(".card-item");
   const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
   const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
-  const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
   const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
   let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
   if (logoInput?.files?.[0]) {
     brandingLogoData = await readBrandingLogoFile(logoInput.files[0]);
   }
   const preset = normalizeCompanyBrandingPresetValue(presetSelect?.value || company.brandingPreset || company.branding_preset || "construction");
-  const accent = normalizeHexColor(accentInput?.value, company.brandingAccentColor || company.branding_accent_color || "#c78652");
+  const accent = readCompanyAccentColorFromCard(companyId, company);
   const portalName = String(portalNameInput?.value || company.portalDisplayName || company.portal_display_name || company.name || "").trim();
   const themeMap = {
     construction: { accentLight: "#1a8aad", sectorLabel: "Bau & Handwerk" },
@@ -23586,7 +23594,6 @@ async function persistCompanyBrandingFromCard(companyId) {
   const presetSelect = elements.companyList.querySelector(`[data-company-branding-select="${companyId}"]`);
   const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
   const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
-  const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
   await apiRequest(buildApiUrl(`/api/companies/${companyId}`), {
     method: "PUT",
     body: {
@@ -23604,7 +23611,7 @@ async function persistCompanyBrandingFromCard(companyId) {
           || company.operatingSector
           || "construction",
       ).trim(),
-      brandingAccentColor: normalizeHexColor(accentInput?.value, "#c78652"),
+      brandingAccentColor: readCompanyAccentColorFromCard(companyId, company),
       brandingLogoData: payload.logoData,
       plan: company.plan,
       status: company.status,
@@ -25883,14 +25890,24 @@ function renderCompanyList() {
             <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;">
               <input type="text" data-company-portal-name="${escapeHtml(companyId)}" placeholder="Portal-Titel z. B. Meier Bau" maxlength="80" value="${escapeAttr(company.portalDisplayName || company.portal_display_name || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:160px;" />
               <input type="text" data-company-report-timezone="${escapeHtml(companyId)}" placeholder="${escapeAttr(uiT("reportTimezonePlaceholder"))}" maxlength="64" value="${escapeAttr(company.reportTimezone || company.report_timezone || "")}" ${canDeleteAny && !deleted ? "" : "disabled"} style="flex:1;min-width:140px;" title="${escapeAttr(uiT("labelReportTimezone"))}" />
-              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="Akzentfarbe" />
+            </div>
+            <div class="button-row company-branding-color-row" style="flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
+              <input type="color" data-company-accent-color="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="${escapeAttr(runtimeText("companyBrandingAccentPicker") || "Akzentfarbe")}" />
+              <input type="text" data-company-accent-hex="${escapeHtml(companyId)}" value="${escapeAttr(companyAccentColorInputValue(company).toUpperCase())}" maxlength="7" spellcheck="false" autocomplete="off" placeholder="#RRGGBB" ${canDeleteAny && !deleted ? "" : "disabled"} title="Hex" style="width:7.2rem;font-family:ui-monospace,Consolas,monospace;" />
+              <span class="helper-text" style="margin:0;">RGB</span>
+              <input type="number" data-company-accent-r="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).r))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="R" style="width:4.2rem;" />
+              <input type="number" data-company-accent-g="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).g))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="G" style="width:4.2rem;" />
+              <input type="number" data-company-accent-b="${escapeHtml(companyId)}" min="0" max="255" step="1" value="${escapeAttr(String(hexToRgbChannels(companyAccentColorInputValue(company)).b))}" ${canDeleteAny && !deleted ? "" : "disabled"} title="B" style="width:4.2rem;" />
+              <button type="button" class="small-button" data-company-accent-swatch="${escapeHtml(companyId)}" disabled style="min-width:7rem;cursor:default;pointer-events:none;">${escapeHtml(runtimeText("companyBrandingAccentPreview") || "Button-Vorschau")}</button>
+            </div>
+            <div class="button-row" style="flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px;">
               <label class="ghost-button small-button" style="cursor:pointer;margin:0;">
                 Logo
                 <input type="file" data-company-logo-file="${escapeHtml(companyId)}" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden ${canDeleteAny && !deleted ? "" : "disabled"} />
               </label>
               <button type="button" class="ghost-button small-button" data-company-branding-pdf-preview="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingPdfPreviewBtn"))}</button>
             </div>
-            <p class="helper-text">Worker-App und Portal zeigen Titel, Farbe und optional Logo der Firma. PDF-Vorschau zeigt den Einsatzplan mit Logo.</p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyBrandingAccentHint") || "Exakte Markenfarbe als Hex (#RRGGBB) oder RGB. Buttons und Portal folgen dieser Farbe (ohne Orange/Blau-Mix).")}</p>
           </div>
           ${turnstileMarkup}
           <div class="meta-box">
@@ -26090,15 +26107,16 @@ function renderCompanyList() {
 
   bindCompanyHistoryControls();
   bindCompanyRowActions();
+  bindCompanyAccentColorControls();
   elements.companyList.querySelectorAll("[data-company-settings-panel]").forEach((panel) => {
     const companyId = String(panel.getAttribute("data-company-settings-panel") || "").trim();
     applyCompanySettingsSearchFilter(panel, companySettingsUiState.searchByCompany[companyId] || "");
   });
-  elements.companyList.querySelectorAll('input[type="color"][data-company-accent-color]').forEach((input) => {
+  elements.companyList.querySelectorAll("[data-company-accent-color]").forEach((input) => {
     const companyId = String(input.getAttribute("data-company-accent-color") || "").trim();
     const company = state.companies.find((entry) => entry.id === companyId);
     if (company) {
-      input.value = companyAccentColorInputValue(company);
+      syncCompanyAccentColorControls(companyId, companyAccentColorInputValue(company), { source: "" });
     }
   });
 }
@@ -27181,7 +27199,6 @@ function bindCompanyRowActions() {
       const brandingPreset = normalizeCompanyBrandingPresetValue(presetSelect?.value || "construction");
       const portalNameInput = elements.companyList.querySelector(`[data-company-portal-name="${companyId}"]`);
       const tzInput = elements.companyList.querySelector(`[data-company-report-timezone="${companyId}"]`);
-      const accentInput = elements.companyList.querySelector(`[data-company-accent-color="${companyId}"]`);
       const logoInput = elements.companyList.querySelector(`[data-company-logo-file="${companyId}"]`);
       const card = brandingSaveButton.closest(".card-item");
       let brandingLogoData = company.brandingLogoData || company.branding_logo_data || "";
@@ -27206,7 +27223,7 @@ function bindCompanyRowActions() {
                 || company.operatingSector
                 || "construction",
             ).trim(),
-            brandingAccentColor: normalizeHexColor(accentInput?.value, "#c78652"),
+            brandingAccentColor: readCompanyAccentColorFromCard(companyId, company),
             brandingLogoData,
             plan: company.plan,
             status: company.status,
@@ -33054,11 +33071,42 @@ function formatCurrency(value) {
 }
 
 function normalizeHexColor(value, fallback) {
-  const candidate = String(value || "").trim();
-  if (/^#[0-9a-fA-F]{6}$/.test(candidate)) {
-    return candidate;
-  }
+  const parsed = parseBrandColorToHex(value);
+  if (parsed) return parsed;
   return fallback;
+}
+
+function parseBrandColorToHex(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.slice(1).toLowerCase()}`;
+  if (/^#[0-9a-fA-F]{3}$/.test(raw)) {
+    const r = raw[1];
+    const g = raw[2];
+    const b = raw[3];
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  const rgbMatch = raw.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/i);
+  if (rgbMatch) {
+    const channels = rgbMatch.slice(1, 4).map((part) => Math.min(255, Math.max(0, Number(part) || 0)));
+    return `#${channels.map((n) => n.toString(16).padStart(2, "0")).join("")}`;
+  }
+  const bare = raw.replace(/^0x/i, "");
+  if (/^[0-9a-fA-F]{6}$/.test(bare)) return `#${bare.toLowerCase()}`;
+  if (/^[0-9a-fA-F]{3}$/.test(bare)) {
+    return `#${bare[0]}${bare[0]}${bare[1]}${bare[1]}${bare[2]}${bare[2]}`.toLowerCase();
+  }
+  return "";
+}
+
+function hexToRgbChannels(hex) {
+  const normalized = parseBrandColorToHex(hex);
+  if (!normalized) return { r: 0, g: 0, b: 0 };
+  return {
+    r: parseInt(normalized.slice(1, 3), 16),
+    g: parseInt(normalized.slice(3, 5), 16),
+    b: parseInt(normalized.slice(5, 7), 16),
+  };
 }
 
 function companyAccentColorInputValue(company) {
@@ -33066,6 +33114,87 @@ function companyAccentColorInputValue(company) {
     company?.brandingAccentColor || company?.branding_accent_color,
     "#c78652",
   );
+}
+
+function readCompanyAccentColorFromCard(companyId, fallbackCompany) {
+  const list = elements.companyList;
+  if (!list) return companyAccentColorInputValue(fallbackCompany);
+  const hexInput = list.querySelector(`[data-company-accent-hex="${companyId}"]`);
+  const colorInput = list.querySelector(`[data-company-accent-color="${companyId}"]`);
+  const rInput = list.querySelector(`[data-company-accent-r="${companyId}"]`);
+  const gInput = list.querySelector(`[data-company-accent-g="${companyId}"]`);
+  const bInput = list.querySelector(`[data-company-accent-b="${companyId}"]`);
+  const fromHex = parseBrandColorToHex(hexInput?.value);
+  if (fromHex) return fromHex;
+  if (rInput && gInput && bInput) {
+    const r = Math.min(255, Math.max(0, Number(rInput.value)));
+    const g = Math.min(255, Math.max(0, Number(gInput.value)));
+    const b = Math.min(255, Math.max(0, Number(bInput.value)));
+    if ([r, g, b].every((n) => Number.isFinite(n))) {
+      return `#${[r, g, b].map((n) => Math.round(n).toString(16).padStart(2, "0")).join("")}`;
+    }
+  }
+  return normalizeHexColor(colorInput?.value, companyAccentColorInputValue(fallbackCompany));
+}
+
+function syncCompanyAccentColorControls(companyId, hexValue, { source = "" } = {}) {
+  const list = elements.companyList;
+  if (!list) return;
+  const hex = normalizeHexColor(hexValue, "#c78652");
+  const rgb = hexToRgbChannels(hex);
+  const colorInput = list.querySelector(`[data-company-accent-color="${companyId}"]`);
+  const hexInput = list.querySelector(`[data-company-accent-hex="${companyId}"]`);
+  const rInput = list.querySelector(`[data-company-accent-r="${companyId}"]`);
+  const gInput = list.querySelector(`[data-company-accent-g="${companyId}"]`);
+  const bInput = list.querySelector(`[data-company-accent-b="${companyId}"]`);
+  const swatch = list.querySelector(`[data-company-accent-swatch="${companyId}"]`);
+  if (colorInput && source !== "color") colorInput.value = hex;
+  if (hexInput && source !== "hex") hexInput.value = hex.toUpperCase();
+  if (rInput && source !== "rgb") rInput.value = String(rgb.r);
+  if (gInput && source !== "rgb") gInput.value = String(rgb.g);
+  if (bInput && source !== "rgb") bInput.value = String(rgb.b);
+  if (swatch) {
+    swatch.style.background = `linear-gradient(135deg, ${hex} 0%, ${shadeWorkerCardHexColor(hex, -35)} 100%)`;
+    swatch.style.color = (window.TenantBrandIcon?.contrastOnAccent?.(hex) || "#fff");
+  }
+  if (window.TenantBrandIcon?.applyAccentVariables) {
+    // Live preview while editing — only on this document root for admin preview.
+    window.TenantBrandIcon.applyAccentVariables(document.documentElement, hex);
+  }
+}
+
+function bindCompanyAccentColorControls() {
+  const list = elements.companyList;
+  if (!list || list.dataset.accentColorBound === "1") return;
+  list.dataset.accentColorBound = "1";
+  list.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const companyId =
+      target.getAttribute("data-company-accent-color")
+      || target.getAttribute("data-company-accent-hex")
+      || target.getAttribute("data-company-accent-r")
+      || target.getAttribute("data-company-accent-g")
+      || target.getAttribute("data-company-accent-b");
+    if (!companyId) return;
+    if (target.hasAttribute("data-company-accent-color")) {
+      syncCompanyAccentColorControls(companyId, target.value, { source: "color" });
+      return;
+    }
+    if (target.hasAttribute("data-company-accent-hex")) {
+      const parsed = parseBrandColorToHex(target.value);
+      if (parsed) syncCompanyAccentColorControls(companyId, parsed, { source: "hex" });
+      return;
+    }
+    if (
+      target.hasAttribute("data-company-accent-r")
+      || target.hasAttribute("data-company-accent-g")
+      || target.hasAttribute("data-company-accent-b")
+    ) {
+      const hex = readCompanyAccentColorFromCard(companyId);
+      syncCompanyAccentColorControls(companyId, hex, { source: "rgb" });
+    }
+  });
 }
 
 function sanitizeInvoiceLogoSrc(value) {

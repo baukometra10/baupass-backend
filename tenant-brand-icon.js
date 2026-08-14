@@ -72,19 +72,36 @@
     const on = contrastOnAccent(color);
     root.style.setProperty("--accent", color);
     root.style.setProperty("--accent-dark", dark);
-    root.style.setProperty("--accent-soft", soft);
+    root.style.setProperty("--accent-soft", `color-mix(in srgb, ${color} 18%, transparent)`);
     root.style.setProperty("--accent-hover", hover);
     root.style.setProperty("--accent-on", on);
     root.style.setProperty("--brand-accent", color);
+    root.style.setProperty("--brand-primary", color);
     root.style.setProperty("--company-accent", color);
     root.style.setProperty("--corp-primary", color);
     root.style.setProperty("--worker-card-accent", color);
+    root.style.setProperty("--teal", color);
+    root.style.setProperty("--teal-soft", soft);
+    root.style.setProperty("--foreman-primary", color);
+    // Solid brand buttons — no fixed orange↔blue split.
+    root.style.setProperty("--button-bg", `linear-gradient(135deg, ${color} 0%, ${dark} 100%)`);
+    root.style.setProperty("--button-text", on);
+    root.style.setProperty("--button-border", `color-mix(in srgb, ${color} 42%, transparent)`);
   }
 
   function clearAccentVariables(el) {
     const root = el || (typeof document !== "undefined" ? document.documentElement : null);
     if (!root || !root.style) return;
     ACCENT_CSS_PROPS.forEach((prop) => root.style.removeProperty(prop));
+    [
+      "--brand-primary",
+      "--teal",
+      "--teal-soft",
+      "--foreman-primary",
+      "--button-bg",
+      "--button-text",
+      "--button-border",
+    ].forEach((prop) => root.style.removeProperty(prop));
   }
 
   function generateTenantIconDataUrl({ initials, accentColor, size } = {}) {

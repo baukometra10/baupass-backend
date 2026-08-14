@@ -1863,12 +1863,12 @@ textarea.invoice-field-valid {
   margin-top: 2px;
 }
 
-/* Login-Buttons: einheitlich (kein Orange-Blau-Split aus theme-black) */
+/* Login-Buttons: follow tenant accent when white-label is active */
 .auth-panel .primary-button {
-  background: linear-gradient(135deg, #a855f7 0%, #d35410 100%) !important;
-  color: #fff !important;
+  background: linear-gradient(135deg, var(--accent, #a855f7) 0%, var(--accent-dark, #d35410) 100%) !important;
+  color: var(--accent-on, #fff) !important;
   border: 0 !important;
-  box-shadow: 0 8px 20px rgba(217, 93, 57, 0.28) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent, #d95d39) 28%, transparent) !important;
 }
 
 .auth-panel .primary-button::after {
@@ -4887,7 +4887,7 @@ body.theme-black .doc-inbox-unread {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(90deg, var(--accent) 0%, #f0844a 50%, var(--accent) 100%);
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-dark, var(--accent)) 50%, var(--accent) 100%);
   height: 3px;
   bottom: auto;
 }
@@ -6237,9 +6237,9 @@ body.theme-black {
   --text: #f4f7ff;
   --muted: #b7c1d6;
   --line: rgba(129, 173, 240, 0.2);
-  --button-bg: linear-gradient(135deg, #f58a46 0%, #ea6f2f 46%, #5d87e8 54%, #4f76d1 100%);
-  --button-text: #fdfdff;
-  --button-border: rgba(129, 173, 240, 0.34);
+  --button-bg: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  --button-text: var(--accent-on, #fdfdff);
+  --button-border: color-mix(in srgb, var(--accent) 40%, transparent);
   --accent: #f39256;
   --accent-soft: rgba(243, 146, 86, 0.17);
   --accent-dark: #cb6d36;
