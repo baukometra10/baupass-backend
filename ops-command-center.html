@@ -235,7 +235,7 @@
       </div>
     </div>
     <nav class="ops-nav">
-      <a id="lohnHeaderChip" href="#lohnHub">WorkPass Lohn</a>
+      <a id="lohnHeaderChip" href="#lohnHub" hidden>WorkPass Lohn</a>
       <a id="navAi" href="/ai-command-center.html">KI Command Center</a>
       <a id="navHub" href="/enterprise-hub.html">Funktionen &amp; Tarife</a>
       <a id="navAdmin" href="/admin-v2/index.html">Betrieb</a>
@@ -249,7 +249,7 @@
     </nav>
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
-  <script src="/embed-helpers.js?v=20260810ops1"></script>
+  <script src="/embed-helpers.js?v=20260814officeLohn1"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
   <script>
     // Heavy realtime/CDN scripts load after first paint — they previously blocked "Laden…" for seconds.
@@ -1320,6 +1320,7 @@
     }
 
     function renderLohnNotificationToasts(messages) {
+      if (!canAccessWorkpassLohnUi()) return "";
       const list = (Array.isArray(messages) ? messages : []).filter((m) => m && m.bannerVisible === true);
       if (!list.length) return "";
       const toasts = list.slice(0, 5).map((m) => {
@@ -1407,6 +1408,15 @@
     function updateLohnHeaderChip(messages) {
       const chip = document.getElementById("lohnHeaderChip");
       if (!chip) return;
+      if (!canAccessWorkpassLohnUi()) {
+        chip.hidden = true;
+        chip.style.display = "none";
+        chip.textContent = "WorkPass Lohn";
+        chip.classList.remove("has-mail");
+        return;
+      }
+      chip.hidden = false;
+      chip.style.display = "";
       const list = Array.isArray(messages) ? messages : [];
       const n = list.length;
       const notify = list.filter((m) => m && m.bannerVisible === true).length;
@@ -1427,6 +1437,9 @@
     }
 
     function renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests) {
+      if (!canAccessWorkpassLohnUi()) {
+        return "";
+      }
       try {
         return renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests);
       } catch (err) {
@@ -1444,6 +1457,9 @@
     }
 
     function renderLohnHub(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests) {
+      if (!canAccessWorkpassLohnUi()) {
+        return "";
+      }
       const msgCount = Array.isArray(lohnMessages) ? lohnMessages.length : 0;
       const alertCount = Array.isArray(dataAlerts) ? dataAlerts.length : 0;
       const batchCount = Array.isArray(payrollBatches) ? payrollBatches.length : 0;
@@ -1494,6 +1510,25 @@
 
     function currentRole() {
       return String(cachedMe?.role || cachedMe?.user?.role || "").toLowerCase();
+    }
+
+    function canAccessWorkpassLohnUi() {
+      const role = currentRole();
+      return role === "superadmin" || role === "company-admin";
+    }
+
+    function applyOfficeLohnVisibility() {
+      const chip = document.getElementById("lohnHeaderChip");
+      const allowed = canAccessWorkpassLohnUi();
+      if (chip) {
+        chip.hidden = !allowed;
+        chip.style.display = allowed ? "" : "none";
+        chip.setAttribute("aria-hidden", allowed ? "false" : "true");
+      }
+      if (!allowed) {
+        document.getElementById("lohnNotifyStack")?.remove();
+        document.getElementById("lohnHub")?.remove();
+      }
     }
 
     function renderLohnLinkCard(linkPayload) {
@@ -1913,6 +1948,11 @@
     }
 
     async function refreshLohnOnly() {
+      if (!canAccessWorkpassLohnUi()) {
+        applyOfficeLohnVisibility();
+        updateLohnHeaderChip([]);
+        return;
+      }
       const [lohnMessages, dataAlerts, periodRequests, payrollBatches] = await Promise.all([
         loadLohnMessages(),
         loadDataAlerts(),
@@ -1970,7 +2010,16 @@
       const gen = (load._gen = (load._gen || 0) + 1);
       try {
         await loadMeCached();
+        applyOfficeLohnVisibility();
         if (gen !== load._gen) return;
+
+        if (!canAccessWorkpassLohnUi()) {
+          updateLohnHeaderChip([]);
+          if (mode === "poll" || mode === "lohn") {
+            if (status && mode !== "poll") status.textContent = `${lastStatusDate || "—"} · ${tr("live")}`;
+            return;
+          }
+        }
 
         if (mode === "poll") {
           await refreshLohnOnly();
@@ -1978,11 +2027,13 @@
         }
 
         // Always paint Lohn + light shell first (sub-second), then fill heavy widgets.
-        const [lohnMessages, dataAlerts, periodRequests] = await Promise.all([
-          loadLohnMessages(),
-          loadDataAlerts(),
-          loadLohnPeriodRequests(),
-        ]);
+        const [lohnMessages, dataAlerts, periodRequests] = canAccessWorkpassLohnUi()
+          ? await Promise.all([
+              loadLohnMessages(),
+              loadDataAlerts(),
+              loadLohnPeriodRequests(),
+            ])
+          : [[], [], []];
         if (gen !== load._gen) return;
         lastLohnState.messages = lohnMessages;
         lastLohnState.alerts = dataAlerts;
@@ -2018,10 +2069,10 @@
           apiSoft(url, lastPayload || { totals: {}, companies: [] }, 3500),
           loadForecast(),
           loadGuardianBundle(),
-          loadPayrollPending(),
-          loadLohnPlatformLink(),
+          canAccessWorkpassLohnUi() ? loadPayrollPending() : Promise.resolve([]),
+          canAccessWorkpassLohnUi() ? loadLohnPlatformLink() : Promise.resolve({ skipped: true }),
           // Employee preview is heavy — only when a company is selected
-          companyId ? loadLohnEmployeePreview() : Promise.resolve(null),
+          canAccessWorkpassLohnUi() && companyId ? loadLohnEmployeePreview() : Promise.resolve(null),
         ]);
         if (gen !== load._gen) return;
         lastLohnState = {

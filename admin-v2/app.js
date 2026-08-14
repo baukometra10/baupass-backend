@@ -716,6 +716,11 @@ function canAccessOwnerFinance() {
   return role === "superadmin" || role === "company-admin";
 }
 
+function canAccessWorkpassLohnUi() {
+  // Owner-only: office operators must not see Lohn button, drawer, or accounting toasts.
+  return canAccessOwnerFinance();
+}
+
 /** Legacy SUPPIX dashboard (index.html) — invoices, devices, platform settings. */
 function resolveLegacyDashboardView(preset) {
   const requested = String(preset || "").trim().toLowerCase();
@@ -800,8 +805,24 @@ function applyRoleNavigation() {
     el.classList.toggle("hidden", !showOwnerFinance);
   });
   document.querySelectorAll(".nav-item-lohn, #openLohnSystemBtn").forEach((el) => {
-    if (!showOwnerFinance) el.classList.add("hidden");
+    if (!canAccessWorkpassLohnUi()) {
+      el.classList.add("hidden");
+      if ("hidden" in el) el.hidden = true;
+    } else if (!showOwnerFinance) {
+      el.classList.add("hidden");
+    }
   });
+  document.querySelectorAll("#opsStripLohnLink, .ops-strip-lohn-btn").forEach((el) => {
+    el.classList.toggle("hidden", !canAccessWorkpassLohnUi());
+  });
+  if (!canAccessWorkpassLohnUi()) {
+    try {
+      closeLohnDrawer();
+    } catch {
+      /* drawer helpers may not be ready yet */
+    }
+    updateLohnNavBadge(0);
+  }
   document.querySelectorAll(".legacy-dashboard-link, .sidebar-legacy-link").forEach((el) => {
     el.classList.toggle("hidden", !showLegacy);
   });
@@ -1238,9 +1259,12 @@ let lohnOpenEnabled = false;
 async function syncLohnOpenButton() {
   const btn = $("openLohnSystemBtn");
   const cid = activeCompanyId();
-  if (!cid || !canAccessOwnerFinance()) {
+  if (!cid || !canAccessWorkpassLohnUi()) {
     lohnOpenEnabled = false;
-    if (btn) btn.hidden = true;
+    if (btn) {
+      btn.hidden = true;
+      btn.classList.add("hidden");
+    }
     return;
   }
   try {
@@ -1250,15 +1274,21 @@ async function syncLohnOpenButton() {
       2500,
     );
     lohnOpenEnabled = !!settings?.workpassLohnEnabled;
-    if (btn) btn.hidden = !lohnOpenEnabled;
+    if (btn) {
+      btn.hidden = !lohnOpenEnabled;
+      btn.classList.toggle("hidden", !lohnOpenEnabled);
+    }
   } catch {
     lohnOpenEnabled = false;
-    if (btn) btn.hidden = true;
+    if (btn) {
+      btn.hidden = true;
+      btn.classList.add("hidden");
+    }
   }
 }
 
 async function openLohnSystem() {
-  if (!canAccessOwnerFinance()) {
+  if (!canAccessWorkpassLohnUi()) {
     showActionToast(t("common.forbidden") || "Keine Berechtigung", true);
     return;
   }
@@ -1291,6 +1321,12 @@ async function openLohnSystem() {
 }
 
 async function refreshLohnBadgeOnly() {
+  if (!canAccessWorkpassLohnUi()) {
+    updateLohnNavBadge(0);
+    paintLohnBadge($("opsStripLohnBadge"), 0);
+    void syncLohnOpenButton();
+    return;
+  }
   const q = companyQuery();
   if (getUser().role === "superadmin" && !q) {
     updateLohnNavBadge(0);
@@ -2271,6 +2307,10 @@ function renderLohnDrawerChips(fields) {
 }
 
 async function openLohnDrawer() {
+  if (!canAccessWorkpassLohnUi()) {
+    closeLohnDrawer();
+    return;
+  }
   const drawer = $("lohnDrawer");
   const body = $("lohnDrawerBody");
   if (!drawer || !body) return;
@@ -8630,7 +8670,7 @@ async function loadOverview() {
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
       ${opsSurfaceEnabled("security", opsFeatures) ? `<span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>` : ""}
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
-      <button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>
+      ${canAccessWorkpassLohnUi() ? `<button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>` : ""}
       ${canCmd ? `<a href="/ops-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>` : ""}
       ${canMap ? `<a href="/ops-live-map.html${qs}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>` : ""}
       ${canAi ? `<a href="/ai-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>` : ""}
@@ -8642,14 +8682,20 @@ async function loadOverview() {
       await loadOperations();
     });
     strip.querySelector("#opsStripLohnLink")?.addEventListener("click", () => {
+      if (!canAccessWorkpassLohnUi()) return;
       openLohnDrawer().catch(() => {});
     });
-    refreshLohnBadgeOnly()
-      .then(() => {
-        const n = Number($("lohnOpsBadge")?.textContent || 0);
-        paintLohnBadge($("opsStripLohnBadge"), n);
-      })
-      .catch(() => {});
+    if (canAccessWorkpassLohnUi()) {
+      refreshLohnBadgeOnly()
+        .then(() => {
+          const n = Number($("lohnOpsBadge")?.textContent || 0);
+          paintLohnBadge($("opsStripLohnBadge"), n);
+        })
+        .catch(() => {});
+    } else {
+      updateLohnNavBadge(0);
+      paintLohnBadge($("opsStripLohnBadge"), 0);
+    }
   } else if (strip) {
     strip.classList.add("hidden");
   }
