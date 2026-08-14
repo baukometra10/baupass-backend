@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview6";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814opsPlan1";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -796,11 +796,7 @@ function applyRoleNavigation() {
 }
 
 function companyQuery() {
-  const user = getUser();
-  if (user.role !== "superadmin") {
-    return "";
-  }
-  const cid = wpGet(COMPANY_KEY) || "";
+  const cid = String(activeCompanyId() || "").trim();
   return cid ? `?company_id=${encodeURIComponent(cid)}` : "";
 }
 
@@ -5115,6 +5111,35 @@ function meetsMinPlan(minPlan) {
   return (PLAN_RANK_UI[activeCompanyPlan()] || 0) >= need;
 }
 
+/** Operational surfaces shown per company package. Enterprise includes all. */
+const OPS_SURFACE_MIN_PLAN = {
+  liveMap: "professional",
+  cameras: "professional",
+  security: "professional",
+  physicalOs: "professional",
+  foreman: "professional",
+  commandCenter: "enterprise",
+  aiCenter: "enterprise",
+};
+
+const OPS_SURFACE_FEATURE = {
+  liveMap: "live_tracking",
+  cameras: "physical_operations_os",
+  security: "physical_operations_os",
+  physicalOs: "physical_operations_os",
+  foreman: "foreman_dashboard",
+  commandCenter: "ops_command_center",
+  aiCenter: "ai_assistant",
+};
+
+function opsSurfaceEnabled(key, features = null) {
+  const minPlan = OPS_SURFACE_MIN_PLAN[key];
+  if (!minPlan) return true;
+  const featureKey = OPS_SURFACE_FEATURE[key];
+  if (featureKey && features && legacyFeatureEnabled(features, featureKey)) return true;
+  return meetsMinPlan(minPlan);
+}
+
 async function loadEntitlementFlags(companyId) {
   const features = await loadLegacyFeatures(companyId);
   if (features === null) {
@@ -5729,10 +5754,10 @@ function renderOperationsShell(panel, { cid, q, layers, rtLabel, chatThreads, fe
     locked: !legacyFeatureEnabled(features, "worker_chat"),
     upgradeLabel: t("chat.upgrade"),
   });
-  const canLiveMap = legacyFeatureEnabled(features, "live_tracking") || meetsMinPlan("professional");
-  const canCmdCenter = legacyFeatureEnabled(features, "ops_command_center") || meetsMinPlan("enterprise");
-  const canAi = legacyFeatureEnabled(features, "ai_assistant") || meetsMinPlan("enterprise");
-  const canPhysicalOs = legacyFeatureEnabled(features, "physical_operations_os") || meetsMinPlan("professional");
+  const canLiveMap = opsSurfaceEnabled("liveMap", features);
+  const canCmdCenter = opsSurfaceEnabled("commandCenter", features);
+  const canAi = opsSurfaceEnabled("aiCenter", features);
+  const canPhysicalOs = opsSurfaceEnabled("physicalOs", features);
   const defaultOpsPage = canLiveMap
     ? "/ops-live-map.html"
     : canCmdCenter
@@ -6081,11 +6106,11 @@ async function bindAiOperatorSettingsPanel(cid) {
 
 async function loadOperations() {
   const panel = $("operationsPanel");
-  const q = companyQuery();
-  const cid = q.replace("?company_id=", "");
+  const cid = String(activeCompanyId() || "").trim();
+  const q = cid ? `?company_id=${encodeURIComponent(cid)}` : "";
   // Hub must not block first paint of the main panel.
   void renderBetriebActionHub(cid);
-  if (getUser().role === "superadmin" && !q) {
+  if (getUser().role === "superadmin" && !cid) {
     panel.innerHTML = `<p class="muted">${t("common.selectCompany")}</p>`;
     return;
   }
@@ -8461,6 +8486,7 @@ async function loadOverview() {
     cid
       ? apiSoft(`/api/ops-os/daily-brief?company_id=${encodeURIComponent(cid)}`, null, 4000)
       : Promise.resolve(null),
+    cid ? loadLegacyFeatures(cid) : Promise.resolve({}),
   ]);
   const overview = (await overviewP) || cached || {};
   loadOverview._cache = { key: cacheKey, at: Date.now(), data: overview };
@@ -8473,7 +8499,7 @@ async function loadOverview() {
       <span class="muted">${t("overview.inbox")}</span><strong>…</strong>
       <small class="muted">${t("overview.inboxHint")}</small>
     </button>`;
-  const [inbox, roleDash, opsBrief, opsSnap, cameras, dailyBrief] = await secondaryP;
+  const [inbox, roleDash, opsBrief, opsSnap, cameras, dailyBrief, opsFeatures] = await secondaryP;
   const wf = overview.workforce || {};
   const openInbox = inbox?.counts?.open ?? 0;
   const dashWidgets = (roleDash?.widgets || []).filter((w) => w.id !== "on_site");
@@ -8559,21 +8585,27 @@ async function loadOverview() {
     fp.innerHTML = "";
   }
   const strip = $("opsCommandStrip");
-  if (strip && q) {
+  if (strip && cid) {
     strip.classList.remove("hidden");
     const twin = opsBrief?.layers?.["1_digital_twin"]?.summary || {};
     const sec = opsBrief?.layers?.["2_ai_security"] || {};
     const emg = opsBrief?.layers?.["5_emergency"] || {};
+    const canCmd = opsSurfaceEnabled("commandCenter", opsFeatures);
+    const canMap = opsSurfaceEnabled("liveMap", opsFeatures);
+    const canAi = opsSurfaceEnabled("aiCenter", opsFeatures);
+    const canForeman = opsSurfaceEnabled("foreman", opsFeatures);
+    const canLayers = opsSurfaceEnabled("physicalOs", opsFeatures);
+    const qs = q || `?company_id=${encodeURIComponent(cid)}`;
     strip.innerHTML = `
       <span class="ops-strip-kpi"><strong>${twin.workersOnSite ?? wf.onSite ?? 0}</strong> ${t("overview.onSiteKpi")}</span>
-      <span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>
+      ${opsSurfaceEnabled("security", opsFeatures) ? `<span class="ops-strip-kpi"><strong>${(sec.openAlerts || []).length}</strong> ${t("inbox.filterSecurity")}</span>` : ""}
       <span class="ops-strip-kpi">${emg.active ? t("overview.emergency") : t("overview.calm")}</span>
       <button type="button" class="ops-strip-lohn-btn" id="opsStripLohnLink">${t("lohn.opsLink")}<span id="opsStripLohnBadge" class="tab-badge hidden"></span></button>
-      <a href="/ops-command-center.html${q}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>
-      <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>
-      <a href="/ai-command-center.html${q}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>
-      <a href="/foreman.html" target="_blank" rel="noopener">${t("overview.foreman")}</a>
-      <button type="button" class="ghost ops-strip-tab" data-goto-tab="operations">${t("overview.layers12")}</button>
+      ${canCmd ? `<a href="/ops-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.commandCenter")}</a>` : ""}
+      ${canMap ? `<a href="/ops-live-map.html${qs}" target="_blank" rel="noopener">${t("ops.liveMap")}</a>` : ""}
+      ${canAi ? `<a href="/ai-command-center.html${qs}" target="_blank" rel="noopener">${t("ops.aiCenter")}</a>` : ""}
+      ${canForeman ? `<a href="/foreman.html${qs}" target="_blank" rel="noopener">${t("overview.foreman")}</a>` : ""}
+      ${canLayers ? `<button type="button" class="ghost ops-strip-tab" data-goto-tab="operations">${t("overview.layers12")}</button>` : ""}
     `;
     strip.querySelector(".ops-strip-tab")?.addEventListener("click", async () => {
       switchToTab("operations");
@@ -8593,7 +8625,7 @@ async function loadOverview() {
   }
 
   const lage = $("lagePanel");
-  if (lage && q) {
+  if (lage && cid) {
     const twin = opsBrief?.layers?.["1_digital_twin"]?.summary || {};
     const sec = opsBrief?.layers?.["2_ai_security"] || {};
     const camList = Array.isArray(cameras?.cameras) ? cameras.cameras : [];
@@ -8661,8 +8693,8 @@ async function loadOverview() {
         ${renderLageKpi({ id: "missing", label: t("lage.missingToday"), value: missingToday, tone: lageToneForCount(missingToday), inboxSource: "attendance" })}
         ${renderLageKpi({ id: "late", label: t("lage.lateToday"), value: lateToday, tone: lageToneForCount(lateToday), inboxSource: "attendance" })}
         ${renderLageKpi({ id: "outside", label: t("lage.outsideHours"), value: outsideToday, tone: lageToneForCount(outsideToday), inboxSource: "attendance" })}
-        ${renderLageKpi({ id: "cameras", label: t("lage.camerasOnline"), value: `${camsOnline}/${camList.length}`, tone: camsOnline < camList.length ? "warn" : "ok", href: `/admin-v2/camera-watch.html${q}` })}
-        ${renderLageKpi({ id: "security", label: t("lage.security"), value: securityOpen, tone: lageToneForCount(securityOpen), inboxSource: "security" })}
+        ${opsSurfaceEnabled("cameras", opsFeatures) ? renderLageKpi({ id: "cameras", label: t("lage.camerasOnline"), value: `${camsOnline}/${camList.length}`, tone: camsOnline < camList.length ? "warn" : "ok", href: `/admin-v2/camera-watch.html${q}` }) : ""}
+        ${opsSurfaceEnabled("security", opsFeatures) ? renderLageKpi({ id: "security", label: t("lage.security"), value: securityOpen, tone: lageToneForCount(securityOpen), inboxSource: "security" }) : ""}
         ${renderLageKpi({ id: "chat", label: t("lage.chatOpen"), value: chatOpen, tone: lageToneForCount(chatOpen), inboxSource: "chat" })}
         ${renderLageKpi({ id: "hr", label: t("lage.hrOpen"), value: hrOpen, tone: lageToneForCount(hrOpen), inboxSource: "leave" })}
         ${renderLageKpi({ id: "inbox", label: t("lage.inbox"), value: openInbox, tone: lageToneForCount(openInbox), inboxSource: "" })}
@@ -8670,12 +8702,14 @@ async function loadOverview() {
       <div class="lage-actions">
         <button type="button" class="ghost" data-goto-tab="inbox">${t("overview.openInbox")}</button>
         <a href="/admin-v2/chat.html${q}" target="_blank" rel="noopener">${t("lage.openChat")}</a>
-        <a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>
+        ${opsSurfaceEnabled("cameras", opsFeatures) ? `<a href="/admin-v2/camera-watch.html${q}">${t("cameraWatch.open")}</a>` : ""}
         <button type="button" class="ghost" data-goto-tab="access">${t("lage.openAccess")}</button>
-        <a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>
-        <a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>
+        ${opsSurfaceEnabled("liveMap", opsFeatures) ? `<a href="/ops-live-map.html${q}" target="_blank" rel="noopener">${t("lage.openMap")}</a>` : ""}
+        ${opsSurfaceEnabled("aiCenter", opsFeatures) ? `<a href="/ai-command-center.html${q}${q ? "&" : "?"}autoprompt=${aiPrompt}" target="_blank" rel="noopener">${t("lage.aiAsk")}</a>` : ""}
       </div>
-      <div class="lage-map-embed" id="lageMapEmbed" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
+      ${
+        opsSurfaceEnabled("liveMap", opsFeatures)
+          ? `<div class="lage-map-embed" id="lageMapEmbed" title="${escapeAttr(t("lage.mapScrollHint") || "Klicken zum Interagieren · Scrollen bewegt die Seite")}">
         <p class="lage-map-embed-hint">${escapeHtml(t("lage.mapScrollHint") || "Klicken für Karte · Mausrad scrollt die Seite")}</p>
         <iframe
           title="${escapeAttr(t("lage.openMap"))}"
@@ -8683,7 +8717,9 @@ async function loadOverview() {
           referrerpolicy="same-origin"
           src="/ops-live-map.html${q ? `${q}&embed=1` : `?embed=1`}"
         ></iframe>
-      </div>
+      </div>`
+          : ""
+      }
     `;
 
     const mapEmbed = lage.querySelector("#lageMapEmbed");
