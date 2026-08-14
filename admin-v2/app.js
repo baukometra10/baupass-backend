@@ -1364,6 +1364,7 @@ async function pullPayslipsFromLohn() {
 function closePayslipReviewStudio() {
   const el = $("payslipReviewStudio");
   el?.classList.add("hidden");
+  el?.classList.remove("is-sheet-focus");
   el?.setAttribute("aria-hidden", "true");
   document.body.classList.remove("payslip-studio-open");
   if (payslipStudioState.pdfObjectUrl) {
@@ -1524,7 +1525,8 @@ async function renderPayslipIdentity(stmt) {
 
   const canSend = !!stmt.canRelease;
   actions.innerHTML = `
-    <button type="button" class="primary" data-payslip-action="open-window">${escapeHtml(t("lohn.openSheetWindow") || "In eigenem Fenster öffnen")}</button>
+    <button type="button" class="primary" data-payslip-action="open-window">${escapeHtml(t("lohn.openSheetWindow") || "Vollbild prüfen")}</button>
+    <button type="button" data-payslip-action="focus-sheet">${escapeHtml(t("lohn.focusSheet") || "Nur Abrechnung anzeigen")}</button>
     <select id="payslipAssignSelect" aria-label="${escapeAttr(t("lohn.assignWorker") || "Mitarbeiter")}">
       <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter —")}</option>
       ${workerOptions}
@@ -1537,6 +1539,73 @@ async function renderPayslipIdentity(stmt) {
 
 function currentUiTheme() {
   return document.body?.classList?.contains("theme-black") ? "dark" : "light";
+}
+
+function wrapPayslipViewerHtml(sheetHtml) {
+  const theme = currentUiTheme();
+  const bg = theme === "dark" ? "#0b1220" : "#e8edf2";
+  const barBg = theme === "dark" ? "#0d1628" : "#ffffff";
+  const barBorder = theme === "dark" ? "rgba(120,156,255,0.18)" : "#d8dee6";
+  const fg = theme === "dark" ? "#e2e8f0" : "#0f172a";
+  const muted = theme === "dark" ? "#94a3b8" : "#64748b";
+  const closeLabel = t("common.close") || "Schließen";
+  const title = t("lohn.payslipReviewTitle") || "Lohnabrechnung";
+  // Extract body content if a full document was returned.
+  let inner = String(sheetHtml || "");
+  const bodyMatch = inner.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  if (bodyMatch) inner = bodyMatch[1];
+  const styleMatch = String(sheetHtml || "").match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  const sheetCss = styleMatch ? styleMatch[1] : "";
+  return `<!DOCTYPE html>
+<html lang="de"><head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>${title}</title>
+<style>
+${sheetCss}
+html, body { margin:0; height:100%; background:${bg}; color:${fg}; }
+.payslip-viewer-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.7rem 1rem; background: ${barBg}; border-bottom: 1px solid ${barBorder};
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.payslip-viewer-bar strong { font-size: 0.95rem; }
+.payslip-viewer-bar span { font-size: 0.78rem; color: ${muted}; }
+.payslip-viewer-bar button {
+  border: 1px solid ${barBorder}; background: #ef4444; color: #fff;
+  border-radius: 8px; padding: 0.45rem 0.9rem; font-weight: 600; cursor: pointer;
+}
+.payslip-viewer-stage {
+  min-height: calc(100vh - 54px); box-sizing: border-box;
+  display: flex; justify-content: center; align-items: flex-start;
+  padding: 18px 12px 28px; overflow: auto; background: ${bg};
+}
+.payslip-viewer-stage .datev-sheet-a4 { margin: 0 auto; box-shadow: 0 12px 36px rgba(0,0,0,0.28); }
+body.sheet-chrome { min-height: auto !important; padding: 0 !important; background: transparent !important; display: block !important; }
+</style>
+</head>
+<body>
+  <header class="payslip-viewer-bar">
+    <div>
+      <strong>${title}</strong>
+      <div><span>WorkPass Lohn · DatevSheet</span></div>
+    </div>
+    <button type="button" id="payslipViewerClose">${closeLabel}</button>
+  </header>
+  <main class="payslip-viewer-stage">${inner}</main>
+  <script>
+    (function () {
+      var btn = document.getElementById("payslipViewerClose");
+      function closeWin() { try { window.close(); } catch (e) {} }
+      if (btn) btn.addEventListener("click", closeWin);
+      document.addEventListener("keydown", function (ev) {
+        if (ev.key === "Escape") closeWin();
+      });
+      try { window.focus(); } catch (e) {}
+    })();
+  </script>
+</body></html>`;
 }
 
 function openPayslipSheetWindow(html) {
@@ -1552,20 +1621,31 @@ function openPayslipSheetWindow(html) {
   } catch {
     /* ignore */
   }
-  // Do not use noopener here — it makes window.open return null in Chromium.
-  const win = window.open(
-    "",
-    "workpass-lohn-payslip",
-    "width=980,height=1280,scrollbars=yes,resizable=yes",
-  );
+  const viewerHtml = wrapPayslipViewerHtml(docHtml);
+  const features = [
+    "popup=yes",
+    "scrollbars=yes",
+    "resizable=yes",
+    `width=${Math.max(900, Math.min(screen.availWidth || 1200, 1200))}`,
+    `height=${Math.max(700, Math.min(screen.availHeight || 900, 1600))}`,
+    "left=0",
+    "top=0",
+  ].join(",");
+  const win = window.open("", "workpass-lohn-payslip", features);
   if (!win) {
     showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
     return;
   }
   payslipStudioState.sheetWindow = win;
   try {
+    try {
+      win.moveTo(0, 0);
+      win.resizeTo(screen.availWidth || 1200, screen.availHeight || 900);
+    } catch {
+      /* some browsers block resize */
+    }
     win.document.open();
-    win.document.write(docHtml);
+    win.document.write(viewerHtml);
     win.document.close();
     try {
       win.document.documentElement.style.colorScheme = currentUiTheme() === "dark" ? "dark" : "light";
@@ -1667,12 +1747,19 @@ async function selectPayslipStatement(batchId, statementId) {
       iframe.style.minHeight = "1180px";
       iframe.onload = () => {
         try {
+          const wrap = iframe.closest(".payslip-studio-pdf-wrap");
+          if (wrap) wrap.scrollTop = 0;
           const sheet = iframe.contentDocument?.querySelector("#datevSheetA4");
           const h = Math.ceil(sheet?.getBoundingClientRect?.().height || 0);
           if (h > 800) {
             const px = `${Math.max(1180, h + 48)}px`;
             iframe.style.height = px;
             iframe.style.minHeight = px;
+          }
+          try {
+            iframe.contentWindow?.scrollTo?.(0, 0);
+          } catch {
+            /* ignore */
           }
         } catch {
           /* cross-origin / not ready */
@@ -1817,6 +1904,10 @@ async function handlePayslipStudioClick(ev) {
   }
   if (action === "open-window") {
     openPayslipSheetWindow(payslipStudioState.sheetHtml);
+    return;
+  }
+  if (action === "focus-sheet") {
+    $("payslipReviewStudio")?.classList.toggle("is-sheet-focus");
     return;
   }
   if (action === "assign") {

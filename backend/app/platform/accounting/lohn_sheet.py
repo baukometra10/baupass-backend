@@ -196,6 +196,124 @@ body.sheet-chrome.theme-dark { background: #0b1220; }
 """
 
 
+def _clean_sheet_hint(note: Any) -> str:
+    """Drop internal platform/Lohn debug notes from the visible Hinweise box."""
+    text = str(note or "").strip()
+    if not text:
+        return ""
+    low = text.lower()
+    junk = (
+        "grossestimate",
+        "platform hint",
+        "brutto when hourly",
+        "computes official payroll",
+        "bruttohint",
+    )
+    if any(token in low for token in junk):
+        return ""
+    return text
+
+
+def _first_filled(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
+def enrich_payslip_with_master(
+    payslip: dict[str, Any] | None,
+    master: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Fill empty Stammdaten gaps (Krankenkasse, StKl, SV-Nr, …) from platform master."""
+    out = dict(payslip or {})
+    master = master if isinstance(master, dict) else {}
+    if not master:
+        return out
+    emp = dict(out.get("employee") if isinstance(out.get("employee"), dict) else {})
+    bank = dict(out.get("bank") if isinstance(out.get("bank"), dict) else {})
+    co = dict(out.get("company") if isinstance(out.get("company"), dict) else {})
+
+    def fill_emp(*keys: str, sources: list[Any]) -> None:
+        for key in keys:
+            if _first_filled(emp.get(key)):
+                return
+        value = _first_filled(*sources)
+        if not value:
+            return
+        for key in keys:
+            emp[key] = value
+
+    fill_emp("name", sources=[master.get("name")])
+    fill_emp("badgeId", "id", sources=[master.get("badgeId"), master.get("personnelNumber"), master.get("id")])
+    fill_emp(
+        "birthDate",
+        "dateOfBirth",
+        sources=[master.get("birthDate"), master.get("dateOfBirth")],
+    )
+    fill_emp(
+        "taxClass",
+        "steuerklasse",
+        sources=[master.get("taxClass"), master.get("steuerklasse")],
+    )
+    fill_emp("confession", sources=[master.get("confession"), master.get("konfession")])
+    fill_emp(
+        "insuranceNo",
+        "svNumber",
+        "insuranceNumber",
+        sources=[
+            master.get("insuranceNo"),
+            master.get("insuranceNumber"),
+            master.get("svNumber"),
+        ],
+    )
+    fill_emp(
+        "healthFund",
+        "krankenkasse",
+        "healthInsurance",
+        sources=[
+            master.get("healthFund"),
+            master.get("krankenkasse"),
+            master.get("healthInsurance"),
+        ],
+    )
+    if emp.get("healthPercent") in (None, "") and master.get("healthPercent") not in (None, ""):
+        emp["healthPercent"] = master.get("healthPercent")
+    fill_emp("address", sources=[master.get("address"), master.get("homeAddress")])
+    fill_emp(
+        "entryDate",
+        "startDate",
+        sources=[master.get("entryDate"), master.get("startDate")],
+    )
+    fill_emp("taxId", "steuerId", sources=[master.get("taxId"), master.get("steuerId")])
+
+    if not _first_filled(bank.get("iban"), bank.get("IBAN")):
+        iban = _first_filled(master.get("iban"), (master.get("bank") or {}).get("iban") if isinstance(master.get("bank"), dict) else "")
+        if iban:
+            bank["iban"] = iban
+    if not _first_filled(bank.get("bankName"), bank.get("name"), bank.get("bank")):
+        bname = _first_filled(
+            master.get("bankName"),
+            (master.get("bank") or {}).get("name") if isinstance(master.get("bank"), dict) else "",
+        )
+        if bname:
+            bank["bankName"] = bname
+    if not _first_filled(co.get("name")):
+        cname = _first_filled(master.get("companyName"), (master.get("company") or {}).get("name") if isinstance(master.get("company"), dict) else "")
+        if cname:
+            co["name"] = cname
+
+    out["employee"] = emp
+    if bank:
+        out["bank"] = bank
+    if co:
+        out["company"] = co
+    out["note"] = _clean_sheet_hint(out.get("note"))
+    out["footerNote"] = _clean_sheet_hint(out.get("footerNote"))
+    return out
+
+
 def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any] | None = None) -> dict[str, Any]:
     p = payslip if isinstance(payslip, dict) else {}
     job = job if isinstance(job, dict) else {}
@@ -233,10 +351,13 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
     sv_total = float(t.get("health") or 0) + float(t.get("pension") or 0) + float(t.get("care") or 0) + float(
         t.get("unemployment") or 0
     )
-    emp_id = str(emp.get("badgeId") or emp.get("id") or "")
+    emp_id = str(emp.get("badgeId") or emp.get("id") or emp.get("personnelNumber") or "")
     iban = str(bank.get("iban") or bank.get("IBAN") or "")
     bank_name = str(bank.get("bankName") or bank.get("name") or bank.get("bank") or "")
     period = str(p.get("period") or job.get("period") or "")
+    kk_pct_src = emp.get("healthPercent")
+    if kk_pct_src in (None, "") and emp.get("kkPct") not in (None, ""):
+        kk_pct_src = emp.get("kkPct")
     return {
         "companyName": str(co.get("name") or ""),
         "titleMonth": _period_label(period),
@@ -246,14 +367,14 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "persNr": emp_id,
         "birth": str(emp.get("birthDate") or emp.get("dateOfBirth") or ""),
         "stkl": str(emp.get("taxClass") or emp.get("steuerklasse") or ""),
-        "konf": str(emp.get("confession") or ""),
+        "konf": str(emp.get("confession") or emp.get("konfession") or ""),
         "stTg": str(att.get("days") or att.get("workedDays") or att.get("svDays") or "30"),
         "pgrs": "101",
         "bgrs": "1112",
         "svTg": str(att.get("days") or att.get("svDays") or "30"),
-        "svNr": str(emp.get("insuranceNo") or emp.get("svNumber") or ""),
-        "kkName": str(emp.get("healthFund") or emp.get("krankenkasse") or ""),
-        "kkPct": _qty(emp.get("healthPercent")) if emp.get("healthPercent") is not None else "",
+        "svNr": str(emp.get("insuranceNo") or emp.get("svNumber") or emp.get("insuranceNumber") or ""),
+        "kkName": str(emp.get("healthFund") or emp.get("krankenkasse") or emp.get("healthInsurance") or ""),
+        "kkPct": _qty(kk_pct_src) if kk_pct_src not in (None, "") else "",
         "workDays": _qty(att.get("days") or att.get("workedDays")),
         "workHours": _qty(att.get("hours") or att.get("totalHours") or att.get("workedHours")),
         "sender": str(co.get("name") or ""),
@@ -262,7 +383,7 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "empAddr": str(emp.get("address") or ""),
         "entry": str(emp.get("entryDate") or emp.get("startDate") or ""),
         "taxIdMid": str(emp.get("taxId") or emp.get("steuerId") or "")[:4],
-        "hints": str(p.get("note") or ""),
+        "hints": _clean_sheet_hint(p.get("note")),
         "wageRows": wage_rows,
         "grossTotal": _amt(gross),
         "taxTotal": _amt(tax_total),
@@ -295,7 +416,7 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "agExtra": _amt(t.get("umlagenTotal")),
         "agTotal": _amt(float(t.get("employerShare") or 0) + float(gross or 0) + float(t.get("umlagenTotal") or 0)),
         "payHint": "Überweisung auf das angegebene Konto",
-        "footerNote": str(p.get("footerNote") or ""),
+        "footerNote": _clean_sheet_hint(p.get("footerNote")),
         "calcMethod": str(t.get("calcMethod") or ""),
     }
 
