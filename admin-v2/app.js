@@ -1319,6 +1319,8 @@ const payslipStudioState = {
   activeBatchId: "",
   activeStmtId: "",
   pdfObjectUrl: "",
+  sheetHtml: "",
+  sheetWindow: null,
   workersByCompany: {},
 };
 
@@ -1525,6 +1527,7 @@ async function renderPayslipIdentity(stmt) {
 
   const canSend = !!stmt.canRelease;
   actions.innerHTML = `
+    <button type="button" class="primary" data-payslip-action="open-window">${escapeHtml(t("lohn.openSheetWindow") || "In eigenem Fenster öffnen")}</button>
     <select id="payslipAssignSelect" aria-label="${escapeAttr(t("lohn.assignWorker") || "Mitarbeiter")}">
       <option value="">${escapeHtml(t("lohn.pickWorker") || "— Mitarbeiter —")}</option>
       ${workerOptions}
@@ -1533,6 +1536,40 @@ async function renderPayslipIdentity(stmt) {
     <button type="button" class="primary" data-payslip-action="release" ${canSend ? "" : "disabled"}>${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
     <button type="button" data-payslip-action="reject">${escapeHtml(t("lohn.rejectStatement") || "Ablehnen")}</button>
   `;
+}
+
+function openPayslipSheetWindow(html) {
+  const docHtml = String(html || payslipStudioState.sheetHtml || "").trim();
+  if (!docHtml) {
+    showActionToast(t("lohn.sheetMissing") || "Keine Abrechnung geladen", true);
+    return;
+  }
+  try {
+    if (payslipStudioState.sheetWindow && !payslipStudioState.sheetWindow.closed) {
+      payslipStudioState.sheetWindow.close();
+    }
+  } catch {
+    /* ignore */
+  }
+  // Do not use noopener here — it makes window.open return null in Chromium.
+  const win = window.open(
+    "",
+    "workpass-lohn-payslip",
+    "width=980,height=1280,scrollbars=yes,resizable=yes",
+  );
+  if (!win) {
+    showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
+    return;
+  }
+  payslipStudioState.sheetWindow = win;
+  try {
+    win.document.open();
+    win.document.write(docHtml);
+    win.document.close();
+    win.focus();
+  } catch {
+    showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
+  }
 }
 
 function loadScriptOnce(src) {
@@ -1615,9 +1652,26 @@ async function selectPayslipStatement(batchId, statementId) {
     );
     if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
     const sheetHtml = await sheetRes.text();
+    payslipStudioState.sheetHtml = sheetHtml;
     if (iframe) {
       iframe.removeAttribute("src");
       iframe.srcdoc = sheetHtml;
+      // Full A4 height so nothing is clipped inside the studio preview.
+      iframe.style.height = "1180px";
+      iframe.style.minHeight = "1180px";
+      iframe.onload = () => {
+        try {
+          const sheet = iframe.contentDocument?.querySelector("#datevSheetA4");
+          const h = Math.ceil(sheet?.getBoundingClientRect?.().height || 0);
+          if (h > 800) {
+            const px = `${Math.max(1180, h + 48)}px`;
+            iframe.style.height = px;
+            iframe.style.minHeight = px;
+          }
+        } catch {
+          /* cross-origin / not ready */
+        }
+      };
     }
     await api(
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/review-open`,
@@ -1753,6 +1807,10 @@ async function handlePayslipStudioClick(ev) {
   if (!batchId || !statementId) return;
   if (action === "next") {
     await selectNextPayslipStatement();
+    return;
+  }
+  if (action === "open-window") {
+    openPayslipSheetWindow(payslipStudioState.sheetHtml);
     return;
   }
   if (action === "assign") {

@@ -69,8 +69,9 @@ html, body { margin: 0; padding: 0; background: #fff; }
   background: #fff; color: #151a22;
   font-family: "IBM Plex Mono", "Courier New", Courier, monospace;
   font-size: 7pt; line-height: 1.15;
-  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: visible; flex-shrink: 0;
   justify-content: flex-start; gap: 2.2mm;
+  margin: 12px auto;
 }
 .ds-zone { display: flex; flex-direction: column; flex-shrink: 0; min-width: 0; }
 .ds-zone-wage { gap: 0; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
@@ -389,7 +390,7 @@ def build_payslip_print_html(payslip: dict[str, Any] | None, *, job: dict[str, A
 <title>Entgeltabrechnung {_esc(period)}</title>
 <style>{_CSS}</style>
 </head>
-<body style="margin:0;background:#e8edf2;display:flex;justify-content:center;padding:12px;">
+<body style="margin:0;background:#e8edf2;overflow:auto;padding:12px;">
 {body}
 </body></html>"""
 
