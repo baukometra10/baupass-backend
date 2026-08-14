@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnLock2";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814lohnPreview4";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -1320,7 +1320,104 @@ const payslipStudioState = {
   sheetWindow: null,
   workersByCompany: {},
   inbox: "open",
+  previewFitReady: false,
+  previewObserver: null,
+  archiveQuery: "",
+  archiveStatus: "all",
+  archivePeriod: "",
 };
+
+const PAYSLIP_A4_PX_W = 794;
+const PAYSLIP_A4_PX_H = 1123;
+
+function lockPayslipIframeChrome(iframe) {
+  try {
+    const doc = iframe?.contentDocument;
+    if (!doc) return;
+    const html = doc.documentElement;
+    const body = doc.body;
+    if (html) {
+      html.style.overflow = "hidden";
+      html.style.margin = "0";
+      html.style.padding = "0";
+    }
+    if (body) {
+      body.style.overflow = "hidden";
+      body.style.margin = "0";
+      body.style.padding = "0";
+      body.style.minHeight = "0";
+      body.style.height = "max-content";
+      body.style.width = "max-content";
+    }
+    iframe.setAttribute("scrolling", "no");
+  } catch {
+    /* ignore */
+  }
+}
+
+function measurePayslipSheetSize(iframe) {
+  try {
+    const doc = iframe?.contentDocument;
+    const sheet =
+      doc?.querySelector?.("#datevSheetA4") ||
+      doc?.querySelector?.(".datev-sheet-a4") ||
+      doc?.body;
+    if (!sheet) return { w: PAYSLIP_A4_PX_W, h: PAYSLIP_A4_PX_H };
+    const rect = sheet.getBoundingClientRect?.() || { width: 0, height: 0 };
+    return {
+      w: Math.ceil(Math.max(rect.width || 0, sheet.offsetWidth || 0, sheet.scrollWidth || 0, PAYSLIP_A4_PX_W)),
+      h: Math.ceil(Math.max(rect.height || 0, sheet.offsetHeight || 0, sheet.scrollHeight || 0, PAYSLIP_A4_PX_H)),
+    };
+  } catch {
+    return { w: PAYSLIP_A4_PX_W, h: PAYSLIP_A4_PX_H };
+  }
+}
+
+function fitPayslipPreview() {
+  const iframe = $("payslipStudioPdf");
+  const stage = $("payslipSheetStage") || iframe?.closest?.(".payslip-sheet-stage");
+  const wrap = iframe?.closest?.(".payslip-studio-pdf-wrap");
+  if (!iframe || !stage || !wrap) return;
+  const wrapW = wrap.clientWidth || 0;
+  const wrapH = wrap.clientHeight || 0;
+  if (wrapW < 40 || wrapH < 40) return;
+  lockPayslipIframeChrome(iframe);
+  const { w: sheetW, h: sheetH } = measurePayslipSheetSize(iframe);
+  iframe.style.width = `${sheetW}px`;
+  iframe.style.height = `${sheetH}px`;
+  iframe.style.minHeight = `${sheetH}px`;
+  iframe.style.maxHeight = `${sheetH}px`;
+  iframe.style.overflow = "hidden";
+  const pad = 10;
+  const availW = Math.max(120, wrapW - pad);
+  const availH = Math.max(140, wrapH - pad);
+  const scale = Math.min(1, availW / sheetW, availH / sheetH);
+  iframe.style.transformOrigin = "top left";
+  iframe.style.transform = `scale(${scale})`;
+  stage.style.width = `${Math.max(1, Math.floor(sheetW * scale))}px`;
+  stage.style.height = `${Math.max(1, Math.floor(sheetH * scale))}px`;
+  stage.style.aspectRatio = "auto";
+}
+
+function schedulePayslipPreviewFit() {
+  ensurePayslipPreviewFit();
+  requestAnimationFrame(() => {
+    fitPayslipPreview();
+    requestAnimationFrame(fitPayslipPreview);
+  });
+}
+
+function ensurePayslipPreviewFit() {
+  if (payslipStudioState.previewFitReady) return;
+  const wrap = $("payslipStudioPdf")?.closest?.(".payslip-studio-pdf-wrap");
+  if (!wrap) return;
+  payslipStudioState.previewFitReady = true;
+  window.addEventListener("resize", fitPayslipPreview);
+  if (typeof ResizeObserver !== "undefined") {
+    payslipStudioState.previewObserver = new ResizeObserver(() => fitPayslipPreview());
+    payslipStudioState.previewObserver.observe(wrap);
+  }
+}
 
 function toast(message, _kind = "ok") {
   const text = String(message || "").trim();
@@ -1450,28 +1547,134 @@ async function loadPayslipWorkers(companyId) {
   return list;
 }
 
+function formatPayslipShortDate(iso) {
+  const s = String(iso || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  return `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}`;
+}
+
+function payslipArchiveHaystack(stmt) {
+  return [
+    stmt?.displayName,
+    stmt?.badgeId,
+    stmt?.workerId,
+    stmt?.documentPeriod || stmt?.period,
+    stmt?.status,
+    formatPayslipMoney(stmt?.netAmount ?? stmt?.grossAmount, stmt?.currency),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function filterPayslipArchiveStatements(stmts) {
+  const q = String(payslipStudioState.archiveQuery || "").trim().toLowerCase();
+  const st = String(payslipStudioState.archiveStatus || "all");
+  const period = String(payslipStudioState.archivePeriod || "");
+  return (stmts || []).filter((s) => {
+    const status = String(s.status || "");
+    if (st !== "all" && status !== st) return false;
+    const p = String(s.documentPeriod || s.period || "");
+    if (period && p !== period) return false;
+    if (q && !payslipArchiveHaystack(s).includes(q)) return false;
+    return true;
+  });
+}
+
+function payslipArchiveCounts(batches) {
+  let released = 0;
+  let rejected = 0;
+  const periods = new Set();
+  for (const batch of batches || []) {
+    for (const s of batch.statements || []) {
+      if (String(s.status) === "released") released += 1;
+      if (String(s.status) === "rejected") rejected += 1;
+      const p = String(s.documentPeriod || s.period || "").trim();
+      if (p) periods.add(p);
+    }
+  }
+  return { released, rejected, periods: [...periods].sort().reverse() };
+}
+
+function renderPayslipInboxChrome() {
+  const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
+  $("payslipInboxTabs")?.querySelectorAll("[data-payslip-inbox]").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.getAttribute("data-payslip-inbox") === inbox);
+  });
+  const tools = $("payslipArchiveTools");
+  if (!tools) return;
+  tools.classList.toggle("hidden", inbox !== "archive");
+  if (inbox !== "archive") return;
+  const batches = payslipStudioState.batches || [];
+  const counts = payslipArchiveCounts(batches);
+  const stats = $("payslipArchiveStats");
+  if (stats) {
+    stats.textContent = `${counts.released} ${t("lohn.statusReleased") || "Gesendet"} · ${counts.rejected} ${t("lohn.statusRejected") || "Abgelehnt"}`;
+  }
+  const search = $("payslipArchiveSearch");
+  if (search) {
+    search.placeholder = t("lohn.archiveSearch") || "Name, Badge, Periode…";
+    if (search.value !== payslipStudioState.archiveQuery) {
+      search.value = payslipStudioState.archiveQuery;
+    }
+  }
+  const filters = $("payslipArchiveFilters");
+  if (filters) {
+    const cur = payslipStudioState.archiveStatus || "all";
+    filters.innerHTML = [
+      ["all", t("lohn.archiveFilterAll") || "Alle"],
+      ["released", t("lohn.statusReleased") || "Gesendet"],
+      ["rejected", t("lohn.statusRejected") || "Abgelehnt"],
+    ]
+      .map(
+        ([id, label]) =>
+          `<button type="button" class="${cur === id ? "is-active" : ""}" data-payslip-archive-status="${id}">${escapeHtml(label)}</button>`,
+      )
+      .join("");
+  }
+  const periodSel = $("payslipArchivePeriod");
+  if (periodSel) {
+    const cur = payslipStudioState.archivePeriod || "";
+    const opts = [`<option value="">${escapeHtml(t("lohn.archiveAllPeriods") || "Alle Perioden")}</option>`]
+      .concat(
+        counts.periods.map(
+          (p) =>
+            `<option value="${escapeAttr(p)}"${p === cur ? " selected" : ""}>${escapeHtml(p)}</option>`,
+        ),
+      );
+    periodSel.innerHTML = opts.join("");
+  }
+}
+
 function renderPayslipStudioList() {
   const host = $("payslipStudioList");
   if (!host) return;
+  renderPayslipInboxChrome();
   const inbox = payslipStudioState.inbox === "archive" ? "archive" : "open";
-  const tabs = `<div class="payslip-inbox-tabs">
-    <button type="button" class="${inbox === "open" ? "is-active" : ""}" data-payslip-inbox="open">${escapeHtml(t("lohn.inboxOpen") || "Offen")}</button>
-    <button type="button" class="${inbox === "archive" ? "is-active" : ""}" data-payslip-inbox="archive">${escapeHtml(t("lohn.inboxArchive") || "Archiv")}</button>
-  </div>`;
-  const batches = payslipStudioState.batches || [];
+  const archived = inbox === "archive";
+  const batches = (payslipStudioState.batches || [])
+    .map((batch) => {
+      const stmts = Array.isArray(batch.statements) ? batch.statements : [];
+      return {
+        ...batch,
+        statements: archived ? filterPayslipArchiveStatements(stmts) : stmts,
+      };
+    })
+    .filter((batch) => (batch.statements || []).length);
   if (!batches.length) {
-    const empty = inbox === "archive"
-      ? (t("lohn.payslipArchiveNone") || "Kein Archiv für diese Firma.")
-      : (t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.");
-    host.innerHTML = `${tabs}<div class="payslip-studio-empty">${escapeHtml(empty)}</div>`;
+    const empty = archived
+      ? payslipStudioState.batches?.length
+        ? t("lohn.archiveNoHits") || "Keine Treffer im Archiv."
+        : t("lohn.payslipArchiveNone") || "Kein Archiv für diese Firma."
+      : t("lohn.payslipNone") || "Keine offenen Lohnabrechnungen.";
+    host.innerHTML = `<div class="payslip-studio-empty">${escapeHtml(empty)}</div>`;
     return;
   }
-  host.innerHTML = tabs + batches
+  host.innerHTML = batches
     .map((batch) => {
       const bid = String(batch.id || "");
       const stmts = Array.isArray(batch.statements) ? batch.statements : [];
       const releasable = Number(batch.releasableCount || 0);
-      const archived = inbox === "archive";
       const items = stmts
         .map((s) => {
           const sid = String(s.statementId || s.id || "");
@@ -1496,9 +1699,16 @@ function renderPayslipStudioList() {
           if (s.locked || s.deliveryLocked) {
             badges.push(`<span class="payslip-match is-locked">${escapeHtml(t("lohn.locked") || "Gesperrt")}</span>`);
           }
+          const sentOn = archived ? formatPayslipShortDate(s.releasedAt || s.reviewedAt) : "";
+          const metaParts = [
+            s.badgeId,
+            s.documentPeriod || s.period,
+            formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency),
+            sentOn ? `${t("lohn.archiveSentOn") || "am"} ${sentOn}` : "",
+          ].filter(Boolean);
           return `<button type="button" class="payslip-stmt-item${active}" data-payslip-select="${escapeAttr(bid)}::${escapeAttr(sid)}">
             <div class="name">${escapeHtml(s.displayName || s.workerId || "—")}</div>
-            <div class="meta">${escapeHtml([s.badgeId, s.documentPeriod || s.period, formatPayslipMoney(s.netAmount ?? s.grossAmount, s.currency)].filter(Boolean).join(" · "))}</div>
+            <div class="meta">${escapeHtml(metaParts.join(" · "))}</div>
             ${badges.join(" ")}
           </button>`;
         })
@@ -1740,7 +1950,7 @@ async function selectPayslipStatement(batchId, statementId) {
     const headers = { Accept: "text/html" };
     if (token) headers.Authorization = `Bearer ${token}`;
     const sheetRes = await fetch(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet?theme=${encodeURIComponent(currentUiTheme())}`,
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/sheet?theme=${encodeURIComponent(currentUiTheme())}&embed=1`,
       { headers },
     );
     if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
@@ -1749,20 +1959,13 @@ async function selectPayslipStatement(batchId, statementId) {
     if (iframe) {
       iframe.removeAttribute("src");
       iframe.srcdoc = sheetHtml;
-      // Full A4 height so nothing is clipped inside the studio preview.
-      iframe.style.height = "1180px";
-      iframe.style.minHeight = "1180px";
       iframe.onload = () => {
         try {
+          lockPayslipIframeChrome(iframe);
+          schedulePayslipPreviewFit();
+          setTimeout(schedulePayslipPreviewFit, 120);
           const wrap = iframe.closest(".payslip-studio-pdf-wrap");
           if (wrap) wrap.scrollTop = 0;
-          const sheet = iframe.contentDocument?.querySelector("#datevSheetA4");
-          const h = Math.ceil(sheet?.getBoundingClientRect?.().height || 0);
-          if (h > 800) {
-            const px = `${Math.max(1180, h + 48)}px`;
-            iframe.style.height = px;
-            iframe.style.minHeight = px;
-          }
           try {
             iframe.contentWindow?.scrollTo?.(0, 0);
           } catch {
@@ -1772,6 +1975,7 @@ async function selectPayslipStatement(batchId, statementId) {
           /* cross-origin / not ready */
         }
       };
+      schedulePayslipPreviewFit();
     }
     if (!isPayslipLocked(stmt) && payslipStudioState.inbox !== "archive") {
       await api(
@@ -1824,6 +2028,7 @@ async function openPayslipReviewStudio(opts = {}) {
   el.classList.remove("hidden");
   el.setAttribute("aria-hidden", "false");
   document.body.classList.add("payslip-studio-open");
+  schedulePayslipPreviewFit();
   $("payslipStudioList").innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
   try {
     await refreshPayslipStudio({ keepSelection: false });
@@ -1865,6 +2070,12 @@ async function handlePayslipStudioClick(ev) {
       payslipStudioState.activeStmtId = "";
       await refreshPayslipStudio({ keepSelection: false });
     }
+    return;
+  }
+  const archiveStatus = ev.target?.closest?.("[data-payslip-archive-status]");
+  if (archiveStatus) {
+    payslipStudioState.archiveStatus = archiveStatus.getAttribute("data-payslip-archive-status") || "all";
+    renderPayslipStudioList();
     return;
   }
   const selectBtn = ev.target?.closest?.("[data-payslip-select]");
@@ -1920,6 +2131,7 @@ async function handlePayslipStudioClick(ev) {
   }
   if (action === "focus-sheet") {
     $("payslipReviewStudio")?.classList.toggle("is-sheet-focus");
+    schedulePayslipPreviewFit();
     return;
   }
   if (action === "download-pdf") {
@@ -2249,6 +2461,18 @@ function wireLohnDrawer() {
   $("payslipStudioBackdrop")?.addEventListener("click", () => closePayslipReviewStudio());
   $("payslipReviewStudio")?.addEventListener("click", (ev) => {
     handlePayslipStudioClick(ev).catch((err) => toast(err?.message || "error", "error"));
+  });
+  $("payslipReviewStudio")?.addEventListener("input", (ev) => {
+    const q = ev.target?.closest?.("[data-payslip-archive-q]");
+    if (!q) return;
+    payslipStudioState.archiveQuery = String(q.value || "");
+    renderPayslipStudioList();
+  });
+  $("payslipReviewStudio")?.addEventListener("change", (ev) => {
+    const period = ev.target?.closest?.("[data-payslip-archive-period]");
+    if (!period) return;
+    payslipStudioState.archivePeriod = String(period.value || "");
+    renderPayslipStudioList();
   });
   // Deep-link: ?payslipReview=1&batch_id=…
   try {

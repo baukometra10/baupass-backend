@@ -34,7 +34,7 @@
   <link rel="shortcut icon" href="/branding/suppix-icon-192.png" id="adminAppFavicon" />
   <link id="appFavicon" rel="icon" type="image/png" sizes="192x192" href="/branding/suppix-icon-192.png" />
   <link rel="stylesheet" href="/embed-shell.css?v=20260605layout1" />
-  <link rel="stylesheet" href="styles.css?v=20260814lohnLock2" />
+  <link rel="stylesheet" href="styles.css?v=20260814lohnPreview4" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" media="print" onload="this.media='all'" />
   <noscript><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" crossorigin="" /></noscript>
   <!-- Leaflet JS loaded on demand in Tools/Geofencing — not on every Betrieb boot -->
@@ -579,17 +579,31 @@
       <header class="payslip-studio-head">
         <div>
           <h2 id="payslipStudioTitle" data-i18n="lohn.payslipReviewTitle">Lohnabrechnungen — Freigabe</h2>
-          <p class="muted small" data-i18n="lohn.payslipReviewHint">Original-Abrechnung aus WorkPass Lohn prüfen, dann an die App senden.</p>
+          <p class="muted small" data-i18n="lohn.payslipReviewHint">Die Vorschau zeigt das ganze Blatt. Für eine größere Ansicht Vollbild öffnen.</p>
         </div>
         <button type="button" id="payslipStudioClose" class="ghost" data-i18n="common.close">Schließen</button>
       </header>
       <div class="payslip-studio-layout">
-        <aside class="payslip-studio-list" id="payslipStudioList"></aside>
+        <aside class="payslip-studio-list" id="payslipStudioListPane">
+          <div class="payslip-inbox-tabs" id="payslipInboxTabs">
+            <button type="button" class="is-active" data-payslip-inbox="open" data-i18n="lohn.inboxOpen">Offen</button>
+            <button type="button" data-payslip-inbox="archive" data-i18n="lohn.inboxArchive">Archiv</button>
+          </div>
+          <div id="payslipArchiveTools" class="payslip-archive-tools hidden">
+            <div class="payslip-archive-stats" id="payslipArchiveStats"></div>
+            <input type="search" id="payslipArchiveSearch" class="payslip-archive-search" data-payslip-archive-q autocomplete="off" />
+            <div class="payslip-archive-filters" id="payslipArchiveFilters"></div>
+            <select id="payslipArchivePeriod" class="payslip-archive-period" data-payslip-archive-period></select>
+          </div>
+          <div id="payslipStudioList" class="payslip-list-scroll"></div>
+        </aside>
         <section class="payslip-studio-main" id="payslipStudioMain">
           <div class="payslip-studio-empty" id="payslipStudioEmpty" data-i18n="lohn.payslipPickOne">Bitte eine Abrechnung links wählen.</div>
           <div class="payslip-studio-work hidden" id="payslipStudioWork">
             <div class="payslip-studio-pdf-wrap">
-              <iframe id="payslipStudioPdf" title="Lohnabrechnung" class="payslip-studio-pdf"></iframe>
+              <div class="payslip-sheet-stage" id="payslipSheetStage">
+                <iframe id="payslipStudioPdf" title="Lohnabrechnung" class="payslip-studio-pdf" scrolling="no"></iframe>
+              </div>
             </div>
             <aside class="payslip-studio-side">
               <div id="payslipIdentityCard" class="payslip-identity"></div>
@@ -605,7 +619,7 @@
   <script src="/tenant-brand-icon.js?v=20260629b"></script>
   <script src="/embed-helpers.js?v=20260705b"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="app.js?v=20260814lohnLock2" type="module"></script>
+  <script src="app.js?v=20260814lohnPreview4" type="module"></script>
   <script>
     // Realtime/chat/voice CDNs must not block Geofencing / Tools first paint.
     (function deferAdminRealtime() {

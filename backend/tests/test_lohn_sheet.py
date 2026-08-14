@@ -1,4 +1,5 @@
 from backend.app.platform.accounting.lohn_sheet import (
+    apply_sheet_chrome,
     enrich_payslip_with_master,
     fill_empty_sheet_fields,
     payslip_to_sheet_data,
@@ -92,3 +93,16 @@ def test_enrich_fills_health_fund_gap():
     data = payslip_to_sheet_data(out)
     assert data["kkName"] == "AOK Nordost"
     assert data["persNr"] == "1001"
+
+
+def test_embed_chrome_drops_studio_padding():
+    html = (
+        "<html><head></head><body>"
+        '<div class="datev-sheet-a4" id="datevSheetA4">x</div>'
+        "</body></html>"
+    )
+    out = apply_sheet_chrome(html, theme="light", embed=True)
+    assert "sheet-embed" in out
+    assert "padding:0" in out.replace(" ", "")
+    assert "box-shadow:none" in out.replace(" ", "")
+

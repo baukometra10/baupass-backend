@@ -806,16 +806,23 @@ def fill_empty_sheet_fields(html_doc: str, data: dict[str, Any] | None) -> str:
     )
 
 
-def apply_sheet_chrome(html_doc: str, *, theme: Any = "light") -> str:
+def apply_sheet_chrome(html_doc: str, *, theme: Any = "light", embed: bool = False) -> str:
     """Center A4 sheet and tint page chrome to match admin theme (paper stays white)."""
     doc = str(html_doc or "")
     mode = normalize_sheet_theme(theme)
     chrome_class = f"sheet-chrome theme-{mode}"
-    chrome_style = (
-        "margin:0;min-height:100vh;box-sizing:border-box;"
-        "display:flex;justify-content:center;align-items:flex-start;"
-        f"padding:16px;overflow:auto;background:{'#0b1220' if mode == 'dark' else '#e8edf2'};"
-    )
+    if embed:
+        chrome_class += " sheet-embed"
+        chrome_style = (
+            "margin:0;padding:0;min-height:0;height:auto;width:max-content;box-sizing:border-box;"
+            "display:block;overflow:hidden;background:#fff;"
+        )
+    else:
+        chrome_style = (
+            "margin:0;min-height:100vh;box-sizing:border-box;"
+            "display:flex;justify-content:center;align-items:flex-start;"
+            f"padding:16px;overflow:auto;background:{'#0b1220' if mode == 'dark' else '#e8edf2'};"
+        )
     # Prefer rewriting an existing body tag (Lohn live HTML or local).
     import re
 
@@ -830,17 +837,24 @@ def apply_sheet_chrome(html_doc: str, *, theme: Any = "light") -> str:
         doc = re.sub(r"<body([^>]*)>", _body_repl, doc, count=1, flags=re.I)
     else:
         doc = f'<body class="{chrome_class}" style="{chrome_style}">{doc}</body>'
-    # Ensure chrome CSS exists even for live Lohn HTML that lacks it.
+    extra_css = ""
     if "body.sheet-chrome" not in doc:
-        inject = (
-            "<style>"
+        extra_css += (
             "body.sheet-chrome{margin:0;min-height:100vh;box-sizing:border-box;"
             "display:flex;justify-content:center;align-items:flex-start;padding:16px;overflow:auto}"
             "body.sheet-chrome.theme-light{background:#e8edf2}"
             "body.sheet-chrome.theme-dark{background:#0b1220}"
             ".datev-sheet-a4{margin:0 auto}"
-            "</style>"
         )
+    if embed and "body.sheet-embed" not in doc:
+        extra_css += (
+            "html:has(body.sheet-embed),body.sheet-embed{padding:0!important;margin:0!important;"
+            "min-height:0!important;height:auto!important;width:max-content!important;"
+            "display:block!important;background:#fff!important;overflow:hidden!important}"
+            "body.sheet-embed .datev-sheet-a4{margin:0!important;box-shadow:none!important}"
+        )
+    if extra_css:
+        inject = f"<style>{extra_css}</style>"
         if re.search(r"</head>", doc, flags=re.I):
             doc = re.sub(r"</head>", inject + "</head>", doc, count=1, flags=re.I)
         else:

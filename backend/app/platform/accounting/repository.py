@@ -437,6 +437,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "matchConfidence": confidence,
             "matchStatus": match_status,
             "reviewedAt": out.get("reviewed_at"),
+            "releasedAt": out.get("released_at"),
             "reviewedByUserId": out.get("reviewed_by_user_id"),
             "reviewed": reviewed,
             "workerDocumentId": out.get("worker_document_id"),
@@ -564,7 +565,7 @@ def list_inbox_batches_enriched(
     if inbox_key in {"archive", "sent", "history"}:
         # Include pending/approved so a partially sent batch still archives the sent slips.
         statuses = ("released", "rejected", "approved", "pending_approval")
-        limit = max(limit, 80)
+        limit = max(limit, 200)
     else:
         # "approved" = some slips already sent; remaining open slips stay in Offen.
         statuses = ("pending_approval", "approved")

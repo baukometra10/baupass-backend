@@ -1493,6 +1493,7 @@ def register_accounting_blueprint(flask_app) -> None:
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
+        embed = str(request.args.get("embed") or "").strip().lower() in {"1", "true", "yes"}
         db = get_db()
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
@@ -1504,7 +1505,7 @@ def register_accounting_blueprint(flask_app) -> None:
             pass
         resolved = resolve_statement_sheet(db, stmt, batch)
         return Response(
-            apply_sheet_chrome(resolved.get("html") or "", theme=theme),
+            apply_sheet_chrome(resolved.get("html") or "", theme=theme, embed=embed),
             mimetype="text/html; charset=utf-8",
         )
 

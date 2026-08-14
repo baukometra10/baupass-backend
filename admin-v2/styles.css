@@ -4041,11 +4041,13 @@ html[dir="rtl"] .lohn-drawer-panel {
 .payslip-studio-head {
   display: flex;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
   align-items: flex-start;
+  flex-wrap: wrap;
   padding: 0.9rem 1.15rem;
   border-bottom: 1px solid #d8dee6;
   background: #fff;
+  flex: 0 0 auto;
 }
 .payslip-studio-kicker {
   margin: 0;
@@ -4061,15 +4063,90 @@ html[dir="rtl"] .lohn-drawer-panel {
 }
 .payslip-studio-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
+  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
   min-height: 0;
   flex: 1;
   background: #eef2f6;
 }
+.payslip-studio-list {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border-right: 1px solid #d8dee6;
+  background: #fff;
+}
 .payslip-inbox-tabs {
   display: flex;
   gap: 0.35rem;
-  margin-bottom: 0.7rem;
+  flex: 0 0 auto;
+  padding: 0.75rem 0.8rem 0.55rem;
+  background: inherit;
+}
+.payslip-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 0.15rem 0.8rem 1rem;
+}
+.payslip-archive-tools {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.8rem 0.55rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.payslip-archive-tools.hidden { display: none; }
+.payslip-archive-stats {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.payslip-archive-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  font-size: 0.78rem;
+  background: #f8fafc;
+  color: inherit;
+}
+.payslip-archive-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.payslip-archive-filters button {
+  flex: 1 1 auto;
+  border: 1px solid #d8dee6;
+  background: #f8fafc;
+  color: #334155;
+  border-radius: 999px;
+  padding: 0.28rem 0.45rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.payslip-archive-filters button.is-active {
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #fff;
+}
+.payslip-archive-period {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d8dee6;
+  border-radius: 8px;
+  padding: 0.35rem 0.45rem;
+  font-size: 0.75rem;
+  background: #fff;
+  color: inherit;
 }
 .payslip-inbox-tabs button {
   flex: 1;
@@ -4099,8 +4176,17 @@ html[dir="rtl"] .lohn-drawer-panel {
   color: #9a3412;
   font-size: 0.72rem;
 }
-.payslip-batch-group {
-  margin-bottom: 0.9rem;
+.payslip-batch-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+.payslip-batch-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  padding: 0.35rem 0.5rem;
 }
 .payslip-batch-head {
   display: flex;
@@ -4153,32 +4239,44 @@ html[dir="rtl"] .lohn-drawer-panel {
 }
 .payslip-studio-work {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-columns: minmax(0, 1fr) minmax(200px, 260px);
   min-height: 0;
   flex: 1;
 }
 .payslip-studio-work.hidden { display: none; }
 .payslip-studio-pdf-wrap {
+  min-width: 0;
   min-height: 0;
   background: #c5ced8;
-  padding: 1rem 1.1rem;
-  overflow: auto;
+  padding: 0.5rem;
+  overflow: hidden;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
+  align-items: center;
+}
+.payslip-sheet-stage {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 210 / 297;
 }
 .payslip-studio-pdf {
   display: block;
-  width: 210mm;
-  max-width: min(820px, 100%);
-  min-width: 0;
-  height: 1180px;
-  min-height: 1180px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 794px;
+  height: 1123px;
   border: 0;
-  border-radius: 4px;
-  background: transparent;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.22);
-  flex: 0 0 auto;
+  background: #fff;
+  transform-origin: top left;
+  pointer-events: none;
+  overflow: hidden;
 }
 .payslip-studio.is-sheet-focus .payslip-studio-list,
 .payslip-studio.is-sheet-focus .payslip-studio-side {
@@ -4189,10 +4287,12 @@ html[dir="rtl"] .lohn-drawer-panel {
   grid-template-columns: 1fr;
 }
 .payslip-studio.is-sheet-focus .payslip-studio-pdf-wrap {
-  padding: 1.2rem;
+  padding: 0.55rem;
 }
 .payslip-studio-side {
   overflow: auto;
+  min-width: 0;
+  min-height: 0;
   border-left: 1px solid #d8dee6;
   background: #fff;
   padding: 0.9rem;
@@ -4234,17 +4334,6 @@ html[dir="rtl"] .lohn-drawer-panel {
 }
 .payslip-identity dt { color: #64748b; }
 .payslip-identity dd { margin: 0; font-weight: 500; color: #0f172a; }
-.payslip-batch-actions {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: 0.35rem;
-}
-.payslip-batch-actions button {
-  flex: 1;
-  font-size: 0.72rem;
-  padding: 0.4rem 0.45rem;
-  border-radius: 8px;
-}
 
 /* Dark theme: studio chrome matches window; paper stays white inside iframe */
 body.theme-black .payslip-studio-backdrop {
@@ -4275,6 +4364,26 @@ body.theme-black .payslip-inbox-tabs button {
   color: #cbd5e1;
 }
 body.theme-black .payslip-inbox-tabs button.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+body.theme-black .payslip-archive-tools {
+  border-bottom-color: rgba(120, 156, 255, 0.14);
+}
+body.theme-black .payslip-archive-stats { color: #94a3b8; }
+body.theme-black .payslip-archive-search,
+body.theme-black .payslip-archive-period {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(120, 156, 255, 0.18);
+  color: #e2e8f0;
+}
+body.theme-black .payslip-archive-filters button {
+  background: #0f172a;
+  border-color: rgba(120, 156, 255, 0.18);
+  color: #cbd5e1;
+}
+body.theme-black .payslip-archive-filters button.is-active {
   background: #2563eb;
   border-color: #2563eb;
   color: #fff;
@@ -4319,22 +4428,67 @@ body.theme-black .payslip-studio-side button:not(.primary) {
   border-color: rgba(120, 156, 255, 0.22);
 }
 
-@media (max-width: 960px) {
-  .payslip-studio-layout,
+@media (max-width: 1200px) {
+  .payslip-studio-layout {
+    grid-template-columns: minmax(190px, 240px) minmax(0, 1fr);
+  }
+  .payslip-studio-work {
+    grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  }
+}
+@media (max-width: 980px) {
+  .payslip-studio-shell {
+    margin: 0.2rem;
+    width: calc(100vw - 0.4rem);
+    height: calc(100vh - 0.4rem);
+  }
   .payslip-studio-work {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  .payslip-studio-side {
+    border-left: 0;
+    border-top: 1px solid #d8dee6;
+    max-height: 32vh;
+  }
+  body.theme-black .payslip-studio-side {
+    border-top-color: rgba(120, 156, 255, 0.14);
+  }
+  .payslip-studio-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .payslip-studio-actions .primary,
+  .payslip-studio-actions select {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .payslip-studio-shell {
+    margin: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    border-radius: 0;
+  }
+  .payslip-studio-head {
+    padding: 0.6rem 0.75rem;
+  }
+  .payslip-studio-head h2 { font-size: 1.02rem; }
+  .payslip-studio-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(110px, 22vh) minmax(0, 1fr);
   }
   .payslip-studio-list {
-    max-height: 28vh;
+    min-height: 0;
     border-right: 0;
     border-bottom: 1px solid #d8dee6;
   }
   body.theme-black .payslip-studio-list {
     border-bottom-color: rgba(120, 156, 255, 0.14);
   }
-  .payslip-studio-pdf {
-    width: min(210mm, 100%);
-    min-height: 70vh;
+  .payslip-studio-side {
+    max-height: 34vh;
   }
 }
 
