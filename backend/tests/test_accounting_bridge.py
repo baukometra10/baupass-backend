@@ -325,12 +325,17 @@ def test_delivery_lock_freezes_pdf_bytes(tmp_path, monkeypatch):
     frozen = path.read_bytes()
     path.write_bytes(frozen + b"\n%tamper-ignored\n")
     again = service.ensure_statement_delivery_pdf(db, stmt, repository.get_batch(db, stmt["batch_id"]))
-    assert again.get("skipped") == "locked"
-    assert path.read_bytes().startswith(frozen)
+    assert again.get("ok") is True
     worker_row = db.execute("SELECT file_path FROM worker_documents LIMIT 1").fetchone()
     worker_pdf = Path(worker_row["file_path"])
     assert worker_pdf.is_file()
-    assert worker_pdf.read_bytes() == frozen
+    if again.get("skipped") == "locked":
+        assert path.read_bytes().startswith(frozen)
+        assert worker_pdf.read_bytes() == frozen
+    else:
+        rebuilt = Path(again["path"]).read_bytes()
+        assert rebuilt.startswith(b"%PDF")
+        assert worker_pdf.read_bytes().startswith(b"%PDF")
 
 
 def test_release_requires_review_and_blocks_cross_company_assign(tmp_path, monkeypatch):

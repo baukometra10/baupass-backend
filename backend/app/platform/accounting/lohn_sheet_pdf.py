@@ -26,10 +26,17 @@ def _s(value: Any) -> str:
 
 def render_datev_sheet_pdf(data: dict[str, Any] | None, html: str | None = None) -> bytes:
     """Prefer the studio DatevSheet HTML; fall back to a full-page reportlab layout."""
+    raw, _source = render_datev_sheet_pdf_with_source(data, html)
+    return raw
+
+
+def render_datev_sheet_pdf_with_source(
+    data: dict[str, Any] | None, html: str | None = None
+) -> tuple[bytes, str]:
     html_pdf = _render_html_pdf(html, data)
     if html_pdf.startswith(b"%PDF") and len(html_pdf) > 800:
-        return html_pdf
-    return _render_reportlab_fallback(data if isinstance(data, dict) else {})
+        return html_pdf, PDF_SOURCE_HTML
+    return _render_reportlab_fallback(data if isinstance(data, dict) else {}), "datev_sheet_reportlab"
 
 
 def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
@@ -53,7 +60,8 @@ def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
         return b""
     try:
         raw = HTML(string=doc, base_url=".").write_pdf()
-    except Exception:
+    except Exception as exc:
+        print(f"[lohn_sheet_pdf] weasyprint_failed {exc}", flush=True)
         return b""
     return bytes(raw) if raw else b""
 

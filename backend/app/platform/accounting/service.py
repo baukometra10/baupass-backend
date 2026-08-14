@@ -1525,7 +1525,7 @@ def ensure_statement_delivery_pdf(
     batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write a DatevSheet PDF that matches the studio HTML (full A4)."""
-    from .lohn_sheet_pdf import PDF_SOURCE_HTML, render_datev_sheet_pdf
+    from .lohn_sheet_pdf import PDF_SOURCE_HTML, render_datev_sheet_pdf_with_source
 
     try:
         existing_meta = json.loads(stmt.get("meta_json") or "{}")
@@ -1534,14 +1534,15 @@ def ensure_statement_delivery_pdf(
     if not isinstance(existing_meta, dict):
         existing_meta = {}
     existing_source = str(existing_meta.get("pdfSource") or "")
-    already_html = existing_source == PDF_SOURCE_HTML
+    existing_size = int(stmt.get("file_size") or 0)
+    already_html = existing_source == PDF_SOURCE_HTML and existing_size >= 20000
     if statement_delivery_locked(stmt, existing_meta) and already_html:
         path = str(stmt.get("file_path") or "").strip()
         if path and Path(path).is_file():
             return {
                 "ok": True,
                 "path": path,
-                "fileSize": int(stmt.get("file_size") or 0),
+                "fileSize": existing_size,
                 "filename": stmt.get("filename") or "",
                 "period": str(stmt.get("period") or ""),
                 "skipped": "locked",
@@ -1549,7 +1550,9 @@ def ensure_statement_delivery_pdf(
 
     resolved = resolve_statement_sheet(db, stmt, batch)
     period = str(resolved.get("period") or stmt.get("period") or (batch or {}).get("period") or "unknown")[:7]
-    pdf_bytes = render_datev_sheet_pdf(resolved.get("sheet_data") or {}, html=str(resolved.get("html") or ""))
+    pdf_bytes, pdf_source = render_datev_sheet_pdf_with_source(
+        resolved.get("sheet_data") or {}, html=str(resolved.get("html") or "")
+    )
     if not pdf_bytes.startswith(b"%PDF"):
         return {"ok": False, "error": "pdf_render_failed"}
     dest = _storage_dir(str(stmt.get("company_id") or resolved.get("company_id") or "unknown"), period)
@@ -1562,7 +1565,7 @@ def ensure_statement_delivery_pdf(
         meta = {}
     if not isinstance(meta, dict):
         meta = {}
-    meta["pdfSource"] = PDF_SOURCE_HTML
+    meta["pdfSource"] = pdf_source
     meta["documentPeriod"] = period
     already_locked = statement_delivery_locked(stmt, meta)
     if not already_locked:
