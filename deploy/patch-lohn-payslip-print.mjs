@@ -30,6 +30,7 @@ const moduleSrc = `/**
  */
 import { loadPayrollJob } from "./store.mjs";
 import { normalizeCompanyId, assertSameTenant } from "./tenant.mjs";
+import { getEmployee } from "./employee-registry.mjs";
 
 ${escFnMatch[0]}
 
@@ -60,12 +61,57 @@ function periodLabel(period) {
   return \`für \${names[Number(m)] || m} \${y}\`;
 }
 
+function pickFilled(...vals) {
+  for (const v of vals) {
+    const s = String(v ?? "").trim();
+    if (s) return s;
+  }
+  return "";
+}
+
+/** Fill empty Stammdaten from Lohn employee registry (same source as UI DatevSheet). */
+function mergeRegistryStammdaten(emp, companyId) {
+  const out = { ...(emp || {}) };
+  const badge = pickFilled(out.badgeId, out.id, out.employeeId);
+  const cid = pickFilled(companyId);
+  if (!badge || !cid) return out;
+  try {
+    const reg = getEmployee(cid, badge);
+    if (!reg) return out;
+    const meta = reg.meta && typeof reg.meta === "object" ? reg.meta : {};
+    const fill = (key, ...vals) => {
+      if (pickFilled(out[key])) return;
+      const v = pickFilled(...vals);
+      if (v) out[key] = v;
+    };
+    fill("personnelNumber", reg.personnelNumber, meta.personnelNumber, out.personalnummer);
+    fill("personalnummer", reg.personnelNumber, meta.personnelNumber);
+    fill("healthFund", meta.healthFund, meta.kk, meta.krankenkasse);
+    fill("krankenkasse", meta.healthFund, meta.kk, meta.krankenkasse);
+    fill("healthPercent", meta.healthPercent, meta.kkPercent);
+    fill("healthAdditionalPercent", meta.healthAdditionalPercent);
+    fill("birthDate", meta.birthDate, meta.dateOfBirth);
+    fill("dateOfBirth", meta.birthDate, meta.dateOfBirth);
+    fill("entryDate", meta.entryDate, meta.startDate);
+    fill("taxClass", meta.taxClass, meta.steuerklasse);
+    fill("insuranceNo", meta.insuranceNo, meta.svNr, meta.insuranceNumber);
+    fill("taxId", meta.taxId, meta.steuerId);
+    fill("address", meta.address);
+    fill("name", reg.name, meta.name);
+  } catch {
+    /* registry optional */
+  }
+  return out;
+}
+
 export function payslipToSheetData(job) {
   const p = job?.payslip || {};
   const t = p.totals || {};
-  // Payslip employee wins; never let badge overwrite printed Pers.-Nr.
-  const emp = { ...(job?.employee || {}), ...(p.employee || {}) };
   const co = { ...(job?.company || {}), ...(p.company || {}) };
+  const companyId = pickFilled(co.id, job?.companyId, String(job?.jobId || "").split("::")[0]);
+  // Payslip employee wins over thin job.employee, then registry fills gaps only.
+  let emp = { ...(job?.employee || {}), ...(p.employee || {}) };
+  emp = mergeRegistryStammdaten(emp, companyId);
   const bank = p.bank || {};
   const att = p.attendance || {};
   const wageRows = (Array.isArray(p.wageItems) ? p.wageItems : []).map((w) => ({
@@ -83,7 +129,7 @@ export function payslipToSheetData(job) {
   const badgeId = String(emp.badgeId || emp.badge || "").trim();
   const empId = String(emp.id || emp.employeeId || "").trim();
   const personnelNumber = String(
-    emp.personnelNumber || emp.personalnummer || emp.personnelNo || emp.persNrDisplay || ""
+    emp.personnelNumber || emp.personalnummer || emp.personnelNo || emp.persNrDisplay || emp.printPersNr || ""
   ).trim();
   // Same rule as payroll-core.js: badge never on payslip; print personnel number.
   const printPersNr =
@@ -92,7 +138,7 @@ export function payslipToSheetData(job) {
   const bankName = bank.bankName || bank.name || bank.bank || "";
   const taxClassRaw = String(emp.taxClass || emp.steuerklasse || "").trim();
   const taxClassMap = { I: "1", II: "2", III: "3", IV: "4", V: "5", VI: "6" };
-  const stkl = taxClassMap[taxClassRaw] || taxClassRaw.replace(/\D/g, "") || "";
+  const stkl = taxClassMap[taxClassRaw] || taxClassRaw.replace(/\\D/g, "") || "";
   const healthFund = String(emp.healthFund || emp.krankenkasse || emp.healthInsurance || "").trim();
   let kkPct = "";
   const hp = Number(String(emp.healthPercent ?? emp.kkPercent ?? "").replace(",", "."));
