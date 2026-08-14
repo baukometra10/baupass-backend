@@ -389,14 +389,14 @@ button {
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 0.65rem 1rem;
-  background: linear-gradient(180deg, var(--accent), var(--accent-dark, var(--accent)));
+  background: var(--accent);
   color: var(--accent-on, #fff);
   font-weight: 600;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
 button:hover {
-  background: linear-gradient(180deg, var(--accent-hover, var(--accent)), var(--accent));
+  background: var(--accent-dark, var(--accent-hover, var(--accent)));
   transform: translateY(-1px);
   box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 22%, transparent);
 }

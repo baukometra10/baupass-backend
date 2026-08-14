@@ -25907,7 +25907,7 @@ function renderCompanyList() {
               </label>
               <button type="button" class="ghost-button small-button" data-company-branding-pdf-preview="${escapeHtml(companyId)}" ${canDeleteAny && !deleted ? "" : "disabled"}>${escapeHtml(runtimeText("companyBrandingPdfPreviewBtn"))}</button>
             </div>
-            <p class="helper-text">${escapeHtml(runtimeText("companyBrandingAccentHint") || "Exakte Markenfarbe als Hex (#RRGGBB) oder RGB. Buttons und Portal folgen dieser Farbe (ohne Orange/Blau-Mix).")}</p>
+            <p class="helper-text">${escapeHtml(runtimeText("companyBrandingAccentHint") || "Exakte Markenfarbe (#RRGGBB / RGB). Logo-, PDF- und Speicher-Buttons auf dieser Karte verwenden genau diese Farbe.")}</p>
           </div>
           ${turnstileMarkup}
           <div class="meta-box">
@@ -26115,9 +26115,9 @@ function renderCompanyList() {
   elements.companyList.querySelectorAll("[data-company-accent-color]").forEach((input) => {
     const companyId = String(input.getAttribute("data-company-accent-color") || "").trim();
     const company = state.companies.find((entry) => entry.id === companyId);
-    if (company) {
-      syncCompanyAccentColorControls(companyId, companyAccentColorInputValue(company), { source: "" });
-    }
+    if (!companyId) return;
+    const hex = companyAccentColorInputValue(company);
+    syncCompanyAccentColorControls(companyId, hex, { source: "" });
   });
 }
 
@@ -27233,6 +27233,10 @@ function bindCompanyRowActions() {
         companyBrandingPreviewOverride = brandingPreset;
         await loadAllData();
         refreshAll();
+        const savedCompany = state.companies.find((entry) => entry.id === companyId);
+        if (savedCompany) {
+          syncCompanyAccentColorControls(companyId, companyAccentColorInputValue(savedCompany), { source: "" });
+        }
       } catch (error) {
         showToast(uiT("alertBrandingPresetSaveFailed").replace("{error}", resolveBrandingSaveErrorMessage(error)));
       }
@@ -27652,6 +27656,7 @@ function applyCompanyWhiteLabelStyles(company) {
     } else {
       root.style.setProperty("--company-accent", wl.brandingAccentColor);
       root.style.setProperty("--accent", wl.brandingAccentColor);
+      root.style.setProperty("--button-bg", wl.brandingAccentColor);
     }
   } else if (window.TenantBrandIcon?.clearAccentVariables) {
     window.TenantBrandIcon.clearAccentVariables(root);
@@ -28332,30 +28337,31 @@ function applyActiveCompanyBrandingPreset() {
     return;
   }
   const role = String(getCurrentUser()?.role || "").toLowerCase();
-  if (role === "superadmin" && companyBrandingPreviewOverride) {
-    document.body.setAttribute("data-branding-preset", normalizeCompanyBrandingPresetValue(companyBrandingPreviewOverride));
-    return;
-  }
   if (role === "superadmin" && isSuperadminCompanyPreviewMode()) {
     const previewCompany = state.companies.find((entry) => String(entry?.id || "") === String(superadminUiPreviewCompanyId || ""));
-    document.body.setAttribute("data-branding-preset", getCompanyBrandingPreset(previewCompany));
+    const preset = companyBrandingPreviewOverride
+      ? normalizeCompanyBrandingPresetValue(companyBrandingPreviewOverride)
+      : getCompanyBrandingPreset(previewCompany);
+    document.body.setAttribute("data-branding-preset", preset);
     applyCompanyWhiteLabelStyles(previewCompany);
+    return;
+  }
+  if (role === "superadmin" && companyBrandingPreviewOverride) {
+    // Temporary preset preview from company list dropdown — do not wipe tenant accents.
+    document.body.setAttribute("data-branding-preset", normalizeCompanyBrandingPresetValue(companyBrandingPreviewOverride));
     return;
   }
   const companyId = String(getCurrentUser()?.company_id || getCurrentUser()?.companyId || "").trim();
   const activeCompany = companyId ? state.companies.find((entry) => String(entry?.id || "") === companyId) : null;
   const activePreset = role === "superadmin" ? "construction" : getCompanyBrandingPreset(activeCompany);
   document.body.setAttribute("data-branding-preset", activePreset);
-    if (role !== "superadmin") {
+  if (role !== "superadmin") {
     applyCompanyWhiteLabelStyles(activeCompany);
-  } else if (!isSuperadminCompanyPreviewMode()) {
+  } else {
     applyCompanyWhiteLabelStyles(null);
     applyWebsiteLogo(state.settings?.invoiceLogoData || "");
     document.body.classList.remove("tenant-white-label");
     state.tenantWhiteLabel = { active: false, displayName: "", logoData: "" };
-  } else {
-    applyCompanyWhiteLabelStyles(null);
-    applyWebsiteLogo(state.settings?.invoiceLogoData || "");
   }
 }
 
@@ -33148,17 +33154,30 @@ function syncCompanyAccentColorControls(companyId, hexValue, { source = "" } = {
   const gInput = list.querySelector(`[data-company-accent-g="${companyId}"]`);
   const bInput = list.querySelector(`[data-company-accent-b="${companyId}"]`);
   const swatch = list.querySelector(`[data-company-accent-swatch="${companyId}"]`);
+  const card = colorInput?.closest(".card-item")
+    || hexInput?.closest(".card-item")
+    || list.querySelector(`[data-company-branding-save="${companyId}"]`)?.closest(".card-item");
   if (colorInput && source !== "color") colorInput.value = hex;
   if (hexInput && source !== "hex") hexInput.value = hex.toUpperCase();
   if (rInput && source !== "rgb") rInput.value = String(rgb.r);
   if (gInput && source !== "rgb") gInput.value = String(rgb.g);
   if (bInput && source !== "rgb") bInput.value = String(rgb.b);
   if (swatch) {
-    swatch.style.background = `linear-gradient(135deg, ${hex} 0%, ${shadeWorkerCardHexColor(hex, -35)} 100%)`;
+    swatch.style.background = hex;
     swatch.style.color = (window.TenantBrandIcon?.contrastOnAccent?.(hex) || "#fff");
   }
-  if (window.TenantBrandIcon?.applyAccentVariables) {
-    // Live preview while editing — only on this document root for admin preview.
+  // Scope live preview to this company card — never paint the whole admin UI with the last card's color.
+  if (card && window.TenantBrandIcon?.applyAccentVariables) {
+    window.TenantBrandIcon.applyAccentVariables(card, hex);
+    card.setAttribute("data-has-brand-accent", "1");
+  }
+  // If superadmin is previewing this same company, also update the global shell.
+  if (
+    String(getCurrentUser()?.role || "").toLowerCase() === "superadmin"
+    && isSuperadminCompanyPreviewMode()
+    && String(superadminUiPreviewCompanyId || "") === String(companyId)
+    && window.TenantBrandIcon?.applyAccentVariables
+  ) {
     window.TenantBrandIcon.applyAccentVariables(document.documentElement, hex);
   }
 }

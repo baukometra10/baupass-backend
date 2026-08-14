@@ -1863,12 +1863,12 @@ textarea.invoice-field-valid {
   margin-top: 2px;
 }
 
-/* Login-Buttons: follow tenant accent when white-label is active */
+/* Login-Buttons: exact tenant accent (no mixed gradients) */
 .auth-panel .primary-button {
-  background: linear-gradient(135deg, var(--accent, #a855f7) 0%, var(--accent-dark, #d35410) 100%) !important;
+  background: var(--accent, #38bdf8) !important;
   color: var(--accent-on, #fff) !important;
   border: 0 !important;
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent, #d95d39) 28%, transparent) !important;
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent, #38bdf8) 28%, transparent) !important;
 }
 
 .auth-panel .primary-button::after {
@@ -6237,16 +6237,18 @@ body.theme-black {
   --text: #f4f7ff;
   --muted: #b7c1d6;
   --line: rgba(129, 173, 240, 0.2);
-  --button-bg: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
-  --button-text: var(--accent-on, #fdfdff);
-  --button-border: color-mix(in srgb, var(--accent) 40%, transparent);
   --accent: #f39256;
   --accent-soft: rgba(243, 146, 86, 0.17);
   --accent-dark: #cb6d36;
+  /* Exact accent fill — brand overrides via inline --accent / --button-bg */
+  --button-bg: var(--accent);
+  --button-bg-hover: var(--accent-dark, var(--accent));
+  --button-text: var(--accent-on, #fdfdff);
+  --button-border: var(--accent);
   --shadow: 0 26px 58px rgba(3, 6, 12, 0.58);
   background:
-    radial-gradient(circle at 8% 0%, rgba(245, 138, 70, 0.2), transparent 36%),
-    radial-gradient(circle at 100% 12%, rgba(93, 135, 232, 0.16), transparent 34%),
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 36%),
+    radial-gradient(circle at 100% 12%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%),
     linear-gradient(155deg, #0f1116 0%, #141a24 52%, #10151f 100%);
 }
 
@@ -6413,6 +6415,33 @@ body.theme-black .ghost-button {
   background: var(--button-bg, #000000);
   color: var(--button-text, #ffffff);
   border-color: var(--button-border, rgba(255, 255, 255, 0.32));
+}
+
+body.theme-black .ghost-button:hover,
+body.theme-black .primary-button:hover {
+  background: var(--button-bg-hover, var(--button-bg, var(--accent)));
+}
+
+/* Per-company white-label: buttons on the card use that company's exact accent */
+.card-item[data-has-brand-accent="1"] .primary-button,
+.card-item[data-has-brand-accent="1"] .ghost-button.small-button,
+.card-item[data-has-brand-accent="1"] label.ghost-button.small-button {
+  background: var(--accent) !important;
+  color: var(--accent-on, #fff) !important;
+  border: 1px solid var(--accent) !important;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
+.card-item[data-has-brand-accent="1"] .primary-button:hover,
+.card-item[data-has-brand-accent="1"] .ghost-button.small-button:hover,
+.card-item[data-has-brand-accent="1"] label.ghost-button.small-button:hover {
+  background: var(--button-bg-hover, var(--accent-dark, var(--accent))) !important;
+}
+
+.card-item[data-has-brand-accent="1"] [data-company-accent-swatch] {
+  background: var(--accent) !important;
+  color: var(--accent-on, #fff) !important;
+  border-color: var(--accent) !important;
 }
 
 body.theme-black input,

@@ -4740,8 +4740,9 @@ body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard
   }
 
   html:not([data-theme="light"]) .site-map-link {
-    background: linear-gradient(135deg, #f58a46 0%, #ea6f2f 48%, #5d87e8 52%, #4f76d1 100%);
-    box-shadow: 0 12px 26px rgba(8, 14, 29, 0.44);
+    background: var(--accent, #f58a46);
+    color: var(--accent-on, #fff);
+    box-shadow: 0 12px 26px color-mix(in srgb, var(--accent, #f58a46) 40%, transparent);
   }
 }
 
@@ -4774,8 +4775,9 @@ body.worker-card-install.worker-loaded:not(.worker-feature-tab-active) #chatCard
 }
 
 [data-theme="dark"] .site-map-link {
-  background: linear-gradient(135deg, #f58a46 0%, #ea6f2f 48%, #5d87e8 52%, #4f76d1 100%);
-  box-shadow: 0 12px 26px rgba(8, 14, 29, 0.44);
+  background: var(--accent, #f58a46);
+  color: var(--accent-on, #fff);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--accent, #f58a46) 40%, transparent);
 }
 
 /* Ultra pass: stronger glow only on dark interactive buttons */

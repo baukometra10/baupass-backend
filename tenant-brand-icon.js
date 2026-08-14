@@ -83,10 +83,11 @@
     root.style.setProperty("--teal", color);
     root.style.setProperty("--teal-soft", soft);
     root.style.setProperty("--foreman-primary", color);
-    // Solid brand buttons — no fixed orange↔blue split.
-    root.style.setProperty("--button-bg", `linear-gradient(135deg, ${color} 0%, ${dark} 100%)`);
+    // Exact brand color on buttons (no orange/blue mix, no accent→dark gradient).
+    root.style.setProperty("--button-bg", color);
+    root.style.setProperty("--button-bg-hover", dark);
     root.style.setProperty("--button-text", on);
-    root.style.setProperty("--button-border", `color-mix(in srgb, ${color} 42%, transparent)`);
+    root.style.setProperty("--button-border", color);
   }
 
   function clearAccentVariables(el) {
@@ -99,6 +100,7 @@
       "--teal-soft",
       "--foreman-primary",
       "--button-bg",
+      "--button-bg-hover",
       "--button-text",
       "--button-border",
     ].forEach((prop) => root.style.removeProperty(prop));
