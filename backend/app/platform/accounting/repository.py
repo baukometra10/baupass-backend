@@ -393,6 +393,16 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             confidence = "strong"
 
     reviewed = bool(str(out.get("reviewed_at") or "").strip())
+    doc_period = ""
+    try:
+        import json as _json
+
+        meta = _json.loads(out.get("meta_json") or "{}")
+        if isinstance(meta, dict):
+            doc = meta.get("document") if isinstance(meta.get("document"), dict) else {}
+            doc_period = str(doc.get("period") or meta.get("period") or "").strip()[:7]
+    except Exception:
+        doc_period = ""
     out.update(
         {
             "statementId": out.get("id"),
@@ -402,6 +412,7 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "workerId": worker_id,
             "employeeId": worker_id,
             "period": out.get("period"),
+            "documentPeriod": doc_period or str(out.get("period") or ""),
             "firstName": first,
             "lastName": last,
             "displayName": display or worker_id or "—",

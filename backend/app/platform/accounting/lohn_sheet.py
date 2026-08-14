@@ -355,9 +355,23 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
     iban = str(bank.get("iban") or bank.get("IBAN") or "")
     bank_name = str(bank.get("bankName") or bank.get("name") or bank.get("bank") or "")
     period = str(p.get("period") or job.get("period") or "")
-    kk_pct_src = emp.get("healthPercent")
-    if kk_pct_src in (None, "") and emp.get("kkPct") not in (None, ""):
-        kk_pct_src = emp.get("kkPct")
+    rates = p.get("rates") if isinstance(p.get("rates"), dict) else {}
+    if not rates and isinstance(t.get("rates"), dict):
+        rates = t.get("rates") or {}
+    kk_pct_src = _first_filled(
+        emp.get("healthPercent"),
+        emp.get("kkPercent"),
+        emp.get("kkPct"),
+        emp.get("krankenkassePercent"),
+        emp.get("zusatzbeitrag"),
+        emp.get("additionalContribution"),
+        rates.get("healthPercent"),
+        rates.get("kkPercent"),
+        rates.get("kkPct"),
+        rates.get("zusatzbeitrag"),
+        rates.get("additionalContribution"),
+        p.get("healthPercent"),
+    )
     return {
         "companyName": str(co.get("name") or ""),
         "titleMonth": _period_label(period),

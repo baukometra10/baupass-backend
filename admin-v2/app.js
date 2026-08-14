@@ -1505,7 +1505,7 @@ async function renderPayslipIdentity(stmt) {
   card.innerHTML = `
     <h3>${escapeHtml(stmt.displayName || "—")}</h3>
     <span class="payslip-match is-${escapeAttr(match)}">${escapeHtml(payslipMatchLabel(match))}</span>
-    <p class="muted small" style="margin:0.55rem 0 0">${escapeHtml(stmt.period || "")} · ${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</p>
+    <p class="muted small" style="margin:0.55rem 0 0">${escapeHtml(stmt.documentPeriod || stmt.period || "")} · ${escapeHtml(formatPayslipMoney(stmt.netAmount, stmt.currency))}</p>
     <p class="muted small" style="margin:0.25rem 0 0">${escapeHtml(stmt.badgeId || stmt.workerId || "")}</p>`;
 
   let workerOptions = "";
