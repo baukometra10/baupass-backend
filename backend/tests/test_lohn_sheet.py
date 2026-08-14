@@ -27,6 +27,7 @@ def test_steuer_id_is_printed_in_full():
 
 
 def test_datev_sheet_pdf_is_pdf_bytes():
+    from backend.app.platform.accounting.lohn_sheet import build_payslip_print_html, prepare_sheet_html_for_pdf
     from backend.app.platform.accounting.lohn_sheet_pdf import render_datev_sheet_pdf
 
     payslip = {
@@ -40,7 +41,11 @@ def test_datev_sheet_pdf_is_pdf_bytes():
         "totals": {"gross": 1200, "net": 950},
     }
     data = payslip_to_sheet_data(payslip)
-    raw = render_datev_sheet_pdf(data)
+    html = build_payslip_print_html(payslip, job={"period": "2026-08"}, theme="light")
+    print_html = prepare_sheet_html_for_pdf(html)
+    assert "size: A4" in print_html
+    assert "padding: 0 !important" in print_html
+    raw = render_datev_sheet_pdf(data, html=html)
     assert raw.startswith(b"%PDF")
     assert len(raw) > 800
 

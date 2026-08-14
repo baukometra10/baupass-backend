@@ -1,4 +1,4 @@
-"""A4 Entgeltabrechnung PDF from DatevSheet field data (text PDF for worker delivery)."""
+"""A4 Entgeltabrechnung PDF from the same DatevSheet HTML shown in the studio."""
 from __future__ import annotations
 
 from io import BytesIO
@@ -9,6 +9,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as pdf_canvas
 
+PDF_SOURCE_HTML = "datev_sheet_html"
 
 NAVY = colors.HexColor("#1e3a5f")
 INK = colors.HexColor("#151a22")
@@ -23,8 +24,41 @@ def _s(value: Any) -> str:
     return str(value or "").strip()
 
 
-def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
-    d = data if isinstance(data, dict) else {}
+def render_datev_sheet_pdf(data: dict[str, Any] | None, html: str | None = None) -> bytes:
+    """Prefer the studio DatevSheet HTML; fall back to a full-page reportlab layout."""
+    html_pdf = _render_html_pdf(html, data)
+    if html_pdf.startswith(b"%PDF") and len(html_pdf) > 800:
+        return html_pdf
+    return _render_reportlab_fallback(data if isinstance(data, dict) else {})
+
+
+def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
+    try:
+        from weasyprint import HTML
+    except Exception:
+        return b""
+    try:
+        from .lohn_sheet import _CSS, build_sheet_body_html, prepare_sheet_html_for_pdf
+    except Exception:
+        return b""
+    doc = str(html or "").strip()
+    if len(doc) < 200:
+        body = build_sheet_body_html(data or {})
+        doc = (
+            "<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'/>"
+            f"<style>{_CSS}</style></head><body>{body}</body></html>"
+        )
+    doc = prepare_sheet_html_for_pdf(doc)
+    if not doc:
+        return b""
+    try:
+        raw = HTML(string=doc, base_url=".").write_pdf()
+    except Exception:
+        return b""
+    return bytes(raw) if raw else b""
+
+
+def _render_reportlab_fallback(d: dict[str, Any]) -> bytes:
     buf = BytesIO()
     c = pdf_canvas.Canvas(buf, pagesize=A4)
     width, height = A4
@@ -53,7 +87,6 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
         font("Helvetica-Bold" if bold else "Helvetica", size)
         c.drawRightString(x, yy, _s(s)[:40])
 
-    # Header
     text(left, y, d.get("companyName") or d.get("sender") or "Arbeitgeber", size=11, bold=True)
     text_right(right, y, "Entgeltabrechnung", size=11, bold=True, color=NAVY)
     y -= 5 * mm
@@ -67,7 +100,6 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
     c.line(left, y, right, y)
     y -= 5 * mm
 
-    # Stammdaten grid (8 + leftover cells)
     cells = [
         ("Personal-Nr.", d.get("persNr")),
         ("Geburtsdatum", d.get("birth")),
@@ -106,7 +138,6 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
         cols_used += span
     y = row_top - row_h - 3.5 * mm
 
-    # Employer / hints
     box_h = 28 * mm
     mid_gap = 3 * mm
     left_w = usable * 0.58
@@ -133,13 +164,11 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
         text(left + left_w + mid_gap + 2 * mm, y - 8 * mm, hint[:80], size=7)
     y -= box_h + 3.5 * mm
 
-    # Wage table
     text(left, y, "Bezüge", size=7, bold=True, color=NAVY)
     y -= 2 * mm
     headers = ["Code", "Bezeichnung", "Menge", "Betrag", "St/SV"]
     col_widths = [usable * 0.10, usable * 0.42, usable * 0.16, usable * 0.20, usable * 0.12]
     row_h = 6.2 * mm
-    table_h = row_h * 6
     stroke(GRID, 0.35)
     c.setFillColor(PALE)
     c.rect(left, y - row_h, usable, row_h, fill=1, stroke=1)
@@ -184,7 +213,6 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
     text_right(right - 1.5 * mm, y - 4.2 * mm, d.get("grossTotal"), size=8, bold=True)
     y -= row_h + 4 * mm
 
-    # Totals + net
     split = usable * 0.58
     kv = [
         ("Steuerbrutto", d.get("stBrutto")),
@@ -198,6 +226,9 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
     ]
     kv_h = 3.6 * mm * len(kv) + 4 * mm
     net_h = max(kv_h, 28 * mm)
+    foot_h = 28 * mm
+    # Pin totals + payout to the bottom of A4 so the sheet is not a short strip.
+    y = min(y, foot_h + net_h + 8 * mm)
     stroke(LINE, 0.45)
     c.setFillColor(colors.white)
     c.rect(left, y - net_h, split, net_h, fill=1, stroke=1)
@@ -220,8 +251,6 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
     text(net_left + 2.5 * mm, ny, d.get("payHint") or "Überweisung auf das angegebene Konto", size=6.5, color=MUTED)
     y -= net_h + 5 * mm
 
-    # Footer
-    foot_h = 22 * mm
     third = (usable - 2 * mid_gap) / 3.0
     c.setFillColor(colors.white)
     stroke(LINE, 0.7)
@@ -240,6 +269,7 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None) -> bytes:
     c.drawString(left + 2 * third + 2 * mid_gap + 3 * mm, y - 6 * mm, "Auszahlung")
     font("Helvetica-Bold", 11)
     c.drawRightString(right - 3 * mm, y - 12 * mm, _s(d.get("payout") or d.get("netTotal") or "0,00"))
+    text(left, 10 * mm, "WorkPass Lohn · Entgeltbescheinigung nach § 108 Abs. 3 Satz 1 GewO", size=6, color=MUTED)
 
     c.showPage()
     c.save()

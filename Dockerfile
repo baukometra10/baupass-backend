@@ -10,6 +10,15 @@ COPY backend/requirements.txt backend/requirements.txt
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     curl \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libgdk-pixbuf-2.0-0 \
+    libffi8 \
+    libharfbuzz0b \
+    shared-mime-info \
+    fonts-dejavu-core \
+    fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --upgrade pip && pip install -r backend/requirements.txt
 

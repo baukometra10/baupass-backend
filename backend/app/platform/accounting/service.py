@@ -1524,8 +1524,8 @@ def ensure_statement_delivery_pdf(
     stmt: dict[str, Any],
     batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Write a real DatevSheet PDF for worker delivery (does not depend on browser capture)."""
-    from .lohn_sheet_pdf import render_datev_sheet_pdf
+    """Write a DatevSheet PDF that matches the studio HTML (full A4)."""
+    from .lohn_sheet_pdf import PDF_SOURCE_HTML, render_datev_sheet_pdf
 
     try:
         existing_meta = json.loads(stmt.get("meta_json") or "{}")
@@ -1533,7 +1533,9 @@ def ensure_statement_delivery_pdf(
         existing_meta = {}
     if not isinstance(existing_meta, dict):
         existing_meta = {}
-    if statement_delivery_locked(stmt, existing_meta):
+    existing_source = str(existing_meta.get("pdfSource") or "")
+    already_html = existing_source == PDF_SOURCE_HTML
+    if statement_delivery_locked(stmt, existing_meta) and already_html:
         path = str(stmt.get("file_path") or "").strip()
         if path and Path(path).is_file():
             return {
@@ -1547,7 +1549,7 @@ def ensure_statement_delivery_pdf(
 
     resolved = resolve_statement_sheet(db, stmt, batch)
     period = str(resolved.get("period") or stmt.get("period") or (batch or {}).get("period") or "unknown")[:7]
-    pdf_bytes = render_datev_sheet_pdf(resolved.get("sheet_data") or {})
+    pdf_bytes = render_datev_sheet_pdf(resolved.get("sheet_data") or {}, html=str(resolved.get("html") or ""))
     if not pdf_bytes.startswith(b"%PDF"):
         return {"ok": False, "error": "pdf_render_failed"}
     dest = _storage_dir(str(stmt.get("company_id") or resolved.get("company_id") or "unknown"), period)
@@ -1560,7 +1562,7 @@ def ensure_statement_delivery_pdf(
         meta = {}
     if not isinstance(meta, dict):
         meta = {}
-    meta["pdfSource"] = "datev_sheet_server"
+    meta["pdfSource"] = PDF_SOURCE_HTML
     meta["documentPeriod"] = period
     already_locked = statement_delivery_locked(stmt, meta)
     if not already_locked:
@@ -1582,6 +1584,15 @@ def ensure_statement_delivery_pdf(
     stmt["file_size"] = len(pdf_bytes)
     stmt["filename"] = filename
     stmt["meta_json"] = json.dumps(meta, ensure_ascii=False)
+    if str(stmt.get("worker_document_id") or "").strip():
+        _refresh_worker_document_pdf(
+            db,
+            stmt,
+            file_path=path,
+            file_size=len(pdf_bytes),
+            filename=filename,
+            period=period,
+        )
     return {"ok": True, "path": path, "fileSize": len(pdf_bytes), "filename": filename, "period": period}
 
 
@@ -2500,6 +2511,45 @@ def _attach_worker_document(
             (doc_id, worker_id, company_id, "lohnabrechnung", filename, stored_path, file_size, uploaded_by_user_id, now, notes),
         )
     return doc_id
+
+
+def _refresh_worker_document_pdf(
+    db,
+    stmt: dict[str, Any],
+    *,
+    file_path: str,
+    file_size: int,
+    filename: str,
+    period: str,
+) -> None:
+    """Replace the worker's stored copy after a visual PDF upgrade (same Stammdaten)."""
+    doc_id = str(stmt.get("worker_document_id") or "").strip()
+    if not doc_id:
+        return
+    stored_path = file_path
+    try:
+        src = Path(str(file_path or ""))
+        if src.is_file():
+            dest_dir = _storage_dir(str(stmt.get("company_id") or ""), period) / "delivered"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest = dest_dir / f"{doc_id}_{src.name}"
+            shutil.copy2(src, dest)
+            stored_path = str(dest)
+            file_size = dest.stat().st_size
+    except Exception:
+        stored_path = file_path
+    try:
+        db.execute(
+            """
+            UPDATE worker_documents
+            SET file_path = ?, file_size = ?, filename = ?
+            WHERE id = ? AND doc_type = 'lohnabrechnung'
+            """,
+            (stored_path, file_size, filename, doc_id),
+        )
+        db.commit()
+    except Exception:
+        pass
 
 
 def approve_batch(db, *, batch_id: str, actor_user_id: str, company_id: str | None = None) -> dict[str, Any]:

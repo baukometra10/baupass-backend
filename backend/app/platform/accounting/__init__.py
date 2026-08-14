@@ -1464,15 +1464,12 @@ def register_accounting_blueprint(flask_app) -> None:
             return err
         from pathlib import Path
 
-        path = str(stmt.get("file_path") or "")
-        if not path or not Path(path).is_file():
-            from .service import ensure_statement_delivery_pdf
+        from .service import ensure_statement_delivery_pdf
 
-            built = ensure_statement_delivery_pdf(db, stmt, _batch)
-            path = str((built or {}).get("path") or stmt.get("file_path") or "")
-            if built.get("ok") and path:
-                stmt = repo.get_statement(db, statement_id) or stmt
-                path = str(stmt.get("file_path") or path)
+        built = ensure_statement_delivery_pdf(db, stmt, _batch)
+        if built.get("ok"):
+            stmt = repo.get_statement(db, statement_id) or stmt
+        path = str(stmt.get("file_path") or built.get("path") or "")
         if not path or not Path(path).is_file():
             return jsonify({"error": "missing_pdf"}), 404
         download = str(request.args.get("download") or "").strip().lower() in {"1", "true", "yes"}
@@ -1492,7 +1489,7 @@ def register_accounting_blueprint(flask_app) -> None:
         from flask import Response
 
         from .lohn_sheet import apply_sheet_chrome
-        from .service import resolve_statement_sheet
+        from .service import ensure_statement_delivery_pdf, resolve_statement_sheet
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
@@ -1500,6 +1497,11 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
+        try:
+            ensure_statement_delivery_pdf(db, stmt, batch)
+            stmt = repo.get_statement(db, statement_id) or stmt
+        except Exception:
+            pass
         resolved = resolve_statement_sheet(db, stmt, batch)
         return Response(
             apply_sheet_chrome(resolved.get("html") or "", theme=theme),
