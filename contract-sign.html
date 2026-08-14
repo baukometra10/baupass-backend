@@ -63,6 +63,7 @@
       <div class="doc-tabs">
         <button type="button" id="tabPdf" class="active">PDF</button>
         <button type="button" id="tabText" class="secondary">Text</button>
+        <button type="button" class="secondary" id="previewDownloadBtn">PDF herunterladen</button>
       </div>
       <iframe id="pdfPreview" class="pdf-frame" title="Vertrag PDF"></iframe>
       <div id="contractText" class="contract-text hidden"></div>
@@ -88,9 +89,9 @@
     const params = new URLSearchParams(location.search);
     const token = params.get("token") || "";
     const UI = {
-      de: { hint:"Vertrag lesen und unterschreiben", doc:"Dokument", sign:"Unterschrift", name:"Name (Pflichtfeld)", place:"Ort", drawHint:"Unterschrift zeichnen oder nur den Namen eingeben.", clear:"Löschen", submit:"Vertrag unterschreiben", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Sie können das signierte PDF jetzt herunterladen.", download:"PDF herunterladen", employee:"Mitarbeiter", employer:"Arbeitgeber", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", tabPdf:"PDF", tabText:"Text", consent:"Ich habe den Vertrag gelesen und akzeptiere ihn. Die KI-Vorlage ersetzt keine Rechtsberatung.", consentRequired:"Bitte bestätigen Sie, dass Sie den Vertrag gelesen und akzeptiert haben.", legal:"Hinweis: Dieser Vertragstext ist eine Vorlage und ersetzt keine anwaltliche Prüfung." },
-      en: { hint:"Read and sign the contract", doc:"Document", sign:"Signature", name:"Name (required)", place:"Place", drawHint:"Draw a signature or type your name only.", clear:"Clear", submit:"Sign contract", done:"Thank you — signature saved", doneHint:"You can download the signed PDF now.", download:"Download PDF", employee:"Employee", employer:"Employer", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", tabPdf:"PDF", tabText:"Text", consent:"I have read and accept the contract. AI templates are not legal advice.", consentRequired:"Please confirm that you have read and accept the contract.", legal:"Note: This contract text is a template and does not replace legal review." },
-      ar: { hint:"اقرأ العقد ووقّع", doc:"المستند", sign:"التوقيع", name:"الاسم (مطلوب)", place:"المكان", drawHint:"ارسم التوقيع أو اكتب الاسم فقط.", clear:"مسح", submit:"توقيع العقد", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكنك الآن تحميل PDF الموقّع.", download:"تحميل PDF", employee:"موظف", employer:"صاحب عمل", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", tabPdf:"PDF", tabText:"نص", consent:"قرأت العقد وأوافق عليه. القوالب بالذكاء الاصطناعي ليست استشارة قانونية.", consentRequired:"يرجى تأكيد قراءة العقد وقبوله.", legal:"تنبيه: هذا النص قالب ولا يغني عن مراجعة قانونية." },
+      de: { hint:"Vertrag lesen und unterschreiben", doc:"Dokument", sign:"Unterschrift", name:"Name (Pflichtfeld)", place:"Ort", drawHint:"Unterschrift zeichnen oder nur den Namen eingeben.", clear:"Löschen", submit:"Vertrag unterschreiben", done:"Vielen Dank — Unterschrift gespeichert", doneHint:"Sie können das signierte PDF jetzt herunterladen.", download:"PDF herunterladen", previewFail:"PDF-Vorschau konnte nicht geladen werden — Text verwenden.", employee:"Mitarbeiter", employer:"Arbeitgeber", expired:"Dieser Link ist abgelaufen.", missing:"Ungültiger Signatur-Link.", signed:"Bereits unterschrieben.", saving:"Wird gespeichert…", tabPdf:"PDF", tabText:"Text", consent:"Ich habe den Vertrag gelesen und akzeptiere ihn. Die KI-Vorlage ersetzt keine Rechtsberatung.", consentRequired:"Bitte bestätigen Sie, dass Sie den Vertrag gelesen und akzeptiert haben.", legal:"Hinweis: Dieser Vertragstext ist eine Vorlage und ersetzt keine anwaltliche Prüfung." },
+      en: { hint:"Read and sign the contract", doc:"Document", sign:"Signature", name:"Name (required)", place:"Place", drawHint:"Draw a signature or type your name only.", clear:"Clear", submit:"Sign contract", done:"Thank you — signature saved", doneHint:"You can download the signed PDF now.", download:"Download PDF", previewFail:"PDF preview could not be loaded — use the text tab.", employee:"Employee", employer:"Employer", expired:"This link has expired.", missing:"Invalid sign link.", signed:"Already signed.", saving:"Saving…", tabPdf:"PDF", tabText:"Text", consent:"I have read and accept the contract. AI templates are not legal advice.", consentRequired:"Please confirm that you have read and accept the contract.", legal:"Note: This contract text is a template and does not replace legal review." },
+      ar: { hint:"اقرأ العقد ووقّع", doc:"المستند", sign:"التوقيع", name:"الاسم (مطلوب)", place:"المكان", drawHint:"ارسم التوقيع أو اكتب الاسم فقط.", clear:"مسح", submit:"توقيع العقد", done:"شكراً — تم حفظ التوقيع", doneHint:"يمكنك الآن تحميل PDF الموقّع.", download:"تحميل PDF", previewFail:"تعذر تحميل معاينة PDF — استخدم تبويب النص.", employee:"موظف", employer:"صاحب عمل", expired:"انتهت صلاحية هذا الرابط.", missing:"رابط توقيع غير صالح.", signed:"تم التوقيع مسبقاً.", saving:"جاري الحفظ…", tabPdf:"PDF", tabText:"نص", consent:"قرأت العقد وأوافق عليه. القوالب بالذكاء الاصطناعي ليست استشارة قانونية.", consentRequired:"يرجى تأكيد قراءة العقد وقبوله.", legal:"تنبيه: هذا النص قالب ولا يغني عن مراجعة قانونية." },
       tr: { hint:"Sözlesmeyi okuyun ve imzalayın", doc:"Belge", sign:"Imza", name:"Ad (zorunlu)", place:"Yer", drawHint:"Imza cizin veya yalnizca adinizi yazin.", clear:"Sil", submit:"Sözlesmeyi imzala", done:"Tesekkürler — imza kaydedildi", doneHint:"Imzali PDF indirilebilir.", download:"PDF indir", employee:"Calisan", employer:"Isveren", expired:"Bu linkin suresi doldu.", missing:"Gecersiz imza linki.", signed:"Zaten imzalandi.", saving:"Kaydediliyor…", tabPdf:"PDF", tabText:"Metin", consent:"Sözlesmeyi okudum ve kabul ediyorum. AI sablonlari hukuki danismanlik degildir.", consentRequired:"Lütfen sözlesmeyi okudugunuzu onaylayin.", legal:"Not: Bu metin bir sablondur, hukuki inceleme yerine gecmez." },
       fr: { hint:"Lire et signer le contrat", doc:"Document", sign:"Signature", name:"Nom (obligatoire)", place:"Lieu", drawHint:"Dessinez une signature ou saisissez votre nom.", clear:"Effacer", submit:"Signer le contrat", done:"Merci — signature enregistree", doneHint:"Vous pouvez telecharger le PDF signe.", download:"Telecharger PDF", employee:"Employe", employer:"Employeur", expired:"Ce lien a expire.", missing:"Lien de signature invalide.", signed:"Deja signe.", saving:"Enregistrement…", tabPdf:"PDF", tabText:"Texte", consent:"J'ai lu et j'accepte le contrat. Les modeles IA ne remplacent pas un avis juridique.", consentRequired:"Veuillez confirmer avoir lu et accepte le contrat.", legal:"Note : ce texte est un modele et ne remplace pas un controle juridique." },
       es: { hint:"Lea y firme el contrato", doc:"Documento", sign:"Firma", name:"Nombre (obligatorio)", place:"Lugar", drawHint:"Dibuje la firma o escriba solo su nombre.", clear:"Borrar", submit:"Firmar contrato", done:"Gracias — firma guardada", doneHint:"Puede descargar el PDF firmado.", download:"Descargar PDF", employee:"Empleado", employer:"Empleador", expired:"Este enlace ha caducado.", missing:"Enlace de firma invalido.", signed:"Ya firmado.", saving:"Guardando…", tabPdf:"PDF", tabText:"Texto", consent:"He leido y acepto el contrato. Las plantillas IA no son asesoramiento legal.", consentRequired:"Confirme que ha leido y acepta el contrato.", legal:"Nota: este texto es una plantilla y no sustituye revision legal." },
@@ -99,6 +100,7 @@
     };
     let view = null;
     let downloadPath = "";
+    let previewObjectUrl = "";
     let geo = { latitude: null, longitude: null };
     const canvas = document.getElementById("signCanvas");
     const ctx = canvas.getContext("2d");
@@ -130,6 +132,7 @@
       document.getElementById("doneTitle").textContent = ui("done");
       document.getElementById("doneHint").textContent = ui("doneHint");
       document.getElementById("downloadBtn").textContent = ui("download");
+      document.getElementById("previewDownloadBtn").textContent = ui("download");
       document.getElementById("tabPdf").textContent = ui("tabPdf");
       document.getElementById("tabText").textContent = ui("tabText");
       document.getElementById("consentLabel").textContent = ui("consent");
@@ -176,6 +179,36 @@
       document.getElementById("errorPanel").classList.remove("hidden");
     }
 
+    async function loadPreviewPdf(url) {
+      const frame = document.getElementById("pdfPreview");
+      if (!url || !frame) return false;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("preview_http");
+        const buf = await res.arrayBuffer();
+        const head = new TextDecoder("latin1").decode(buf.slice(0, 5));
+        if (!head.startsWith("%PDF")) throw new Error("preview_not_pdf");
+        if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+        const blob = new Blob([buf], { type: "application/pdf" });
+        previewObjectUrl = URL.createObjectURL(blob);
+        frame.src = previewObjectUrl;
+        return true;
+      } catch {
+        frame.removeAttribute("src");
+        return false;
+      }
+    }
+
+    function triggerPdfDownload(href, filename) {
+      if (!href) return;
+      const a = document.createElement("a");
+      a.href = href;
+      a.download = filename || "Arbeitsvertrag.pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
     async function loadView() {
       if (!token) {
         showError(UI.de.missing);
@@ -200,10 +233,11 @@
       document.getElementById("employeeLine").textContent = data.employeeName || "";
       document.getElementById("roleBadge").textContent = data.role === "employer" ? ui("employer") : ui("employee");
       document.getElementById("contractText").textContent = data.contractText || "";
-      if (data.previewPdfUrl) {
-        document.getElementById("pdfPreview").src = data.previewPdfUrl;
+      const previewOk = data.previewPdfUrl ? await loadPreviewPdf(data.previewPdfUrl) : false;
+      setDocMode(previewOk ? "pdf" : "text");
+      if (!previewOk && data.previewPdfUrl) {
+        document.getElementById("statusLine").textContent = ui("previewFail");
       }
-      setDocMode("pdf");
       if (data.signerName) document.getElementById("signerName").value = data.signerName;
       if (data.status === "signed") {
         downloadPath = `/api/public/contracts/sign/${encodeURIComponent(token)}/download.pdf`;
@@ -251,12 +285,23 @@
       document.getElementById("donePanel").classList.remove("hidden");
     });
 
+    document.getElementById("previewDownloadBtn").addEventListener("click", () => {
+      if (previewObjectUrl) {
+        triggerPdfDownload(previewObjectUrl, `${(view?.title || "Arbeitsvertrag").replace(/[^\w\-]+/g, "_")}.pdf`);
+        return;
+      }
+      if (view?.previewPdfUrl) window.open(view.previewPdfUrl, "_blank", "noopener");
+    });
+
     document.getElementById("downloadBtn").addEventListener("click", () => {
       if (!downloadPath) return;
       window.location.href = downloadPath;
     });
 
     loadView().catch(() => showError(UI.de.missing));
+    window.addEventListener("pagehide", () => {
+      if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    });
   </script>
 </body>
 </html>

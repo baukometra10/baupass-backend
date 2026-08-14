@@ -547,7 +547,14 @@
     const back = $("cwBack");
     if (back) back.href = `/admin-v2/index.html?company_id=${encodeURIComponent(companyId)}`;
     const devices = $("cwDevicesLink");
-    if (devices) devices.href = `/index.html?company_id=${encodeURIComponent(companyId)}#devices`;
+    if (devices) {
+      // camera-watch runs inside the admin-v2 iframe. /index.html forbids framing
+      // (X-Frame-Options DENY), so Chrome shows "Verbindung abgelehnt" unless we
+      // break out of the iframe.
+      devices.href = `/index.html?company_id=${encodeURIComponent(companyId)}#devices`;
+      devices.target = "_top";
+      devices.rel = "noopener";
+    }
     try {
       const [data, cams] = await Promise.all([
         api("/api/integrations/cameras/watch"),

@@ -129,6 +129,12 @@ def test_submit_signature_requires_consent(client_and_db):
     assert link.status_code == 200
     token = link.get_json()["token"]
 
+    preview = client.get(f"/api/public/contracts/sign/{token}/preview.pdf")
+    assert preview.status_code == 200
+    assert preview.mimetype == "application/pdf"
+    assert preview.data[:4] == b"%PDF"
+    assert preview.headers.get("X-Frame-Options") == "SAMEORIGIN"
+
     blocked = client.post(
         f"/api/public/contracts/sign/{token}",
         json={"signer_name": "Anna Test", "signature_data": "", "sign_place": "Berlin", "consent_accepted": False},

@@ -1973,6 +1973,11 @@ def _allows_same_origin_framing() -> bool:
     path = (request.path or "").lower().rstrip("/") or "/"
     if path in _EMBEDDABLE_UI_PATHS or path.startswith("/admin-v2/"):
         return True
+    # contract-sign.html previews the unsigned PDF in an iframe.
+    if path.endswith("/preview.pdf") and (
+        "/public/contracts/sign/" in path or path.startswith("/api/contracts/")
+    ):
+        return True
     query = (request.query_string or b"").decode("utf-8", errors="ignore").lower()
     return "embed=1" in query
 
