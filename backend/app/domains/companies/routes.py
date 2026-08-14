@@ -35,6 +35,7 @@ def _register_core_company_routes() -> None:
         rotate_turnstile_api_key,
         set_company_admin_password,
         set_company_admin_security,
+        ensure_company_office_user,
         test_company_mail_inbound_endpoint,
         test_company_mail_outbound_endpoint,
         toggle_company_review_access,
@@ -73,6 +74,7 @@ def _register_core_company_routes() -> None:
         ("/companies/<company_id>/admin-security", set_company_admin_security, ("PUT",)),
         ("/companies/<company_id>/admin-security", get_company_admin_security, ("GET",)),
         ("/companies/<company_id>/set-admin-password", set_company_admin_password, ("POST",)),
+        ("/companies/<company_id>/ensure-office", ensure_company_office_user, ("POST",)),
         ("/companies/<company_id>/add-turnstile", add_company_turnstile, ("POST",)),
         ("/companies/<company_id>/turnstiles", list_company_turnstiles, ("GET",)),
         (

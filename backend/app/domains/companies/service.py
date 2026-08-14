@@ -20,6 +20,17 @@ class CompaniesService:
         self.mail_settings = CompanyMailSettingsRepository()
 
     @staticmethod
+    def normalize_login_username(raw: str | None, *, fallback: str = "firma") -> str:
+        """ASCII login names only — Arabic company names must not become unusable usernames."""
+        cleaned = "".join(
+            c for c in str(raw or "").strip().lower() if c.isascii() and (c.isalnum() or c in "._-")
+        )
+        cleaned = cleaned.strip("._-")
+        if not cleaned:
+            cleaned = "".join(c for c in str(fallback or "firma").lower() if c.isascii() and c.isalnum()) or "firma"
+        return cleaned[:32]
+
+    @staticmethod
     def check_mail_access(user: dict[str, Any], company: dict[str, Any] | None) -> dict[str, Any] | None:
         if not company or company.get("deleted_at"):
             return {"error": {"error": "company_not_found"}, "status": 404}
@@ -201,6 +212,10 @@ class CompaniesService:
         office_password = (payload.get("officePassword") or "").strip()
         if not office_password:
             office_password = secrets.token_urlsafe(10)
+        admin_username_override = clean_text_input(
+            payload.get("adminUsername") or payload.get("admin_username") or "",
+            max_len=64,
+        )
         office_username_override = clean_text_input(
             payload.get("officeUsername") or payload.get("office_username") or "",
             max_len=64,
@@ -249,6 +264,51 @@ class CompaniesService:
                 },
                 "status": 400,
             }
+
+        username_base = self.normalize_login_username(company_name, fallback="firma")[:12] or "firma"
+        if admin_username_override:
+            username = self.normalize_login_username(admin_username_override, fallback=username_base)
+            if len(username) < 3:
+                return {
+                    "error": {
+                        "error": "admin_username_invalid",
+                        "message": "Admin-Benutzername: mind. 3 Zeichen (a-z, 0-9).",
+                    },
+                    "status": 400,
+                }
+            if self.users.username_taken(db, username):
+                return {
+                    "error": {
+                        "error": "admin_username_taken",
+                        "message": f"Benutzername „{username}“ ist bereits vergeben.",
+                    },
+                    "status": 409,
+                }
+        else:
+            username = self.users.allocate_username(db, username_base)
+
+        if office_username_override:
+            office_username = self.normalize_login_username(
+                office_username_override, fallback=f"{username_base}office"
+            )
+            if len(office_username) < 3:
+                return {
+                    "error": {
+                        "error": "office_username_invalid",
+                        "message": "Büro-Benutzername: mind. 3 Zeichen (a-z, 0-9).",
+                    },
+                    "status": 400,
+                }
+            if office_username == username or self.users.username_taken(db, office_username):
+                return {
+                    "error": {
+                        "error": "office_username_taken",
+                        "message": f"Benutzername „{office_username}“ ist bereits vergeben.",
+                    },
+                    "status": 409,
+                }
+        else:
+            office_username = self.users.allocate_username(db, f"{username_base}office")
 
         if not company_customer_number:
             company_customer_number = get_next_customer_number(db)
@@ -321,8 +381,7 @@ class CompaniesService:
             operating_sector=operating_sector,
         )
 
-        username_base = "".join(c for c in company_name.lower() if c.isalnum())[:12] or "firma"
-        username = self.users.allocate_username(db, username_base)
+        username_base = self.normalize_login_username(company_name, fallback="firma")[:12] or "firma"
         self.users.insert_user(
             db,
             user_id=f"usr-{secrets.token_hex(6)}",
@@ -333,8 +392,6 @@ class CompaniesService:
             company_id=company_id,
         )
 
-        office_username_base = office_username_override or f"{username_base}office"
-        office_username = self.users.allocate_username(db, office_username_base)
         self.users.insert_user(
             db,
             user_id=f"usr-{secrets.token_hex(6)}",
@@ -1324,11 +1381,15 @@ class CompaniesService:
         admin_user = self.users.get_company_admin(db, company_id)
         if not admin_user:
             return {"error": {"error": "admin_not_found"}, "status": 404}
+        office_user = self.users.get_company_office(db, company_id)
         return {
             "body": {
                 "username": admin_user["username"],
                 "email": admin_user.get("email") or "",
                 "twofa_enabled": bool(int(admin_user.get("twofa_enabled") or 0)),
+                "officeUsername": (office_user or {}).get("username") or "",
+                "officeUserId": (office_user or {}).get("id") or "",
+                "hasOfficeUser": bool(office_user),
             }
         }
 
@@ -1368,7 +1429,14 @@ class CompaniesService:
             },
         }
 
-    def set_admin_password(self, db, company_id: str, *, new_password: str) -> dict[str, Any]:
+    def set_admin_password(
+        self,
+        db,
+        company_id: str,
+        *,
+        new_password: str,
+        username: str = "",
+    ) -> dict[str, Any]:
         from werkzeug.security import generate_password_hash
 
         if len(new_password) < 8:
@@ -1384,6 +1452,33 @@ class CompaniesService:
                 "status": 404,
             }
 
+        login_username = str(admin_user.get("username") or "")
+        username_override = str(username or "").strip()
+        if username_override:
+            candidate = self.normalize_login_username(username_override, fallback="")
+            if len(candidate) < 3:
+                return {
+                    "body": {
+                        "ok": False,
+                        "error": "admin_username_invalid",
+                        "message": "Admin-Benutzername: mind. 3 Zeichen (a-z, 0-9).",
+                    },
+                    "status": 400,
+                }
+            taken = self.users.username_taken(db, candidate)
+            if taken and candidate != login_username.lower():
+                return {
+                    "body": {
+                        "ok": False,
+                        "error": "admin_username_taken",
+                        "message": f"Benutzername „{candidate}“ ist bereits vergeben.",
+                    },
+                    "status": 409,
+                }
+            if candidate != login_username:
+                self.users.update_username(db, admin_user["id"], candidate)
+                login_username = candidate
+
         self.users.update_password_hash(
             db, admin_user["id"], generate_password_hash(new_password)
         )
@@ -1398,7 +1493,7 @@ class CompaniesService:
                 lohn_sync = sync_lohn_login_credentials(
                     db,
                     company_id,
-                    username=str(admin_user["username"] or ""),
+                    username=login_username,
                     password=new_password,
                 )
         except Exception as exc:
@@ -1406,13 +1501,114 @@ class CompaniesService:
         return {
             "body": {
                 "ok": True,
-                "username": admin_user["username"],
+                "username": login_username,
                 "workpassLohnSync": lohn_sync,
             },
             "audit": {
                 "company_id": company_id,
                 "user_id": admin_user["id"],
-                "username": admin_user["username"],
+                "username": login_username,
+            },
+        }
+
+    def ensure_office_user(
+        self,
+        db,
+        company_id: str,
+        *,
+        username: str = "",
+        password: str = "",
+    ) -> dict[str, Any]:
+        """Create or reset the office operator login for an existing company."""
+        from werkzeug.security import generate_password_hash
+
+        company = self.companies.get_by_id(db, company_id)
+        if not company or company.get("deleted_at"):
+            return {"error": {"error": "company_not_found"}, "status": 404}
+
+        existing = self.users.get_company_office(db, company_id)
+        password_value = str(password or "").strip() or secrets.token_urlsafe(10)
+        if len(password_value) < 4:
+            return {
+                "error": {
+                    "error": "office_password_too_short",
+                    "message": "Büro-Operator-Passwort muss mindestens 4 Zeichen haben.",
+                },
+                "status": 400,
+            }
+
+        if existing:
+            login_username = str(existing.get("username") or "")
+            username_override = str(username or "").strip()
+            needs_ascii_fix = not all(
+                c.isascii() and (c.isalnum() or c in "._-") for c in login_username
+            )
+            if username_override or needs_ascii_fix:
+                base = self.normalize_login_username(company.get("name") or "", fallback="firma")[:12] or "firma"
+                candidate = self.normalize_login_username(
+                    username_override or login_username, fallback=f"{base}office"
+                )
+                if len(candidate) < 3:
+                    candidate = self.users.allocate_username(db, f"{base}office")
+                elif candidate != login_username and self.users.username_taken(db, candidate):
+                    candidate = self.users.allocate_username(db, candidate)
+                if candidate != login_username:
+                    self.users.update_username(db, existing["id"], candidate)
+                    login_username = candidate
+            self.users.update_password_hash(
+                db, existing["id"], generate_password_hash(password_value)
+            )
+            self.users.delete_sessions(db, existing["id"])
+            db.commit()
+            return {
+                "status": 200,
+                "body": {
+                    "ok": True,
+                    "created": False,
+                    "officeCredentials": {
+                        "username": login_username,
+                        "password": password_value,
+                    },
+                },
+                "audit": {
+                    "company_id": company_id,
+                    "user_id": existing["id"],
+                    "username": login_username,
+                },
+            }
+
+        base = self.normalize_login_username(company.get("name") or "", fallback="firma")[:12] or "firma"
+        office_username = self.normalize_login_username(username, fallback=f"{base}office")
+        if len(office_username) < 3:
+            office_username = self.users.allocate_username(db, f"{base}office")
+        elif self.users.username_taken(db, office_username):
+            office_username = self.users.allocate_username(db, office_username)
+
+        user_id = f"usr-{secrets.token_hex(6)}"
+        self.users.insert_user(
+            db,
+            user_id=user_id,
+            username=office_username,
+            password_hash=generate_password_hash(password_value),
+            name=f"{company.get('name') or 'Firma'} Büro",
+            role="office",
+            company_id=company_id,
+        )
+        db.commit()
+        return {
+            "status": 201,
+            "body": {
+                "ok": True,
+                "created": True,
+                "officeCredentials": {
+                    "username": office_username,
+                    "password": password_value,
+                },
+            },
+            "audit": {
+                "company_id": company_id,
+                "user_id": user_id,
+                "username": office_username,
             },
         }
 

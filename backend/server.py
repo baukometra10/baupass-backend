@@ -19160,8 +19160,9 @@ def set_company_admin_password(company_id):
 
     payload = request.get_json(silent=True) or {}
     new_password = (payload.get("newPassword") or "").strip()
+    username = str(payload.get("username") or payload.get("adminUsername") or "").strip()
     result = CompaniesService().set_admin_password(
-        get_db(), company_id, new_password=new_password
+        get_db(), company_id, new_password=new_password, username=username
     )
     if "error" in result:
         return jsonify(result["error"]), result.get("status", 400)
@@ -19177,6 +19178,32 @@ def set_company_admin_password(company_id):
             target_id=audit["user_id"],
         )
     return jsonify(result["body"])
+
+
+@require_auth
+@require_roles("superadmin")
+def ensure_company_office_user(company_id):
+    from backend.app.domains.companies.service import CompaniesService
+
+    payload = request.get_json(silent=True) or {}
+    result = CompaniesService().ensure_office_user(
+        get_db(),
+        company_id,
+        username=str(payload.get("username") or payload.get("officeUsername") or "").strip(),
+        password=str(payload.get("password") or payload.get("officePassword") or "").strip(),
+    )
+    if "error" in result:
+        return jsonify(result["error"]), result.get("status", 400)
+    audit = result.get("audit") or {}
+    if audit:
+        log_audit(
+            "superadmin.ensure_office_user",
+            f"Office-Login fuer Firma {audit['company_id']}: {audit['username']}",
+            target_type="user",
+            target_id=audit["user_id"],
+            company_id=audit["company_id"],
+        )
+    return jsonify(result["body"]), result.get("status", 200)
 
 
 @require_auth
@@ -31095,6 +31122,12 @@ def _ensure_critical_api_routes() -> None:
         set_company_admin_password,
         ("POST",),
         "core_company_set_admin_password",
+    )
+    _patch_api_route(
+        "/api/companies/<company_id>/ensure-office",
+        ensure_company_office_user,
+        ("POST",),
+        "core_company_ensure_office",
     )
     _patch_api_route(
         "/api/companies/<company_id>/plan-features",

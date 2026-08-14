@@ -2262,14 +2262,22 @@
               </label>
               <p class="helper-text full-width" data-ui-i18n="reportTimezoneHint">IANA, z. B. Europe/Berlin, Asia/Dubai. Leer = Plattform-Standard.</p>
               <label>
-                <span data-ui-i18n="labelCompanyAdminPassword">Admin-Startpasswort</span>
+                <span data-ui-i18n="labelCompanyAdminUsername">Admin-Benutzername</span>
+                <input id="companyAdminUsername" type="text" placeholder="z.B. lufthansaadmin" autocomplete="off" spellcheck="false" data-ui-i18n="companyAdminUsernamePlaceholder" data-ui-i18n-attr="placeholder" />
+              </label>
+              <label>
+                <span data-ui-i18n="labelCompanyAdminPassword">Admin-Passwort</span>
                 <input id="companyAdminPassword" type="password" placeholder="z.B. Sicher!2025" autocomplete="new-password" data-ui-i18n="companyAdminPasswordPlaceholder" data-ui-i18n-attr="placeholder" />
+              </label>
+              <label>
+                <span data-ui-i18n="labelCompanyOfficeUsername">Büro-Operator-Benutzername</span>
+                <input id="companyOfficeUsername" type="text" placeholder="z.B. lufthansaoffice" autocomplete="off" spellcheck="false" data-ui-i18n="companyOfficeUsernamePlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
               <label>
                 <span data-ui-i18n="labelCompanyOfficePassword">Büro-Operator-Passwort</span>
                 <input id="companyOfficePassword" type="password" placeholder="z.B. Buero!2025" autocomplete="new-password" data-ui-i18n="companyOfficePasswordPlaceholder" data-ui-i18n-attr="placeholder" />
               </label>
-              <p class="helper-text full-width" data-ui-i18n="companyOfficePasswordHint">Für den Mitarbeiter, der das System bedient — ohne Lohn/Verträge/Buchhaltung. Leer = sicheres Passwort wird erzeugt.</p>
+              <p class="helper-text full-width" data-ui-i18n="companyOfficePasswordHint">Benutzername + Passwort für den Mitarbeiter (ohne Lohn/Verträge). Nur a–z / 0–9. Leer = wird automatisch erzeugt.</p>
               <label>
                 <span data-ui-i18n="turnstilePasswordLabel">Drehkreuz-Startpasswort</span>
                 <input id="companyTurnstilePassword" type="password" placeholder="z.B. Gate!2025" autocomplete="new-password" />

@@ -169,10 +169,16 @@ def _perform_login_core(srv, login_error):
         "turnstile": "turnstile",
     }
     required_role = required_role_by_scope.get(login_scope)
-    if required_role and user["role"] != required_role:
-        srv.register_login_failure(throttle_key)
-        _log_login_failed(srv, username, "scope_mismatch")
-        return login_error("login_scope_mismatch")
+    user_role = str(_user_value(user, "role", "") or "")
+    # Firmen-Login scope accepts both owner and office operator.
+    if required_role:
+        scope_ok = user_role == required_role or (
+            login_scope == "company-admin" and user_role in {"company-admin", "office"}
+        )
+        if not scope_ok:
+            srv.register_login_failure(throttle_key)
+            _log_login_failed(srv, username, "scope_mismatch")
+            return login_error("login_scope_mismatch")
 
     twofa_enabled = int(_user_value(user, "twofa_enabled", 0) or 0) == 1
     turnstile_auto_2fa = user["role"] == "turnstile"

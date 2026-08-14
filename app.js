@@ -1602,11 +1602,18 @@ const UI_TRANSLATIONS = {
     optCompanyTest: "Testphase",
     optCompanyPaused: "Pausiert",
     optCompanyLocked: "Gesperrt wegen Zahlungsverzug",
-    labelCompanyAdminPassword: "Admin-Startpasswort",
+    labelCompanyAdminPassword: "Admin-Passwort",
     companyAdminPasswordPlaceholder: "z.B. Sicher!2025",
+    labelCompanyAdminUsername: "Admin-Benutzername",
+    companyAdminUsernamePlaceholder: "z.B. lufthansaadmin",
+    labelCompanyOfficeUsername: "Büro-Operator-Benutzername",
+    companyOfficeUsernamePlaceholder: "z.B. lufthansaoffice",
     labelCompanyOfficePassword: "Büro-Operator-Passwort",
     companyOfficePasswordPlaceholder: "z.B. Buero!2025",
-    companyOfficePasswordHint: "Für den Mitarbeiter, der das System bedient — ohne Lohn/Verträge/Buchhaltung. Leer = sicheres Passwort wird erzeugt.",
+    companyOfficePasswordHint: "Benutzername + Passwort für den Mitarbeiter (ohne Lohn/Verträge). Nur a–z / 0–9. Leer = wird automatisch erzeugt.",
+    companyLoginAccountsTitle: "Login-Zugänge",
+    companyOfficeMissingHint: "Kein Büro-Operator angelegt.",
+    companyBtnEnsureOffice: "Büro-Operator anlegen",
     btnCreateCompany: "Firma anlegen",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Nur aktivieren, wenn diese Firma die Buchhaltungs-App WorkPass Lohn nutzen soll. Standard: aus.",
@@ -2834,11 +2841,18 @@ const UI_TRANSLATIONS = {
     optCompanyTest: "Trial",
     optCompanyPaused: "Paused",
     optCompanyLocked: "Blocked due to overdue payment",
-    labelCompanyAdminPassword: "Admin start password",
+    labelCompanyAdminPassword: "Admin password",
     companyAdminPasswordPlaceholder: "e.g. Secure!2025",
+    labelCompanyAdminUsername: "Admin username",
+    companyAdminUsernamePlaceholder: "e.g. lufthansaadmin",
+    labelCompanyOfficeUsername: "Office operator username",
+    companyOfficeUsernamePlaceholder: "e.g. lufthansaoffice",
     labelCompanyOfficePassword: "Office operator password",
     companyOfficePasswordPlaceholder: "e.g. Office!2025",
-    companyOfficePasswordHint: "For the employee who runs day-to-day ops — no payroll/contracts/accounting. Empty = generate a secure password.",
+    companyOfficePasswordHint: "Username + password for the day-to-day operator (no payroll/contracts). a–z / 0–9 only. Empty = auto-generated.",
+    companyLoginAccountsTitle: "Login accounts",
+    companyOfficeMissingHint: "No office operator yet.",
+    companyBtnEnsureOffice: "Create office operator",
     btnCreateCompany: "Create company",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (optional)",
     companyCreateWorkpassLohnHint: "Enable only if this company should use the WorkPass Lohn accounting app. Default: off.",
@@ -4531,11 +4545,18 @@ const UI_TRANSLATIONS = {
     optCompanyTest: "تجريبي",
     optCompanyPaused: "موقوف مؤقتاً",
     optCompanyLocked: "محظور بسبب تأخر الدفع",
-    labelCompanyAdminPassword: "كلمة مرور المشرف الأولية",
+    labelCompanyAdminPassword: "كلمة مرور المدير",
     companyAdminPasswordPlaceholder: "مثال: آمن!2025",
+    labelCompanyAdminUsername: "اسم مستخدم المدير",
+    companyAdminUsernamePlaceholder: "مثال: lufthansaadmin",
+    labelCompanyOfficeUsername: "اسم مستخدم مشغّل المكتب",
+    companyOfficeUsernamePlaceholder: "مثال: lufthansaoffice",
     labelCompanyOfficePassword: "كلمة مرور مشغّل المكتب",
     companyOfficePasswordPlaceholder: "مثال: مكتب!2025",
-    companyOfficePasswordHint: "للموظف الذي يشغّل النظام يومياً — بدون أجور/عقود/محاسبة. فارغ = توليد كلمة مرور آمنة.",
+    companyOfficePasswordHint: "اسم المستخدم + كلمة المرور للموظف (بدون أجور/عقود). أحرف لاتينية وأرقام فقط. فارغ = توليد تلقائي.",
+    companyLoginAccountsTitle: "حسابات الدخول",
+    companyOfficeMissingHint: "لا يوجد مشغّل مكتب بعد.",
+    companyBtnEnsureOffice: "إنشاء مشغّل المكتب",
     btnCreateCompany: "إنشاء شركة",
     companyCreateWorkpassLohnLabel: "WorkPass Lohn (اختياري)",
     companyCreateWorkpassLohnHint: "فعّل فقط إذا كانت هذه الشركة ستستخدم تطبيق المحاسبة WorkPass Lohn. الافتراضي: متوقف.",
@@ -16628,7 +16649,8 @@ function resolveLoginScope() {
   if (supportContext?.companyId) {
     return "company-admin";
   }
-  return "auto";
+  const selected = String(document.querySelector("#loginScope")?.value || "auto").trim().toLowerCase();
+  return selected || "auto";
 }
 
 function updateLoginOtpVisibility() {
@@ -25683,6 +25705,7 @@ function renderCompanyList() {
       const customerNumber = getCompanyCustomerNumber(company);
       const brandingPreset = getCompanyBrandingPreset(company);
       const turnstiles = Array.isArray(state.companyTurnstiles?.[companyId]) ? state.companyTurnstiles[companyId] : [];
+      const otpSec = state.companyAdminSecurity?.[companyId] || null;
       const companyMail = getCompanyMailSettingsForRender(companyId);
       const canManageMail = canRepair && !deleted;
       const companyMailStatus = state.companyMailTestStatus?.[companyId] || null;
@@ -25713,13 +25736,14 @@ function renderCompanyList() {
           <p class="${workpassLohnEnabled ? "helper-text helper-text-ok" : "helper-text"}"><strong>${escapeHtml(workpassLohnEnabled ? runtimeText("companyWorkpassLohnStatusOn") : runtimeText("companyWorkpassLohnStatusOff"))}</strong></p>
           <span>${escapeHtml(company.plan || "-")}</span>
           <p class="${statusMeta.className}">${escapeHtml(runtimeText("invoiceStatusLabel"))}: ${escapeHtml(statusMeta.label)}</p>
-          ${canDeleteAny && !deleted ? `
-          <div class="meta-box company-contract-password-box" style="margin-top:10px;border-color:color-mix(in srgb, var(--accent,#d95d39) 35%, var(--line,#e5e7eb));">
-            <p><strong>${escapeHtml(runtimeText("companyContractPasswordBoxTitle") || "Vertrags-Passwort (Arbeitsverträge)")}</strong></p>
-            <p class="helper-text">${escapeHtml(runtimeText("companyContractPasswordBoxHint") || "Zusätzliches Passwort nur für die Vertragsseite. Dem Firmen-Admin zusammen mit dem Firmen-Login mitteilen.")}</p>
-            <div class="button-row" style="margin-top:6px;">
-              <button type="button" class="primary-button small-button" data-company-contract-password="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnContractPasswordSet") || "Vertrags-Passwort setzen / ändern")}</button>
-            </div>
+          ${canDeleteAny && !deleted && (otpSec?.username || otpSec?.officeUsername) ? `
+          <div class="meta-box" style="margin-top:10px;">
+            <p><strong>${escapeHtml(runtimeText("companyLoginAccountsTitle") || "Login-Zugänge")}</strong></p>
+            ${otpSec?.username ? `<p class="helper-text">Admin: <code>${escapeHtml(otpSec.username)}</code></p>` : ""}
+            ${otpSec?.officeUsername
+              ? `<p class="helper-text">Büro: <code>${escapeHtml(otpSec.officeUsername)}</code></p>`
+              : `<p class="helper-text">${escapeHtml(runtimeText("companyOfficeMissingHint") || "Kein Büro-Operator angelegt.")}</p>
+                 <button type="button" class="ghost-button small-button" data-company-ensure-office="${escapeHtml(companyId)}">${escapeHtml(runtimeText("companyBtnEnsureOffice") || "Büro-Operator anlegen")}</button>`}
           </div>` : ""}
           <p><strong>${escapeHtml(runtimeText("companyCardDesignLabel"))}:</strong> ${escapeHtml(getCompanyBrandingPresetLabel(brandingPreset))}</p>
           <p><strong>${escapeHtml(uiT("labelCompanyDocumentEmail"))}:</strong> ${escapeHtml(documentEmail || runtimeText("companyDocEmailNotSet"))}</p>
@@ -25893,7 +25917,6 @@ function renderCompanyList() {
                 </section>
                 <section class="company-settings-group company-settings-pane company-settings-pane--access">
                   <div class="company-settings-list">
-                    ${canDeleteAny ? companySettingsRowHtml({ attr: "contract-password", companyId, icon: "key", labelHtml: escapeHtml(runtimeText("companyBtnContractPassword") || "Vertrags-Passwort"), valueHtml: escapeHtml(runtimeText("companyBtnContractPasswordHint") || "setzen / ändern"), disabled: deleted, searchText: "vertrag passwort contracts password arbeitsvertrag" }) : ""}
                     ${companySettingsRowHtml({ attr: "send-reset", companyId, icon: "key", labelHtml: companySettingsBtnLabel("companyBtnPasswordMail", "Passwort-Mail"), disabled: !(canDeleteAny && !deleted), searchText: "passwort mail reset" })}
                     ${companySettingsRowHtml({ attr: "set-password", companyId, icon: "lock", labelHtml: companySettingsBtnLabel("companyBtnSetPassword", "Passwort setzen"), disabled: !(canDeleteAny && !deleted), searchText: "passwort setzen" })}
                     ${companySettingsRowHtml({ attr: "add-turnstile", companyId, icon: "gate", labelHtml: companySettingsBtnLabel("companyBtnAddTurnstile", "Drehkreuz"), valueHtml: escapeHtml(String(turnstiles.length || 0)), disabled: !(canDeleteAny && !deleted), searchText: "drehkreuz turnstile zugang" })}
@@ -26336,11 +26359,25 @@ function bindCompanyRowActions() {
         showToast(runtimeText("companyAdminMissing"), "error");
         return;
       }
+      let loginUsername = String(sec.username || "").trim();
+      const usernameLooksBad = !/^[a-z0-9][a-z0-9._-]{2,31}$/i.test(loginUsername);
+      if (usernameLooksBad) {
+        const suggested = window.prompt(
+          runtimeText("companyAdminUsernamePlaceholder") || "Admin-Benutzername (a-z0-9, mind. 3)",
+          "",
+        );
+        if (suggested === null) return;
+        loginUsername = String(suggested || "").trim();
+        if (loginUsername.length < 3) {
+          showToast(runtimeText("companyAdminUsernamePlaceholder") || "Benutzername ungültig", "error");
+          return;
+        }
+      }
       const newPassword = await showPasswordSetDialog({
         title: runtimeText("passwordSetDialogTitle"),
         intro: runtimeText("passwordSetDialogIntro"),
         companyName: company.name,
-        username: sec.username,
+        username: loginUsername,
         minLength: 8,
       });
       if (newPassword === null) return;
@@ -26350,11 +26387,17 @@ function bindCompanyRowActions() {
       }
       try {
         setPasswordButton.disabled = true;
-        await apiRequest(`${API_BASE}/api/companies/${companyId}/set-admin-password`, {
+        const data = await apiRequest(`${API_BASE}/api/companies/${companyId}/set-admin-password`, {
           method: "POST",
-          body: { newPassword: newPassword.trim() },
+          body: {
+            newPassword: newPassword.trim(),
+            ...(usernameLooksBad ? { username: loginUsername } : {}),
+          },
         });
-        showToast(runtimeTextTemplate("companyAdminPasswordSet", { username: sec.username, company: company.name }), "success");
+        const savedUser = data?.username || loginUsername;
+        await loadAllData();
+        refreshAll();
+        showToast(runtimeTextTemplate("companyAdminPasswordSet", { username: savedUser, company: company.name }), "success");
       } catch (err) {
         showToast(uiT("alertGenericError").replace("{error}", err.message), "error", 3600);
       } finally {
@@ -26852,33 +26895,33 @@ function bindCompanyRowActions() {
       return;
     }
 
-    const contractPasswordButton = event.target.closest("[data-company-contract-password]");
-    if (contractPasswordButton && !contractPasswordButton.disabled && elements.companyList.contains(contractPasswordButton)) {
-      const companyId = contractPasswordButton.dataset.companyContractPassword;
+    const ensureOfficeButton = event.target.closest("[data-company-ensure-office]");
+    if (ensureOfficeButton && elements.companyList.contains(ensureOfficeButton)) {
+      const companyId = ensureOfficeButton.dataset.companyEnsureOffice;
       if (!companyId) return;
-      const password = window.prompt(runtimeText("companyContractPasswordPrompt") || "Neues Vertrags-Passwort (min. 6 Zeichen)", "");
-      if (password === null) return;
-      const confirm = window.prompt(runtimeText("companyContractPasswordConfirm") || "Vertrags-Passwort wiederholen", "");
-      if (confirm === null) return;
-      if (String(password) !== String(confirm)) {
-        showToast(runtimeText("companyContractPasswordMismatch") || "Passwörter stimmen nicht überein.", "error");
-        return;
-      }
-      if (String(password).length < 6) {
-        showToast(runtimeText("companyContractPasswordFailed").replace("{error}", "min. 6 Zeichen"), "error");
-        return;
-      }
+      const username = window.prompt(runtimeText("companyOfficeUsernamePlaceholder") || "Büro-Benutzername (a-z0-9)", "") || "";
+      const password = window.prompt(runtimeText("companyOfficePasswordPlaceholder") || "Büro-Passwort", "") || "";
       try {
-        await apiRequest(`${API_BASE}/api/contracts/lock/set-password`, {
+        const data = await apiRequest(`${API_BASE}/api/companies/${encodeURIComponent(companyId)}/ensure-office`, {
           method: "POST",
-          body: { company_id: companyId, password, confirmPassword: confirm, setup: true },
+          body: { username, password },
         });
-        showToast(runtimeText("companyContractPasswordSaved") || "Vertrags-Passwort gespeichert");
-      } catch (error) {
-        showToast(
-          (runtimeText("companyContractPasswordFailed") || "Fehler: {error}").replace("{error}", error.message || error),
-          "error",
+        const cred = data?.officeCredentials || {};
+        showSecretDialog(
+          runtimeText("companyLoginAccountsTitle") || "Login-Zugänge",
+          [
+            `${runtimeText("companyOfficeAccessLabel") || "Büro-Operator"}: ${cred.username || "-"} / ${cred.password || "-"}`,
+          ],
+          {
+            intro: runtimeText("companyCreatedIntro") || "Zugangsdaten sicher speichern.",
+            copyLabel: runtimeText("companyCreatedCopyLabel") || "Kopieren",
+            copyValue: `${cred.username || ""}\n${cred.password || ""}`,
+          },
         );
+        await loadAllData();
+        refreshAll();
+      } catch (error) {
+        showToast((error.message || "ensure_office_failed"), "error");
       }
       return;
     }
@@ -33053,7 +33096,9 @@ async function handleCompanySubmit(event) {
         plan: document.querySelector("#companyPlan").value,
         status: companyStatusValue,
         trialEndsAt: companyTrialEndsAt || undefined,
+        adminUsername: (document.querySelector("#companyAdminUsername")?.value || "").trim() || undefined,
         adminPassword: document.querySelector("#companyAdminPassword").value.trim() || undefined,
+        officeUsername: (document.querySelector("#companyOfficeUsername")?.value || "").trim() || undefined,
         officePassword: (document.querySelector("#companyOfficePassword")?.value || "").trim() || undefined,
         turnstilePassword: (document.querySelector("#companyTurnstilePassword")?.value || "").trim() || undefined,
         turnstileCount: Number(document.querySelector("#companyTurnstileCount")?.value || 1),

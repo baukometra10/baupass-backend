@@ -539,7 +539,15 @@ class CompanyMailSettingsRepository:
 
 class UsersRepository:
     def username_taken(self, db, username: str) -> bool:
-        return bool(db.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone())
+        raw = str(username or "").strip()
+        if not raw:
+            return False
+        return bool(
+            db.execute(
+                "SELECT 1 FROM users WHERE lower(username) = lower(?)",
+                (raw,),
+            ).fetchone()
+        )
 
     def insert_user(
         self,
@@ -590,10 +598,16 @@ class UsersRepository:
             )
 
     def allocate_username(self, db, base: str) -> str:
-        username = base
+        cleaned = "".join(
+            c for c in str(base or "").strip().lower() if c.isascii() and (c.isalnum() or c in "._-")
+        ).strip("._-")
+        if not cleaned:
+            cleaned = "firma"
+        cleaned = cleaned[:32]
+        username = cleaned
         suffix = 1
         while self.username_taken(db, username):
-            username = f"{base}{suffix}"
+            username = f"{cleaned}{suffix}"
             suffix += 1
         return username
 
@@ -642,6 +656,9 @@ class UsersRepository:
             (password_hash, user_id),
         )
 
+    def update_username(self, db, user_id: str, username: str) -> None:
+        db.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+
     def update_api_key_hash(
         self, db, user_id: str, api_key_hash: str, api_key_lookup: str | None = None
     ) -> None:
@@ -670,6 +687,16 @@ class UsersRepository:
             """
             SELECT id, username, email, twofa_enabled
             FROM users WHERE company_id = ? AND role = 'company-admin' LIMIT 1
+            """,
+            (company_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_company_office(self, db, company_id: str) -> dict[str, Any] | None:
+        row = db.execute(
+            """
+            SELECT id, username, email, twofa_enabled, name
+            FROM users WHERE company_id = ? AND role = 'office' LIMIT 1
             """,
             (company_id,),
         ).fetchone()
