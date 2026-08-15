@@ -19,8 +19,22 @@ PDF_SOURCE_CHROMIUM = "datev_sheet_chromium"
 PDF_SOURCE_WEASY = "datev_sheet_weasyprint"
 PDF_SOURCE_REPORTLAB = "datev_sheet_reportlab"
 PDF_SOURCE_CAPTURE = "lohn_sheet_capture"
-# Exact studio match only: Chromium print / browser capture. WeasyPrint is approximate.
-GOOD_HTML_PDF_SOURCES = frozenset({PDF_SOURCE_CHROMIUM, PDF_SOURCE_CAPTURE, PDF_SOURCE_HTML})
+PDF_SOURCE_LOHN_ORIGINAL = "lohn_original"
+PDF_SOURCE_HTML2CANVAS = "lohn_html2canvas"
+# Exact WorkPass Lohn Abrechnung only — never Weasy/ReportLab remakes.
+EXACT_LOHN_PDF_SOURCES = frozenset(
+    {PDF_SOURCE_LOHN_ORIGINAL, PDF_SOURCE_CAPTURE, PDF_SOURCE_HTML2CANVAS}
+)
+# High-fidelity enough to reuse for delivery (exact + Chromium print of Lohn HTML).
+GOOD_HTML_PDF_SOURCES = frozenset(
+    {
+        PDF_SOURCE_CHROMIUM,
+        PDF_SOURCE_CAPTURE,
+        PDF_SOURCE_HTML,
+        PDF_SOURCE_LOHN_ORIGINAL,
+        PDF_SOURCE_HTML2CANVAS,
+    }
+)
 
 NAVY = colors.HexColor("#1e3a5f")
 INK = colors.HexColor("#151a22")
@@ -37,6 +51,11 @@ def _s(value: Any) -> str:
 
 def is_high_fidelity_pdf_source(source: str | None) -> bool:
     return str(source or "").strip() in GOOD_HTML_PDF_SOURCES
+
+
+def is_exact_lohn_pdf_source(source: str | None) -> bool:
+    """True when bytes are the WorkPass Lohn Abrechnung itself (no platform remake)."""
+    return str(source or "").strip() in EXACT_LOHN_PDF_SOURCES
 
 
 def render_datev_sheet_pdf(data: dict[str, Any] | None, html: str | None = None) -> bytes:

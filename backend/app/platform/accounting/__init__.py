@@ -1498,9 +1498,8 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
-        # Never render PDF here — Chromium/WeasyPrint can exceed the proxy timeout and
-        # surface as "Abrechnung 502" while the admin only wants the HTML studio sheet.
-        resolved = resolve_statement_sheet(db, stmt, batch)
+        # Exact WorkPass Lohn DatevSheet — no platform field injection in the preview.
+        resolved = resolve_statement_sheet(db, stmt, batch, enrich=False)
         return Response(
             apply_sheet_chrome(resolved.get("html") or "", theme=theme, embed=embed),
             mimetype="text/html; charset=utf-8",
@@ -1557,7 +1556,7 @@ def register_accounting_blueprint(flask_app) -> None:
             meta = {}
         if not isinstance(meta, dict):
             meta = {}
-        meta["pdfSource"] = "lohn_sheet_capture"
+        meta["pdfSource"] = str(data.get("pdfSource") or "lohn_html2canvas")
         db.execute(
             """
             UPDATE payroll_statements
@@ -1567,7 +1566,14 @@ def register_accounting_blueprint(flask_app) -> None:
             (path, len(raw), _json.dumps(meta, ensure_ascii=False), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), statement_id),
         )
         db.commit()
-        return jsonify({"ok": True, "statementId": statement_id, "fileSize": len(raw), "pdfSource": "lohn_sheet_capture"}), 200
+        return jsonify(
+            {
+                "ok": True,
+                "statementId": statement_id,
+                "fileSize": len(raw),
+                "pdfSource": meta["pdfSource"],
+            }
+        ), 200
 
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/pdf/from-html")
     @require_auth

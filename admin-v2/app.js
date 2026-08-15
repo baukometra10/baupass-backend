@@ -1602,7 +1602,7 @@ async function fetchPayslipPdfBlobUrl(batchId, statementId) {
   const token = wpGet(TOKEN_KEY);
   const headers = { Accept: "application/pdf" };
   if (token) headers.Authorization = `Bearer ${token}`;
-  // Build PDF from the exact studio HTML currently shown — same sheet the admin sees.
+  // Capture the studio DatevSheet the same way WorkPass Lohn exports PDF (html2canvas).
   await syncPayslipStudioPdfFromHtml(batchId, statementId);
   const res = await fetch(
     `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
@@ -1622,21 +1622,114 @@ async function fetchPayslipPdfBlobUrl(batchId, statementId) {
   return URL.createObjectURL(blob);
 }
 
-async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
-  const html = String(payslipStudioState.sheetHtml || "").trim();
-  if (html.length < 200) return null;
+function loadExternalScriptOnce(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-payslip-lib="${src}"]`);
+    if (existing) {
+      if (existing.dataset.ready === "1") return resolve();
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error(`script ${src}`)), { once: true });
+      return;
+    }
+    const s = document.createElement("script");
+    s.src = src;
+    s.async = true;
+    s.dataset.payslipLib = src;
+    s.onload = () => {
+      s.dataset.ready = "1";
+      resolve();
+    };
+    s.onerror = () => reject(new Error(`script ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensurePayslipCaptureLibs() {
+  if (!window.html2canvas) {
+    await loadExternalScriptOnce(
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    );
+  }
+  if (!(window.jspdf?.jsPDF || window.jsPDF)) {
+    await loadExternalScriptOnce(
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    );
+  }
+}
+
+async function capturePayslipSheetLikeLohn() {
+  await ensurePayslipCaptureLibs();
+  const iframe = $("payslipStudioPdf");
+  const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+  const sheet =
+    doc?.querySelector?.(".datev-sheet-a4")
+    || doc?.querySelector?.("[class*='datev-sheet']")
+    || doc?.body;
+  if (!sheet || !window.html2canvas) {
+    throw new Error("Abrechnung-Blatt nicht bereit");
+  }
+  const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
+  if (!JsPDF) throw new Error("PDF-Bibliothek fehlt");
+
+  const prev = {
+    transform: sheet.style.transform,
+    origin: sheet.style.transformOrigin,
+    width: sheet.style.width,
+    height: sheet.style.height,
+  };
+  sheet.style.transform = "none";
+  sheet.style.transformOrigin = "top left";
+  sheet.style.width = "210mm";
+  sheet.style.height = "297mm";
   try {
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const canvas = await window.html2canvas(sheet, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: "#ffffff",
+      logging: false,
+      width: Math.round(sheet.getBoundingClientRect().width) || 794,
+      height: Math.round(sheet.getBoundingClientRect().height) || 1123,
+    });
+    const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
+    const dataUri = pdf.output("datauristring");
+    return String(dataUri || "").split(",")[1] || "";
+  } finally {
+    sheet.style.transform = prev.transform;
+    sheet.style.transformOrigin = prev.origin;
+    sheet.style.width = prev.width;
+    sheet.style.height = prev.height;
+  }
+}
+
+async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
+  try {
+    const pdfBase64 = await capturePayslipSheetLikeLohn();
+    if (!pdfBase64 || pdfBase64.length < 100) return null;
     return await api(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf/from-html`,
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
       {
         method: "POST",
-        body: JSON.stringify({ html, sheetHtml: html }),
+        body: JSON.stringify({ pdfBase64, pdfSource: "lohn_html2canvas" }),
       },
     );
   } catch (err) {
-    // Fall back to server-side sheet rebuild if Chromium render of posted HTML fails.
-    console.warn("[payslip] from-html pdf failed", err);
-    return null;
+    console.warn("[payslip] html2canvas capture failed, trying Chromium from-html", err);
+    const html = String(payslipStudioState.sheetHtml || "").trim();
+    if (html.length < 200) return null;
+    try {
+      return await api(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf/from-html`,
+        {
+          method: "POST",
+          body: JSON.stringify({ html, sheetHtml: html }),
+        },
+      );
+    } catch (err2) {
+      console.warn("[payslip] from-html pdf failed", err2);
+      return null;
+    }
   }
 }
 
