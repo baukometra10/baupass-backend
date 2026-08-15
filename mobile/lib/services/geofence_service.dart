@@ -445,15 +445,22 @@ class GeofenceService {
         }
       }
     } on ApiException catch (e) {
-      if (e.statusCode == 429 || e.errorCode == 'rate_limited') {
-        final retry = (e.payload?['retryAfterSeconds'] as num?)?.toInt() ?? 20;
+      if (e.statusCode == 429 ||
+          e.errorCode == 'rate_limited' ||
+          e.statusCode == 502 ||
+          e.statusCode == 503 ||
+          e.statusCode == 504) {
+        final retry = (e.payload?['retryAfterSeconds'] as num?)?.toInt() ??
+            (e.statusCode == 429 ? 20 : 12);
         _rateLimitedUntil =
             DateTime.now().add(Duration(seconds: retry.clamp(5, 120)));
-        _lastStatus = 'GPS pausiert (429) · ${retry}s';
+        _lastStatus = 'GPS pausiert (${e.statusCode}) · ${retry}s';
         _rateLimitNotices += 1;
         if (_rateLimitNotices == 1) {
           onNotify?.call(
-            'Zu viele Anfragen — Live-GPS pausiert kurz, dann weiter.',
+            e.statusCode == 429
+                ? 'Zu viele Anfragen — Live-GPS pausiert kurz, dann weiter.'
+                : 'Server kurz überlastet (${e.statusCode}) — GPS pausiert, dann weiter.',
           );
         }
         return;
@@ -466,7 +473,7 @@ class GeofenceService {
       }
       if (isWorkerSessionAuthError(e.errorCode)) {
         onNotify?.call('Sitzung abgelaufen — bitte erneut anmelden.');
-      } else if (_notCheckedInStrikes <= 1) {
+      } else if (_notCheckedInStrikes <= 1 && _rateLimitNotices == 0) {
         onNotify?.call('Live-GPS konnte nicht gesendet werden (${e.statusCode}).');
       }
     } catch (_) {

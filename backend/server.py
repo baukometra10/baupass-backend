@@ -15724,18 +15724,10 @@ def worker_app_live_location():
 
     # Always persist GPS for authenticated worker-app sessions.
     # Privacy: live-map still only lists on-site / checked-in workers.
-    open_session = bool(worker_has_open_checkin(db, worker["id"]))
-    if not open_session:
-        open_session = bool(worker_has_open_checkin_today(db, worker["id"]))
+    # Keep this path cheap — GPS posts every few seconds must not overload Railway.
+    open_session = bool(worker_has_open_checkin_today(db, worker["id"]))
     if not open_session:
         open_session = bool(worker_has_open_site_app_session_today(db, worker["id"]))
-    if not open_session:
-        try:
-            from backend.app.platform.physical_operations._common import is_worker_present_on_site_today
-
-            open_session = bool(is_worker_present_on_site_today(db, worker["id"]))
-        except Exception:
-            open_session = False
 
     from backend.app.platform.workforce.presence_state import upsert_live_location
     from backend.app.platform.physical_operations.location_trail import (
@@ -15768,8 +15760,8 @@ def worker_app_live_location():
                 accuracy_m=accuracy_m,
                 geofence_id=str((zone or {}).get("id") or ""),
                 zone_kind=str((zone or {}).get("zone_kind") or ""),
-                min_interval_seconds=2,
-                min_move_meters=0.5,
+                min_interval_seconds=5,
+                min_move_meters=1.0,
             )
         except Exception:
             trail_saved = False
