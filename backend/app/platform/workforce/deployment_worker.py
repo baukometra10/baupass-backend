@@ -247,6 +247,9 @@ def worker_deployment_plan_payload(
     )
     responses = list_responses_for_month(db, company_id=company_id, worker_id=worker_id, year=year, month=month)
     days = attach_responses_to_days(days, responses)
+    from .deployment_responses import enrich_days_with_decline_rules
+
+    days = enrich_days_with_decline_rules(db, worker_id=worker_id, days=days)
     from .attendance_eligibility import is_real_deployment_location
 
     scheduled = [

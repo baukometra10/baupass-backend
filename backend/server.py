@@ -15802,19 +15802,34 @@ def worker_app_live_location():
         try:
             from backend.app.platform.realtime.websocket import broadcast_event
 
-            broadcast_event(
-                worker["company_id"],
-                {
-                    "type": "worker_live_location",
-                    "company_id": worker["company_id"],
-                    "worker_id": worker["id"],
-                    "lat": float(lat),
-                    "lng": float(lng),
-                    "accuracyMeters": accuracy_m,
-                    "onDuty": bool(open_session),
-                    "trailSaved": bool(trail_saved),
-                },
-            )
+            wid = str(worker["id"])
+            now_ts = time.time()
+            should_broadcast = True
+            with _rate_lock:
+                prev = float(_live_location_broadcast_at.get(wid) or 0.0)
+                if now_ts - prev < _LIVE_LOCATION_BROADCAST_MIN_SECONDS:
+                    should_broadcast = False
+                else:
+                    _live_location_broadcast_at[wid] = now_ts
+                    if len(_live_location_broadcast_at) > 4000:
+                        cutoff = now_ts - 600
+                        stale = [k for k, ts in _live_location_broadcast_at.items() if float(ts) < cutoff]
+                        for k in stale[:800]:
+                            _live_location_broadcast_at.pop(k, None)
+            if should_broadcast:
+                broadcast_event(
+                    worker["company_id"],
+                    {
+                        "type": "worker_live_location",
+                        "company_id": worker["company_id"],
+                        "worker_id": worker["id"],
+                        "lat": float(lat),
+                        "lng": float(lng),
+                        "accuracyMeters": accuracy_m,
+                        "onDuty": bool(open_session),
+                        "trailSaved": bool(trail_saved),
+                    },
+                )
         except Exception:
             pass
 
@@ -17424,15 +17439,39 @@ def shift_propose_swap():
 
     to_worker_id = str(payload.get("toWorkerId") or "").strip()
     assignment_id = str(payload.get("assignmentId") or "").strip()
+    work_date = str(payload.get("workDate") or payload.get("date") or "").strip()[:10]
     target_assignment_id = str(payload.get("targetAssignmentId") or payload.get("target_assignment_id") or "").strip()
     reason = str(payload.get("reason") or "").strip()
 
-    if not to_worker_id or not assignment_id:
+    if not to_worker_id:
+        return jsonify({"error": "missing_fields"}), 400
+    if not assignment_id and not work_date:
         return jsonify({"error": "missing_fields"}), 400
 
     to_worker = db.execute("SELECT * FROM workers WHERE id = ?", (to_worker_id,)).fetchone()
     if not to_worker or to_worker["company_id"] != worker["company_id"]:
         return jsonify({"error": "not_found"}), 404
+
+    if not assignment_id and work_date:
+        from backend.app.platform.workforce.deployment_responses import (
+            ensure_shift_assignment_for_work_date,
+        )
+
+        assignment_id = (
+            ensure_shift_assignment_for_work_date(
+                db,
+                worker=worker,
+                work_date=work_date,
+            )
+            or ""
+        )
+        if not assignment_id:
+            return jsonify(
+                {
+                    "error": "no_assignment_for_day",
+                    "message": "Für diesen Tag gibt es keine tauschbare Schicht.",
+                }
+            ), 400
 
     assignment = db.execute("SELECT * FROM shift_assignments WHERE id = ?", (assignment_id,)).fetchone()
     if not assignment or assignment["worker_id"] != worker["id"]:

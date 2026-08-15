@@ -143,8 +143,9 @@ class TasksRepository {
 
   Future<Map<String, dynamic>> proposeShiftSwap({
     required WorkerSession session,
-    required String assignmentId,
     required String toWorkerId,
+    String assignmentId = '',
+    String workDate = '',
     String reason = '',
     String? targetAssignmentId,
   }) {
@@ -153,8 +154,9 @@ class TasksRepository {
       bearerToken: session.bearer,
       deviceId: session.deviceId,
       body: <String, dynamic>{
-        'assignmentId': assignmentId,
         'toWorkerId': toWorkerId,
+        if (assignmentId.isNotEmpty) 'assignmentId': assignmentId,
+        if (workDate.isNotEmpty) 'workDate': workDate,
         'reason': reason,
         if (targetAssignmentId != null && targetAssignmentId.isNotEmpty)
           'targetAssignmentId': targetAssignmentId,
