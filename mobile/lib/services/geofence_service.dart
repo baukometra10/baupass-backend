@@ -31,6 +31,12 @@ class GeofenceService {
   bool _leaveInProgress = false;
   bool _siteAppMode = false;
   bool _liveTracking = false;
+  bool _usingBackgroundStream = false;
+  String? _sessionBearer;
+  String? _sessionDeviceId;
+  bool _sessionAutoLogout = true;
+  GeofencePresence? _sessionOnPresence;
+  GeofenceNotify? _sessionOnNotify;
   int _offSiteStrikes = 0;
   String? _lastNoticeKey;
   DateTime? _lastWatchPollAt;
@@ -67,6 +73,8 @@ class GeofenceService {
 
   bool get liveTrackingActive => _running && _liveTracking;
   bool get isRunning => _running;
+  /// True when OS "Always" permission + FGS stream is active.
+  bool get backgroundTrackingActive => _running && _usingBackgroundStream;
   /// Short status for UI: "Pin live", "GPS sendet…", "GPS fehlgeschlagen", …
   String get lastStatus => _lastStatus;
 
@@ -137,6 +145,12 @@ class GeofenceService {
     _running = true;
     _siteAppMode = siteAppMode;
     _liveTracking = liveTracking;
+    _usingBackgroundStream = useBackgroundStream;
+    _sessionBearer = bearer;
+    _sessionDeviceId = deviceId;
+    _sessionAutoLogout = autoLogout;
+    _sessionOnPresence = onPresence;
+    _sessionOnNotify = onNotify;
     _offSiteStrikes = 0;
     _lastNoticeKey = '';
     _lastSentAt = null;
@@ -168,53 +182,8 @@ class GeofenceService {
       });
     }
 
-    void attachStream({required bool background}) {
-      unawaited(_positionSub?.cancel());
-      _positionSub = _location.watchPosition(background: background).listen(
-        (position) {
-          final now = DateTime.now();
-          _latestStreamPosition = position;
-          _latestStreamAt = now;
-          if (_lastWatchPollAt != null &&
-              now.difference(_lastWatchPollAt!).inMilliseconds <
-                  positionDebounceMs) {
-            _pendingForcedPosition = position;
-            return;
-          }
-          _lastWatchPollAt = now;
-          if (_pollInFlight) {
-            _pendingForcedPosition = position;
-            return;
-          }
-          unawaited(
-            _poll(
-              bearer: bearer,
-              deviceId: deviceId,
-              autoLogout: autoLogout,
-              onPresence: onPresence,
-              onNotify: onNotify,
-              reason: _PollReason.movement,
-              forcedPosition: position,
-            ),
-          );
-        },
-        onError: (Object error) {
-          // FGS/notification failures are common on Android 13+ — fall back.
-          if (background) {
-            attachStream(background: false);
-            onNotify?.call(
-              'Hintergrund-GPS blockiert — App offen lassen für Live-Pin.',
-            );
-            return;
-          }
-          _lastStatus = 'GPS-Stream unterbrochen';
-          onNotify?.call('GPS-Stream unterbrochen — bitte App im Vordergrund lassen.');
-        },
-      );
-    }
-
     // Prefer FGS/background stream when Always is granted; else foreground-only.
-    attachStream(background: useBackgroundStream);
+    _attachPositionStream(background: useBackgroundStream);
 
     schedulePoll();
     await _poll(
@@ -227,10 +196,89 @@ class GeofenceService {
     );
   }
 
+  /// If the user later grants «Immer erlauben», switch the GPS stream to FGS/background.
+  Future<bool> refreshBackgroundCapability({GeofenceNotify? onNotify}) async {
+    if (!_running || !_liveTracking) return false;
+    final always = await _location.ensureAlwaysPermission();
+    final wantBg = _location.isBackgroundCapable(always);
+    if (wantBg == _usingBackgroundStream) return wantBg;
+    _usingBackgroundStream = wantBg;
+    _attachPositionStream(background: wantBg);
+    if (wantBg) {
+      _markGpsSuccess('Pin live · Hintergrund aktiv');
+      onNotify?.call(
+        'Hintergrund-GPS aktiv — Pin bewegt sich auch bei geschlossener App.',
+      );
+    } else {
+      _markGpsSuccess('Pin live · App offen halten');
+    }
+    return wantBg;
+  }
+
+  void _attachPositionStream({required bool background}) {
+    final bearer = _sessionBearer;
+    if (bearer == null || bearer.isEmpty) return;
+    final deviceId = _sessionDeviceId;
+    final autoLogout = _sessionAutoLogout;
+    final onPresence = _sessionOnPresence;
+    final onNotify = _sessionOnNotify;
+
+    unawaited(_positionSub?.cancel());
+    _positionSub = _location.watchPosition(background: background).listen(
+      (position) {
+        final now = DateTime.now();
+        _latestStreamPosition = position;
+        _latestStreamAt = now;
+        if (_lastWatchPollAt != null &&
+            now.difference(_lastWatchPollAt!).inMilliseconds <
+                positionDebounceMs) {
+          _pendingForcedPosition = position;
+          return;
+        }
+        _lastWatchPollAt = now;
+        if (_pollInFlight) {
+          _pendingForcedPosition = position;
+          return;
+        }
+        unawaited(
+          _poll(
+            bearer: bearer,
+            deviceId: deviceId,
+            autoLogout: autoLogout,
+            onPresence: onPresence,
+            onNotify: onNotify,
+            reason: _PollReason.movement,
+            forcedPosition: position,
+          ),
+        );
+      },
+      onError: (Object error) {
+        if (background) {
+          _usingBackgroundStream = false;
+          _attachPositionStream(background: false);
+          onNotify?.call(
+            'Hintergrund-GPS blockiert — App offen lassen für Live-Pin.',
+          );
+          return;
+        }
+        _lastStatus = 'GPS-Stream unterbrochen';
+        onNotify?.call(
+          'GPS-Stream unterbrochen — bitte App im Vordergrund lassen.',
+        );
+      },
+    );
+  }
+
   void stop() {
     _running = false;
     _siteAppMode = false;
     _liveTracking = false;
+    _usingBackgroundStream = false;
+    _sessionBearer = null;
+    _sessionDeviceId = null;
+    _sessionAutoLogout = true;
+    _sessionOnPresence = null;
+    _sessionOnNotify = null;
     _timer?.cancel();
     _timer = null;
     unawaited(_positionSub?.cancel());
@@ -422,7 +470,11 @@ class GeofenceService {
             _notCheckedInStrikes = 0;
             _rateLimitedUntil = null;
             _rateLimitNotices = 0;
-            _markGpsSuccess('Pin live · verbunden');
+            _markGpsSuccess(
+              _usingBackgroundStream
+                  ? 'Pin live · Hintergrund aktiv'
+                  : 'Pin live · verbunden',
+            );
             if (!_trackingStartedNotified) {
               _trackingStartedNotified = true;
               onNotify?.call(
@@ -459,7 +511,11 @@ class GeofenceService {
             }
           } else {
             // Older/partial responses — still treat as ok if request succeeded.
-            _markGpsSuccess('Pin live · verbunden');
+            _markGpsSuccess(
+              _usingBackgroundStream
+                  ? 'Pin live · Hintergrund aktiv'
+                  : 'Pin live · verbunden',
+            );
           }
         }
       }

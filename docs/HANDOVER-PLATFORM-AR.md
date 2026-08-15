@@ -172,6 +172,7 @@ python scripts/rtsp_camera_agent.py --once --heartbeat --snapshot
 | الخطوة | أين |
 |--------|-----|
 | APK / TestFlight | Railway: `BAUPASS_WORKER_APK_URL` · `BAUPASS_TESTFLIGHT_URL` |
+| Live-GPS | Pin ab ~1 m; App offen OK; geschlossen → Android «Immer erlauben». Checklist: [`docs/mobile-field-test-DE.md`](mobile-field-test-DE.md) §5b |
 | FCM Push | `FCM_PROJECT_ID` + Service Account |
 | Checklist | `GET /api/worker-app/mobile-setup` |
 | Docs | [`mobile/docs/firebase-push-setup.md`](../mobile/docs/firebase-push-setup.md) |

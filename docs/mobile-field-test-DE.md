@@ -100,6 +100,33 @@ Invoke-RestMethod "$BASE/api/health/live"
 | Erneut scannen | `check-out` oder „Bereits erfasst“ |
 | Admin **Anwesenheit** | Eintrag mit Gate „Mitarbeiter-App (NFC)“ |
 
+### 5b) Live-GPS / Live-Karte (Ops)
+
+**Kurznotiz (Stabil-Betrieb):**
+- Pin-Update ab **~1 m** Bewegung (Haversine + OS `distanceFilter`)
+- App **offen** reicht für Live-Pin; bei **geschlossener App** braucht Android Standort **«Immer erlauben»** + Benachrichtigung „SUPPIX Live-Standort“
+- Status-Leiste: `Pin live · verbunden` (Vordergrund) bzw. `Pin live · Hintergrund aktiv`
+- APK ab **worker-apk-159+** empfohlen; Download-URL in Railway: `BAUPASS_WORKER_APK_URL`
+
+**Feldtest Vordergrund (1 Gerät, ~2 Min.):**
+1. Check-in → Status grün `verbunden`
+2. ~10–15 m draußen gehen → Pin auf Ops-Live-Map bewegt sich
+3. Stehen bleiben → kein Spam / Status bleibt ruhig
+
+**Feldtest Hintergrund (1–2 Geräte, ~5 Min.):**
+1. Standort auf **Immer erlauben** setzen (App-Info → Berechtigungen)
+2. Check-in, Status → nach Rückkehr aus Einstellungen ggf. `Hintergrund aktiv`
+3. App **schließen** (nicht nur Home; ggf. aus Recents wischen erst nach FGS-Notiz)
+4. ~20–30 m gehen → Live-Map Pin bewegt sich weiter
+5. Gerät 2 (anderes Modell/OEM): gleiche Schritte — Xiaomi/Huawei oft aggressives Battery-Optimization → App von Energiesparmodus ausnehmen
+
+| Erwartung | OK |
+|-----------|----|
+| Vordergrund: Pin folgt ~1 m | [ ] |
+| Immer erlauben + FGS-Notification sichtbar | [ ] |
+| App geschlossen: Pin folgt weiter | [ ] |
+| Zweites Gerät (optional) | [ ] |
+
 ### Offline-Test (optional)
 
 1. Flugmodus an
@@ -147,5 +174,7 @@ Anleitung: `mobile/docs/firebase-push-setup.md`
 - [ ] Mitarbeiter + NFC-UID im Admin
 - [ ] Login + digitale Karte OK
 - [ ] NFC Check-in/out im Admin sichtbar
+- [ ] Live-GPS Vordergrund (~1 m) OK
+- [ ] (Optional) Live-GPS Hintergrund «Immer erlauben» auf 1–2 Geräten
 - [ ] (Optional) Offline-Sync OK
 - [ ] (Später) Firebase Push

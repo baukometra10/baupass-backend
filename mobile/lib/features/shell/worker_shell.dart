@@ -151,9 +151,25 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       _voiceCall.onAppResumed();
       unawaited(_pollConferenceInvite());
       unawaited(_drainMissedCallbackIntent());
-      // Re-assert live GPS after returning from background.
+      // Re-assert live GPS after returning from background; upgrade to FGS if Always granted.
       unawaited(_onAttendanceSessionChanged());
+      unawaited(_refreshBackgroundGps());
     }
+  }
+
+  Future<void> _refreshBackgroundGps() async {
+    void onNotify(String message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+    }
+
+    final upgraded = await widget.geofence.refreshBackgroundCapability(
+      onNotify: onNotify,
+    );
+    if (!mounted || upgraded) return;
+    // Still foreground-only — quiet reminder only once per session via geofence notices.
   }
 
   Future<void> _drainMissedCallbackIntent() async {
@@ -621,7 +637,9 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                         Builder(
                           builder: (context) {
                             final s = _gpsStatus.toLowerCase();
-                            final ok = s.contains('live') || s.contains('verbunden');
+                            final ok = s.contains('live') ||
+                                s.contains('verbunden') ||
+                                s.contains('hintergrund');
                             final bad = (s.contains('fehlt') ||
                                     s.contains('fehler') ||
                                     s.contains('ungenau') ||
