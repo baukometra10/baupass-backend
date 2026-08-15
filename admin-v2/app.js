@@ -1683,28 +1683,75 @@ async function capturePayslipSheetLikeLohn() {
   const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
   if (!JsPDF) throw new Error("PDF-Bibliothek fehlt");
 
+  const A4_W = 794;
+  const A4_H = 1123;
   const prev = {
     transform: sheet.style.transform,
     origin: sheet.style.transformOrigin,
     width: sheet.style.width,
     height: sheet.style.height,
+    minHeight: sheet.style.minHeight,
+    maxHeight: sheet.style.maxHeight,
   };
+  // Capture at true A4 CSS pixels — preview scale would otherwise squash the sheet.
   sheet.style.transform = "none";
   sheet.style.transformOrigin = "top left";
-  sheet.style.width = "210mm";
-  sheet.style.height = "297mm";
+  sheet.style.width = `${A4_W}px`;
+  sheet.style.height = `${A4_H}px`;
+  sheet.style.minHeight = `${A4_H}px`;
+  sheet.style.maxHeight = "none";
   try {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const canvas = await window.html2canvas(sheet, {
       scale: 2,
       useCORS: true,
+      allowTaint: true,
       backgroundColor: "#ffffff",
       logging: false,
-      width: Math.round(sheet.getBoundingClientRect().width) || 794,
-      height: Math.round(sheet.getBoundingClientRect().height) || 1123,
+      width: A4_W,
+      height: A4_H,
+      windowWidth: A4_W,
+      windowHeight: A4_H,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: (_doc, cloned) => {
+        const root = cloned?.querySelector?.(".datev-sheet-a4") || cloned;
+        if (!root) return;
+        root.style.transform = "none";
+        root.style.width = `${A4_W}px`;
+        root.style.height = `${A4_H}px`;
+        root.style.minHeight = `${A4_H}px`;
+        // html2canvas often drops CSS gradients → blue Auszahlungsbetrag becomes white.
+        root.querySelectorAll?.(".ds-pay").forEach((el) => {
+          el.style.setProperty("background", "#152a45", "important");
+          el.style.setProperty("background-image", "none", "important");
+          el.style.setProperty("background-color", "#152a45", "important");
+          el.style.setProperty("color", "#ffffff", "important");
+          el.style.setProperty("-webkit-print-color-adjust", "exact", "important");
+          el.style.setProperty("print-color-adjust", "exact", "important");
+        });
+        root.querySelectorAll?.(".ds-pay span, .ds-pay strong").forEach((el) => {
+          el.style.setProperty("color", "#ffffff", "important");
+          el.style.setProperty("opacity", "1", "important");
+        });
+        const style = _doc.createElement("style");
+        style.textContent = `
+          .ds-pay {
+            background: #152a45 !important;
+            background-image: none !important;
+            color: #fff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .ds-pay span, .ds-pay strong { color: #fff !important; opacity: 1 !important; }
+        `;
+        (_doc.head || _doc.documentElement)?.appendChild(style);
+      },
     });
-    const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, 210, 297);
+    // Keep pixel aspect = A4 so the PDF is not stretched (blank bottom / squeezed rows).
+    const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
+    const img = canvas.toDataURL("image/png");
+    pdf.addImage(img, "PNG", 0, 0, 210, 297, undefined, "FAST");
     const dataUri = pdf.output("datauristring");
     return String(dataUri || "").split(",")[1] || "";
   } finally {
@@ -1712,41 +1759,34 @@ async function capturePayslipSheetLikeLohn() {
     sheet.style.transformOrigin = prev.origin;
     sheet.style.width = prev.width;
     sheet.style.height = prev.height;
+    sheet.style.minHeight = prev.minHeight;
+    sheet.style.maxHeight = prev.maxHeight;
+    try {
+      schedulePayslipPreviewFit?.();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
 async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
-  try {
-    const pdfBase64 = await capturePayslipSheetLikeLohn();
-    if (!pdfBase64 || pdfBase64.length < 100) return null;
-    return await api(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          pdfBase64,
-          pdfSource: "lohn_html2canvas",
-          repair: true,
-        }),
-      },
-    );
-  } catch (err) {
-    console.warn("[payslip] html2canvas capture failed, trying Chromium from-html", err);
-    const html = String(payslipStudioState.sheetHtml || "").trim();
-    if (html.length < 200) return null;
-    try {
-      return await api(
-        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf/from-html`,
-        {
-          method: "POST",
-          body: JSON.stringify({ html, sheetHtml: html }),
-        },
-      );
-    } catch (err2) {
-      console.warn("[payslip] from-html pdf failed", err2);
-      return null;
-    }
+  // Exact studio capture only — never fall back to a remade Chromium/Weasy PDF
+  // (that path blanks the blue Auszahlungsbetrag and squashes the middle rows).
+  const pdfBase64 = await capturePayslipSheetLikeLohn();
+  if (!pdfBase64 || pdfBase64.length < 100) {
+    throw new Error("PDF-Erfassung fehlgeschlagen");
   }
+  return await api(
+    `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        pdfBase64,
+        pdfSource: "lohn_html2canvas",
+        repair: true,
+      }),
+    },
+  );
 }
 
 async function loadPayslipWorkers(companyId) {

@@ -174,9 +174,13 @@ html, body { margin: 0; padding: 0; background: #fff; }
 .ds-ag td:last-child { text-align: right; width: 20mm; }
 .ds-pay {
   border: 1pt solid #1d4ed8; padding: 1.8mm 1.9mm;
-  background: linear-gradient(165deg, #1e3a5f 0%, #152a45 100%);
+  /* Solid navy — html2canvas/PDF export often drops CSS gradients (white box for workers). */
+  background: #152a45;
+  background-image: none;
   color: #fff; display: flex; flex-direction: column; justify-content: center; gap: 0.7mm;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 .ds-pay span { font-size: 5.3pt; text-transform: uppercase; letter-spacing: 0.07em; opacity: 0.88; }
 .ds-pay strong { font-size: 11.5pt; text-align: right; min-height: 4.2mm; letter-spacing: 0.01em; }
@@ -916,6 +920,15 @@ body.sheet-chrome, body.sheet-chrome.theme-light, body.sheet-chrome.theme-dark {
 }
 .payslip-viewer-bar, .payslip-viewer-stage { display: none !important; }
 .payslip-viewer-stage .datev-sheet-a4 { display: flex !important; }
+/* Keep Auszahlungsbetrag navy in print/PDF engines that drop gradients */
+.ds-pay {
+  background: #152a45 !important;
+  background-image: none !important;
+  color: #fff !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+.ds-pay span, .ds-pay strong { color: #fff !important; opacity: 1 !important; }
 /* Avoid WeasyPrint flex compression / overlapping text */
 .ds-zone-wage { flex: none !important; }
 .ds-table { height: auto !important; flex: none !important; }
