@@ -1396,6 +1396,12 @@ const payslipStudioState = {
   archiveStatus: "all",
   archivePeriod: "",
   releaseInFlight: false,
+  downloadInFlight: false,
+  captureCache: null,
+  libsWarm: false,
+  prepSeq: 0,
+  capturePromise: null,
+  syncPromise: null,
 };
 
 const PAYSLIP_A4_PX_W = 794;
@@ -1610,30 +1616,6 @@ function formatPayslipMoney(amount, currency) {
   }
 }
 
-async function fetchPayslipPdfBlobUrl(batchId, statementId) {
-  const token = wpGet(TOKEN_KEY);
-  const headers = { Accept: "application/pdf" };
-  if (token) headers.Authorization = `Bearer ${token}`;
-  // Capture the studio DatevSheet the same way WorkPass Lohn exports PDF (html2canvas).
-  await syncPayslipStudioPdfFromHtml(batchId, statementId);
-  const res = await fetch(
-    `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
-    { headers },
-  );
-  if (!res.ok) {
-    let msg = `PDF ${res.status}`;
-    try {
-      const j = await res.json();
-      msg = j.error || msg;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
-  const blob = await res.blob();
-  return URL.createObjectURL(blob);
-}
-
 function loadExternalScriptOnce(src) {
   return new Promise((resolve, reject) => {
     const existing = document.querySelector(`script[data-payslip-lib="${src}"]`);
@@ -1657,16 +1639,25 @@ function loadExternalScriptOnce(src) {
 }
 
 async function ensurePayslipCaptureLibs() {
-  if (!window.html2canvas) {
-    // CSP allows cdn.jsdelivr.net only (cdnjs is blocked) — required for send/download.
-    await loadExternalScriptOnce(
-      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
-    );
-  }
-  if (!(window.jspdf?.jsPDF || window.jsPDF)) {
-    await loadExternalScriptOnce(
-      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
-    );
+  const needCanvas = !window.html2canvas;
+  const needPdf = !(window.jspdf?.jsPDF || window.jsPDF);
+  if (needCanvas || needPdf) {
+    const jobs = [];
+    if (needCanvas) {
+      jobs.push(
+        loadExternalScriptOnce(
+          "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
+        ),
+      );
+    }
+    if (needPdf) {
+      jobs.push(
+        loadExternalScriptOnce(
+          "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
+        ),
+      );
+    }
+    await Promise.all(jobs);
   }
   if (!window.html2canvas) {
     throw new Error("html2canvas konnte nicht geladen werden (CSP)");
@@ -1674,9 +1665,61 @@ async function ensurePayslipCaptureLibs() {
   if (!(window.jspdf?.jsPDF || window.jsPDF)) {
     throw new Error("jsPDF konnte nicht geladen werden (CSP)");
   }
+  payslipStudioState.libsWarm = true;
+}
+
+function warmPayslipCaptureLibs() {
+  if (payslipStudioState.libsWarm && window.html2canvas && (window.jspdf?.jsPDF || window.jsPDF)) {
+    return;
+  }
+  ensurePayslipCaptureLibs().catch(() => {});
+}
+
+function payslipCaptureCacheKey(batchId, statementId) {
+  return `${batchId}::${statementId}::${String(payslipStudioState.sheetHtml || "").length}`;
+}
+
+function revokePayslipCaptureBlobUrl() {
+  const url = payslipStudioState.captureCache?.blobUrl;
+  if (!url) return;
+  try {
+    URL.revokeObjectURL(url);
+  } catch {
+    /* ignore */
+  }
+}
+
+function invalidatePayslipCaptureCache() {
+  payslipStudioState.prepSeq += 1;
+  payslipStudioState.capturePromise = null;
+  payslipStudioState.syncPromise = null;
+  revokePayslipCaptureBlobUrl();
+  payslipStudioState.captureCache = null;
+}
+
+function getFreshPayslipCapture(batchId, statementId) {
+  const key = payslipCaptureCacheKey(batchId, statementId);
+  const cached = payslipStudioState.captureCache;
+  if (
+    cached
+    && cached.key === key
+    && Date.now() - Number(cached.at || 0) < 180000
+  ) {
+    return cached;
+  }
+  return null;
 }
 
 async function waitForPayslipSheetReady({ timeoutMs = 8000 } = {}) {
+  const iframe0 = $("payslipStudioPdf");
+  const doc0 = iframe0?.contentDocument || iframe0?.contentWindow?.document;
+  const sheet0 =
+    doc0?.querySelector?.(".datev-sheet-a4")
+    || doc0?.querySelector?.("#datevSheetA4")
+    || doc0?.querySelector?.("[class*='datev-sheet']");
+  if (sheet0 && String(payslipStudioState.sheetHtml || "").length > 200) {
+    return { iframe: iframe0, doc: doc0, sheet: sheet0 };
+  }
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     const iframe = $("payslipStudioPdf");
@@ -1688,7 +1731,7 @@ async function waitForPayslipSheetReady({ timeoutMs = 8000 } = {}) {
     if (sheet && String(payslipStudioState.sheetHtml || "").length > 200) {
       return { iframe, doc, sheet };
     }
-    await new Promise((r) => setTimeout(r, 120));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(t("lohn.sheetNotReady") || "Abrechnung noch nicht geladen — kurz warten und erneut versuchen");
 }
@@ -1722,7 +1765,8 @@ async function capturePayslipSheetLikeLohn() {
   try {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     const canvas = await window.html2canvas(sheet, {
-      scale: 2,
+      // 1.35 + JPEG keeps text sharp enough and is much faster than PNG@2x.
+      scale: 1.35,
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#ffffff",
@@ -1767,12 +1811,17 @@ async function capturePayslipSheetLikeLohn() {
         (_doc.head || _doc.documentElement)?.appendChild(style);
       },
     });
-    // Keep pixel aspect = A4 so the PDF is not stretched (blank bottom / squeezed rows).
     const pdf = new JsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-    const img = canvas.toDataURL("image/png");
-    pdf.addImage(img, "PNG", 0, 0, 210, 297, undefined, "FAST");
-    const dataUri = pdf.output("datauristring");
-    return String(dataUri || "").split(",")[1] || "";
+    const img = canvas.toDataURL("image/jpeg", 0.92);
+    pdf.addImage(img, "JPEG", 0, 0, 210, 297, undefined, "FAST");
+    const blob = pdf.output("blob");
+    const pdfBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+      reader.onerror = () => reject(new Error("PDF-Encode fehlgeschlagen"));
+      reader.readAsDataURL(blob);
+    });
+    return { pdfBase64, blob };
   } finally {
     sheet.style.transform = prev.transform;
     sheet.style.transformOrigin = prev.origin;
@@ -1788,14 +1837,8 @@ async function capturePayslipSheetLikeLohn() {
   }
 }
 
-async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
-  // Exact studio capture only — never fall back to a remade Chromium/Weasy PDF
-  // (that path blanks the blue Auszahlungsbetrag and squashes the middle rows).
-  const pdfBase64 = await capturePayslipSheetLikeLohn();
-  if (!pdfBase64 || pdfBase64.length < 100) {
-    throw new Error("PDF-Erfassung fehlgeschlagen");
-  }
-  return await api(
+async function uploadPayslipPdfBase64(batchId, statementId, pdfBase64) {
+  return api(
     `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
     {
       method: "POST",
@@ -1806,6 +1849,171 @@ async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
       }),
     },
   );
+}
+
+async function ensurePayslipLocalPdf(batchId, statementId, { force = false } = {}) {
+  const key = payslipCaptureCacheKey(batchId, statementId);
+  const seq = payslipStudioState.prepSeq;
+  const hit = getFreshPayslipCapture(batchId, statementId);
+  if (!force && hit?.blobUrl && hit?.pdfBase64) return hit;
+
+  if (
+    !force
+    && payslipStudioState.capturePromise
+    && payslipStudioState.capturePromise.key === key
+  ) {
+    return payslipStudioState.capturePromise.promise;
+  }
+
+  const run = (async () => {
+    const captured = await capturePayslipSheetLikeLohn();
+    if (seq !== payslipStudioState.prepSeq) return null;
+    if (!captured?.pdfBase64 || captured.pdfBase64.length < 100 || !captured.blob) {
+      throw new Error("PDF-Erfassung fehlgeschlagen");
+    }
+    revokePayslipCaptureBlobUrl();
+    const local = {
+      key,
+      at: Date.now(),
+      synced: false,
+      pdfBase64: captured.pdfBase64,
+      blob: captured.blob,
+      blobUrl: URL.createObjectURL(captured.blob),
+    };
+    payslipStudioState.captureCache = local;
+    return local;
+  })();
+
+  payslipStudioState.capturePromise = { key, promise: run };
+  try {
+    return await run;
+  } finally {
+    if (payslipStudioState.capturePromise?.promise === run) {
+      payslipStudioState.capturePromise = null;
+    }
+  }
+}
+
+async function ensurePayslipSyncedPdf(batchId, statementId, { force = false } = {}) {
+  const key = payslipCaptureCacheKey(batchId, statementId);
+  const seq = payslipStudioState.prepSeq;
+  const local = await ensurePayslipLocalPdf(batchId, statementId, { force });
+  if (!local) return { ok: false, cancelled: true };
+  if (local.synced && !force) {
+    return { ok: true, cached: true, pdfSource: "lohn_html2canvas", blobUrl: local.blobUrl, synced: true };
+  }
+
+  if (
+    !force
+    && payslipStudioState.syncPromise
+    && payslipStudioState.syncPromise.key === key
+  ) {
+    return payslipStudioState.syncPromise.promise;
+  }
+
+  const run = (async () => {
+    const res = await uploadPayslipPdfBase64(batchId, statementId, local.pdfBase64);
+    if (seq !== payslipStudioState.prepSeq) return { ok: false, cancelled: true };
+    if (!res?.ok) {
+      throw new Error(res?.error || res?.message || "PDF-Upload fehlgeschlagen");
+    }
+    const cur = getFreshPayslipCapture(batchId, statementId) || local;
+    cur.synced = true;
+    cur.at = Date.now();
+    payslipStudioState.captureCache = cur;
+    return { ok: true, cached: false, pdfSource: "lohn_html2canvas", blobUrl: cur.blobUrl, synced: true };
+  })();
+
+  payslipStudioState.syncPromise = { key, promise: run };
+  try {
+    return await run;
+  } finally {
+    if (payslipStudioState.syncPromise?.promise === run) {
+      payslipStudioState.syncPromise = null;
+    }
+  }
+}
+
+async function preparePayslipPdf(batchId, statementId, { force = false, needSync = true } = {}) {
+  if (!needSync) {
+    const local = await ensurePayslipLocalPdf(batchId, statementId, { force });
+    if (!local) return { ok: false, cancelled: true };
+    return {
+      ok: true,
+      cached: Boolean(local.synced),
+      pdfSource: "lohn_html2canvas",
+      blobUrl: local.blobUrl,
+      synced: Boolean(local.synced),
+    };
+  }
+  return ensurePayslipSyncedPdf(batchId, statementId, { force });
+}
+
+function schedulePayslipPdfPrep(batchId, statementId) {
+  if (!batchId || !statementId) return;
+  const key = payslipCaptureCacheKey(batchId, statementId);
+  const cached = getFreshPayslipCapture(batchId, statementId);
+  if (cached?.blobUrl && cached.synced) return;
+  if (payslipStudioState.syncPromise?.key === key) return;
+  if (payslipStudioState.capturePromise?.key === key) return;
+  // Capture + upload while the user reviews — clicks then feel instant.
+  const kick = () => {
+    preparePayslipPdf(batchId, statementId, { needSync: true }).catch(() => {});
+  };
+  if (typeof requestIdleCallback === "function") {
+    requestIdleCallback(kick, { timeout: 400 });
+  } else {
+    setTimeout(kick, 60);
+  }
+}
+
+async function fetchPayslipPdfBlobUrl(batchId, statementId) {
+  const ready = getFreshPayslipCapture(batchId, statementId);
+  if (ready?.blobUrl) {
+    if (!ready.synced) {
+      ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+    }
+    return ready.blobUrl;
+  }
+  const prepared = await preparePayslipPdf(batchId, statementId, { needSync: false });
+  if (prepared?.blobUrl) {
+    if (!prepared.synced) {
+      ensurePayslipSyncedPdf(batchId, statementId).catch(() => {});
+    }
+    return prepared.blobUrl;
+  }
+  await preparePayslipPdf(batchId, statementId, { needSync: true });
+  const token = wpGet(TOKEN_KEY);
+  const headers = { Accept: "application/pdf" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(
+    `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
+    { headers },
+  );
+  if (!res.ok) {
+    let msg = `PDF ${res.status}`;
+    try {
+      const j = await res.json();
+      msg = j.error || msg;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg);
+  }
+  const blob = await res.blob();
+  return URL.createObjectURL(blob);
+}
+
+async function syncPayslipStudioPdfFromHtml(batchId, statementId, { force = false } = {}) {
+  // Exact studio capture only — never fall back to a remade Chromium/Weasy PDF.
+  const res = await preparePayslipPdf(batchId, statementId, { force, needSync: true });
+  if (res?.cancelled) {
+    throw new Error(t("lohn.sheetNotReady") || "Abrechnung noch nicht geladen — kurz warten und erneut versuchen");
+  }
+  if (!res?.ok) {
+    throw new Error("PDF-Erfassung fehlgeschlagen");
+  }
+  return res;
 }
 
 async function loadPayslipWorkers(companyId) {
@@ -2242,6 +2450,8 @@ async function selectPayslipStatement(batchId, statementId) {
     if (!sheetRes.ok) throw new Error(`Abrechnung ${sheetRes.status}`);
     const sheetHtml = await sheetRes.text();
     payslipStudioState.sheetHtml = sheetHtml;
+    invalidatePayslipCaptureCache();
+    warmPayslipCaptureLibs();
     if (iframe) {
       iframe.removeAttribute("src");
       iframe.srcdoc = sheetHtml;
@@ -2250,6 +2460,8 @@ async function selectPayslipStatement(batchId, statementId) {
           lockPayslipIframeChrome(iframe);
           schedulePayslipPreviewFit();
           setTimeout(schedulePayslipPreviewFit, 120);
+          warmPayslipCaptureLibs();
+          schedulePayslipPdfPrep(batchId, statementId);
           const wrap = iframe.closest(".payslip-studio-pdf-wrap");
           if (wrap) wrap.scrollTop = 0;
           try {
@@ -2315,6 +2527,7 @@ async function openPayslipReviewStudio(opts = {}) {
   el.classList.remove("hidden");
   el.setAttribute("aria-hidden", "false");
   document.body.classList.add("payslip-studio-open");
+  warmPayslipCaptureLibs();
   schedulePayslipPreviewFit();
   $("payslipStudioList").innerHTML = `<div class="payslip-studio-empty">${escapeHtml(t("common.loading") || "…")}</div>`;
   try {
@@ -2455,16 +2668,29 @@ async function handlePayslipStudioClick(ev) {
     return;
   }
   if (action === "download-pdf") {
-    try {
+    if (payslipStudioState.downloadInFlight) {
       showActionToast(t("lohn.preparingPdf") || "PDF wird erstellt…");
+      return;
+    }
+    payslipStudioState.downloadInFlight = true;
+    if (act) act.setAttribute("disabled", "disabled");
+    const hadReady = Boolean(getFreshPayslipCapture(batchId, statementId)?.blobUrl);
+    try {
+      if (!hadReady) showActionToast(t("lohn.preparingPdf") || "PDF wird erstellt…");
       const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
       const a = document.createElement("a");
       a.href = url;
       a.download = currentPayslipStatement()?.filename || "Lohnabrechnung.pdf";
+      a.rel = "noopener";
+      document.body.appendChild(a);
       a.click();
-      showActionToast(t("lohn.pdfReady") || "PDF bereit");
+      a.remove();
+      if (!hadReady) showActionToast(t("lohn.pdfReady") || "PDF bereit");
     } catch (err) {
       toast(err?.message || "PDF", "error");
+    } finally {
+      payslipStudioState.downloadInFlight = false;
+      if (act) act.removeAttribute("disabled");
     }
     return;
   }
@@ -2514,9 +2740,15 @@ async function handlePayslipStudioClick(ev) {
     payslipStudioState.releaseInFlight = true;
     const releaseBtn = act;
     if (releaseBtn) releaseBtn.setAttribute("disabled", "disabled");
+    const alreadyReady = Boolean(getFreshPayslipCapture(batchId, statementId)?.synced);
     try {
-      showActionToast(t("lohn.sending") || "Wird gesendet…");
+      showActionToast(
+        alreadyReady
+          ? (t("lohn.sending") || "Wird gesendet…")
+          : (t("lohn.preparingPdf") || "PDF wird erstellt…"),
+      );
       const captured = await syncPayslipStudioPdfFromHtml(batchId, statementId);
+      if (!alreadyReady) showActionToast(t("lohn.sending") || "Wird gesendet…");
       if (!captured?.ok) {
         throw new Error(
           t("lohn.captureRequired")
