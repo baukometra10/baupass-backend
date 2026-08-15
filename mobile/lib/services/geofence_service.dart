@@ -43,16 +43,19 @@ class GeofenceService {
   Position? _pendingForcedPosition;
   Position? _latestStreamPosition;
   DateTime? _latestStreamAt;
+  DateTime? _rateLimitedUntil;
+  int _rateLimitNotices = 0;
   int _notCheckedInStrikes = 0;
   int _gpsFailStrikes = 0;
   String _lastStatus = '';
 
   /// Stream-driven movement is primary; heartbeat only fills gaps.
-  static const pollInterval = Duration(milliseconds: 1500);
+  static const pollInterval = Duration(milliseconds: 2000);
 
-  static const positionDebounceMs = 80;
-  static const minMoveMetersToSend = 0.3;
-  static const heartbeatInterval = Duration(seconds: 2);
+  static const positionDebounceMs = 120;
+  static const minMoveMetersToSend = 0.5;
+  static const heartbeatInterval = Duration(seconds: 3);
+  static const minSendInterval = Duration(seconds: 2);
   static const offSiteStrikesRequired = 3;
   static const streamFreshForHeartbeat = Duration(seconds: 3);
 
@@ -138,6 +141,8 @@ class GeofenceService {
     _notCheckedInStrikes = 0;
     _gpsFailStrikes = 0;
     _pendingForcedPosition = null;
+    _rateLimitedUntil = null;
+    _rateLimitNotices = 0;
     _lastStatus = 'GPS startet…';
 
     void schedulePoll() {
@@ -231,6 +236,8 @@ class GeofenceService {
     _pendingForcedPosition = null;
     _latestStreamPosition = null;
     _latestStreamAt = null;
+    _rateLimitedUntil = null;
+    _rateLimitNotices = 0;
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
     _lastSentAt = null;
@@ -246,23 +253,32 @@ class GeofenceService {
     required double lng,
     required _PollReason reason,
   }) {
+    final now = DateTime.now();
+    if (_rateLimitedUntil != null && now.isBefore(_rateLimitedUntil!)) {
+      return false;
+    }
+    if (_lastSentAt != null &&
+        now.difference(_lastSentAt!) < minSendInterval &&
+        reason != _PollReason.initial) {
+      return false;
+    }
     if (reason == _PollReason.initial || reason == _PollReason.movement) {
       if (_lastSentLat == null || _lastSentLng == null) return true;
       final moved = _distanceMeters(_lastSentLat!, _lastSentLng!, lat, lng);
       if (moved >= minMoveMetersToSend) return true;
       // Movement events still heartbeat so lastLocationAt stays fresh.
       if (_lastSentAt != null &&
-          DateTime.now().difference(_lastSentAt!) >= heartbeatInterval) {
+          now.difference(_lastSentAt!) >= heartbeatInterval) {
         return true;
       }
-      return moved >= 0.15;
+      return false;
     }
     if (_lastSentLat == null || _lastSentLng == null || _lastSentAt == null) {
       return true;
     }
     final moved = _distanceMeters(_lastSentLat!, _lastSentLng!, lat, lng);
     if (moved >= minMoveMetersToSend) return true;
-    if (DateTime.now().difference(_lastSentAt!) >= heartbeatInterval) {
+    if (now.difference(_lastSentAt!) >= heartbeatInterval) {
       return true;
     }
     return false;
@@ -371,7 +387,9 @@ class GeofenceService {
 
           if (result['locationSaved'] == true) {
             _notCheckedInStrikes = 0;
-            _lastStatus = 'Pin live · GPS gesendet';
+            _rateLimitedUntil = null;
+            _rateLimitNotices = 0;
+            _lastStatus = 'Pin live · GPS gespeichert';
             if (!_trackingStartedNotified) {
               _trackingStartedNotified = true;
               onNotify?.call(
@@ -388,13 +406,11 @@ class GeofenceService {
                 'GPS läuft — Pin bewegt sich nach erfolgreichem Check-in.',
               );
             }
-          } else if (result['ok'] != true) {
-            _lastStatus = 'GPS nicht gespeichert';
-            onNotify?.call(
-              'Live-GPS nicht gespeichert — Netz/Login prüfen.',
-            );
+          } else if (result['locationSaved'] == false) {
+            _lastStatus = 'GPS Antwort ohne Speicherung';
           } else {
-            _lastStatus = 'GPS gesendet · Server speichert nicht';
+            // Older/partial responses — still treat as ok if request succeeded.
+            _lastStatus = 'Pin live · GPS gesendet';
           }
         }
       }
@@ -429,6 +445,19 @@ class GeofenceService {
         }
       }
     } on ApiException catch (e) {
+      if (e.statusCode == 429 || e.errorCode == 'rate_limited') {
+        final retry = (e.payload?['retryAfterSeconds'] as num?)?.toInt() ?? 20;
+        _rateLimitedUntil =
+            DateTime.now().add(Duration(seconds: retry.clamp(5, 120)));
+        _lastStatus = 'GPS pausiert (429) · ${retry}s';
+        _rateLimitNotices += 1;
+        if (_rateLimitNotices == 1) {
+          onNotify?.call(
+            'Zu viele Anfragen — Live-GPS pausiert kurz, dann weiter.',
+          );
+        }
+        return;
+      }
       _lastStatus = 'GPS-Serverfehler (${e.statusCode})';
       if (e.errorCode == 'worker_geolocation_inaccurate' ||
           e.errorCode == 'worker_geolocation_required' ||

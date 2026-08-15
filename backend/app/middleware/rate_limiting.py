@@ -117,6 +117,8 @@ class RedisRateLimiter:
         ban_key = f"rl:ban:{key_hash}"
 
         now_ms = int(time.time() * 1000)
+        # Never IP-ban worker app traffic — live GPS bursts must not lock phones out.
+        ban_duration = 0 if str(scope).startswith("worker_") else self._ban_duration
 
         try:
             if self._lua_sha:
@@ -124,19 +126,26 @@ class RedisRateLimiter:
                     self._lua_sha,
                     2,
                     rate_key, ban_key,
-                    now_ms, window, limit, self._ban_duration,
+                    now_ms, window, limit, ban_duration,
                 )
             else:
                 result = self._redis.eval(
                     _SLIDING_WINDOW_LUA,
                     2,
                     rate_key, ban_key,
-                    now_ms, window, limit, self._ban_duration,
+                    now_ms, window, limit, ban_duration,
                 )
 
             status, value = int(result[0]), int(result[1])
 
             if status == -1:  # IP محظور
+                # Stale worker bans from pre-fix builds — lift immediately.
+                if str(scope).startswith("worker_"):
+                    try:
+                        self._redis.delete(ban_key)
+                    except Exception:
+                        pass
+                    return True, 0
                 return False, value
 
             return status == 1, value

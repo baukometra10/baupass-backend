@@ -653,7 +653,7 @@ REQUEST_RATE_LIMITS = {
     "login": _rate_limit_rule("BAUPASS_LOGIN_RATE_MAX", 120),
     "company_create": _rate_limit_rule("BAUPASS_COMPANY_CREATE_RATE_MAX", 20),
     "worker_login": _rate_limit_rule("BAUPASS_WORKER_LOGIN_RATE_MAX", 120),
-    "worker_api": {"max": 180, "window_seconds": 60},
+    "worker_api": _rate_limit_rule("BAUPASS_WORKER_API_RATE_MAX", 480),
     "worker_api_auth_fail": {"max": 25, "window_seconds": 60},
     "password_reset": {"max": 5, "window_seconds": 300},
 }
@@ -5586,6 +5586,10 @@ def require_worker_session(handler):
             return response, 429
 
         allowed, retry_after = check_rate_limit("worker_api")
+        # Live map GPS must not compete with chat/polls or trip Redis IP bans.
+        path_l = str(request.path or "").lower()
+        if path_l.endswith("/live-location"):
+            allowed, retry_after = True, 0
         if not allowed:
             return _rate_limited_response(retry_after)
 
