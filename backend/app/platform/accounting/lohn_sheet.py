@@ -886,7 +886,7 @@ def build_payslip_print_html(
 
 
 def prepare_sheet_html_for_pdf(html_doc: str) -> str:
-    """White A4 only — drop studio chrome padding so the worker PDF matches the sheet."""
+    """White A4 only — drop studio chrome so the worker PDF matches the sheet."""
     import re
 
     doc = str(html_doc or "").strip()
@@ -896,19 +896,30 @@ def prepare_sheet_html_for_pdf(html_doc: str) -> str:
 @page { size: A4 portrait; margin: 0; }
 html, body {
   margin: 0 !important; padding: 0 !important; background: #fff !important;
-  min-height: auto !important; width: 210mm; height: 297mm;
-  display: block !important; overflow: hidden !important;
+  min-height: auto !important; width: 210mm;
+  display: block !important;
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+  color-adjust: exact !important;
 }
 body.sheet-chrome, body.sheet-chrome.theme-light, body.sheet-chrome.theme-dark {
   background: #fff !important; padding: 0 !important; min-height: auto !important;
-  display: block !important; overflow: hidden !important; align-items: stretch !important;
+  display: block !important; align-items: stretch !important;
+  overflow: visible !important;
 }
 .datev-sheet-a4 {
   margin: 0 !important; box-shadow: none !important;
-  width: 210mm !important; height: 297mm !important;
+  width: 210mm !important; min-height: 297mm !important; height: 297mm !important;
+  max-height: none !important; overflow: visible !important;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 .payslip-viewer-bar, .payslip-viewer-stage { display: none !important; }
 .payslip-viewer-stage .datev-sheet-a4 { display: flex !important; }
+/* Avoid WeasyPrint flex compression / overlapping text */
+.ds-zone-wage { flex: none !important; }
+.ds-table { height: auto !important; flex: none !important; }
+.ds-zone-pay { margin-top: 2mm !important; }
 """
     if re.search(r"</head>", doc, flags=re.I):
         doc = re.sub(r"</head>", f"<style>{print_css}</style></head>", doc, count=1, flags=re.I)

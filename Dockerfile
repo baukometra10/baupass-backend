@@ -19,7 +19,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     shared-mime-info \
     fonts-dejavu-core \
     fonts-liberation \
+    fonts-noto-core \
+    chromium \
     && rm -rf /var/lib/apt/lists/*
+ENV CHROME_BIN=/usr/bin/chromium \
+    CHROMIUM_PATH=/usr/bin/chromium
 RUN pip install --upgrade pip && pip install -r backend/requirements.txt
 
 COPY . .

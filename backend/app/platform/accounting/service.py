@@ -1525,7 +1525,10 @@ def ensure_statement_delivery_pdf(
     batch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Write a DatevSheet PDF that matches the studio HTML (full A4)."""
-    from .lohn_sheet_pdf import PDF_SOURCE_HTML, render_datev_sheet_pdf_with_source
+    from .lohn_sheet_pdf import (
+        is_high_fidelity_pdf_source,
+        render_datev_sheet_pdf_with_source,
+    )
 
     try:
         existing_meta = json.loads(stmt.get("meta_json") or "{}")
@@ -1535,7 +1538,8 @@ def ensure_statement_delivery_pdf(
         existing_meta = {}
     existing_source = str(existing_meta.get("pdfSource") or "")
     existing_size = int(stmt.get("file_size") or 0)
-    already_html = existing_source == PDF_SOURCE_HTML and existing_size >= 20000
+    # Only reuse locked deliveries when they were rendered from the real DatevSheet HTML.
+    already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
     if statement_delivery_locked(stmt, existing_meta) and already_html:
         path = str(stmt.get("file_path") or "").strip()
         if path and Path(path).is_file():
@@ -1596,7 +1600,14 @@ def ensure_statement_delivery_pdf(
             filename=filename,
             period=period,
         )
-    return {"ok": True, "path": path, "fileSize": len(pdf_bytes), "filename": filename, "period": period}
+    return {
+        "ok": True,
+        "path": path,
+        "fileSize": len(pdf_bytes),
+        "filename": filename,
+        "period": period,
+        "pdfSource": pdf_source,
+    }
 
 
 def ingest_statements(
@@ -2861,6 +2872,25 @@ def release_statement(
     assert stmt is not None
     status = str(stmt.get("status") or "")
     if status == "released" and stmt.get("worker_document_id"):
+        # Rebuild distorted ReportLab stubs so the worker file matches the studio sheet.
+        try:
+            meta = json.loads(stmt.get("meta_json") or "{}")
+        except Exception:
+            meta = {}
+        from .lohn_sheet_pdf import is_high_fidelity_pdf_source
+
+        if not is_high_fidelity_pdf_source((meta or {}).get("pdfSource")):
+            batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
+            rebuilt = ensure_statement_delivery_pdf(db, stmt, batch)
+            if rebuilt.get("ok"):
+                stmt = repo.get_statement(db, statement_id) or stmt
+                return {
+                    "ok": True,
+                    "rebuiltPdf": True,
+                    "pdfSource": rebuilt.get("pdfSource"),
+                    "statementId": statement_id,
+                    "workerDocumentId": stmt.get("worker_document_id"),
+                }
         return {
             "ok": True,
             "skipped": "already_released",

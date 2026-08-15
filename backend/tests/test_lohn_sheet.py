@@ -46,6 +46,7 @@ def test_datev_sheet_pdf_is_pdf_bytes():
     print_html = prepare_sheet_html_for_pdf(html)
     assert "size: A4" in print_html
     assert "padding: 0 !important" in print_html
+    assert "print-color-adjust: exact" in print_html
     raw = render_datev_sheet_pdf(data, html=html)
     assert raw.startswith(b"%PDF")
     assert len(raw) > 800

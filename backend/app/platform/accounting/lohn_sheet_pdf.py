@@ -1,7 +1,12 @@
 """A4 Entgeltabrechnung PDF from the same DatevSheet HTML shown in the studio."""
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
+import tempfile
 from io import BytesIO
+from pathlib import Path
 from typing import Any
 
 from reportlab.lib import colors
@@ -10,6 +15,10 @@ from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as pdf_canvas
 
 PDF_SOURCE_HTML = "datev_sheet_html"
+PDF_SOURCE_CHROMIUM = "datev_sheet_chromium"
+PDF_SOURCE_WEASY = "datev_sheet_weasyprint"
+PDF_SOURCE_REPORTLAB = "datev_sheet_reportlab"
+GOOD_HTML_PDF_SOURCES = frozenset({PDF_SOURCE_HTML, PDF_SOURCE_CHROMIUM, PDF_SOURCE_WEASY})
 
 NAVY = colors.HexColor("#1e3a5f")
 INK = colors.HexColor("#151a22")
@@ -24,6 +33,10 @@ def _s(value: Any) -> str:
     return str(value or "").strip()
 
 
+def is_high_fidelity_pdf_source(source: str | None) -> bool:
+    return str(source or "").strip() in GOOD_HTML_PDF_SOURCES
+
+
 def render_datev_sheet_pdf(data: dict[str, Any] | None, html: str | None = None) -> bytes:
     """Prefer the studio DatevSheet HTML; fall back to a full-page reportlab layout."""
     raw, _source = render_datev_sheet_pdf_with_source(data, html)
@@ -33,21 +46,22 @@ def render_datev_sheet_pdf(data: dict[str, Any] | None, html: str | None = None)
 def render_datev_sheet_pdf_with_source(
     data: dict[str, Any] | None, html: str | None = None
 ) -> tuple[bytes, str]:
-    html_pdf = _render_html_pdf(html, data)
-    if html_pdf.startswith(b"%PDF") and len(html_pdf) > 800:
-        return html_pdf, PDF_SOURCE_HTML
-    return _render_reportlab_fallback(data if isinstance(data, dict) else {}), "datev_sheet_reportlab"
+    doc = _prepare_print_document(html, data)
+    if doc:
+        chromium_pdf = _render_chromium_pdf(doc)
+        if chromium_pdf.startswith(b"%PDF") and len(chromium_pdf) > 1500:
+            return chromium_pdf, PDF_SOURCE_CHROMIUM
+        weasy_pdf = _render_weasyprint_pdf(doc)
+        if weasy_pdf.startswith(b"%PDF") and len(weasy_pdf) > 1500:
+            return weasy_pdf, PDF_SOURCE_WEASY
+    return _render_reportlab_fallback(data if isinstance(data, dict) else {}), PDF_SOURCE_REPORTLAB
 
 
-def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
-    try:
-        from weasyprint import HTML
-    except Exception:
-        return b""
+def _prepare_print_document(html: str | None, data: dict[str, Any] | None) -> str:
     try:
         from .lohn_sheet import _CSS, build_sheet_body_html, prepare_sheet_html_for_pdf
     except Exception:
-        return b""
+        return ""
     doc = str(html or "").strip()
     if len(doc) < 200:
         body = build_sheet_body_html(data or {})
@@ -55,15 +69,112 @@ def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
             "<!DOCTYPE html><html lang='de'><head><meta charset='UTF-8'/>"
             f"<style>{_CSS}</style></head><body>{body}</body></html>"
         )
-    doc = prepare_sheet_html_for_pdf(doc)
-    if not doc:
+    return prepare_sheet_html_for_pdf(doc)
+
+
+def _chromium_candidates() -> list[str]:
+    env = str(os.environ.get("CHROME_BIN") or os.environ.get("CHROMIUM_PATH") or "").strip()
+    candidates = [env] if env else []
+    which = shutil.which("chrome") or shutil.which("google-chrome") or shutil.which("chromium") or shutil.which("chromium-browser") or shutil.which("msedge")
+    if which:
+        candidates.append(which)
+    candidates.extend(
+        [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            "/snap/bin/chromium",
+        ]
+    )
+    seen: set[str] = set()
+    out: list[str] = []
+    for path in candidates:
+        p = str(path or "").strip()
+        if not p or p in seen:
+            continue
+        seen.add(p)
+        if Path(p).is_file() or shutil.which(p):
+            out.append(p)
+    return out
+
+
+def _render_chromium_pdf(html_doc: str) -> bytes:
+    """Print the exact DatevSheet HTML via headless Chromium/Edge — matches the studio view."""
+    browsers = _chromium_candidates()
+    if not browsers:
+        return b""
+    with tempfile.TemporaryDirectory(prefix="baupass-payslip-") as tmp:
+        tmp_path = Path(tmp)
+        html_path = tmp_path / "sheet.html"
+        pdf_path = tmp_path / "sheet.pdf"
+        html_path.write_text(html_doc, encoding="utf-8")
+        file_url = html_path.resolve().as_uri()
+        for browser in browsers:
+            try:
+                if pdf_path.exists():
+                    pdf_path.unlink()
+                cmd = [
+                    browser,
+                    "--headless=new",
+                    "--disable-gpu",
+                    "--no-pdf-header-footer",
+                    "--print-to-pdf-no-header",
+                    f"--print-to-pdf={pdf_path}",
+                    file_url,
+                ]
+                proc = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    timeout=45,
+                    check=False,
+                )
+                if pdf_path.is_file() and pdf_path.stat().st_size > 1500:
+                    raw = pdf_path.read_bytes()
+                    if raw.startswith(b"%PDF"):
+                        return raw
+                # Older Chrome builds use --headless without =new
+                if proc.returncode != 0:
+                    cmd[1] = "--headless"
+                    proc = subprocess.run(cmd, capture_output=True, timeout=45, check=False)
+                    if pdf_path.is_file() and pdf_path.stat().st_size > 1500:
+                        raw = pdf_path.read_bytes()
+                        if raw.startswith(b"%PDF"):
+                            return raw
+            except Exception as exc:
+                print(f"[lohn_sheet_pdf] chromium_failed {browser}: {exc}", flush=True)
+                continue
+    return b""
+
+
+def _render_weasyprint_pdf(html_doc: str) -> bytes:
+    try:
+        from weasyprint import HTML
+    except Exception:
+        return b""
+    if not html_doc:
         return b""
     try:
-        raw = HTML(string=doc, base_url=".").write_pdf()
+        raw = HTML(string=html_doc, base_url=".").write_pdf()
     except Exception as exc:
         print(f"[lohn_sheet_pdf] weasyprint_failed {exc}", flush=True)
         return b""
     return bytes(raw) if raw else b""
+
+
+def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
+    """Backward-compatible helper used by older tests/callers."""
+    doc = _prepare_print_document(html, data)
+    if not doc:
+        return b""
+    chromium = _render_chromium_pdf(doc)
+    if chromium.startswith(b"%PDF"):
+        return chromium
+    return _render_weasyprint_pdf(doc)
 
 
 def _render_reportlab_fallback(d: dict[str, Any]) -> bytes:
