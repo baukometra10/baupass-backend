@@ -15479,6 +15479,14 @@ def worker_app_site_presence():
                 )
                 if saved:
                     db.commit()
+                    try:
+                        from backend.app.platform.physical_operations.routes import (
+                            invalidate_live_map_cache,
+                        )
+
+                        invalidate_live_map_cache(worker["company_id"])
+                    except Exception:
+                        pass
                 return jsonify(
                     {
                         "onSite": False,
@@ -15619,8 +15627,26 @@ def worker_app_site_presence():
             site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0
         ):
             db.commit()
+            if location_saved:
+                try:
+                    from backend.app.platform.physical_operations.routes import (
+                        invalidate_live_map_cache,
+                    )
+
+                    invalidate_live_map_cache(worker["company_id"])
+                except Exception:
+                    pass
     elif leave_applied or location_saved or trail_saved or (site_leave_result and int(site_leave_result.get("offSitePolls") or 0) > 0):
         db.commit()
+        if location_saved:
+            try:
+                from backend.app.platform.physical_operations.routes import (
+                    invalidate_live_map_cache,
+                )
+
+                invalidate_live_map_cache(worker["company_id"])
+            except Exception:
+                pass
 
     if leave_applied:
         log_audit(
@@ -15748,6 +15774,14 @@ def worker_app_live_location():
         db.commit()
 
     if location_saved:
+        try:
+            from backend.app.platform.physical_operations.routes import (
+                invalidate_live_map_cache,
+            )
+
+            invalidate_live_map_cache(worker["company_id"])
+        except Exception:
+            pass
         try:
             from backend.app.platform.realtime.websocket import broadcast_event
 

@@ -3863,8 +3863,8 @@
       const nextInterval = () => {
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
-          // Socket already pushes events — HTTP lite poll is only a safety net.
-          return visible ? (siteHasWorkers ? 12000 : 20000) : 45000;
+          // Still poll often — WS events can miss; pin must not sit still 12–20s.
+          return visible ? (siteHasWorkers ? 2000 : 4000) : 20000;
         }
         if (weakNetwork) {
           return visible ? 8000 : 25000;
@@ -3978,10 +3978,16 @@
                       row.lng = lng;
                       row.lastLocationAt = new Date().toISOString();
                       row.positionSource = "live";
+                      if (typeof evt.accuracyMeters === "number") {
+                        row.accuracyMeters = evt.accuracyMeters;
+                      }
                       if (String(selectedWorkerId) === wid) {
                         renderSidebar(lastMapData);
                       }
                     }
+                  } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
+                    // Marker not built yet — force HTTP refresh so the pin appears/moves.
+                    scheduleRealtimeRefresh();
                   }
                 }
               } catch (_) { /* ignore */ }

@@ -26,8 +26,8 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        // 1 m: near step-level movement for the live ops pin.
-        distanceFilter: 1,
+        // 0 = every OS fix while walking (live pin must not sit still).
+        distanceFilter: 0,
         // FGS notification is required for background; omit it for reliable
         // foreground-only tracking when notification permission is missing.
         foregroundNotificationConfig:
@@ -37,7 +37,7 @@ class LocationService {
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 1,
+        distanceFilter: 0,
         allowBackgroundLocationUpdates: background,
         showBackgroundLocationIndicator: background,
         pauseLocationUpdatesAutomatically: false,
@@ -46,7 +46,7 @@ class LocationService {
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 1,
+      distanceFilter: 0,
     );
   }
 
@@ -232,7 +232,48 @@ class LocationService {
   Map<String, dynamic> _positionPayload(Position position) =>
       positionToPayload(position);
 
-  /// Fresh GPS for live-map movement — never reuse a stale lastKnown pin.
+  /// Short heartbeat fill-in — must not block the position stream (≤ ~1s).
+  Future<Map<String, dynamic>?> captureQuickForLiveHeartbeat() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return null;
+      }
+
+      Position? lastKnown;
+      try {
+        lastKnown = await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        lastKnown = null;
+      }
+      if (_usable(
+        lastKnown,
+        maxAge: const Duration(seconds: 3),
+        maxAccuracy: liveMapMaxAccuracyMeters,
+      )) {
+        return positionToPayload(lastKnown!);
+      }
+
+      try {
+        final fresh = await Geolocator.getCurrentPosition(
+          locationSettings: _fastCaptureSettings(),
+        );
+        if (fresh.accuracy <= liveMapMaxAccuracyMeters) {
+          return positionToPayload(fresh);
+        }
+      } catch (_) {
+        /* no fix this tick */
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Fresh GPS for initial / forced ping — never reuse a stale lastKnown pin.
   Future<Map<String, dynamic>?> captureFreshForLiveMap() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();

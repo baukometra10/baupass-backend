@@ -41,17 +41,20 @@ class GeofenceService {
   bool _trackingStartedNotified = false;
 
   Position? _pendingForcedPosition;
+  Position? _latestStreamPosition;
+  DateTime? _latestStreamAt;
   int _notCheckedInStrikes = 0;
   int _gpsFailStrikes = 0;
   String _lastStatus = '';
 
-  /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
-  static const pollInterval = Duration(seconds: 1);
+  /// Stream-driven movement is primary; heartbeat only fills gaps.
+  static const pollInterval = Duration(milliseconds: 1500);
 
-  static const positionDebounceMs = 120;
-  static const minMoveMetersToSend = 0.5;
+  static const positionDebounceMs = 80;
+  static const minMoveMetersToSend = 0.3;
   static const heartbeatInterval = Duration(seconds: 2);
   static const offSiteStrikesRequired = 3;
+  static const streamFreshForHeartbeat = Duration(seconds: 3);
 
   bool get liveTrackingActive => _running && _liveTracking;
   bool get isRunning => _running;
@@ -158,9 +161,12 @@ class GeofenceService {
       _positionSub = _location.watchPosition(background: background).listen(
         (position) {
           final now = DateTime.now();
+          _latestStreamPosition = position;
+          _latestStreamAt = now;
           if (_lastWatchPollAt != null &&
               now.difference(_lastWatchPollAt!).inMilliseconds <
                   positionDebounceMs) {
+            _pendingForcedPosition = position;
             return;
           }
           _lastWatchPollAt = now;
@@ -185,12 +191,12 @@ class GeofenceService {
           if (background) {
             attachStream(background: false);
             onNotify?.call(
-              'Hintergrund-GPS blockiert — sende weiter solange App offen ist.',
+              'Hintergrund-GPS blockiert — App offen lassen für Live-Pin.',
             );
             return;
           }
           _lastStatus = 'GPS-Stream unterbrochen';
-          onNotify?.call('GPS-Stream unterbrochen — bitte App kurz öffnen.');
+          onNotify?.call('GPS-Stream unterbrochen — bitte App im Vordergrund lassen.');
         },
       );
     }
@@ -223,6 +229,8 @@ class GeofenceService {
     _notCheckedInStrikes = 0;
     _gpsFailStrikes = 0;
     _pendingForcedPosition = null;
+    _latestStreamPosition = null;
+    _latestStreamAt = null;
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
     _lastSentAt = null;
@@ -238,7 +246,17 @@ class GeofenceService {
     required double lng,
     required _PollReason reason,
   }) {
-    if (reason == _PollReason.initial) return true;
+    if (reason == _PollReason.initial || reason == _PollReason.movement) {
+      if (_lastSentLat == null || _lastSentLng == null) return true;
+      final moved = _distanceMeters(_lastSentLat!, _lastSentLng!, lat, lng);
+      if (moved >= minMoveMetersToSend) return true;
+      // Movement events still heartbeat so lastLocationAt stays fresh.
+      if (_lastSentAt != null &&
+          DateTime.now().difference(_lastSentAt!) >= heartbeatInterval) {
+        return true;
+      }
+      return moved >= 0.15;
+    }
     if (_lastSentLat == null || _lastSentLng == null || _lastSentAt == null) {
       return true;
     }
@@ -299,13 +317,19 @@ class GeofenceService {
     _pollInFlight = true;
     try {
       Map<String, dynamic>? location;
-      if (forcedPosition != null &&
-          forcedPosition.accuracy <=
-              LocationService.liveMapMaxAccuracyMeters) {
-        location = _location.positionToPayload(forcedPosition);
+      final streamFresh = _latestStreamAt != null &&
+          DateTime.now().difference(_latestStreamAt!) <= streamFreshForHeartbeat;
+      final Position? preferred = forcedPosition ??
+          (streamFresh ? _latestStreamPosition : null);
+
+      if (preferred != null &&
+          preferred.accuracy <= LocationService.liveMapMaxAccuracyMeters) {
+        // Stream / movement path — never block on getCurrentPosition.
+        location = _location.positionToPayload(preferred);
+      } else if (reason == _PollReason.heartbeat) {
+        // Heartbeat must stay short; a 4s fix starves the watch stream.
+        location = await _location.captureQuickForLiveHeartbeat();
       } else {
-        // Never fall back to attendance's 90s cache — that freezes the map pin.
-        // Also used when stream accuracy is too poor.
         location = await _location.captureFreshForLiveMap();
       }
       if (location == null) {
@@ -364,8 +388,13 @@ class GeofenceService {
                 'GPS läuft — Pin bewegt sich nach erfolgreichem Check-in.',
               );
             }
+          } else if (result['ok'] != true) {
+            _lastStatus = 'GPS nicht gespeichert';
+            onNotify?.call(
+              'Live-GPS nicht gespeichert — Netz/Login prüfen.',
+            );
           } else {
-            _lastStatus = 'GPS gesendet';
+            _lastStatus = 'GPS gesendet · Server speichert nicht';
           }
         }
       }

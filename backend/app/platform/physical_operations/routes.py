@@ -28,6 +28,20 @@ _WORKFORCE_GRAPH_CACHE: dict[str, tuple[float, dict]] = {}
 _WORKFORCE_GRAPH_TTL_SEC = 8.0
 
 
+def invalidate_live_map_cache(company_id: str | None = None) -> None:
+    """Drop live-map micro-cache so the next poll sees fresh GPS pins."""
+    if not company_id:
+        _LIVE_MAP_CACHE.clear()
+        return
+    cid = str(company_id).strip()
+    if not cid:
+        _LIVE_MAP_CACHE.clear()
+        return
+    for key in list(_LIVE_MAP_CACHE.keys()):
+        if key == cid or key.startswith(f"{cid}:"):
+            _LIVE_MAP_CACHE.pop(key, None)
+
+
 def _micro_cache_get_or_build(
     cache: dict[str, tuple[float, object]],
     key: str,
