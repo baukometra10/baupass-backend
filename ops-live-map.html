@@ -2355,6 +2355,23 @@
 
     function ensureBaseMapInitialized() {
       if (map) return;
+      if (typeof L === "undefined" || !L?.map) {
+        // Leaflet script still loading — retry shortly instead of hard-failing.
+        if (!ensureBaseMapInitialized._retries) ensureBaseMapInitialized._retries = 0;
+        if (ensureBaseMapInitialized._retries < 40) {
+          ensureBaseMapInitialized._retries += 1;
+          setTimeout(() => {
+            try {
+              ensureBaseMapInitialized();
+            } catch {
+              /* ignore */
+            }
+          }, 150);
+        } else {
+          console.error("Failed to initialize base map: Leaflet (L) not available");
+        }
+        return;
+      }
       try {
         map = L.map("map").setView([52.52, 13.405], 12);
         if (typeof map.addLayer !== 'function') {
@@ -4223,7 +4240,11 @@
       }
     };
     initDarkMode();
-    ensureBaseMapInitialized();
+    if (window.__opsMapLibsReady && typeof window.__opsMapLibsReady.then === "function") {
+      window.__opsMapLibsReady.then(() => ensureBaseMapInitialized()).catch(() => ensureBaseMapInitialized());
+    } else {
+      ensureBaseMapInitialized();
+    }
 
     // Accessibility enhancements (WCAG 2.1 AA)
     const initAccessibility = () => {

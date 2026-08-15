@@ -1658,14 +1658,21 @@ function loadExternalScriptOnce(src) {
 
 async function ensurePayslipCaptureLibs() {
   if (!window.html2canvas) {
+    // CSP allows cdn.jsdelivr.net only (cdnjs is blocked) — required for send/download.
     await loadExternalScriptOnce(
-      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
     );
   }
   if (!(window.jspdf?.jsPDF || window.jsPDF)) {
     await loadExternalScriptOnce(
-      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js",
     );
+  }
+  if (!window.html2canvas) {
+    throw new Error("html2canvas konnte nicht geladen werden (CSP)");
+  }
+  if (!(window.jspdf?.jsPDF || window.jsPDF)) {
+    throw new Error("jsPDF konnte nicht geladen werden (CSP)");
   }
 }
 
@@ -2879,6 +2886,10 @@ function wireLohnDrawer() {
   document.addEventListener("keydown", (ev) => {
     if (ev.key === "Escape" && !$("lohnDrawer")?.classList.contains("hidden")) {
       closeLohnDrawer();
+      return;
+    }
+    if (ev.key === "Escape" && $("payslipReviewStudio")?.classList.contains("is-sheet-focus")) {
+      $("payslipFocusExitBtn")?.click();
     }
   });
   window.addEventListener("storage", (ev) => {
