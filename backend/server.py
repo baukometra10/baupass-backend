@@ -15738,7 +15738,7 @@ def worker_app_live_location():
                 accuracy_m=accuracy_m,
                 geofence_id=str((zone or {}).get("id") or ""),
                 zone_kind=str((zone or {}).get("zone_kind") or ""),
-                min_interval_seconds=5,
+                min_interval_seconds=2,
                 min_move_meters=0.5,
             )
         except Exception:
@@ -15746,6 +15746,26 @@ def worker_app_live_location():
 
     if location_saved or trail_saved:
         db.commit()
+
+    if location_saved:
+        try:
+            from backend.app.platform.realtime.websocket import broadcast_event
+
+            broadcast_event(
+                worker["company_id"],
+                {
+                    "type": "worker_live_location",
+                    "company_id": worker["company_id"],
+                    "worker_id": worker["id"],
+                    "lat": float(lat),
+                    "lng": float(lng),
+                    "accuracyMeters": accuracy_m,
+                    "onDuty": bool(open_session),
+                    "trailSaved": bool(trail_saved),
+                },
+            )
+        except Exception:
+            pass
 
     return jsonify(
         {

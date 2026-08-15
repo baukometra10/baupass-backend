@@ -46,11 +46,11 @@ class GeofenceService {
   String _lastStatus = '';
 
   /// Fresh GPS sample while walking (distanceFilter alone is unreliable on many phones).
-  static const pollInterval = Duration(seconds: 3);
+  static const pollInterval = Duration(seconds: 1);
 
-  static const positionDebounceMs = 300;
-  static const minMoveMetersToSend = 1.0;
-  static const heartbeatInterval = Duration(seconds: 6);
+  static const positionDebounceMs = 120;
+  static const minMoveMetersToSend = 0.5;
+  static const heartbeatInterval = Duration(seconds: 2);
   static const offSiteStrikesRequired = 3;
 
   bool get liveTrackingActive => _running && _liveTracking;

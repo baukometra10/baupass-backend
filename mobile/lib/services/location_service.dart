@@ -10,7 +10,8 @@ class LocationService {
   /// Prefer a cached fix if younger than this — keeps check-in under ~1s.
   static const _freshCacheMaxAge = Duration(seconds: 90);
   static const _fastFixTimeout = Duration(milliseconds: 900);
-  static const _liveLastKnownMaxAge = Duration(seconds: 20);
+  /// Live map must not reuse stale lastKnown — that freezes the pin while walking.
+  static const _liveLastKnownMaxAge = Duration(seconds: 2);
 
   static const _foregroundNotification = ForegroundNotificationConfig(
     notificationTitle: 'SUPPIX Live-Standort',
@@ -24,9 +25,9 @@ class LocationService {
   LocationSettings _watchSettings({required bool background}) {
     if (Platform.isAndroid) {
       return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        // 3 m: walking updates without drowning the network.
-        distanceFilter: 3,
+        accuracy: LocationAccuracy.bestForNavigation,
+        // 1 m: near step-level movement for the live ops pin.
+        distanceFilter: 1,
         // FGS notification is required for background; omit it for reliable
         // foreground-only tracking when notification permission is missing.
         foregroundNotificationConfig:
@@ -35,8 +36,8 @@ class LocationService {
     }
     if (Platform.isIOS) {
       return AppleSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 3,
+        accuracy: LocationAccuracy.bestForNavigation,
+        distanceFilter: 1,
         allowBackgroundLocationUpdates: background,
         showBackgroundLocationIndicator: background,
         pauseLocationUpdatesAutomatically: false,
@@ -44,8 +45,8 @@ class LocationService {
       );
     }
     return const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 3,
+      accuracy: LocationAccuracy.bestForNavigation,
+      distanceFilter: 1,
     );
   }
 
@@ -71,19 +72,19 @@ class LocationService {
   LocationSettings _liveCaptureSettings() {
     if (Platform.isAndroid) {
       return AndroidSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 8),
+        accuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 4),
       );
     }
     if (Platform.isIOS) {
       return AppleSettings(
-        accuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 8),
+        accuracy: LocationAccuracy.bestForNavigation,
+        timeLimit: const Duration(seconds: 4),
       );
     }
     return const LocationSettings(
-      accuracy: LocationAccuracy.high,
-      timeLimit: Duration(seconds: 8),
+      accuracy: LocationAccuracy.bestForNavigation,
+      timeLimit: Duration(seconds: 4),
     );
   }
 
@@ -231,7 +232,7 @@ class LocationService {
   Map<String, dynamic> _positionPayload(Position position) =>
       positionToPayload(position);
 
-  /// Fresh-enough GPS for live-map movement.
+  /// Fresh GPS for live-map movement — never reuse a stale lastKnown pin.
   Future<Map<String, dynamic>?> captureFreshForLiveMap() async {
     try {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -240,6 +241,18 @@ class LocationService {
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
         return null;
+      }
+
+      // Prefer a brand-new fix so walking updates the pin immediately.
+      try {
+        final fresh = await Geolocator.getCurrentPosition(
+          locationSettings: _liveCaptureSettings(),
+        );
+        if (fresh.accuracy <= liveMapMaxAccuracyMeters) {
+          return positionToPayload(fresh);
+        }
+      } catch (_) {
+        /* fall through to ultra-fresh lastKnown */
       }
 
       Position? lastKnown;
@@ -251,25 +264,6 @@ class LocationService {
       if (_usable(
         lastKnown,
         maxAge: _liveLastKnownMaxAge,
-        maxAccuracy: liveMapMaxAccuracyMeters,
-      )) {
-        return positionToPayload(lastKnown!);
-      }
-
-      try {
-        final fresh = await Geolocator.getCurrentPosition(
-          locationSettings: _liveCaptureSettings(),
-        );
-        if (fresh.accuracy <= liveMapMaxAccuracyMeters) {
-          return positionToPayload(fresh);
-        }
-      } catch (_) {
-        /* fall through */
-      }
-
-      if (_usable(
-        lastKnown,
-        maxAge: const Duration(seconds: 60),
         maxAccuracy: liveMapMaxAccuracyMeters,
       )) {
         return positionToPayload(lastKnown!);

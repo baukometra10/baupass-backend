@@ -2543,12 +2543,12 @@
         return new Intl.NumberFormat(locale, { maximumFractionDigits: 2, minimumFractionDigits: 1 }).format(km) + ' km';
       }
     };
-    // Keep live updates snappy, but avoid 1 Hz API hammering (blocks Ops-Zentrale / admin tabs).
-    const LIVE_POLL_MS_VISIBLE = 5000;
-    const LIVE_POLL_MS_VISIBLE_IDLE = 12000;
-    const LIVE_POLL_MS_HIDDEN = 20000;
-    const MARKER_MOVE_ANIM_MS = 700;
-    const EVENT_REFRESH_THROTTLE_MS = 600;
+    // Near-realtime pin movement while workers are on site (HTTP poll + WS refresh).
+    const LIVE_POLL_MS_VISIBLE = 1500;
+    const LIVE_POLL_MS_VISIBLE_IDLE = 4000;
+    const LIVE_POLL_MS_HIDDEN = 12000;
+    const MARKER_MOVE_ANIM_MS = 450;
+    const EVENT_REFRESH_THROTTLE_MS = 250;
     const WEAK_NETWORK_THRESHOLD_MS = 1800;
     const WORKER_LIST_SOFT_CAP = 180;
     const WORKER_LIST_CAP_TRIGGER = 260;
@@ -3144,7 +3144,7 @@
       if (!liveTrailEnabled) return;
       trailLiveTimer = window.setInterval(() => {
         refreshSelectedTrail();
-      }, 5000);
+      }, 2000);
     }
 
     async function showWorkerTrail(worker, options = {}) {
@@ -3963,7 +3963,30 @@
                 renderMap(lastMapData);
               }
             },
-            onEvent: () => scheduleRealtimeRefresh(),
+            onEvent: (evt) => {
+              try {
+                if (evt && evt.type === "worker_live_location") {
+                  const wid = String(evt.worker_id || "");
+                  const lat = Number(evt.lat);
+                  const lng = Number(evt.lng);
+                  const marker = wid ? workerMarkersById.get(wid) : null;
+                  if (marker && Number.isFinite(lat) && Number.isFinite(lng)) {
+                    animateWorkerMarkerMove(wid, marker, lat, lng);
+                    const row = (lastMapData?.workersOnSite || []).find((w) => String(w.id) === wid);
+                    if (row) {
+                      row.lat = lat;
+                      row.lng = lng;
+                      row.lastLocationAt = new Date().toISOString();
+                      row.positionSource = "live";
+                      if (String(selectedWorkerId) === wid) {
+                        renderSidebar(lastMapData);
+                      }
+                    }
+                  }
+                }
+              } catch (_) { /* ignore */ }
+              scheduleRealtimeRefresh();
+            },
           });
         } else {
           realtimeMode = "sse";
