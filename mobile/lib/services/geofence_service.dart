@@ -409,7 +409,14 @@ class GeofenceService {
               );
             }
           } else if (result['locationSaved'] == false) {
-            _lastStatus = 'GPS Antwort ohne Speicherung';
+            // Backend accepted the request but DB write failed / old deploy.
+            _lastStatus = 'GPS empfangen · Speichern fehlgeschlagen';
+            if (_notCheckedInStrikes == 0) {
+              _notCheckedInStrikes = 1;
+              onNotify?.call(
+                'GPS kommt an, Speichern fehlgeschlagen — App offen lassen, gleich erneut.',
+              );
+            }
           } else {
             // Older/partial responses — still treat as ok if request succeeded.
             _lastStatus = 'Pin live · GPS gesendet';

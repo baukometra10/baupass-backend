@@ -154,7 +154,7 @@ def upsert_presence_after_access(
         pass
 
 
-# Significant move for live-map pin updates (~0.5 m so employers see walking).
+# Significant move for live-map pin updates (~1 m).
 LIVE_LOCATION_MIN_MOVE_METERS = 1.0
 
 
@@ -167,6 +167,18 @@ def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> flo
     dlng = math.radians(lng2 - lng1)
     a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlng / 2) ** 2
     return 2 * earth * math.asin(math.sqrt(min(1.0, a)))
+
+
+def _row_get(row: Any, key: str, default=None):
+    if row is None:
+        return default
+    try:
+        return row[key]
+    except Exception:
+        try:
+            return row[key.lower()]
+        except Exception:
+            return default
 
 
 def upsert_live_location(
@@ -186,6 +198,9 @@ def upsert_live_location(
     Always refreshes last_location_at (keeps pin "fresh"). Coordinates update when the
     worker moved ≥ min_move_meters (or on first fix) so tiny GPS jitter does not rewrite.
     """
+    import logging
+
+    log = logging.getLogger("baupass.presence")
     try:
         la = float(lat)
         ln = float(lng)
@@ -215,8 +230,8 @@ def upsert_live_location(
         moved = True
         if existing is not None:
             try:
-                prev_lat = existing["last_lat"]
-                prev_lng = existing["last_lng"]
+                prev_lat = _row_get(existing, "last_lat")
+                prev_lng = _row_get(existing, "last_lng")
                 if prev_lat is not None and prev_lng is not None:
                     dist = _haversine_meters(float(prev_lat), float(prev_lng), la, ln)
                     moved = dist >= float(min_move_meters)
@@ -244,6 +259,48 @@ def upsert_live_location(
                     (cid, acc, stamp, stamp, wid),
                 )
         else:
+            try:
+                db.execute(
+                    """
+                    INSERT INTO worker_presence_state (
+                        worker_id, company_id, open_direction,
+                        last_checkin_at, last_checkout_at, updated_at,
+                        last_lat, last_lng, last_accuracy_m, last_location_at
+                    ) VALUES (?, ?, '', '', '', ?, ?, ?, ?, ?)
+                    """,
+                    (wid, cid, stamp, la, ln, acc, stamp),
+                )
+            except Exception:
+                # Row may have been created concurrently — fall back to update.
+                db.execute(
+                    """
+                    UPDATE worker_presence_state
+                    SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
+                        last_location_at = ?, updated_at = ?
+                    WHERE worker_id = ?
+                    """,
+                    (cid, la, ln, acc, stamp, stamp, wid),
+                )
+        return True
+    except Exception as exc:
+        log.warning("upsert_live_location failed worker=%s: %s", wid, exc)
+        # Last-resort write without move gating (still better than silent drop).
+        try:
+            db.execute(
+                """
+                UPDATE worker_presence_state
+                SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
+                    last_location_at = ?, updated_at = ?
+                WHERE worker_id = ?
+                """,
+                (cid, la, ln, acc, stamp, stamp, wid),
+            )
+            row = db.execute(
+                "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+                (wid,),
+            ).fetchone()
+            if row is not None:
+                return True
             db.execute(
                 """
                 INSERT INTO worker_presence_state (
@@ -254,9 +311,10 @@ def upsert_live_location(
                 """,
                 (wid, cid, stamp, la, ln, acc, stamp),
             )
-        return True
-    except Exception:
-        return False
+            return True
+        except Exception as exc2:
+            log.warning("upsert_live_location fallback failed worker=%s: %s", wid, exc2)
+            return False
 
 
 def resolve_auto_direction(db, worker_id: str) -> str:

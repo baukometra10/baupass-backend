@@ -15745,6 +15745,18 @@ def worker_app_live_location():
         accuracy_m=accuracy_m,
         min_move_meters=1.0,
     )
+    # Commit GPS immediately. PgConnection rolls back the whole tx on later errors
+    # (e.g. trail insert) — that previously dropped a successful pin write.
+    if location_saved:
+        try:
+            db.commit()
+        except Exception:
+            location_saved = False
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
     trail_saved = False
     # Trail samples only while on duty — avoids idle tracks after checkout.
     if location_saved and open_session:
@@ -15763,11 +15775,14 @@ def worker_app_live_location():
                 min_interval_seconds=5,
                 min_move_meters=1.0,
             )
+            if trail_saved:
+                db.commit()
         except Exception:
             trail_saved = False
-
-    if location_saved or trail_saved:
-        db.commit()
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     if location_saved:
         try:
