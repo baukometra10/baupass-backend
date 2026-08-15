@@ -198,7 +198,8 @@ export function payslipToSheetData(job) {
     konto: iban ? \`Konto \${iban}\` : "Konto",
     agSv: formatAmount(t.employerShare),
     agExtra: formatAmount(t.umlagenTotal),
-    agTotal: formatAmount(Number(t.employerShare || 0) + Number(gross || 0) + Number(t.umlagenTotal || 0)),
+    // Match Lohn UI Gesamtkosten: Brutto + SV-AG only (not + Umlagen).
+    agTotal: formatAmount(Number(t.employerShare || 0) + Number(gross || 0)),
     payHint: "Überweisung auf das angegebene Konto",
   };
 }

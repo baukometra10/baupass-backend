@@ -553,7 +553,8 @@ def payslip_to_sheet_data(payslip: dict[str, Any] | None, *, job: dict[str, Any]
         "konto": f"Konto {iban}" if iban else "Konto",
         "agSv": _amt(t.get("employerShare")),
         "agExtra": _amt(t.get("umlagenTotal")),
-        "agTotal": _amt(float(t.get("employerShare") or 0) + float(gross or 0) + float(t.get("umlagenTotal") or 0)),
+        # Match WorkPass Lohn UI (script.js): Gesamtkosten = Brutto + SV-AG only.
+        "agTotal": _amt(float(t.get("employerShare") or 0) + float(gross or 0)),
         "payHint": "Überweisung auf das angegebene Konto",
         "footerNote": str(p.get("footerNote") or ""),
         "calcMethod": str(t.get("calcMethod") or ""),
