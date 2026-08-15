@@ -155,7 +155,7 @@ def upsert_presence_after_access(
 
 
 # Significant move for live-map pin updates (~0.5 m so employers see walking).
-LIVE_LOCATION_MIN_MOVE_METERS = 0.5
+LIVE_LOCATION_MIN_MOVE_METERS = 1.0
 
 
 def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

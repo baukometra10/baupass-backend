@@ -15743,7 +15743,7 @@ def worker_app_live_location():
         lat=float(lat),
         lng=float(lng),
         accuracy_m=accuracy_m,
-        min_move_meters=0.0,
+        min_move_meters=1.0,
     )
     trail_saved = False
     # Trail samples only while on duty — avoids idle tracks after checkout.

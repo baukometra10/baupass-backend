@@ -26,8 +26,9 @@ class LocationService {
     if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        // 0 = every OS fix while walking (live pin must not sit still).
-        distanceFilter: 0,
+        // OS-level gate: wake the stream when the device moved ~1 m.
+        // App-level [GeofenceService.minMoveMetersToSend] also filters to 1 m.
+        distanceFilter: 1,
         // FGS notification is required for background; omit it for reliable
         // foreground-only tracking when notification permission is missing.
         foregroundNotificationConfig:
@@ -37,7 +38,7 @@ class LocationService {
     if (Platform.isIOS) {
       return AppleSettings(
         accuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 0,
+        distanceFilter: 1,
         allowBackgroundLocationUpdates: background,
         showBackgroundLocationIndicator: background,
         pauseLocationUpdatesAutomatically: false,
@@ -46,7 +47,7 @@ class LocationService {
     }
     return const LocationSettings(
       accuracy: LocationAccuracy.bestForNavigation,
-      distanceFilter: 0,
+      distanceFilter: 1,
     );
   }
 

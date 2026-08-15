@@ -50,14 +50,16 @@ class GeofenceService {
   String _lastStatus = '';
 
   /// Stream-driven movement is primary; heartbeat only fills gaps.
-  static const pollInterval = Duration(milliseconds: 2000);
+  static const pollInterval = Duration(seconds: 8);
 
-  static const positionDebounceMs = 120;
-  static const minMoveMetersToSend = 0.5;
-  static const heartbeatInterval = Duration(seconds: 3);
+  static const positionDebounceMs = 200;
+  /// Clear step-level signal: send when the worker moved ~1 m (saves battery + server).
+  static const minMoveMetersToSend = 1.0;
+  /// Keep lastLocationAt fresh while standing still (not every second).
+  static const heartbeatInterval = Duration(seconds: 20);
   static const minSendInterval = Duration(seconds: 2);
   static const offSiteStrikesRequired = 3;
-  static const streamFreshForHeartbeat = Duration(seconds: 3);
+  static const streamFreshForHeartbeat = Duration(seconds: 5);
 
   bool get liveTrackingActive => _running && _liveTracking;
   bool get isRunning => _running;
