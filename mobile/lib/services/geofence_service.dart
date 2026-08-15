@@ -44,22 +44,26 @@ class GeofenceService {
   Position? _latestStreamPosition;
   DateTime? _latestStreamAt;
   DateTime? _rateLimitedUntil;
+  DateTime? _lastSuccessAt;
   int _rateLimitNotices = 0;
   int _notCheckedInStrikes = 0;
   int _gpsFailStrikes = 0;
+  int _networkFailStrikes = 0;
   String _lastStatus = '';
+  String _stableOkStatus = 'Pin live · verbunden';
 
   /// Stream-driven movement is primary; heartbeat only fills gaps.
-  static const pollInterval = Duration(seconds: 8);
+  static const pollInterval = Duration(seconds: 20);
 
-  static const positionDebounceMs = 200;
+  static const positionDebounceMs = 250;
   /// Clear step-level signal: send when the worker moved ~1 m (saves battery + server).
   static const minMoveMetersToSend = 1.0;
-  /// Keep lastLocationAt fresh while standing still (not every second).
-  static const heartbeatInterval = Duration(seconds: 20);
-  static const minSendInterval = Duration(seconds: 2);
+  /// Keep lastLocationAt fresh while standing still (not every few seconds).
+  static const heartbeatInterval = Duration(seconds: 45);
+  static const minSendInterval = Duration(seconds: 3);
   static const offSiteStrikesRequired = 3;
-  static const streamFreshForHeartbeat = Duration(seconds: 5);
+  static const streamFreshForHeartbeat = Duration(seconds: 8);
+  static const statusHoldAfterSuccess = Duration(seconds: 90);
 
   bool get liveTrackingActive => _running && _liveTracking;
   bool get isRunning => _running;
@@ -145,6 +149,7 @@ class GeofenceService {
     _pendingForcedPosition = null;
     _rateLimitedUntil = null;
     _rateLimitNotices = 0;
+    _networkFailStrikes = 0;
     _lastStatus = 'GPS startet…';
 
     void schedulePoll() {
@@ -240,6 +245,8 @@ class GeofenceService {
     _latestStreamAt = null;
     _rateLimitedUntil = null;
     _rateLimitNotices = 0;
+    _networkFailStrikes = 0;
+    _lastSuccessAt = null;
     _lastNoticeKey = null;
     _lastWatchPollAt = null;
     _lastSentAt = null;
@@ -248,6 +255,27 @@ class GeofenceService {
     _lastSentLng = null;
     _trackingStartedNotified = false;
     _lastStatus = '';
+  }
+
+  void _markGpsSuccess([String status = 'Pin live · verbunden']) {
+    _lastSuccessAt = DateTime.now();
+    _networkFailStrikes = 0;
+    _gpsFailStrikes = 0;
+    _stableOkStatus = status;
+    _lastStatus = status;
+  }
+
+  void _markTransientFailure(String status, {bool force = false}) {
+    _networkFailStrikes += 1;
+    // Keep a calm "verbunden" banner after recent success — avoids connect/disconnect flicker.
+    if (!force &&
+        _lastSuccessAt != null &&
+        DateTime.now().difference(_lastSuccessAt!) < statusHoldAfterSuccess &&
+        _networkFailStrikes < 3) {
+      _lastStatus = _stableOkStatus;
+      return;
+    }
+    _lastStatus = status;
   }
 
   bool _shouldSend({
@@ -391,7 +419,7 @@ class GeofenceService {
             _notCheckedInStrikes = 0;
             _rateLimitedUntil = null;
             _rateLimitNotices = 0;
-            _lastStatus = 'Pin live · GPS gespeichert';
+            _markGpsSuccess('Pin live · verbunden');
             if (!_trackingStartedNotified) {
               _trackingStartedNotified = true;
               onNotify?.call(
@@ -412,9 +440,12 @@ class GeofenceService {
             final err = (result['saveError'] ?? result['saveReason'] ?? '')
                 .toString()
                 .trim();
-            _lastStatus = err.isEmpty
-                ? 'GPS empfangen · Speichern fehlgeschlagen'
-                : 'Speichern fehlgeschlagen: ${err.length > 42 ? err.substring(0, 42) : err}';
+            _markTransientFailure(
+              err.isEmpty
+                  ? 'GPS empfangen · Speichern fehlgeschlagen'
+                  : 'Speichern fehlgeschlagen: ${err.length > 42 ? err.substring(0, 42) : err}',
+              force: true,
+            );
             if (_notCheckedInStrikes == 0) {
               _notCheckedInStrikes = 1;
               onNotify?.call(
@@ -425,8 +456,11 @@ class GeofenceService {
             }
           } else {
             // Older/partial responses — still treat as ok if request succeeded.
-            _lastStatus = 'Pin live · GPS gesendet';
+            _markGpsSuccess('Pin live · verbunden');
           }
+        } else if (_lastSuccessAt != null) {
+          // No send this tick — keep calm connected status.
+          _lastStatus = _stableOkStatus;
         }
       }
 
@@ -436,7 +470,7 @@ class GeofenceService {
               (reason == _PollReason.heartbeat &&
                   (_lastSitePresenceAt == null ||
                       DateTime.now().difference(_lastSitePresenceAt!) >=
-                          const Duration(seconds: 15))));
+                          const Duration(seconds: 45))));
       if (shouldPingPresence) {
         try {
           final presence = await _api.postJson(
@@ -466,12 +500,12 @@ class GeofenceService {
           e.statusCode == 503 ||
           e.statusCode == 504) {
         final retry = (e.payload?['retryAfterSeconds'] as num?)?.toInt() ??
-            (e.statusCode == 429 ? 20 : 12);
+            (e.statusCode == 429 ? 30 : 20);
         _rateLimitedUntil =
-            DateTime.now().add(Duration(seconds: retry.clamp(5, 120)));
-        _lastStatus = 'GPS pausiert (${e.statusCode}) · ${retry}s';
+            DateTime.now().add(Duration(seconds: retry.clamp(10, 120)));
+        _markTransientFailure('GPS pausiert (${e.statusCode}) · ${retry}s');
         _rateLimitNotices += 1;
-        if (_rateLimitNotices == 1) {
+        if (_rateLimitNotices == 1 && _networkFailStrikes >= 3) {
           onNotify?.call(
             e.statusCode == 429
                 ? 'Zu viele Anfragen — Live-GPS pausiert kurz, dann weiter.'
@@ -480,7 +514,7 @@ class GeofenceService {
         }
         return;
       }
-      _lastStatus = 'GPS-Serverfehler (${e.statusCode})';
+      _markTransientFailure('GPS-Serverfehler (${e.statusCode})');
       if (e.errorCode == 'worker_geolocation_inaccurate' ||
           e.errorCode == 'worker_geolocation_required' ||
           e.errorCode == 'site_location_unavailable') {
@@ -488,11 +522,11 @@ class GeofenceService {
       }
       if (isWorkerSessionAuthError(e.errorCode)) {
         onNotify?.call('Sitzung abgelaufen — bitte erneut anmelden.');
-      } else if (_notCheckedInStrikes <= 1 && _rateLimitNotices == 0) {
+      } else if (_networkFailStrikes >= 3 && _rateLimitNotices == 0) {
         onNotify?.call('Live-GPS konnte nicht gesendet werden (${e.statusCode}).');
       }
     } catch (_) {
-      _lastStatus = 'GPS Netzwerkfehler';
+      _markTransientFailure('GPS Netzwerkfehler');
       // ignore transient GPS/network errors
     } finally {
       _pollInFlight = false;

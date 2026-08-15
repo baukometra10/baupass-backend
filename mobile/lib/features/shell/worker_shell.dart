@@ -124,10 +124,10 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
       _voiceCall.bind(widget.session);
     });
     _conferenceRepo = ConferenceRepository(widget.chat.apiClient);
-    _conferencePollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+    _conferencePollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       unawaited(_pollConferenceInvite());
     });
-    _gpsStatusTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+    _gpsStatusTimer = Timer.periodic(const Duration(seconds: 3), (_) {
       if (!mounted) return;
       final next = widget.geofence.lastStatus;
       if (next != _gpsStatus) {
@@ -621,11 +621,13 @@ class WorkerShellState extends State<WorkerShell> with WidgetsBindingObserver {
                         Builder(
                           builder: (context) {
                             final s = _gpsStatus.toLowerCase();
-                            final ok = s.contains('live');
-                            final bad = s.contains('fehlt') ||
-                                s.contains('fehler') ||
-                                s.contains('ungenau') ||
-                                s.contains('unterbrochen');
+                            final ok = s.contains('live') || s.contains('verbunden');
+                            final bad = (s.contains('fehlt') ||
+                                    s.contains('fehler') ||
+                                    s.contains('ungenau') ||
+                                    s.contains('unterbrochen') ||
+                                    s.contains('fehlgeschlagen')) &&
+                                !ok;
                             return Container(
                               width: double.infinity,
                               color: ok

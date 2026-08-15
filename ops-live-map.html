@@ -3864,7 +3864,7 @@
         const visible = document.visibilityState === "visible";
         if (realtimeMode === "websocket") {
           // Still poll often — WS events can miss; pin must not sit still 12–20s.
-          return visible ? (siteHasWorkers ? 2000 : 4000) : 20000;
+          return visible ? (siteHasWorkers ? 3000 : 5000) : 25000;
         }
         if (weakNetwork) {
           return visible ? 8000 : 25000;

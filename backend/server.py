@@ -660,6 +660,8 @@ REQUEST_RATE_LIMITS = {
 request_rate_state = {}
 _rate_lock = threading.Lock()
 _worker_rate_limit_audit_state = {}
+_live_location_broadcast_at = {}
+_LIVE_LOCATION_BROADCAST_MIN_SECONDS = 2.5
 
 _background_started = False
 _background_lock = threading.Lock()
