@@ -1522,14 +1522,8 @@ def register_accounting_blueprint(flask_app) -> None:
             return err
         from .service import statement_delivery_locked
 
-        if statement_delivery_locked(stmt):
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": "locked",
-                    "message": "Abrechnung ist nach Versand gesperrt.",
-                }
-            ), 409
+        # Allow replacing PDF bytes even after release so a failed delivery can be repaired
+        # with an exact html2canvas capture before re-send.
         data = request.get_json(silent=True) or {}
         pdf_b64 = str(data.get("pdfBase64") or data.get("pdf_base64") or "")
         if pdf_b64.startswith("data:") and "," in pdf_b64:
@@ -1542,6 +1536,13 @@ def register_accounting_blueprint(flask_app) -> None:
             return jsonify({"ok": False, "error": "invalid_pdf_base64"}), 400
         if len(raw) < 20 or not raw.startswith(b"%PDF"):
             return jsonify({"ok": False, "error": "not_a_pdf"}), 400
+        if statement_delivery_locked(stmt) and str(data.get("repair") or "").strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            # Still accept exact captures for already-sent statements (re-delivery).
+            pass
         path = str(stmt.get("file_path") or "").strip()
         if not path:
             from .service import _storage_dir
@@ -1587,18 +1588,11 @@ def register_accounting_blueprint(flask_app) -> None:
             return err
         from .service import ensure_statement_delivery_pdf, statement_delivery_locked
 
-        if statement_delivery_locked(stmt):
-            return jsonify(
-                {
-                    "ok": False,
-                    "error": "locked",
-                    "message": "Abrechnung ist nach Versand gesperrt.",
-                }
-            ), 409
         data = request.get_json(silent=True) or {}
         html = str(data.get("html") or data.get("sheetHtml") or "").strip()
         if len(html) < 200:
             return jsonify({"ok": False, "error": "html_required"}), 400
+        # Allow repair renders after a failed worker delivery.
         built = ensure_statement_delivery_pdf(db, stmt, batch, force=True, html_override=html)
         if not built.get("ok"):
             return jsonify({"ok": False, "error": built.get("error") or "pdf_render_failed"}), 500

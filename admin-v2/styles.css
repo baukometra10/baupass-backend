@@ -1292,6 +1292,8 @@ button.lage-alert-link:hover {
   border-radius: 8px;
   font-size: 0.88rem;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .global-toast.ok {

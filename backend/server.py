@@ -30127,8 +30127,11 @@ def worker_app_my_document_download(doc_id):
     ).fetchone()
     if not doc:
         return jsonify({"error": "document_not_found"}), 404
-    file_path = BASE_DIR / doc["file_path"]
-    if not file_path.exists():
+    raw_path = str(doc["file_path"] or "").strip()
+    file_path = Path(raw_path)
+    if not file_path.is_file():
+        file_path = BASE_DIR / raw_path
+    if not file_path.is_file():
         return jsonify({"error": "file_not_found"}), 404
     from flask import send_file
 

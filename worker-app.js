@@ -77,7 +77,7 @@ function wpGet(key) {
   return null;
 }
 const API_BASE_STORAGE_KEY = WP?.KEYS?.API_BASE || "workpass-api-base";
-const WORKER_BUILD_TAG = "20260726video4";
+const WORKER_BUILD_TAG = "20260815docsTime1";
 const WORKER_VOICE_MIN_RECORD_MS = 800;
 
 function isWorkerTouchDevice() {
@@ -9476,7 +9476,12 @@ function formatDateTime(value) {
   if (!value) {
     return "-";
   }
-  const parsed = new Date(value);
+  const raw = String(value).trim();
+  // Date-only values stay date-only; full timestamps show local date + time.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return formatDate(raw);
+  }
+  const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
     return "-";
   }
@@ -9485,7 +9490,9 @@ function formatDateTime(value) {
     month: "2-digit",
     year: "numeric",
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
   }).format(parsed);
 }
 
@@ -14052,7 +14059,8 @@ async function loadMyDocuments() {
       const statusClass = doc.expiry_date
         ? (isExpired ? "doc-expired" : "doc-ok")
         : "doc-no-expiry";
-      const received = (doc.created_at || "").slice(0, 10);
+      const receivedRaw = doc.created_at || doc.createdAt || doc.uploaded_at || "";
+      const received = receivedRaw ? formatDateTime(receivedRaw) : "";
       const docType = String(doc.doc_type || "").trim().toLowerCase();
       const isEinsatzplan = docType === "einsatzplan";
       const openPlanBtn = isEinsatzplan
@@ -14067,7 +14075,7 @@ async function loadMyDocuments() {
           ${isPayroll ? `<span class="doc-payroll-pill">${t("documentsPayrollTitle")}</span>` : ""}
         </div>
         <div class="doc-meta">
-          ${received ? `<span>${t("documentsReceived")}: ${formatDate(received)}</span>` : ""}
+          ${received ? `<span>${t("documentsReceived")}: ${escapeHtmlBasic(received)}</span>` : ""}
           ${isPayroll && doc.filename ? `<span>${escapeHtmlBasic(doc.filename)}</span>` : ""}
           ${doc.expiry_date ? `<span>${t("documentsExpiry")}: ${formatDate(doc.expiry_date)}</span>` : ""}
           <span class="doc-status-badge ${statusClass}">${statusLabel}${expiryDeltaLabel ? ` · ${expiryDeltaLabel}` : ""}</span>

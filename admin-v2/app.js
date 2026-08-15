@@ -1141,13 +1141,24 @@ function showActionToast(message, isError) {
   }
   if (!text || text === "[object Object]") text = t("common.error");
   if (!el) {
-    alert(text);
+    // Never use blocking alert() — it stacks and re-triggers send clicks.
+    console.warn("[toast]", isError ? "err" : "ok", text);
     return;
   }
   const baseClass = el.id === "globalToast" ? "global-toast" : "inbox-toast";
   el.textContent = text;
   el.className = isError ? `${baseClass} err` : `${baseClass} ok`;
   el.classList.remove("hidden");
+  el.setAttribute("aria-live", isError ? "assertive" : "polite");
+  // Clicks on the toast must not bubble into studio action handlers.
+  if (!el.dataset.payslipToastBound) {
+    el.dataset.payslipToastBound = "1";
+    el.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      el.classList.add("hidden");
+    });
+  }
   clearTimeout(showActionToast._t);
   showActionToast._t = setTimeout(() => el.classList.add("hidden"), 4500);
 }
@@ -1384,6 +1395,7 @@ const payslipStudioState = {
   archiveQuery: "",
   archiveStatus: "all",
   archivePeriod: "",
+  releaseInFlight: false,
 };
 
 const PAYSLIP_A4_PX_W = 794;
@@ -1711,7 +1723,11 @@ async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
       `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
       {
         method: "POST",
-        body: JSON.stringify({ pdfBase64, pdfSource: "lohn_html2canvas" }),
+        body: JSON.stringify({
+          pdfBase64,
+          pdfSource: "lohn_html2canvas",
+          repair: true,
+        }),
       },
     );
   } catch (err) {
@@ -2381,24 +2397,55 @@ async function handlePayslipStudioClick(ev) {
     return;
   }
   if (action === "release") {
+    if (payslipStudioState.releaseInFlight) {
+      showActionToast(t("lohn.sending") || "Wird gesendet…");
+      return;
+    }
     const warns = Array.isArray(stmtNow?.stammdatenWarnings) ? stmtNow.stammdatenWarnings : [];
     const extra = warns.length ? `\n\n${warns.join("\n")}` : "";
     if (!window.confirm((t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?") + extra)) {
       return;
     }
+    payslipStudioState.releaseInFlight = true;
+    const releaseBtn = act;
+    if (releaseBtn) releaseBtn.setAttribute("disabled", "disabled");
     try {
       showActionToast(t("lohn.sending") || "Wird gesendet…");
-      await syncPayslipStudioPdfFromHtml(batchId, statementId);
+      const captured = await syncPayslipStudioPdfFromHtml(batchId, statementId);
+      if (!captured?.ok) {
+        throw new Error(
+          t("lohn.captureRequired")
+            || "PDF-Erfassung fehlgeschlagen — Abrechnung erneut öffnen und senden",
+        );
+      }
       const res = await api(
         `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
         { method: "POST", body: "{}" },
       );
-      toast(res.message || (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet"), "ok");
+      if (!res?.ok) {
+        throw new Error(res?.message || res?.error || t("lohn.sendFailed") || "Senden fehlgeschlagen");
+      }
+      if (!res.workerDocumentId && res.skipped === "already_released") {
+        showActionToast(
+          res.message || (t("lohn.alreadySent") || "Bereits gesendet — in Mitarbeiter-App prüfen"),
+        );
+      } else {
+        toast(
+          res.message
+            || (res.repaired
+              ? (t("lohn.repairedSend") || "Nachgeliefert an Mitarbeiter-App")
+              : (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet")),
+          "ok",
+        );
+      }
       await refreshPayslipStudio({ keepSelection: false });
       broadcastLohnInboxChanged();
     } catch (err) {
       const msg = humanizeUserError?.(err) || err?.message || t("lohn.sendFailed") || "Senden fehlgeschlagen";
       showActionToast(msg, true);
+    } finally {
+      payslipStudioState.releaseInFlight = false;
+      if (releaseBtn) releaseBtn.removeAttribute("disabled");
     }
     return;
   }

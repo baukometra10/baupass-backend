@@ -2509,7 +2509,7 @@ def _attach_worker_document(
     doc_id = f"doc-{uuid.uuid4().hex[:12]}"
     from datetime import datetime, timezone
 
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     notes = f"payroll_period={period}"
     stored_path = file_path
     try:
@@ -2559,6 +2559,39 @@ def _attach_worker_document(
     return doc_id
 
 
+def _worker_document_delivery_ok(db, *, doc_id: str, worker_id: str) -> bool:
+    """True when the worker can actually open the attached Lohnabrechnung file."""
+    doc_id = str(doc_id or "").strip()
+    worker_id = str(worker_id or "").strip()
+    if not doc_id or not worker_id:
+        return False
+    try:
+        row = db.execute(
+            """
+            SELECT id, worker_id, file_path, file_size
+            FROM worker_documents
+            WHERE id = ? AND worker_id = ? AND doc_type = 'lohnabrechnung'
+            """,
+            (doc_id, worker_id),
+        ).fetchone()
+    except Exception:
+        return False
+    if not row:
+        return False
+    path = str(row["file_path"] or "").strip()
+    if not path:
+        return False
+    p = Path(path)
+    if not p.is_file():
+        # Some installs store paths relative to repo/backend root.
+        for base in (Path.cwd(), Path(__file__).resolve().parents[3], Path("backend")):
+            cand = base / path
+            if cand.is_file():
+                return int(row["file_size"] or 0) > 500 or cand.stat().st_size > 500
+        return False
+    return int(row["file_size"] or 0) > 500 or p.stat().st_size > 500
+
+
 def _refresh_worker_document_pdf(
     db,
     stmt: dict[str, Any],
@@ -2567,11 +2600,14 @@ def _refresh_worker_document_pdf(
     file_size: int,
     filename: str,
     period: str,
+    touch_created_at: bool = False,
 ) -> None:
     """Replace the worker's stored copy after a visual PDF upgrade (same Stammdaten)."""
     doc_id = str(stmt.get("worker_document_id") or "").strip()
     if not doc_id:
         return
+    from datetime import datetime, timezone
+
     stored_path = file_path
     try:
         src = Path(str(file_path or ""))
@@ -2584,15 +2620,27 @@ def _refresh_worker_document_pdf(
             file_size = dest.stat().st_size
     except Exception:
         stored_path = file_path
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
-        db.execute(
-            """
-            UPDATE worker_documents
-            SET file_path = ?, file_size = ?, filename = ?
-            WHERE id = ? AND doc_type = 'lohnabrechnung'
-            """,
-            (stored_path, file_size, filename, doc_id),
-        )
+        if touch_created_at:
+            db.execute(
+                """
+                UPDATE worker_documents
+                SET file_path = ?, file_size = ?, filename = ?, created_at = ?,
+                    notes = COALESCE(notes, '')
+                WHERE id = ? AND doc_type = 'lohnabrechnung'
+                """,
+                (stored_path, file_size, filename, now, doc_id),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE worker_documents
+                SET file_path = ?, file_size = ?, filename = ?
+                WHERE id = ? AND doc_type = 'lohnabrechnung'
+                """,
+                (stored_path, file_size, filename, doc_id),
+            )
         db.commit()
     except Exception:
         pass
@@ -2899,33 +2947,111 @@ def release_statement(
         return guard
     assert stmt is not None
     status = str(stmt.get("status") or "")
-    if status == "released" and stmt.get("worker_document_id"):
-        # Rebuild distorted ReportLab stubs so the worker file matches the studio sheet.
+    if status == "released":
+        worker_id = str(stmt.get("worker_id") or "").strip()
+        doc_id = str(stmt.get("worker_document_id") or "").strip()
+        batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
+        path = str(stmt.get("file_path") or "").strip()
+        # Repair: marked released but worker never got a usable file.
+        if not _worker_document_delivery_ok(db, doc_id=doc_id, worker_id=worker_id):
+            if not path or not Path(path).is_file():
+                built = ensure_statement_delivery_pdf(db, stmt, batch, force=True)
+                if not built.get("ok"):
+                    return {
+                        "ok": False,
+                        "error": built.get("error") or "missing_pdf",
+                        "hint": "PDF fehlt — Abrechnung erneut öffnen und senden",
+                    }
+                stmt = repo.get_statement(db, statement_id) or stmt
+                path = str(stmt.get("file_path") or "").strip()
+            if not path or not Path(path).is_file():
+                return {"ok": False, "error": "missing_pdf"}
+            if not worker_id:
+                return {"ok": False, "error": "worker_unassigned", "hint": "Mitarbeiter zuweisen"}
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            try:
+                new_doc_id = _attach_worker_document(
+                    db,
+                    company_id=stmt["company_id"],
+                    worker_id=worker_id,
+                    filename=stmt.get("filename") or "lohnabrechnung.pdf",
+                    file_path=path,
+                    file_size=int(stmt.get("file_size") or 0),
+                    uploaded_by_user_id=actor_user_id,
+                    period=stmt.get("period") or "",
+                )
+                db.execute(
+                    """
+                    UPDATE payroll_statements
+                    SET worker_document_id = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (new_doc_id, now, statement_id),
+                )
+                try:
+                    from backend.server import _notify_worker_payroll_document
+
+                    _notify_worker_payroll_document(
+                        db,
+                        worker_id,
+                        stmt.get("filename") or "lohnabrechnung.pdf",
+                        doc_type="lohnabrechnung",
+                    )
+                except Exception:
+                    pass
+                db.commit()
+                return {
+                    "ok": True,
+                    "repaired": True,
+                    "statementId": statement_id,
+                    "workerDocumentId": new_doc_id,
+                    "deliveredAt": now,
+                    "message": "Lohnabrechnung nachgeliefert an Mitarbeiter-App",
+                }
+            except Exception as exc:
+                return {"ok": False, "error": str(exc)[:160]}
+        # Already delivered — refresh PDF bytes if a better exact capture exists.
         try:
             meta = json.loads(stmt.get("meta_json") or "{}")
         except Exception:
             meta = {}
-        from .lohn_sheet_pdf import is_exact_lohn_pdf_source, is_high_fidelity_pdf_source
+        from .lohn_sheet_pdf import is_exact_lohn_pdf_source
 
-        if not is_exact_lohn_pdf_source((meta or {}).get("pdfSource")) and not is_high_fidelity_pdf_source(
-            (meta or {}).get("pdfSource")
-        ):
-            batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
-            rebuilt = ensure_statement_delivery_pdf(db, stmt, batch, force=True)
-            if rebuilt.get("ok"):
-                stmt = repo.get_statement(db, statement_id) or stmt
-                return {
-                    "ok": True,
-                    "rebuiltPdf": True,
-                    "pdfSource": rebuilt.get("pdfSource"),
-                    "statementId": statement_id,
-                    "workerDocumentId": stmt.get("worker_document_id"),
-                }
+        if is_exact_lohn_pdf_source((meta or {}).get("pdfSource")) and path and Path(path).is_file():
+            _refresh_worker_document_pdf(
+                db,
+                stmt,
+                file_path=path,
+                file_size=int(stmt.get("file_size") or 0),
+                filename=stmt.get("filename") or "lohnabrechnung.pdf",
+                period=str(stmt.get("period") or ""),
+                touch_created_at=True,
+            )
+            try:
+                from backend.server import _notify_worker_payroll_document
+
+                _notify_worker_payroll_document(
+                    db,
+                    worker_id,
+                    stmt.get("filename") or "lohnabrechnung.pdf",
+                    doc_type="lohnabrechnung",
+                )
+            except Exception:
+                pass
+            return {
+                "ok": True,
+                "resent": True,
+                "statementId": statement_id,
+                "workerDocumentId": doc_id,
+                "deliveredAt": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "message": "Lohnabrechnung erneut an Mitarbeiter-App gesendet",
+            }
         return {
             "ok": True,
             "skipped": "already_released",
             "statementId": statement_id,
-            "workerDocumentId": stmt.get("worker_document_id"),
+            "workerDocumentId": doc_id,
+            "message": "Bereits an Mitarbeiter-App gesendet",
         }
     if status in {"rejected"}:
         return {"ok": False, "error": "invalid_status", "status": status}
@@ -3009,6 +3135,7 @@ def release_statement(
             "ok": True,
             "statementId": statement_id,
             "workerDocumentId": doc_id,
+            "deliveredAt": now,
             "statement": repo.enrich_statement_row(db, refreshed),
             "batchStatus": (repo.get_batch(db, batch_id) or {}).get("status"),
             "inboxCleared": inbox_clear,
