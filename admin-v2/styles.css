@@ -4323,9 +4323,19 @@ body.payslip-studio-open {
 .payslip-studio-actions select {
   width: 100%;
 }
-.payslip-studio-actions .primary:disabled {
+.payslip-studio-actions .primary:disabled,
+.payslip-studio-actions .primary.is-blocked {
   opacity: 0.55;
 }
+.payslip-focus-exit {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 30;
+  min-width: 10rem;
+}
+.payslip-focus-exit.hidden { display: none; }
+.payslip-studio.is-sheet-focus .payslip-focus-exit { display: inline-flex; }
 .payslip-match.is-matched { background: #dcfce7; color: #166534; }
 .payslip-match.is-ambiguous { background: #fef3c7; color: #92400e; }
 .payslip-match.is-unmatched { background: #fee2e2; color: #991b1b; }

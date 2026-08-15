@@ -442,7 +442,8 @@ def enrich_statement_row(db, row: dict[str, Any]) -> dict[str, Any]:
             "reviewed": reviewed,
             "workerDocumentId": out.get("worker_document_id"),
             "canRelease": bool(
-                has_pdf and reviewed and worker_id and status == "pending" and not delivery_locked
+                # PDF may be captured on send (html2canvas) — do not require a file on disk first.
+                reviewed and worker_id and status == "pending" and not delivery_locked
             ),
             "locked": delivery_locked,
             "deliveryLocked": delivery_locked,

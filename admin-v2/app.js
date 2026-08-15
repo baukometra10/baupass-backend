@@ -1669,16 +1669,28 @@ async function ensurePayslipCaptureLibs() {
   }
 }
 
+async function waitForPayslipSheetReady({ timeoutMs = 8000 } = {}) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const iframe = $("payslipStudioPdf");
+    const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
+    const sheet =
+      doc?.querySelector?.(".datev-sheet-a4")
+      || doc?.querySelector?.("#datevSheetA4")
+      || doc?.querySelector?.("[class*='datev-sheet']");
+    if (sheet && String(payslipStudioState.sheetHtml || "").length > 200) {
+      return { iframe, doc, sheet };
+    }
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  throw new Error(t("lohn.sheetNotReady") || "Abrechnung noch nicht geladen — kurz warten und erneut versuchen");
+}
+
 async function capturePayslipSheetLikeLohn() {
   await ensurePayslipCaptureLibs();
-  const iframe = $("payslipStudioPdf");
-  const doc = iframe?.contentDocument || iframe?.contentWindow?.document;
-  const sheet =
-    doc?.querySelector?.(".datev-sheet-a4")
-    || doc?.querySelector?.("[class*='datev-sheet']")
-    || doc?.body;
-  if (!sheet || !window.html2canvas) {
-    throw new Error("Abrechnung-Blatt nicht bereit");
+  const { sheet } = await waitForPayslipSheetReady();
+  if (!window.html2canvas) {
+    throw new Error("PDF nicht verfügbar");
   }
   const JsPDF = window.jspdf?.jsPDF || window.jsPDF;
   if (!JsPDF) throw new Error("PDF-Bibliothek fehlt");
@@ -2045,6 +2057,15 @@ async function renderPayslipIdentity(stmt) {
   }
 
   const canSend = !!stmt.canRelease;
+  const sendTitle = canSend
+    ? ""
+    : escapeAttr(
+        !stmt.reviewed
+          ? (t("lohn.reviewRequired") || "Zuerst Abrechnung öffnen/prüfen")
+          : !stmt.workerId
+            ? (t("lohn.pickWorker") || "Mitarbeiter zuweisen")
+            : (t("lohn.sendBlocked") || "Senden nicht möglich"),
+      );
   actions.innerHTML = `
     ${viewBtns}
     <select id="payslipAssignSelect" aria-label="${escapeAttr(t("lohn.assignWorker") || "Mitarbeiter")}">
@@ -2052,7 +2073,7 @@ async function renderPayslipIdentity(stmt) {
       ${workerOptions}
     </select>
     <button type="button" data-payslip-action="assign">${escapeHtml(t("lohn.applyAssign") || "Zuordnung speichern")}</button>
-    <button type="button" class="primary" data-payslip-action="release" ${canSend ? "" : "disabled"}>${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
+    <button type="button" class="primary${canSend ? "" : " is-blocked"}" data-payslip-action="release" aria-disabled="${canSend ? "false" : "true"}" title="${sendTitle}">${escapeHtml(t("lohn.sendToWorker") || "An Mitarbeiter senden")}</button>
     <button type="button" data-payslip-action="reject">${escapeHtml(t("lohn.rejectStatement") || "Ablehnen")}</button>
   `;
 }
@@ -2397,21 +2418,44 @@ async function handlePayslipStudioClick(ev) {
     return;
   }
   if (action === "open-window") {
+    if (!String(payslipStudioState.sheetHtml || "").trim()) {
+      toast(t("lohn.sheetMissing") || "Keine Abrechnung geladen — Eintrag erneut wählen", "error");
+      return;
+    }
     openPayslipSheetWindow(payslipStudioState.sheetHtml);
     return;
   }
   if (action === "focus-sheet") {
-    $("payslipReviewStudio")?.classList.toggle("is-sheet-focus");
+    const studio = $("payslipReviewStudio");
+    const on = studio?.classList.toggle("is-sheet-focus");
+    document.body.classList.toggle("payslip-sheet-focus", Boolean(on));
+    let exitBtn = $("payslipFocusExitBtn");
+    if (on) {
+      if (!exitBtn) {
+        exitBtn = document.createElement("button");
+        exitBtn.id = "payslipFocusExitBtn";
+        exitBtn.type = "button";
+        exitBtn.className = "payslip-focus-exit primary";
+        exitBtn.setAttribute("data-payslip-action", "focus-sheet");
+        exitBtn.textContent = t("lohn.exitFocus") || "Zurück zur Freigabe";
+        studio?.appendChild(exitBtn);
+      }
+      exitBtn.classList.remove("hidden");
+    } else if (exitBtn) {
+      exitBtn.classList.add("hidden");
+    }
     schedulePayslipPreviewFit();
     return;
   }
   if (action === "download-pdf") {
     try {
+      showActionToast(t("lohn.preparingPdf") || "PDF wird erstellt…");
       const url = await fetchPayslipPdfBlobUrl(batchId, statementId);
       const a = document.createElement("a");
       a.href = url;
       a.download = currentPayslipStatement()?.filename || "Lohnabrechnung.pdf";
       a.click();
+      showActionToast(t("lohn.pdfReady") || "PDF bereit");
     } catch (err) {
       toast(err?.message || "PDF", "error");
     }
@@ -2428,15 +2472,29 @@ async function handlePayslipStudioClick(ev) {
       toast(t("lohn.pickWorker") || "Mitarbeiter wählen", "error");
       return;
     }
-    await api(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/assign`,
-      { method: "POST", body: JSON.stringify({ workerId }) },
-    );
-    toast(t("lohn.assignSaved") || "Zuordnung gespeichert", "ok");
-    await refreshPayslipStudio({ keepSelection: true });
+    try {
+      showActionToast(t("lohn.saving") || "Speichern…");
+      await api(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/assign`,
+        { method: "POST", body: JSON.stringify({ workerId }) },
+      );
+      toast(t("lohn.assignSaved") || "Zuordnung gespeichert", "ok");
+      await refreshPayslipStudio({ keepSelection: true });
+    } catch (err) {
+      showActionToast(humanizeUserError?.(err) || err?.message || "error", true);
+    }
     return;
   }
   if (action === "release") {
+    if (act?.getAttribute("aria-disabled") === "true" || (stmtNow && !stmtNow.canRelease)) {
+      const why = !stmtNow?.reviewed
+        ? (t("lohn.reviewRequired") || "Zuerst Abrechnung öffnen/prüfen")
+        : !stmtNow?.workerId
+          ? (t("lohn.pickWorker") || "Mitarbeiter zuweisen")
+          : (t("lohn.sendBlocked") || "Senden nicht möglich");
+      showActionToast(why, true);
+      return;
+    }
     if (payslipStudioState.releaseInFlight) {
       showActionToast(t("lohn.sending") || "Wird gesendet…");
       return;
@@ -2465,19 +2523,19 @@ async function handlePayslipStudioClick(ev) {
       if (!res?.ok) {
         throw new Error(res?.message || res?.error || t("lohn.sendFailed") || "Senden fehlgeschlagen");
       }
-      if (!res.workerDocumentId && res.skipped === "already_released") {
-        showActionToast(
-          res.message || (t("lohn.alreadySent") || "Bereits gesendet — in Mitarbeiter-App prüfen"),
-        );
-      } else {
-        toast(
-          res.message
-            || (res.repaired
-              ? (t("lohn.repairedSend") || "Nachgeliefert an Mitarbeiter-App")
-              : (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet")),
-          "ok",
+      if (!res.workerDocumentId) {
+        throw new Error(
+          t("lohn.sendNoDocument")
+            || "Senden ohne Dokument — bitte erneut versuchen",
         );
       }
+      toast(
+        res.message
+          || (res.repaired
+            ? (t("lohn.repairedSend") || "Nachgeliefert an Mitarbeiter-App")
+            : (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet")),
+        "ok",
+      );
       await refreshPayslipStudio({ keepSelection: false });
       broadcastLohnInboxChanged();
     } catch (err) {
@@ -2485,7 +2543,13 @@ async function handlePayslipStudioClick(ev) {
       showActionToast(msg, true);
     } finally {
       payslipStudioState.releaseInFlight = false;
-      if (releaseBtn) releaseBtn.removeAttribute("disabled");
+      if (releaseBtn) {
+        releaseBtn.removeAttribute("disabled");
+        if (currentPayslipStatement()?.canRelease) {
+          releaseBtn.setAttribute("aria-disabled", "false");
+          releaseBtn.classList.remove("is-blocked");
+        }
+      }
     }
     return;
   }
