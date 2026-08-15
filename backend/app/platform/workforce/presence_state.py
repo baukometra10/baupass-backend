@@ -157,6 +157,8 @@ def upsert_presence_after_access(
 # Significant move for live-map pin updates (~1 m).
 LIVE_LOCATION_MIN_MOVE_METERS = 1.0
 
+_LIVE_LOCATION_COLUMNS_READY = False
+
 
 def _haversine_meters(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     import math
@@ -181,6 +183,76 @@ def _row_get(row: Any, key: str, default=None):
             return default
 
 
+def _safe_rollback(db) -> None:
+    try:
+        db.rollback()
+    except Exception:
+        pass
+
+
+def ensure_live_location_columns(db) -> str:
+    """
+    Make sure worker_presence_state can store live GPS.
+    Safe to call repeatedly. Returns empty string on success, else a short error.
+    """
+    global _LIVE_LOCATION_COLUMNS_READY
+    if _LIVE_LOCATION_COLUMNS_READY:
+        return ""
+    try:
+        db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS worker_presence_state (
+                worker_id TEXT PRIMARY KEY,
+                company_id TEXT NOT NULL DEFAULT '',
+                open_direction TEXT NOT NULL DEFAULT '',
+                last_checkin_at TEXT NOT NULL DEFAULT '',
+                last_checkout_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT '',
+                last_lat REAL,
+                last_lng REAL,
+                last_accuracy_m REAL,
+                last_location_at TEXT DEFAULT ''
+            )
+            """
+        )
+    except Exception as exc:
+        _safe_rollback(db)
+        return f"create_table:{type(exc).__name__}"
+
+    alters = (
+        "ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_lat REAL",
+        "ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_lng REAL",
+        "ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_accuracy_m REAL",
+        "ALTER TABLE worker_presence_state ADD COLUMN IF NOT EXISTS last_location_at TEXT DEFAULT ''",
+    )
+    for stmt in alters:
+        try:
+            db.execute(stmt)
+        except Exception:
+            _safe_rollback(db)
+            # Older SQLite without IF NOT EXISTS — try plain ADD once.
+            try:
+                plain = stmt.replace(" IF NOT EXISTS", "")
+                db.execute(plain)
+            except Exception:
+                _safe_rollback(db)
+    try:
+        db.commit()
+    except Exception:
+        pass
+    # Verify columns are readable.
+    try:
+        db.execute(
+            "SELECT last_lat, last_lng, last_accuracy_m, last_location_at "
+            "FROM worker_presence_state LIMIT 0"
+        )
+        _LIVE_LOCATION_COLUMNS_READY = True
+        return ""
+    except Exception as exc:
+        _safe_rollback(db)
+        return f"verify_cols:{type(exc).__name__}:{exc}"
+
+
 def upsert_live_location(
     db,
     *,
@@ -192,11 +264,35 @@ def upsert_live_location(
     at: str | None = None,
     min_move_meters: float = LIVE_LOCATION_MIN_MOVE_METERS,
 ) -> bool:
+    ok, _reason = upsert_live_location_ex(
+        db,
+        worker_id=worker_id,
+        company_id=company_id,
+        lat=lat,
+        lng=lng,
+        accuracy_m=accuracy_m,
+        at=at,
+        min_move_meters=min_move_meters,
+    )
+    return ok
+
+
+def upsert_live_location_ex(
+    db,
+    *,
+    worker_id: str,
+    company_id: str,
+    lat: float,
+    lng: float,
+    accuracy_m: float | None = None,
+    at: str | None = None,
+    min_move_meters: float = LIVE_LOCATION_MIN_MOVE_METERS,
+) -> tuple[bool, str]:
     """
     Persist latest device GPS for live ops map.
 
-    Always refreshes last_location_at (keeps pin "fresh"). Coordinates update when the
-    worker moved ≥ min_move_meters (or on first fix) so tiny GPS jitter does not rewrite.
+    Always refreshes last_location_at. Coordinates update when moved ≥ min_move_meters.
+    Returns (ok, reason) where reason is empty on success.
     """
     import logging
 
@@ -205,11 +301,11 @@ def upsert_live_location(
         la = float(lat)
         ln = float(lng)
     except (TypeError, ValueError):
-        return False
+        return False, "invalid_lat_lng"
     if not (-90.0 <= la <= 90.0 and -180.0 <= ln <= 180.0):
-        return False
+        return False, "out_of_range"
     if abs(la) < 0.0001 and abs(ln) < 0.0001:
-        return False
+        return False, "null_island"
     stamp = str(at or "").strip() or _now_iso()
     acc = None
     if accuracy_m is not None:
@@ -217,26 +313,48 @@ def upsert_live_location(
             acc = float(accuracy_m)
         except (TypeError, ValueError):
             acc = None
-    wid = str(worker_id)
-    cid = str(company_id)
+    wid = str(worker_id or "").strip()
+    cid = str(company_id or "").strip()
+    if not wid:
+        return False, "missing_worker_id"
+    if not cid:
+        return False, "missing_company_id"
+
+    schema_err = ensure_live_location_columns(db)
+    if schema_err:
+        log.warning("live location schema: %s", schema_err)
+        # Continue — columns may already exist even if verify failed on empty table.
+
+    # Existence check must NOT reference last_lat (works on old schemas).
     try:
         existing = db.execute(
-            """
-            SELECT worker_id, last_lat, last_lng FROM worker_presence_state
-            WHERE worker_id = ? LIMIT 1
-            """,
+            "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
             (wid,),
         ).fetchone()
-        moved = True
+    except Exception as exc:
+        _safe_rollback(db)
+        log.warning("presence select failed worker=%s: %s", wid, exc)
+        return False, f"select:{type(exc).__name__}"
+
+    moved = True
+    prev_lat = prev_lng = None
+    if existing is not None:
+        try:
+            prev = db.execute(
+                "SELECT last_lat, last_lng FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+                (wid,),
+            ).fetchone()
+            prev_lat = _row_get(prev, "last_lat")
+            prev_lng = _row_get(prev, "last_lng")
+            if prev_lat is not None and prev_lng is not None:
+                dist = _haversine_meters(float(prev_lat), float(prev_lng), la, ln)
+                moved = dist >= float(min_move_meters)
+        except Exception:
+            _safe_rollback(db)
+            moved = True
+
+    try:
         if existing is not None:
-            try:
-                prev_lat = _row_get(existing, "last_lat")
-                prev_lng = _row_get(existing, "last_lng")
-                if prev_lat is not None and prev_lng is not None:
-                    dist = _haversine_meters(float(prev_lat), float(prev_lng), la, ln)
-                    moved = dist >= float(min_move_meters)
-            except (TypeError, ValueError):
-                moved = True
             if moved:
                 db.execute(
                     """
@@ -248,59 +366,27 @@ def upsert_live_location(
                     (cid, la, ln, acc, stamp, stamp, wid),
                 )
             else:
-                # Heartbeat only — stay fresh on the map without jittering the pin.
-                db.execute(
-                    """
-                    UPDATE worker_presence_state
-                    SET company_id = ?, last_accuracy_m = COALESCE(?, last_accuracy_m),
-                        last_location_at = ?, updated_at = ?
-                    WHERE worker_id = ?
-                    """,
-                    (cid, acc, stamp, stamp, wid),
-                )
+                # Heartbeat — do not use COALESCE (can fail on some PG adapters).
+                if acc is None:
+                    db.execute(
+                        """
+                        UPDATE worker_presence_state
+                        SET company_id = ?, last_location_at = ?, updated_at = ?
+                        WHERE worker_id = ?
+                        """,
+                        (cid, stamp, stamp, wid),
+                    )
+                else:
+                    db.execute(
+                        """
+                        UPDATE worker_presence_state
+                        SET company_id = ?, last_accuracy_m = ?,
+                            last_location_at = ?, updated_at = ?
+                        WHERE worker_id = ?
+                        """,
+                        (cid, acc, stamp, stamp, wid),
+                    )
         else:
-            try:
-                db.execute(
-                    """
-                    INSERT INTO worker_presence_state (
-                        worker_id, company_id, open_direction,
-                        last_checkin_at, last_checkout_at, updated_at,
-                        last_lat, last_lng, last_accuracy_m, last_location_at
-                    ) VALUES (?, ?, '', '', '', ?, ?, ?, ?, ?)
-                    """,
-                    (wid, cid, stamp, la, ln, acc, stamp),
-                )
-            except Exception:
-                # Row may have been created concurrently — fall back to update.
-                db.execute(
-                    """
-                    UPDATE worker_presence_state
-                    SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
-                        last_location_at = ?, updated_at = ?
-                    WHERE worker_id = ?
-                    """,
-                    (cid, la, ln, acc, stamp, stamp, wid),
-                )
-        return True
-    except Exception as exc:
-        log.warning("upsert_live_location failed worker=%s: %s", wid, exc)
-        # Last-resort write without move gating (still better than silent drop).
-        try:
-            db.execute(
-                """
-                UPDATE worker_presence_state
-                SET company_id = ?, last_lat = ?, last_lng = ?, last_accuracy_m = ?,
-                    last_location_at = ?, updated_at = ?
-                WHERE worker_id = ?
-                """,
-                (cid, la, ln, acc, stamp, stamp, wid),
-            )
-            row = db.execute(
-                "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
-                (wid,),
-            ).fetchone()
-            if row is not None:
-                return True
             db.execute(
                 """
                 INSERT INTO worker_presence_state (
@@ -311,10 +397,41 @@ def upsert_live_location(
                 """,
                 (wid, cid, stamp, la, ln, acc, stamp),
             )
-            return True
+        return True, "moved" if moved else "heartbeat"
+    except Exception as exc:
+        _safe_rollback(db)
+        log.warning("upsert_live_location write failed worker=%s: %s", wid, exc)
+        # Absolute last resort: update coords only.
+        try:
+            db.execute(
+                """
+                UPDATE worker_presence_state
+                SET last_lat = ?, last_lng = ?, last_location_at = ?, updated_at = ?
+                WHERE worker_id = ?
+                """,
+                (la, ln, stamp, stamp, wid),
+            )
+            row = db.execute(
+                "SELECT worker_id FROM worker_presence_state WHERE worker_id = ? LIMIT 1",
+                (wid,),
+            ).fetchone()
+            if row is not None:
+                return True, "fallback_update"
+            db.execute(
+                """
+                INSERT INTO worker_presence_state (
+                    worker_id, company_id, open_direction,
+                    last_checkin_at, last_checkout_at, updated_at,
+                    last_lat, last_lng, last_location_at
+                ) VALUES (?, ?, '', '', '', ?, ?, ?, ?)
+                """,
+                (wid, cid, stamp, la, ln, stamp),
+            )
+            return True, "fallback_insert"
         except Exception as exc2:
+            _safe_rollback(db)
             log.warning("upsert_live_location fallback failed worker=%s: %s", wid, exc2)
-            return False
+            return False, f"write:{type(exc2).__name__}:{exc2}"
 
 
 def resolve_auto_direction(db, worker_id: str) -> str:

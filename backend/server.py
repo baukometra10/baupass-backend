@@ -15729,14 +15729,14 @@ def worker_app_live_location():
     if not open_session:
         open_session = bool(worker_has_open_site_app_session_today(db, worker["id"]))
 
-    from backend.app.platform.workforce.presence_state import upsert_live_location
+    from backend.app.platform.workforce.presence_state import upsert_live_location_ex
     from backend.app.platform.physical_operations.location_trail import (
         list_active_geofences,
         maybe_record_location_sample,
         resolve_containing_zone,
     )
 
-    location_saved = upsert_live_location(
+    location_saved, save_reason = upsert_live_location_ex(
         db,
         worker_id=worker["id"],
         company_id=worker["company_id"],
@@ -15745,17 +15745,21 @@ def worker_app_live_location():
         accuracy_m=accuracy_m,
         min_move_meters=1.0,
     )
+    save_error = ""
     # Commit GPS immediately. PgConnection rolls back the whole tx on later errors
     # (e.g. trail insert) — that previously dropped a successful pin write.
     if location_saved:
         try:
             db.commit()
-        except Exception:
+        except Exception as commit_exc:
             location_saved = False
+            save_error = f"commit:{type(commit_exc).__name__}"
             try:
                 db.rollback()
             except Exception:
                 pass
+    else:
+        save_error = str(save_reason or "upsert_failed")[:160]
 
     trail_saved = False
     # Trail samples only while on duty — avoids idle tracks after checkout.
@@ -15816,6 +15820,8 @@ def worker_app_live_location():
         {
             "ok": True,
             "locationSaved": bool(location_saved),
+            "saveReason": str(save_reason or "")[:80],
+            "saveError": str(save_error or "")[:160],
             "trailSaved": bool(trail_saved),
             "trackingActive": True,
             "onDuty": bool(open_session),

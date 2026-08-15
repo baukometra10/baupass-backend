@@ -409,12 +409,18 @@ class GeofenceService {
               );
             }
           } else if (result['locationSaved'] == false) {
-            // Backend accepted the request but DB write failed / old deploy.
-            _lastStatus = 'GPS empfangen · Speichern fehlgeschlagen';
+            final err = (result['saveError'] ?? result['saveReason'] ?? '')
+                .toString()
+                .trim();
+            _lastStatus = err.isEmpty
+                ? 'GPS empfangen · Speichern fehlgeschlagen'
+                : 'Speichern fehlgeschlagen: ${err.length > 42 ? err.substring(0, 42) : err}';
             if (_notCheckedInStrikes == 0) {
               _notCheckedInStrikes = 1;
               onNotify?.call(
-                'GPS kommt an, Speichern fehlgeschlagen — App offen lassen, gleich erneut.',
+                err.isEmpty
+                    ? 'GPS kommt an, Speichern fehlgeschlagen — bitte App kurz neu starten.'
+                    : 'GPS-Speichern fehlgeschlagen ($err).',
               );
             }
           } else {
