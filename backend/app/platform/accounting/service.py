@@ -2756,7 +2756,11 @@ def mark_statement_reviewed(
     actor_user_id: str,
     company_id: str | None = None,
 ) -> dict[str, Any]:
-    """Record that an admin opened the PDF (required before release)."""
+    """Record that an admin opened/checked the sheet (required before release).
+
+    PDF rendering is deferred to download/release so the studio sheet view cannot
+    trip a gateway timeout (502) while Chromium/WeasyPrint runs.
+    """
     from datetime import datetime, timezone
 
     ensure = repo.get_statement
@@ -2771,14 +2775,6 @@ def mark_statement_reviewed(
             "skipped": "locked",
             "statement": repo.enrich_statement_row(db, stmt),
         }
-    batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
-    built = ensure_statement_delivery_pdf(db, stmt, batch)
-    if not built.get("ok"):
-        return {"ok": False, "error": built.get("error") or "missing_pdf"}
-    stmt = repo.get_statement(db, statement_id) or stmt
-    path = str(stmt.get("file_path") or "")
-    if not path or not Path(path).is_file():
-        return {"ok": False, "error": "missing_pdf"}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%fZ")
     db.execute(
         """

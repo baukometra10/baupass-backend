@@ -1489,7 +1489,7 @@ def register_accounting_blueprint(flask_app) -> None:
         from flask import Response
 
         from .lohn_sheet import apply_sheet_chrome
-        from .service import ensure_statement_delivery_pdf, resolve_statement_sheet
+        from .service import resolve_statement_sheet
 
         user = g.current_user
         theme = request.args.get("theme") or request.headers.get("X-UI-Theme") or "light"
@@ -1498,11 +1498,8 @@ def register_accounting_blueprint(flask_app) -> None:
         batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
         if err:
             return err
-        try:
-            ensure_statement_delivery_pdf(db, stmt, batch)
-            stmt = repo.get_statement(db, statement_id) or stmt
-        except Exception:
-            pass
+        # Never render PDF here — Chromium/WeasyPrint can exceed the proxy timeout and
+        # surface as "Abrechnung 502" while the admin only wants the HTML studio sheet.
         resolved = resolve_statement_sheet(db, stmt, batch)
         return Response(
             apply_sheet_chrome(resolved.get("html") or "", theme=theme, embed=embed),

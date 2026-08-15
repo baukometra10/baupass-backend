@@ -48,12 +48,25 @@ def render_datev_sheet_pdf_with_source(
 ) -> tuple[bytes, str]:
     doc = _prepare_print_document(html, data)
     if doc:
-        chromium_pdf = _render_chromium_pdf(doc)
-        if chromium_pdf.startswith(b"%PDF") and len(chromium_pdf) > 1500:
-            return chromium_pdf, PDF_SOURCE_CHROMIUM
-        weasy_pdf = _render_weasyprint_pdf(doc)
-        if weasy_pdf.startswith(b"%PDF") and len(weasy_pdf) > 1500:
-            return weasy_pdf, PDF_SOURCE_WEASY
+        # Prefer WeasyPrint in containers (fast, already installed). Chromium is
+        # higher fidelity but needs --no-sandbox and can trip gateway timeouts.
+        prefer_chromium = str(os.environ.get("PAYSLIP_PDF_ENGINE") or "").strip().lower() in {
+            "chromium",
+            "chrome",
+            "edge",
+        }
+        engines = (
+            (_render_chromium_pdf, PDF_SOURCE_CHROMIUM, _render_weasyprint_pdf, PDF_SOURCE_WEASY)
+            if prefer_chromium
+            else (_render_weasyprint_pdf, PDF_SOURCE_WEASY, _render_chromium_pdf, PDF_SOURCE_CHROMIUM)
+        )
+        first_fn, first_src, second_fn, second_src = engines
+        first_pdf = first_fn(doc)
+        if first_pdf.startswith(b"%PDF") and len(first_pdf) > 1500:
+            return first_pdf, first_src
+        second_pdf = second_fn(doc)
+        if second_pdf.startswith(b"%PDF") and len(second_pdf) > 1500:
+            return second_pdf, second_src
     return _render_reportlab_fallback(data if isinstance(data, dict) else {}), PDF_SOURCE_REPORTLAB
 
 
@@ -108,6 +121,7 @@ def _render_chromium_pdf(html_doc: str) -> bytes:
     browsers = _chromium_candidates()
     if not browsers:
         return b""
+    timeout_s = max(8, min(25, int(os.environ.get("PAYSLIP_CHROMIUM_TIMEOUT") or "18")))
     with tempfile.TemporaryDirectory(prefix="baupass-payslip-") as tmp:
         tmp_path = Path(tmp)
         html_path = tmp_path / "sheet.html"
@@ -122,6 +136,9 @@ def _render_chromium_pdf(html_doc: str) -> bytes:
                     browser,
                     "--headless=new",
                     "--disable-gpu",
+                    "--no-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--allow-file-access-from-files",
                     "--no-pdf-header-footer",
                     "--print-to-pdf-no-header",
                     f"--print-to-pdf={pdf_path}",
@@ -130,7 +147,7 @@ def _render_chromium_pdf(html_doc: str) -> bytes:
                 proc = subprocess.run(
                     cmd,
                     capture_output=True,
-                    timeout=45,
+                    timeout=timeout_s,
                     check=False,
                 )
                 if pdf_path.is_file() and pdf_path.stat().st_size > 1500:
@@ -140,7 +157,7 @@ def _render_chromium_pdf(html_doc: str) -> bytes:
                 # Older Chrome builds use --headless without =new
                 if proc.returncode != 0:
                     cmd[1] = "--headless"
-                    proc = subprocess.run(cmd, capture_output=True, timeout=45, check=False)
+                    proc = subprocess.run(cmd, capture_output=True, timeout=timeout_s, check=False)
                     if pdf_path.is_file() and pdf_path.stat().st_size > 1500:
                         raw = pdf_path.read_bytes()
                         if raw.startswith(b"%PDF"):
@@ -168,13 +185,8 @@ def _render_weasyprint_pdf(html_doc: str) -> bytes:
 
 def _render_html_pdf(html: str | None, data: dict[str, Any] | None) -> bytes:
     """Backward-compatible helper used by older tests/callers."""
-    doc = _prepare_print_document(html, data)
-    if not doc:
-        return b""
-    chromium = _render_chromium_pdf(doc)
-    if chromium.startswith(b"%PDF"):
-        return chromium
-    return _render_weasyprint_pdf(doc)
+    raw, _source = render_datev_sheet_pdf_with_source(data, html)
+    return raw if raw.startswith(b"%PDF") else b""
 
 
 def _render_reportlab_fallback(d: dict[str, Any]) -> bytes:

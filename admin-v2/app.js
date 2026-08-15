@@ -1499,11 +1499,20 @@ function ensurePayslipPreviewFit() {
   }
 }
 
-function toast(message, _kind = "ok") {
+function toast(message, kind = "ok") {
   const text = String(message || "").trim();
   if (!text) return;
   try {
-    alert(text);
+    if (typeof showActionToast === "function") {
+      showActionToast(text, kind === "error" || kind === "err");
+      return;
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    // Avoid stacking modal alerts during payslip retries.
+    console.warn("[payslip]", kind, text);
   } catch {
     /* ignore */
   }
@@ -2069,7 +2078,8 @@ async function selectPayslipStatement(batchId, statementId) {
       iframe.srcdoc = "";
       iframe.src = "about:blank";
     }
-    toast(err?.message || "Abrechnung fehlgeschlagen", "error");
+    const msg = humanizeUserError?.(err) || err?.message || "Abrechnung fehlgeschlagen";
+    showActionToast(msg, true);
   }
 }
 
@@ -2263,13 +2273,19 @@ async function handlePayslipStudioClick(ev) {
     if (!window.confirm((t("lohn.confirmSendWorker") || "Diese Lohnabrechnung an die Mitarbeiter-App senden?") + extra)) {
       return;
     }
-    const res = await api(
-      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
-      { method: "POST", body: "{}" },
-    );
-    toast(res.message || (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet"), "ok");
-    await refreshPayslipStudio({ keepSelection: false });
-    broadcastLohnInboxChanged();
+    try {
+      showActionToast(t("lohn.sending") || "Wird gesendet…");
+      const res = await api(
+        `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
+        { method: "POST", body: "{}" },
+      );
+      toast(res.message || (t("lohn.sentToArchive") || t("lohn.sentToWorker") || "Gesendet"), "ok");
+      await refreshPayslipStudio({ keepSelection: false });
+      broadcastLohnInboxChanged();
+    } catch (err) {
+      const msg = humanizeUserError?.(err) || err?.message || t("lohn.sendFailed") || "Senden fehlgeschlagen";
+      showActionToast(msg, true);
+    }
     return;
   }
   if (action === "reject") {

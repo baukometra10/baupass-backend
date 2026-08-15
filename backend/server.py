@@ -30090,7 +30090,14 @@ def worker_app_my_documents():
         item["canDownload"] = True
         item.update(_worker_doc_meta_payload(row))
         payload.append(item)
-    payload.sort(key=lambda x: (0 if x.get("isPayroll") else 1, x.get("created_at") or ""), reverse=True)
+    # Newest first (SQL already DESC). Payroll ties break toward payroll docs.
+    payload.sort(
+        key=lambda x: (
+            str(x.get("created_at") or ""),
+            1 if x.get("isPayroll") else 0,
+        ),
+        reverse=True,
+    )
     return jsonify(payload)
 
 

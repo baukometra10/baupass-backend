@@ -14014,29 +14014,17 @@ async function loadMyDocuments() {
     }
 
     const sortedRows = [...rows].sort((a, b) => {
-      const aExpiry = String(a.expiry_date || "");
-      const bExpiry = String(b.expiry_date || "");
-      const aExpired = Boolean(aExpiry && aExpiry <= today);
-      const bExpired = Boolean(bExpiry && bExpiry <= today);
-      const aSoon = Boolean(aExpiry && aExpiry > today && aExpiry <= soonStr);
-      const bSoon = Boolean(bExpiry && bExpiry > today && bExpiry <= soonStr);
-
-      const aPriority = aExpired ? 0 : aSoon ? 1 : 2;
-      const bPriority = bExpired ? 0 : bSoon ? 1 : 2;
-      if (aPriority !== bPriority) return aPriority - bPriority;
-
-      if (aExpiry && bExpiry && aExpiry !== bExpiry) {
-        return aExpiry < bExpiry ? -1 : 1;
-      }
-      const aType = String(a.doc_type || "").toLowerCase();
-      const bType = String(b.doc_type || "").toLowerCase();
-      if (aType === bType) return 0;
-      return aType < bType ? -1 : 1;
+      const aTs = Date.parse(String(a.created_at || a.createdAt || a.uploaded_at || "")) || 0;
+      const bTs = Date.parse(String(b.created_at || b.createdAt || b.uploaded_at || "")) || 0;
+      if (bTs !== aTs) return bTs - aTs;
+      const aPay = a.isPayroll || a.category === "payroll" ? 1 : 0;
+      const bPay = b.isPayroll || b.category === "payroll" ? 1 : 0;
+      if (bPay !== aPay) return bPay - aPay;
+      return 0;
     });
 
     const payrollRows = sortedRows.filter((doc) => doc.isPayroll || doc.category === "payroll");
-    const otherRows = sortedRows.filter((doc) => !payrollRows.includes(doc));
-    const listSource = [...payrollRows, ...otherRows];
+    const listSource = sortedRows;
     const visibleRows = documentsCompactExpanded ? listSource : listSource.slice(0, 4);
     const docsHiddenCount = Math.max(0, listSource.length - visibleRows.length);
 
