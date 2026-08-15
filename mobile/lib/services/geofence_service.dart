@@ -403,7 +403,10 @@ class GeofenceService {
       // Live map pings while tracking is enabled (server always stores coords).
       if (_liveTracking) {
         if (!_shouldSend(lat: lat, lng: lng, reason: reason)) {
-          // Still allow site_app presence path below on heartbeat/initial.
+          // No send this tick — keep calm connected status.
+          if (_lastSuccessAt != null) {
+            _lastStatus = _stableOkStatus;
+          }
         } else {
           final result = await _postLiveLocation(
             bearer: bearer,
@@ -458,9 +461,6 @@ class GeofenceService {
             // Older/partial responses — still treat as ok if request succeeded.
             _markGpsSuccess('Pin live · verbunden');
           }
-        } else if (_lastSuccessAt != null) {
-          // No send this tick — keep calm connected status.
-          _lastStatus = _stableOkStatus;
         }
       }
 
