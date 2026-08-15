@@ -1602,6 +1602,8 @@ async function fetchPayslipPdfBlobUrl(batchId, statementId) {
   const token = wpGet(TOKEN_KEY);
   const headers = { Accept: "application/pdf" };
   if (token) headers.Authorization = `Bearer ${token}`;
+  // Build PDF from the exact studio HTML currently shown — same sheet the admin sees.
+  await syncPayslipStudioPdfFromHtml(batchId, statementId);
   const res = await fetch(
     `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf`,
     { headers },
@@ -1618,6 +1620,24 @@ async function fetchPayslipPdfBlobUrl(batchId, statementId) {
   }
   const blob = await res.blob();
   return URL.createObjectURL(blob);
+}
+
+async function syncPayslipStudioPdfFromHtml(batchId, statementId) {
+  const html = String(payslipStudioState.sheetHtml || "").trim();
+  if (html.length < 200) return null;
+  try {
+    return await api(
+      `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/pdf/from-html`,
+      {
+        method: "POST",
+        body: JSON.stringify({ html, sheetHtml: html }),
+      },
+    );
+  } catch (err) {
+    // Fall back to server-side sheet rebuild if Chromium render of posted HTML fails.
+    console.warn("[payslip] from-html pdf failed", err);
+    return null;
+  }
 }
 
 async function loadPayslipWorkers(companyId) {
@@ -2275,6 +2295,7 @@ async function handlePayslipStudioClick(ev) {
     }
     try {
       showActionToast(t("lohn.sending") || "Wird gesendet…");
+      await syncPayslipStudioPdfFromHtml(batchId, statementId);
       const res = await api(
         `/api/payroll/statements/${encodeURIComponent(batchId)}/${encodeURIComponent(statementId)}/release`,
         { method: "POST", body: "{}" },

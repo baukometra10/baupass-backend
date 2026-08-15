@@ -1523,6 +1523,9 @@ def ensure_statement_delivery_pdf(
     db,
     stmt: dict[str, Any],
     batch: dict[str, Any] | None = None,
+    *,
+    force: bool = False,
+    html_override: str | None = None,
 ) -> dict[str, Any]:
     """Write a DatevSheet PDF that matches the studio HTML (full A4)."""
     from .lohn_sheet_pdf import (
@@ -1540,7 +1543,7 @@ def ensure_statement_delivery_pdf(
     existing_size = int(stmt.get("file_size") or 0)
     # Only reuse locked deliveries when they were rendered from the real DatevSheet HTML.
     already_html = is_high_fidelity_pdf_source(existing_source) and existing_size >= 12000
-    if statement_delivery_locked(stmt, existing_meta) and already_html:
+    if not force and statement_delivery_locked(stmt, existing_meta) and already_html:
         path = str(stmt.get("file_path") or "").strip()
         if path and Path(path).is_file():
             return {
@@ -1551,11 +1554,31 @@ def ensure_statement_delivery_pdf(
                 "period": str(stmt.get("period") or ""),
                 "skipped": "locked",
             }
+    # Distorted stubs / WeasyPrint approx must not be reused for download or send.
+    if (
+        not force
+        and not statement_delivery_locked(stmt, existing_meta)
+        and is_high_fidelity_pdf_source(existing_source)
+        and existing_size >= 12000
+        and not str(html_override or "").strip()
+    ):
+        path = str(stmt.get("file_path") or "").strip()
+        if path and Path(path).is_file():
+            return {
+                "ok": True,
+                "path": path,
+                "fileSize": existing_size,
+                "filename": stmt.get("filename") or "",
+                "period": str(stmt.get("period") or ""),
+                "pdfSource": existing_source,
+                "skipped": "cached",
+            }
 
     resolved = resolve_statement_sheet(db, stmt, batch)
     period = str(resolved.get("period") or stmt.get("period") or (batch or {}).get("period") or "unknown")[:7]
+    html_doc = str(html_override or "").strip() or str(resolved.get("html") or "")
     pdf_bytes, pdf_source = render_datev_sheet_pdf_with_source(
-        resolved.get("sheet_data") or {}, html=str(resolved.get("html") or "")
+        resolved.get("sheet_data") or {}, html=html_doc
     )
     if not pdf_bytes.startswith(b"%PDF"):
         return {"ok": False, "error": "pdf_render_failed"}
@@ -2409,38 +2432,23 @@ def refresh_pending_payslip_pdfs_from_lohn(
             errors.append({"statementId": stmt_id, "jobId": job_id, "error": "payslip_not_found"})
             continue
         display = f"{stmt.get('first_name') or ''} {stmt.get('last_name') or ''}".strip()
-        pdf_b64 = _generate_payslip_pdf_base64(
-            employee_name=str((payslip.get("employee") or {}).get("name") or display),
-            employee_id=str((payslip.get("employee") or {}).get("id") or badge),
-            company_name=str((payslip.get("company") or {}).get("name") or ""),
-            period=str(payslip.get("period") or per),
-            gross=(payslip.get("totals") or {}).get("gross"),
-            net=(payslip.get("totals") or {}).get("net"),
-            document=payslip,
-        )
-        try:
-            raw = base64.b64decode(pdf_b64)
-        except Exception as exc:
-            errors.append({"statementId": stmt_id, "error": f"pdf_decode:{exc}"})
-            continue
-        file_path = str(stmt.get("file_path") or "").strip()
-        if not file_path:
-            dest_dir = _storage_dir(company_id, per)
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            file_path = str(dest_dir / f"{badge or stmt_id}_{secrets.token_hex(3)}.pdf")
-        Path(file_path).write_bytes(raw)
-        meta = {**meta, "jobId": job_id, "document": payslip, "pdfSource": "lohn_refresh"}
+        # Keep live Lohn JSON for the studio sheet; never write ReportLab stubs here.
+        # Exact Chromium PDF is built on download / An Mitarbeiter senden.
+        meta = {
+            **meta,
+            "jobId": job_id,
+            "document": payslip,
+            "pdfSource": "pending_datev_sheet",
+        }
         net_v = (payslip.get("totals") or {}).get("net")
         db.execute(
             """
             UPDATE payroll_statements
-            SET file_path = ?, file_size = ?, meta_json = ?,
+            SET meta_json = ?,
                 gross_amount = ?, net_amount = ?, updated_at = ?
             WHERE id = ?
             """,
             (
-                file_path,
-                len(raw),
                 json.dumps(meta, ensure_ascii=False),
                 float((payslip.get("totals") or {}).get("gross") or stmt.get("gross_amount") or 0),
                 float(net_v) if net_v is not None else stmt.get("net_amount"),
@@ -2459,7 +2467,7 @@ def refresh_pending_payslip_pdfs_from_lohn(
         "updatedCount": len(updated),
         "updated": updated,
         "errors": errors,
-        "message": f"{len(updated)} Abrechnungs-PDF(s) aus WorkPass Lohn neu aufgebaut.",
+        "message": f"{len(updated)} Abrechnung(en) aus WorkPass Lohn aktualisiert (PDF folgt beim Versand).",
     }
 
 
@@ -2877,7 +2885,7 @@ def release_statement(
 
         if not is_high_fidelity_pdf_source((meta or {}).get("pdfSource")):
             batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
-            rebuilt = ensure_statement_delivery_pdf(db, stmt, batch)
+            rebuilt = ensure_statement_delivery_pdf(db, stmt, batch, force=True)
             if rebuilt.get("ok"):
                 stmt = repo.get_statement(db, statement_id) or stmt
                 return {
@@ -2900,7 +2908,14 @@ def release_statement(
     if require_reviewed and not str(stmt.get("reviewed_at") or "").strip():
         return {"ok": False, "error": "review_required", "hint": "PDF zuerst öffnen und prüfen"}
     batch = repo.get_batch(db, str(stmt.get("batch_id") or "")) or {}
-    built = ensure_statement_delivery_pdf(db, stmt, batch)
+    from .lohn_sheet_pdf import is_high_fidelity_pdf_source
+
+    try:
+        meta_now = json.loads(stmt.get("meta_json") or "{}")
+    except Exception:
+        meta_now = {}
+    force_pdf = not is_high_fidelity_pdf_source((meta_now or {}).get("pdfSource"))
+    built = ensure_statement_delivery_pdf(db, stmt, batch, force=force_pdf)
     if not built.get("ok"):
         return {"ok": False, "error": built.get("error") or "missing_pdf"}
     stmt = repo.get_statement(db, statement_id) or stmt

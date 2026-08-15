@@ -1569,6 +1569,43 @@ def register_accounting_blueprint(flask_app) -> None:
         db.commit()
         return jsonify({"ok": True, "statementId": statement_id, "fileSize": len(raw), "pdfSource": "lohn_sheet_capture"}), 200
 
+    @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/pdf/from-html")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def admin_statement_pdf_from_html(batch_id: str, statement_id: str):
+        """Render the exact studio DatevSheet HTML to PDF (Chromium) before send/download."""
+        user = g.current_user
+        db = get_db()
+        batch, stmt, err = _statement_scope_or_error(db, batch_id, statement_id, user)
+        if err:
+            return err
+        from .service import ensure_statement_delivery_pdf, statement_delivery_locked
+
+        if statement_delivery_locked(stmt):
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "locked",
+                    "message": "Abrechnung ist nach Versand gesperrt.",
+                }
+            ), 409
+        data = request.get_json(silent=True) or {}
+        html = str(data.get("html") or data.get("sheetHtml") or "").strip()
+        if len(html) < 200:
+            return jsonify({"ok": False, "error": "html_required"}), 400
+        built = ensure_statement_delivery_pdf(db, stmt, batch, force=True, html_override=html)
+        if not built.get("ok"):
+            return jsonify({"ok": False, "error": built.get("error") or "pdf_render_failed"}), 500
+        return jsonify(
+            {
+                "ok": True,
+                "statementId": statement_id,
+                "fileSize": built.get("fileSize"),
+                "pdfSource": built.get("pdfSource"),
+                "filename": built.get("filename"),
+            }
+        ), 200
+
     @accounting_bp.post("/payroll/statements/<batch_id>/<statement_id>/review-open")
     @require_auth
     @require_roles("superadmin", "company-admin")

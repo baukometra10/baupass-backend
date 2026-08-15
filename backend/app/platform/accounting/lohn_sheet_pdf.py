@@ -18,7 +18,9 @@ PDF_SOURCE_HTML = "datev_sheet_html"
 PDF_SOURCE_CHROMIUM = "datev_sheet_chromium"
 PDF_SOURCE_WEASY = "datev_sheet_weasyprint"
 PDF_SOURCE_REPORTLAB = "datev_sheet_reportlab"
-GOOD_HTML_PDF_SOURCES = frozenset({PDF_SOURCE_HTML, PDF_SOURCE_CHROMIUM, PDF_SOURCE_WEASY})
+PDF_SOURCE_CAPTURE = "lohn_sheet_capture"
+# Exact studio match only: Chromium print / browser capture. WeasyPrint is approximate.
+GOOD_HTML_PDF_SOURCES = frozenset({PDF_SOURCE_CHROMIUM, PDF_SOURCE_CAPTURE, PDF_SOURCE_HTML})
 
 NAVY = colors.HexColor("#1e3a5f")
 INK = colors.HexColor("#151a22")
@@ -48,17 +50,14 @@ def render_datev_sheet_pdf_with_source(
 ) -> tuple[bytes, str]:
     doc = _prepare_print_document(html, data)
     if doc:
-        # Prefer WeasyPrint in containers (fast, already installed). Chromium is
-        # higher fidelity but needs --no-sandbox and can trip gateway timeouts.
-        prefer_chromium = str(os.environ.get("PAYSLIP_PDF_ENGINE") or "").strip().lower() in {
-            "chromium",
-            "chrome",
-            "edge",
-        }
+        # Default Chromium so the worker PDF matches the studio DatevSheet.
+        # Set PAYSLIP_PDF_ENGINE=weasyprint only when Chromium is unavailable.
+        engine = str(os.environ.get("PAYSLIP_PDF_ENGINE") or "chromium").strip().lower()
+        prefer_weasy = engine in {"weasy", "weasyprint"}
         engines = (
-            (_render_chromium_pdf, PDF_SOURCE_CHROMIUM, _render_weasyprint_pdf, PDF_SOURCE_WEASY)
-            if prefer_chromium
-            else (_render_weasyprint_pdf, PDF_SOURCE_WEASY, _render_chromium_pdf, PDF_SOURCE_CHROMIUM)
+            (_render_weasyprint_pdf, PDF_SOURCE_WEASY, _render_chromium_pdf, PDF_SOURCE_CHROMIUM)
+            if prefer_weasy
+            else (_render_chromium_pdf, PDF_SOURCE_CHROMIUM, _render_weasyprint_pdf, PDF_SOURCE_WEASY)
         )
         first_fn, first_src, second_fn, second_src = engines
         first_pdf = first_fn(doc)

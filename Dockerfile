@@ -23,7 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \
     && rm -rf /var/lib/apt/lists/*
 ENV CHROME_BIN=/usr/bin/chromium \
-    CHROMIUM_PATH=/usr/bin/chromium
+    CHROMIUM_PATH=/usr/bin/chromium \
+    PAYSLIP_PDF_ENGINE=chromium
 RUN pip install --upgrade pip && pip install -r backend/requirements.txt
 
 COPY . .
