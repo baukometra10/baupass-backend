@@ -753,8 +753,9 @@
       await sleep(320);
       if (!this.localStream) this.localStream = camStream;
       else if (!this.localStream.getVideoTracks().includes(videoTrack)) this.localStream.addTrack(videoTrack);
-      const hasSender = (this.pc.getSenders?.() || []).some((s) => s.track?.kind === "video");
-      if (!hasSender) this.pc.addTrack(videoTrack, this.localStream);
+      // Reuse the negotiated video m-line (recvonly from peer). addTrack alone
+      // creates a second m-line → peer sees us but we stay invisible to them.
+      await this._attachLocalVideoTrack(videoTrack);
       await this._renegotiate();
       this.cameraPreviewing = false;
       this.previewStream = null;
@@ -766,6 +767,55 @@
         this.onLocalVideo(this.localStream, true, { preview: false });
       } catch (_) { /* ignore */ }
       return true;
+    }
+
+    /**
+     * Publish camera on the existing video transceiver when possible.
+     * Critical for one-way video after peer reserved a recvonly video slot.
+     */
+    async _attachLocalVideoTrack(videoTrack) {
+      if (!this.pc || !videoTrack) return false;
+      const txs = this.pc.getTransceivers?.() || [];
+      for (const tx of txs) {
+        const sk = tx.sender?.track?.kind || null;
+        const rk = tx.receiver?.track?.kind || null;
+        if (sk === "audio" || rk === "audio") continue;
+        const isVideoSlot = sk === "video" || rk === "video";
+        if (!isVideoSlot) continue;
+        try {
+          if (typeof tx.setDirection === "function") {
+            const dir = String(tx.direction || "");
+            if (dir === "recvonly" || dir === "inactive" || dir === "sendonly") {
+              try { await tx.setDirection("sendrecv"); } catch (_) { /* ignore */ }
+            }
+          }
+        } catch (_) { /* ignore */ }
+        try {
+          if (typeof tx.sender?.replaceTrack === "function") {
+            await tx.sender.replaceTrack(videoTrack);
+            return true;
+          }
+        } catch (_) { /* try next */ }
+      }
+      for (const sender of this.pc.getSenders?.() || []) {
+        if (sender.track?.kind === "audio") continue;
+        if (!sender.track || sender.track.kind === "video") {
+          try {
+            await sender.replaceTrack(videoTrack);
+            return true;
+          } catch (_) { /* try next */ }
+        }
+      }
+      try {
+        if (!this.localStream) this.localStream = new MediaStream([videoTrack]);
+        else if (!this.localStream.getVideoTracks().includes(videoTrack)) {
+          this.localStream.addTrack(videoTrack);
+        }
+        this.pc.addTrack(videoTrack, this.localStream);
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
 
     async setCameraEnabled(enabled, opts = {}) {
@@ -782,7 +832,13 @@
         for (const sender of senders) {
           if (sender.track?.kind === "video") {
             try { sender.track.stop(); } catch (_) { /* ignore */ }
-            try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
+            // Keep the video m-line for the next camera enable (avoid second-line bug).
+            try {
+              if (typeof sender.replaceTrack === "function") await sender.replaceTrack(null);
+              else this.pc.removeTrack(sender);
+            } catch (_) {
+              try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
+            }
           }
         }
         (this.localStream?.getVideoTracks?.() || []).forEach((track) => {
@@ -812,18 +868,21 @@
       if (!this.pc || !newTrack) return;
       const sender = (this.pc.getSenders?.() || []).find((s) => s.track?.kind === "video");
       const oldTrack = sender?.track || this.localStream?.getVideoTracks?.()?.[0] || null;
-      if (sender && typeof sender.replaceTrack === "function") {
-        await sender.replaceTrack(newTrack);
-      } else if (sender) {
-        try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
-        if (!this.localStream) this.localStream = new MediaStream([newTrack]);
-        this.pc.addTrack(newTrack, this.localStream);
-        await this._renegotiate();
-      } else {
-        if (!this.localStream) this.localStream = new MediaStream([newTrack]);
-        else this.localStream.addTrack(newTrack);
-        this.pc.addTrack(newTrack, this.localStream);
-        await this._renegotiate();
+      const attached = await this._attachLocalVideoTrack(newTrack);
+      if (!attached) {
+        if (sender && typeof sender.replaceTrack === "function") {
+          await sender.replaceTrack(newTrack);
+        } else if (sender) {
+          try { this.pc.removeTrack(sender); } catch (_) { /* ignore */ }
+          if (!this.localStream) this.localStream = new MediaStream([newTrack]);
+          this.pc.addTrack(newTrack, this.localStream);
+          await this._renegotiate();
+        } else {
+          if (!this.localStream) this.localStream = new MediaStream([newTrack]);
+          else this.localStream.addTrack(newTrack);
+          this.pc.addTrack(newTrack, this.localStream);
+          await this._renegotiate();
+        }
       }
       if (this.localStream && !this.localStream.getVideoTracks().includes(newTrack)) this.localStream.addTrack(newTrack);
       if (stopOld && oldTrack && oldTrack !== newTrack) {
@@ -1246,7 +1305,9 @@
         this._applySpeakerToRemoteAudio();
         audio.play().catch(() => {});
         this._attachRemoteAnalyser(remoteStream);
-        const hasVideo = remoteStream.getVideoTracks().some((t) => t.readyState === "live" && t.enabled !== false);
+        const hasVideo = remoteStream.getVideoTracks().some(
+          (t) => t && t.readyState !== "ended",
+        );
         this.remoteHasVideo = hasVideo;
         try {
           this.onRemoteVideo(remoteStream, hasVideo);
@@ -1256,7 +1317,7 @@
         if (track) {
           track.onunmute = () => {
             const live = (this.remoteStream?.getVideoTracks?.() || []).some(
-              (t) => t.readyState === "live" && t.enabled !== false,
+              (t) => t && t.readyState !== "ended",
             );
             this.remoteHasVideo = live;
             try { this.onRemoteVideo(this.remoteStream, live); } catch (_) { /* ignore */ }

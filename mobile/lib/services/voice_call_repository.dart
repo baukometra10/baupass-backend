@@ -1161,7 +1161,17 @@ class WorkerVoiceCallSession {
     }
     if (type == 'camera_state') {
       if (payload['enabled'] == true && _pc != null) {
-        unawaited(_syncReceiversIntoRemoteStream(_pc!));
+        final pc = _pc!;
+        unawaited(() async {
+          for (final delayMs in <int>[0, 250, 700, 1500]) {
+            if (delayMs > 0) {
+              await Future<void>.delayed(Duration(milliseconds: delayMs));
+            }
+            if (_ended || !identical(_pc, pc)) return;
+            await _syncReceiversIntoRemoteStream(pc);
+            if (_remoteHasVideo) return;
+          }
+        }());
       }
       onCameraState?.call(payload);
       return;

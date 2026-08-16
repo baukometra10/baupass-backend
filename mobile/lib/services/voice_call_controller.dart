@@ -503,6 +503,13 @@ class VoiceCallController extends ChangeNotifier {
         final name = (payload['fromName'] ?? 'Arbeitgeber').toString().trim();
         if (enabled) {
           _setPeerCameraBanner('$name hat die Kamera eingeschaltet.', sticky: true);
+          // Late admin video: rebuild overlay so remote replaces self-preview.
+          Future<void>.delayed(const Duration(milliseconds: 300), () {
+            if (_sessionRtc != null) notifyListeners();
+          });
+          Future<void>.delayed(const Duration(milliseconds: 900), () {
+            if (_sessionRtc != null) notifyListeners();
+          });
         } else {
           _clearPeerCameraBanner();
         }
