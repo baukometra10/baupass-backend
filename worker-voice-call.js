@@ -41,24 +41,9 @@
         <p id="workerVoiceCallPeerBanner" class="worker-voice-call-peer-banner hidden" role="status" aria-live="assertive"></p>
         <p id="workerVoiceCallTimer" class="worker-voice-call-timer hidden">00:00</p>
         <div id="workerVoiceCallLiveWave" class="worker-voice-call-live-wave"></div>
-        <div class="worker-voice-call-meters">
+        <div class="worker-voice-call-meters" id="workerVoiceCallMeters">
           <div class="worker-voice-call-meter"><span>${t("voiceCallMicLabel", "Sie")}</span><div><i id="workerVoiceCallMicFill"></i></div></div>
           <div class="worker-voice-call-meter"><span>${t("voiceCallRemoteLabel", "Arbeitgeber")}</span><div><i id="workerVoiceCallRemoteFill"></i></div></div>
-        </div>
-        <div class="worker-voice-call-controls incoming-only">
-          <button type="button" id="workerVoiceCallDeclineBtn" class="danger" aria-label="${t("voiceCallDecline", "Ablehnen")}" title="${t("voiceCallDecline", "Ablehnen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span></button>
-          <button type="button" id="workerVoiceCallAcceptBtn" class="primary" aria-label="${t("voiceCallAccept", "Annehmen")}" title="${t("voiceCallAccept", "Annehmen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span></button>
-        </div>
-        <div class="worker-voice-call-controls active-only hidden">
-          <button type="button" id="workerVoiceCallMuteBtn" aria-label="${t("voiceCallMute", "Stumm")}" title="${t("voiceCallMute", "Stumm")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 19v3"/></svg></span></button>
-          <button type="button" id="workerVoiceCallCamBtn" aria-label="${t("voiceCallCamera", "Kamera")}" title="${t("voiceCallCamera", "Kamera")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span></button>
-          <button type="button" id="workerVoiceCallFlipBtn" class="flip-only" aria-label="${t("voiceCallFlipCamera", "Kamera wechseln")}" title="${t("voiceCallFlipCamera", "Kamera wechseln")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h4v4"/><path d="M20 4l-5.5 5.5"/><path d="M8 20H4v-4"/><path d="M4 20l5.5-5.5"/><rect x="7" y="8" width="10" height="8" rx="1.5"/></svg></span></button>
-          <button type="button" id="workerVoiceCallSpeakerBtn" aria-label="${t("voiceCallSpeaker", "Lautsprecher")}" title="${t("voiceCallSpeaker", "Lautsprecher")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span></button>
-          <button type="button" id="workerVoiceCallShareBtn" aria-label="${t("voiceCallShareImage", "Bild")}" title="${t("voiceCallShareImage", "Bild")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M21 16l-5-5-7 7"/></svg></span></button>
-          <button type="button" id="workerVoiceCallBlurBtn" aria-label="${t("voiceCallBlur", "Blur")}" title="${t("voiceCallBlur", "Blur")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/></svg></span></button>
-          <button type="button" id="workerVoiceCallScreenBtn" aria-label="${t("voiceCallScreenShare", "Screen")}" title="${t("voiceCallScreenShare", "Screen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/></svg></span></button>
-          <button type="button" id="workerVoiceCallRecordBtn" aria-label="${t("voiceCallRecord", "REC")}" title="${t("voiceCallRecord", "REC")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><circle cx="12" cy="12" r="6"/></svg></span></button>
-          <button type="button" id="workerVoiceCallHangupBtn" class="danger" aria-label="${t("voiceCallHangup", "Auflegen")}" title="${t("voiceCallHangup", "Auflegen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span></button>
         </div>
         <div id="workerVoiceCallPreviewBar" class="worker-voice-call-preview-bar hidden">
           <span>${t("voiceCallCamPreviewHint", "Kamera-Vorschau — noch nicht gesendet")}</span>
@@ -68,6 +53,25 @@
           </div>
           <p id="workerVoiceCallCamError" class="hidden"></p>
         </div>
+      </div>
+      <div class="worker-voice-call-footer">
+        <div class="worker-voice-call-controls incoming-only">
+          <button type="button" id="workerVoiceCallDeclineBtn" class="danger" aria-label="${t("voiceCallDecline", "Ablehnen")}" title="${t("voiceCallDecline", "Ablehnen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span><span class="wvc-label">${t("voiceCallDecline", "Ablehnen")}</span></button>
+          <button type="button" id="workerVoiceCallAcceptBtn" class="primary" aria-label="${t("voiceCallAccept", "Annehmen")}" title="${t("voiceCallAccept", "Annehmen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z"/></svg></span><span class="wvc-label">${t("voiceCallAccept", "Annehmen")}</span></button>
+        </div>
+        <div class="worker-voice-call-controls active-only hidden">
+          <button type="button" id="workerVoiceCallMuteBtn" aria-label="${t("voiceCallMute", "Stumm")}" title="${t("voiceCallMute", "Stumm")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z"/><path d="M19 11a7 7 0 0 1-14 0"/><path d="M12 19v3"/></svg></span><span class="wvc-label">${t("voiceCallMute", "Stumm")}</span></button>
+          <button type="button" id="workerVoiceCallCamBtn" aria-label="${t("voiceCallCamera", "Kamera")}" title="${t("voiceCallCamera", "Kamera")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></span><span class="wvc-label">${t("voiceCallCamera", "Kamera")}</span></button>
+          <button type="button" id="workerVoiceCallFlipBtn" class="flip-only" aria-label="${t("voiceCallFlipCamera", "Kamera wechseln")}" title="${t("voiceCallFlipCamera", "Kamera wechseln")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h4v4"/><path d="M20 4l-5.5 5.5"/><path d="M8 20H4v-4"/><path d="M4 20l5.5-5.5"/><rect x="7" y="8" width="10" height="8" rx="1.5"/></svg></span><span class="wvc-label">${t("voiceCallFlipCamera", "Drehen")}</span></button>
+          <button type="button" id="workerVoiceCallSpeakerBtn" aria-label="${t("voiceCallSpeaker", "Lautsprecher")}" title="${t("voiceCallSpeaker", "Lautsprecher")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h3l5 4V6l-5 4H4z"/><path d="M16 9a4 4 0 0 1 0 6"/><path d="M18.5 7a7 7 0 0 1 0 10"/></svg></span><span class="wvc-label">${t("voiceCallSpeaker", "Lautsp.")}</span></button>
+          <button type="button" id="workerVoiceCallHangupBtn" class="danger" aria-label="${t("voiceCallHangup", "Auflegen")}" title="${t("voiceCallHangup", "Auflegen")}"><span class="wvc-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span><span class="wvc-label">${t("voiceCallHangup", "Auflegen")}</span></button>
+        </div>
+        <div class="worker-voice-call-toolbar" id="workerVoiceCallToolbar">
+          <button type="button" id="workerVoiceCallShareBtn" class="wvc-pill" aria-label="${t("voiceCallShareImage", "Bild")}" title="${t("voiceCallShareImage", "Bild")}">${t("voiceCallShareImage", "Bild")}</button>
+          <button type="button" id="workerVoiceCallBlurBtn" class="wvc-pill" aria-label="${t("voiceCallBlur", "Blur")}" title="${t("voiceCallBlur", "Blur")}">${t("voiceCallBlur", "Blur")}</button>
+          <button type="button" id="workerVoiceCallScreenBtn" class="wvc-pill" aria-label="${t("voiceCallScreenShare", "Screen")}" title="${t("voiceCallScreenShare", "Screen")}">${t("voiceCallScreenShare", "Screen")}</button>
+          <button type="button" id="workerVoiceCallRecordBtn" class="wvc-pill" aria-label="${t("voiceCallRecord", "REC")}" title="${t("voiceCallRecord", "REC")}">${t("voiceCallRecord", "REC")}</button>
+        </div>
         <input type="file" id="workerVoiceCallShareInput" accept="image/*" style="display:none" />
       </div>`;
     document.body.appendChild(overlay);
@@ -75,12 +79,14 @@
       const style = document.createElement("style");
       style.id = "workerVoiceCallStyles";
       style.textContent = `
-.worker-voice-call-overlay{position:fixed;inset:0;z-index:14000;display:flex;flex-direction:column;justify-content:space-between;padding:0;background:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(0,168,132,.22),transparent 55%),radial-gradient(ellipse 60% 40% at 100% 100%,rgba(37,99,235,.12),transparent 50%),linear-gradient(165deg,#071018 0%,#0b141a 45%,#0a1620 100%);overflow:hidden}
+.worker-voice-call-overlay{position:fixed;inset:0;z-index:14000;display:grid;grid-template-rows:minmax(0,1fr) auto;padding:0;height:100%;height:100dvh;max-height:100dvh;background:radial-gradient(ellipse 120% 80% at 50% -10%,rgba(0,168,132,.22),transparent 55%),radial-gradient(ellipse 60% 40% at 100% 100%,rgba(37,99,235,.12),transparent 50%),linear-gradient(165deg,#071018 0%,#0b141a 45%,#0a1620 100%);overflow:hidden}
 .worker-voice-call-overlay.hidden{display:none}
-.worker-voice-call-overlay.is-conference .worker-voice-call-avatar{width:120px;height:120px;font-size:2.2rem}
+.worker-voice-call-overlay.is-conference .worker-voice-call-avatar{width:112px;height:112px;font-size:2rem}
+.worker-voice-call-overlay.is-ringing .worker-voice-call-avatar,.worker-voice-call-overlay.is-connecting .worker-voice-call-avatar{width:112px;height:112px;font-size:2rem;margin-bottom:.65rem}
+.worker-voice-call-overlay.is-ringing .worker-voice-call-live-wave,.worker-voice-call-overlay.is-ringing .worker-voice-call-meters,.worker-voice-call-overlay.is-ringing .worker-voice-call-toolbar,.worker-voice-call-overlay.is-connecting .worker-voice-call-live-wave,.worker-voice-call-overlay.is-connecting .worker-voice-call-meters,.worker-voice-call-overlay.is-connecting .worker-voice-call-toolbar{display:none!important}
 .worker-voice-call-video-stage{display:none;position:absolute;inset:0;z-index:1;background:#0b141a;overflow:hidden}
 .worker-voice-call-overlay.is-video .worker-voice-call-video-stage{display:block}
-.worker-voice-call-overlay.is-video{background:#0b141a}
+.worker-voice-call-overlay.is-video{background:#0b141a;grid-template-rows:1fr}
 .worker-voice-call-overlay.is-video .worker-voice-call-avatar,
 .worker-voice-call-overlay.is-video .worker-voice-call-live-wave,
 .worker-voice-call-overlay.is-video .worker-voice-call-meters,
@@ -90,8 +96,8 @@
 .worker-voice-call-overlay.is-video #workerVoiceCallStatus,
 .worker-voice-call-overlay.is-video #workerVoiceCallTimer,
 .worker-voice-call-overlay.is-video #workerVoiceCallPeerBanner{text-shadow:0 1px 8px rgba(0,0,0,.75);pointer-events:auto}
-.worker-voice-call-overlay.is-video .worker-voice-call-controls{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:auto;background:linear-gradient(0deg,rgba(0,0,0,.72),transparent);transition:opacity .28s ease,transform .28s ease}
-.worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-controls{opacity:0;pointer-events:none;transform:translateY(8px)}
+.worker-voice-call-overlay.is-video .worker-voice-call-footer{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:auto;background:linear-gradient(0deg,rgba(0,0,0,.72),transparent);transition:opacity .28s ease,transform .28s ease}
+.worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-footer{opacity:0;pointer-events:none;transform:translateY(8px)}
 .worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-stage h4,
 .worker-voice-call-overlay.is-video.chrome-hidden #workerVoiceCallStatus{opacity:.35}
 #workerVoiceCallRemoteVideo{width:100%;height:100%;object-fit:cover;background:#0b141a}
@@ -99,8 +105,9 @@
 .worker-voice-call-local-pip.hidden{display:none}
 #workerVoiceCallFlipBtn{display:none}
 .worker-voice-call-overlay.is-video #workerVoiceCallFlipBtn,
-.worker-voice-call-overlay.cam-on #workerVoiceCallFlipBtn{display:inline-grid}
-.worker-voice-call-stage{width:100%;max-width:520px;margin:0 auto;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#e9edef;padding:2rem 1.25rem 1rem}
+.worker-voice-call-overlay.cam-on #workerVoiceCallFlipBtn{display:inline-flex}
+.worker-voice-call-stage{width:100%;max-width:520px;margin:0 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#e9edef;padding:max(1.25rem,env(safe-area-inset-top,0px)) 1.25rem .5rem;-webkit-overflow-scrolling:touch}
+.worker-voice-call-footer{width:100%;max-width:640px;margin:0 auto;padding:.55rem 1rem calc(.95rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,rgba(0,0,0,.62) 22%);position:relative;z-index:30}
 .worker-voice-call-badge{display:inline-flex;padding:.35rem .75rem;border-radius:999px;border:1px solid rgba(0,168,132,.35);font-size:.75rem;margin-bottom:1rem;color:rgba(233,237,239,.85);background:rgba(0,168,132,.12)}
 .worker-voice-call-avatar{width:180px;height:180px;margin:0 auto 1.25rem;border-radius:50%;display:grid;place-items:center;font-size:3rem;font-weight:800;background:linear-gradient(145deg,#00a884,#128c7e);color:#e9edef;box-shadow:0 24px 64px rgba(0,168,132,.28)}
 .worker-voice-call-stage h4{margin:0 0 .35rem;font-size:2rem;color:#e9edef}
@@ -112,26 +119,31 @@
 .worker-voice-call-meter{display:grid;grid-template-columns:4.5rem 1fr;gap:.5rem;align-items:center;font-size:.72rem;text-transform:uppercase;opacity:.8}
 .worker-voice-call-meter div{height:8px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden}
 .worker-voice-call-meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,#00a884,#128c7e)}
-.worker-voice-call-controls{display:flex;gap:1.1rem;justify-content:center;flex-wrap:wrap;padding:1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,transparent,rgba(0,0,0,.55))}
+.worker-voice-call-controls{display:flex;gap:.75rem 1rem;justify-content:center;align-items:flex-start;flex-wrap:wrap;padding:.35rem 0 .15rem}
 .worker-voice-call-controls.hidden{display:none}
-.worker-voice-call-controls button{min-width:64px;min-height:64px;width:64px;height:64px;border-radius:50%;border:none;color:#fff;font-weight:600;cursor:pointer;font-size:1.5rem;box-shadow:0 8px 24px rgba(0,0,0,.35);display:inline-grid;place-items:center;transition:transform .12s ease,filter .15s ease;background:rgba(255,255,255,.12)}
+.worker-voice-call-controls button{min-width:4.4rem;width:4.4rem;height:auto;min-height:4.35rem;border-radius:1.15rem;padding:.65rem .35rem .4rem;border:1px solid rgba(255,255,255,.14);color:#e9edef;font-weight:600;cursor:pointer;box-shadow:0 10px 28px rgba(0,0,0,.32);display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:.28rem;transition:transform .12s ease,filter .15s ease;background:rgba(255,255,255,.12)}
 .worker-voice-call-controls button:active{transform:scale(.92)}
-.worker-voice-call-controls button .wvc-ico{display:grid;place-items:center;line-height:0}
-.worker-voice-call-controls button.primary{background:#00a884}
-.worker-voice-call-controls button.danger{background:#e53935}
-.worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:76px;height:76px;min-width:76px;min-height:76px}
+.worker-voice-call-controls button .wvc-ico{display:grid;place-items:center;line-height:0;width:1.55rem;height:1.55rem}
+.worker-voice-call-controls button .wvc-ico svg{display:block;width:100%;height:100%;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
+.worker-voice-call-controls button .wvc-label{display:block;font-size:.62rem;font-weight:650;letter-spacing:.01em;line-height:1.05;opacity:.9;white-space:nowrap;max-width:4.6rem;overflow:hidden;text-overflow:ellipsis}
+.worker-voice-call-controls button.primary{background:#00a884;border-color:rgba(52,211,153,.45);width:4.85rem;min-width:4.85rem;min-height:4.85rem;border-radius:1.25rem}
+.worker-voice-call-controls button.danger{background:#e53935;border-color:rgba(248,113,113,.4);width:4.85rem;min-width:4.85rem;min-height:4.85rem;border-radius:1.25rem}
+.worker-voice-call-controls button.danger#workerVoiceCallHangupBtn{width:5.25rem;min-width:5.25rem;min-height:5.25rem;border-radius:1.35rem}
 .worker-voice-call-controls button.is-active{background:#f8fafc!important;color:#b91c1c!important;box-shadow:0 0 0 3px rgba(248,113,113,.35)}
 .worker-voice-call-controls button.is-active .wvc-ico{color:#b91c1c}
+.worker-voice-call-toolbar{display:flex;gap:.4rem;justify-content:center;flex-wrap:wrap;margin-top:.55rem}
+.worker-voice-call-toolbar.hidden{display:none}
+.worker-voice-call-toolbar .wvc-pill{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);color:#e9edef;border-radius:999px;padding:.45rem .9rem;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer;min-width:auto;width:auto;height:auto;min-height:auto;box-shadow:none}
+.worker-voice-call-toolbar .wvc-pill.is-active{background:#f8fafc;color:#b91c1c}
 .worker-voice-call-peer-banner{margin:.55rem auto 0;max-width:22rem;padding:.55rem .85rem;border-radius:12px;background:rgba(251,191,36,.16);border:1px solid rgba(251,191,36,.45);color:#fde68a;font-size:.84rem;font-weight:600;line-height:1.35}
 .worker-voice-call-peer-banner.hidden{display:none}
 .worker-voice-call-preview-bar{margin:.65rem auto 0;max-width:22rem;padding:.7rem .85rem;border-radius:14px;background:rgba(15,23,42,.72);border:1px solid rgba(148,163,184,.35);color:#e2e8f0;display:grid;gap:.5rem;pointer-events:auto;position:relative;z-index:5}
 .worker-voice-call-preview-bar.hidden{display:none}
 .worker-voice-call-preview-bar div{display:flex;gap:.45rem;justify-content:center;flex-wrap:wrap}
-.worker-voice-call-preview-bar button{min-width:auto;width:auto;height:auto;min-height:36px;border-radius:999px;padding:.35rem .85rem;font-size:.8rem}
+.worker-voice-call-preview-bar button{min-width:auto;width:auto;height:auto;min-height:36px;border-radius:999px;padding:.35rem .85rem;font-size:.8rem;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.1);color:#e9edef;cursor:pointer}
 .worker-voice-call-preview-bar button.primary{background:#00a884}
 .worker-voice-call-preview-bar p{margin:0;color:#fecaca;font-size:.78rem}
 .worker-voice-call-preview-bar p.hidden{display:none}
-.worker-voice-call-controls button.is-active{background:#f8fafc!important;color:#b91c1c!important}
 #voiceCallVideoGrid{width:min(920px,94vw);margin:.75rem auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.65rem;max-height:36vh;overflow:auto}
 .chat-call-log,.worker-chat-call-log{display:inline-flex;align-items:center;gap:.55rem;padding:.45rem .75rem;border-radius:999px;background:rgba(255,255,255,.08);border:1px solid rgba(0,168,132,.22)}
 .chat-call-log-btn,.worker-chat-call-log-btn{margin-top:.35rem;border-radius:999px;padding:.35rem .75rem;border:1px solid rgba(0,168,132,.35);background:rgba(0,168,132,.18);color:#ecfeff;font-size:.75rem;font-weight:600;cursor:pointer}`;
@@ -334,22 +346,33 @@
   let incomingTone = null;
   let conferenceActive = false;
 
-  function setOverlay(visible, statusText, mode) {
+  function setOverlay(visible, statusText, mode, phase) {
     const overlay = ensureOverlay();
     const status = overlay.querySelector("#workerVoiceCallStatus");
     const incoming = overlay.querySelector(".incoming-only");
     const active = overlay.querySelector(".active-only");
+    const meters = overlay.querySelector("#workerVoiceCallMeters");
+    const wave = overlay.querySelector("#workerVoiceCallLiveWave");
+    const toolbar = overlay.querySelector("#workerVoiceCallToolbar");
     if (status && statusText) status.textContent = statusText;
     overlay.classList.toggle("hidden", !visible);
     incoming?.classList.toggle("hidden", mode !== "incoming");
     active?.classList.toggle("hidden", mode !== "active");
+    const ringing = phase === "ringing" || mode === "incoming";
+    const connecting = phase === "connecting";
+    const connected = phase === "connected";
+    overlay.classList.toggle("is-ringing", Boolean(visible && ringing && !connected));
+    overlay.classList.toggle("is-connecting", Boolean(visible && connecting && !connected));
+    meters?.classList.toggle("hidden", !connected);
+    wave?.classList.toggle("hidden", !connected);
+    toolbar?.classList.toggle("hidden", !connected);
     if (!visible) {
       stopTimer();
       clearPeerBanner();
       clearVideoStage();
       try { incomingTone?.stop?.(); } catch (_) { /* ignore */ }
       incomingTone = null;
-      overlay.classList.remove("is-conference", "is-video", "cam-on", "chrome-hidden");
+      overlay.classList.remove("is-conference", "is-video", "cam-on", "chrome-hidden", "is-ringing", "is-connecting");
     }
   }
 
@@ -411,7 +434,7 @@
     const name = call.callerName || call.caller_name || call.companyName || call.company_name || t("senderCompany", "Arbeitgeber");
     document.getElementById("workerVoiceCallTitle").textContent = name;
     document.getElementById("workerVoiceCallAvatar").textContent = initials(name);
-    setOverlay(true, t("voiceCallRinging", "Eingehender Anruf…"), "incoming");
+    setOverlay(true, t("voiceCallRinging", "Eingehender Anruf…"), "incoming", "ringing");
     startIncomingTone();
   }
 
@@ -419,7 +442,7 @@
     async accept() {
       if (!session || !global.SUPPIXVoiceCall) return;
       stopIncomingTone();
-      setOverlay(true, t("voiceCallConnected", "Verbunden"), "active");
+      setOverlay(true, t("voiceCallConnected", "Verbunden"), "active", "connected");
       try {
         await session.acceptIncoming(session._incomingCall);
         startTimer();
@@ -672,7 +695,7 @@
       onAudioLevels: ({ local, remote }) => updateLevels(local, remote),
       onState: (state) => {
         if (state === "connected" || state === "accepted") {
-          setOverlay(true, t("voiceCallConnected", "Verbunden"), "active");
+          setOverlay(true, t("voiceCallConnected", "Verbunden"), "active", "connected");
           startTimer();
         } else if (state === "ended") {
           dismissedCallId = session?.callId || dismissedCallId;
@@ -698,7 +721,7 @@
     const status = document.getElementById("workerVoiceCallStatus");
     if (title) title.textContent = invite.title || t("conferenceJoined", "Firmenkonferenz");
     if (status) status.textContent = t("voiceCallIncomingRinging", "Einladung zur Konferenz…");
-    setOverlay(true, status?.textContent || "", "incoming");
+    setOverlay(true, status?.textContent || "", "incoming", "ringing");
     startIncomingTone();
     const accept = document.getElementById("workerVoiceCallAcceptBtn");
     const decline = document.getElementById("workerVoiceCallDeclineBtn");
@@ -713,7 +736,7 @@
           body: "{}",
         });
         conferenceActive = true;
-        setOverlay(true, t("conferenceJoined", "In Konferenz"), "active");
+        setOverlay(true, t("conferenceJoined", "In Konferenz"), "active", "connected");
         overlay.classList.add("is-conference");
         // Reuse admin video grid if present; else create minimal stage
         if (!document.getElementById("voiceCallVideoGrid")) {
@@ -862,9 +885,9 @@
         onAudioLevels: ({ local, remote }) => updateLevels(local, remote),
         onState: (state) => {
           if (state === "ringing" || state === "dialing") {
-            setOverlay(true, t("voiceCallRinging", "Klingelt…"), "active");
+            setOverlay(true, t("voiceCallRinging", "Klingelt…"), "active", "ringing");
           } else if (state === "connected" || state === "accepted") {
-            setOverlay(true, t("voiceCallConnected", "Verbunden"), "active");
+            setOverlay(true, t("voiceCallConnected", "Verbunden"), "active", "connected");
             startTimer();
           } else if (state === "ended") {
             session = null;
@@ -880,7 +903,7 @@
       const overlayEl = ensureOverlay();
       document.getElementById("workerVoiceCallTitle").textContent = t("senderCompany", "Arbeitgeber");
       document.getElementById("workerVoiceCallAvatar").textContent = "AG";
-      setOverlay(true, t("voiceCallDialing", "Wählt…"), "active");
+      setOverlay(true, t("voiceCallDialing", "Wählt…"), "active", "ringing");
       overlayEl.querySelector(".incoming-only")?.classList.add("hidden");
       overlayEl.querySelector(".active-only")?.classList.remove("hidden");
       try {

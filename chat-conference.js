@@ -171,7 +171,12 @@
         const name = String(p.displayName || p.participantId || "?");
         const initials = name.split(/\s+/).map((x) => x[0] || "").join("").slice(0, 2).toUpperCase() || "?";
         const st = String(p.status || "");
-        return `<div class="voice-call-participant-chip"><div class="ava">${initials}</div><div class="nm">${name}</div><div class="st">${st}</div></div>`;
+        const self = Boolean(p.isSelf || p.self || String(p.role || "").toLowerCase() === "host");
+        const speaking = /speak|aktiv|active|talk/i.test(st);
+        const cls = ["voice-call-participant-chip"];
+        if (self) cls.push("is-self");
+        if (speaking) cls.push("is-speaking");
+        return `<div class="${cls.join(" ")}"><div class="ava">${initials}</div><div class="nm">${name}</div><div class="st">${st || (self ? "Sie" : "")}</div></div>`;
       })
       .join("");
   }

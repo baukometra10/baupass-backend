@@ -581,8 +581,18 @@
       inset: 0;
       z-index: 1300;
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto auto minmax(0, 1fr) auto;
+      grid-template-areas:
+        "topbar"
+        "rail"
+        "stage"
+        "footer";
       padding: 0;
+      height: 100%;
+      height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
       background:
         radial-gradient(ellipse 120% 80% at 50% -10%, rgba(0, 168, 132, 0.22), transparent 55%),
         radial-gradient(ellipse 60% 40% at 100% 100%, rgba(37, 99, 235, 0.12), transparent 50%),
@@ -591,6 +601,7 @@
       color: #e9edef;
     }
     .voice-call-topbar {
+      grid-area: topbar;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -620,6 +631,7 @@
       color: #bfdbfe;
     }
     .voice-call-participant-rail {
+      grid-area: rail;
       display: flex;
       gap: 0.55rem;
       overflow-x: auto;
@@ -667,11 +679,12 @@
     /* 1:1 FaceTime-style video stage */
     .voice-call-video-stage {
       display: none;
-      position: absolute;
-      inset: 0;
+      grid-area: 1 / 1 / -1 / -1;
+      position: relative;
       z-index: 1;
       background: #0b141a;
       overflow: hidden;
+      min-height: 0;
     }
     .voice-call-overlay.is-video .voice-call-video-stage { display: block; }
     .voice-call-overlay.is-video {
@@ -775,16 +788,49 @@
       display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
       gap: 0.75rem; width: min(1100px, 96vw); max-height: none; margin: 0.5rem auto 0;
     }
-    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-grid {
-      position: absolute; inset: 0; z-index: 1; margin: 0; width: 100%; max-width: none;
-      grid-template-columns: 1fr; padding: 0; background: #0b141a;
+    .voice-call-overlay.is-conference.is-conf-stage {
+      grid-template-rows: auto auto minmax(0, 1fr) auto;
     }
-    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-tile { border-radius: 0; min-height: 100%; }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-stage {
+      max-width: none;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      justify-content: stretch;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-grid {
+      position: relative; inset: auto; z-index: 1; margin: 0; width: 100%; max-width: none;
+      height: 100%; min-height: 0; flex: 1;
+      grid-template-columns: 1fr; padding: 0; background: #0b141a;
+      max-height: none; overflow: hidden;
+    }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-tile { border-radius: 0; min-height: 100%; height: 100%; }
     .voice-call-overlay.is-conference.is-conf-stage .voice-call-video-tile video { object-fit: cover; width: 100%; height: 100%; }
     .voice-call-overlay.is-conference.is-conf-stage .voice-call-avatar,
     .voice-call-overlay.is-conference.is-conf-stage .voice-call-rings,
     .voice-call-overlay.is-conference.is-conf-stage .voice-call-meters,
-    .voice-call-overlay.is-conference.is-conf-stage .voice-call-live-wave { display: none !important; }
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-live-wave,
+    .voice-call-overlay.is-conference.is-conf-stage .voice-call-stage h4,
+    .voice-call-overlay.is-conference.is-conf-stage #voiceCallSubtitle,
+    .voice-call-overlay.is-conference.is-conf-stage #voiceCallStatus,
+    .voice-call-overlay.is-conference.is-conf-stage #voiceCallQuality,
+    .voice-call-overlay.is-conference.is-conf-stage #voiceCallCamHint { display: none !important; }
+    .voice-call-video-tile.is-speaking {
+      box-shadow: 0 0 0 2px rgba(94, 234, 212, 0.85), 0 12px 28px rgba(0,0,0,0.35);
+    }
+    .voice-call-video-tile.is-featured {
+      outline: 2px solid rgba(56, 189, 248, 0.55);
+    }
+    .voice-call-participant-chip.is-self .ava {
+      background: linear-gradient(145deg, #2563eb, #0ea5e9);
+    }
+    .voice-call-participant-chip.is-speaking {
+      border-color: rgba(94, 234, 212, 0.55);
+      box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.35);
+    }
     .voice-call-pill-btn.is-active { background: #f8fafc; color: #b91c1c; }
 
     .voice-call-overlay.is-video #voiceCallFlipBtn { display: inline-grid; }
@@ -962,35 +1008,63 @@
     }
     .voice-call-overlay.hidden { display: none; }
     .voice-call-stage {
+      grid-area: stage;
       width: 100%;
       max-width: 520px;
       margin: 0 auto;
-      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       text-align: center;
       position: relative;
-      padding: 2.5rem 1.5rem 1.5rem;
+      padding: 1.25rem 1.25rem 0.5rem;
       min-height: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .voice-call-overlay.is-ringing .voice-call-avatar,
+    .voice-call-overlay.is-connecting .voice-call-avatar {
+      width: 112px;
+      height: 112px;
+      font-size: 2rem;
+      margin-bottom: 0.65rem;
+    }
+    .voice-call-overlay.is-ringing .voice-call-live-wave,
+    .voice-call-overlay.is-ringing .voice-call-meters,
+    .voice-call-overlay.is-ringing .voice-call-wave,
+    .voice-call-overlay.is-connecting .voice-call-live-wave,
+    .voice-call-overlay.is-connecting .voice-call-meters,
+    .voice-call-overlay.is-connecting .voice-call-wave {
+      display: none !important;
+    }
+    .voice-call-overlay.is-ringing .voice-call-toolbar-extra,
+    .voice-call-overlay.is-connecting .voice-call-toolbar-extra {
+      display: none;
+    }
+    .voice-call-overlay.is-ringing .voice-call-volume-row,
+    .voice-call-overlay.is-connecting .voice-call-volume-row {
+      margin-top: 0.35rem;
     }
     .voice-call-footer {
+      grid-area: footer;
       width: 100%;
-      max-width: 520px;
+      max-width: 640px;
       margin: 0 auto;
-      padding: 1.25rem 1.25rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
-      background: linear-gradient(180deg, transparent, rgba(0,0,0,.55));
+      padding: 0.55rem 1rem calc(0.95rem + env(safe-area-inset-bottom, 0px));
+      background: linear-gradient(180deg, transparent, rgba(0,0,0,.62) 22%);
       position: relative;
-      z-index: 20;
+      z-index: 30;
       pointer-events: auto;
+      flex-shrink: 0;
     }
     .voice-call-footer .voice-call-round-btn,
     .voice-call-footer .voice-call-pill-btn,
     .voice-call-footer input {
       pointer-events: auto;
       position: relative;
-      z-index: 21;
+      z-index: 31;
     }
     .voice-call-secure-badge {
       display: inline-flex;
@@ -1061,11 +1135,11 @@
     .voice-call-controls.incoming-only,
     .voice-call-controls.active-only {
       display: flex;
-      gap: 2.5rem;
+      gap: 0.75rem 1rem;
       justify-content: center;
-      align-items: center;
+      align-items: flex-start;
       flex-wrap: wrap;
-      margin-top: 0.5rem;
+      margin-top: 0.35rem;
     }
     .voice-call-wa-circle {
       width: 68px;
@@ -1086,23 +1160,50 @@
     .voice-call-wa-circle.hangup { background: #e53935; width: 76px; height: 76px; font-size: 1.85rem; }
     .voice-call-wa-circle.secondary { background: rgba(255,255,255,0.12); width: 58px; height: 58px; font-size: 1.35rem; }
     .voice-call-wa-circle.is-active { background: rgba(229, 57, 53, 0.85); }
-    .voice-call-round-btn .voice-call-btn-label { display: none; }
     .voice-call-round-btn {
-      min-width: 58px;
-      min-height: 58px;
-      width: 58px;
-      height: 58px;
-      border-radius: 50%;
-      padding: 0;
-      border: none;
+      min-width: 4.4rem;
+      width: 4.4rem;
+      height: auto;
+      min-height: 4.35rem;
+      border-radius: 1.15rem;
+      padding: 0.65rem 0.35rem 0.4rem;
+      border: 1px solid rgba(255,255,255,0.14);
       background: rgba(255,255,255,0.12);
       color: #e9edef;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.28rem;
+      cursor: pointer;
     }
     .voice-call-round-btn.danger,
-    .voice-call-round-btn.accept { width: 68px; height: 68px; min-width: 68px; min-height: 68px; border-radius: 50%; }
-    .voice-call-round-btn.accept { background: #00a884; }
-    .voice-call-round-btn.danger { background: #e53935; }
-    #voiceCallHangupBtn.voice-call-round-btn { width: 76px; height: 76px; min-width: 76px; min-height: 76px; }
+    .voice-call-round-btn.accept {
+      width: 4.85rem;
+      min-width: 4.85rem;
+      min-height: 4.85rem;
+      border-radius: 1.25rem;
+    }
+    .voice-call-round-btn.accept { background: #00a884; border-color: rgba(52, 211, 153, 0.45); }
+    .voice-call-round-btn.danger { background: #e53935; border-color: rgba(248, 113, 113, 0.4); }
+    #voiceCallHangupBtn.voice-call-round-btn {
+      width: 5.25rem;
+      min-width: 5.25rem;
+      min-height: 5.25rem;
+      border-radius: 1.35rem;
+    }
+    .voice-call-round-btn .voice-call-btn-label {
+      display: block;
+      font-size: 0.62rem;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      line-height: 1.05;
+      opacity: 0.9;
+      white-space: nowrap;
+      max-width: 4.6rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .voice-call-stage p {
       margin: 0;
       color: rgba(226, 232, 240, 0.82);
@@ -1198,7 +1299,13 @@
     .voice-call-controls.incoming-only.hidden,
     .voice-call-controls.active-only.hidden { display: none; }
     .voice-call-controls.incoming-only,
-    .voice-call-controls.active-only { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+    .voice-call-controls.active-only {
+      display: flex;
+      gap: 0.75rem 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
     .voice-call-controls.incoming-only .voice-call-round-btn.accept { background: #059669; border-color: #34d399; }
     .voice-call-subtitle { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: rgba(226,232,240,0.72); }
     .voice-call-quality { display:inline-flex; margin-bottom:0.75rem; padding:0.25rem 0.65rem; border-radius:999px; font-size:0.72rem; border:1px solid rgba(94,234,212,0.25); color:rgba(226,232,240,0.85); }
@@ -1219,16 +1326,16 @@
       gap: 0.85rem;
       justify-content: center;
       flex-wrap: wrap;
-      margin-top: 1.1rem;
+      margin-top: 0.55rem;
     }
     .voice-call-live-wave {
       display: flex;
       align-items: flex-end;
       justify-content: center;
       gap: 3px;
-      height: 72px;
-      width: min(320px, 88vw);
-      margin: 1.25rem auto 0.35rem;
+      height: 56px;
+      width: min(280px, 88vw);
+      margin: 0.85rem auto 0.25rem;
     }
     .voice-call-live-wave span {
       flex: 1;
@@ -1239,33 +1346,22 @@
       transition: height 0.08s linear;
     }
     .voice-call-round-btn {
-      width: 56px;
-      height: 56px;
-      min-width: 56px;
-      min-height: 56px;
-      border-radius: 50%;
-      padding: 0;
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      background: rgba(31, 41, 55, 0.92);
-      color: #f8fafc;
-      cursor: pointer;
-      display: grid;
-      place-items: center;
-      gap: 0;
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+      box-shadow: 0 10px 28px rgba(0,0,0,0.32);
     }
     .voice-call-round-btn .voice-call-btn-icon {
       font-size: 1.25rem;
       line-height: 1;
       display: grid;
       place-items: center;
+      width: 1.55rem;
+      height: 1.55rem;
     }
     .voice-call-round-btn .voice-call-btn-icon svg {
       display: block;
+      width: 100%;
+      height: 100%;
       filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-    }
-    .voice-call-round-btn {
-      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-      box-shadow: 0 10px 28px rgba(0,0,0,0.32);
     }
     .voice-call-round-btn:hover {
       transform: translateY(-1px);
@@ -1273,40 +1369,28 @@
     .voice-call-round-btn:active {
       transform: scale(0.96);
     }
-    .voice-call-round-btn .voice-call-btn-label {
-      display: none;
-    }
     .voice-call-round-btn.is-active {
       background: #f8fafc !important;
-      color: #0f172a !important;
-      border: 2px solid #f87171 !important;
-      box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.35);
+      color: #b91c1c !important;
+      box-shadow: 0 0 0 3px rgba(248,113,113,.35);
+    }
+    .voice-call-toolbar-extra {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      justify-content: center;
+      margin-top: 0.55rem;
+    }
+    .voice-call-volume-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      margin: 0.55rem auto 0.1rem;
+      width: min(320px, 100%);
     }
     .voice-call-round-btn.is-active .voice-call-btn-icon {
       color: #b91c1c;
-    }
-    .voice-call-round-btn.danger {
-      background: #e53935;
-      border-color: #ef4444;
-    }
-    .voice-call-round-btn.accept {
-      background: #00a884;
-      border-color: #34d399;
-    }
-    .voice-call-controls { display: flex; gap: 1.25rem; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
-    .voice-call-controls .voice-call-round-btn { position: relative; }
-    .voice-call-controls .voice-call-round-btn::after {
-      content: attr(title);
-      position: absolute;
-      top: calc(100% + 0.45rem);
-      left: 50%;
-      transform: translateX(-50%);
-      font-size: 0.68rem;
-      font-weight: 600;
-      white-space: nowrap;
-      opacity: 0.82;
-      color: #e2e8f0;
-      pointer-events: none;
     }
     .chat-call-log {
       display: inline-flex;
@@ -1634,10 +1718,6 @@
       </div>
     </div>
     <div class="voice-call-footer">
-      <div class="voice-call-volume-row">
-        <label for="voiceCallVolume" id="voiceCallVolumeLabel" data-aci18n="voiceCallVolume">Lautstärke</label>
-        <input type="range" id="voiceCallVolume" min="0" max="100" value="100" aria-labelledby="voiceCallVolumeLabel" />
-      </div>
       <div class="voice-call-controls incoming-only hidden" id="voiceCallIncomingControls">
         <button type="button" id="voiceCallDeclineBtn" class="voice-call-round-btn danger" data-aci18n="voiceCallDecline" data-aci18n-attr="aria-label,title" aria-label="Ablehnen" title="Ablehnen">
           <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></span>
@@ -1669,6 +1749,10 @@
           <span class="voice-call-btn-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1.1-.2 1.2.4 2.5.6 3.8.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.6.6 3.8.1.4 0 .8-.2 1.1L6.6 10.8z" transform="rotate(135 12 12)"/></svg></span>
           <span class="voice-call-btn-label" data-aci18n="voiceCallHangup">Auflegen</span>
         </button>
+      </div>
+      <div class="voice-call-volume-row">
+        <label for="voiceCallVolume" id="voiceCallVolumeLabel" data-aci18n="voiceCallVolume">Lautstärke</label>
+        <input type="range" id="voiceCallVolume" min="0" max="100" value="100" aria-labelledby="voiceCallVolumeLabel" />
       </div>
       <div class="voice-call-toolbar-extra">
         <button type="button" id="voiceCallRetryBtn" class="voice-call-pill-btn primary hidden" data-aci18n="conferenceRetry" data-aci18n-attr="title" title="Erneut verbinden">Erneut verbinden</button>
@@ -1721,8 +1805,8 @@
   <script src="/admin-voice-call.js?v=20260722incoming400"></script>
   <script src="/chat-offline-queue.js?v=20260715chat40"></script>
   <script src="/chat-voice.js?v=20260719chat43"></script>
-  <script src="/chat-voice-call.js?v=20260726video4"></script>
-  <script src="/chat-conference.js?v=20260726video3"></script>
+  <script src="/chat-voice-call.js?v=20260816callUi1"></script>
+  <script src="/chat-conference.js?v=20260816callUi1"></script>
   <script src="/admin-v2/chat-i18n.js?v=20260726video3"></script>
   <script src="/e2e-crypto.js?v=20260719e2e5"></script>
   <script src="/tenant-brand-icon.js?v=20260630d"></script>
@@ -4790,11 +4874,17 @@
       if (status && statusText) status.textContent = statusText;
       overlay?.classList.toggle("hidden", !visible);
       const isIncoming = mode === "incoming";
+      const connected = state === "connected";
+      const ringing = state === "ringing" || state === "dialing";
+      const connecting = state === "connecting" || state === "accepted";
+      const unreachable = state === "unreachable";
       incoming?.classList.toggle("hidden", !visible || !isIncoming);
       active?.classList.toggle("hidden", !visible || isIncoming);
-      meters?.classList.toggle("hidden", isIncoming);
+      meters?.classList.toggle("hidden", isIncoming || !connected);
       volume?.classList.toggle("hidden", isIncoming);
-      document.getElementById("voiceCallLiveWave")?.classList.toggle("hidden", isIncoming);
+      document.getElementById("voiceCallLiveWave")?.classList.toggle("hidden", isIncoming || !connected);
+      overlay?.classList.toggle("is-ringing", Boolean(visible && ringing));
+      overlay?.classList.toggle("is-connecting", Boolean(visible && connecting && !connected));
       if (!visible) {
         stopVoiceCallTimer();
         stopVoiceCallRingTimer();
@@ -4814,13 +4904,10 @@
         rings?.classList.remove("hidden");
         quality?.classList.add("hidden");
         subtitle?.classList.add("hidden");
+        overlay?.classList.remove("is-ringing", "is-connecting");
         document.getElementById("voiceCallRetryBtn")?.classList.add("hidden");
         return;
       }
-      const connected = state === "connected";
-      const ringing = state === "ringing" || state === "dialing";
-      const connecting = state === "connecting" || state === "accepted";
-      const unreachable = state === "unreachable";
       if (connected) {
         rings?.classList.add("hidden");
         stopVoiceCallRingTimer();
