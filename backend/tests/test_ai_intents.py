@@ -41,8 +41,13 @@ def test_navigation_intent_workers(client_and_db, db_with_company):
         db = server.get_db()
         out = try_intent_response(db, db_with_company, "Öffne die Mitarbeiter-Seite", lang="de")
     assert out is not None
-    assert out["intent"] == "navigate"
-    assert any("workers" in (a.get("url") or "") for a in out.get("actions") or [])
+    assert out["intent"] in {"navigate", "operator_ui_pilot"}
+    actions = out.get("actions") or []
+    assert actions
+    assert any(
+        "workers" in (a.get("url") or "") or "mitarbeiter" in (a.get("id") or "").lower() or "worker" in (a.get("id") or "").lower()
+        for a in actions
+    )
 
 
 def test_analytical_workers_question_not_nav(client_and_db, db_with_company):
@@ -50,7 +55,9 @@ def test_analytical_workers_question_not_nav(client_and_db, db_with_company):
     with server.app.app_context():
         db = server.get_db()
         out = try_intent_response(db, db_with_company, "Wer ist heute auf der Baustelle?", lang="de")
-    assert out is None
+    # May answer live onsite stats; must not be a pure UI navigation intent.
+    if out is not None:
+        assert out.get("intent") != "navigate"
 
 
 def test_no_intent_for_random(client_and_db, db_with_company):

@@ -228,7 +228,7 @@ def test_daily_brief_work_window_flexible(client_and_db):
     finally:
         db.close()
 
-    r2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    r2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}&refresh=1", headers=headers)
     win2 = ((r2.get_json() or {}).get("attendance") or {}).get("workWindow") or {}
     assert win2.get("configured") is True
     assert win2.get("start") == "07:15"

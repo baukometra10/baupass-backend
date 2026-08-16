@@ -25,7 +25,8 @@ class CompaniesServiceTest(unittest.TestCase):
                 access_mode TEXT,
                 site_geofence_radius_meters INTEGER,
                 site_auto_checkin INTEGER,
-                site_auto_logout_on_leave INTEGER
+                site_auto_logout_on_leave INTEGER,
+                site_auto_proximity_login INTEGER
             );
             CREATE TABLE subcompanies (
                 id TEXT PRIMARY KEY,
@@ -64,11 +65,11 @@ class CompaniesServiceTest(unittest.TestCase):
             );
             INSERT INTO companies VALUES (
                 'cmp-a', 'Alpha', 'enterprise', NULL, 'aktiv',
-                '', '', 'gate', 100, 1, 1
+                '', '', 'gate', 100, 1, 1, 1
             );
             INSERT INTO companies VALUES (
                 'cmp-b', 'Beta', 'starter', '2020-01-01', 'pausiert',
-                '', '', 'gate', 100, 1, 1
+                '', '', 'gate', 100, 1, 1, 1
             );
             INSERT INTO users (
                 id, username, password_hash, name, role, company_id, email, twofa_enabled
