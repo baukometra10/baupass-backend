@@ -333,7 +333,8 @@ def test_gate_api_key_is_scoped_to_turnstile_company(client_and_db):
     assert foreign_gate_response.get_json()["error"] == "forbidden_worker_company"
 
 
-def test_worker_with_expired_required_document_is_auto_locked_and_access_blocked(client_and_db):
+def test_worker_with_expired_required_document_is_auto_locked_and_access_blocked(client_and_db, monkeypatch):
+    monkeypatch.setenv("BAUPASS_ENFORCE_REQUIRED_DOCS", "1")
     client, db_path = client_and_db
     headers = _auth_headers(client)
 
@@ -417,7 +418,8 @@ def test_worker_with_expired_required_document_is_auto_locked_and_access_blocked
     assert access_response.get_json().get("error") == "worker_documents_expired"
 
 
-def test_worker_with_missing_required_documents_is_auto_locked_and_access_blocked(client_and_db):
+def test_worker_with_missing_required_documents_is_auto_locked_and_access_blocked(client_and_db, monkeypatch):
+    monkeypatch.setenv("BAUPASS_ENFORCE_REQUIRED_DOCS", "1")
     client, _db_path = client_and_db
     headers = _auth_headers(client)
 
@@ -497,7 +499,8 @@ def test_worker_document_upload_accepts_octet_stream_pdf(client_and_db):
     assert upload_response.get_json().get("ok") is True
 
 
-def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(client_and_db):
+def test_worker_is_auto_unlocked_after_uploading_new_valid_required_document(client_and_db, monkeypatch):
+    monkeypatch.setenv("BAUPASS_ENFORCE_REQUIRED_DOCS", "1")
     client, db_path = client_and_db
     headers = _auth_headers(client)
 
@@ -1307,6 +1310,14 @@ def test_gate_tap_returns_contactless_feedback_for_checkin_and_checkout(client_a
                 None,
             ),
         )
+        db.execute(
+            """
+            UPDATE workers
+            SET compliance_signature_data = ?, compliance_signature_at = ?
+            WHERE id = ?
+            """,
+            ("data:image/png;base64,AAA", "2026-01-01T00:00:00Z", "wrk-gate-feedback"),
+        )
         db.commit()
 
     headers = {"X-Gate-Key": api_key}
@@ -1316,7 +1327,7 @@ def test_gate_tap_returns_contactless_feedback_for_checkin_and_checkout(client_a
         json={"physicalCardId": "NFC-UNIT-001", "direction": "check-in", "gate": "Nordtor"},
         headers=headers,
     )
-    assert checkin_response.status_code == 201
+    assert checkin_response.status_code == 201, checkin_response.get_json()
     checkin_payload = checkin_response.get_json()
     assert checkin_payload.get("feedbackTitle") == "ANMELDUNG ERFOLGREICH"
     assert checkin_payload.get("feedbackMessage") == "Du bist jetzt angemeldet."
@@ -1369,6 +1380,14 @@ def test_gate_tap_auto_toggles_direction_when_not_provided(client_and_db):
                 "NFC-UNIT-002",
                 None,
             ),
+        )
+        db.execute(
+            """
+            UPDATE workers
+            SET compliance_signature_data = ?, compliance_signature_at = ?
+            WHERE id = ?
+            """,
+            ("data:image/png;base64,AAA", "2026-01-01T00:00:00Z", "wrk-gate-toggle"),
         )
         db.commit()
 

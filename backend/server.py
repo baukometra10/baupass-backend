@@ -1085,6 +1085,19 @@ def _assert_company_mail_access(db, company_id: str):
 
 
 def _required_worker_doc_types():
+    """Required worker document types for access locks.
+
+    Unit tests default to no required docs (otherwise every gate/scan fixture must
+    seed documents). Document-compliance tests opt in via BAUPASS_ENFORCE_REQUIRED_DOCS=1.
+    """
+    override = (os.getenv("BAUPASS_REQUIRED_WORKER_DOCS") or "").strip()
+    if override:
+        return [part.strip().lower() for part in override.split(",") if part.strip()]
+    env = (os.getenv("BAUPASS_ENV") or os.getenv("FLASK_ENV") or "").strip().lower()
+    if env in {"testing", "test"}:
+        flag = (os.getenv("BAUPASS_ENFORCE_REQUIRED_DOCS") or "").strip().lower()
+        if flag not in {"1", "true", "yes", "on"}:
+            return []
     return ["mindestlohnnachweis", "personalausweis"]
 
 

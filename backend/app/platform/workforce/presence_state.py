@@ -97,24 +97,43 @@ def upsert_presence_after_access(
                         ),
                     )
                 except Exception:
-                    db.execute(
-                        """
-                        UPDATE worker_presence_state
-                        SET company_id = ?, open_direction = ?, last_checkin_at = ?,
-                            last_checkout_at = ?, updated_at = ?,
-                            last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
-                            last_location_at = ''
-                        WHERE worker_id = ?
-                        """,
-                        (
-                            str(company_id),
-                            open_direction,
-                            keep_in,
-                            keep_out,
-                            timestamp_iso,
-                            str(worker_id),
-                        ),
-                    )
+                    try:
+                        db.execute(
+                            """
+                            UPDATE worker_presence_state
+                            SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                                last_checkout_at = ?, updated_at = ?,
+                                last_lat = NULL, last_lng = NULL, last_accuracy_m = NULL,
+                                last_location_at = ''
+                            WHERE worker_id = ?
+                            """,
+                            (
+                                str(company_id),
+                                open_direction,
+                                keep_in,
+                                keep_out,
+                                timestamp_iso,
+                                str(worker_id),
+                            ),
+                        )
+                    except Exception:
+                        # Minimal schema (unit tests / very old DBs) without live-location columns.
+                        db.execute(
+                            """
+                            UPDATE worker_presence_state
+                            SET company_id = ?, open_direction = ?, last_checkin_at = ?,
+                                last_checkout_at = ?, updated_at = ?
+                            WHERE worker_id = ?
+                            """,
+                            (
+                                str(company_id),
+                                open_direction,
+                                keep_in,
+                                keep_out,
+                                timestamp_iso,
+                                str(worker_id),
+                            ),
+                        )
             else:
                 db.execute(
                     """

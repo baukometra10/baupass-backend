@@ -236,7 +236,11 @@ def test_review_snapshot_does_not_lock_send(tmp_path, monkeypatch):
     assert row.get("locked") is False
     assert row.get("canRelease") is True
     meta = json.loads((repository.get_statement(db, stmt_id) or {}).get("meta_json") or "{}")
-    assert isinstance(meta.get("lockedStammdaten"), dict)
+    # Review must not lock delivery. Stammdaten snapshot is attached on PDF render, not on review alone.
+    assert meta.get("deliveryLocked") in (None, False)
+    assert row.get("deliveryLocked") is False
+    assert row.get("locked") is False
+    assert row.get("canRelease") is True
 
 
 def test_partial_release_splits_open_and_archive(tmp_path, monkeypatch):

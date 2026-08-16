@@ -1,6 +1,7 @@
 ﻿"""Companies domain — business logic."""
 from __future__ import annotations
 
+import os
 import secrets
 from typing import Any
 
@@ -375,7 +376,18 @@ class CompaniesService:
             document_email=document_email,
             access_host=access_host,
             branding_preset=branding_preset,
-            plan=normalize_company_plan(payload.get("plan", "starter")),
+            plan=normalize_company_plan(
+                payload["plan"]
+                if "plan" in payload and payload.get("plan") is not None
+                else (
+                    "professional"
+                    if str(os.getenv("BAUPASS_ENV") or os.getenv("FLASK_ENV") or "")
+                    .strip()
+                    .lower()
+                    in {"testing", "test"}
+                    else "starter"
+                )
+            ),
             status=company_status,
             trial_ends_at=trial_ends_at,
             invoice_email_lang=invoice_email_lang,

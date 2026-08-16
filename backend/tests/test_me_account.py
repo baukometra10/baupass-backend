@@ -31,10 +31,10 @@ def test_superadmin_can_change_password(client_and_db):
     headers2 = {"Authorization": f"Bearer {relogin.get_json()['token']}"}
     revert = client.post(
         "/api/me/password",
-        json={"currentPassword": "Testpass1", "newPassword": "1234"},
+        json={"currentPassword": "Testpass1", "newPassword": "Testpass2"},
         headers=headers2,
     )
-    assert revert.status_code == 200
+    assert revert.status_code == 200, revert.get_json()
 
 
 def test_superadmin_can_change_username_and_display_name(client_and_db):

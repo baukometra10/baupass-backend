@@ -28,18 +28,41 @@ def _create_company_and_worker(client, headers):
     assert res.status_code in (200, 201)
     company = res.get_json().get("company") or {}
     company_id = company.get("id")
-    workers = client.get(f"/api/companies/{company_id}/workers", headers=headers)
-    worker_rows = workers.get_json().get("workers") or []
-    assert worker_rows
-    return company_id, worker_rows[0]["id"]
+    worker_res = client.post(
+        "/api/workers",
+        json={
+            "companyId": company_id,
+            "firstName": "Voice",
+            "lastName": "Worker",
+            "insuranceNumber": "V123456789",
+            "workerType": "worker",
+            "role": "Monteur",
+            "site": "Hof",
+            "validUntil": "2028-12-31",
+            "status": "aktiv",
+            "photoData": "data:image/png;base64,AAA",
+            "badgePin": "1234",
+            "complianceSignatureData": "data:image/png;base64,AAA",
+            "physicalCardId": "VOICE-CARD-1",
+        },
+        headers=headers,
+    )
+    assert worker_res.status_code == 201, worker_res.get_json()
+    worker_payload = worker_res.get_json() or {}
+    worker_id = worker_payload.get("id")
+    badge_id = worker_payload.get("badgeId")
+    assert worker_id and badge_id
+    access = client.post(f"/api/workers/{worker_id}/app-access", headers=headers)
+    assert access.status_code == 200, access.get_json()
+    return company_id, worker_id, badge_id
 
 
-def _worker_session_headers(client, worker_id):
+def _worker_session_headers(client, badge_id):
     res = client.post(
         "/api/worker-app/login",
-        json={"workerId": worker_id, "pin": "1234", "platform": "android"},
+        json={"badgeId": badge_id, "badgePin": "1234", "platform": "android"},
     )
-    assert res.status_code == 200
+    assert res.status_code == 200, res.get_json()
     payload = res.get_json()
     token = payload.get("token") or payload.get("bearer")
     device_id = payload.get("deviceId") or payload.get("device_id") or "test-device"
@@ -58,7 +81,7 @@ def test_admin_incoming_without_company_returns_200(client_and_db):
 def test_admin_can_start_voice_call(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)
-    company_id, worker_id = _create_company_and_worker(client, headers)
+    company_id, worker_id, badge_id = _create_company_and_worker(client, headers)
 
     preview = client.post(
         "/api/superadmin/preview-session",
@@ -83,12 +106,12 @@ def test_admin_can_start_voice_call(client_and_db):
 def test_worker_can_accept_and_exchange_signals(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)
-    company_id, worker_id = _create_company_and_worker(client, headers)
+    company_id, worker_id, badge_id = _create_company_and_worker(client, headers)
     client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
 
     start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
     call_id = start.get_json()["call"]["id"]
-    worker_headers = _worker_session_headers(client, worker_id)
+    worker_headers = _worker_session_headers(client, badge_id)
 
     incoming = client.get("/api/worker-app/chat/calls/incoming", headers=worker_headers)
     assert incoming.status_code == 200
@@ -190,18 +213,20 @@ def test_signal_pagination_keeps_same_timestamp_candidates(client_and_db, monkey
     """ICE bursts often share a second; since_id must not drop sibling rows."""
     from backend.app.platform.voice_calls import service as voice_service
 
-    fixed = "2026-07-19T12:00:00.000000Z"
-    monkeypatch.setattr(voice_service, "utc_now_iso", lambda: fixed)
-
     client, _ = client_and_db
     headers = _admin_headers(client)
-    company_id, worker_id = _create_company_and_worker(client, headers)
+    company_id, worker_id, badge_id = _create_company_and_worker(client, headers)
     client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
 
     start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
     call_id = start.get_json()["call"]["id"]
-    worker_headers = _worker_session_headers(client, worker_id)
-    client.post(f"/api/worker-app/chat/calls/{call_id}/accept", headers=worker_headers)
+    worker_headers = _worker_session_headers(client, badge_id)
+    accept = client.post(f"/api/worker-app/chat/calls/{call_id}/accept", headers=worker_headers)
+    assert accept.status_code == 200, accept.get_json()
+
+    # Freeze only for the ICE burst so sibling rows share one timestamp.
+    fixed = "2026-07-19T12:00:00.000000Z"
+    monkeypatch.setattr(voice_service, "utc_now_iso", lambda: fixed)
 
     for i in range(3):
         res = client.post(
@@ -209,7 +234,7 @@ def test_signal_pagination_keeps_same_timestamp_candidates(client_and_db, monkey
             json={"type": "ice-candidate", "payload": {"candidate": f"cand-{i}", "sdpMid": "0", "sdpMLineIndex": 0}},
             headers=headers,
         )
-        assert res.status_code == 200
+        assert res.status_code == 200, res.get_json()
 
     first = client.get(f"/api/worker-app/chat/calls/{call_id}/signals", headers=worker_headers)
     assert first.status_code == 200
@@ -230,13 +255,13 @@ def test_signal_pagination_keeps_same_timestamp_candidates(client_and_db, monkey
 def test_voice_call_history_and_worker_callback(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)
-    company_id, worker_id = _create_company_and_worker(client, headers)
+    company_id, worker_id, badge_id = _create_company_and_worker(client, headers)
     client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
 
     start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
     call_id = start.get_json()["call"]["id"]
     client.post(f"/api/chat/calls/{call_id}/end", json={"reason": "test"}, headers=headers)
-    worker_headers = _worker_session_headers(client, worker_id)
+    worker_headers = _worker_session_headers(client, badge_id)
 
     history = client.get(f"/api/chat/calls/history?worker_id={worker_id}", headers=headers)
     assert history.status_code == 200
@@ -260,12 +285,12 @@ def test_voice_call_history_and_worker_callback(client_and_db):
 def test_worker_can_fetch_call_by_id(client_and_db):
     client, _ = client_and_db
     headers = _admin_headers(client)
-    company_id, worker_id = _create_company_and_worker(client, headers)
+    company_id, worker_id, badge_id = _create_company_and_worker(client, headers)
     client.post("/api/superadmin/preview-session", json={"company_id": company_id}, headers=headers)
 
     start = client.post("/api/chat/calls", json={"worker_id": worker_id}, headers=headers)
     call_id = start.get_json()["call"]["id"]
-    worker_headers = _worker_session_headers(client, worker_id)
+    worker_headers = _worker_session_headers(client, badge_id)
 
     fetched = client.get(f"/api/worker-app/chat/calls/{call_id}", headers=worker_headers)
     assert fetched.status_code == 200

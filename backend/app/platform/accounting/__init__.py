@@ -212,7 +212,7 @@ def register_accounting_blueprint(flask_app) -> None:
         return jsonify(payload), 200
 
     # Lohn SPA compatibility aliases (same auth as /v2/accounting/*)
-    @accounting_bp.get("/v1/company")
+    # Note: do not bind /v1/company here — that path is owned by api_v1 (API-key public API).
     @accounting_bp.get("/company")
     def accounting_pull_company_alias():
         integ, err = _auth_accounting()
