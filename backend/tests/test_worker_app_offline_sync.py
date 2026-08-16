@@ -30,12 +30,12 @@ def worker_session(client):
         try:
             db.execute(
                 "INSERT INTO companies (id, name, contact, plan, status) VALUES (?, ?, ?, ?, ?)",
-                ("1", "TestCo", "", "starter", "active"),
+                ("1", "TestCo", "", "professional", "active"),
             )
             db.commit()
         except Exception:
             db.rollback()
-            db.execute("UPDATE companies SET plan = ? WHERE id = ?", ("starter", "1"))
+            db.execute("UPDATE companies SET plan = ? WHERE id = ?", ("professional", "1"))
             db.commit()
 
         worker_id = str(uuid.uuid4())
@@ -44,8 +44,9 @@ def worker_session(client):
             """
             INSERT INTO workers (
                 id, company_id, first_name, last_name, insurance_number,
-                worker_type, role, site, valid_until, status, photo_data, badge_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                worker_type, role, site, valid_until, status, photo_data, badge_id,
+                compliance_signature_data, compliance_signature_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 worker_id,
@@ -57,9 +58,11 @@ def worker_session(client):
                 "arbeiter",
                 "site-a",
                 now,
-                "active",
+                "aktiv",
                 "",
                 "BP-TEST",
+                "data:image/png;base64,AAA",
+                now,
             ),
         )
         token = str(uuid.uuid4())

@@ -66,7 +66,9 @@ def test_app_access_link_includes_badge_and_fast_flag(client):
     assert f"badge={badge_id}" in link
     assert "fast=1" in link
     assert "access=" in link
-    assert "/emp-app.html" in link
+    # Hybrid Flutter join is the primary app-access link; PWA entry remains on pwaLink.
+    assert "/join.html" in link
+    assert "/emp-app.html" in (body.get("pwaLink") or "")
 
 
 def test_join_preview_get_returns_badge_without_consuming_token(client):

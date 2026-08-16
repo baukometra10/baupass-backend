@@ -142,14 +142,8 @@ def client_and_db(tmp_path, monkeypatch):
 
 
 @pytest.fixture()
-def worker_client(tmp_path):
-    db_path = tmp_path / "baupass-test.db"
-    os.environ["BAUPASS_DB_PATH"] = str(db_path)
-    server.DB_PATH = db_path
-    server.request_rate_state.clear()
-    server.failed_login_attempts.clear()
-    server.init_db()
-    apply_sqlite_migrations(db_path)
-    server.app.config.update(TESTING=True)
+def worker_client(tmp_path, monkeypatch):
+    # Same clean bootstrap as client_and_db — never auto-restore production backups.
+    _prepare_db(tmp_path, monkeypatch)
     with server.app.test_client() as client:
         yield client
