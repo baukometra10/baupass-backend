@@ -689,7 +689,13 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
             code = str(exc)
             if code.startswith("missing_fields:"):
                 return jsonify({"error": "missing_fields", "fields": code.split(":", 1)[1].split(",")}), 400
-            return jsonify({"error": code}), 404 if code == "contract_not_found" else 400
+            status = 404 if code == "contract_not_found" else 400
+            if code == "e2e_pdf_plaintext_required":
+                return jsonify({
+                    "error": code,
+                    "message": "Vertragstext ist E2E-verschlüsselt. Bitte PDF erneut aus dem Editor erzeugen (Klartext wird nur für die PDF-Erzeugung verwendet).",
+                }), 400
+            return jsonify({"error": code}), status
         return jsonify({"ok": True, "contract": contract, "download": f"/api/contracts/{contract_id}/download.pdf?company_id={cid}", "filePath": str(file_path)})
 
     @contracts_core_bp.get("/contracts/<contract_id>/download.pdf")
@@ -992,9 +998,15 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 worker_id,
                 company_id,
                 prefer_stored=True,
+                storage_root=Path(BASE_DIR) / "backend" / "uploads",
             )
         except ValueError as exc:
             code = str(exc)
+            if code == "contract_pdf_needs_employer_regenerate":
+                return jsonify({
+                    "error": code,
+                    "message": "Arbeitsvertrag muss vom Arbeitgeber neu als PDF erzeugt werden (E2E-Text).",
+                }), 409
             return jsonify({"error": code}), 404 if code in {"contract_not_found", "contract_pdf_missing"} else 400
         return send_file(
             io.BytesIO(pdf_bytes),
@@ -1014,9 +1026,15 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
                 worker_id,
                 company_id,
                 prefer_stored=True,
+                storage_root=Path(BASE_DIR) / "backend" / "uploads",
             )
         except ValueError as exc:
             code = str(exc)
+            if code == "contract_pdf_needs_employer_regenerate":
+                return jsonify({
+                    "error": code,
+                    "message": "Arbeitsvertrag muss vom Arbeitgeber neu als PDF erzeugt werden (E2E-Text).",
+                }), 409
             return jsonify({"error": code}), 404 if code in {"contract_not_found", "contract_pdf_missing"} else 400
         return send_file(
             io.BytesIO(pdf_bytes),

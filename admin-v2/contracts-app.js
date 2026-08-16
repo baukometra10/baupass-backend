@@ -460,6 +460,13 @@
         ...contractFormPayload(),
       };
     }
+    function contractPdfPayload() {
+      const base = contractActionPayload();
+      // Keep E2E ciphertext out of PDF generation; send editor plaintext only for rendering.
+      const pdfBody = String(document.getElementById("contractEditor")?.value || "").trim();
+      delete base.final_text;
+      return { ...base, pdf_body_text: pdfBody };
+    }
     async function saveContractPayloadAsync() {
       const payload = contractActionPayload();
       const workerId = document.getElementById("workerId").value || "";
@@ -1312,7 +1319,7 @@
         const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(contractActionPayload()),
+          body: JSON.stringify(contractPdfPayload()),
         });
         if (data.download) await downloadPdfFile(data.download);
         setStatus(window.contractPageT("statusPdfReady"), { active: true });
@@ -1326,7 +1333,7 @@
         const data = await api(`/api/contracts/${encodeURIComponent(currentContractId)}/generate-pdf`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(contractActionPayload()),
+          body: JSON.stringify(contractPdfPayload()),
         });
         if (!data.download) throw new Error("PDF missing");
         const res = await fetch(data.download, { headers: headers(), credentials: "include" });

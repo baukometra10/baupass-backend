@@ -237,6 +237,20 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
   @override
   Widget build(BuildContext context) {
     final tiles = _tiles();
+    final remotes = tiles.where((t) => !t.isLocal).toList();
+    final locals = tiles.where((t) => t.isLocal).toList();
+    final featured = remotes.isNotEmpty
+        ? remotes.first
+        : (tiles.isNotEmpty ? tiles.first : null);
+    final strip = <_ParticipantTile>[
+      ...locals,
+      if (remotes.length > 1) ...remotes.sublist(1),
+    ];
+    final useStage = tiles.isNotEmpty && tiles.length <= 3;
+
+    final showCamHint = !_camOn || _anyRemoteCamOff;
+    final stageBottomPad = showCamHint ? 188.0 : 112.0;
+
     return Scaffold(
       backgroundColor: const Color(0xFF0B1220),
       body: SafeArea(
@@ -263,7 +277,7 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                             Text(
                               _connecting
                                   ? 'Verbindet…'
-                                  : (_error != null ? 'Fehler' : 'Konferenz aktiv'),
+                                  : (_error != null ? 'Fehler' : '${tiles.length} Teilnehmer'),
                               style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
                             ),
                           ],
@@ -301,46 +315,42 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                         ? const Center(
                             child: Text('Warte auf Teilnehmer…', style: TextStyle(color: Colors.white70)),
                           )
-                        : _ZoomParticipantGrid(tiles: tiles),
-                  ),
-                if (!_connecting && _error == null)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                    child: Center(
-                      child: Material(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(28),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _RoundControl(
-                                icon: _micOn ? Icons.mic : Icons.mic_off,
-                                label: _micOn ? 'Mikro' : 'Stumm',
-                                active: _micOn,
-                                onTap: _busyMedia ? null : _toggleMic,
+                        : useStage && featured != null
+                            ? Padding(
+                                padding: EdgeInsets.fromLTRB(12, 0, 12, stageBottomPad),
+                                child: Column(
+                                  children: [
+                                    Expanded(
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(16),
+                                        child: featured,
+                                      ),
+                                    ),
+                                    if (strip.isNotEmpty) ...[
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 112,
+                                        child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: strip.length,
+                                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                                          itemBuilder: (context, i) => SizedBox(
+                                            width: 96,
+                                            child: ClipRRect(
+                                              borderRadius: BorderRadius.circular(12),
+                                              child: strip[i],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              )
+                            : Padding(
+                                padding: EdgeInsets.only(bottom: stageBottomPad),
+                                child: _ZoomParticipantGrid(tiles: tiles),
                               ),
-                              const SizedBox(width: 10),
-                              _RoundControl(
-                                icon: _camOn ? Icons.videocam : Icons.videocam_off,
-                                label: _camOn ? 'Kamera' : 'Cam aus',
-                                active: _camOn,
-                                onTap: _busyMedia ? null : _toggleCam,
-                              ),
-                              const SizedBox(width: 10),
-                              _RoundControl(
-                                icon: Icons.call_end,
-                                label: 'Verlassen',
-                                active: false,
-                                danger: true,
-                                onTap: _leave,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                   ),
               ],
             ),
@@ -369,58 +379,106 @@ class _ConferenceRoomScreenState extends State<ConferenceRoomScreen> {
                   ),
                 ),
               ),
-            if (!_connecting && _error == null && !_camOn)
+            if (!_connecting && _error == null)
               Positioned(
                 left: 16,
                 right: 16,
-                bottom: 108,
-                child: Material(
-                  color: const Color(0xEE0F766E),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: _busyMedia ? null : _toggleCam,
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
-                        children: [
-                          Icon(Icons.videocam_off, color: Colors.white),
-                          SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              'Kamera ist aus — tippen zum Einschalten, damit der Arbeitgeber Sie sieht.',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                bottom: 18,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!_camOn)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Material(
+                          color: const Color(0xEE0F766E),
+                          borderRadius: BorderRadius.circular(12),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: _busyMedia ? null : _toggleCam,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.videocam_off, color: Colors.white),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      'Kamera ist aus — tippen zum Einschalten, damit der Arbeitgeber Sie sieht.',
+                                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (!_connecting && _error == null && _camOn && _anyRemoteCamOff)
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 108,
-                child: Material(
-                  color: const Color(0xEE334155),
-                  borderRadius: BorderRadius.circular(12),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.hourglass_top, color: Colors.white70),
-                        SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Gegenüber: Kamera noch aus — warte auf Video…',
-                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                        ),
+                      )
+                    else if (_anyRemoteCamOff)
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 10),
+                        child: Material(
+                          color: Color(0xEE334155),
+                          borderRadius: BorderRadius.all(Radius.circular(12)),
+                          child: Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.hourglass_top, color: Colors.white70),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Gegenüber: Kamera noch aus — warte auf Video…',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, height: 1.25),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ],
+                      ),
+                    Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                          boxShadow: const [
+                            BoxShadow(color: Colors.black54, blurRadius: 18, offset: Offset(0, 8)),
+                          ],
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _RoundControl(
+                                icon: _micOn ? Icons.mic : Icons.mic_off,
+                                label: _micOn ? 'Mikro' : 'Stumm',
+                                active: _micOn,
+                                onTap: _busyMedia ? null : _toggleMic,
+                              ),
+                              const SizedBox(width: 12),
+                              _RoundControl(
+                                icon: _camOn ? Icons.videocam : Icons.videocam_off,
+                                label: _camOn ? 'Kamera' : 'Cam aus',
+                                active: _camOn,
+                                onTap: _busyMedia ? null : _toggleCam,
+                              ),
+                              const SizedBox(width: 12),
+                              _RoundControl(
+                                icon: Icons.call_end,
+                                label: 'Verlassen',
+                                active: false,
+                                danger: true,
+                                onTap: _leave,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
           ],

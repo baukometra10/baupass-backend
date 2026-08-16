@@ -115,11 +115,39 @@
     const overlay = document.getElementById("voiceCallOverlay");
     const grid = ensureVideoGrid();
     if (!overlay || !grid) return;
-    const tiles = grid.querySelectorAll(".voice-call-video-tile");
-    const stagey = tiles.length > 0 && tiles.length <= 2;
+    let strip = grid.querySelector(".voice-call-filmstrip");
+    const tiles = [...grid.querySelectorAll(".voice-call-video-tile")];
+    const stagey = tiles.length > 0 && tiles.length <= 3;
     overlay.classList.toggle("is-conf-stage", stagey);
-    tiles.forEach((tile, idx) => {
-      tile.classList.toggle("is-featured", stagey && idx === 0);
+    overlay.classList.toggle("is-conf-filmstrip", stagey && tiles.length > 1);
+
+    if (!stagey || tiles.length <= 1) {
+      if (strip) {
+        [...strip.querySelectorAll(".voice-call-video-tile")].forEach((tile) => grid.appendChild(tile));
+        strip.remove();
+      }
+      tiles.forEach((tile) => {
+        tile.classList.remove("is-featured", "is-strip");
+      });
+      return;
+    }
+
+    const remote = tiles.find((t) => {
+      const id = String(t.dataset.identity || "");
+      return id && id !== "local" && !id.startsWith("local");
+    });
+    const featured = remote || tiles[0];
+    if (!strip) {
+      strip = document.createElement("div");
+      strip.className = "voice-call-filmstrip";
+      grid.appendChild(strip);
+    }
+    tiles.forEach((tile) => {
+      const isFeatured = tile === featured;
+      tile.classList.toggle("is-featured", isFeatured);
+      tile.classList.toggle("is-strip", !isFeatured);
+      if (isFeatured) grid.insertBefore(tile, strip);
+      else strip.appendChild(tile);
     });
   }
 
@@ -206,6 +234,15 @@
     });
     room.on(LK.RoomEvent.TrackUnsubscribed, (track) => {
       track.detach().forEach((el) => el.remove());
+      const grid = ensureVideoGrid();
+      if (grid) {
+        grid.querySelectorAll(".voice-call-video-tile").forEach((tile) => {
+          const video = tile.querySelector("video");
+          if (!video || !video.srcObject) tile.remove();
+        });
+        const strip = grid.querySelector(".voice-call-filmstrip");
+        if (strip && !strip.querySelector(".voice-call-video-tile")) strip.remove();
+      }
       syncConferenceStageMode();
     });
     if (LK.RoomEvent.ActiveSpeakersChanged) {
@@ -337,7 +374,7 @@
     document.querySelectorAll("audio[data-identity]").forEach((el) => el.remove());
     const grid = ensureVideoGrid();
     if (grid) grid.innerHTML = "";
-    document.getElementById("voiceCallOverlay")?.classList.remove("is-conference", "is-conf-stage");
+    document.getElementById("voiceCallOverlay")?.classList.remove("is-conference", "is-conf-stage", "is-conf-filmstrip");
     const chip = document.getElementById("voiceCallModeChip");
     if (chip) {
       chip.classList.remove("is-conference");

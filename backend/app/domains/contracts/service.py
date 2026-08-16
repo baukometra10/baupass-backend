@@ -22,6 +22,28 @@ from .repository import ContractsRepository
 from .validation import extract_form_from_input, normalize_contract_form, validate_contract_form
 
 
+def _is_ciphertext_contract_text(value: str) -> bool:
+    text = str(value or "").strip()
+    if not text:
+        return False
+    if text.startswith("enc:v1:") or text.startswith("enc:v2:") or text.startswith("enc:"):
+        return True
+    try:
+        from backend.app.platform.security.e2e_envelope import is_e2e_envelope
+
+        return is_e2e_envelope(text)
+    except Exception:
+        return False
+
+
+def _pdf_embeds_ciphertext(raw: bytes) -> bool:
+    """Heuristic: E2E envelopes accidentally baked into PDF body text."""
+    if not raw or not raw.startswith(b"%PDF"):
+        return True
+    sample = raw[: min(len(raw), 750_000)]
+    return b'"e2e"' in sample and (b'"ct"' in sample or b"X25519-AES-GCM" in sample)
+
+
 class ContractsService:
     def __init__(self, db):
         self.db = db
@@ -328,8 +350,13 @@ class ContractsService:
         *,
         payload: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], bytes, Path]:
-        self._apply_action_payload(contract_id, company_id, payload)
-        form_override = dict((payload or {}).get("form") or {})
+        payload = dict(payload or {})
+        # Never persist editor plaintext / E2E ciphertext via generate-pdf.
+        # Form patches are still applied; PDF body comes from pdf_body_text or render cache.
+        apply_payload = {k: v for k, v in payload.items() if k not in {"final_text", "pdf_body_text", "render_text"}}
+        if apply_payload.get("form") is not None or apply_payload.get("notes") is not None:
+            self._apply_action_payload(contract_id, company_id, apply_payload)
+        form_override = dict(payload.get("form") or {})
         missing = self.validate_contract_ready(contract_id, company_id, form_override=form_override or None)
         if missing:
             raise ValueError(f"missing_fields:{','.join(missing)}")
@@ -339,11 +366,18 @@ class ContractsService:
         branding = resolve_company_pdf_branding(self.db, company_id)
         signatures = self._signatures_for_pdf(contract_id, company_id)
         input_data = self._parse_contract_input(contract)
+        body_text = self._resolve_pdf_body_text(
+            contract,
+            company_id=company_id,
+            storage_root=storage_root,
+            payload=payload,
+            persist_cache=True,
+        )
         pdf_bytes = build_employment_contract_pdf(
             contract={
                 **contract,
                 "companyName": branding.get("companyName"),
-                "final_text": contract.get("final_text") or contract.get("draft_text") or "",
+                "final_text": body_text,
                 "input_data": input_data,
             },
             branding=branding,
@@ -371,22 +405,94 @@ class ContractsService:
         updated = self.repo.get_contract(contract_id, company_id)
         return updated, pdf_bytes, file_path
 
-    def build_preview_pdf_bytes(self, contract_id: str, company_id: str) -> bytes:
+    def build_preview_pdf_bytes(
+        self,
+        contract_id: str,
+        company_id: str,
+        *,
+        payload: dict[str, Any] | None = None,
+        storage_root: Path | None = None,
+    ) -> bytes:
         contract = self.repo.get_contract(contract_id, company_id)
         if not contract:
             raise ValueError("contract_not_found")
         branding = resolve_company_pdf_branding(self.db, company_id)
         input_data = self._parse_contract_input(contract)
+        root = storage_root or Path(__file__).resolve().parents[3] / "uploads"
+        body_text = self._resolve_pdf_body_text(
+            contract,
+            company_id=company_id,
+            storage_root=root,
+            payload=payload,
+            persist_cache=bool(payload and (payload.get("pdf_body_text") or payload.get("render_text"))),
+        )
         return build_employment_contract_pdf(
             contract={
                 **contract,
                 "companyName": branding.get("companyName"),
-                "final_text": contract.get("final_text") or contract.get("draft_text") or "",
+                "final_text": body_text,
                 "input_data": input_data,
             },
             branding=branding,
             signatures=self._signatures_for_pdf(contract_id, company_id),
         )
+
+    def _render_cache_path(self, storage_root: Path, company_id: str, contract_id: str) -> Path:
+        return Path(storage_root) / "contracts" / company_id / f"{contract_id}.render.enc"
+
+    def _save_pdf_render_cache(
+        self,
+        storage_root: Path,
+        company_id: str,
+        contract_id: str,
+        plaintext: str,
+    ) -> None:
+        text = str(plaintext or "").strip()
+        if not text or _is_ciphertext_contract_text(text):
+            return
+        from backend.app.platform.security.field_encryption import maybe_encrypt_field
+
+        path = self._render_cache_path(storage_root, company_id, contract_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(maybe_encrypt_field(text, company_id=company_id), encoding="utf-8")
+
+    def _load_pdf_render_cache(self, storage_root: Path, company_id: str, contract_id: str) -> str:
+        path = self._render_cache_path(storage_root, company_id, contract_id)
+        if not path.is_file():
+            return ""
+        from backend.app.platform.security.field_encryption import maybe_decrypt_field
+
+        try:
+            return str(maybe_decrypt_field(path.read_text(encoding="utf-8"), company_id=company_id) or "").strip()
+        except Exception:
+            return ""
+
+    def _resolve_pdf_body_text(
+        self,
+        contract: dict[str, Any],
+        *,
+        company_id: str,
+        storage_root: Path,
+        payload: dict[str, Any] | None = None,
+        persist_cache: bool = False,
+    ) -> str:
+        payload = payload or {}
+        for key in ("pdf_body_text", "render_text"):
+            candidate = str(payload.get(key) or "").strip()
+            if candidate and not _is_ciphertext_contract_text(candidate):
+                if persist_cache:
+                    self._save_pdf_render_cache(
+                        storage_root, company_id, str(contract.get("id") or ""), candidate
+                    )
+                return candidate
+        cached = self._load_pdf_render_cache(storage_root, company_id, str(contract.get("id") or ""))
+        if cached and not _is_ciphertext_contract_text(cached):
+            return cached
+        for key in ("final_text", "draft_text"):
+            candidate = str(contract.get(key) or "").strip()
+            if candidate and not _is_ciphertext_contract_text(candidate):
+                return candidate
+        raise ValueError("e2e_pdf_plaintext_required")
 
     def build_public_preview_pdf_bytes(self, token: str) -> bytes:
         session = self.repo.get_sign_session_by_token(token)
@@ -649,7 +755,16 @@ class ContractsService:
                 "consent_accepted": consent_accepted,
             },
         )
-        self.generate_contract_pdf(contract_id, company_id, storage_root)
+        try:
+            self.generate_contract_pdf(contract_id, company_id, storage_root)
+        except ValueError as exc:
+            # E2E ciphertext cannot be rendered server-side. Keep prior PDF if present.
+            if str(exc) != "e2e_pdf_plaintext_required":
+                raise
+            existing = self.repo.get_contract(contract_id, company_id) or {}
+            pdf_path = Path(str(existing.get("pdf_file_path") or ""))
+            if not (pdf_path.is_file() and pdf_path.read_bytes()[:4] == b"%PDF"):
+                raise
         contract = self.repo.get_contract(contract_id, company_id)
         self._notify_counterparty_signed(contract, role=role, company_id=company_id)
         return {
@@ -1039,10 +1154,24 @@ class ContractsService:
             if pending_employee and pending_employee.get("token"):
                 sign_url = f"{base_url.rstrip('/')}/contract-sign.html?token={pending_employee['token']}"
             contract_id = str(row.get("id") or "")
-            has_text = bool(str(row.get("final_text") or row.get("draft_text") or "").strip())
+            raw_text = str(row.get("final_text") or row.get("draft_text") or "").strip()
+            has_plain_text = bool(raw_text) and not _is_ciphertext_contract_text(raw_text)
             pdf_path = Path(str(row.get("pdf_file_path") or ""))
-            has_pdf = pdf_path.is_file()
-            can_view = has_text or has_pdf
+            has_clean_pdf = False
+            if pdf_path.is_file():
+                try:
+                    raw_pdf = pdf_path.read_bytes()
+                    has_clean_pdf = raw_pdf.startswith(b"%PDF") and not _pdf_embeds_ciphertext(raw_pdf)
+                except OSError:
+                    has_clean_pdf = False
+            has_render_cache = False
+            try:
+                uploads = Path(__file__).resolve().parents[3] / "uploads"
+                has_render_cache = bool(self._load_pdf_render_cache(uploads, company_id, contract_id))
+            except Exception:
+                has_render_cache = False
+            can_view = has_clean_pdf or has_plain_text or has_render_cache
+            has_pdf = has_clean_pdf or has_render_cache
             filename = f"arbeitsvertrag-{contract_id}.pdf"
             title = str(row.get("title") or "").strip()
             if title:
@@ -1067,7 +1196,7 @@ class ContractsService:
                     "canView": can_view,
                     "canDownload": can_view,
                     "hasPdf": has_pdf,
-                    "hasText": has_text,
+                    "hasText": has_plain_text,
                     "filename": filename,
                     "previewUrl": preview_url,
                     "downloadUrl": download_url,
@@ -1088,20 +1217,42 @@ class ContractsService:
         company_id: str,
         *,
         prefer_stored: bool = True,
+        storage_root: Path | None = None,
     ) -> tuple[bytes, str]:
         """
         Return PDF bytes for the assigned worker.
-        Prefer stored signed/generated PDF; otherwise build a full preview from contract text.
+        Prefer a stored PDF that is not ciphertext; otherwise rebuild from render cache
+        or plaintext contract body (never embed E2E envelopes).
         """
         contract = self.worker_owned_contract(contract_id, worker_id, company_id)
+        root = storage_root or Path(__file__).resolve().parents[3] / "uploads"
         if prefer_stored:
             pdf_path = Path(str(contract.get("pdf_file_path") or ""))
             if pdf_path.is_file():
-                return pdf_path.read_bytes(), "stored"
-        text = str(contract.get("final_text") or contract.get("draft_text") or "").strip()
-        if not text and not Path(str(contract.get("pdf_file_path") or "")).is_file():
-            raise ValueError("contract_pdf_missing")
-        return self.build_preview_pdf_bytes(contract_id, company_id), "generated"
+                raw = pdf_path.read_bytes()
+                if raw.startswith(b"%PDF") and not _pdf_embeds_ciphertext(raw):
+                    return raw, "stored"
+        try:
+            # Fail fast if only E2E ciphertext is available (no branding/DB extras needed).
+            self._resolve_pdf_body_text(
+                contract,
+                company_id=company_id,
+                storage_root=root,
+                payload={},
+                persist_cache=False,
+            )
+            return (
+                self.build_preview_pdf_bytes(
+                    contract_id,
+                    company_id,
+                    storage_root=root,
+                ),
+                "generated",
+            )
+        except ValueError as exc:
+            if str(exc) == "e2e_pdf_plaintext_required":
+                raise ValueError("contract_pdf_needs_employer_regenerate") from exc
+            raise
 
     def get_integrations_status(self, company_id: str) -> dict[str, Any]:
         from backend.app.platform.notifications.sms import sms_configured

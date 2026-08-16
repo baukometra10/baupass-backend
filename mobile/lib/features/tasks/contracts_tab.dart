@@ -114,7 +114,13 @@ class _ContractsTabState extends State<ContractsTab> {
       if (!mounted) return;
       final msg = e is ApiException ? e.friendlyMessage : e.toString();
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PDF fehlgeschlagen: $msg')),
+        SnackBar(
+          content: Text(
+            msg.contains('employer_regenerate') || msg.contains('E2E')
+                ? 'Vertrag muss vom Arbeitgeber neu als PDF erzeugt werden.'
+                : 'PDF fehlgeschlagen: $msg',
+          ),
+        ),
       );
     } finally {
       if (mounted) setState(() => _busyId = null);

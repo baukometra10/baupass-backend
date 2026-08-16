@@ -90,6 +90,53 @@ def test_worker_contract_pdf_bytes_reads_stored(tmp_path):
     assert pdf_bytes.startswith(b"%PDF")
 
 
+def test_worker_contract_pdf_rejects_ciphertext_without_cache(tmp_path):
+    db = _db(tmp_path)
+    bad = tmp_path / "bad.pdf"
+    # Mimic ReportLab PDF that accidentally contains an E2E envelope fragment.
+    bad.write_bytes(b'%PDF-1.4\nBT /F1 12 Tf ("e2e":true "ct":"AAAA" X25519-AES-GCM) Tj ET\n%%EOF\n')
+    envelope = (
+        '{"e2e":true,"v":1,"alg":"X25519-AES-GCM","epk":"x","iv":"y","ct":"z"}'
+    )
+    db.execute(
+        "UPDATE employment_contracts SET pdf_file_path = ?, final_text = ? WHERE id = 'c-ready'",
+        (str(bad), envelope),
+    )
+    db.commit()
+    try:
+        ContractsService(db).worker_contract_pdf_bytes(
+            "c-ready", "w1", "co1", prefer_stored=True, storage_root=tmp_path
+        )
+        assert False, "expected regenerate error"
+    except ValueError as exc:
+        assert str(exc) == "contract_pdf_needs_employer_regenerate"
+
+
+def test_worker_contract_pdf_uses_render_cache(tmp_path):
+    db = _db(tmp_path)
+    envelope = (
+        '{"e2e":true,"v":1,"alg":"X25519-AES-GCM","epk":"x","iv":"y","ct":"z"}'
+    )
+    bad = tmp_path / "bad.pdf"
+    bad.write_bytes(b'%PDF-1.4\nBT ("e2e":true "ct":"AAAA" X25519-AES-GCM) Tj ET\n%%EOF\n')
+    db.execute(
+        "UPDATE employment_contracts SET pdf_file_path = ?, final_text = ? WHERE id = 'c-ready'",
+        (str(bad), envelope),
+    )
+    db.commit()
+    svc = ContractsService(db)
+    svc._save_pdf_render_cache(tmp_path, "co1", "c-ready", "Klartext Arbeitsvertrag Klausel 1.")
+    # build_preview needs branding helpers — patch via monkeypatch in integration;
+    # here only assert resolve body works.
+    body = svc._resolve_pdf_body_text(
+        dict(db.execute("SELECT * FROM employment_contracts WHERE id='c-ready'").fetchone()),
+        company_id="co1",
+        storage_root=tmp_path,
+        payload={},
+    )
+    assert "Klartext" in body
+
+
 def test_worker_contract_pdf_rejects_other_worker(tmp_path):
     db = _db(tmp_path)
     try:

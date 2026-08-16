@@ -96,12 +96,15 @@
 .worker-voice-call-overlay.is-video #workerVoiceCallStatus,
 .worker-voice-call-overlay.is-video #workerVoiceCallTimer,
 .worker-voice-call-overlay.is-video #workerVoiceCallPeerBanner{text-shadow:0 1px 8px rgba(0,0,0,.75);pointer-events:auto}
-.worker-voice-call-overlay.is-video .worker-voice-call-footer{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:auto;background:linear-gradient(0deg,rgba(0,0,0,.72),transparent);transition:opacity .28s ease,transform .28s ease}
-.worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-footer{opacity:0;pointer-events:none;transform:translateY(8px)}
+.worker-voice-call-overlay.is-video .worker-voice-call-footer{position:absolute;left:0;right:0;bottom:0;z-index:4;pointer-events:auto;background:linear-gradient(0deg,rgba(0,0,0,.78),rgba(0,0,0,.28) 55%,transparent);padding:.85rem 1rem calc(1.05rem + env(safe-area-inset-bottom,0px));transition:opacity .28s ease,transform .28s ease}
+.worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-footer{opacity:.96;pointer-events:auto;transform:none}
 .worker-voice-call-overlay.is-video.chrome-hidden .worker-voice-call-stage h4,
 .worker-voice-call-overlay.is-video.chrome-hidden #workerVoiceCallStatus{opacity:.35}
+.worker-voice-call-overlay.is-video .worker-voice-call-toolbar{display:flex;justify-content:center;margin-top:.45rem}
+.worker-voice-call-overlay.is-video .worker-voice-call-controls{padding:.15rem 0 .1rem}
+.worker-voice-call-overlay.is-video .worker-voice-call-controls button{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
 #workerVoiceCallRemoteVideo{width:100%;height:100%;object-fit:cover;background:#0b141a}
-.worker-voice-call-local-pip{position:absolute;right:max(12px,env(safe-area-inset-right,0px));bottom:max(120px,calc(7.5rem + env(safe-area-inset-bottom,0px)));width:min(132px,28vw);aspect-ratio:3/4;border-radius:14px;object-fit:cover;background:#111b21;border:2px solid rgba(255,255,255,.35);box-shadow:0 12px 32px rgba(0,0,0,.45);transform:scaleX(-1);z-index:3;touch-action:none;cursor:grab;user-select:none}
+.worker-voice-call-local-pip{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:max(72px,calc(env(safe-area-inset-top,0px) + 4.5rem));bottom:auto;width:min(118px,26vw);aspect-ratio:3/4;border-radius:14px;object-fit:cover;background:#111b21;border:2px solid rgba(255,255,255,.35);box-shadow:0 12px 32px rgba(0,0,0,.45);transform:scaleX(-1);z-index:3;touch-action:none;cursor:grab;user-select:none}
 .worker-voice-call-local-pip.hidden{display:none}
 #workerVoiceCallFlipBtn{display:none}
 .worker-voice-call-overlay.is-video #workerVoiceCallFlipBtn,
@@ -181,11 +184,12 @@
     if (!overlay?.classList.contains("is-video")) return;
     overlay.classList.remove("chrome-hidden");
     if (chromeHideTimer) clearTimeout(chromeHideTimer);
+    // Keep controls dock reachable; only fade name/status chrome.
     chromeHideTimer = setTimeout(() => {
       if (document.getElementById("workerVoiceCallOverlay")?.classList.contains("is-video")) {
         document.getElementById("workerVoiceCallOverlay")?.classList.add("chrome-hidden");
       }
-    }, 3200);
+    }, 5200);
   }
 
   function syncVideoStage() {
@@ -259,7 +263,13 @@
     directRemoteOn = Boolean(hasVideo && stream);
     if (remoteEl) {
       if (directRemoteOn) {
-        if (remoteEl.srcObject !== stream) remoteEl.srcObject = stream;
+        // Always re-bind: late video tracks can join an existing MediaStream object.
+        if (remoteEl.srcObject !== stream) {
+          remoteEl.srcObject = stream;
+        } else {
+          remoteEl.srcObject = null;
+          remoteEl.srcObject = stream;
+        }
         remoteEl.muted = true;
         remoteEl.style.transform = "";
         remoteEl.play?.().catch?.(() => {});
@@ -271,8 +281,8 @@
         remoteEl.srcObject = null;
       } else if (session?.getLocalStream) {
         const local = session.getLocalStream();
-        if (local && remoteEl.srcObject !== local) {
-          remoteEl.srcObject = local;
+        if (local) {
+          if (remoteEl.srcObject !== local) remoteEl.srcObject = local;
           remoteEl.style.transform = "scaleX(-1)";
           remoteEl.play?.().catch?.(() => {});
         }
