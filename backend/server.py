@@ -9096,11 +9096,11 @@ def start_background_jobs():
             time.sleep(interval)
 
     if str(os.getenv("BAUPASS_CAMERA_CHAIN_JOB", "1")).strip().lower() not in {"0", "false", "off", "no"}:
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=camera_escalation_chain_loop,
             name="baupass-camera-escalation-chain",
             daemon=True,
-        ).start()  # baupass:allow-inline-thread
+        ).start()
 
     def run_camera_webhook_retry_job():
         try:
@@ -9126,11 +9126,11 @@ def start_background_jobs():
         "off",
         "no",
     }:
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=camera_webhook_retry_loop,
             name="baupass-camera-webhook-retry",
             daemon=True,
-        ).start()  # baupass:allow-inline-thread
+        ).start()
 
     def run_camera_evidence_retention_job():
         try:
@@ -9156,11 +9156,11 @@ def start_background_jobs():
         "off",
         "no",
     }:
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=camera_evidence_retention_loop,
             name="baupass-camera-evidence-retention",
             daemon=True,
-        ).start()  # baupass:allow-inline-thread
+        ).start()
 
     def run_platform_guardian_once():
         try:
@@ -21921,7 +21921,7 @@ def _schedule_gate_tap_side_effects(ctx):
     except Exception:
         pass
     try:
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=_run_gate_tap_side_effects,
             args=(ctx,),
             daemon=True,
@@ -22236,7 +22236,7 @@ def _accept_gate_tap_async(db, turnstile_user, payload):
         enqueued = False
     if not enqueued:
         try:
-            threading.Thread(
+            threading.Thread(  # baupass:allow-inline-thread
                 target=_process_gate_async_ingest_inline,
                 args=(event_uid,),
                 daemon=True,
@@ -30052,7 +30052,7 @@ def worker_app_deployment_plan_day_response():
             "location": location,
             "reason": str(result.get("declineReason") or reason),
         }
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=_notify_company_deployment_decline_async,
             args=(notify_ctx,),
             daemon=True,
@@ -30118,7 +30118,7 @@ def schedule_outside_hours_checkin_notify(worker, attendance, *, channel: str, g
                 return
         except Exception:
             pass
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=_notify_company_outside_hours_checkin_async,
             args=(notify_ctx,),
             daemon=True,
@@ -30166,7 +30166,7 @@ def schedule_repeated_late_checkin_notify(payload):
                 return
         except Exception:
             pass
-        threading.Thread(
+        threading.Thread(  # baupass:allow-inline-thread
             target=_notify_company_repeated_late_async,
             args=(notify_ctx,),
             daemon=True,

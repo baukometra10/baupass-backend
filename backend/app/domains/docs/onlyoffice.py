@@ -612,7 +612,8 @@ def build_editor_config(
     key_src = f"{doc_id}:{doc.get('updated_at') or ''}:{docx_path_for(doc_id).stat().st_mtime_ns}"
     document_key = hashlib.sha256(key_src.encode("utf-8")).hexdigest()[:20]
     title = str(doc.get("title") or "Dokument")
-    filename = f"{re.sub(r'[^a-zA-Z0-9_\-]+', '_', title)[:60] or 'dokument'}.docx"
+    safe_title = re.sub(r"[^a-zA-Z0-9_\-]+", "_", title)[:60] or "dokument"
+    filename = f"{safe_title}.docx"
 
     config: dict[str, Any] = {
         "documentType": "word",

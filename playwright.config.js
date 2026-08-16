@@ -14,10 +14,15 @@ function resolveWorkspacePython() {
         path.resolve('.venv311', 'bin', 'python'),
         path.resolve('.venv', 'bin', 'python'),
       ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1];
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (found) return found;
+  // CI / bare runners: use PATH python (venv is not checked out).
+  return process.platform === 'win32' ? 'python' : 'python3';
 }
 const defaultPythonPath = resolveWorkspacePython();
-const pythonCommand = process.env.PYTHON || `"${defaultPythonPath}"`;
+const pythonCommand = process.env.PYTHON || (
+  /[\\/ ]/.test(defaultPythonPath) ? `"${defaultPythonPath}"` : defaultPythonPath
+);
 const projectRoot = path.resolve(__dirname);
 const e2eServerCommand = `npx cross-env BAUPASS_E2E_RESET_SUPERADMIN=1 PYTHONPATH="${projectRoot}" ${pythonCommand} -m backend.server`;
 
