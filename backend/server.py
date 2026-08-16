@@ -17157,33 +17157,48 @@ def analytics_punctuality_report():
 
 @require_worker_session
 def shift_get_assignments():
-    """Mitarbeiter: Seine Schicht-Zuweisungen auflisten."""
+    """Mitarbeiter: Seine Schicht-Zuweisungen + Einsatztage auflisten."""
     db = get_db()
     worker = g.worker
+    try:
+        from backend.app.platform.workforce.deployment_responses import (
+            list_upcoming_worker_shift_assignments,
+        )
 
-    assignments = db.execute(
-        """
-        SELECT
-            id, start_time, end_time, site, status, notes
-        FROM shift_assignments
-        WHERE worker_id = ? AND status != 'cancelled'
-          AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
-        ORDER BY start_time ASC
-        LIMIT 30
-        """,
-        (worker["id"],)
-    ).fetchall()
-
-    result = []
-    for a in assignments:
-        result.append({
-            "id": a["id"],
-            "startTime": a["start_time"],
-            "endTime": a["end_time"],
-            "site": a["site"],
-            "status": a["status"],
-            "notes": a["notes"],
-        })
+        result = list_upcoming_worker_shift_assignments(
+            db,
+            worker_id=str(worker["id"]),
+            company_id=str(worker["company_id"]),
+            limit=40,
+        )
+    except Exception:
+        assignments = db.execute(
+            """
+            SELECT
+                id, start_time, end_time, site, status, notes
+            FROM shift_assignments
+            WHERE worker_id = ? AND status != 'cancelled'
+              AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
+            ORDER BY start_time ASC
+            LIMIT 30
+            """,
+            (worker["id"],),
+        ).fetchall()
+        result = []
+        for a in assignments:
+            start = str(a["start_time"] or "")
+            result.append(
+                {
+                    "id": a["id"],
+                    "startTime": a["start_time"],
+                    "endTime": a["end_time"],
+                    "site": a["site"],
+                    "status": a["status"],
+                    "notes": a["notes"],
+                    "workDate": start.replace("T", " ")[:10],
+                    "source": "shift_assignment",
+                }
+            )
 
     return jsonify({"assignments": result})
 

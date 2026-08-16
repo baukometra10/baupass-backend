@@ -1012,3 +1012,125 @@ def ensure_shift_assignment_for_work_date(db, *, worker, work_date: str) -> str 
         except Exception:
             pass
         return None
+
+def list_upcoming_worker_shift_assignments(
+    db,
+    *,
+    worker_id: str,
+    company_id: str,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """
+    Unified upcoming shifts for the worker app:
+    explicit shift_assignments plus Einsatzplan work days (so Meine Schichten
+    is not empty when only the deployment plan is used).
+    """
+    from .attendance_eligibility import is_real_deployment_location
+    from .deployment_store import list_deployment_days
+
+    wid = str(worker_id)
+    cid = str(company_id)
+    today = _business_today()
+    out: list[dict[str, Any]] = []
+    seen_dates: set[str] = set()
+
+    try:
+        rows = db.execute(
+            """
+            SELECT id, start_time, end_time, site, status, notes
+            FROM shift_assignments
+            WHERE worker_id = ? AND company_id = ? AND status != 'cancelled'
+              AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
+            ORDER BY start_time ASC
+            LIMIT ?
+            """,
+            (wid, cid, int(limit)),
+        ).fetchall()
+    except Exception:
+        try:
+            rows = db.execute(
+                """
+                SELECT id, start_time, end_time, site, status, notes
+                FROM shift_assignments
+                WHERE worker_id = ? AND status != 'cancelled'
+                  AND replace(coalesce(end_time, ''), 'T', ' ') >= datetime('now', '-1 day')
+                ORDER BY start_time ASC
+                LIMIT ?
+                """,
+                (wid, int(limit)),
+            ).fetchall()
+        except Exception:
+            rows = []
+
+    for a in rows:
+        start = str(a["start_time"] or "")
+        day = start.replace("T", " ")[:10]
+        if day:
+            seen_dates.add(day)
+        out.append(
+            {
+                "id": str(a["id"]),
+                "startTime": a["start_time"],
+                "endTime": a["end_time"],
+                "site": a["site"],
+                "status": a["status"],
+                "notes": a["notes"],
+                "workDate": day,
+                "source": "shift_assignment",
+            }
+        )
+
+    year, month = today.year, today.month
+    for _ in range(3):
+        try:
+            stored = list_deployment_days(db, company_id=cid, worker_id=wid, year=year, month=month)
+        except Exception:
+            stored = []
+        responses = list_responses_for_month(
+            db, company_id=cid, worker_id=wid, year=year, month=month
+        )
+        for row in stored:
+            day = str(row.get("work_date") or "")[:10]
+            if not day or day in seen_dates:
+                continue
+            parsed = _parse_work_date(day)
+            if not parsed or parsed < today:
+                continue
+            if str((responses.get(day) or {}).get("workerResponse") or "").lower() == "declined":
+                continue
+            swap_status = str(row.get("swap_status") or "").strip().lower()
+            if swap_status == "out":
+                continue
+            location = str(row.get("location_label") or "").strip()
+            if not is_real_deployment_location(location):
+                continue
+            hm_start = _parse_shift_start_hm(str(row.get("shift_start") or "")) or (7, 0)
+            hm_end = _parse_shift_start_hm(str(row.get("shift_end") or "")) or (16, 0)
+            start_iso = f"{day}T{hm_start[0]:02d}:{hm_start[1]:02d}:00"
+            end_iso = f"{day}T{hm_end[0]:02d}:{hm_end[1]:02d}:00"
+            notes = str(row.get("notes") or "").strip()
+            if swap_status == "in":
+                partner = str(row.get("swap_partner_name") or "").strip()
+                if partner:
+                    notes = (f"Übernommen von {partner}" + (f" · {notes}" if notes else "")).strip(" ·")
+            out.append(
+                {
+                    "id": "",
+                    "startTime": start_iso,
+                    "endTime": end_iso,
+                    "site": location,
+                    "status": "scheduled",
+                    "notes": notes,
+                    "workDate": day,
+                    "source": "deployment",
+                    "canSwap": True,
+                }
+            )
+            seen_dates.add(day)
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    out.sort(key=lambda item: str(item.get("startTime") or ""))
+    return out[: int(limit)]

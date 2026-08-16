@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
 
@@ -90,76 +92,108 @@ class _LeaveRequestFormState extends State<LeaveRequestForm> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('New leave request')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          DropdownButtonFormField<String>(
-            value: _type,
-            decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
-            items: const [
-              DropdownMenuItem(value: 'urlaub', child: Text('Vacation')),
-              DropdownMenuItem(value: 'krank', child: Text('Sick')),
-              DropdownMenuItem(value: 'sonstiges', child: Text('Other')),
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(t('leaveNewRequest', 'Neuer Urlaubsantrag')),
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              DropdownButtonFormField<String>(
+                // ignore: deprecated_member_use
+                value: _type,
+                decoration: InputDecoration(
+                  labelText: t('leaveType', 'Art'),
+                  border: const OutlineInputBorder(),
+                ),
+                items: [
+                  DropdownMenuItem(
+                    value: 'urlaub',
+                    child: Text(t('leaveTypeVacation', 'Urlaub')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'krank',
+                    child: Text(t('leaveTypeSick', 'Krank')),
+                  ),
+                  DropdownMenuItem(
+                    value: 'sonstiges',
+                    child: Text(t('leaveTypeOther', 'Sonstiges')),
+                  ),
+                ],
+                onChanged: _submitting
+                    ? null
+                    : (v) => setState(() => _type = v ?? 'urlaub'),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                title: Text(t('leaveStartDate', 'Von')),
+                subtitle: Text(_formatDate(_start)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: _submitting ? null : () => _pickDate(true),
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                title: Text(t('leaveEndDate', 'Bis')),
+                subtitle: Text(_formatDate(_end)),
+                trailing: const Icon(Icons.calendar_today),
+                onTap: _submitting ? null : () => _pickDate(false),
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(color: Theme.of(context).dividerColor),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _noteController,
+                decoration: InputDecoration(
+                  labelText: t('leaveNoteOptional', 'Notiz (optional)'),
+                  border: const OutlineInputBorder(),
+                ),
+                maxLines: 3,
+                enabled: !_submitting,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: t(
+                    'leaveManagerEmailOptional',
+                    'E-Mail Vorgesetzter (optional)',
+                  ),
+                  border: const OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+                enabled: !_submitting,
+              ),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: _submitting ? null : _submit,
+                child: _submitting
+                    ? const SizedBox(
+                        height: 22,
+                        width: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(t('leaveSubmit', 'Absenden')),
+              ),
             ],
-            onChanged: _submitting ? null : (v) => setState(() => _type = v ?? 'urlaub'),
           ),
-          const SizedBox(height: 12),
-          ListTile(
-            title: const Text('Start date'),
-            subtitle: Text(_formatDate(_start)),
-            trailing: const Icon(Icons.calendar_today),
-            onTap: _submitting ? null : () => _pickDate(true),
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: Theme.of(context).dividerColor),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            title: const Text('End date'),
-            subtitle: Text(_formatDate(_end)),
-            trailing: const Icon(Icons.calendar_today),
-            onTap: _submitting ? null : () => _pickDate(false),
-            shape: RoundedRectangleBorder(
-              side: BorderSide(color: Theme.of(context).dividerColor),
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _noteController,
-            decoration: const InputDecoration(
-              labelText: 'Note (optional)',
-              border: OutlineInputBorder(),
-            ),
-            maxLines: 3,
-            enabled: !_submitting,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Manager email (optional)',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.emailAddress,
-            enabled: !_submitting,
-          ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-          ],
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _submitting ? null : _submit,
-            child: _submitting
-                ? const SizedBox(height: 22, width: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                : const Text('Submit'),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

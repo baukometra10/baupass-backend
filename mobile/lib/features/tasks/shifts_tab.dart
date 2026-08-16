@@ -262,10 +262,17 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
       },
     );
     if (ok != true || pickId == null || pickId!.isEmpty) return;
+    final assignmentId = (assignment['id'] ?? '').toString().trim();
+    var workDate = (assignment['workDate'] as String?)?.trim() ?? '';
+    if (workDate.isEmpty) {
+      final start = (assignment['startTime'] as String?)?.replaceFirst('T', ' ') ?? '';
+      if (start.length >= 10) workDate = start.substring(0, 10);
+    }
     try {
       await widget.tasks.proposeShiftSwap(
         session: widget.session,
-        assignmentId: (assignment['id'] ?? '').toString(),
+        assignmentId: assignmentId,
+        workDate: workDate,
         toWorkerId: pickId!,
         reason: reasonCtrl.text.trim(),
         targetAssignmentId: targetAssignmentId,
@@ -393,6 +400,20 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
           children: [
             const SizedBox(height: 80),
             Center(child: Text(t('shiftsNoneUpcoming', 'Keine anstehenden Schichten'))),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 28),
+              child: Text(
+                t(
+                  'shiftsNoneUpcomingHint',
+                  'Wenn Ihr Arbeitgeber den Einsatzplan nutzt, erscheinen Ihre Arbeitstage hier automatisch.',
+                ),
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
           ],
         ),
       );
@@ -407,7 +428,9 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
           final a = _assignments[i];
           final site = (a['site'] as String?)?.trim() ?? '';
           final notes = (a['notes'] as String?)?.trim() ?? '';
+          final source = (a['source'] as String?)?.trim() ?? '';
           final sub = '${_fmt(a['endTime'] as String?)}${site.isNotEmpty ? ' · $site' : ''}'
+              '${source == 'deployment' ? '\n${t('shiftsFromPlan', 'Aus Einsatzplan')}' : ''}'
               '${notes.isNotEmpty ? '\n$notes' : ''}';
           return Card(
             child: ListTile(
@@ -418,7 +441,7 @@ class _ShiftsTabState extends State<ShiftsTab> with SingleTickerProviderStateMix
                 tooltip: t('shiftsSwapTooltip', 'Abgeben / tauschen'),
                 onPressed: () => _proposeSwap(a),
               ),
-              isThreeLine: notes.isNotEmpty,
+              isThreeLine: notes.isNotEmpty || source == 'deployment',
             ),
           );
         },

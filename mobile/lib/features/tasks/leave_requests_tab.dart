@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/app_strings.dart';
+import '../../core/locale_controller.dart';
 import '../../core/tenant_branding.dart';
 import '../../core/session_store.dart';
 import '../../services/tasks_repository.dart';
@@ -80,122 +82,150 @@ class _LeaveRequestsTabState extends State<LeaveRequestsTab> {
   static String _statusLabel(String? status) {
     switch (status) {
       case 'genehmigt':
-        return 'Approved';
+        return t('leaveStatusApproved', 'Genehmigt');
       case 'abgelehnt':
-        return 'Rejected';
+        return t('leaveStatusRejected', 'Abgelehnt');
       default:
-        return 'Pending';
+        return t('leaveStatusPending', 'Offen');
     }
   }
 
   static String _typeLabel(String? type) {
     switch (type) {
       case 'krank':
-        return 'Sick';
+        return t('leaveTypeSick', 'Krank');
       case 'sonstiges':
-        return 'Other';
+        return t('leaveTypeOther', 'Sonstiges');
       default:
-        return 'Vacation';
+        return t('leaveTypeVacation', 'Urlaub');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final branding = TenantBrandingScope.of(context);
-    if (!widget.enabled) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text('Leave requests are not included in your company plan.'),
-        ),
-      );
-    }
-
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: Column(
-        children: [
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+    return ListenableBuilder(
+      listenable: LocaleController.instance,
+      builder: (context, _) {
+        final branding = TenantBrandingScope.of(context);
+        if (!widget.enabled) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                t(
+                  'leavePlanDisabled',
+                  'Urlaubsanträge sind in Ihrem Tarif nicht enthalten.',
+                ),
+              ),
             ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: FilledButton.icon(
-              onPressed: _openForm,
-              icon: const Icon(Icons.add),
-              label: const Text('New leave request'),
-            ),
-          ),
-          Expanded(
-            child: _items.isEmpty
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      const SizedBox(height: 48),
-                      Icon(Icons.beach_access_outlined, size: 56, color: Theme.of(context).colorScheme.outline),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Noch keine Urlaubsanträge',
-                        textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: Text(
-                          'Stelle einen Antrag — dein Team sieht ihn sofort im Admin-Portal von ${branding.displayName}.',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                      Center(
-                        child: FilledButton.icon(
-                          onPressed: _openForm,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Ersten Antrag stellen'),
-                        ),
-                      ),
-                    ],
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _items.length,
-                    itemBuilder: (context, index) {
-                      final row = _items[index];
-                      return Card(
-                        child: ListTile(
-                          title: Text(
-                            '${_typeLabel(row['type'] as String?)} · ${row['start_date']} → ${row['end_date']}',
+          );
+        }
+
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        return RefreshIndicator(
+          onRefresh: _load,
+          child: Column(
+            children: [
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Text(
+                    _error!,
+                    style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: FilledButton.icon(
+                  onPressed: _openForm,
+                  icon: const Icon(Icons.add),
+                  label: Text(t('leaveNewRequest', 'Neuer Urlaubsantrag')),
+                ),
+              ),
+              Expanded(
+                child: _items.isEmpty
+                    ? ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          const SizedBox(height: 48),
+                          Icon(
+                            Icons.beach_access_outlined,
+                            size: 56,
+                            color: Theme.of(context).colorScheme.outline,
                           ),
-                          subtitle: Text(
-                            '${_statusLabel(row['status'] as String?)} · ${row['days_count'] ?? '-'} day(s)',
+                          const SizedBox(height: 16),
+                          Text(
+                            t('leaveEmptyTitle', 'Noch keine Urlaubsanträge'),
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          trailing: Text(
-                            _statusLabel(row['status'] as String?),
-                            style: TextStyle(
-                              color: row['status'] == 'genehmigt'
-                                  ? Colors.green.shade700
-                                  : row['status'] == 'abgelehnt'
-                                      ? Colors.red.shade700
-                                      : Colors.orange.shade800,
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32),
+                            child: Text(
+                              t(
+                                'leaveEmptyHint',
+                                'Stelle einen Antrag — dein Team sieht ihn sofort im Admin-Portal von {brand}.',
+                              ).replaceAll('{brand}', branding.displayName),
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
+                          const SizedBox(height: 24),
+                          Center(
+                            child: FilledButton.icon(
+                              onPressed: _openForm,
+                              icon: const Icon(Icons.add),
+                              label: Text(
+                                t('leaveFirstRequest', 'Ersten Antrag stellen'),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.all(12),
+                        itemCount: _items.length,
+                        itemBuilder: (context, index) {
+                          final row = _items[index];
+                          final days = row['days_count'] ?? '-';
+                          return Card(
+                            child: ListTile(
+                              title: Text(
+                                '${_typeLabel(row['type'] as String?)} · ${row['start_date']} → ${row['end_date']}',
+                              ),
+                              subtitle: Text(
+                                '${_statusLabel(row['status'] as String?)} · $days ${t('days', 'Tage')}',
+                              ),
+                              trailing: Text(
+                                _statusLabel(row['status'] as String?),
+                                style: TextStyle(
+                                  color: row['status'] == 'genehmigt'
+                                      ? Colors.green.shade700
+                                      : row['status'] == 'abgelehnt'
+                                          ? Colors.red.shade700
+                                          : Colors.orange.shade800,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
