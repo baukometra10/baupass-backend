@@ -24,7 +24,17 @@ const pythonCommand = process.env.PYTHON || (
   /[\\/ ]/.test(defaultPythonPath) ? `"${defaultPythonPath}"` : defaultPythonPath
 );
 const projectRoot = path.resolve(__dirname);
-const e2eServerCommand = `npx cross-env BAUPASS_E2E_RESET_SUPERADMIN=1 PYTHONPATH="${projectRoot}" ${pythonCommand} -m backend.server`;
+const e2eServerCommand = [
+  'npx cross-env',
+  'BAUPASS_E2E_RESET_SUPERADMIN=1',
+  'BAUPASS_ENV=testing',
+  'BAUPASS_ENABLE_BACKGROUND_JOBS=0',
+  'BAUPASS_ENABLE_IMAP_POLLER=0',
+  'BAUPASS_SKIP_IMAP_POLL=1',
+  `PYTHONPATH="${projectRoot}"`,
+  pythonCommand,
+  '-m backend.server',
+].join(' ');
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
@@ -40,7 +50,8 @@ module.exports = defineConfig({
   webServer: process.env.E2E_SKIP_SERVER ? undefined : {
     command: e2eServerCommand,
     url: baseURL,
-    reuseExistingServer: true,
+    // On CI always start a fresh server; locally allow an already-running backend.
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
   reporter: [['list']],

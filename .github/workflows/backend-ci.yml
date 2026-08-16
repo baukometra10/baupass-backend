@@ -35,6 +35,7 @@ jobs:
 
       - name: Critical API route probe
         env:
+          PYTHONPATH: .
           BAUPASS_ENV: testing
           BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
           BAUPASS_SKIP_IMAP_POLL: "1"
@@ -42,6 +43,7 @@ jobs:
 
       - name: Run tests
         env:
+          PYTHONPATH: .
           BAUPASS_ENV: testing
           BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
           BAUPASS_ENABLE_IMAP_POLLER: "0"

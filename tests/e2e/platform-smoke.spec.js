@@ -57,6 +57,44 @@ function ensureLocalSuperadminCredentials(username) {
   execFileSync(pythonExecutable, ['-c', script], { cwd: process.cwd(), stdio: 'ignore' });
 }
 
+function planRank(plan) {
+  const value = String(plan || '').trim().toLowerCase();
+  if (value === 'enterprise') return 3;
+  if (value === 'professional' || value === 'business') return 2;
+  if (value === 'starter' || value === 'tageskarte') return 1;
+  return 0;
+}
+
+async function resolveSmokeCompany(request, headers) {
+  const companies = await request.get('/api/companies', { headers });
+  expect(companies.ok()).toBeTruthy();
+  const companyRows = await companies.json();
+  const active = Array.isArray(companyRows) ? companyRows.filter((c) => !c.deleted_at) : [];
+  // live-map / ops features need professional+; prefer that over the first starter row.
+  const entitled = active
+    .filter((c) => planRank(c.plan) >= 2)
+    .sort((a, b) => planRank(b.plan) - planRank(a.plan));
+  if (entitled[0]?.id) return entitled[0];
+
+  const created = await request.post('/api/companies', {
+    headers,
+    data: {
+      name: 'E2E Ops Smoke Co',
+      contact: 'e2e',
+      adminPassword: '1234',
+      officePassword: '1234',
+      turnstilePassword: '1234',
+      turnstileCount: 0,
+      plan: 'professional',
+    },
+  });
+  expect([200, 201]).toContain(created.status());
+  const payload = await created.json();
+  const company = payload.company || payload;
+  expect(company?.id).toBeTruthy();
+  return company;
+}
+
 test.describe('Platform smoke', () => {
   const username = process.env.E2E_SUPERADMIN_USER || 'superadmin';
   const password = process.env.E2E_SUPERADMIN_PASSWORD || '1234';
@@ -78,14 +116,11 @@ test.describe('Platform smoke', () => {
     const loginPayload = await login(request, {
       username,
       password,
-      loginScope: 'auto',
+      loginScope: 'server-admin',
     });
     const headers = { Authorization: `Bearer ${loginPayload.token}` };
 
-    const companies = await request.get('/api/companies', { headers });
-    expect(companies.ok()).toBeTruthy();
-    const companyRows = await companies.json();
-    const firstCompany = Array.isArray(companyRows) ? companyRows.find((c) => !c.deleted_at) : null;
+    const firstCompany = await resolveSmokeCompany(request, headers);
     expect(firstCompany?.id).toBeTruthy();
 
     const catalog = await request.get(

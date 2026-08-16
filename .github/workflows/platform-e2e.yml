@@ -58,4 +58,9 @@ jobs:
       - name: Platform smoke (API)
         env:
           PYTHON: python
+          PYTHONPATH: .
+          BAUPASS_ENV: testing
+          BAUPASS_ENABLE_BACKGROUND_JOBS: "0"
+          BAUPASS_ENABLE_IMAP_POLLER: "0"
+          BAUPASS_SKIP_IMAP_POLL: "1"
         run: npx playwright test tests/e2e/platform-smoke.spec.js

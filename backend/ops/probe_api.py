@@ -5,6 +5,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
+
+# `python backend/ops/probe_api.py` puts this file's dir on sys.path, not the repo root.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 os.environ.setdefault("BAUPASS_ENV", "testing")
 os.environ["BAUPASS_ENABLE_BACKGROUND_JOBS"] = "0"
