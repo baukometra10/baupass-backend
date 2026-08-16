@@ -36,6 +36,17 @@ def guardian_interval_seconds() -> int:
     return guardian_int("INTERVAL_SECONDS", 30, minimum=15)
 
 
+def guardian_next_interval_seconds(status: str | None = None) -> int:
+    """Run faster while degraded/down so fixes land before crashes cascade."""
+    base = guardian_interval_seconds()
+    st = str(status or (_last_snapshot.get("status") if _last_snapshot else "") or "ok").lower()
+    if st == "down":
+        return max(15, min(base, guardian_int("DOWN_INTERVAL_SECONDS", 15, minimum=10)))
+    if st == "degraded":
+        return max(15, min(base, guardian_int("DEGRADED_INTERVAL_SECONDS", 20, minimum=10)))
+    return base
+
+
 def get_guardian_snapshot() -> dict[str, Any]:
     return dict(_last_snapshot)
 
@@ -104,6 +115,7 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
         from backend.server import get_db
 
         db = get_db() if db_ok else None
+        urgent = status in {"degraded", "down"} or bool(failed_probes)
         if db is not None:
             remediation = run_playbooks(
                 db,
@@ -112,6 +124,7 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
                 workers_degraded=bool(worker_check.get("degraded")),
                 dead_letter_total=dead_letter_total,
                 failed_probes=failed_probes,
+                urgent=urgent,
             )
             security = scan_security(db)
             security_alert = maybe_raise_security_alert(db, security)
@@ -120,17 +133,21 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
                 remediation["appliedCount"] = int(remediation.get("appliedCount") or 0) + len(security_fixes)
                 remediation["securityFixCount"] = len(security_fixes)
         else:
-            from .playbooks import recover_sqlite_storage
+            from .playbooks import memory_pressure_relief, recover_sqlite_storage
 
-            sqlite_action = recover_sqlite_storage(db_ok=False, force=False)
+            sqlite_action = recover_sqlite_storage(db_ok=False, force=True)
+            mem_action = memory_pressure_relief(force=True)
+            actions = [sqlite_action, mem_action]
             remediation = {
                 "enabled": True,
-                "actions": [sqlite_action],
-                "appliedCount": 1 if sqlite_action.get("ok") and not sqlite_action.get("skipped") else 0,
+                "actions": actions,
+                "appliedCount": sum(1 for a in actions if a.get("ok") and not a.get("skipped")),
+                "urgent": True,
+                "mode": "crash_prevention",
                 "skipped": "database_unhealthy",
             }
     except Exception as exc:
-        remediation = {"enabled": True, "error": str(exc)[:200], "actions": []}
+        remediation = {"enabled": True, "error": str(exc)[:200], "actions": [], "urgent": True}
         security = {"enabled": True, "error": str(exc)[:200], "elevated": False, "severity": "ok"}
 
     # Re-probe after heal so the owner alert reflects reality (and recovery is accurate).
@@ -154,12 +171,56 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
         except Exception as exc:
             re_probe = {"ran": True, "error": str(exc)[:200]}
 
+    # Second strike: if still broken after first heal, force critical playbooks once more.
+    if status in {"degraded", "down"} and failed_probes and db_ok:
+        try:
+            from backend.server import get_db
+
+            db2 = get_db()
+            second = run_playbooks(
+                db2,
+                db_ok=True,
+                status=status,
+                workers_degraded=bool(worker_check.get("degraded")),
+                dead_letter_total=dead_letter_total,
+                failed_probes=failed_probes,
+                force=True,
+                urgent=True,
+            )
+            first_actions = list(remediation.get("actions") or [])
+            remediation = {
+                **remediation,
+                **second,
+                "actions": first_actions + list(second.get("actions") or []),
+                "appliedCount": int(remediation.get("appliedCount") or 0) + int(second.get("appliedCount") or 0),
+                "secondPass": True,
+            }
+            platform_after2 = collect_platform_health(app, host=host, public_url=public_url)
+            failed_after2 = [p["id"] for p in platform_after2.get("probes") or [] if not p.get("ok")]
+            re_probe = {
+                **(re_probe if isinstance(re_probe, dict) else {}),
+                "ran": True,
+                "secondPass": True,
+                "after": failed_after2,
+                "recovered": [p for p in (re_probe.get("before") or failed_probes) if p not in failed_after2],
+            }
+            platform = platform_after2
+            failed_probes = failed_after2
+            status = _merge_status(
+                platform.get("status"),
+                db_ok=db_ok,
+                workers_degraded=bool(worker_check.get("degraded")),
+            )
+        except Exception as exc:
+            remediation["secondPassError"] = str(exc)[:200]
+
     snapshot: dict[str, Any] = {
         "status": status,
         "ready": bool(platform.get("ready")) and db_ok,
         "enabled": guardian_enabled(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "durationMs": int((time.monotonic() - started) * 1000),
+        "nextIntervalSeconds": guardian_next_interval_seconds(status),
         "cloud": platform.get("cloud") or {},
         "database": db_health,
         "probes": platform.get("probes") or [],
@@ -173,6 +234,7 @@ def run_guardian_cycle(app: Flask, *, host: str = "", public_url: str = "", forc
         "securityAlert": security_alert,
         "previousStatus": _previous_status,
         "ownerFirst": True,
+        "crashPrevention": True,
     }
 
     notify_result = maybe_notify_guardian(

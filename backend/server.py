@@ -9190,15 +9190,28 @@ def start_background_jobs():
             return {"ok": False, "error": str(exc)}
 
     def platform_guardian_loop():
-        from backend.app.platform.guardian.runner import guardian_enabled, guardian_interval_seconds
+        from backend.app.platform.guardian.runner import (
+            guardian_enabled,
+            guardian_interval_seconds,
+            guardian_next_interval_seconds,
+        )
 
         if not guardian_enabled():
             return
         interval = guardian_interval_seconds()
         time.sleep(min(10, interval))
         while True:
-            run_platform_guardian_once()
-            time.sleep(interval)
+            result = run_platform_guardian_once()
+            status = ""
+            if isinstance(result, dict):
+                status = str(result.get("status") or "")
+                try:
+                    interval = int(result.get("nextIntervalSeconds") or guardian_next_interval_seconds(status))
+                except Exception:
+                    interval = guardian_next_interval_seconds(status)
+            else:
+                interval = guardian_next_interval_seconds(status)
+            time.sleep(max(10, interval))
 
     try:
         from backend.app.platform.guardian.runner import guardian_enabled as _guardian_enabled

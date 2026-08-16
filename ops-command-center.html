@@ -37,30 +37,196 @@
     .event-feed { max-height: 190px; overflow-y: auto; font-size: 0.74rem; }
     .event-line { padding: 0.35rem 0; border-bottom: 1px solid var(--border); color: var(--muted); }
     .event-line strong { color: var(--text); }
-    .guardian-card { grid-column: 1 / -1; border-color: var(--accent); }
-    .guardian-card.degraded { border-color: var(--warn); }
-    .guardian-card.down { border-color: var(--danger); box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.25); }
-    .guardian-head { display: flex; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
-    .guardian-status { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-transform: uppercase; }
-    .guardian-card.degraded .guardian-status { color: var(--warn); }
-    .guardian-card.down .guardian-status { color: var(--danger); }
-    .guardian-probes { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.65rem; }
+    .guardian-card {
+      grid-column: 1 / -1 !important;
+      position: relative;
+      z-index: 6;
+      overflow: hidden;
+      border-radius: 18px !important;
+      padding: 0 !important;
+      min-height: 9.5rem;
+      border: 1px solid rgba(75, 227, 209, 0.55) !important;
+      background:
+        radial-gradient(900px 260px at 92% -10%, rgba(75, 227, 209, 0.22), transparent 55%),
+        radial-gradient(700px 220px at 0% 110%, rgba(56, 189, 248, 0.12), transparent 50%),
+        linear-gradient(165deg, rgba(10, 22, 34, 0.99), rgba(6, 10, 16, 0.99)) !important;
+      box-shadow:
+        0 0 0 1px rgba(75, 227, 209, 0.12),
+        0 18px 48px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    .guardian-card.degraded {
+      border-color: rgba(251, 191, 36, 0.65) !important;
+      background:
+        radial-gradient(900px 260px at 92% -10%, rgba(251, 191, 36, 0.2), transparent 55%),
+        linear-gradient(165deg, rgba(28, 22, 10, 0.98), rgba(8, 10, 14, 0.99)) !important;
+      box-shadow:
+        0 0 0 1px rgba(251, 191, 36, 0.15),
+        0 18px 48px rgba(0, 0, 0, 0.42);
+      animation: guardianPulseWarn 2.4s ease-in-out infinite;
+    }
+    .guardian-card.down {
+      border-color: rgba(248, 113, 113, 0.75) !important;
+      background:
+        radial-gradient(900px 260px at 92% -10%, rgba(248, 113, 113, 0.22), transparent 55%),
+        linear-gradient(165deg, rgba(32, 12, 14, 0.99), rgba(8, 8, 12, 0.99)) !important;
+      box-shadow:
+        0 0 0 1px rgba(248, 113, 113, 0.2),
+        0 18px 48px rgba(0, 0, 0, 0.45);
+      animation: guardianPulseDown 1.6s ease-in-out infinite;
+    }
+    @keyframes guardianPulseWarn {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 18px 48px rgba(0, 0, 0, 0.42); }
+      50% { box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.35), 0 18px 48px rgba(0, 0, 0, 0.42); }
+    }
+    @keyframes guardianPulseDown {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.2), 0 18px 48px rgba(0, 0, 0, 0.45); }
+      50% { box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.4), 0 18px 48px rgba(0, 0, 0, 0.45); }
+    }
+    @keyframes guardianRadar {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    @keyframes guardianBreath {
+      0%, 100% { opacity: 0.55; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.06); }
+    }
+    .guardian-card::before {
+      content: "";
+      position: absolute;
+      inset: -40% auto auto 55%;
+      width: 18rem; height: 18rem;
+      border-radius: 50%;
+      border: 1px dashed rgba(75, 227, 209, 0.22);
+      pointer-events: none;
+      animation: guardianRadar 28s linear infinite;
+    }
+    .guardian-card.degraded::before { border-color: rgba(251, 191, 36, 0.28); }
+    .guardian-card.down::before { border-color: rgba(248, 113, 113, 0.3); animation-duration: 12s; }
+    .guardian-shell { position: relative; z-index: 1; }
+    .guardian-head {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 1rem;
+      align-items: center;
+      padding: 1.05rem 1.15rem 0.85rem;
+      border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+      background: linear-gradient(90deg, rgba(75, 227, 209, 0.14), rgba(75, 227, 209, 0.02));
+    }
+    .guardian-card.degraded .guardian-head {
+      background: linear-gradient(90deg, rgba(251, 191, 36, 0.16), rgba(251, 191, 36, 0.02));
+    }
+    .guardian-card.down .guardian-head {
+      background: linear-gradient(90deg, rgba(248, 113, 113, 0.18), rgba(248, 113, 113, 0.02));
+    }
+    @media (max-width: 720px) {
+      .guardian-head { grid-template-columns: auto 1fr; }
+      .guardian-meta { grid-column: 1 / -1; }
+    }
+    .guardian-mark {
+      width: 3.6rem; height: 3.6rem; border-radius: 16px;
+      display: grid; place-items: center;
+      background: rgba(75, 227, 209, 0.14);
+      border: 1px solid rgba(75, 227, 209, 0.45);
+      box-shadow: 0 0 24px rgba(75, 227, 209, 0.18);
+      position: relative;
+    }
+    .guardian-card.degraded .guardian-mark {
+      background: rgba(251, 191, 36, 0.14);
+      border-color: rgba(251, 191, 36, 0.5);
+      box-shadow: 0 0 24px rgba(251, 191, 36, 0.18);
+    }
+    .guardian-card.down .guardian-mark {
+      background: rgba(248, 113, 113, 0.14);
+      border-color: rgba(248, 113, 113, 0.55);
+      box-shadow: 0 0 24px rgba(248, 113, 113, 0.2);
+    }
+    .guardian-mark svg { width: 1.85rem; height: 1.85rem; display: block; }
+    .guardian-mark-dot {
+      position: absolute; right: -0.15rem; top: -0.15rem;
+      width: 0.72rem; height: 0.72rem; border-radius: 999px;
+      background: var(--accent);
+      border: 2px solid #0a121a;
+      animation: guardianBreath 1.8s ease-in-out infinite;
+    }
+    .guardian-card.degraded .guardian-mark-dot { background: #fbbf24; }
+    .guardian-card.down .guardian-mark-dot { background: #f87171; }
+    .guardian-title {
+      font-weight: 800; color: #f4f9ff !important; font-size: 1.35rem;
+      letter-spacing: -0.02em; line-height: 1.1;
+    }
+    .guardian-sub {
+      margin-top: 0.28rem; color: var(--muted); font-size: 0.78rem; line-height: 1.4; max-width: 36rem;
+    }
+    .guardian-status-row {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.55rem;
+    }
+    .guardian-status {
+      font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 0.28rem 0.65rem; border-radius: 999px;
+      color: #04201c; background: var(--accent);
+      border: 1px solid rgba(75, 227, 209, 0.7);
+    }
+    .guardian-card.degraded .guardian-status {
+      color: #2a1a00; background: #fbbf24; border-color: rgba(251, 191, 36, 0.8);
+    }
+    .guardian-card.down .guardian-status {
+      color: #2a0606; background: #f87171; border-color: rgba(248, 113, 113, 0.85);
+    }
+    .guardian-live {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--accent); padding: 0.22rem 0.5rem; border-radius: 999px;
+      border: 1px solid rgba(75, 227, 209, 0.4); background: rgba(75, 227, 209, 0.08);
+    }
+    .guardian-card.degraded .guardian-live { color: #fbbf24; border-color: rgba(251, 191, 36, 0.4); background: rgba(251, 191, 36, 0.08); }
+    .guardian-card.down .guardian-live { color: #f87171; border-color: rgba(248, 113, 113, 0.4); background: rgba(248, 113, 113, 0.08); }
+    .guardian-meta {
+      text-align: end; font-size: 0.72rem; color: var(--muted); line-height: 1.45;
+      min-width: 9rem;
+    }
+    .guardian-meta strong { display: block; color: #e8f2ff; font-size: 0.82rem; font-weight: 650; }
+    .guardian-body { padding: 0.85rem 1.15rem 1.05rem; }
+    .guardian-alert {
+      font-size: 0.86rem; font-weight: 650; color: #eaf3ff; margin-bottom: 0.35rem;
+    }
+    .guardian-extra { font-size: 0.74rem; color: var(--muted); margin-bottom: 0.65rem; line-height: 1.4; }
+    .guardian-probes { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.15rem; }
     .guardian-probe {
-      font-size: 0.68rem; padding: 0.18rem 0.4rem; border-radius: 999px;
+      font-size: 0.7rem; padding: 0.28rem 0.55rem; border-radius: 999px;
       border: 1px solid var(--border); color: var(--muted);
+      background: rgba(8, 14, 20, 0.55);
     }
-    .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.35); color: var(--accent); }
-    .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.45); color: var(--danger); }
-    .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.55rem; }
+    .guardian-probe.ok { border-color: rgba(75, 227, 209, 0.4); color: var(--accent); background: rgba(75, 227, 209, 0.08); }
+    .guardian-probe.fail { border-color: rgba(248, 113, 113, 0.5); color: #f87171; background: rgba(248, 113, 113, 0.08); font-weight: 700; }
+    .guardian-actions { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.85rem; }
     .guardian-actions button {
-      font-size: 0.7rem; padding: 0.28rem 0.5rem; border-radius: 8px;
-      border: 1px solid var(--border); background: #0c1218; color: var(--accent); cursor: pointer;
+      font-size: 0.78rem; font-weight: 700; padding: 0.48rem 0.9rem; border-radius: 10px;
+      border: 1px solid rgba(75, 227, 209, 0.45); background: rgba(75, 227, 209, 0.14);
+      color: #eafffb; cursor: pointer;
     }
-    .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.55rem; }
-    .guardian-ops span { font-size: 0.68rem; color: var(--muted); padding: 0.18rem 0.4rem; border: 1px solid var(--border); border-radius: 999px; }
-    .guardian-ops span.warn { color: var(--warn); border-color: rgba(251, 191, 36, 0.4); }
-    .guardian-history { margin-top: 0.55rem; font-size: 0.68rem; color: var(--muted); max-height: 110px; overflow-y: auto; }
-    .guardian-history-row { padding: 0.2rem 0; border-bottom: 1px solid var(--border); }
+    .guardian-actions button:hover { filter: brightness(1.08); }
+    .guardian-actions button.ghost {
+      border-color: rgba(148, 163, 184, 0.35); background: rgba(8, 14, 20, 0.55); color: var(--accent); font-weight: 650;
+    }
+    .guardian-card.degraded .guardian-actions button {
+      border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.14); color: #fff8e8;
+    }
+    .guardian-card.down .guardian-actions button {
+      border-color: rgba(248, 113, 113, 0.55); background: rgba(248, 113, 113, 0.16); color: #ffe8e8;
+    }
+    .guardian-ops { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+    .guardian-ops span {
+      font-size: 0.7rem; color: var(--muted); padding: 0.26rem 0.55rem;
+      border: 1px solid rgba(148, 163, 184, 0.22); border-radius: 999px;
+      background: rgba(8, 14, 20, 0.45);
+    }
+    .guardian-ops span.warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.45); background: rgba(251, 191, 36, 0.08); font-weight: 700; }
+    .guardian-history {
+      margin-top: 0.75rem; font-size: 0.7rem; color: var(--muted);
+      max-height: 120px; overflow-y: auto;
+      border-top: 1px solid rgba(148, 163, 184, 0.14); padding-top: 0.55rem;
+    }
+    .guardian-history-row { padding: 0.22rem 0; border-bottom: 1px solid rgba(148, 163, 184, 0.1); }
     .payroll-card { grid-column: 1 / -1; }
     .payroll-row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.45rem 0; border-bottom: 1px solid var(--border); }
     .payroll-row:last-child { border-bottom: 0; }
@@ -299,10 +465,19 @@
         onSiteShort: "auf Baustelle",
         forecastTitle: "KI: Personalplanung für morgen",
         forecastPrompt: "Was ist die Personalprognose für morgen und welche Maßnahmen empfiehlst du?",
-        guardianLabel: "Platform Guardian",
+        guardianLabel: "Guard Wächter",
+        guardianSub: "Crash-Schutz aktiv — erkennt Fehler früh, repariert automatisch, hält die Plattform stabil",
+        guardianLive: "Im Dienst",
+        guardianOnWatch: "Wacht aktiv",
+        guardianHealStrong: "Auto-Heilung STARK",
+        guardianHealApplied: "{n} Fixes angewendet",
+        guardianHealReady: "Bereit zu reparieren",
+        guardianSecondPass: "Zweite Repair-Runde",
         statusOk: "OK",
         statusOffline: "Offline",
         statusDegraded: "Eingeschränkt",
+        guardianUnavailable: "Prüfe…",
+        guardianUnavailableHint: "Status wird geladen — bei Bedarf Health-Check tippen",
         guardianAffected: "Betroffen: {list}",
         guardianWorkersMissing: "Hintergrund-Worker fehlen",
         guardianAllGreen: "Alle Module grün",
@@ -438,10 +613,19 @@
         onSiteShort: "on site",
         forecastTitle: "AI: workforce planning for tomorrow",
         forecastPrompt: "What is the workforce forecast for tomorrow and which actions do you recommend?",
-        guardianLabel: "Platform Guardian",
+        guardianLabel: "Guard Watcher",
+        guardianSub: "Crash protection on — detects faults early, auto-repairs, keeps the platform stable",
+        guardianLive: "On duty",
+        guardianOnWatch: "Watch active",
+        guardianHealStrong: "Auto-heal STRONG",
+        guardianHealApplied: "{n} fixes applied",
+        guardianHealReady: "Ready to repair",
+        guardianSecondPass: "Second repair pass",
         statusOk: "OK",
         statusOffline: "Offline",
         statusDegraded: "Degraded",
+        guardianUnavailable: "Checking…",
+        guardianUnavailableHint: "Status loading — tap Health-Check if needed",
         guardianAffected: "Affected: {list}",
         guardianWorkersMissing: "Background workers missing",
         guardianAllGreen: "All modules green",
@@ -577,10 +761,19 @@
         onSiteShort: "على الموقع",
         forecastTitle: "AI: تخطيط القوى العاملة للغد",
         forecastPrompt: "ما توقعات القوى العاملة للغد وما الإجراءات التي توصي بها؟",
-        guardianLabel: "Platform Guardian",
+        guardianLabel: "Guard Wächter",
+        guardianSub: "حماية من الانهيار — يكتشف الأعطال مبكراً ويصلح تلقائياً ويبقي المنصة مستقرة",
+        guardianLive: "في الخدمة",
+        guardianOnWatch: "الحراسة نشطة",
+        guardianHealStrong: "إصلاح تلقائي قوي",
+        guardianHealApplied: "{n} إصلاحات مطبّقة",
+        guardianHealReady: "جاهز للإصلاح",
+        guardianSecondPass: "جولة إصلاح ثانية",
         statusOk: "OK",
         statusOffline: "غير متصل",
         statusDegraded: "مقيد",
+        guardianUnavailable: "جارٍ الفحص…",
+        guardianUnavailableHint: "يتم تحميل الحالة — اضغط Health-Check عند الحاجة",
         guardianAffected: "متأثر: {list}",
         guardianWorkersMissing: "عاملات الخلفية مفقودة",
         guardianAllGreen: "جميع الوحدات خضراء",
@@ -863,39 +1056,77 @@
       grid.insertBefore(el, grid.querySelector(".card[style*='grid-column']") || grid.firstChild);
     }
 
+    function guardianShieldSvg() {
+      return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2.5l7.5 3.2v6.1c0 4.6-3.1 8.7-7.5 9.7-4.4-1-7.5-5.1-7.5-9.7V5.7L12 2.5z" stroke="currentColor" stroke-width="1.7" fill="rgba(75,227,209,0.12)"/>
+        <path d="M9.2 12.1l1.9 1.9 3.8-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+    }
+
     function renderGuardianCard(guardian, history) {
-      if (!guardian || !guardian.timestamp) return "";
-      const status = String(guardian.status || "unknown").toLowerCase();
+      const g = guardian && typeof guardian === "object" ? guardian : null;
+      const hasData = Boolean(g && (g.timestamp || (Array.isArray(g.probes) && g.probes.length)));
+      if (!hasData) {
+        return `
+        <div class="card guardian-card degraded" id="guardianCard">
+          <div class="guardian-shell">
+            <div class="guardian-head">
+              <div class="guardian-mark" style="color:var(--accent)">${guardianShieldSvg()}<span class="guardian-mark-dot"></span></div>
+              <div>
+                <div class="guardian-title">${tr("guardianLabel")}</div>
+                <div class="guardian-sub">${tr("guardianSub")}</div>
+                <div class="guardian-status-row">
+                  <span class="guardian-status">${tr("guardianUnavailable")}</span>
+                  <span class="guardian-live">${tr("guardianOnWatch")}</span>
+                  <span class="guardian-live">${tr("guardianHealStrong")}</span>
+                </div>
+              </div>
+              <div class="guardian-meta"><strong>${tr("guardianLive")}</strong>${tr("guardianUnavailableHint")}</div>
+            </div>
+            <div class="guardian-body">
+              <div class="guardian-actions">
+                <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
+                <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }
+      const status = String(g.status || "unknown").toLowerCase();
       const cls = status === "ok" ? "" : status === "down" ? "down" : "degraded";
       const statusLabel = status === "ok" ? tr("statusOk") : status === "down" ? tr("statusOffline") : tr("statusDegraded");
-      const failed = Array.isArray(guardian.failedProbes) ? guardian.failedProbes : [];
-      const probes = Array.isArray(guardian.probes) ? guardian.probes : [];
+      const failed = Array.isArray(g.failedProbes) ? g.failedProbes : [];
+      const probes = Array.isArray(g.probes) ? g.probes : [];
       const probeHtml = probes.map((p) => {
         const ok = !!p.ok;
         const label = p.id || "probe";
         return `<span class="guardian-probe ${ok ? "ok" : "fail"}">${label}${p.latencyMs != null ? ` · ${p.latencyMs}ms` : ""}</span>`;
       }).join("");
-      const host = (guardian.cloud && guardian.cloud.host) || "";
-      const checked = (guardian.timestamp || "").replace("T", " ").slice(0, 19);
+      const host = (g.cloud && g.cloud.host) || "";
+      const checked = (g.timestamp || "").replace("T", " ").slice(0, 19);
       const alertHint = failed.length
         ? tr("guardianAffected", { list: failed.join(", ") })
-        : (guardian.workersDegraded ? tr("guardianWorkersMissing") : tr("guardianAllGreen"));
-      const remediation = guardian.remediation || {};
+        : (g.workersDegraded ? tr("guardianWorkersMissing") : tr("guardianAllGreen"));
+      const remediation = g.remediation || {};
       const applied = remediation.appliedCount ?? 0;
       const remediationHint = remediation.enabled
         ? (applied > 0 ? tr("guardianAutoRepair", { n: applied }) : tr("guardianAutoRepairReady"))
         : "";
-      const reProbe = guardian.reProbe || {};
+      const healBadge = applied > 0
+        ? tr("guardianHealApplied", { n: applied })
+        : tr("guardianHealReady");
+      const secondPassHint = remediation.secondPass ? tr("guardianSecondPass") : "";
+      const reProbe = g.reProbe || {};
       const recovered = Array.isArray(reProbe.recovered) ? reProbe.recovered : [];
       const reProbeHint = recovered.length ? tr("guardianReProbeRecovered", { list: recovered.join(", ") }) : "";
-      const sec = guardian.security || {};
+      const sec = g.security || {};
       const secHint = sec.enabled
         ? (sec.elevated
           ? tr("guardianSecurityElevated", { n: sec.failedLogins15m ?? 0, severity: String(sec.severity || "warn").toUpperCase() })
           : tr("guardianSecurityOk", { n: sec.failedLogins24h ?? 0 }))
         : "";
-      const extraHints = [remediationHint, reProbeHint, secHint].filter(Boolean).join(" · ");
-      const ops = guardian.ops || {};
+      const extraHints = [remediationHint, secondPassHint, reProbeHint, secHint].filter(Boolean).join(" · ");
+      const ops = g.ops || {};
       const opsHtml = `
         <div class="guardian-ops">
           <span class="${(ops.criticalInvoiceRetries || 0) > 0 ? "warn" : ""}">${tr("invoiceRetry")}: ${ops.criticalInvoiceRetries ?? 0}</span>
@@ -909,25 +1140,65 @@
         const fixes = row.appliedCount ? ` · ${row.appliedCount} ${tr("guardianFix")}` : "";
         return `<div class="guardian-history-row">${ts} · ${st}${fixes}</div>`;
       }).join("") || `<div class="guardian-history-row">—</div>`;
+      const markColor = status === "ok" ? "var(--accent)" : status === "down" ? "#f87171" : "#fbbf24";
+      const appliedActions = (Array.isArray(remediation.actions) ? remediation.actions : [])
+        .filter((a) => a && a.ok && !a.skipped)
+        .slice(0, 8)
+        .map((a) => `<span class="guardian-probe ok">${a.id || "fix"}</span>`)
+        .join("");
       return `
         <div class="card guardian-card ${cls}" id="guardianCard">
-          <div class="guardian-head">
-            <div>
-              <div class="label">${tr("guardianLabel")}</div>
-              <div class="guardian-status">${statusLabel}</div>
-              <div class="label" style="margin-top:0.35rem">${alertHint}</div>
-              ${extraHints ? `<div class="label" style="margin-top:0.25rem">${extraHints}</div>` : ""}
+          <div class="guardian-shell">
+            <div class="guardian-head">
+              <div class="guardian-mark" style="color:${markColor}">${guardianShieldSvg()}<span class="guardian-mark-dot"></span></div>
+              <div>
+                <div class="guardian-title">${tr("guardianLabel")}</div>
+                <div class="guardian-sub">${tr("guardianSub")}</div>
+                <div class="guardian-status-row">
+                  <span class="guardian-status">${statusLabel}</span>
+                  <span class="guardian-live">${tr("guardianOnWatch")}</span>
+                  <span class="guardian-live">${tr("guardianHealStrong")}</span>
+                  <span class="guardian-live">${healBadge}</span>
+                </div>
+              </div>
+              <div class="guardian-meta">
+                <strong>${tr("guardianLive")}</strong>
+                ${host ? `${host}<br>` : ""}${checked ? `${checked} UTC` : "—"}
+              </div>
             </div>
-            <div class="label">${host ? host + "<br>" : ""}${checked} UTC</div>
+            <div class="guardian-body">
+              <div class="guardian-alert">${alertHint}</div>
+              ${extraHints ? `<div class="guardian-extra">${extraHints}</div>` : ""}
+              <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
+              ${appliedActions ? `<div class="guardian-probes" style="margin-top:0.45rem">${appliedActions}</div>` : ""}
+              ${opsHtml}
+              <div class="guardian-actions">
+                <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
+                <button type="button" class="ghost" id="guardianRepairBtn">${tr("repairNow")}</button>
+              </div>
+              <div class="guardian-history">${historyHtml}</div>
+            </div>
           </div>
-          <div class="guardian-probes">${probeHtml || '<span class="guardian-probe">—</span>'}</div>
-          ${opsHtml}
-          <div class="guardian-actions">
-            <button type="button" id="guardianCheckBtn">${tr("healthCheck")}</button>
-            <button type="button" id="guardianRepairBtn">${tr("repairNow")}</button>
-          </div>
-          <div class="guardian-history">${historyHtml}</div>
         </div>`;
+    }
+
+    function patchGuardianCard(guardianBundle) {
+      const html = renderGuardianCard(
+        guardianBundle?.status || guardianBundle,
+        guardianBundle?.history || [],
+      ).trim();
+      if (!html) return;
+      const existing = document.getElementById("guardianCard");
+      const wrap = document.createElement("div");
+      wrap.innerHTML = html;
+      const next = wrap.firstElementChild;
+      if (!next) return;
+      if (existing) existing.replaceWith(next);
+      else {
+        const grid = document.getElementById("grid");
+        grid?.insertBefore(next, grid.firstChild);
+      }
+      wireGuardianActions();
     }
 
     function api(path, opts = {}) {
@@ -1924,14 +2195,38 @@
     }
 
     async function loadGuardianBundle() {
+      const prev = lastGuardianBundle || { status: null, history: [] };
       try {
+        // First /guardian/status may run a full probe cycle — allow more than the default soft timeout.
         const [status, historyPayload] = await Promise.all([
-          apiSoft("/api/guardian/status", null, 3500),
-          apiSoft("/api/guardian/history?limit=20", { history: [] }, 3500),
+          apiSoft("/api/guardian/status", prev.status || null, 12000),
+          apiSoft("/api/guardian/history?limit=20", { history: prev.history || [] }, 8000),
         ]);
-        return { status, history: historyPayload?.history || [] };
+        const resolved = {
+          status: status?.timestamp ? status : (prev.status || status),
+          history: historyPayload?.history?.length ? historyPayload.history : (prev.history || []),
+        };
+        // If soft-timeout returned empty, keep requesting in background and patch the card.
+        if (!resolved.status?.timestamp) {
+          Promise.resolve()
+            .then(() => api("/api/guardian/status"))
+            .then(async (fresh) => {
+              if (!fresh?.timestamp) return;
+              let history = resolved.history;
+              try {
+                const h = await apiSoft("/api/guardian/history?limit=20", { history }, 8000);
+                history = h?.history || history;
+              } catch {
+                /* ignore */
+              }
+              lastGuardianBundle = { status: fresh, history };
+              patchGuardianCard(lastGuardianBundle);
+            })
+            .catch(() => {});
+        }
+        return resolved;
       } catch {
-        return { status: null, history: [] };
+        return prev;
       }
     }
 
@@ -2136,8 +2431,8 @@
         lastLohnSig = sig;
       }
       grid.innerHTML = `
-        ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests)}
         ${renderGuardianCard(guardian, guardianHistory)}
+        ${renderLohnHubSafe(lohnLink, lohnMessages, dataAlerts, payrollBatches, employeePreview, periodRequests)}
         <div class="card ops-card clickable" data-action="onsite" title="${tr("cardOnSiteHint")}">
           <div class="ops-label">${tr("cardOnSite")}</div><div class="ops-metric">${totals.workersOnSite ?? 0}</div>
         </div>

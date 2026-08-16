@@ -85,6 +85,7 @@ def register_guardian_blueprint(flask_app) -> None:
             dead_letter_total=dead_letter_total,
             failed_probes=list(snapshot.get("failedProbes") or []),
             force=True,
+            urgent=True,
         )
         refreshed = run_guardian_cycle(
             current_app._get_current_object(),

@@ -220,3 +220,34 @@ def test_guardian_interval_default_fast():
     os.environ.pop("BAUPASS_GUARDIAN_INTERVAL_SECONDS", None)
     os.environ.pop("SUPPIX_GUARDIAN_INTERVAL_SECONDS", None)
     assert runner.guardian_interval_seconds() == 30
+
+
+def test_guardian_next_interval_faster_when_bad(monkeypatch):
+    monkeypatch.delenv("BAUPASS_GUARDIAN_INTERVAL_SECONDS", raising=False)
+    monkeypatch.delenv("SUPPIX_GUARDIAN_INTERVAL_SECONDS", raising=False)
+    monkeypatch.delenv("BAUPASS_GUARDIAN_DOWN_INTERVAL_SECONDS", raising=False)
+    monkeypatch.delenv("BAUPASS_GUARDIAN_DEGRADED_INTERVAL_SECONDS", raising=False)
+    assert runner.guardian_next_interval_seconds("ok") == 30
+    assert runner.guardian_next_interval_seconds("degraded") == 20
+    assert runner.guardian_next_interval_seconds("down") == 15
+
+
+def test_urgent_cooldown_shorter(monkeypatch):
+    playbooks.reset_playbook_state_for_tests()
+    monkeypatch.setenv("BAUPASS_GUARDIAN_REMEDIATION_COOLDOWN_SECONDS", "3600")
+    monkeypatch.setenv("BAUPASS_GUARDIAN_REMEDIATION_URGENT_COOLDOWN_SECONDS", "45")
+    assert playbooks.remediation_cooldown_seconds(urgent=False) == 3600
+    assert playbooks.remediation_cooldown_seconds(urgent=True) == 45
+
+
+def test_memory_pressure_relief_playbook():
+    playbooks.reset_playbook_state_for_tests()
+    first = playbooks.memory_pressure_relief(force=True)
+    assert first.get("ok") is True
+    assert "collected" in first
+
+
+def test_trim_dead_letter_below_threshold():
+    playbooks.reset_playbook_state_for_tests()
+    skipped = playbooks.trim_task_dead_letter(dead_letter_total=3)
+    assert skipped.get("skipped") == "below_threshold"
