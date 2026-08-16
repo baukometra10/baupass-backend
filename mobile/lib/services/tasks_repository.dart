@@ -79,6 +79,19 @@ class TasksRepository {
     return rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
+  Future<Uint8List> downloadEmploymentContract(
+    WorkerSession session,
+    String contractId, {
+    bool asAttachment = true,
+  }) {
+    final action = asAttachment ? 'download.pdf' : 'preview.pdf';
+    return _api.getBytes(
+      '/api/worker-app/employment-contracts/${Uri.encodeComponent(contractId)}/$action',
+      bearerToken: session.bearer,
+      deviceId: session.deviceId,
+    );
+  }
+
   Future<List<Map<String, dynamic>>> listShiftAssignments(WorkerSession session) async {
     final data = await _api.getJson(
       '/api/shift/assignments',

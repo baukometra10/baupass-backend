@@ -1038,18 +1038,70 @@ class ContractsService:
             sign_url = ""
             if pending_employee and pending_employee.get("token"):
                 sign_url = f"{base_url.rstrip('/')}/contract-sign.html?token={pending_employee['token']}"
+            contract_id = str(row.get("id") or "")
+            has_text = bool(str(row.get("final_text") or row.get("draft_text") or "").strip())
+            pdf_path = Path(str(row.get("pdf_file_path") or ""))
+            has_pdf = pdf_path.is_file()
+            can_view = has_text or has_pdf
+            filename = f"arbeitsvertrag-{contract_id}.pdf"
+            title = str(row.get("title") or "").strip()
+            if title:
+                safe = "".join(ch if ch.isalnum() or ch in ("-", "_", " ") else "-" for ch in title).strip()
+                safe = "-".join(safe.split())[:60] or contract_id
+                filename = f"arbeitsvertrag-{safe}.pdf"
+            preview_url = (
+                f"/api/worker-app/employment-contracts/{contract_id}/preview.pdf" if can_view else ""
+            )
+            download_url = (
+                f"/api/worker-app/employment-contracts/{contract_id}/download.pdf" if can_view else ""
+            )
             out.append(
                 {
-                    "id": row.get("id"),
+                    "id": contract_id,
                     "title": row.get("title"),
                     "signStatus": row.get("signStatus"),
                     "status": row.get("status"),
                     "updatedAt": row.get("updated_at"),
                     "signUrl": sign_url,
                     "needsSignature": bool(sign_url),
+                    "canView": can_view,
+                    "canDownload": can_view,
+                    "hasPdf": has_pdf,
+                    "hasText": has_text,
+                    "filename": filename,
+                    "previewUrl": preview_url,
+                    "downloadUrl": download_url,
                 }
             )
         return out
+
+    def worker_owned_contract(self, contract_id: str, worker_id: str, company_id: str) -> dict[str, Any]:
+        contract = self.repo.get_contract(contract_id, company_id)
+        if not contract or str(contract.get("worker_id") or "") != str(worker_id):
+            raise ValueError("contract_not_found")
+        return contract
+
+    def worker_contract_pdf_bytes(
+        self,
+        contract_id: str,
+        worker_id: str,
+        company_id: str,
+        *,
+        prefer_stored: bool = True,
+    ) -> tuple[bytes, str]:
+        """
+        Return PDF bytes for the assigned worker.
+        Prefer stored signed/generated PDF; otherwise build a full preview from contract text.
+        """
+        contract = self.worker_owned_contract(contract_id, worker_id, company_id)
+        if prefer_stored:
+            pdf_path = Path(str(contract.get("pdf_file_path") or ""))
+            if pdf_path.is_file():
+                return pdf_path.read_bytes(), "stored"
+        text = str(contract.get("final_text") or contract.get("draft_text") or "").strip()
+        if not text and not Path(str(contract.get("pdf_file_path") or "")).is_file():
+            raise ValueError("contract_pdf_missing")
+        return self.build_preview_pdf_bytes(contract_id, company_id), "generated"
 
     def get_integrations_status(self, company_id: str) -> dict[str, Any]:
         from backend.app.platform.notifications.sms import sms_configured

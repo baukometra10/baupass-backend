@@ -981,6 +981,50 @@ def register_contracts_blueprint(flask_app: Flask) -> None:
         contracts = ContractsService(get_db()).list_worker_app_contracts(worker_id, company_id, base_url=base)
         return jsonify({"contracts": contracts})
 
+    @contracts_core_bp.get("/worker-app/employment-contracts/<contract_id>/preview.pdf")
+    @require_worker_session
+    def worker_app_employment_contract_preview(contract_id: str):
+        worker_id = str(g.worker["id"])
+        company_id = str(g.worker["company_id"])
+        try:
+            pdf_bytes, _source = ContractsService(get_db()).worker_contract_pdf_bytes(
+                contract_id,
+                worker_id,
+                company_id,
+                prefer_stored=True,
+            )
+        except ValueError as exc:
+            code = str(exc)
+            return jsonify({"error": code}), 404 if code in {"contract_not_found", "contract_pdf_missing"} else 400
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=False,
+            download_name=f"arbeitsvertrag-{contract_id}.pdf",
+        )
+
+    @contracts_core_bp.get("/worker-app/employment-contracts/<contract_id>/download.pdf")
+    @require_worker_session
+    def worker_app_employment_contract_download(contract_id: str):
+        worker_id = str(g.worker["id"])
+        company_id = str(g.worker["company_id"])
+        try:
+            pdf_bytes, _source = ContractsService(get_db()).worker_contract_pdf_bytes(
+                contract_id,
+                worker_id,
+                company_id,
+                prefer_stored=True,
+            )
+        except ValueError as exc:
+            code = str(exc)
+            return jsonify({"error": code}), 404 if code in {"contract_not_found", "contract_pdf_missing"} else 400
+        return send_file(
+            io.BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=f"arbeitsvertrag-{contract_id}.pdf",
+        )
+
     _testing = str(os.getenv("BAUPASS_ENV", "")).strip().lower() == "testing"
     _bg_jobs = str(os.getenv("BAUPASS_ENABLE_BACKGROUND_JOBS", "1")).strip().lower() in {
         "1",
