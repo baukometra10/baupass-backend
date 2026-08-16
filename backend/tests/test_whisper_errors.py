@@ -18,10 +18,24 @@ def test_parse_invalid_api_key():
     assert out["error"] == "openai_auth_error"
 
 
-def test_whisper_prefers_azure_when_configured(monkeypatch):
+def test_whisper_prefers_openai_when_both_configured(monkeypatch):
+    # Product default: OpenAI first for multilingual/Arabic quality when both are set.
     monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
     monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    monkeypatch.delenv("BAUPASS_WHISPER_PREFER", raising=False)
+    monkeypatch.delenv("BAUPASS_AI_PREFER", raising=False)
+    providers = list_whisper_providers()
+    assert len(providers) == 2
+    assert providers[0].provider == "openai"
+    assert providers[1].provider == "azure"
+
+
+def test_whisper_prefers_azure_when_forced(monkeypatch):
+    monkeypatch.setenv("AZURE_OPENAI_API_KEY", "azure-key")
+    monkeypatch.setenv("AZURE_OPENAI_ENDPOINT", "https://example.openai.azure.com")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+    monkeypatch.setenv("BAUPASS_WHISPER_PREFER", "azure")
     providers = list_whisper_providers()
     assert len(providers) == 2
     assert providers[0].provider == "azure"
