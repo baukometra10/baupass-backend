@@ -253,7 +253,10 @@ def worker_deployment_plan_payload(
     from .attendance_eligibility import is_real_deployment_location
 
     scheduled = [
-        d for d in days if is_real_deployment_location(str(d.get("location") or ""))
+        d
+        for d in days
+        if is_real_deployment_location(str(d.get("location") or ""))
+        and not (d.get("isSwappedOut") is True or str(d.get("swapStatus") or "").lower() == "out")
     ]
     has_plan_entries = any(str(d.get("location") or "").strip() for d in days)
     has_assignments = bool(scheduled)

@@ -126,8 +126,16 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
           return e.message?.trim().isNotEmpty == true
               ? e.message!.trim()
               : 'Ablehnen ist nur bis 2 Stunden vor Schichtbeginn möglich.';
+        case 'deployment_swap_after_checkin':
+          return 'Nach dem Check-in kann dieser Tag nicht mehr getauscht werden.';
+        case 'deployment_swap_cutoff_elapsed':
+          return e.message?.trim().isNotEmpty == true
+              ? e.message!.trim()
+              : 'Tauschen ist nur bis 1 Stunde vor Schichtbeginn möglich.';
+        case 'deployment_already_swapped':
+          return 'Dieser Tag wurde bereits getauscht.';
         case 'past_day_not_allowed':
-          return 'Vergangene Tage können nicht abgelehnt werden.';
+          return 'Vergangene Tage können nicht geändert werden.';
         default:
           return e.friendlyMessage;
       }
@@ -226,6 +234,13 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
   Future<void> _proposeSwapForDay(Map<String, dynamic> day) async {
     final iso = (day['date'] as String? ?? '').substring(0, 10);
     if (iso.isEmpty) return;
+    if (!_canSwap(day)) {
+      final msg = _swapBlockedMessage(day);
+      if (mounted && msg != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      }
+      return;
+    }
     final coworkers =
         _coworkers.where((c) => (c['id'] ?? '').toString().isNotEmpty).toList();
     if (coworkers.isEmpty) {
@@ -269,6 +284,12 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                     Text(
                       '$iso${loc.isNotEmpty ? ' · $loc' : ''}'
                       '${time.isNotEmpty ? '\n$time' : ''}',
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Tauschen nur bis 1 Stunde vor Schichtbeginn. '
+                      'Nach Annahme zählen die Stunden beim Kollegen.',
                       style: Theme.of(ctx).textTheme.bodySmall,
                     ),
                     const SizedBox(height: 8),
@@ -383,7 +404,7 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
       );
     } catch (e) {
       if (!mounted) return;
-      final msg = e is ApiException ? e.friendlyMessage : e.toString();
+      final msg = e is ApiException ? _friendlyDeclineError(e) : e.toString();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
@@ -405,8 +426,11 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     }
 
     final canDecline = _canDecline(day, canRespond);
-    final canSwap = day['canSwap'] == true || _isTodayOrFuture(iso);
+    final canSwap = _canSwap(day);
     final blockMsg = _declineBlockedMessage(day);
+    final swapBlockMsg = _swapBlockedMessage(day);
+    final swapMsg = _swapMessage(day);
+    final swappedOut = _isSwappedOut(day);
 
     await showModalBottomSheet<void>(
       context: context,
@@ -438,7 +462,18 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                   ].join(' · '),
                   style: Theme.of(ctx).textTheme.bodyMedium,
                 ),
-                if (blockMsg != null && !declined) ...[
+                if (swapMsg != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    swapMsg,
+                    style: TextStyle(
+                      color: Theme.of(ctx).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+                if (blockMsg != null && !declined && !swappedOut) ...[
                   const SizedBox(height: 8),
                   Text(
                     blockMsg,
@@ -448,8 +483,24 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                     ),
                   ),
                 ],
+                if (swapBlockMsg != null && !swappedOut && !canSwap) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    swapBlockMsg,
+                    style: TextStyle(
+                      color: Theme.of(ctx).colorScheme.error,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
-                if (declined)
+                if (swappedOut)
+                  const ListTile(
+                    leading: Icon(Icons.swap_horiz),
+                    title: Text('Bereits getauscht'),
+                    subtitle: Text('Keine weiteren Aktionen für diesen Tag'),
+                  )
+                else if (declined)
                   ListTile(
                     leading: const Icon(Icons.undo),
                     title: const Text('Ablehnung zurücknehmen'),
@@ -488,7 +539,11 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                           : Theme.of(ctx).disabledColor,
                     ),
                     title: const Text('Schicht tauschen / abgeben'),
-                    subtitle: const Text('Mit einem Kollegen'),
+                    subtitle: Text(
+                      canSwap
+                          ? 'Mit einem Kollegen (bis 1 Std. vor Beginn)'
+                          : (swapBlockMsg ?? 'Nicht möglich'),
+                    ),
                     enabled: canSwap,
                     onTap: canSwap
                         ? () {
@@ -532,6 +587,25 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
     return day['workerResponse'] == 'declined' || day['isDeclined'] == true;
   }
 
+  bool _isSwappedOut(Map<String, dynamic> day) {
+    return day['isSwappedOut'] == true ||
+        (day['swapStatus'] as String? ?? '').toLowerCase() == 'out';
+  }
+
+  String? _swapMessage(Map<String, dynamic> day) {
+    final msg = (day['swapMessage'] as String? ?? '').trim();
+    if (msg.isNotEmpty) return msg;
+    final partner = (day['swapPartnerName'] as String? ?? '').trim();
+    if (_isSwappedOut(day) && partner.isNotEmpty) {
+      return 'Du hast diesen Tag mit $partner getauscht.';
+    }
+    if ((day['swapStatus'] as String? ?? '').toLowerCase() == 'in' &&
+        partner.isNotEmpty) {
+      return 'Übernommen von $partner.';
+    }
+    return null;
+  }
+
   bool _isTodayOrFuture(String iso) {
     final parsed = DateTime.tryParse(iso);
     if (parsed == null) return false;
@@ -542,8 +616,22 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
   }
 
   bool _canDecline(Map<String, dynamic> day, bool canRespond) {
-    if (!canRespond || !_dayHasAssignment(day) || _isDeclined(day)) return false;
+    if (!canRespond ||
+        !_dayHasAssignment(day) ||
+        _isDeclined(day) ||
+        _isSwappedOut(day)) {
+      return false;
+    }
     if (day.containsKey('canDecline')) return day['canDecline'] == true;
+    final iso = (day['date'] as String? ?? '').substring(0, 10);
+    return _isTodayOrFuture(iso);
+  }
+
+  bool _canSwap(Map<String, dynamic> day) {
+    if (!_dayHasAssignment(day) || _isDeclined(day) || _isSwappedOut(day)) {
+      return false;
+    }
+    if (day.containsKey('canSwap')) return day['canSwap'] == true;
     final iso = (day['date'] as String? ?? '').substring(0, 10);
     return _isTodayOrFuture(iso);
   }
@@ -559,6 +647,26 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
         return 'Ablehnen nur bis $h Stunden vor Schichtbeginn möglich.';
       case 'past_day':
         return 'Vergangene Tage können nicht abgelehnt werden.';
+      case 'swapped_out':
+        return _swapMessage(day) ?? 'Dieser Tag wurde bereits getauscht.';
+      default:
+        return null;
+    }
+  }
+
+  String? _swapBlockedMessage(Map<String, dynamic> day) {
+    final reason = (day['swapBlockReason'] as String? ?? '').trim();
+    switch (reason) {
+      case 'checked_in':
+        return 'Nach dem Check-in kann dieser Tag nicht mehr getauscht werden.';
+      case 'cutoff':
+        final hours = day['swapCutoffHours'];
+        final h = hours is num ? hours.toString() : '1';
+        return 'Tauschen nur bis $h Stunde(n) vor Schichtbeginn möglich.';
+      case 'past_day':
+        return 'Vergangene Tage können nicht getauscht werden.';
+      case 'swapped_out':
+        return _swapMessage(day) ?? 'Dieser Tag wurde bereits getauscht.';
       default:
         return null;
     }
@@ -667,7 +775,7 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
               child: const Padding(
                 padding: EdgeInsets.all(12),
                 child: Text(
-                  'Tipp: Tippen Sie auf einen Arbeitstag → Ablehnen oder Schicht tauschen. Ablehnen ist nach Check-in und kurz vor Schichtbeginn gesperrt.',
+                  'Tipp: Tippen Sie auf einen Arbeitstag → Ablehnen oder Schicht tauschen. Ablehnen bis 2 Std. / Tauschen bis 1 Std. vor Schichtbeginn; nach Check-in gesperrt. Nach Tausch zählen die Stunden beim Kollegen.',
                   style: TextStyle(fontSize: 13),
                 ),
               ),
@@ -703,6 +811,7 @@ class _DeploymentPlanTabState extends State<DeploymentPlanTab> {
                 if (free) 'Frei' else if (loc.isNotEmpty) loc else 'Kein Einsatz',
                 if (time.isNotEmpty) time,
                 if (declined) 'Abgelehnt',
+                if (_swapMessage(day) != null) _swapMessage(day)!,
               ];
               final canDecline = _canDecline(day, canRespond);
               return Card(

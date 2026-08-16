@@ -4235,6 +4235,14 @@ def init_db():
     wdd_columns = [row[1] for row in cur.execute("PRAGMA table_info(worker_deployment_days)").fetchall()]
     if "day_color" not in wdd_columns:
         cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN day_color TEXT NOT NULL DEFAULT ''")
+    if "swap_status" not in wdd_columns:
+        cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN swap_status TEXT NOT NULL DEFAULT ''")
+    if "swap_partner_id" not in wdd_columns:
+        cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_id TEXT NOT NULL DEFAULT ''")
+    if "swap_partner_name" not in wdd_columns:
+        cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_name TEXT NOT NULL DEFAULT ''")
+    if "swap_id" not in wdd_columns:
+        cur.execute("ALTER TABLE worker_deployment_days ADD COLUMN swap_id TEXT NOT NULL DEFAULT ''")
 
     settings_columns_new = [row[1] for row in cur.execute("PRAGMA table_info(settings)").fetchall()]
     if "dunning_stage1_days" not in settings_columns_new:
@@ -17477,6 +17485,74 @@ def shift_propose_swap():
     if not assignment or assignment["worker_id"] != worker["id"]:
         return jsonify({"error": "not_authorized"}), 403
 
+    # Deployment / shift swap: lock within 1h of shift start (and after check-in).
+    try:
+        from backend.app.platform.workforce.deployment_responses import (
+            evaluate_swap_allowed,
+            ensure_deployment_swap_columns,
+        )
+        from datetime import date as _date
+
+        ensure_deployment_swap_columns(db)
+        start_raw = str(assignment["start_time"] or "").replace("T", " ")
+        work_day = start_raw[:10]
+        shift_hm = start_raw[11:16] if len(start_raw) >= 16 else ""
+        swap_status = ""
+        try:
+            drow = db.execute(
+                """
+                SELECT swap_status, shift_start FROM worker_deployment_days
+                WHERE company_id = ? AND worker_id = ? AND work_date = ?
+                LIMIT 1
+                """,
+                (worker["company_id"], worker["id"], work_day),
+            ).fetchone()
+            if drow:
+                swap_status = str(drow["swap_status"] or "")
+                if not shift_hm:
+                    shift_hm = str(drow["shift_start"] or "")[:5]
+        except Exception:
+            pass
+        parsed_day = None
+        try:
+            parsed_day = _date.fromisoformat(work_day)
+        except Exception:
+            parsed_day = None
+        if parsed_day is not None:
+            allowed, block_reason, meta = evaluate_swap_allowed(
+                db,
+                worker_id=str(worker["id"]),
+                work_date=parsed_day,
+                shift_start=shift_hm,
+                swap_status=swap_status,
+            )
+            if not allowed:
+                error_code = {
+                    "past_day": "past_day_not_allowed",
+                    "checked_in": "deployment_swap_after_checkin",
+                    "cutoff": "deployment_swap_cutoff_elapsed",
+                    "swapped_out": "deployment_already_swapped",
+                }.get(block_reason, "deployment_swap_blocked")
+                message = {
+                    "past_day": "Vergangene Tage können nicht getauscht werden.",
+                    "checked_in": "Nach dem Check-in kann dieser Tag nicht mehr getauscht werden.",
+                    "cutoff": (
+                        f"Tauschen ist nur bis {meta.get('cutoffHours', 1)} Stunde(n) vor Schichtbeginn möglich."
+                    ),
+                    "swapped_out": "Dieser Tag wurde bereits getauscht.",
+                }.get(block_reason, "Tauschen nicht möglich.")
+                return jsonify(
+                    {
+                        "error": error_code,
+                        "message": message,
+                        "blockReason": block_reason,
+                        "cutoffHours": meta.get("cutoffHours"),
+                        "lockFrom": meta.get("lockFrom"),
+                    }
+                ), 409
+    except Exception:
+        pass
+
     target_assignment = None
     if target_assignment_id:
         target_assignment = db.execute(
@@ -17599,6 +17675,25 @@ def shift_respond_swap(swap_id):
                 "UPDATE shift_assignments SET worker_id = ? WHERE id = ?",
                 (to_worker_id, assignment["id"]),
             )
+        try:
+            from backend.app.platform.workforce.deployment_responses import (
+                apply_accepted_shift_swap_to_deployment,
+            )
+
+            apply_accepted_shift_swap_to_deployment(
+                db,
+                company_id=str(swap["company_id"]),
+                from_worker_id=str(from_worker_id),
+                to_worker_id=str(to_worker_id),
+                assignment_start=str(assignment["start_time"] or "") if assignment else "",
+                target_assignment_start=(
+                    str(target_assignment["start_time"] or "") if target_assignment else ""
+                ),
+                mutual=mutual,
+                swap_id=str(swap_id),
+            )
+        except Exception:
+            pass
     db.commit()
 
     push_delivery = {"pushSent": 0}

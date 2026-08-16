@@ -1775,5 +1775,19 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="053",
+        name="worker_deployment_day_swap_markers",
+        up_sql="""
+            ALTER TABLE worker_deployment_days ADD COLUMN swap_status TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_id TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_name TEXT NOT NULL DEFAULT '';
+            ALTER TABLE worker_deployment_days ADD COLUMN swap_id TEXT NOT NULL DEFAULT '';
+        """,
+        down_sql="""
+            -- SQLite cannot DROP COLUMN portably; markers remain unused if rolled back.
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

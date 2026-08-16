@@ -75,16 +75,34 @@ def worker_on_approved_leave(db, worker_id: str, target_date: date | None = None
 def worker_deployment_day_row(
     db, *, company_id: str, worker_id: str, target_date: date
 ) -> dict[str, Any] | None:
-    row = db.execute(
-        """
-        SELECT work_date, location_label, shift_start, shift_end, notes, day_color
-        FROM worker_deployment_days
-        WHERE company_id = ? AND worker_id = ? AND work_date = ?
-        LIMIT 1
-        """,
-        (str(company_id), str(worker_id), target_date.isoformat()),
-    ).fetchone()
+    try:
+        row = db.execute(
+            """
+            SELECT work_date, location_label, shift_start, shift_end, notes, day_color,
+                   swap_status, swap_partner_id, swap_partner_name
+            FROM worker_deployment_days
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            LIMIT 1
+            """,
+            (str(company_id), str(worker_id), target_date.isoformat()),
+        ).fetchone()
+    except Exception:
+        row = db.execute(
+            """
+            SELECT work_date, location_label, shift_start, shift_end, notes, day_color
+            FROM worker_deployment_days
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            LIMIT 1
+            """,
+            (str(company_id), str(worker_id), target_date.isoformat()),
+        ).fetchone()
     return dict(row) if row else None
+
+
+def deployment_day_is_swapped_out(row: dict[str, Any] | None) -> bool:
+    if not row:
+        return False
+    return str(row.get("swap_status") or "").strip().lower() == "out"
 
 
 def worker_deployment_response_for_date(
@@ -266,6 +284,8 @@ def _deployment_row_active_at(
         db, company_id=company_id, worker_id=worker_id, target_date=work_date
     ) == "declined":
         return False
+    if deployment_day_is_swapped_out(row):
+        return False
     ctx = _deployment_row_context(row)
     if not is_real_deployment_location(ctx["location"]):
         return False
@@ -383,6 +403,22 @@ def worker_may_auto_attend_today(
     shift_end = ctx["shiftEnd"]
 
     if plan_active:
+        if deployment_day_is_swapped_out(deployment_row):
+            partner = str((deployment_row or {}).get("swap_partner_name") or "").strip()
+            return {
+                "ok": False,
+                "reason": "deployment_swapped_out",
+                "message": (
+                    f"Dieser Tag wurde mit {partner} getauscht."
+                    if partner
+                    else "Dieser Tag wurde getauscht."
+                ),
+                "dayType": "swapped",
+                "location": location or "",
+                "shiftStart": shift_start,
+                "shiftEnd": shift_end,
+            }
+
         active_date, active_row = _resolve_active_deployment_at(
             db, company_id=company_id, worker_id=worker_id, now=current
         )

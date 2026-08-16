@@ -42,7 +42,8 @@ def list_deployment_days(
     try:
         rows = db.execute(
             """
-            SELECT id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at
+            SELECT id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at,
+                   swap_status, swap_partner_id, swap_partner_name, swap_id
             FROM worker_deployment_days
             WHERE company_id = ? AND worker_id = ? AND work_date >= ? AND work_date <= ?
             ORDER BY work_date ASC
@@ -50,7 +51,18 @@ def list_deployment_days(
             (str(company_id), str(worker_id), start, end),
         ).fetchall()
     except Exception:
-        return []
+        try:
+            rows = db.execute(
+                """
+                SELECT id, work_date, location_label, shift_start, shift_end, notes, day_color, source, updated_at
+                FROM worker_deployment_days
+                WHERE company_id = ? AND worker_id = ? AND work_date >= ? AND work_date <= ?
+                ORDER BY work_date ASC
+                """,
+                (str(company_id), str(worker_id), start, end),
+            ).fetchall()
+        except Exception:
+            return []
     return [dict(r) for r in rows]
 
 
@@ -316,6 +328,7 @@ def build_month_calendar(
         row = stored.get(key)
         rd = dict(row) if row else {}
         location = str(rd.get("location_label") or "")
+        swap_status = str(rd.get("swap_status") or "").strip().lower()
         out.append(
             {
                 "date": key,
@@ -328,6 +341,12 @@ def build_month_calendar(
                 "dayColor": str(rd.get("day_color") or ""),
                 "isFree": not _is_real_location(location),
                 "isWeekend": d.weekday() >= 5,
+                "swapStatus": swap_status,
+                "swapPartnerId": str(rd.get("swap_partner_id") or ""),
+                "swapPartnerName": str(rd.get("swap_partner_name") or ""),
+                "swapId": str(rd.get("swap_id") or ""),
+                "isSwappedOut": swap_status == "out",
+                "isSwappedIn": swap_status == "in",
             }
         )
     return out

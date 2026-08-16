@@ -36,6 +36,16 @@ def decline_cutoff_hours() -> float:
     return max(0.25, min(48.0, hours))
 
 
+def swap_cutoff_hours() -> float:
+    """Hours before shift start when swap is locked. Default 1h."""
+    raw = str(os.getenv("BAUPASS_DEPLOYMENT_SWAP_CUTOFF_HOURS", "1")).strip()
+    try:
+        hours = float(raw)
+    except ValueError:
+        hours = 1.0
+    return max(0.25, min(48.0, hours))
+
+
 def _parse_shift_start_hm(value: str) -> tuple[int, int] | None:
     raw = str(value or "").strip()
     if not raw:
@@ -71,6 +81,63 @@ def worker_checked_in_on_date(db, *, worker_id: str, work_date: date) -> bool:
         return False
 
 
+def _shift_start_datetime(work_date: date, shift_start: str = "") -> datetime:
+    hm = _parse_shift_start_hm(shift_start)
+    if hm is None:
+        # No explicit start — lock from midnight of that day (safer than open-ended).
+        hm = (0, 0)
+    hour, minute = hm
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = ZoneInfo(os.getenv("BAUPASS_BUSINESS_TZ", "Europe/Berlin"))
+        return datetime(work_date.year, work_date.month, work_date.day, hour, minute, tzinfo=tz)
+    except Exception:
+        return datetime(
+            work_date.year, work_date.month, work_date.day, hour, minute, tzinfo=timezone.utc
+        )
+
+
+def _evaluate_pre_shift_action(
+    db,
+    *,
+    worker_id: str,
+    work_date: date,
+    shift_start: str = "",
+    cutoff_hours: float,
+    block_after_checkin: bool = True,
+) -> tuple[bool, str, dict[str, Any]]:
+    """Shared gate for decline/swap. block_reason: '' | past_day | checked_in | cutoff | swapped_out."""
+    meta: dict[str, Any] = {
+        "cutoffHours": float(cutoff_hours),
+        "shiftStart": str(shift_start or "").strip()[:16],
+    }
+    if work_date < _business_today():
+        return False, "past_day", meta
+    if block_after_checkin and worker_checked_in_on_date(
+        db, worker_id=str(worker_id), work_date=work_date
+    ):
+        return False, "checked_in", meta
+
+    start_dt = _shift_start_datetime(work_date, shift_start)
+    try:
+        from zoneinfo import ZoneInfo
+
+        tz = start_dt.tzinfo or ZoneInfo(os.getenv("BAUPASS_BUSINESS_TZ", "Europe/Berlin"))
+        now = datetime.now(tz)
+    except Exception:
+        now = datetime.now(timezone.utc)
+        if start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=timezone.utc)
+
+    lock_from = start_dt.timestamp() - (float(cutoff_hours) * 3600.0)
+    meta["shiftStartAt"] = start_dt.isoformat()
+    meta["lockFrom"] = datetime.fromtimestamp(lock_from, tz=start_dt.tzinfo).isoformat()
+    if now.timestamp() >= lock_from:
+        return False, "cutoff", meta
+    return True, "", meta
+
+
 def evaluate_decline_allowed(
     db,
     *,
@@ -82,38 +149,43 @@ def evaluate_decline_allowed(
     Returns (allowed, block_reason, meta).
     block_reason: '' | past_day | checked_in | cutoff
     """
-    today = _business_today()
-    meta: dict[str, Any] = {
-        "cutoffHours": decline_cutoff_hours(),
+    return _evaluate_pre_shift_action(
+        db,
+        worker_id=worker_id,
+        work_date=work_date,
+        shift_start=shift_start,
+        cutoff_hours=decline_cutoff_hours(),
+        block_after_checkin=True,
+    )
+
+
+def evaluate_swap_allowed(
+    db,
+    *,
+    worker_id: str,
+    work_date: date,
+    shift_start: str = "",
+    swap_status: str = "",
+) -> tuple[bool, str, dict[str, Any]]:
+    """
+    Returns (allowed, block_reason, meta).
+    block_reason: '' | past_day | checked_in | cutoff | swapped_out
+    """
+    status = str(swap_status or "").strip().lower()
+    meta_base: dict[str, Any] = {
+        "cutoffHours": swap_cutoff_hours(),
         "shiftStart": str(shift_start or "").strip()[:16],
     }
-    if work_date < today:
-        return False, "past_day", meta
-    if worker_checked_in_on_date(db, worker_id=str(worker_id), work_date=work_date):
-        return False, "checked_in", meta
-
-    hm = _parse_shift_start_hm(shift_start)
-    if hm is None:
-        # No explicit start — lock from midnight of that day (safer than open-ended).
-        hm = (0, 0)
-    hour, minute = hm
-    try:
-        from zoneinfo import ZoneInfo
-
-        tz = ZoneInfo(os.getenv("BAUPASS_BUSINESS_TZ", "Europe/Berlin"))
-        start_dt = datetime(work_date.year, work_date.month, work_date.day, hour, minute, tzinfo=tz)
-        now = datetime.now(tz)
-    except Exception:
-        start_dt = datetime(work_date.year, work_date.month, work_date.day, hour, minute, tzinfo=timezone.utc)
-        now = datetime.now(timezone.utc)
-
-    cutoff = decline_cutoff_hours()
-    lock_from = start_dt.timestamp() - (cutoff * 3600.0)
-    meta["shiftStartAt"] = start_dt.isoformat()
-    meta["lockFrom"] = datetime.fromtimestamp(lock_from, tz=start_dt.tzinfo).isoformat()
-    if now.timestamp() >= lock_from:
-        return False, "cutoff", meta
-    return True, "", meta
+    if status == "out":
+        return False, "swapped_out", meta_base
+    return _evaluate_pre_shift_action(
+        db,
+        worker_id=worker_id,
+        work_date=work_date,
+        shift_start=shift_start,
+        cutoff_hours=swap_cutoff_hours(),
+        block_after_checkin=True,
+    )
 
 
 def enrich_days_with_decline_rules(
@@ -122,7 +194,7 @@ def enrich_days_with_decline_rules(
     worker_id: str,
     days: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Attach canDecline / declineBlockReason for worker UI."""
+    """Attach canDecline / canSwap / swap markers for worker UI."""
     from .attendance_eligibility import is_real_deployment_location
 
     out: list[dict[str, Any]] = []
@@ -132,27 +204,63 @@ def enrich_days_with_decline_rules(
         parsed = _parse_work_date(iso)
         declined = str(item.get("workerResponse") or "").lower() == "declined" or item.get("isDeclined") is True
         loc = str(item.get("location") or "").strip()
-        has_assignment = is_real_deployment_location(loc)
+        swap_status = str(item.get("swapStatus") or item.get("swap_status") or "").strip().lower()
+        partner_name = str(item.get("swapPartnerName") or item.get("swap_partner_name") or "").strip()
+        partner_id = str(item.get("swapPartnerId") or item.get("swap_partner_id") or "").strip()
+        item["swapStatus"] = swap_status
+        item["swapPartnerName"] = partner_name
+        item["swapPartnerId"] = partner_id
+        item["isSwappedOut"] = swap_status == "out"
+        item["isSwappedIn"] = swap_status == "in"
+        if swap_status == "out" and partner_name:
+            item["swapMessage"] = f"Du hast diesen Tag mit {partner_name} getauscht."
+        elif swap_status == "in" and partner_name:
+            item["swapMessage"] = f"Übernommen von {partner_name}."
+        else:
+            item["swapMessage"] = ""
+
+        has_assignment = is_real_deployment_location(loc) and swap_status != "out"
+        shift_start = str(item.get("shiftStart") or item.get("shift_start") or "")
         if not has_assignment or declined or not parsed:
             item["canDecline"] = False
-            item["canSwap"] = bool(has_assignment) and not declined and parsed is not None and parsed >= _business_today()
+            item["canSwap"] = False
             item["declineBlockReason"] = (
-                "not_applicable" if not has_assignment else ("declined" if declined else "")
+                "swapped_out"
+                if swap_status == "out"
+                else ("not_applicable" if not has_assignment else ("declined" if declined else ""))
+            )
+            item["swapBlockReason"] = (
+                "swapped_out"
+                if swap_status == "out"
+                else ("not_applicable" if not has_assignment else ("declined" if declined else ""))
             )
             out.append(item)
             continue
+
         allowed, reason, meta = evaluate_decline_allowed(
             db,
             worker_id=str(worker_id),
             work_date=parsed,
-            shift_start=str(item.get("shiftStart") or item.get("shift_start") or ""),
+            shift_start=shift_start,
         )
         item["canDecline"] = bool(allowed)
-        item["canSwap"] = parsed >= _business_today()
         item["declineBlockReason"] = reason
         item["declineCutoffHours"] = meta.get("cutoffHours")
         if meta.get("lockFrom"):
             item["declineLockFrom"] = meta["lockFrom"]
+
+        swap_ok, swap_reason, swap_meta = evaluate_swap_allowed(
+            db,
+            worker_id=str(worker_id),
+            work_date=parsed,
+            shift_start=shift_start,
+            swap_status=swap_status,
+        )
+        item["canSwap"] = bool(swap_ok)
+        item["swapBlockReason"] = swap_reason
+        item["swapCutoffHours"] = swap_meta.get("cutoffHours")
+        if swap_meta.get("lockFrom"):
+            item["swapLockFrom"] = swap_meta["lockFrom"]
         out.append(item)
     return out
 
@@ -607,6 +715,210 @@ def set_worker_day_response(
         "declineReason": reason_clean,
         "respondedAt": now,
     }, None
+
+
+def ensure_deployment_swap_columns(db) -> None:
+    """Add swap marker columns on worker_deployment_days (SQLite-safe)."""
+    try:
+        cols = {str(r[1]) for r in db.execute("PRAGMA table_info(worker_deployment_days)").fetchall()}
+    except Exception:
+        return
+    alters = [
+        ("swap_status", "ALTER TABLE worker_deployment_days ADD COLUMN swap_status TEXT NOT NULL DEFAULT ''"),
+        ("swap_partner_id", "ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_id TEXT NOT NULL DEFAULT ''"),
+        ("swap_partner_name", "ALTER TABLE worker_deployment_days ADD COLUMN swap_partner_name TEXT NOT NULL DEFAULT ''"),
+        ("swap_id", "ALTER TABLE worker_deployment_days ADD COLUMN swap_id TEXT NOT NULL DEFAULT ''"),
+    ]
+    for name, sql in alters:
+        if name not in cols:
+            try:
+                db.execute(sql)
+            except Exception:
+                pass
+
+
+def _worker_display_name(db, worker_id: str) -> str:
+    try:
+        row = db.execute(
+            "SELECT first_name, last_name FROM workers WHERE id = ? LIMIT 1",
+            (str(worker_id),),
+        ).fetchone()
+    except Exception:
+        return str(worker_id)
+    if not row:
+        return str(worker_id)
+    name = f"{row['first_name'] or ''} {row['last_name'] or ''}".strip()
+    return name or str(worker_id)
+
+
+def _work_date_from_assignment_start(start_time: str) -> str:
+    raw = str(start_time or "").strip().replace("T", " ")
+    return raw[:10]
+
+
+def transfer_deployment_day_for_swap(
+    db,
+    *,
+    company_id: str,
+    from_worker_id: str,
+    to_worker_id: str,
+    work_date: str,
+    swap_id: str = "",
+) -> bool:
+    """
+    Move a deployment work day from X to Y for hours/eligibility, keep X's row
+    marked as swapped-out so the app can show \"getauscht mit Y\".
+    """
+    from .attendance_eligibility import is_real_deployment_location
+    from .deployment_store import upsert_deployment_days
+
+    ensure_deployment_swap_columns(db)
+    parsed = _parse_work_date(work_date)
+    if not parsed:
+        return False
+    day = parsed.isoformat()
+    cid = str(company_id)
+    from_id = str(from_worker_id)
+    to_id = str(to_worker_id)
+    if from_id == to_id:
+        return False
+
+    try:
+        from_row = db.execute(
+            """
+            SELECT location_label, shift_start, shift_end, notes, day_color, swap_status
+            FROM worker_deployment_days
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            LIMIT 1
+            """,
+            (cid, from_id, day),
+        ).fetchone()
+    except Exception:
+        from_row = None
+    if not from_row:
+        return False
+    if str(from_row["swap_status"] or "").strip().lower() == "out":
+        return False
+    location = str(from_row["location_label"] or "").strip()
+    if not is_real_deployment_location(location):
+        return False
+
+    from_name = _worker_display_name(db, from_id)
+    to_name = _worker_display_name(db, to_id)
+    shift_start = str(from_row["shift_start"] or "")[:16]
+    shift_end = str(from_row["shift_end"] or "")[:16]
+    notes = str(from_row["notes"] or "")
+    day_color = str(from_row["day_color"] or "") if "day_color" in from_row.keys() else ""
+
+    # Y receives the work day → hours / check-in eligibility count for Y.
+    upsert_deployment_days(
+        db,
+        company_id=cid,
+        worker_id=to_id,
+        days=[
+            {
+                "date": day,
+                "location": location,
+                "shiftStart": shift_start,
+                "shiftEnd": shift_end,
+                "notes": notes,
+                "dayColor": day_color,
+            }
+        ],
+        source="shift_swap",
+    )
+    try:
+        db.execute(
+            """
+            UPDATE worker_deployment_days
+            SET swap_status = 'in',
+                swap_partner_id = ?,
+                swap_partner_name = ?,
+                swap_id = ?,
+                updated_at = ?
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            """,
+            (from_id, from_name, str(swap_id or ""), _now_iso(), cid, to_id, day),
+        )
+    except Exception:
+        pass
+
+    # X keeps the calendar day for visibility, marked swapped-out (no hours for X).
+    try:
+        db.execute(
+            """
+            UPDATE worker_deployment_days
+            SET swap_status = 'out',
+                swap_partner_id = ?,
+                swap_partner_name = ?,
+                swap_id = ?,
+                updated_at = ?
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            """,
+            (to_id, to_name, str(swap_id or ""), _now_iso(), cid, from_id, day),
+        )
+    except Exception:
+        return False
+
+    # Clear decline on Y so the taken day is workable.
+    try:
+        db.execute(
+            """
+            DELETE FROM worker_deployment_day_responses
+            WHERE company_id = ? AND worker_id = ? AND work_date = ?
+            """,
+            (cid, to_id, day),
+        )
+    except Exception:
+        pass
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return True
+
+
+def apply_accepted_shift_swap_to_deployment(
+    db,
+    *,
+    company_id: str,
+    from_worker_id: str,
+    to_worker_id: str,
+    assignment_start: str = "",
+    target_assignment_start: str = "",
+    mutual: bool = False,
+    swap_id: str = "",
+) -> dict[str, Any]:
+    """After shift_assignments ownership change, sync Einsatzplan days + hour ownership."""
+    ensure_deployment_swap_columns(db)
+    primary = _work_date_from_assignment_start(assignment_start)
+    transferred = False
+    if primary:
+        transferred = transfer_deployment_day_for_swap(
+            db,
+            company_id=company_id,
+            from_worker_id=from_worker_id,
+            to_worker_id=to_worker_id,
+            work_date=primary,
+            swap_id=swap_id,
+        )
+    reverse_ok = False
+    if mutual:
+        secondary = _work_date_from_assignment_start(target_assignment_start)
+        if secondary and secondary != primary:
+            reverse_ok = transfer_deployment_day_for_swap(
+                db,
+                company_id=company_id,
+                from_worker_id=to_worker_id,
+                to_worker_id=from_worker_id,
+                work_date=secondary,
+                swap_id=swap_id,
+            )
+    return {
+        "deploymentTransferred": bool(transferred),
+        "mutualDeploymentTransferred": bool(reverse_ok),
+        "workDate": primary,
+    }
 
 
 def ensure_shift_assignment_for_work_date(db, *, worker, work_date: str) -> str | None:
