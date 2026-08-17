@@ -33,11 +33,28 @@ TEST_COMPLIANCE_SIGNATURE = (
 
 @pytest.fixture(autouse=True)
 def _reset_server_rate_state():
-    server.request_rate_state.clear()
-    server.failed_login_attempts.clear()
+    def _clear():
+        server.request_rate_state.clear()
+        server.failed_login_attempts.clear()
+        limiter = getattr(server.app, "extensions", {}).get("rate_limiter")
+        if limiter is None:
+            return
+        windows = getattr(limiter, "_windows", None)
+        bans = getattr(limiter, "_bans", None)
+        if windows is not None:
+            try:
+                windows.clear()
+            except Exception:
+                pass
+        if bans is not None:
+            try:
+                bans.clear()
+            except Exception:
+                pass
+
+    _clear()
     yield
-    server.request_rate_state.clear()
-    server.failed_login_attempts.clear()
+    _clear()
 
 
 @pytest.fixture(autouse=True)

@@ -1498,6 +1498,17 @@ def get_rate_limit_key(scope):
 
 
 def check_rate_limit(scope):
+    # Pytest shares one process / one client IP. Keep production limits off the
+    # suite path unless a test explicitly opts back in.
+    if str(os.getenv("BAUPASS_ENV", "")).strip().lower() in {"testing", "test"}:
+        if str(os.getenv("BAUPASS_FORCE_RATE_LIMIT", "")).strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            return True, 0
+
     limiter = app.extensions.get("rate_limiter") if hasattr(app, "extensions") else None
     if limiter is not None:
         legacy_map = app.extensions.get("rate_limit_legacy_map") or {}
