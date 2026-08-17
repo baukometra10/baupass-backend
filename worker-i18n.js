@@ -3054,13 +3054,20 @@ if (!TRANSLATIONS[currentLang]) {
 
 function t(key, fallback) {
   const sectorTerm = window.__workerSectorTerms?.[key];
-  if (sectorTerm) return sectorTerm;
-  const pack = TRANSLATIONS[currentLang];
-  if (pack && pack[key] !== undefined) return pack[key];
-  if (currentLang !== "en" && TRANSLATIONS.en?.[key] !== undefined) return TRANSLATIONS.en[key];
-  if (currentLang !== "de" && TRANSLATIONS.de?.[key] !== undefined) return TRANSLATIONS.de[key];
-  if (fallback !== undefined && fallback !== null && fallback !== "") return fallback;
-  return key;
+  let resolved;
+  if (sectorTerm) resolved = sectorTerm;
+  else {
+    const pack = TRANSLATIONS[currentLang];
+    if (pack && pack[key] !== undefined) resolved = pack[key];
+    else if (currentLang !== "en" && TRANSLATIONS.en?.[key] !== undefined) resolved = TRANSLATIONS.en[key];
+    else if (currentLang !== "de" && TRANSLATIONS.de?.[key] !== undefined) resolved = TRANSLATIONS.de[key];
+    else if (fallback !== undefined && fallback !== null && fallback !== "") resolved = fallback;
+    else resolved = key;
+  }
+  if (typeof window !== "undefined" && window.BaupassSectorCopy?.applyFromWindow) {
+    return window.BaupassSectorCopy.applyFromWindow(resolved, currentLang);
+  }
+  return resolved;
 }
 
 function tf(key, vars = {}) {

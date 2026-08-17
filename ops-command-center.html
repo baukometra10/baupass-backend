@@ -522,6 +522,7 @@
   </header>
   <main id="grid"><p class="muted" id="gridLoading">Laden…</p></main>
   <script src="/embed-helpers.js?v=20260814officeLohn1"></script>
+  <script src="/sector-copy.js?v=20260817sector1"></script>
   <script src="/ops-center-i18n-extra.js?v=20260801lohn8"></script>
   <script>
     // Heavy realtime/CDN scripts load after first paint — they previously blocked "Laden…" for seconds.
@@ -543,7 +544,7 @@
       io.onerror = () => {
         add("/ops-realtime.js?v=20260726ws1");
       };
-      add("/ai-operator-fab.js?v=20260725p");
+        add("/ai-operator-fab.js?v=20260817sector1");
     })();
   </script>
   <script>
@@ -1015,6 +1016,9 @@
       Object.entries(vars).forEach(([k, v]) => {
         text = text.replace(new RegExp(`\\{${k}\\}`, "g"), String(v));
       });
+      if (window.BaupassSectorCopy?.applyFromWindow) {
+        text = window.BaupassSectorCopy.applyFromWindow(text, OPS_LANG);
+      }
       return text;
     };
 
@@ -1930,6 +1934,20 @@
         cachedMe = await apiSoft("/api/me", null, 2000);
       } catch {
         cachedMe = null;
+      }
+      try {
+        const cid = companyId || cachedMe?.company_id || cachedMe?.companyId || cachedMe?.preview_company_id || "";
+        let url = `/api/platform/sector-config?lang=${encodeURIComponent(OPS_LANG)}`;
+        if (cid) url += `&company_id=${encodeURIComponent(cid)}`;
+        const sectorData = await apiSoft(url, null, 2000);
+        if (sectorData?.sector) {
+          window.__baupassSector = {
+            sector: sectorData.sector,
+            terms: sectorData.terms || {},
+          };
+        }
+      } catch {
+        // keep construction defaults
       }
       return cachedMe;
     }

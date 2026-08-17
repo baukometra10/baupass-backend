@@ -34,6 +34,7 @@ const SECTOR_I18N_MAP = {
   "sector.termWorker": "termWorker",
   "sector.termWorkers": "termWorkers",
   "sector.termSite": "termSite",
+  "sector.termCompany": "termCompany",
   "sector.termGate": "termGate",
   "table.worker": "termWorker",
   "table.gate": "termGate",
@@ -106,6 +107,9 @@ export function t(key, vars = {}) {
     || key;
   for (const [k, v] of Object.entries(vars)) {
     text = text.replaceAll(`{${k}}`, String(v ?? ""));
+  }
+  if (typeof window !== "undefined" && window.BaupassSectorCopy?.applyFromWindow) {
+    text = window.BaupassSectorCopy.applyFromWindow(text, lang);
   }
   return text;
 }

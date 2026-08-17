@@ -1,4 +1,4 @@
-import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260814opsPlan1";
+import { applyI18n, featureLabel, formatForecastSummary, getLang, moduleAlertMessage, resolvePlanLabel, setLang, setSectorTermOverrides, t, widgetDetail, widgetLabel, widgetValue } from "./i18n.js?v=20260817sector1";
 import { ensureLeafletLoaded, mountGeofenceMapWhenReady, refreshGeofenceMap, searchGeofencePlace, useGeofenceCurrentLocation } from "./geofence-map.js";
 import { INTEGRATION_WIZARD, buildConnectPayload, renderWizardForm } from "./integrations-wizard.js";
 
@@ -432,6 +432,7 @@ async function loadSectorTerminologyForAdmin() {
     setSectorTermOverrides(data?.terms || {});
     window.__adminV2Sector = data?.sector || "construction";
     window.__adminV2SectorLabel = data?.label || "";
+    window.__adminV2SectorTerms = data?.terms || {};
     document.body.dataset.operatingSector = data?.sector || "construction";
     const chip = $("sectorChip");
     if (chip) {
@@ -462,6 +463,7 @@ function applyParentCompanyId(companyId) {
     if (has) select.value = cid;
   }
   void applyTenantBrandingFromApi();
+  void loadSectorTerminologyForAdmin();
 }
 
 window.addEventListener("message", (event) => {

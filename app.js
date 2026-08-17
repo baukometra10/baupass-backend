@@ -8425,8 +8425,13 @@ async function loadSectorTerminology() {
   }
   try {
     let url = `${API_BASE}/api/platform/sector-config?lang=${encodeURIComponent(getStoredUiLang())}`;
-    if (superadminUiPreviewCompanyId) {
-      url += `&company_id=${encodeURIComponent(superadminUiPreviewCompanyId)}`;
+    const companyId = typeof getEffectiveUiCompanyId === "function"
+      ? String(getEffectiveUiCompanyId() || "").trim()
+      : "";
+    const previewId = String(superadminUiPreviewCompanyId || "").trim();
+    const sectorCompanyId = companyId || previewId;
+    if (sectorCompanyId) {
+      url += `&company_id=${encodeURIComponent(sectorCompanyId)}`;
     }
     const data = await apiRequest(url);
     window.__baupassSector = {
@@ -8436,34 +8441,44 @@ async function loadSectorTerminology() {
       terms: data.terms || {},
       template: data.template || {},
     };
+    document.body?.setAttribute("data-operating-sector", data.sector || "construction");
     const topHeading = document.querySelector(".topbar h1, .topbar-heading, [data-ui-i18n='topbarHeading']");
     if (topHeading && data.productLine && getStoredUiLang() !== "de") {
       topHeading.setAttribute("title", data.productLine);
+    }
+    if (typeof applyUiTranslations === "function") {
+      applyUiTranslations();
     }
   } catch {
     window.__baupassSector = { sector: "construction", terms: {}, productLine: "" };
   }
 }
 
+function applySectorCopyToText(text) {
+  if (!text || typeof window.BaupassSectorCopy?.applyFromWindow !== "function") return text;
+  return window.BaupassSectorCopy.applyFromWindow(text, getStoredUiLang());
+}
+
 function uiT(key) {
   const lang = getStoredUiLang();
   const sectorTerm = window.__baupassSector?.terms?.[key];
-  if (sectorTerm) return sectorTerm;
-  const fromPack = UI_TRANSLATIONS[lang]?.[key];
-  if (fromPack) return fromPack;
-  const fromExtra = window.AppI18nExtra?.[lang]?.[key];
-  if (fromExtra) return fromExtra;
-  const fromEnterpriseShell = window.EnterpriseShellI18n?.[lang]?.[key];
-  if (fromEnterpriseShell) return fromEnterpriseShell;
-  const fromRuntime = getRuntimeUiTextsCached()[key];
-  if (fromRuntime) return fromRuntime;
-  if (lang !== "en" && UI_TRANSLATIONS.en?.[key]) return UI_TRANSLATIONS.en[key];
-  if (lang !== "en" && window.AppI18nExtra?.en?.[key]) return window.AppI18nExtra.en[key];
-  const noDeFallbackLangs = new Set(["tr", "fr", "es", "it", "pl", "en", "ar"]);
-  if (!noDeFallbackLangs.has(lang) && lang !== UI_FALLBACK_LANG && UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]) {
-    return UI_TRANSLATIONS[UI_FALLBACK_LANG][key];
+  let resolved = "";
+  if (sectorTerm) resolved = sectorTerm;
+  else if (UI_TRANSLATIONS[lang]?.[key]) resolved = UI_TRANSLATIONS[lang][key];
+  else if (window.AppI18nExtra?.[lang]?.[key]) resolved = window.AppI18nExtra[lang][key];
+  else if (window.EnterpriseShellI18n?.[lang]?.[key]) resolved = window.EnterpriseShellI18n[lang][key];
+  else if (getRuntimeUiTextsCached()[key]) resolved = getRuntimeUiTextsCached()[key];
+  else if (lang !== "en" && UI_TRANSLATIONS.en?.[key]) resolved = UI_TRANSLATIONS.en[key];
+  else if (lang !== "en" && window.AppI18nExtra?.en?.[key]) resolved = window.AppI18nExtra.en[key];
+  else {
+    const noDeFallbackLangs = new Set(["tr", "fr", "es", "it", "pl", "en", "ar"]);
+    if (!noDeFallbackLangs.has(lang) && lang !== UI_FALLBACK_LANG && UI_TRANSLATIONS[UI_FALLBACK_LANG]?.[key]) {
+      resolved = UI_TRANSLATIONS[UI_FALLBACK_LANG][key];
+    } else {
+      resolved = key;
+    }
   }
-  return key;
+  return applySectorCopyToText(resolved);
 }
 
 const UI_PLACEHOLDER_TEXTS = {
@@ -16623,7 +16638,7 @@ function getRuntimeUiTexts() {
 }
 
 function runtimeText(key) {
-  return getRuntimeUiTextsCached()[key] || "";
+  return applySectorCopyToText(getRuntimeUiTextsCached()[key] || "");
 }
 
 function runtimeTextTemplate(key, values = {}) {
@@ -23044,7 +23059,16 @@ function buildPrintableWorkerCardMarkup(worker, company) {
 }
 
 function buildPrintableWorkerCardBackMarkup(worker, company) {
-  const companyPreset = getCompanyBrandingPreset(company);
+  let companyPreset = getCompanyBrandingPreset(company);
+  const operatingSector = String(
+    company?.operatingSector
+    || company?.operating_sector
+    || window.__baupassSector?.sector
+    || "construction",
+  ).trim().toLowerCase();
+  if (companyPreset === "construction" && operatingSector && operatingSector !== "construction") {
+    companyPreset = operatingSector === "manufacturing" ? "industry" : "premium";
+  }
   const companyName = company?.name || uiT("badgeUnknownCompany");
   const customerNumber = getCompanyCustomerNumber(company) || "-";
   const workerName = `${worker.firstName || ""} ${worker.lastName || ""}`.trim() || runtimeText("workerRoleFallback");
@@ -23836,6 +23860,9 @@ async function setSuperadminPreviewCompany(companyId, { refresh = true } = {}) {
     console.warn("[preview] Fehler beim Setzen der Vorschau-Session:", e);
   }
   syncSuperadminCompanyPickerUi();
+  if (typeof loadSectorTerminology === "function") {
+    await loadSectorTerminology();
+  }
   if (refresh) {
     refreshAll();
     if (getCurrentViewName() === "leave") {

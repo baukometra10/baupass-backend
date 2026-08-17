@@ -56,6 +56,20 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("Baustelle", bau.get("termSite", ""))
         self.assertIn("Terminal", air.get("termSite", ""))
         self.assertEqual(air.get("tabWorkers"), "Berechtigte")
+        self.assertEqual(air.get("termCompany"), "Flughafenbetreiber")
+        self.assertEqual(air.get("companyNewH3"), "Neuen Flughafenbetreiber anlegen")
+        self.assertNotIn("Baustelle", air.get("dashSubtext", ""))
+        self.assertNotIn("بناء", air.get("sidebarCardDesc", ""))
+
+        air_ar = sector_config("aviation", lang="ar")["terms"]
+        self.assertEqual(air_ar.get("termCompany"), "مشغّل المطار")
+        self.assertIn("مشغّل مطار", air_ar.get("companyNewH3", ""))
+        self.assertNotIn("موقع بناء", air_ar.get("labelSite", "") + air_ar.get("statsAccessTodaySite", ""))
+        self.assertNotIn("شركة بناء", air_ar.get("sidebarCardDesc", ""))
+
+        air_fr = sector_config("aviation", lang="fr")["terms"]
+        self.assertEqual(air_fr.get("termCompany"), "opérateur aéroportuaire")
+        self.assertEqual(air_fr.get("termSite"), "terminal")
 
     # Sector vocabulary in inbox copy (e.g. security: Einsatzkräfte / Objekt)
     def test_apply_sector_text_security_de(self):
@@ -73,6 +87,47 @@ class SectorCatalogTests(unittest.TestCase):
         self.assertIn("Kontrollpunkt", out)
         self.assertNotIn("Baustelle", out)
         self.assertNotIn("Mitarbeiter", out)
+
+    def test_apply_sector_text_company_and_arabic(self):
+        from backend.app.platform.ai.sector_copy import apply_sector_text
+
+        de = apply_sector_text(
+            "Bauunternehmen auf der Baustelle",
+            workers="Berechtigte",
+            site="Terminal",
+            company="Flughafenbetreiber",
+            lang="de",
+        )
+        self.assertIn("Flughafenbetreiber", de)
+        self.assertIn("Terminal", de)
+        self.assertNotIn("Bauunternehmen", de)
+        self.assertNotIn("Baustelle", de)
+
+        ar = apply_sector_text(
+            "شركة إنشاءات باوشتلا في موقع البناء",
+            workers="المصرّح لهم",
+            site="مبنى المطار",
+            company="مشغّل المطار",
+            lang="ar",
+        )
+        self.assertIn("مشغّل المطار", ar)
+        self.assertIn("مبنى المطار", ar)
+        self.assertNotIn("باوشتلا", ar)
+        self.assertNotIn("موقع البناء", ar)
+        self.assertNotIn("شركة إنشاءات", ar)
+
+        fr = apply_sector_text(
+            "Ajouter une entreprise de construction sur chantier",
+            workers="agents habilités",
+            site="terminal",
+            company="opérateur aéroportuaire",
+            lang="fr",
+        )
+        self.assertIn("opérateur aéroportuaire", fr)
+        self.assertIn("terminal", fr)
+        self.assertNotIn("construction", fr)
+        self.assertNotIn("chantier", fr)
+
 
     def test_security_admin_access_terms(self):
         cfg = sector_config("security", lang="de")

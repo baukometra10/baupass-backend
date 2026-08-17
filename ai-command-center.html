@@ -883,6 +883,7 @@
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/tenant-brand-icon.js?v=20260705c"></script>
   <script src="/embed-helpers.js?v=20260723insightNav1"></script>
+  <script src="/sector-copy.js?v=20260817sector1"></script>
   <script src="/ai-center-i18n-extra.js?v=20260705h"></script>
   <script src="/ai-voice-ui.js?v=20260725voice12"></script>
   <script src="/e2e-crypto.js?v=20260705e2e4"></script>
@@ -1200,7 +1201,13 @@
       executive: "executive",
       operations: "operations",
     };
-    const t = (k) => (I18N[LANG] || I18N.de)[k] || k;
+    const t = (k) => {
+      let text = (I18N[LANG] || I18N.de)[k] || k;
+      if (window.BaupassSectorCopy?.applyFromWindow) {
+        text = window.BaupassSectorCopy.applyFromWindow(text, LANG);
+      }
+      return text;
+    };
     function tf(k, vars = {}) {
       let text = t(k);
       for (const [key, val] of Object.entries(vars)) {
@@ -2553,6 +2560,14 @@
 
     async function loadInsights() {
       if (companyRequiredForUi()) return;
+      try {
+        const data = await api(`/api/platform/sector-config?${companyQs()}`);
+        if (data?.sector) {
+          window.__baupassSector = { sector: data.sector, terms: data.terms || {} };
+        }
+      } catch {
+        // keep current sector pack
+      }
       const data = await api(`/api/ai/insights?${companyQs()}`);
       lastInsightsData = data;
       renderInsights(data);

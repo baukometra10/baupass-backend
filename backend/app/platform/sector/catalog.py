@@ -35,8 +35,26 @@ def normalize_operating_sector(value: str | None) -> str:
     return DEFAULT_SECTOR
 
 
-def _t(de: str, en: str, ar: str) -> dict[str, str]:
-    return {"de": de, "en": en, "ar": ar}
+def _t(de: str, en: str, ar: str, **more: str) -> dict[str, str]:
+    out = {"de": de, "en": en, "ar": ar}
+    for key, value in more.items():
+        if value:
+            out[str(key)] = str(value)
+    return out
+
+
+def _n(
+    de: str,
+    en: str,
+    ar: str,
+    tr: str,
+    fr: str,
+    es: str,
+    it: str,
+    pl: str,
+) -> dict[str, str]:
+    """Eight-language noun used by the sector rewriter."""
+    return {"de": de, "en": en, "ar": ar, "tr": tr, "fr": fr, "es": es, "it": it, "pl": pl}
 
 
 SECTOR_META: dict[str, dict[str, Any]] = {
@@ -199,6 +217,363 @@ SECTOR_TERM_KEYS: dict[str, dict[str, dict[str, str]]] = {
         "accessFormH3": _t("Zutrittskontrolle", "Access control", "التحكم بالدخول"),
         "badgeH3": _t("Dienstausweis", "Official ID", "الهوية الرسمية"),
     },
+}
+
+
+# Core nouns in all UI languages — used by keyed copy and the leftover rewriter.
+SECTOR_NOUNS: dict[str, dict[str, dict[str, str]]] = {
+    "construction": {
+        "termCompany": _n(
+            "Bauunternehmen", "construction company", "شركة إنشاءات",
+            "inşaat firması", "entreprise de construction", "empresa de construcción",
+            "impresa edile", "firma budowlana",
+        ),
+        "termSite": _n(
+            "Baustelle", "construction site", "موقع بناء",
+            "şantiye", "chantier", "obra", "cantiere", "plac budowy",
+        ),
+        "termSites": _n(
+            "Baustellen", "construction sites", "مواقع البناء",
+            "şantiyeler", "chantiers", "obras", "cantieri", "place budowy",
+        ),
+        "termWorker": _n(
+            "Mitarbeiter", "worker", "عامل",
+            "çalışan", "collaborateur", "trabajador", "lavoratore", "pracownik",
+        ),
+        "termWorkers": _n(
+            "Mitarbeiter", "workers", "عمال",
+            "çalışanlar", "collaborateurs", "trabajadores", "lavoratori", "pracownicy",
+        ),
+        "termGate": _n(
+            "Drehkreuz / Tor", "turnstile / gate", "بوابة",
+            "turnike / kapı", "tourniquet / porte", "torniquete / acceso",
+            "tornello / varco", "bramka / brama",
+        ),
+    },
+    "manufacturing": {
+        "termCompany": _n(
+            "Industriebetrieb", "manufacturing company", "منشأة صناعية",
+            "sanayi işletmesi", "entreprise industrielle", "empresa industrial",
+            "azienda industriale", "zakład przemysłowy",
+        ),
+        "termSite": _n(
+            "Werk", "plant", "منشأة",
+            "tesis", "usine", "planta", "stabilimento", "zakład",
+        ),
+        "termSites": _n(
+            "Werke", "plants", "منشآت",
+            "tesisler", "usines", "plantas", "stabilimenti", "zakłady",
+        ),
+        "termWorker": _n(
+            "Mitarbeiter", "employee", "موظف",
+            "çalışan", "salarié", "empleado", "dipendente", "pracownik",
+        ),
+        "termWorkers": _n(
+            "Mitarbeiter", "employees", "موظفون",
+            "çalışanlar", "salariés", "empleados", "dipendenti", "pracownicy",
+        ),
+        "termGate": _n(
+            "Werktor", "plant gate", "بوابة المصنع",
+            "tesis kapısı", "porte d'usine", "puerta de planta",
+            "cancello dello stabilimento", "brama zakładu",
+        ),
+    },
+    "aviation": {
+        "termCompany": _n(
+            "Flughafenbetreiber", "airport operator", "مشغّل المطار",
+            "havalimanı işletmecisi", "opérateur aéroportuaire", "operador aeroportuario",
+            "gestore aeroportuale", "operator lotniska",
+        ),
+        "termSite": _n(
+            "Terminal", "terminal", "مبنى المطار",
+            "terminal", "terminal", "terminal", "terminal", "terminal",
+        ),
+        "termSites": _n(
+            "Terminals", "terminals", "مباني المطار",
+            "terminaller", "terminaux", "terminales", "terminal", "terminale",
+        ),
+        "termWorker": _n(
+            "Berechtigter", "authorizee", "مصرّح له",
+            "yetkili personel", "agent habilité", "autorizado", "autorizzato", "osoba uprawniona",
+        ),
+        "termWorkers": _n(
+            "Berechtigte", "authorized staff", "المصرّح لهم",
+            "yetkili personel", "agents habilités", "personal autorizado",
+            "personale autorizzato", "personel uprawniony",
+        ),
+        "termGate": _n(
+            "Kontrollpunkt", "checkpoint", "نقطة تفتيش",
+            "kontrol noktası", "point de contrôle", "punto de control",
+            "punto di controllo", "punkt kontroli",
+        ),
+    },
+    "logistics": {
+        "termCompany": _n(
+            "Logistikunternehmen", "logistics company", "شركة لوجستيات",
+            "lojistik firması", "entreprise de logistique", "empresa de logística",
+            "azienda di logistica", "firma logistyczna",
+        ),
+        "termSite": _n(
+            "Hub / Depot", "hub / depot", "مركز / مستودع",
+            "hub / depo", "hub / dépôt", "hub / depósito", "hub / deposito", "hub / magazyn",
+        ),
+        "termSites": _n(
+            "Hubs / Depots", "hubs / depots", "مراكز / مستودعات",
+            "hublar / depolar", "hubs / dépôts", "hubs / depósitos",
+            "hub / depositi", "huby / magazyny",
+        ),
+        "termWorker": _n(
+            "Mitarbeiter", "staff member", "فرد طاقم",
+            "personel", "collaborateur", "empleado", "addetto", "pracownik",
+        ),
+        "termWorkers": _n(
+            "Personal", "staff", "الطاقم",
+            "personel", "personnel", "personal", "personale", "personel",
+        ),
+        "termGate": _n(
+            "Tor / Rampe", "gate / dock", "بوابة / رصيف",
+            "kapı / rampa", "porte / quai", "puerta / muelle", "varco / baia", "brama / rampa",
+        ),
+    },
+    "security": {
+        "termCompany": _n(
+            "Sicherheitsunternehmen", "security company", "شركة أمن",
+            "güvenlik firması", "entreprise de sécurité", "empresa de seguridad",
+            "azienda di sicurezza", "firma ochroniarska",
+        ),
+        "termSite": _n(
+            "Objekt", "assignment site", "منشأة محروسة",
+            "tesis", "site", "instalación", "sito", "obiekt",
+        ),
+        "termSites": _n(
+            "Objekte", "assignment sites", "منشآت محروسة",
+            "tesisler", "sites", "instalaciones", "siti", "obiekty",
+        ),
+        "termWorker": _n(
+            "Einsatzkraft", "officer", "عنصر",
+            "görevli", "agent", "agente", "addetto", "funkcjonariusz",
+        ),
+        "termWorkers": _n(
+            "Einsatzkräfte", "officers", "العناصر",
+            "görevliler", "agents", "agentes", "addetti", "funkcjonariusze",
+        ),
+        "termGate": _n(
+            "Kontrollpunkt", "checkpoint", "نقطة تفتيش",
+            "kontrol noktası", "point de contrôle", "punto de control",
+            "punto di controllo", "punkt kontroli",
+        ),
+    },
+    "public_sector": {
+        "termCompany": _n(
+            "öffentlicher Betrieb", "public organization", "جهة عامة",
+            "kamu kurumu", "organisme public", "organismo público",
+            "ente pubblico", "jednostka publiczna",
+        ),
+        "termSite": _n(
+            "Standort", "facility", "منشأة",
+            "tesis", "établissement", "instalación", "sede", "placówka",
+        ),
+        "termSites": _n(
+            "Standorte", "facilities", "منشآت",
+            "tesisler", "établissements", "instalaciones", "sedi", "placówki",
+        ),
+        "termWorker": _n(
+            "Mitarbeitende/r", "staff member", "موظف",
+            "çalışan", "agent", "empleado", "dipendente", "pracownik",
+        ),
+        "termWorkers": _n(
+            "Mitarbeitende", "staff", "الموظفون",
+            "çalışanlar", "agents", "personal", "personale", "pracownicy",
+        ),
+        "termGate": _n(
+            "Eingang", "entrance", "مدخل",
+            "giriş", "entrée", "entrada", "ingresso", "wejście",
+        ),
+    },
+    "government": {
+        "termCompany": _n(
+            "Behörde", "government agency", "جهة حكومية",
+            "kamu kurumu", "administration", "agencia gubernamental",
+            "ente governativo", "urząd",
+        ),
+        "termSite": _n(
+            "Dienststelle", "office", "دائرة",
+            "daire", "service", "oficina", "ufficio", "urząd",
+        ),
+        "termSites": _n(
+            "Dienststellen", "offices", "دوائر",
+            "daireler", "services", "oficinas", "uffici", "urzędy",
+        ),
+        "termWorker": _n(
+            "Berechtigter", "authorizee", "مصرّح له",
+            "yetkili", "agent habilité", "autorizado", "autorizzato", "osoba uprawniona",
+        ),
+        "termWorkers": _n(
+            "Berechtigte", "authorized persons", "المصرّح لهم",
+            "yetkililer", "agents habilités", "personas autorizadas",
+            "persone autorizzate", "osoby uprawnione",
+        ),
+        "termGate": _n(
+            "Zugangskontrolle", "access point", "نقطة دخول",
+            "erişim noktası", "contrôle d'accès", "punto de acceso",
+            "punto di accesso", "punkt dostępu",
+        ),
+    },
+}
+
+
+def _ui_copy_pack(
+    *,
+    company_new: dict[str, str],
+    sidebar: dict[str, str],
+    dash: dict[str, str],
+    on_site: dict[str, str],
+    manual: dict[str, str],
+) -> dict[str, dict[str, str]]:
+    return {
+        "companyNewH3": company_new,
+        "sidebarCardDesc": sidebar,
+        "dashSubtext": dash,
+        "statsAccessTodaySite": on_site,
+        "manualEntryContextSite": manual,
+    }
+
+
+# Visible main-admin sentences that still hard-code construction in extra languages.
+MAIN_UI_COPY_KEYS: dict[str, dict[str, dict[str, str]]] = {
+    "construction": _ui_copy_pack(
+        company_new=_t("Neue Firma anlegen", "Create new company", "إضافة شركة بناء جديدة"),
+        sidebar=_t(
+            "Jede Firma verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each company manages its team separately. Super admin retains system control.",
+            "تدير كل شركة بناء فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Enterprise Identity, Zutrittskontrolle, Workforce, Compliance, Dokumente und Reporting — mandantenfähig für Behörden und Unternehmen.",
+            "Enterprise identity, access control, workforce, compliance, documents and reporting — multi-tenant for agencies and enterprises.",
+            "هوية مؤسسية، تحكم بالدخول، عمال، امتثال، مستندات وتقارير — متعدد المستأجرين للجهات والشركات.",
+        ),
+        on_site=_t("Aktiv vor Ort", "Currently active on site", "نشط في موقع البناء"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen vor Ort",
+            "Manual entry for workers currently active on site",
+            "دخول يدوي للأشخاص النشطين حاليًا في موقع البناء",
+        ),
+    ),
+    "manufacturing": _ui_copy_pack(
+        company_new=_t("Neuen Industriebetrieb anlegen", "Create manufacturing company", "إضافة منشأة صناعية جديدة"),
+        sidebar=_t(
+            "Jeder Industriebetrieb verwaltet sein Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each manufacturing company manages its team separately. Super admin retains system control.",
+            "تدير كل منشأة صناعية فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Identität, Zutritt und Compliance am Werk — Schichten, Hallen und Werktore.",
+            "Identity, access and compliance at the plant — shifts, halls and plant gates.",
+            "الهوية والدخول والامتثال في المنشأة — الورديات والقاعات وبوابات المصنع.",
+        ),
+        on_site=_t("Aktiv im Werk", "Currently active in plant", "نشط في المنشأة"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen im Werk",
+            "Manual entry for people currently active in the plant",
+            "دخول يدوي للأشخاص النشطين حاليًا في المنشأة",
+        ),
+    ),
+    "aviation": _ui_copy_pack(
+        company_new=_t("Neuen Flughafenbetreiber anlegen", "Create airport operator", "إضافة مشغّل مطار جديد"),
+        sidebar=_t(
+            "Jeder Flughafenbetreiber verwaltet sein Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each airport operator manages its team separately. Super admin retains system control.",
+            "يدير كل مشغّل مطار فريقه بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Terminal-Zutritt, Badges und Compliance für Flughafenbetreiber und Bodenverkehrsdienste.",
+            "Terminal access, badges and compliance for airport operators and ground handlers.",
+            "دخول المبنى والشارات والامتثال لمشغّلي المطارات وخدمات المناولة الأرضية.",
+        ),
+        on_site=_t("Aktiv im Terminal", "Currently active in terminal", "نشط في مبنى المطار"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen im Terminal",
+            "Manual entry for people currently active in the terminal",
+            "دخول يدوي للأشخاص النشطين حاليًا في مبنى المطار",
+        ),
+    ),
+    "logistics": _ui_copy_pack(
+        company_new=_t("Neues Logistikunternehmen anlegen", "Create logistics company", "إضافة شركة لوجستيات جديدة"),
+        sidebar=_t(
+            "Jedes Logistikunternehmen verwaltet sein Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each logistics company manages its team separately. Super admin retains system control.",
+            "تدير كل شركة لوجستيات فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Zutritt, Personal und Nachweise in Hubs, Depots und an Rampen.",
+            "Access, workforce and proof in hubs, depots and at docks.",
+            "الدخول والقوى العاملة والمستندات في المراكز والمستودعات والأرصفة.",
+        ),
+        on_site=_t("Aktiv im Hub", "Currently active at hub", "نشط في المركز"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen im Hub",
+            "Manual entry for people currently active at the hub",
+            "دخول يدوي للأشخاص النشطين حاليًا في المركز",
+        ),
+    ),
+    "security": _ui_copy_pack(
+        company_new=_t("Neues Sicherheitsunternehmen anlegen", "Create security company", "إضافة شركة أمن جديدة"),
+        sidebar=_t(
+            "Jedes Sicherheitsunternehmen verwaltet sein Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each security company manages its team separately. Super admin retains system control.",
+            "تدير كل شركة أمن فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Identität, Schichten und Kontrollpunkte für Objektschutz und Einsatzkräfte.",
+            "Identity, shifts and checkpoints for site protection and officers.",
+            "الهوية والورديات ونقاط التفتيش لحماية المنشآت والعناصر.",
+        ),
+        on_site=_t("Aktiv im Einsatz", "Currently on assignment", "نشط في المهمة"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Einsatzkräfte am Objekt",
+            "Manual entry for officers currently on assignment",
+            "دخول يدوي للعناصر النشطين حاليًا في المهمة",
+        ),
+    ),
+    "public_sector": _ui_copy_pack(
+        company_new=_t("Neuen öffentlichen Betrieb anlegen", "Create public organization", "إضافة جهة عامة جديدة"),
+        sidebar=_t(
+            "Jeder öffentliche Betrieb verwaltet sein Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each public organization manages its team separately. Super admin retains system control.",
+            "تدير كل جهة عامة فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Bürger- und Mitarbeiterzugang mit Audit-Trail für Kommunen und öffentliche Betriebe.",
+            "Citizen and staff access with audit trail for municipalities and public bodies.",
+            "دخول المواطنين والموظفين مع سجل تدقيق للبلديات والجهات العامة.",
+        ),
+        on_site=_t("Aktiv am Standort", "Currently active at facility", "نشط في المنشأة"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen am Standort",
+            "Manual entry for people currently active at the facility",
+            "دخول يدوي للأشخاص النشطين حاليًا في المنشأة",
+        ),
+    ),
+    "government": _ui_copy_pack(
+        company_new=_t("Neue Behörde anlegen", "Create government agency", "إضافة جهة حكومية جديدة"),
+        sidebar=_t(
+            "Jede Behörde verwaltet ihr Team getrennt. Super-Admin behält Systemkontrolle.",
+            "Each government agency manages its team separately. Super admin retains system control.",
+            "تدير كل جهة حكومية فريقها بشكل مستقل. يحتفظ المشرف العام بالتحكم في النظام.",
+        ),
+        dash=_t(
+            "Enterprise Identity, Zutritt und Compliance für Behörden und Ministerien.",
+            "Enterprise identity, access and compliance for agencies and ministries.",
+            "الهوية المؤسسية والدخول والامتثال للجهات الحكومية والوزارات.",
+        ),
+        on_site=_t("Aktiv in der Dienststelle", "Currently active at office", "نشط في الدائرة"),
+        manual=_t(
+            "Manueller Einlass fuer aktuell aktive Personen in der Dienststelle",
+            "Manual entry for people currently active at the office",
+            "دخول يدوي للأشخاص النشطين حاليًا في الدائرة",
+        ),
+    ),
 }
 
 
@@ -820,7 +1195,9 @@ def sector_config(sector_id: str, *, lang: str = "de") -> dict[str, Any]:
     terms_raw = SECTOR_TERM_KEYS.get(sector_id, {})
     admin_terms = ADMIN_V2_TERM_KEYS.get(sector_id, ADMIN_V2_TERM_KEYS["construction"])
     worker_terms = WORKER_SECTOR_TERM_KEYS.get(sector_id, WORKER_SECTOR_TERM_KEYS["construction"])
-    merged_terms = {**terms_raw, **admin_terms, **worker_terms}
+    ui_copy = MAIN_UI_COPY_KEYS.get(sector_id, MAIN_UI_COPY_KEYS["construction"])
+    nouns = SECTOR_NOUNS.get(sector_id, SECTOR_NOUNS["construction"])
+    merged_terms = {**terms_raw, **admin_terms, **worker_terms, **ui_copy, **nouns}
     terms = {k: (v.get(lang) or v.get("en") or v.get("de") or "") for k, v in merged_terms.items()}
     label = meta["labels"].get(lang) or meta["labels"].get("en") or meta["labels"]["de"]
     product_line = meta["productLine"].get(lang) or meta["productLine"].get("en") or meta["productLine"]["de"]

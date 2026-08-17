@@ -920,21 +920,27 @@ function applyWorkerSectorTerms(company = {}) {
   const terms = company.sectorTerms || company.sector_terms || {};
   window.__workerSectorTerms = terms && typeof terms === "object" ? terms : {};
   const sector = String(company.operatingSector || company.operating_sector || "construction").trim();
+  window.__workerOperatingSector = sector || "construction";
   if (sector) {
     document.body.setAttribute("data-operating-sector", sector);
   }
-  document.querySelectorAll("[data-i18n]").forEach((el) => {
-    const key = el.getAttribute("data-i18n");
-    if (!key || !window.__workerSectorTerms[key]) return;
-    const value = window.__workerSectorTerms[key];
-    if (el.hasAttribute("data-i18n-placeholder")) {
-      el.placeholder = value;
-    } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
-      el.placeholder = value;
-    } else {
-      el.textContent = value;
-    }
-  });
+  if (typeof window.WorkerI18N?.applyDomTranslations === "function") {
+    window.WorkerI18N.applyDomTranslations(document);
+  } else {
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+      const key = el.getAttribute("data-i18n");
+      if (!key) return;
+      const value = typeof t === "function" ? t(key) : window.__workerSectorTerms[key];
+      if (!value) return;
+      if (el.hasAttribute("data-i18n-placeholder")) {
+        el.placeholder = value;
+      } else if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+        el.placeholder = value;
+      } else {
+        el.textContent = value;
+      }
+    });
+  }
   const smartHubFocus = document.getElementById("smartHubFocusValue");
   if (smartHubFocus && window.__workerSectorTerms.smartHubFocusConstruction) {
     smartHubFocus.textContent = window.__workerSectorTerms.smartHubFocusConstruction;

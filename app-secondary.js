@@ -160,13 +160,11 @@
     feedbackEl.classList.add("hidden");
     syncWorkTimePanel();
 
-    // Context hint: "Aktiv auf der Baustelle" or "im Gebäude"
+    // Context hint follows operating sector, not the visual branding theme
     if (contextHint) {
       const companyId = getEffectiveUiCompanyId();
-      const company = companyId ? state.companies.find((c) => c.id === companyId) : null;
-      const preset = String(company?.brandingPreset || company?.branding_preset || "construction").trim().toLowerCase();
-      const key = preset === "construction" ? "manualEntryContextSite" : "manualEntryContextBuilding";
-      contextHint.textContent = runtimeText(key);
+      contextHint.textContent = (typeof uiT === "function" ? uiT("manualEntryContextSite") : "")
+        || runtimeText("manualEntryContextSite");
       contextHint.className = `manual-entry-context-hint${companyId ? "" : " hidden"}`;
     }
 
@@ -573,13 +571,13 @@ if (companyForm) {
   companyForm.addEventListener("submit", handleCompanySubmit);
 
   const SECTOR_TERM_PREVIEW = {
-    construction: { de: ["Mitarbeiter", "Baustelle", "Drehkreuz / Tor"], en: ["Workers", "Site", "Turnstile / gate"], ar: ["عمال", "موقع بناء", "بوابة"] },
-    manufacturing: { de: ["Mitarbeiter", "Werk", "Werktor"], en: ["Employees", "Plant", "Plant gate"], ar: ["موظفون", "منشأة", "بوابة المصنع"] },
-    logistics: { de: ["Personal", "Hub / Depot", "Tor / Rampe"], en: ["Staff", "Hub / depot", "Gate / dock"], ar: ["طاقم", "مركز / مستودع", "بوابة / رصيف"] },
-    aviation: { de: ["Berechtigte", "Terminal", "Kontrollpunkt"], en: ["Authorized staff", "Terminal", "Checkpoint"], ar: ["مصرّح لهم", "مبنى المطار", "نقطة تفتيش"] },
-    security: { de: ["Einsatzkräfte", "Objekt", "Kontrollpunkt"], en: ["Officers", "Site", "Checkpoint"], ar: ["عناصر", "منشأة محروسة", "نقطة تفتيش"] },
-    public_sector: { de: ["Mitarbeitende", "Standort", "Eingang"], en: ["Staff", "Facility", "Entrance"], ar: ["موظفون", "منشأة", "مدخل"] },
-    government: { de: ["Berechtigte", "Dienststelle", "Zugangskontrolle"], en: ["Authorizees", "Office", "Access point"], ar: ["مصرّح لهم", "دائرة", "نقطة دخول"] },
+    construction: { de: ["Mitarbeiter", "Baustelle", "Bauunternehmen"], en: ["Workers", "Site", "Construction company"], ar: ["عمال", "موقع بناء", "شركة إنشاءات"] },
+    manufacturing: { de: ["Mitarbeiter", "Werk", "Industriebetrieb"], en: ["Employees", "Plant", "Manufacturing company"], ar: ["موظفون", "منشأة", "منشأة صناعية"] },
+    logistics: { de: ["Personal", "Hub / Depot", "Logistikunternehmen"], en: ["Staff", "Hub / depot", "Logistics company"], ar: ["طاقم", "مركز / مستودع", "شركة لوجستيات"] },
+    aviation: { de: ["Berechtigte", "Terminal", "Flughafenbetreiber"], en: ["Authorized staff", "Terminal", "Airport operator"], ar: ["مصرّح لهم", "مبنى المطار", "مشغّل المطار"] },
+    security: { de: ["Einsatzkräfte", "Objekt", "Sicherheitsunternehmen"], en: ["Officers", "Site", "Security company"], ar: ["عناصر", "منشأة محروسة", "شركة أمن"] },
+    public_sector: { de: ["Mitarbeitende", "Standort", "öffentlicher Betrieb"], en: ["Staff", "Facility", "Public organization"], ar: ["موظفون", "منشأة", "جهة عامة"] },
+    government: { de: ["Berechtigte", "Dienststelle", "Behörde"], en: ["Authorizees", "Office", "Government agency"], ar: ["مصرّح لهم", "دائرة", "جهة حكومية"] },
   };
   function renderCompanySectorPreview() {
     const sel = document.querySelector("#companyOperatingSector");

@@ -695,7 +695,11 @@
   function t(key) {
     const lang = detectLang();
     const pack = STR[lang] || STR.de;
-    return pack[key] || STR.de[key] || key;
+    let text = pack[key] || STR.de[key] || key;
+    if (global.BaupassSectorCopy?.applyFromWindow) {
+      return global.BaupassSectorCopy.applyFromWindow(text, lang);
+    }
+    return applySectorLabel(text);
   }
 
   const SYSTEM_LANGS = ["de", "en", "ar", "tr", "fr", "es", "it", "pl"];
@@ -2335,7 +2339,13 @@
         sectorTerms = {
           termSite: String(data.sectorTerms.termSite || ""),
           termWorkers: String(data.sectorTerms.termWorkers || ""),
-          sectorLabel: String(data.sectorTerms.sectorLabel || ""),
+          termCompany: String(data.sectorTerms.termCompany || ""),
+          termGate: String(data.sectorTerms.termGate || ""),
+          sectorLabel: String(data.sectorTerms.sectorLabel || data.sectorTerms._sectorLabel || ""),
+        };
+        global.__baupassSector = {
+          sector: String(data.sectorTerms._sector || data.operatingSector || "construction"),
+          terms: data.sectorTerms,
         };
       }
       try {
