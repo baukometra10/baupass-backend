@@ -100,8 +100,8 @@
       display: grid;
       grid-template-columns: auto 1fr auto;
       gap: 1rem;
-      align-items: center;
-      padding: 1.05rem 1.15rem 0.85rem;
+      align-items: start;
+      padding: 0.85rem 1.15rem 0.75rem;
       border-bottom: 1px solid rgba(148, 163, 184, 0.16);
       background: linear-gradient(90deg, rgba(75, 227, 209, 0.14), rgba(75, 227, 209, 0.02));
     }
@@ -122,6 +122,7 @@
       border: 1px solid rgba(75, 227, 209, 0.45);
       box-shadow: 0 0 24px rgba(75, 227, 209, 0.18);
       position: relative;
+      margin-top: 0.1rem;
     }
     .guardian-card.degraded .guardian-mark {
       background: rgba(251, 191, 36, 0.14);
@@ -146,12 +147,13 @@
     .guardian-title {
       font-weight: 800; color: #f4f9ff !important; font-size: 1.35rem;
       letter-spacing: -0.02em; line-height: 1.1;
+      margin: 0;
     }
     .guardian-sub {
-      margin-top: 0.28rem; color: var(--muted); font-size: 0.78rem; line-height: 1.4; max-width: 36rem;
+      margin-top: 0.2rem; color: var(--muted); font-size: 0.78rem; line-height: 1.35; max-width: 36rem;
     }
     .guardian-status-row {
-      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.55rem;
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem;
     }
     .guardian-status {
       font-size: 0.78rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase;
