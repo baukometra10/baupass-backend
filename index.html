@@ -117,7 +117,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
   <link rel="stylesheet" href="./styles.css?v=20260814brand3" />
-    <link rel="stylesheet" href="./invoices-hub.css?v=20260817inv2" />
+    <link rel="stylesheet" href="./invoices-hub.css?v=20260817inv3" />
     <link rel="stylesheet" href="./platform-health.css?v=20260621contrast1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
     <link rel="stylesheet" href="./e2e-security.css?v=20260810e2e3" />
@@ -1233,9 +1233,7 @@
             </section>
             <header class="ms-invoices-hub-header">
               <div>
-                <p class="eyebrow" data-ui-i18n="invoiceMgmtTitle">Rechnungs-Management</p>
-                <h3 data-ui-i18n="invListH3">Rechnungen und Zahlungsstatus</h3>
-                <p class="ms-invoices-hub-desc" data-ui-i18n="invoiceMgmtCopy">Offene, überfällige und bezahlte Rechnungen. Klick auf eine Kachel filtert die Liste. Bezahlt-Markierung hebt Firmensperren auf.</p>
+                <p class="ms-invoices-hub-desc" data-ui-i18n="invoiceMgmtCopy">Klick auf eine Kachel filtert die Liste. Bezahlt hebt Firmensperren auf.</p>
               </div>
             </header>
             <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid ms-invoices-kpi-row"></div>
@@ -1280,11 +1278,14 @@
             </div>
             </div>
 
-            <div class="button-row invoice-ops-actions">
-              <button type="button" class="ghost-button" id="triggerDunningBtn" data-superadmin-only hidden data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
-              <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-superadmin-only hidden data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
-              <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-superadmin-only hidden data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
-            </div>
+            <details class="ms-invoices-ops">
+              <summary data-ui-i18n="invoiceOpsActionsSummary">Monatsrechnung &amp; Mahnungen</summary>
+              <div class="button-row invoice-ops-actions">
+                <button type="button" class="ghost-button" id="triggerDunningBtn" data-superadmin-only hidden data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
+                <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-superadmin-only hidden data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
+                <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-superadmin-only hidden data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
+              </div>
+            </details>
 
             <div id="invoiceBulkBar" class="bulk-action-bar hidden">
               <span id="invoiceBulkCount">0 ausgewählt</span>

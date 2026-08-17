@@ -1705,7 +1705,7 @@ const UI_TRANSLATIONS = {
     legalCloseTitle: "Schliessen",
     legalFallbackEmpty: "Kein Text hinterlegt.",
     invoiceMgmtTitle: "Rechnungs-Management",
-    invoiceMgmtCopy: "Zeige offene und bezahlte Rechnungen an. Markiere Rechnungen als bezahlt um Firmensperrungen automatisch aufzuheben. Alle Aktivitäten werden im Audit-Log protokolliert.",
+    invoiceMgmtCopy: "Klick auf eine Kachel filtert die Liste. Bezahlt hebt Firmensperren auf.",
     billingPortalEyebrow: "Abonnement",
     billingPortalTitle: "Plan & Online-Zahlung",
     billingPortalCopy: "Tarif wählen, Rechnungen online bezahlen, Zahlungsmethoden im Stripe-Portal verwalten.",
@@ -2039,6 +2039,8 @@ const UI_TRANSLATIONS = {
     invoiceQuickFilterAll: "Alle",
     invoiceQuickFilterPaid: "Bezahlt",
     invoiceAdvancedFiltersBtn: "Weitere Filter",
+    invoiceOpsActionsSummary: "Monatsrechnung & Mahnungen",
+    invoiceTableSum: "Summe",
     optOpenUnpaid: "Offen (unbezahlt)",
     invoiceEmptyOpenHint: "Keine offenen Rechnungen. Bezahlte anzeigen.",
     invoiceResultCount: "{count} Rechnungen · {sum}",
@@ -2954,7 +2956,7 @@ const UI_TRANSLATIONS = {
     legalCloseTitle: "Close",
     legalFallbackEmpty: "No text available.",
     invoiceMgmtTitle: "Invoice management",
-    invoiceMgmtCopy: "View open and paid invoices. Mark invoices as paid to automatically lift company locks. All activities are logged in the audit log.",
+    invoiceMgmtCopy: "Click a card to filter the list. Marking paid lifts company locks.",
     billingPortalEyebrow: "Subscription",
     billingPortalTitle: "Plan & online payment",
     billingPortalCopy: "Choose a plan, pay invoices online, manage payment methods in Stripe portal.",
@@ -3225,6 +3227,8 @@ const UI_TRANSLATIONS = {
     invoiceQuickFilterAll: "All",
     invoiceQuickFilterPaid: "Paid",
     invoiceAdvancedFiltersBtn: "More filters",
+    invoiceOpsActionsSummary: "Monthly invoice & reminders",
+    invoiceTableSum: "Total",
     optOpenUnpaid: "Open (unpaid)",
     invoiceEmptyOpenHint: "No open invoices. Show paid invoices.",
     invoiceResultCount: "{count} invoices · {sum}",
@@ -34500,6 +34504,27 @@ function renderInvoiceAttemptTimelineHtml(invoiceId) {
   `;
 }
 
+function formatInvoiceDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  const iso = raw.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) {
+    const [year, month, day] = iso.split("-").map(Number);
+    return new Intl.DateTimeFormat(getUiLocale(), {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(new Date(year, month - 1, day));
+  }
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return new Intl.DateTimeFormat(getUiLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(parsed);
+}
+
 function roundMoney(value) {
   const cents = Math.round((Number(value) || 0) * 100);
   return cents / 100;
@@ -34721,8 +34746,8 @@ function renderInvoiceManagementList() {
         <td><input type="checkbox" class="invoice-bulk-cb" data-invoice-select-id="${escapeHtml(inv.id)}" aria-label="${escapeAttr(runtimeText("invoiceSelectTitle"))}" /></td>
         <td><strong>${escapeHtml(inv.invoice_number || "RE-???")}</strong>${newBadge}${dunningBadge}${errHint}</td>
         <td>${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</td>
-        <td>${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "—"}</td>
-        <td>${inv.due_date ? formatTimestamp(inv.due_date) : "—"}</td>
+        <td>${formatInvoiceDate(inv.invoice_date)}</td>
+        <td>${formatInvoiceDate(inv.due_date)}</td>
         <td class="col-amount">${formatCurrency(roundMoney(inv.total_amount))}</td>
         <td><span class="ms-invoice-pill ms-invoice-pill-${escapeHtml(statusKey)}">${escapeHtml(statusLabel)}</span></td>
         <td class="col-actions">${actions}</td>
@@ -34749,7 +34774,7 @@ function renderInvoiceManagementList() {
         <tbody>${bodyRows}</tbody>
         <tfoot>
           <tr>
-            <td colspan="5">${escapeHtml(uiT("invoiceTableAmount") || "Betrag")}</td>
+            <td colspan="5">${escapeHtml(uiT("invoiceTableSum") || "Summe")}</td>
             <td class="col-amount">${formatCurrency(visibleSum)}</td>
             <td colspan="2"></td>
           </tr>
@@ -34950,11 +34975,11 @@ function renderInvoiceManagementList() {
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>
-                  <p style="margin: 0;">${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "–"}</p>
+                  <p style="margin: 0;">${formatInvoiceDate(inv.invoice_date)}</p>
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDueDateLabel"))}</p>
-                  <p style="margin: 0;">${inv.due_date ? formatTimestamp(inv.due_date) : "–"}</p>
+                  <p style="margin: 0;">${formatInvoiceDate(inv.due_date)}</p>
                 </div>
                 ${inv.paid_at ? `
                 <div>
