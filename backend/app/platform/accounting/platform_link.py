@@ -12,8 +12,14 @@ from backend.app.core.platform_env import platform_env
 
 from . import repository as repo
 from .auth import sign_payload
-from .company_sync import company_upsert_payload
+from .company_sync import (
+    attach_company_logo,
+    company_logo_data_url,
+    company_upsert_payload,
+)
 from .schema import ensure_accounting_schema
+
+_LOGO_PUSH_RECENT: dict[str, float] = {}
 
 
 def _workpass_raw_env(var_name: str, *, keep_padding: bool = False) -> str:
@@ -723,6 +729,108 @@ def notify_company_lohn_status(db, company_id: str, *, enabled: bool) -> dict[st
     except Exception:
         pass
     return _post_lohn_upsert(link, body)
+
+
+def push_company_logo_to_lohn(db, company_id: str) -> dict[str, Any]:
+    """
+    Hand the mandant Firmenlogo to WorkPass Lohn in a dedicated HTTP call.
+
+    Must run after db.commit() so large base64 does not hold SQLite writers.
+    """
+    from .company_opt_in import is_workpass_lohn_enabled
+    from .keys import require_company_id
+
+    company_id = require_company_id(company_id)
+    if not is_workpass_lohn_enabled(db, company_id):
+        return {"ok": False, "error": "workpass_lohn_disabled", "companyId": company_id}
+
+    logo = company_logo_data_url(db, company_id)
+    if not logo:
+        return {
+            "ok": False,
+            "error": "company_logo_missing",
+            "companyId": company_id,
+            "message": "Kein Firmenlogo in den Stammdaten — bitte zuerst hochladen.",
+        }
+
+    link = get_platform_link(db)
+    if not int(link.get("enabled") or 0) or not str(link.get("base_url") or "").strip():
+        return {"ok": False, "skipped": "platform_link_disabled", "companyId": company_id}
+
+    try:
+        payload = company_upsert_payload(db, company_id, include_logo=True)
+    except LookupError:
+        return {"ok": False, "error": "company_not_found", "companyId": company_id}
+
+    body = attach_company_logo(
+        {
+            **payload,
+            "id": company_id,
+            "companyId": company_id,
+            "product": "WorkPass Lohn",
+            "event": "company.branding.logo",
+        },
+        logo,
+    )
+    try:
+        db.commit()
+    except Exception:
+        pass
+
+    recent_key = f"logo:{company_id}"
+    now = time.time()
+    last = float(_LOGO_PUSH_RECENT.get(recent_key) or 0)
+    if last and (now - last) < 90:
+        return {
+            "ok": True,
+            "skipped": "debounced",
+            "companyId": company_id,
+            "bytes": len(logo),
+        }
+
+    upsert = _post_lohn_json(
+        link,
+        path=str(link.get("company_upsert_path") or "/v1/company/upsert"),
+        body=body,
+        event="company.branding.logo",
+        timeout=20,
+    )
+    if upsert.get("ok"):
+        _LOGO_PUSH_RECENT[recent_key] = time.time()
+        return {
+            "ok": True,
+            "companyId": company_id,
+            "bytes": len(logo),
+            "path": upsert.get("url") or upsert.get("path"),
+            "upsert": upsert,
+        }
+
+    branding = _post_lohn_json(
+        link,
+        path="/v1/company/branding",
+        body={
+            "id": company_id,
+            "companyId": company_id,
+            "product": "WorkPass Lohn",
+            "event": "company.branding.logo",
+            "hasLogo": True,
+            "logoData": logo,
+            "branding": {"hasLogo": True, "logoData": logo},
+        },
+        event="company.branding.logo",
+        timeout=20,
+    )
+    ok = bool(branding.get("ok"))
+    if ok:
+        _LOGO_PUSH_RECENT[recent_key] = time.time()
+    return {
+        "ok": ok,
+        "companyId": company_id,
+        "bytes": len(logo),
+        "upsert": upsert,
+        "branding": branding,
+        "error": None if ok else (branding.get("error") or upsert.get("error") or "logo_push_failed"),
+    }
 
 
 def provision_company_for_lohn(

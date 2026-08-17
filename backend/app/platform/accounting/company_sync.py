@@ -5,11 +5,77 @@ from typing import Any
 
 from .keys import require_company_id
 
+# Platform / product marks must never be sent to WorkPass Lohn as a mandant logo.
+_PLATFORM_LOGO_MARKERS = (
+    "suppix",
+    "baupass",
+    "baukometra",
+    "worker-icon",
+    "suppix-ai-logo",
+    "suppix-ai-invoice",
+    "suppix-ai-mark",
+)
 
-def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
+
+def is_platform_brand_mark(logo: str) -> bool:
+    raw = str(logo or "").strip().lower()
+    if not raw:
+        return False
+    return any(marker in raw for marker in _PLATFORM_LOGO_MARKERS)
+
+
+def company_logo_data_url(db, company_id: str) -> str:
+    """
+    Mandant Firmenlogo for WorkPass Lohn.
+
+    Prefer companies.branding_logo_data. Never return the SUPPIX/platform mark.
+    """
+    company_id = require_company_id(company_id)
+    try:
+        row = db.execute(
+            "SELECT branding_logo_data FROM companies WHERE id = ?",
+            (company_id,),
+        ).fetchone()
+    except Exception:
+        row = None
+    if not row:
+        return ""
+    data = dict(row)
+    logo = str(data.get("branding_logo_data") or "").strip()
+    if not logo or is_platform_brand_mark(logo):
+        return ""
+    return logo
+
+
+def attach_company_logo(payload: dict[str, Any], logo: str) -> dict[str, Any]:
+    """Copy logo bytes onto upsert/pull shapes Lohn already consumes."""
+    logo = str(logo or "").strip()
+    branding = dict(payload.get("branding") or {})
+    branding["hasLogo"] = bool(logo)
+    branding["logoData"] = logo
+    payload["branding"] = branding
+    payload["logoData"] = logo
+    payload["hasLogo"] = bool(logo)
+    company = payload.get("company")
+    if isinstance(company, dict):
+        nested = dict(company)
+        nested_branding = dict(nested.get("branding") or branding)
+        nested_branding["hasLogo"] = bool(logo)
+        nested_branding["logoData"] = logo
+        nested["branding"] = nested_branding
+        nested["logoData"] = logo
+        nested["hasLogo"] = bool(logo)
+        payload["company"] = nested
+    return payload
+
+
+def company_upsert_payload(db, company_id: str, *, include_logo: bool = False) -> dict[str, Any]:
     """
     Fields WorkPass Lohn expects for POST /v1/company/upsert style sync.
     company.id is mandatory — without it the request must be rejected.
+
+    Default omit raw logo bytes: large base64 holds SQLite writers during outbound
+    HTTP. Inbound Lohn pulls and explicit logo handoff set include_logo=True.
     """
     company_id = require_company_id(company_id)
     row = db.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
@@ -23,6 +89,10 @@ def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
             if val is not None and str(val).strip():
                 return str(val).strip()
         return ""
+
+    stored_logo = _s("branding_logo_data")
+    has_logo = bool(stored_logo) and not is_platform_brand_mark(stored_logo)
+    logo_data = stored_logo if (include_logo and has_logo) else ""
 
     company = {
         "id": company_id,
@@ -47,11 +117,11 @@ def company_upsert_payload(db, company_id: str) -> dict[str, Any]:
         "branding": {
             "accentColor": _s("branding_accent_color"),
             "preset": _s("branding_preset"),
-            # Never embed raw logo blobs in upsert — large base64 holds SQLite writers
-            # during outbound HTTP and can lock the whole platform.
-            "hasLogo": bool(_s("branding_logo_data")),
-            "logoData": "",
+            "hasLogo": has_logo,
+            "logoData": logo_data,
         },
+        "hasLogo": has_logo,
+        "logoData": logo_data,
     }
     return {
         "ok": True,

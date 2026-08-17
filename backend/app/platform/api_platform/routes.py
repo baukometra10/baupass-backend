@@ -42,7 +42,7 @@ def v1_company_info():
         try:
             from backend.app.platform.accounting.company_sync import company_upsert_payload
 
-            return jsonify(company_upsert_payload(db, company_id)), 200
+            return jsonify(company_upsert_payload(db, company_id, include_logo=True)), 200
         except LookupError:
             return jsonify({"error": "not_found", "companyId": company_id}), 404
         except Exception as exc:

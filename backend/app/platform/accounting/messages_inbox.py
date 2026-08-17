@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -27,6 +29,160 @@ _MISSING_DATA_KINDS = frozenset(
         "incomplete_employee",
     }
 )
+_LOGO_REQUEST_KINDS = frozenset(
+    {
+        "company.branding.requested",
+        "branding.requested",
+        "company.logo.requested",
+        "logo.requested",
+        "branding.logo.requested",
+        "company.branding",
+        "firmenlogo",
+    }
+)
+_LOGO_TEXT_RE = re.compile(
+    r"firmenlogo|company[\s_-]?logo|branding[\s_-]?logo|\blogo\s+(fehlt|missing|needed|erforderlich)",
+    re.I,
+)
+_LOGO_FIELD_KEYS = frozenset(
+    {
+        "logo",
+        "firmenlogo",
+        "companylogo",
+        "brandinglogo",
+        "haslogo",
+        "logodata",
+        "branding_logo",
+        "branding.logodata",
+    }
+)
+
+
+def _auto_fulfill_enabled() -> bool:
+    flag = str(os.getenv("WORKPASS_LOHN_AUTO_FULFILL", "1")).strip().lower()
+    return flag not in {"0", "false", "no", "off"}
+
+
+def _iter_missing_field_keys(item: dict[str, Any] | None) -> list[str]:
+    item = item if isinstance(item, dict) else {}
+    payload = item.get("payload") if isinstance(item.get("payload"), dict) else {}
+    raw = (
+        item.get("missingFields")
+        or item.get("fields")
+        or payload.get("missingFields")
+        or payload.get("fields")
+        or []
+    )
+    if isinstance(raw, str):
+        raw = [p.strip() for p in raw.split(",") if p.strip()]
+    if not isinstance(raw, list):
+        return []
+    keys: list[str] = []
+    for field in raw:
+        if isinstance(field, dict):
+            key = str(field.get("key") or field.get("field") or field.get("name") or "").strip()
+        else:
+            key = str(field or "").strip()
+        if key:
+            keys.append(key)
+    return keys
+
+
+def is_company_logo_request(
+    item: dict[str, Any] | None = None,
+    *,
+    subject: str = "",
+    body: str = "",
+    kind: str = "",
+) -> bool:
+    """True when WorkPass Lohn is asking for the mandant Firmenlogo."""
+    item = item if isinstance(item, dict) else {}
+    kind_l = str(
+        kind
+        or item.get("kind")
+        or item.get("event")
+        or item.get("type")
+        or item.get("category")
+        or ""
+    ).strip().lower()
+    if kind_l in _LOGO_REQUEST_KINDS:
+        return True
+    if "logo" in kind_l and "photo" not in kind_l and "foto" not in kind_l:
+        return True
+    text = " ".join(
+        [
+            subject,
+            body,
+            str(item.get("subject") or item.get("title") or item.get("headline") or ""),
+            str(item.get("body") or item.get("message") or item.get("text") or item.get("detail") or ""),
+        ]
+    )
+    if _LOGO_TEXT_RE.search(text):
+        return True
+    for field in _iter_missing_field_keys(item):
+        key = field.lower().replace(" ", "").replace("-", "_")
+        if key in _LOGO_FIELD_KEYS or "logo" in key:
+            return True
+    return False
+
+
+def fulfill_company_logo_request(db, *, company_id: str) -> dict[str, Any]:
+    """Push the stored mandant logo to WorkPass Lohn (commit first)."""
+    from .platform_link import push_company_logo_to_lohn
+
+    company_id = str(company_id or "").strip()
+    if not company_id:
+        return {"ok": False, "error": "company_id_required"}
+    if not _auto_fulfill_enabled():
+        return {"ok": True, "skipped": "auto_fulfill_disabled", "companyId": company_id}
+    try:
+        db.commit()
+    except Exception:
+        pass
+    return push_company_logo_to_lohn(db, company_id)
+
+
+def fulfill_pending_company_logo_requests(
+    db,
+    *,
+    company_id: str | None = None,
+    limit: int = 3,
+) -> list[dict[str, Any]]:
+    """
+    After Lohn inbox sync: if a pending message asks for Firmenlogo, hand it over
+    and ack so the Ops card disappears.
+    """
+    if not _auto_fulfill_enabled():
+        return []
+    results: list[dict[str, Any]] = []
+    pending = list_pending_accounting_messages(db, company_id=company_id, limit=40)
+    for msg in pending:
+        if len(results) >= max(1, min(int(limit or 3), 5)):
+            break
+        if not is_company_logo_request(
+            msg,
+            subject=str(msg.get("subject") or ""),
+            body=str(msg.get("body") or ""),
+            kind=str(msg.get("kind") or ""),
+        ):
+            continue
+        cid = str(msg.get("companyId") or company_id or "").strip()
+        if not cid:
+            continue
+        pushed = fulfill_company_logo_request(db, company_id=cid)
+        entry = {"companyId": cid, "messageId": msg.get("id"), "logoPush": pushed}
+        if pushed.get("ok"):
+            try:
+                entry["ack"] = ack_message_to_lohn(
+                    db,
+                    message_id=str(msg.get("id") or ""),
+                    actor_user_id="system-lohn-auto",
+                    fulfill=False,
+                )
+            except Exception as exc:
+                entry["ack"] = {"ok": False, "error": str(exc)[:120]}
+        results.append(entry)
+    return results
 
 
 def resolve_company_worker(db, company_id: str, raw_id: str) -> dict[str, Any] | None:
@@ -971,6 +1127,12 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
     if not isinstance(items, list):
         items = []
     stored = upsert_accounting_messages(db, items, default_company=company_id or "")
+    try:
+        db.commit()
+    except Exception:
+        pass
+    # Firmenlogo: commit first, then a dedicated outbound POST (not during SQLite writes).
+    logo_handoffs = fulfill_pending_company_logo_requests(db, company_id=company_id)
     # Poll-fallback: queue period requests only (no outbound HTTP).
     # Auto-delivery runs on explicit Lohn webhook events — pushing from poll while
     # holding the request DB caused SQLite "database is locked" / site 502.
@@ -1016,6 +1178,7 @@ def pull_pending_messages_from_lohn(db, *, company_id: str | None = None) -> dic
         "path": MESSAGES_PENDING_PATH,
         "store": stored,
         "periodRequests": handoffs,
+        "logoHandoffs": logo_handoffs,
         "pull": {"status": fetched.get("status"), "url": fetched.get("url")},
     }
 
@@ -1071,6 +1234,9 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         "branding.requested",
         "company.data.requested",
         "company.upsert.requested",
+        "company.logo.requested",
+        "logo.requested",
+        "branding.logo.requested",
     }:
         if not company_id:
             return {"ok": False, "error": "company_id_required", "event": event}
@@ -1274,6 +1440,28 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             or ""
         ).strip()
         msg_period = str((msg or {}).get("period") or period or "").strip()[:7]
+        logo_ask = is_company_logo_request(msg, kind=kind)
+        branding_kind = kind in _LOGO_REQUEST_KINDS or logo_ask
+        if msg_company and branding_kind:
+            try:
+                replies.setdefault("fromMessages", [])
+                replies["fromMessages"].append(
+                    auto_fulfill_lohn_data_request(
+                        db,
+                        company_id=msg_company,
+                        period=None,
+                        source="lohn_message",
+                        note=str((msg or {}).get("subject") or (msg or {}).get("body") or "")[:500],
+                        external_ref=str((msg or {}).get("id") or "")[:120],
+                        want_employees=False,
+                        want_payroll=False,
+                        want_branding=True,
+                    )
+                )
+                fulfilled_embedded += 1
+            except Exception as exc:
+                replies.setdefault("fromMessages", []).append({"ok": False, "error": str(exc)[:120]})
+            continue
         if msg_company and kind in {
             "period_request",
             "payroll.month.requested",
@@ -1281,8 +1469,6 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
             "payroll_month_requested",
             "employees_list_requested",
             "hours.requested",
-            "company.branding.requested",
-            "branding.requested",
         }:
             try:
                 replies.setdefault("fromMessages", [])
@@ -1310,11 +1496,8 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
                         source="lohn_message",
                         note=str((msg or {}).get("subject") or (msg or {}).get("body") or "")[:500],
                         external_ref=str((msg or {}).get("id") or "")[:120],
-                        want_employees=kind
-                        not in {"company.branding.requested", "branding.requested"},
-                        want_payroll=bool(msg_period)
-                        and kind
-                        not in {"company.branding.requested", "branding.requested"},
+                        want_employees=True,
+                        want_payroll=bool(msg_period),
                         want_branding=False,
                         worker_id=str(
                             (msg or {}).get("workerId") or (msg or {}).get("employeeId") or ""
@@ -1328,6 +1511,11 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
     store = {"ok": True, "createdCount": 0, "updatedCount": 0, "ids": []}
     if messages:
         store = upsert_accounting_messages(db, messages, default_company=company_id)
+    try:
+        db.commit()
+    except Exception:
+        pass
+    logo_handoffs = fulfill_pending_company_logo_requests(db, company_id=company_id or None)
 
     # Avoid nested Lohn HTTP+DB work on every message webhook (was amplifying locks).
     pull: dict[str, Any] = {"skipped": "deferred_to_explicit_sync"}
@@ -1336,10 +1524,6 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         "true",
         "yes",
     }:
-        try:
-            db.commit()
-        except Exception:
-            pass
         pull = pull_pending_messages_from_lohn(db, company_id=company_id)
 
     return {
@@ -1349,6 +1533,7 @@ def handle_inbound_lohn_webhook(db, *, data: dict[str, Any], company_id: str = "
         "webhookStore": store,
         "pull": pull,
         "replies": replies,
+        "logoHandoffs": logo_handoffs,
     }
 
 
@@ -1488,6 +1673,23 @@ def ack_message_to_lohn(
     # Missing-data requests: push current employee stammdaten back to Lohn when available.
     kind = str(row["kind"] or "").strip().lower()
     raw_worker = str(row["worker_id"] or "").strip()
+    payload: dict[str, Any] = {}
+    try:
+        payload = json.loads(str(row["payload_json"] or "{}"))
+    except Exception:
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+    if fulfill and company_for_lohn and is_company_logo_request(
+        payload,
+        subject=str(row["subject"] or ""),
+        body=str(row["body"] or ""),
+        kind=kind,
+    ):
+        try:
+            result["logoPush"] = fulfill_company_logo_request(db, company_id=company_for_lohn)
+        except Exception as exc:
+            result["logoPush"] = {"ok": False, "error": str(exc)[:200]}
     if fulfill and kind in _MISSING_DATA_KINDS and company_for_lohn and raw_worker:
         try:
             from .service import notify_employee_data_resolved

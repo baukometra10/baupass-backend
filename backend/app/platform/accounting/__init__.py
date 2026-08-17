@@ -224,7 +224,7 @@ def register_accounting_blueprint(flask_app) -> None:
         if blocked:
             return jsonify(blocked), 403
         try:
-            payload = company_upsert_payload(get_db(), integ["company_id"])
+            payload = company_upsert_payload(get_db(), integ["company_id"], include_logo=True)
         except LookupError:
             return jsonify({"error": "company_not_found"}), 404
         except ValueError:
@@ -264,7 +264,7 @@ def register_accounting_blueprint(flask_app) -> None:
         if blocked:
             return jsonify(blocked), 403
         db = get_db()
-        company = company_upsert_payload(db, integ["company_id"])
+        company = company_upsert_payload(db, integ["company_id"], include_logo=True)
         contracts = _lohn_contracts_payload(db, integ["company_id"])
         return jsonify(
             {
@@ -700,12 +700,44 @@ def register_accounting_blueprint(flask_app) -> None:
         if blocked:
             return jsonify(blocked), 403
         try:
-            payload = company_upsert_payload(get_db(), integ["company_id"])
+            payload = company_upsert_payload(get_db(), integ["company_id"], include_logo=True)
         except LookupError:
             return jsonify({"error": "company_not_found"}), 404
         except ValueError:
             return jsonify({"error": "company_id_required"}), 400
         return jsonify(payload), 200
+
+    @accounting_bp.get("/v2/accounting/company/branding")
+    def accounting_get_company_branding():
+        """WorkPass Lohn pulls the mandant Firmenlogo (data URL)."""
+        integ, err = _auth_accounting()
+        if err:
+            return jsonify(err[0]), err[1]
+        from .company_opt_in import require_lohn_enabled_or_error
+        from .company_sync import company_logo_data_url, company_upsert_payload
+
+        blocked = require_lohn_enabled_or_error(get_db(), integ["company_id"])
+        if blocked:
+            return jsonify(blocked), 403
+        cid = integ["company_id"]
+        try:
+            payload = company_upsert_payload(get_db(), cid, include_logo=True)
+        except LookupError:
+            return jsonify({"error": "company_not_found"}), 404
+        except ValueError:
+            return jsonify({"error": "company_id_required"}), 400
+        logo = company_logo_data_url(get_db(), cid)
+        branding = dict((payload.get("branding") or payload.get("company", {}).get("branding") or {}))
+        return jsonify(
+            {
+                "ok": True,
+                "product": "WorkPass Lohn",
+                "companyId": cid,
+                "hasLogo": bool(logo),
+                "logoData": logo,
+                "branding": branding,
+            }
+        ), 200
 
     @accounting_bp.get("/v2/accounting/company/access")
     def accounting_get_company_access():
@@ -787,7 +819,7 @@ def register_accounting_blueprint(flask_app) -> None:
         if body_id != integ["company_id"]:
             return jsonify({"error": "company_id_mismatch"}), 403
         try:
-            payload = company_upsert_payload(get_db(), integ["company_id"])
+            payload = company_upsert_payload(get_db(), integ["company_id"], include_logo=True)
         except LookupError:
             return jsonify({"error": "company_not_found"}), 404
         payload["upserted"] = True

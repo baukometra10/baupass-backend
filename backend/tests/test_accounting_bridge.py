@@ -1604,3 +1604,147 @@ def test_push_stammdaten_to_lohn_calls_company_and_employees(monkeypatch):
     assert out.get("ok") is True
     assert calls["company"] == 1
     assert calls["employees"] == 1
+
+
+_LOGO_PNG = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII="
+)
+
+
+def _db_with_company_logo(logo: str = _LOGO_PNG):
+    from backend.app.platform.accounting.company_opt_in import set_workpass_lohn_enabled
+
+    db = _db()
+    db.execute("ALTER TABLE companies ADD COLUMN branding_logo_data TEXT NOT NULL DEFAULT ''")
+    db.execute("UPDATE companies SET branding_logo_data = ? WHERE id = 'c1'", (logo,))
+    set_workpass_lohn_enabled(db, "c1", enabled=True, provision_if_enabled=False)
+    return db
+
+
+def test_company_upsert_omits_logo_bytes_by_default():
+    from backend.app.platform.accounting.company_sync import company_upsert_payload
+
+    db = _db_with_company_logo()
+    payload = company_upsert_payload(db, "c1")
+    assert payload["branding"]["hasLogo"] is True
+    assert payload["branding"]["logoData"] == ""
+    assert payload["logoData"] == ""
+
+    with_logo = company_upsert_payload(db, "c1", include_logo=True)
+    assert with_logo["logoData"] == _LOGO_PNG
+    assert with_logo["branding"]["logoData"] == _LOGO_PNG
+    assert with_logo["company"]["branding"]["logoData"] == _LOGO_PNG
+
+
+def test_platform_mark_is_not_sent_as_mandant_logo():
+    from backend.app.platform.accounting.company_sync import company_logo_data_url, company_upsert_payload
+
+    svg = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'>suppix-ai-logo</svg>"
+    db = _db_with_company_logo(svg)
+    assert company_logo_data_url(db, "c1") == ""
+    payload = company_upsert_payload(db, "c1", include_logo=True)
+    assert payload["hasLogo"] is False
+    assert payload["logoData"] == ""
+
+
+def test_is_company_logo_request_detects_firmenlogo_fehlt():
+    from backend.app.platform.accounting.messages_inbox import is_company_logo_request
+
+    assert is_company_logo_request(
+        {
+            "subject": "Firmenlogo fehlt - Lufthansa",
+            "body": "WorkPass Lohn (Steuerprogramm) braucht das Firmenlogo für Mandant Lufthansa (cmp-cd3c66a0b71a).",
+            "companyId": "cmp-cd3c66a0b71a",
+        }
+    )
+    assert is_company_logo_request({"kind": "company.logo.requested", "companyId": "c1"})
+    assert is_company_logo_request({"missingFields": ["logo", "firmenlogo"]})
+    assert not is_company_logo_request(
+        {"subject": "IBAN fehlt", "body": "Bitte IBAN ergänzen", "kind": "missing_data"}
+    )
+
+
+def test_webhook_firmenlogo_request_pushes_logo_and_acks(monkeypatch):
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db_with_company_logo()
+    platform_link._LOGO_PUSH_RECENT.clear()
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+    posts = []
+
+    def _fake_post(link, *, path, body, event, timeout=20):
+        posts.append({"path": path, "event": event, "body": body, "timeout": timeout})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+
+    out = messages_inbox.handle_inbound_lohn_webhook(
+        db,
+        data={
+            "event": "accounting.message",
+            "companyId": "c1",
+            "kind": "missing_data",
+            "subject": "Firmenlogo fehlt - Lufthansa",
+            "body": (
+                "WorkPass Lohn (Steuerprogramm) braucht das Firmenlogo für Mandant "
+                "Lufthansa (c1). Bitte das Firmenlogo für Mandant Lufthansa (c1) an Lohn übergeben."
+            ),
+            "id": "msg-logo-1",
+        },
+    )
+    assert out["ok"] is True
+    logo_posts = [p for p in posts if (p.get("body") or {}).get("logoData") == _LOGO_PNG]
+    assert logo_posts, posts
+    assert any(p["event"] == "company.branding.logo" for p in posts)
+    assert any(p["path"] == "/v1/messages/ack" for p in posts)
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    assert pending == []
+
+
+def test_ack_logo_message_pushes_logo(monkeypatch):
+    from backend.app.platform.accounting import messages_inbox, platform_link
+
+    db = _db_with_company_logo()
+    platform_link._LOGO_PUSH_RECENT.clear()
+    platform_link.save_platform_link(
+        db,
+        enabled=True,
+        base_url="https://lohn.test",
+        master_api_key="master-secret",
+        platform_public_url="https://platform.test",
+    )
+    stored = messages_inbox.upsert_accounting_messages(
+        db,
+        [
+            {
+                "id": "msg-logo-open",
+                "companyId": "c1",
+                "event": "accounting.message",
+                "kind": "missing_data",
+                "subject": "Firmenlogo fehlt - Lufthansa",
+                "body": "WorkPass Lohn braucht das Firmenlogo für Mandant Lufthansa (c1).",
+            }
+        ],
+    )
+    assert stored["createdCount"] == 1
+    posts = []
+
+    def _fake_post(link, *, path, body, event, timeout=20):
+        posts.append({"path": path, "event": event, "body": body})
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    monkeypatch.setattr(platform_link, "_post_lohn_json", _fake_post)
+    pending = messages_inbox.list_pending_accounting_messages(db, company_id="c1")
+    acked = messages_inbox.ack_message_to_lohn(
+        db, message_id=pending[0]["id"], actor_user_id="admin-1", company_id="c1"
+    )
+    assert acked["ok"] is True
+    assert (acked.get("logoPush") or {}).get("ok") is True
+    assert any((p.get("body") or {}).get("logoData") == _LOGO_PNG for p in posts)

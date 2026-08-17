@@ -886,6 +886,31 @@ def auto_fulfill_lohn_data_request(
                 )
             except Exception as exc:
                 replies["companyUpsert"] = {"ok": False, "error": str(exc)[:160]}
+            try:
+                from .platform_link import push_company_logo_to_lohn
+
+                _db_commit(db)
+                replies["logoPush"] = push_company_logo_to_lohn(db, company_id)
+            except Exception as exc:
+                replies["logoPush"] = {"ok": False, "error": str(exc)[:160]}
+            if not want_employees and not want_payroll:
+                mark_done = bool(
+                    (replies.get("companyUpsert") or {}).get("ok")
+                    or (replies.get("logoPush") or {}).get("ok")
+                )
+                return {
+                    "ok": mark_done,
+                    "status": "delivered" if mark_done else "partial",
+                    "mode": "branding",
+                    "replies": replies,
+                    "message": "Firmenlogo und Stammdaten an WorkPass Lohn übergeben",
+                    "error": None
+                    if mark_done
+                    else (
+                        (replies.get("logoPush") or {}).get("error")
+                        or (replies.get("companyUpsert") or {}).get("error")
+                    ),
+                }
 
         if worker_id and not period_norm and not want_payroll:
             # Single-employee data repair from Lohn missing_data prompts
