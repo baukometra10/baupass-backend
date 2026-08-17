@@ -1387,6 +1387,7 @@ const payslipStudioState = {
   pdfObjectUrl: "",
   sheetHtml: "",
   sheetWindow: null,
+  viewerBlobUrl: "",
   workersByCompany: {},
   inbox: "open",
   inboxSeq: 0,
@@ -1571,7 +1572,15 @@ function closePayslipReviewStudio() {
   el?.classList.add("hidden");
   el?.classList.remove("is-sheet-focus");
   el?.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("payslip-studio-open");
+  document.body.classList.remove("payslip-studio-open", "payslip-sheet-focus");
+  closePayslipSheetOverlay();
+  try {
+    if (document.fullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    }
+  } catch {
+    /* ignore */
+  }
   if (payslipStudioState.pdfObjectUrl) {
     try {
       URL.revokeObjectURL(payslipStudioState.pdfObjectUrl);
@@ -1580,6 +1589,7 @@ function closePayslipReviewStudio() {
     }
     payslipStudioState.pdfObjectUrl = "";
   }
+  revokePayslipViewerBlobUrl();
   const iframe = $("payslipStudioPdf");
   if (iframe) iframe.src = "about:blank";
 }
@@ -2353,7 +2363,10 @@ body.sheet-chrome { min-height: auto !important; padding: 0 !important; backgrou
   <script>
     (function () {
       var btn = document.getElementById("payslipViewerClose");
-      function closeWin() { try { window.close(); } catch (e) {} }
+      function closeWin() {
+        try { window.close(); } catch (e) {}
+        try { parent.postMessage({ type: "workpass-payslip-close" }, "*"); } catch (e) {}
+      }
       if (btn) btn.addEventListener("click", closeWin);
       document.addEventListener("keydown", function (ev) {
         if (ev.key === "Escape") closeWin();
@@ -2364,12 +2377,81 @@ body.sheet-chrome { min-height: auto !important; padding: 0 !important; backgrou
 </body></html>`;
 }
 
+function revokePayslipViewerBlobUrl() {
+  const url = payslipStudioState.viewerBlobUrl;
+  if (!url) return;
+  payslipStudioState.viewerBlobUrl = "";
+  try {
+    URL.revokeObjectURL(url);
+  } catch {
+    /* ignore */
+  }
+}
+
+function closePayslipSheetOverlay() {
+  const overlay = $("payslipSheetOverlay");
+  if (!overlay) return;
+  overlay.classList.add("hidden");
+  overlay.setAttribute("aria-hidden", "true");
+  const frame = overlay.querySelector("iframe");
+  if (frame) {
+    frame.srcdoc = "";
+    frame.removeAttribute("src");
+  }
+  document.body.classList.remove("payslip-overlay-open");
+  try {
+    if (document.fullscreenElement === overlay) {
+      (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function ensurePayslipSheetOverlay() {
+  let overlay = $("payslipSheetOverlay");
+  if (overlay) return overlay;
+  overlay = document.createElement("div");
+  overlay.id = "payslipSheetOverlay";
+  overlay.className = "payslip-sheet-overlay hidden";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML = `
+    <div class="payslip-sheet-overlay-bar">
+      <strong>${escapeHtml(t("lohn.payslipReviewTitle") || "Lohnabrechnung")}</strong>
+      <button type="button" id="payslipSheetOverlayClose">${escapeHtml(t("common.close") || "Schließen")}</button>
+    </div>
+    <iframe class="payslip-sheet-overlay-frame" title="Lohnabrechnung"></iframe>`;
+  document.body.appendChild(overlay);
+  overlay.querySelector("#payslipSheetOverlayClose")?.addEventListener("click", () => closePayslipSheetOverlay());
+  overlay.addEventListener("click", (ev) => {
+    if (ev.target === overlay) closePayslipSheetOverlay();
+  });
+  return overlay;
+}
+
+function openPayslipSheetOverlay(viewerHtml) {
+  const overlay = ensurePayslipSheetOverlay();
+  const frame = overlay.querySelector("iframe");
+  if (frame) frame.srcdoc = String(viewerHtml || "");
+  overlay.classList.remove("hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  document.body.classList.add("payslip-overlay-open");
+  const req = overlay.requestFullscreen || overlay.webkitRequestFullscreen;
+  try {
+    req?.call(overlay);
+  } catch {
+    /* fullscreen optional */
+  }
+  showActionToast(t("lohn.overlayOpened") || "Abrechnung im Vollbild geöffnet");
+}
+
 function openPayslipSheetWindow(html) {
   const docHtml = String(html || payslipStudioState.sheetHtml || "").trim();
   if (!docHtml) {
     showActionToast(t("lohn.sheetMissing") || "Keine Abrechnung geladen", true);
     return;
   }
+  const viewerHtml = wrapPayslipViewerHtml(docHtml);
   try {
     if (payslipStudioState.sheetWindow && !payslipStudioState.sheetWindow.closed) {
       payslipStudioState.sheetWindow.close();
@@ -2377,41 +2459,38 @@ function openPayslipSheetWindow(html) {
   } catch {
     /* ignore */
   }
-  const viewerHtml = wrapPayslipViewerHtml(docHtml);
-  const features = [
-    "popup=yes",
-    "scrollbars=yes",
-    "resizable=yes",
-    `width=${Math.max(900, Math.min(screen.availWidth || 1200, 1200))}`,
-    `height=${Math.max(700, Math.min(screen.availHeight || 900, 1600))}`,
-    "left=0",
-    "top=0",
-  ].join(",");
-  const win = window.open("", "workpass-lohn-payslip", features);
-  if (!win) {
-    showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
-    return;
-  }
-  payslipStudioState.sheetWindow = win;
+  revokePayslipViewerBlobUrl();
+  let win = null;
   try {
-    try {
-      win.moveTo(0, 0);
-      win.resizeTo(screen.availWidth || 1200, screen.availHeight || 900);
-    } catch {
-      /* some browsers block resize */
+    const blob = new Blob([viewerHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    payslipStudioState.viewerBlobUrl = url;
+    win = window.open(url, "workpass-lohn-payslip");
+    if (win) {
+      payslipStudioState.sheetWindow = win;
+      try {
+        win.focus();
+      } catch {
+        /* ignore */
+      }
+      const watch = window.setInterval(() => {
+        let closed = false;
+        try {
+          closed = !win || win.closed;
+        } catch {
+          closed = true;
+        }
+        if (!closed) return;
+        window.clearInterval(watch);
+        revokePayslipViewerBlobUrl();
+      }, 1200);
+      return;
     }
-    win.document.open();
-    win.document.write(viewerHtml);
-    win.document.close();
-    try {
-      win.document.documentElement.style.colorScheme = currentUiTheme() === "dark" ? "dark" : "light";
-    } catch {
-      /* ignore */
-    }
-    win.focus();
   } catch {
-    showActionToast(t("lohn.popupBlocked") || "Popup blockiert — bitte Popups erlauben", true);
+    win = null;
   }
+  revokePayslipViewerBlobUrl();
+  openPayslipSheetOverlay(viewerHtml);
 }
 
 async function selectPayslipStatement(batchId, statementId) {
@@ -2649,6 +2728,8 @@ async function handlePayslipStudioClick(ev) {
     const studio = $("payslipReviewStudio");
     const on = studio?.classList.toggle("is-sheet-focus");
     document.body.classList.toggle("payslip-sheet-focus", Boolean(on));
+    const iframe = $("payslipStudioPdf");
+    const wrap = iframe?.closest?.(".payslip-studio-pdf-wrap");
     let exitBtn = $("payslipFocusExitBtn");
     if (on) {
       if (!exitBtn) {
@@ -2661,8 +2742,24 @@ async function handlePayslipStudioClick(ev) {
         studio?.appendChild(exitBtn);
       }
       exitBtn.classList.remove("hidden");
+      if (iframe) iframe.style.pointerEvents = "auto";
+      const host = wrap || studio;
+      const req = host?.requestFullscreen || host?.webkitRequestFullscreen;
+      try {
+        req?.call(host);
+      } catch {
+        /* fullscreen optional — CSS focus still applies */
+      }
     } else if (exitBtn) {
       exitBtn.classList.add("hidden");
+      if (iframe) iframe.style.pointerEvents = "none";
+      try {
+        if (document.fullscreenElement) {
+          (document.exitFullscreen || document.webkitExitFullscreen)?.call(document);
+        }
+      } catch {
+        /* ignore */
+      }
     }
     schedulePayslipPreviewFit();
     return;
@@ -3120,9 +3217,17 @@ function wireLohnDrawer() {
       closeLohnDrawer();
       return;
     }
+    if (ev.key === "Escape" && !$("payslipSheetOverlay")?.classList.contains("hidden")) {
+      closePayslipSheetOverlay();
+      return;
+    }
     if (ev.key === "Escape" && $("payslipReviewStudio")?.classList.contains("is-sheet-focus")) {
       $("payslipFocusExitBtn")?.click();
     }
+  });
+  window.addEventListener("message", (ev) => {
+    if (ev.origin && ev.origin !== window.location.origin) return;
+    if (ev.data?.type === "workpass-payslip-close") closePayslipSheetOverlay();
   });
   window.addEventListener("storage", (ev) => {
     if (ev.key === "workpass-lohn-inbox-bump") refreshLohnBadgeOnly().catch(() => {});

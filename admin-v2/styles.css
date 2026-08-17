@@ -4295,16 +4295,66 @@ body.payslip-studio-open {
   overflow: hidden;
 }
 .payslip-studio.is-sheet-focus .payslip-studio-list,
-.payslip-studio.is-sheet-focus .payslip-studio-side {
+.payslip-studio.is-sheet-focus .payslip-studio-side,
+.payslip-studio.is-sheet-focus .payslip-studio-head {
   display: none;
 }
 .payslip-studio.is-sheet-focus .payslip-studio-layout,
 .payslip-studio.is-sheet-focus .payslip-studio-work {
   grid-template-columns: 1fr;
+  grid-template-rows: minmax(0, 1fr);
 }
 .payslip-studio.is-sheet-focus .payslip-studio-pdf-wrap {
   padding: 0.55rem;
+  overflow: auto;
 }
+.payslip-studio.is-sheet-focus .payslip-sheet-stage,
+.payslip-studio.is-sheet-focus .payslip-studio-pdf {
+  pointer-events: auto;
+}
+body.payslip-sheet-focus .payslip-studio-shell {
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  border-radius: 0;
+}
+.payslip-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 14000;
+  display: flex;
+  flex-direction: column;
+  background: #0b1220;
+}
+.payslip-sheet-overlay.hidden { display: none; }
+.payslip-sheet-overlay-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  background: #0d1628;
+  border-bottom: 1px solid rgba(120, 156, 255, 0.18);
+  color: #e2e8f0;
+}
+.payslip-sheet-overlay-bar button {
+  border: 0;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.payslip-sheet-overlay-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+body.payslip-overlay-open { overflow: hidden; }
 .payslip-studio-side {
   overflow: auto;
   min-width: 0;
