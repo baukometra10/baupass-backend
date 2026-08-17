@@ -310,7 +310,10 @@ class CameraNightWatchTests(unittest.TestCase):
         eid = created["id"]
         detail = get_escalation(db, "cmp-watch", eid, include_media=True)
         self.assertTrue(detail["hasSnapshot"] or detail.get("snapshotBase64"))
-        self.assertEqual(detail.get("clipBase64"), clip)
+        self.assertEqual(detail.get("clipBase64") or "", "")
+        self.assertTrue(detail.get("hasClearSnapshot"))
+        revealed = get_escalation(db, "cmp-watch", eid, include_media=True, reveal=True)
+        self.assertEqual(revealed.get("clipBase64"), clip)
         self.assertTrue(detail.get("history") is not None)
         fp = mark_false_positive(db, "cmp-watch", eid, actor_user_id="admin-1", note="cat")
         self.assertEqual(fp["status"], "false_positive")
@@ -607,11 +610,13 @@ class CameraNightWatchTests(unittest.TestCase):
         self.assertTrue(out.get("ok"))
         self.assertGreaterEqual(int(out.get("cleared") or 0), 1)
         row = db.execute(
-            "SELECT snapshot_b64, clip_b64, status FROM camera_escalations WHERE id = ?",
+            "SELECT snapshot_b64, clip_b64, snapshot_clear_b64, clip_clear_b64, status FROM camera_escalations WHERE id = ?",
             (eid,),
         ).fetchone()
         self.assertEqual(str(row["snapshot_b64"] or ""), "")
         self.assertEqual(str(row["clip_b64"] or ""), "")
+        self.assertEqual(str(row["snapshot_clear_b64"] or ""), "")
+        self.assertEqual(str(row["clip_clear_b64"] or ""), "")
         self.assertTrue(row["status"])  # metadata kept
         db.close()
 

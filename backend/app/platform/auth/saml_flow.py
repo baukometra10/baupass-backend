@@ -109,11 +109,23 @@ def _find_email_from_assertion(root: ET.Element) -> str:
     return ""
 
 
+def _local(tag: str) -> str:
+    return tag.split("}", 1)[-1] if "}" in tag else tag
+
+
+def _is_production_env() -> bool:
+    return os.getenv("BAUPASS_ENV", "").strip().lower() in {"production", "prod"}
+
+
+def _env_flag(name: str) -> bool:
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes"}
+
+
 def _validate_conditions(root: ET.Element, cfg: dict[str, str]) -> str | None:
     now = datetime.now(timezone.utc)
-    audience_ok = cfg["entity_id"] in ET.tostring(root, encoding="unicode")
+    audience_ok = False
     for elem in root.iter():
-        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
+        tag = _local(elem.tag)
         if tag == "Conditions":
             not_before = _parse_instant(elem.get("NotBefore"))
             not_on_or_after = _parse_instant(elem.get("NotOnOrAfter"))
@@ -123,37 +135,87 @@ def _validate_conditions(root: ET.Element, cfg: dict[str, str]) -> str | None:
                 return "assertion_expired"
         if tag == "Audience" and elem.text and elem.text.strip() == cfg["entity_id"]:
             audience_ok = True
+        if tag == "SubjectConfirmationData":
+            not_on_or_after = _parse_instant(elem.get("NotOnOrAfter"))
+            if not_on_or_after and now > not_on_or_after:
+                return "assertion_expired"
+            recipient = (elem.get("Recipient") or "").strip()
+            if recipient and recipient != cfg["acs_url"]:
+                return "recipient_mismatch"
     if not audience_ok:
         return "audience_mismatch"
     return None
 
 
-def _has_xml_signature(root: ET.Element) -> bool:
+def _validate_destination(root: ET.Element, cfg: dict[str, str]) -> str | None:
     for elem in root.iter():
-        tag = elem.tag.split("}")[-1] if "}" in elem.tag else elem.tag
-        if tag == "Signature":
-            return True
-    return False
+        if _local(elem.tag) == "Response":
+            dest = (elem.get("Destination") or "").strip()
+            if dest and dest != cfg["acs_url"]:
+                return "destination_mismatch"
+            return None
+    return None
 
 
-def _verify_signature_if_required(root: ET.Element, cfg: dict[str, str]) -> str | None:
-    """Require XML Signature element unless BAUPASS_SAML_ALLOW_UNSIGNED=1."""
-    _ = cfg
-    if os.getenv("BAUPASS_SAML_SKIP_SIGNATURE_VERIFY", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }:
+def _in_response_to(root: ET.Element) -> str:
+    for elem in root.iter():
+        if _local(elem.tag) in {"Response", "SubjectConfirmationData"}:
+            value = (elem.get("InResponseTo") or "").strip()
+            if value:
+                return value
+    return ""
+
+
+def _assertion_id(root: ET.Element) -> str:
+    for elem in root.iter():
+        if _local(elem.tag) == "Assertion":
+            return (elem.get("ID") or elem.get("Id") or "").strip()
+    return ""
+
+
+def _verify_signature_if_required(xml_bytes: bytes, cfg: dict[str, str]) -> str | None:
+    """Cryptographic XML signature check. Production never skips."""
+    from .saml_signature import verify_saml_xml_signature
+
+    skip = _env_flag("BAUPASS_SAML_SKIP_SIGNATURE_VERIFY") or _env_flag("BAUPASS_SAML_ALLOW_UNSIGNED")
+    if skip and not _is_production_env():
         return None
-    if _has_xml_signature(root):
-        return None
-    if os.getenv("BAUPASS_SAML_ALLOW_UNSIGNED", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-    }:
-        return None
-    return "unsigned_assertion_rejected"
+    return verify_saml_xml_signature(xml_bytes, cfg.get("idp_cert_pem") or "")
+
+
+def validate_saml_response_xml(
+    xml_bytes: bytes,
+    cfg: dict[str, str],
+    *,
+    expected_request_id: str,
+) -> str | None:
+    """Return an error code, or None when the assertion is acceptable."""
+    from .sso_state import remember_saml_assertion
+
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError:
+        return "invalid_xml"
+    sig_err = _verify_signature_if_required(xml_bytes, cfg)
+    if sig_err:
+        return sig_err
+    dest_err = _validate_destination(root, cfg)
+    if dest_err:
+        return dest_err
+    in_response = _in_response_to(root)
+    if not in_response:
+        return "missing_in_response_to"
+    if in_response != expected_request_id:
+        return "in_response_to_mismatch"
+    cond_err = _validate_conditions(root, cfg)
+    if cond_err:
+        return cond_err
+    aid = _assertion_id(root)
+    if not aid:
+        return "missing_assertion_id"
+    if not remember_saml_assertion(aid):
+        return "assertion_replay"
+    return None
 
 
 def process_acs(cfg: dict[str, str]) -> Response:
@@ -161,14 +223,15 @@ def process_acs(cfg: dict[str, str]) -> Response:
     from backend.server import get_db
 
     from .sso_session import complete_admin_sso_login, find_admin_user_by_email
+    from .sso_state import consume_saml_relay
 
     saml_response = (request.form.get("SAMLResponse") or "").strip()
     relay_state = (request.form.get("RelayState") or "").strip()
     if not saml_response:
         return _redirect_error("missing_response")
-    from .sso_state import consume_saml_relay
 
-    if not consume_saml_relay(relay_state):
+    req_id = consume_saml_relay(relay_state)
+    if not req_id:
         return _redirect_error("invalid_state")
 
     try:
@@ -176,18 +239,14 @@ def process_acs(cfg: dict[str, str]) -> Response:
     except Exception:
         return _redirect_error("invalid_base64")
 
+    err = validate_saml_response_xml(xml_bytes, cfg, expected_request_id=req_id)
+    if err:
+        return _redirect_error(err)
+
     try:
         root = ET.fromstring(xml_bytes)
     except ET.ParseError:
         return _redirect_error("invalid_xml")
-
-    sig_err = _verify_signature_if_required(root, cfg)
-    if sig_err:
-        return _redirect_error(sig_err)
-
-    cond_err = _validate_conditions(root, cfg)
-    if cond_err:
-        return _redirect_error(cond_err)
 
     email = _find_email_from_assertion(root)
     if not email:

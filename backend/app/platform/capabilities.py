@@ -50,9 +50,31 @@ def collect_platform_capabilities(db_path: Path | None = None) -> dict[str, Any]
         "redisConfigured": bool((os.getenv("REDIS_URL") or "").strip()),
         "taskQueuesReady": task_queues_ready(),
         "coreSchemaReady": readiness.get("checks", {}).get("database", {}).get("ok", False),
+        "sqliteReplicaUnsafe": not postgres_runtime_enabled(),
+        "recommendedWebReplicas": 2 if postgres_runtime_enabled() and bool((os.getenv("REDIS_URL") or "").strip()) else 1,
     }
 
     maturity = _score_maturity(readiness, data_layer, distribution)
+
+    from backend.app.platform.enterprise.datev_client import datev_env_configured
+
+    integrations = {
+        "datevCsvExport": True,
+        "datevOauthClient": bool(datev_env_configured()),
+        "datevLodasCertified": False,
+        "datevUnternehmenOnline": False,
+        "elster": False,
+        "personio": False,
+        "zapier": False,
+        "live": ["public_api", "webhooks", "workpass_lohn", "datev_csv", "stripe", "oidc", "rtsp", "gps"],
+        "doNotPromiseInContracts": [
+            "DATEV LODAS certified",
+            "DATEV Unternehmen online certified",
+            "ELSTER",
+            "Personio",
+            "Zapier/Make",
+        ],
+    }
 
     return {
         "ok": readiness.get("ready", False),
@@ -63,6 +85,7 @@ def collect_platform_capabilities(db_path: Path | None = None) -> dict[str, Any]
         "attendance": attendance,
         "distribution": distribution,
         "dataLayer": data_layer,
+        "integrations": integrations,
         "deferred": {
             "domainsSplitFromServerPy": True,
             "publicAppStoreRelease": not distribution["apkUrlConfigured"],

@@ -10,7 +10,7 @@ from .camera_watch import DEFAULT_EVIDENCE_RETENTION_DAYS, get_watch_settings
 
 
 def run_camera_evidence_retention(db) -> dict[str, Any]:
-    """Null out snapshot_b64/clip_b64 on escalations older than company retention days."""
+    """Null out public and clear evidence blobs older than company retention days."""
     if str(os.getenv("BAUPASS_CAMERA_EVIDENCE_JOB", "1")).strip().lower() in {
         "0",
         "false",
@@ -23,9 +23,18 @@ def run_camera_evidence_retention(db) -> dict[str, Any]:
     companies = 0
     errors = 0
     try:
-        rows = db.execute(
-            "SELECT DISTINCT company_id FROM camera_escalations"
-        ).fetchall()
+        try:
+            rows = db.execute(
+                """
+                SELECT DISTINCT company_id FROM camera_escalations
+                UNION
+                SELECT DISTINCT company_id FROM site_cameras
+                """
+            ).fetchall()
+        except Exception:
+            rows = db.execute(
+                "SELECT DISTINCT company_id FROM camera_escalations"
+            ).fetchall()
     except Exception as exc:
         return {"ok": False, "error": str(exc), "autoDial": False}
 
@@ -44,12 +53,14 @@ def run_camera_evidence_retention(db) -> dict[str, Any]:
                 cur = db.execute(
                     """
                     UPDATE camera_escalations
-                    SET snapshot_b64 = '', clip_b64 = ''
+                    SET snapshot_b64 = '', clip_b64 = '', snapshot_clear_b64 = '', clip_clear_b64 = ''
                     WHERE company_id = ?
                       AND created_at < ?
                       AND (
                         COALESCE(snapshot_b64, '') != ''
                         OR COALESCE(clip_b64, '') != ''
+                        OR COALESCE(snapshot_clear_b64, '') != ''
+                        OR COALESCE(clip_clear_b64, '') != ''
                       )
                     """,
                     (cid, cutoff),
@@ -67,6 +78,21 @@ def run_camera_evidence_retention(db) -> dict[str, Any]:
                 )
             db.commit()
             cleared += int(getattr(cur, "rowcount", 0) or 0)
+            try:
+                cur_cam = db.execute(
+                    """
+                    UPDATE site_cameras
+                    SET last_snapshot_clear_b64 = ''
+                    WHERE company_id = ?
+                      AND COALESCE(last_snapshot_at, '') < ?
+                      AND COALESCE(last_snapshot_clear_b64, '') != ''
+                    """,
+                    (cid, cutoff),
+                )
+                db.commit()
+                cleared += int(getattr(cur_cam, "rowcount", 0) or 0)
+            except Exception:
+                pass
         except Exception:
             errors += 1
 

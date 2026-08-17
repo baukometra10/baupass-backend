@@ -1789,5 +1789,43 @@ ALL_MIGRATIONS: list[Migration] = [
         """,
     ),
 
+    Migration(
+        version="054",
+        name="camera_face_privacy_blur",
+        up_sql="""
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS face_blur_enabled INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE site_cameras ADD COLUMN IF NOT EXISTS last_snapshot_clear_b64 TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS snapshot_clear_b64 TEXT NOT NULL DEFAULT '';
+            ALTER TABLE camera_escalations ADD COLUMN IF NOT EXISTS clip_clear_b64 TEXT NOT NULL DEFAULT '';
+        """,
+        down_sql="""
+            -- SQLite cannot DROP COLUMN portably.
+        """,
+    ),
+
+    Migration(
+        version="055",
+        name="gps_privacy_retention_and_company_gate",
+        up_sql="""
+            ALTER TABLE company_retention_policies ADD COLUMN IF NOT EXISTS gps_location_days INTEGER NOT NULL DEFAULT 14;
+            ALTER TABLE companies ADD COLUMN IF NOT EXISTS location_tracking_enabled INTEGER NOT NULL DEFAULT 1;
+            ALTER TABLE companies ADD COLUMN IF NOT EXISTS location_tracking_legal_ack INTEGER NOT NULL DEFAULT 0;
+        """,
+        down_sql="""
+            -- SQLite cannot DROP COLUMN portably.
+        """,
+    ),
+
+    Migration(
+        version="056",
+        name="camera_face_match_legal_ack",
+        up_sql="""
+            ALTER TABLE camera_watch_settings ADD COLUMN IF NOT EXISTS face_match_enabled INTEGER NOT NULL DEFAULT 0;
+        """,
+        down_sql="""
+            -- SQLite cannot DROP COLUMN portably.
+        """,
+    ),
+
 ]
 ALL_MIGRATIONS.sort(key=lambda m: (int(m.version), m.name))

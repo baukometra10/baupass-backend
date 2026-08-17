@@ -100,6 +100,9 @@ def serialize_camera(row) -> dict[str, Any]:
         "lastSeenAt": last_seen or None,
         "lastSnapshotAt": str(row["last_snapshot_at"] or "") or None,
         "hasSnapshot": has_snapshot,
+        "hasClearSnapshot": bool(
+            str(row["last_snapshot_clear_b64"] if _row_has(row, "last_snapshot_clear_b64") else "").strip()
+        ),
         "healthError": str(row["health_error"] or ""),
         "zoneName": zone_name,
         "zoneCriticalOnlyAfterHours": zone_crit,
@@ -136,7 +139,22 @@ def get_camera(db, company_id: str, camera_id: str) -> dict[str, Any] | None:
     return serialize_camera(row) if row else None
 
 
-def get_camera_snapshot_b64(db, company_id: str, camera_id: str) -> str | None:
+def get_camera_snapshot_b64(db, company_id: str, camera_id: str, *, reveal: bool = False) -> str | None:
+    if reveal:
+        try:
+            row = db.execute(
+                """
+                SELECT last_snapshot_clear_b64, last_snapshot_b64
+                FROM site_cameras WHERE company_id = ? AND id = ?
+                """,
+                (str(company_id), str(camera_id)),
+            ).fetchone()
+        except Exception:
+            row = None
+        if row:
+            clear = str(row["last_snapshot_clear_b64"] or "").strip()
+            public = str(row["last_snapshot_b64"] or "").strip()
+            return clear or public or None
     row = db.execute(
         "SELECT last_snapshot_b64 FROM site_cameras WHERE company_id = ? AND id = ?",
         (str(company_id), str(camera_id)),
@@ -435,59 +453,124 @@ def touch_camera_heartbeat(
     location = str(payload.get("location") or payload.get("site") or "").strip()
     rtsp_url = str(payload.get("rtsp_url") or payload.get("rtspUrl") or "").strip()
     snap = _trim_snapshot_b64(snapshot_b64 or payload.get("image_base64") or payload.get("snapshot_base64"))
+    public_snap = snap
+    clear_snap = ""
+    if snap:
+        try:
+            from .face_privacy import protect_camera_image
+
+            protected = protect_camera_image(db, company_id, snap)
+            public_snap = str(protected.get("public") or snap)
+            clear_snap = str(protected.get("clear") or "")
+        except Exception:
+            public_snap = snap
+            clear_snap = ""
     row = db.execute(
         "SELECT id, offline_alert_sent_at FROM site_cameras WHERE company_id = ? AND id = ?",
         (company_id, cam_id),
     ).fetchone()
     if row:
         was_offline = bool(str(row["offline_alert_sent_at"] or "").strip())
-        db.execute(
-            """
-            UPDATE site_cameras
-            SET last_seen_at = ?, status = 'online', health_error = ?,
-                offline_alert_sent_at = CASE WHEN ? != '' THEN NULL ELSE offline_alert_sent_at END,
-                last_snapshot_at = CASE WHEN ? != '' THEN ? ELSE last_snapshot_at END,
-                last_snapshot_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_b64 END,
-                updated_at = ?
-            WHERE company_id = ? AND id = ?
-            """,
-            (
-                ts,
-                str(health_error or "").strip()[:500],
-                snap,
-                snap,
-                ts,
-                snap,
-                snap,
-                ts,
-                company_id,
-                cam_id,
-            ),
-        )
+        try:
+            db.execute(
+                """
+                UPDATE site_cameras
+                SET last_seen_at = ?, status = 'online', health_error = ?,
+                    offline_alert_sent_at = CASE WHEN ? != '' THEN NULL ELSE offline_alert_sent_at END,
+                    last_snapshot_at = CASE WHEN ? != '' THEN ? ELSE last_snapshot_at END,
+                    last_snapshot_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_b64 END,
+                    last_snapshot_clear_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_clear_b64 END,
+                    updated_at = ?
+                WHERE company_id = ? AND id = ?
+                """,
+                (
+                    ts,
+                    str(health_error or "").strip()[:500],
+                    public_snap,
+                    public_snap,
+                    ts,
+                    public_snap,
+                    public_snap,
+                    public_snap,
+                    clear_snap,
+                    ts,
+                    company_id,
+                    cam_id,
+                ),
+            )
+        except Exception:
+            db.execute(
+                """
+                UPDATE site_cameras
+                SET last_seen_at = ?, status = 'online', health_error = ?,
+                    offline_alert_sent_at = CASE WHEN ? != '' THEN NULL ELSE offline_alert_sent_at END,
+                    last_snapshot_at = CASE WHEN ? != '' THEN ? ELSE last_snapshot_at END,
+                    last_snapshot_b64 = CASE WHEN ? != '' THEN ? ELSE last_snapshot_b64 END,
+                    updated_at = ?
+                WHERE company_id = ? AND id = ?
+                """,
+                (
+                    ts,
+                    str(health_error or "").strip()[:500],
+                    public_snap,
+                    public_snap,
+                    ts,
+                    public_snap,
+                    public_snap,
+                    ts,
+                    company_id,
+                    cam_id,
+                ),
+            )
         if was_offline and snap:
             pass  # recovery handled by health job clearing alert flag via NULL above
     else:
-        db.execute(
-            """
-            INSERT INTO site_cameras
-                (id, company_id, name, location, rtsp_url, status, last_seen_at,
-                 last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
-                 created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, 'online', ?, ?, ?, ?, NULL, ?, ?)
-            """,
-            (
-                cam_id,
-                company_id,
-                name,
-                location,
-                rtsp_url,
-                ts,
-                ts if snap else None,
-                snap,
-                str(health_error or "").strip()[:500],
-                ts,
-                ts,
-            ),
-        )
+        try:
+            db.execute(
+                """
+                INSERT INTO site_cameras
+                    (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                     last_snapshot_at, last_snapshot_b64, last_snapshot_clear_b64,
+                     health_error, offline_alert_sent_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'online', ?, ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    cam_id,
+                    company_id,
+                    name,
+                    location,
+                    rtsp_url,
+                    ts,
+                    ts if public_snap else None,
+                    public_snap,
+                    clear_snap,
+                    str(health_error or "").strip()[:500],
+                    ts,
+                    ts,
+                ),
+            )
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO site_cameras
+                    (id, company_id, name, location, rtsp_url, status, last_seen_at,
+                     last_snapshot_at, last_snapshot_b64, health_error, offline_alert_sent_at,
+                     created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'online', ?, ?, ?, ?, NULL, ?, ?)
+                """,
+                (
+                    cam_id,
+                    company_id,
+                    name,
+                    location,
+                    rtsp_url,
+                    ts,
+                    ts if public_snap else None,
+                    public_snap,
+                    str(health_error or "").strip()[:500],
+                    ts,
+                    ts,
+                ),
+            )
     db.commit()
     return get_camera(db, company_id, cam_id) or {"id": cam_id, "online": True}

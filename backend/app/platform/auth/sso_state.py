@@ -86,6 +86,28 @@ def consume_state(state: str) -> dict[str, Any] | None:
     return _mem_pop(state)
 
 
+def store_state_once(state: str, payload: dict[str, Any]) -> bool:
+    """Persist state only if the key is new. Returns False on replay."""
+    if not state:
+        return False
+    r = _redis_client()
+    if r is not None:
+        try:
+            ok = r.set(f"{_PREFIX}{state}", json.dumps(payload), nx=True, ex=_TTL_SEC)
+            if ok:
+                return True
+            if ok is False or ok == 0:
+                return False
+        except Exception as exc:
+            logger.warning("SSO state Redis setnx failed, using memory: %s", exc)
+    if state in _MEM:
+        raw, expires = _MEM[state]
+        if time.time() <= expires:
+            return False
+    _mem_set(state, payload)
+    return True
+
+
 def issue_oidc_state() -> str:
     """Create random state for OpenID Connect authorize redirect."""
     state = secrets.token_urlsafe(24)
@@ -110,3 +132,11 @@ def consume_saml_relay(state: str) -> str | None:
     if not payload or payload.get("kind") != "saml":
         return None
     return str(payload.get("req_id") or "") or None
+
+
+def remember_saml_assertion(assertion_id: str) -> bool:
+    """One-time assertion ID. Returns False if this assertion was already consumed."""
+    aid = str(assertion_id or "").strip()
+    if not aid:
+        return False
+    return store_state_once(f"saml-aid-{aid}", {"kind": "saml-aid", "id": aid})

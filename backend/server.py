@@ -9210,6 +9210,36 @@ def start_background_jobs():
             daemon=True,
         ).start()
 
+    def run_gps_location_retention_job():
+        try:
+            with app.app_context():
+                from backend.app.platform.physical_operations.location_retention_job import (
+                    run_gps_location_retention,
+                )
+
+                return run_gps_location_retention(get_db())
+        except Exception as exc:
+            print(f"[baupass] WARNING: GPS location retention job failed: {exc}", flush=True)
+            return {"ok": False, "error": str(exc)}
+
+    def gps_location_retention_loop():
+        interval = max(300, int(os.getenv("BAUPASS_GPS_RETENTION_SECONDS", "3600")))
+        while True:
+            run_gps_location_retention_job()
+            time.sleep(interval)
+
+    if str(os.getenv("BAUPASS_GPS_RETENTION_JOB", "1")).strip().lower() not in {
+        "0",
+        "false",
+        "off",
+        "no",
+    }:
+        threading.Thread(  # baupass:allow-inline-thread
+            target=gps_location_retention_loop,
+            name="baupass-gps-location-retention",
+            daemon=True,
+        ).start()
+
     def run_platform_guardian_once():
         try:
             with app.app_context():
@@ -13084,7 +13114,7 @@ def _worker_location_accuracy_meters(location):
     return accuracy
 
 
-def _upsert_worker_live_gps_from_location(db, worker, location) -> bool:
+def _upsert_worker_live_gps_from_location(db, worker, location, *, on_duty: bool = True) -> bool:
     """Persist device GPS for live map after check-in / presence pings."""
     if not isinstance(location, dict):
         return False
@@ -13100,6 +13130,21 @@ def _upsert_worker_live_gps_from_location(db, worker, location) -> bool:
     if abs(lat) < 0.0001 and abs(lng) < 0.0001:
         return False
     try:
+        from backend.app.platform.workforce.location_privacy import (
+            allow_store_live_location,
+            clear_live_location,
+        )
+
+        allowed, reason = allow_store_live_location(
+            db,
+            worker_id=worker["id"],
+            company_id=worker["company_id"],
+            on_duty=bool(on_duty),
+        )
+        if not allowed:
+            if reason in {"not_checked_in", "missing_location_consent", "company_tracking_disabled"}:
+                clear_live_location(db, worker["id"])
+            return False
         from backend.app.platform.workforce.presence_state import upsert_live_location
 
         return bool(
@@ -15693,17 +15738,30 @@ def worker_app_site_presence():
         raw_lng = _normalize_float(location.get("longitude") if isinstance(location, dict) else None)
         if raw_lat is not None and raw_lng is not None and not (abs(raw_lat) < 0.0001 and abs(raw_lng) < 0.0001):
             try:
+                from backend.app.platform.workforce.location_privacy import allow_store_live_location
                 from backend.app.platform.workforce.presence_state import upsert_live_location
 
-                saved = upsert_live_location(
+                open_session = bool(
+                    worker_has_open_checkin_today(db, worker["id"])
+                    or worker_has_open_site_app_session_today(db, worker["id"])
+                )
+                allowed, reason = allow_store_live_location(
                     db,
                     worker_id=worker["id"],
                     company_id=worker["company_id"],
-                    lat=float(raw_lat),
-                    lng=float(raw_lng),
-                    accuracy_m=_worker_location_accuracy_meters(location) if isinstance(location, dict) else None,
-                    min_move_meters=0.0,
+                    on_duty=open_session,
                 )
+                saved = False
+                if allowed:
+                    saved = upsert_live_location(
+                        db,
+                        worker_id=worker["id"],
+                        company_id=worker["company_id"],
+                        lat=float(raw_lat),
+                        lng=float(raw_lng),
+                        accuracy_m=_worker_location_accuracy_meters(location) if isinstance(location, dict) else None,
+                        min_move_meters=0.0,
+                    )
                 if saved:
                     db.commit()
                     try:
@@ -15718,10 +15776,16 @@ def worker_app_site_presence():
                     {
                         "onSite": False,
                         "locationSaved": bool(saved),
+                        "trackingActive": bool(allowed),
+                        "saveReason": "" if allowed else reason,
                         "mapOnly": True,
                         "lat": float(raw_lat),
                         "lng": float(raw_lng),
-                        "message": "Kein Firmen-Standort konfiguriert — Live-GPS trotzdem gespeichert.",
+                        "message": (
+                            "Kein Firmen-Standort konfiguriert — Live-GPS gespeichert."
+                            if saved
+                            else "Kein Firmen-Standort konfiguriert — Live-GPS nicht gespeichert."
+                        ),
                     }
                 )
             except Exception:
@@ -15772,16 +15836,25 @@ def worker_app_site_presence():
         device_lat = measured.get("deviceLatitude")
         device_lng = measured.get("deviceLongitude")
         if device_lat is not None and device_lng is not None:
-            location_saved = upsert_live_location(
+            from backend.app.platform.workforce.location_privacy import allow_store_live_location
+
+            allowed, _reason = allow_store_live_location(
                 db,
                 worker_id=worker["id"],
                 company_id=worker["company_id"],
-                lat=float(device_lat),
-                lng=float(device_lng),
-                accuracy_m=measured.get("accuracyMeters"),
-                min_move_meters=0.0,
+                on_duty=bool(open_session),
             )
-            if open_session:
+            if allowed:
+                location_saved = upsert_live_location(
+                    db,
+                    worker_id=worker["id"],
+                    company_id=worker["company_id"],
+                    lat=float(device_lat),
+                    lng=float(device_lng),
+                    accuracy_m=measured.get("accuracyMeters"),
+                    min_move_meters=0.0,
+                )
+            if allowed and open_session:
                 zones = list_active_geofences(db, worker["company_id"])
                 zone = resolve_containing_zone(float(device_lat), float(device_lng), zones)
                 trail_saved = maybe_record_location_sample(
@@ -15952,12 +16025,46 @@ def worker_app_live_location():
     if not open_session:
         open_session = bool(worker_has_open_site_app_session_today(db, worker["id"]))
 
+    from backend.app.platform.workforce.location_privacy import (
+        allow_store_live_location,
+        clear_live_location,
+    )
     from backend.app.platform.workforce.presence_state import upsert_live_location_ex
     from backend.app.platform.physical_operations.location_trail import (
         list_active_geofences,
         maybe_record_location_sample,
         resolve_containing_zone,
     )
+
+    allowed, policy_reason = allow_store_live_location(
+        db,
+        worker_id=worker["id"],
+        company_id=worker["company_id"],
+        on_duty=open_session,
+    )
+    if not allowed:
+        try:
+            clear_live_location(db, worker["id"])
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+        return jsonify(
+            {
+                "ok": True,
+                "locationSaved": False,
+                "saveReason": policy_reason,
+                "saveError": "",
+                "trailSaved": False,
+                "trackingActive": False,
+                "onDuty": bool(open_session),
+                "lat": float(lat),
+                "lng": float(lng),
+                "accuracyMeters": accuracy_m,
+            }
+        )
 
     location_saved, save_reason = upsert_live_location_ex(
         db,
@@ -16011,7 +16118,7 @@ def worker_app_live_location():
             except Exception:
                 pass
 
-    if location_saved:
+    if location_saved and open_session:
         try:
             from backend.app.platform.physical_operations.routes import (
                 invalidate_live_map_cache,
@@ -16061,7 +16168,7 @@ def worker_app_live_location():
             "saveReason": str(save_reason or "")[:80],
             "saveError": str(save_error or "")[:160],
             "trailSaved": bool(trail_saved),
-            "trackingActive": True,
+            "trackingActive": bool(location_saved and open_session),
             "onDuty": bool(open_session),
             "lat": float(lat),
             "lng": float(lng),
@@ -16352,7 +16459,9 @@ def record_worker_app_nfc_attendance(
     )
     location_saved = False
     try:
-        location_saved = _upsert_worker_live_gps_from_location(db, worker, location)
+        location_saved = _upsert_worker_live_gps_from_location(
+            db, worker, location, on_duty=str(direction or "").lower() == "check-in"
+        )
     except Exception:
         location_saved = False
     return {
@@ -16523,7 +16632,9 @@ def record_worker_app_manual_attendance(
     )
     location_saved = False
     try:
-        location_saved = _upsert_worker_live_gps_from_location(db, worker, location)
+        location_saved = _upsert_worker_live_gps_from_location(
+            db, worker, location, on_duty=str(direction or "").lower() == "check-in"
+        )
     except Exception:
         location_saved = False
     return {
@@ -27729,11 +27840,22 @@ def _imap_login_with_fallback(conn, username, password):
 def _imap_auth_hint(host, error_text):
     lower_host = str(host or "").lower()
     lower_error = str(error_text or "").lower()
-    if not any(marker in lower_host for marker in ["outlook", "office365", "hotmail", "live"]):
+    outlook = any(marker in lower_host for marker in ["outlook", "office365", "hotmail", "live", "microsoft"])
+    if not outlook:
         return ""
-    if "login failed" in lower_error or "authentication" in lower_error or "auth plain" in lower_error:
-        return " (Outlook IMAP lehnt die Anmeldung ab: pruefe Passwort/App-Passwort und ob IMAP fuer das Postfach aktiviert ist)"
-    return ""
+    if any(
+        marker in lower_error
+        for marker in ("login failed", "authentication", "auth plain", "basic auth", "application-specific", "invalid credentials")
+    ):
+        return (
+            " (Microsoft 365/Outlook: Basic Auth ist abgeschaltet. "
+            "App-Passwort unter Konto > Sicherheit erzeugen, IMAP im Postfach aktivieren, "
+            "und als Benutzer die vollständige UPN-Adresse verwenden — nicht den Alias. "
+            "OAuth2/XOAUTH2 ist der unterstützte Weg; normales Kontopasswort reicht nicht.)"
+        )
+    return (
+        " (Outlook-IMAP: IMAP muss im Postfach aktiv sein; Shared Mailbox mit der Postfach-UPN anmelden.)"
+    )
 
 
 def poll_imap_inbox():
@@ -31197,6 +31319,23 @@ def admin_gdpr_request_resolve(request_id):
         return jsonify({"error": "not_found"}), 404
     if user.get("role") != "superadmin" and str(row["company_id"]) != str(user.get("company_id") or ""):
         return jsonify({"error": "forbidden_company"}), 403
+    erasure = None
+    if new_status == "completed":
+        try:
+            from backend.app.platform.workforce.location_privacy import apply_gdpr_erasure_if_needed
+
+            erasure = apply_gdpr_erasure_if_needed(db, row)
+            if erasure:
+                extra = (
+                    " GPS/Kamera-Löschung:"
+                    f" trail={erasure.get('samplesDeleted', 0)}"
+                    f" live={int(bool(erasure.get('liveCleared')))}"
+                    f" cameraEvents={erasure.get('cameraEventsUnlinked', 0)}"
+                    f" chatLoc={erasure.get('chatLocationsRedacted', 0)}."
+                )
+                notes = (notes + extra)[:2000]
+        except Exception:
+            erasure = {"ok": False}
     db.execute(
         """
         UPDATE gdpr_requests
@@ -31223,7 +31362,39 @@ def admin_gdpr_request_resolve(request_id):
         )
     except Exception:
         pass
-    return jsonify({"ok": True, "id": request_id, "status": new_status})
+    return jsonify({"ok": True, "id": request_id, "status": new_status, "erasure": erasure})
+
+
+@require_auth
+@require_roles("superadmin", "company-admin")
+def admin_gdpr_request_export(request_id):
+    """Admin: Art.-15-Auskunftspaket (JSON) für eine DSGVO-Anfrage."""
+    db = get_db()
+    _ensure_gdpr_requests_table(db)
+    user = g.current_user
+    row = db.execute("SELECT * FROM gdpr_requests WHERE id = ?", (request_id,)).fetchone()
+    if not row:
+        return jsonify({"error": "not_found"}), 404
+    if user.get("role") != "superadmin" and str(row["company_id"]) != str(user.get("company_id") or ""):
+        return jsonify({"error": "forbidden_company"}), 403
+    from backend.app.platform.workforce.gdpr_package import build_access_export
+
+    package = build_access_export(
+        db,
+        company_id=str(row["company_id"] or ""),
+        worker_id=str(row["worker_id"] or ""),
+    )
+    try:
+        log_audit(
+            "gdpr.export",
+            f"access package {request_id}",
+            target_type="gdpr_request",
+            target_id=request_id,
+            company_id=str(row["company_id"]),
+        )
+    except Exception:
+        pass
+    return jsonify({"ok": True, "id": request_id, "requestType": row["request_type"], "export": package})
 
 
 @require_worker_session

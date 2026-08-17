@@ -187,6 +187,13 @@ def notify_camera_violation(
     critical = bool(analysis.get("critical") or max_sev == "critical")
     channels = {"sms": False, "push": False}
     watch_cfg = resolve_watch_settings(db, str(company_id), site=location)
+    pdf_snapshot = snapshot_b64 or ""
+    try:
+        from .face_privacy import protect_camera_image
+
+        pdf_snapshot = str(protect_camera_image(db, str(company_id), snapshot_b64 or "").get("public") or snapshot_b64 or "")
+    except Exception:
+        pdf_snapshot = snapshot_b64 or ""
     notify_rules = watch_cfg.get("notifyRules") if isinstance(watch_cfg.get("notifyRules"), dict) else {}
     sms_min = str(notify_rules.get("sms") or "critical").lower()
     push_min = str(notify_rules.get("push") or "high").lower()
@@ -286,7 +293,7 @@ def notify_camera_violation(
                 event_type=event_type,
                 created_at=created_at,
                 alerts=alerts,
-                snapshot_b64=snapshot_b64,
+                snapshot_b64=pdf_snapshot,
                 worker_id=worker_id,
             )
         except Exception:

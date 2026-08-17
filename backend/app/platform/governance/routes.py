@@ -41,10 +41,29 @@ def register_governance_blueprint(flask_app) -> None:
             "SELECT * FROM company_retention_policies WHERE company_id = ?",
             (cid,),
         ).fetchone()
+        tracking_enabled = True
+        legal_ack = False
+        try:
+            crow = db.execute(
+                "SELECT location_tracking_enabled, location_tracking_legal_ack FROM companies WHERE id = ?",
+                (cid,),
+            ).fetchone()
+            if crow is not None:
+                tracking_enabled = str(crow["location_tracking_enabled"] if "location_tracking_enabled" in crow.keys() else 1) not in {"0", "false"}
+                legal_ack = str(crow["location_tracking_legal_ack"] if "location_tracking_legal_ack" in crow.keys() else 0) in {"1", "true"}
+        except Exception:
+            pass
+        base = {
+            "companyId": cid,
+            "gpsLocationDays": 14,
+            "locationTrackingEnabled": tracking_enabled,
+            "locationTrackingLegalAck": legal_ack,
+            "locationTrackingBlocked": tracking_enabled and not legal_ack,
+        }
         if not row:
             return jsonify(
                 {
-                    "companyId": cid,
+                    **base,
                     "accessLogDays": 2555,
                     "auditLogDays": 2555,
                     "documentDays": 365,
@@ -52,6 +71,12 @@ def register_governance_blueprint(flask_app) -> None:
                     "defaults": True,
                 }
             )
+        gps_days = 14
+        try:
+            if "gps_location_days" in row.keys() and row["gps_location_days"] is not None:
+                gps_days = int(row["gps_location_days"])
+        except Exception:
+            gps_days = 14
         return jsonify(
             {
                 "companyId": cid,
@@ -59,6 +84,10 @@ def register_governance_blueprint(flask_app) -> None:
                 "auditLogDays": int(row["audit_log_days"]),
                 "documentDays": int(row["document_days"]),
                 "workerProfileDays": int(row["worker_profile_days"]),
+                "gpsLocationDays": max(1, min(365, gps_days)),
+                "locationTrackingEnabled": tracking_enabled,
+                "locationTrackingLegalAck": legal_ack,
+                "locationTrackingBlocked": tracking_enabled and not legal_ack,
                 "updatedAt": row["updated_at"],
                 "defaults": False,
             }
@@ -77,31 +106,79 @@ def register_governance_blueprint(flask_app) -> None:
         payload = request.get_json(silent=True) or {}
         db = get_db()
         now = now_iso()
-        db.execute(
-            """
-            INSERT INTO company_retention_policies
-            (company_id, access_log_days, audit_log_days, document_days, worker_profile_days, updated_at, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(company_id) DO UPDATE SET
-                access_log_days = excluded.access_log_days,
-                audit_log_days = excluded.audit_log_days,
-                document_days = excluded.document_days,
-                worker_profile_days = excluded.worker_profile_days,
-                updated_at = excluded.updated_at,
-                updated_by = excluded.updated_by
-            """,
-            (
-                cid,
-                int(payload.get("accessLogDays", 2555)),
-                int(payload.get("auditLogDays", 2555)),
-                int(payload.get("documentDays", 365)),
-                int(payload.get("workerProfileDays", 2555)),
-                now,
-                g.current_user.get("id"),
-            ),
-        )
+        gps_days = max(1, min(365, int(payload.get("gpsLocationDays", payload.get("gps_location_days", 14)))))
+        try:
+            db.execute(
+                """
+                INSERT INTO company_retention_policies
+                (company_id, access_log_days, audit_log_days, document_days, worker_profile_days, gps_location_days, updated_at, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id) DO UPDATE SET
+                    access_log_days = excluded.access_log_days,
+                    audit_log_days = excluded.audit_log_days,
+                    document_days = excluded.document_days,
+                    worker_profile_days = excluded.worker_profile_days,
+                    gps_location_days = excluded.gps_location_days,
+                    updated_at = excluded.updated_at,
+                    updated_by = excluded.updated_by
+                """,
+                (
+                    cid,
+                    int(payload.get("accessLogDays", 2555)),
+                    int(payload.get("auditLogDays", 2555)),
+                    int(payload.get("documentDays", 365)),
+                    int(payload.get("workerProfileDays", 2555)),
+                    gps_days,
+                    now,
+                    g.current_user.get("id"),
+                ),
+            )
+        except Exception:
+            db.execute(
+                """
+                INSERT INTO company_retention_policies
+                (company_id, access_log_days, audit_log_days, document_days, worker_profile_days, updated_at, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(company_id) DO UPDATE SET
+                    access_log_days = excluded.access_log_days,
+                    audit_log_days = excluded.audit_log_days,
+                    document_days = excluded.document_days,
+                    worker_profile_days = excluded.worker_profile_days,
+                    updated_at = excluded.updated_at,
+                    updated_by = excluded.updated_by
+                """,
+                (
+                    cid,
+                    int(payload.get("accessLogDays", 2555)),
+                    int(payload.get("auditLogDays", 2555)),
+                    int(payload.get("documentDays", 365)),
+                    int(payload.get("workerProfileDays", 2555)),
+                    now,
+                    g.current_user.get("id"),
+                ),
+            )
+        if "locationTrackingEnabled" in payload or "location_tracking_enabled" in payload or "locationTrackingLegalAck" in payload:
+            from backend.app.platform.workforce.location_privacy import apply_location_tracking_update
+
+            want = None
+            if "locationTrackingEnabled" in payload or "location_tracking_enabled" in payload:
+                want = str(payload.get("locationTrackingEnabled", payload.get("location_tracking_enabled"))).strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+            ack = str(payload.get("locationTrackingLegalAck", payload.get("location_tracking_legal_ack") or "")).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            ok, err = apply_location_tracking_update(db, company_id=cid, enabled=want, legal_ack=ack)
+            if not ok:
+                return jsonify({"error": err}), 400
         db.commit()
-        return jsonify({"ok": True, "companyId": cid, "updatedAt": now})
+        return jsonify({"ok": True, "companyId": cid, "updatedAt": now, "gpsLocationDays": gps_days})
 
     @governance_bp.get("/governance/legal-holds")
     @require_auth

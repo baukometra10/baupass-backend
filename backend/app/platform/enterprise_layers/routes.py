@@ -29,6 +29,22 @@ def register_enterprise_layers(flask_app) -> None:
             return raw
         return str(g.current_user.get("company_id") or "").strip()
 
+    def _actor_id() -> str:
+        user = g.current_user or {}
+        return str(user.get("id") or user.get("username") or "")[:80]
+
+    def _want_face_reveal():
+        raw = str(request.args.get("reveal") or request.args.get("clear") or "0").lower()
+        want = raw in {"1", "true", "yes", "on"}
+        if not want:
+            return False, None
+        from backend.app.platform.physical_operations.face_privacy import can_reveal_faces
+
+        role = str((g.current_user or {}).get("role") or "")
+        if not can_reveal_faces(role):
+            return False, (jsonify({"ok": False, "error": "face_reveal_forbidden"}), 403)
+        return True, None
+
     @enterprise_layers_bp.get("/enterprise/layers")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -337,6 +353,33 @@ def register_enterprise_layers(flask_app) -> None:
             }
         )
 
+    @enterprise_layers_bp.post("/integrations/cameras/onvif-probe")
+    @require_auth
+    @require_roles("superadmin", "company-admin")
+    def camera_onvif_probe():
+        from backend.app.platform.physical_operations.onvif_probe import parse_onvif_host, probe_onvif
+
+        data = request.get_json(silent=True) or {}
+        host_raw = str(data.get("host") or data.get("url") or "").strip()
+        if not host_raw:
+            return jsonify({"error": "host_required", "message": "ONVIF-Host oder http(s)://IP angeben."}), 400
+        host, port, use_https = parse_onvif_host(host_raw)
+        if data.get("port"):
+            try:
+                port = int(data.get("port"))
+            except Exception:
+                return jsonify({"error": "invalid_port"}), 400
+        result = probe_onvif(
+            host,
+            port=port,
+            username=str(data.get("username") or "")[:120],
+            password=str(data.get("password") or "")[:120],
+            timeout=min(12.0, max(2.0, float(data.get("timeout") or 6))),
+            use_https=bool(data.get("https") or use_https),
+        )
+        status = 200 if result.get("ok") else 400
+        return jsonify(result), status
+
     @enterprise_layers_bp.put("/integrations/cameras/<camera_id>")
     @require_auth
     @require_roles("superadmin", "company-admin")
@@ -374,14 +417,27 @@ def register_enterprise_layers(flask_app) -> None:
         from flask import Response
 
         from backend.app.platform.physical_operations.camera_registry import get_camera_snapshot_b64
+        from backend.app.platform.physical_operations.face_privacy import log_face_reveal
 
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
+        reveal, denied = _want_face_reveal()
+        if denied:
+            return denied
         fmt = str(request.args.get("format", "json") or "json").lower()
-        b64 = get_camera_snapshot_b64(get_db(), cid, camera_id)
+        db = get_db()
+        b64 = get_camera_snapshot_b64(db, cid, camera_id, reveal=reveal)
         if not b64:
             return jsonify({"error": "no_snapshot", "cameraId": camera_id}), 404
+        if reveal:
+            log_face_reveal(
+                db,
+                company_id=cid,
+                actor_user_id=_actor_id(),
+                camera_id=camera_id,
+                action="reveal",
+            )
         if fmt == "jpeg" or fmt == "jpg":
             try:
                 data = base64.b64decode(b64)
@@ -390,7 +446,7 @@ def register_enterprise_layers(flask_app) -> None:
                 return resp
             except Exception:
                 return jsonify({"error": "invalid_snapshot"}), 500
-        return jsonify({"cameraId": camera_id, "snapshotBase64": b64})
+        return jsonify({"cameraId": camera_id, "snapshotBase64": b64, "facesRevealed": bool(reveal)})
 
     @enterprise_layers_bp.get("/integrations/cameras/watch")
     @require_auth
@@ -420,6 +476,21 @@ def register_enterprise_layers(flask_app) -> None:
                 "label": "watch_standby",
                 "error": str(exc),
             }
+        try:
+            from backend.app.platform.workforce.location_privacy import (
+                company_location_legal_ack,
+                company_location_tracking_enabled,
+            )
+
+            status["locationTrackingEnabled"] = company_location_tracking_enabled(db, cid)
+            status["locationTrackingLegalAck"] = company_location_legal_ack(db, cid)
+            status["locationTrackingBlocked"] = bool(
+                status["locationTrackingEnabled"] and not status["locationTrackingLegalAck"]
+            )
+        except Exception:
+            status["locationTrackingEnabled"] = True
+            status["locationTrackingLegalAck"] = False
+            status["locationTrackingBlocked"] = True
         try:
             sites = list_watch_sites(db, cid)
         except Exception as exc:
@@ -453,20 +524,101 @@ def register_enterprise_layers(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def put_camera_watch():
         from backend.app.platform.physical_operations.camera_watch import (
+            get_watch_settings,
             list_watch_sites,
             upsert_watch_settings,
             watch_status,
         )
+        from backend.app.platform.physical_operations.face_privacy import log_face_reveal
 
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
         data = request.get_json(silent=True) or {}
-        try:
-            upsert_watch_settings(get_db(), cid, data)
-        except ValueError as exc:
-            return jsonify({"error": str(exc)}), 400
         db = get_db()
+        prev = get_watch_settings(db, cid)
+        try:
+            upsert_watch_settings(db, cid, data)
+        except ValueError as exc:
+            code = str(exc)
+            if code == "face_blur_legal_ack_required":
+                return jsonify(
+                    {
+                        "error": "face_blur_legal_ack_required",
+                        "message": "Gesichtsunschärfe darf nur mit rechtlicher Bestätigung der Geschäftsführung deaktiviert werden.",
+                    }
+                ), 400
+            if code == "face_match_legal_ack_required":
+                return jsonify(
+                    {
+                        "error": "face_match_legal_ack_required",
+                        "message": "Gesichtsabgleich darf nur mit rechtlicher Bestätigung der Geschäftsführung aktiviert werden.",
+                    }
+                ), 400
+            if code == "face_match_requires_blur_off":
+                return jsonify(
+                    {
+                        "error": "face_match_requires_blur_off",
+                        "message": "Gesichtsabgleich ist nur möglich, wenn die Gesichtsunschärfe ausgeschaltet ist.",
+                    }
+                ), 400
+            return jsonify({"error": code}), 400
+        nxt = get_watch_settings(db, cid)
+        if prev.get("faceBlurEnabled", True) and not nxt.get("faceBlurEnabled", True):
+            log_face_reveal(
+                db,
+                company_id=cid,
+                actor_user_id=_actor_id(),
+                action="disable_blur",
+            )
+        if not prev.get("faceMatchEnabled") and nxt.get("faceMatchEnabled"):
+            log_face_reveal(
+                db,
+                company_id=cid,
+                actor_user_id=_actor_id(),
+                action="enable_face_match",
+            )
+        if any(
+            key in data
+            for key in (
+                "locationTrackingEnabled",
+                "location_tracking_enabled",
+                "locationTrackingLegalAck",
+                "location_tracking_legal_ack",
+            )
+        ):
+            from backend.app.platform.workforce.location_privacy import apply_location_tracking_update
+
+            want = None
+            if "locationTrackingEnabled" in data or "location_tracking_enabled" in data:
+                want = str(data.get("locationTrackingEnabled", data.get("location_tracking_enabled"))).strip().lower() in {
+                    "1",
+                    "true",
+                    "yes",
+                    "on",
+                }
+            ack = str(data.get("locationTrackingLegalAck", data.get("location_tracking_legal_ack") or "")).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            ok, err = apply_location_tracking_update(db, company_id=cid, enabled=want, legal_ack=ack)
+            if not ok and err == "location_tracking_legal_ack_required":
+                # Watch-Einstellungen trotzdem speichern; Live-GPS bleibt gesperrt bis zum Haken.
+                pass
+            elif not ok:
+                return jsonify(
+                    {
+                        "error": err,
+                        "message": "Live-GPS bleibt gesperrt, bis die Geschäftsführung die rechtliche Bestätigung setzt.",
+                    }
+                ), 400
+            else:
+                try:
+                    db.commit()
+                except Exception:
+                    pass
         return jsonify({"ok": True, "watch": watch_status(db, cid), "sites": list_watch_sites(db, cid)})
 
     @enterprise_layers_bp.put("/integrations/cameras/watch/sites/<site_key>")
@@ -667,14 +819,28 @@ def register_enterprise_layers(flask_app) -> None:
     @require_roles("superadmin", "company-admin")
     def get_camera_escalation(escalation_id: str):
         from backend.app.platform.physical_operations.camera_escalation import get_escalation
+        from backend.app.platform.physical_operations.face_privacy import log_face_reveal
 
         cid = _cid()
         if not cid:
             return jsonify({"error": "company_id_required"}), 400
+        reveal, denied = _want_face_reveal()
+        if denied:
+            return denied
         include_media = str(request.args.get("media") or "1").lower() not in {"0", "false", "no"}
-        item = get_escalation(get_db(), cid, escalation_id, include_media=include_media)
+        db = get_db()
+        item = get_escalation(db, cid, escalation_id, include_media=include_media, reveal=reveal)
         if not item:
             return jsonify({"error": "not_found"}), 404
+        if reveal:
+            log_face_reveal(
+                db,
+                company_id=cid,
+                actor_user_id=_actor_id(),
+                camera_id=str(item.get("cameraId") or ""),
+                escalation_id=escalation_id,
+                action="reveal",
+            )
         return jsonify({"ok": True, "escalation": item})
 
     @enterprise_layers_bp.post("/integrations/cameras/escalations/<escalation_id>/ack")

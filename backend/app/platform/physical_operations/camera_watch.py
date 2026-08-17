@@ -221,6 +221,8 @@ def default_watch_settings(company_id: str) -> dict[str, Any]:
         "webhookRetryMax": DEFAULT_WEBHOOK_RETRY_MAX,
         "evidenceRetentionDays": DEFAULT_EVIDENCE_RETENTION_DAYS,
         "privacyNotice": "",
+        "faceBlurEnabled": True,
+        "faceMatchEnabled": False,
         "quietHours": dict(DEFAULT_QUIET_HOURS),
         "escalateAfterMinutes": DEFAULT_ESCALATE_AFTER_MINUTES,
         "escalateSecondContact": "",
@@ -267,6 +269,8 @@ def get_watch_settings(db, company_id: str) -> dict[str, Any]:
                 _row_get(row, "evidence_retention_days", DEFAULT_EVIDENCE_RETENTION_DAYS)
             ),
             "privacyNotice": str(_row_get(row, "privacy_notice", "") or ""),
+            "faceBlurEnabled": _parse_bool(_row_get(row, "face_blur_enabled", 1), True),
+            "faceMatchEnabled": _parse_bool(_row_get(row, "face_match_enabled", 0), False),
             "quietHours": _parse_quiet_hours(_row_get(row, "quiet_hours_json", "{}")),
             "escalateAfterMinutes": _parse_escalate_minutes(
                 _row_get(row, "escalate_after_minutes", DEFAULT_ESCALATE_AFTER_MINUTES)
@@ -370,6 +374,26 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
         notify_rules = _parse_notify_rules(cur.get("notifyRules"))
     notify_json = _notify_rules_json(notify_rules)
     ops = _extract_ops_fields(data, cur)
+    face_blur = _parse_bool(cur.get("faceBlurEnabled"), True)
+    if "faceBlurEnabled" in data or "face_blur_enabled" in data:
+        want_blur = _parse_bool(data.get("faceBlurEnabled", data.get("face_blur_enabled")), True)
+        if face_blur and not want_blur:
+            ack = _parse_bool(data.get("faceBlurLegalAck", data.get("face_blur_legal_ack")), False)
+            if not ack:
+                raise ValueError("face_blur_legal_ack_required")
+        face_blur = want_blur
+    face_match = _parse_bool(cur.get("faceMatchEnabled"), False)
+    if "faceMatchEnabled" in data or "face_match_enabled" in data:
+        want_match = _parse_bool(data.get("faceMatchEnabled", data.get("face_match_enabled")), False)
+        if want_match and not face_match:
+            ack = _parse_bool(data.get("faceMatchLegalAck", data.get("face_match_legal_ack")), False)
+            if not ack:
+                raise ValueError("face_match_legal_ack_required")
+        if want_match and face_blur:
+            raise ValueError("face_match_requires_blur_off")
+        face_match = want_match
+    if face_blur:
+        face_match = False
     ts = now_iso()
     try:
         db.execute(
@@ -379,8 +403,9 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 country, city, latitude, longitude, security_webhook_url,
                 escalate_after_minutes, escalate_second_contact, require_dual_ack,
                 notify_rules_json, webhook_secret, webhook_retry_max,
-                evidence_retention_days, privacy_notice, quiet_hours_json, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                evidence_retention_days, privacy_notice, quiet_hours_json,
+                face_blur_enabled, face_match_enabled, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(company_id) DO UPDATE SET
                 enabled = excluded.enabled,
                 timezone = excluded.timezone,
@@ -401,6 +426,8 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 evidence_retention_days = excluded.evidence_retention_days,
                 privacy_notice = excluded.privacy_notice,
                 quiet_hours_json = excluded.quiet_hours_json,
+                face_blur_enabled = excluded.face_blur_enabled,
+                face_match_enabled = excluded.face_match_enabled,
                 updated_at = excluded.updated_at
             """,
             (
@@ -424,6 +451,8 @@ def upsert_watch_settings(db, company_id: str, payload: dict[str, Any] | None = 
                 ops["evidenceRetentionDays"],
                 ops["privacyNotice"],
                 ops["quietHoursJson"],
+                1 if face_blur else 0,
+                1 if face_match else 0,
                 ts,
             ),
         )

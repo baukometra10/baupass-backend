@@ -23314,6 +23314,7 @@ function _gdprRequestCardsHtml(rows) {
                 ? `
               <div class="button-row" style="margin-top:8px;flex-wrap:wrap;gap:6px;">
                 <button type="button" class="primary-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="completed">Erledigt</button>
+                <button type="button" class="ghost-button small-button" data-gdpr-export="${id}">Auskunft (JSON)</button>
                 <button type="button" class="ghost-button small-button" data-gdpr-resolve="${id}" data-gdpr-status="rejected">Ablehnen</button>
               </div>
             `
@@ -23361,6 +23362,24 @@ async function resolveGdprRequest(requestId, status) {
     renderGdprRequestsPanel();
   } catch (error) {
     showToast(error?.message || "Speichern fehlgeschlagen", "error");
+  }
+}
+
+async function downloadGdprExport(requestId) {
+  try {
+    const data = await apiRequest(`${API_BASE}/api/gdpr-requests/${encodeURIComponent(requestId)}/export`);
+    const blob = new Blob([JSON.stringify(data.export || data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dsgvo-auskunft-${requestId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast("Auskunft heruntergeladen", "success");
+  } catch (error) {
+    showToast(error?.message || "Export fehlgeschlagen", "error");
   }
 }
 

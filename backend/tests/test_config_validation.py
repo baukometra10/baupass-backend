@@ -58,3 +58,13 @@ def test_production_validate_allows_sqlite_with_uppercase_boolean_env(monkeypatc
     monkeypatch.setenv("BAUPASS_ALLOW_SQLITE_PRODUCTION", "YES")
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.com")
     ProductionConfig.validate()
+
+
+def test_production_validate_rejects_sqlite_multi_replica(monkeypatch):
+    _setup_minimal_production_env(monkeypatch)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("BAUPASS_ALLOW_SQLITE_PRODUCTION", "1")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.com")
+    monkeypatch.setenv("BAUPASS_WEB_REPLICAS", "2")
+    with pytest.raises(RuntimeError, match="SQLite cannot serve more than one web replica"):
+        ProductionConfig.validate()

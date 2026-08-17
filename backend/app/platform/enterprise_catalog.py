@@ -285,7 +285,7 @@ def get_enterprise_catalog() -> dict[str, Any]:
             "title": "Hyper-Scale Infrastructure",
             "titleAr": "البنية التحتية العالمية",
             "items": [
-                _item("k8s", "Kubernetes Ready", "جاهز لـ K8s", "config", ui="/deploy/k8s/"),
+                _item("k8s", "Kubernetes / HPA", "Kubernetes / HPA", "config", note="not_configured — no deploy/k8s in repo; do not sell as live HA"),
                 _item("postgres", "PostgreSQL Clustering", "PostgreSQL", "config", apis=["GET /api/platform/database-status"]),
                 _item("redis", "Queue / Redis", "Redis", "config", apis=["GET /api/health/queues"], note="REDIS_URL"),
                 _item("dr", "Disaster Recovery", "استعادة كوارث", "api", apis=["GET /api/health/dr"]),

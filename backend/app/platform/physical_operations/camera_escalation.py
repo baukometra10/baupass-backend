@@ -195,6 +195,7 @@ def _serialize_row(r) -> dict[str, Any]:
             "policeCity": _row_val(r, "police_city"),
             "hasSnapshot": bool(snap.strip()),
             "hasClip": bool(clip.strip()),
+            "hasClearSnapshot": bool(str(_row_val(r, "snapshot_clear_b64", "") or "").strip()),
             "falsePositive": bool(_safe_int(_row_val(r, "false_positive", 0), 0)),
             "falsePositiveBy": _row_val(r, "false_positive_by"),
             "falsePositiveAt": _row_val(r, "false_positive_at"),
@@ -289,6 +290,23 @@ def create_critical_escalation(
         "%Y-%m-%dT%H:%M:%S.%fZ"
     )
     created_at = now_iso()
+    public_snap = str(snapshot_b64 or "")
+    clear_snap = ""
+    public_clip = str(clip_b64 or "")
+    clear_clip = ""
+    try:
+        from .face_privacy import protect_camera_image
+        from .camera_watch import get_watch_settings as _gws
+
+        protected = protect_camera_image(db, company_id, public_snap)
+        public_snap = str(protected.get("public") or public_snap)
+        clear_snap = str(protected.get("clear") or "")
+        blur_on = bool((_gws(db, company_id) or {}).get("faceBlurEnabled", True))
+        if blur_on and public_clip:
+            clear_clip = public_clip
+            public_clip = ""
+    except Exception:
+        pass
     try:
         db.execute(
             """
@@ -296,8 +314,9 @@ def create_critical_escalation(
                 id, company_id, event_id, camera_id, severity, status,
                 police_name, police_address, police_phone, police_country, police_city,
                 snapshot_b64, details_json, created_at, clip_b64, site_key,
-                ack_count, ack_users_json, chain_stage, chain_next_at, dual_ack_required
-            ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', 0, ?, ?)
+                ack_count, ack_users_json, chain_stage, chain_next_at, dual_ack_required,
+                snapshot_clear_b64, clip_clear_b64
+            ) VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, '[]', 0, ?, ?, ?, ?)
             """,
             (
                 eid,
@@ -310,13 +329,15 @@ def create_critical_escalation(
                 str(station.get("phone") or (police.get("countryEmergency") or {}).get("number") or ""),
                 str(station.get("country") or (police.get("countryEmergency") or {}).get("country") or ""),
                 str(station.get("city") or cfg.get("city") or ""),
-                str(snapshot_b64 or "")[:350000],
+                str(public_snap or "")[:350000],
                 json.dumps(details, ensure_ascii=False),
                 created_at,
-                str(clip_b64 or "")[:2_000_000],
+                str(public_clip or "")[:2_000_000],
                 site_key,
                 chain_next,
                 1 if dual_ack else 0,
+                str(clear_snap or "")[:350000],
+                str(clear_clip or "")[:2_000_000],
             ),
         )
         db.commit()
@@ -342,10 +363,10 @@ def create_critical_escalation(
                     str(station.get("phone") or (police.get("countryEmergency") or {}).get("number") or ""),
                     str(station.get("country") or (police.get("countryEmergency") or {}).get("country") or ""),
                     str(station.get("city") or cfg.get("city") or ""),
-                    str(snapshot_b64 or "")[:350000],
+                    str(public_snap or "")[:350000],
                     json.dumps(details, ensure_ascii=False),
                     created_at,
-                    str(clip_b64 or "")[:2_000_000],
+                    str(public_clip or "")[:2_000_000],
                     site_key,
                 ),
             )
@@ -371,7 +392,7 @@ def create_critical_escalation(
                         str(station.get("phone") or (police.get("countryEmergency") or {}).get("number") or ""),
                         str(station.get("country") or (police.get("countryEmergency") or {}).get("country") or ""),
                         str(station.get("city") or cfg.get("city") or ""),
-                        str(snapshot_b64 or "")[:350000],
+                        str(public_snap or "")[:350000],
                         json.dumps(details, ensure_ascii=False),
                         created_at,
                     ),
@@ -402,7 +423,7 @@ def create_critical_escalation(
                 "severity": str(analysis.get("maxSeverity") or "critical"),
                 "policeSuggestion": police,
                 "autoDial": False,
-                "hasClip": bool(clip_b64),
+                "hasClip": bool(public_clip or clear_clip),
                 "test": is_test,
             }
             webhook_meta = deliver_or_enqueue_webhook(
@@ -564,7 +585,7 @@ def list_escalations(db, company_id: str, *, limit: int = 30, status: str | None
 
 
 def get_escalation(
-    db, company_id: str, escalation_id: str, *, include_media: bool = False
+    db, company_id: str, escalation_id: str, *, include_media: bool = False, reveal: bool = False
 ) -> dict[str, Any] | None:
     row = db.execute(
         "SELECT * FROM camera_escalations WHERE company_id = ? AND id = ?",
@@ -574,9 +595,18 @@ def get_escalation(
         return None
     item = _serialize_row(row)
     if include_media:
-        item["snapshotBase64"] = str(row["snapshot_b64"] or "")
-        keys = row.keys()
-        item["clipBase64"] = str(row["clip_b64"] if "clip_b64" in keys else "") or ""
+        if reveal:
+            item["snapshotBase64"] = str(_row_val(row, "snapshot_clear_b64", "") or "") or str(
+                _row_val(row, "snapshot_b64", "") or ""
+            )
+            item["clipBase64"] = str(_row_val(row, "clip_clear_b64", "") or "") or str(
+                _row_val(row, "clip_b64", "") or ""
+            )
+            item["facesRevealed"] = True
+        else:
+            item["snapshotBase64"] = str(_row_val(row, "snapshot_b64", "") or "")
+            item["clipBase64"] = str(_row_val(row, "clip_b64", "") or "")
+            item["facesRevealed"] = False
     try:
         ev_rows = db.execute(
             """

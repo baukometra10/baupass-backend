@@ -15,19 +15,29 @@ def build_infrastructure_layer(db_path: Path) -> dict[str, Any]:
     from backend.app.health.dr_status import collect_dr_status
 
     cloud = get_cloud_profile()
+    postgres = postgres_runtime_enabled()
+    redis_url = bool(os.getenv("REDIS_URL", "").strip())
+    replica_raw = os.getenv("BAUPASS_WEB_REPLICAS") or os.getenv("SUPPIX_WEB_REPLICAS") or "1"
+    try:
+        replica_n = int(replica_raw)
+    except ValueError:
+        replica_n = 1
     return {
         "layer": "hyper_scale_infrastructure",
-        "status": "active",
+        "status": "active" if postgres else "single_node",
         "kubernetes": {
-            "manifests": "deploy/k8s/",
-            "hpa": "deploy/k8s/hpa.yaml",
+            "configured": False,
+            "manifests": None,
+            "hpa": None,
             "health_probes": True,
+            "note": "not_configured — this repository has no deploy/k8s manifests or HPA.",
         },
         "multi_region": {
             "strategy": cloud.get("regionStrategy"),
             "active_regions": cloud.get("activeRegions"),
             "current_region": cloud.get("region"),
             "guide": "docs/multi-region-deployment-AR.md",
+            "automaticFailover": False,
         },
         "cdn": {
             "edge_headers": True,
@@ -35,9 +45,18 @@ def build_infrastructure_layer(db_path: Path) -> dict[str, Any]:
         },
         "object_storage": os.getenv("BAUPASS_OBJECT_STORAGE", "local"),
         "high_availability": {
-            "postgres": postgres_runtime_enabled(),
-            "redis_configured": bool(os.getenv("REDIS_URL", "").strip()),
+            "postgres": postgres,
+            "redis_configured": redis_url,
             "rq_worker": "python -m backend.app.tasks.worker",
+            "sqliteReplicaUnsafe": not postgres,
+            "recommendedWebReplicas": 2 if postgres and redis_url else 1,
+            "configuredWebReplicas": replica_n,
+            "note": "Never run more than one web replica against SQLite on /data.",
+            "postgresBackup": {
+                "script": "backend/ops/postgres_dr_snapshot.py --dump",
+                "bootFlag": "BAUPASS_PG_DR_SNAPSHOT_ON_BOOT",
+                "ready": postgres,
+            },
         },
         "database": get_database_health(),
         "dr": collect_dr_status(db_path),

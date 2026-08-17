@@ -204,6 +204,20 @@ def _prepare_runtime(mode: str) -> None:
         f"sizeBytes={db_info.get('sizeBytes')}",
         flush=True,
     )
+    try:
+        from backend.app.db.runtime import postgres_runtime_enabled
+
+        replica_n = int(os.getenv("BAUPASS_WEB_REPLICAS") or os.getenv("SUPPIX_WEB_REPLICAS") or "1")
+        if replica_n > 1 and not postgres_runtime_enabled():
+            print(
+                "[baupass] REFUSING multi-replica SQLite: BAUPASS_WEB_REPLICAS="
+                f"{replica_n}. Use a single web replica until PostgreSQL is live.",
+                flush=True,
+            )
+            if mode == "prod":
+                sys.exit(1)
+    except ValueError:
+        pass
 
     if run_backup_on_boot and db_info.get("persistent") and int(db_info.get("workersActive") or 0) > 0:
         try:

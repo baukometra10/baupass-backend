@@ -60,6 +60,38 @@
     return data;
   }
 
+  async function openCameraSnapshot(reveal) {
+    if (!state.selectedCamId) return;
+    const path = `/api/integrations/cameras/${encodeURIComponent(state.selectedCamId)}/snapshot?format=jpeg${
+      reveal ? "&reveal=1" : ""
+    }`;
+    try {
+      const res = await fetch(qs(path), { headers: headers(), credentials: "include" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const code = data.error || res.statusText;
+        setMsg(
+          "cwCamMsg",
+          code === "face_reveal_forbidden"
+            ? "Nur die Geschäftsführung darf Gesichter anzeigen."
+            : data.message || code || "Kein Snapshot",
+          false,
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener");
+      setMsg(
+        "cwCamMsg",
+        reveal ? "Unverpixeltes Bild geöffnet (auditiert)." : "Unscharfes Live-Bild geöffnet.",
+        true,
+      );
+    } catch (err) {
+      setMsg("cwCamMsg", err.message || "Snapshot fehlgeschlagen", false);
+    }
+  }
+
   function formToPayload(form) {
     const fd = new FormData(form);
     const get = (k) => String(fd.get(k) || "").trim();
@@ -67,7 +99,7 @@
     const lat = get("latitude");
     const lng = get("longitude");
     const dual = get("requireDualAck");
-    return {
+    const payload = {
       enabled: enabledRaw === "" ? true : enabledRaw === "1" || enabledRaw === "true",
       timezone: get("timezone") || "Europe/Berlin",
       workStart: get("workStart") || "06:00",
@@ -99,6 +131,28 @@
         email: get("notifyEmail") || "immediate",
       },
     };
+    if (form.elements.namedItem("faceBlurEnabled")) {
+      payload.faceBlurEnabled = get("faceBlurEnabled") !== "0";
+      payload.faceBlurLegalAck =
+        get("faceBlurLegalAck") === "1" ||
+        get("faceBlurLegalAck") === "true" ||
+        get("faceBlurLegalAck") === "on";
+    }
+    if (form.elements.namedItem("faceMatchEnabled")) {
+      payload.faceMatchEnabled = get("faceMatchEnabled") === "1";
+      payload.faceMatchLegalAck =
+        get("faceMatchLegalAck") === "1" ||
+        get("faceMatchLegalAck") === "true" ||
+        get("faceMatchLegalAck") === "on";
+    }
+    if (form.elements.namedItem("locationTrackingEnabled")) {
+      payload.locationTrackingEnabled = get("locationTrackingEnabled") !== "0";
+      payload.locationTrackingLegalAck =
+        get("locationTrackingLegalAck") === "1" ||
+        get("locationTrackingLegalAck") === "true" ||
+        get("locationTrackingLegalAck") === "on";
+    }
+    return payload;
   }
 
   function fillForm(form, data) {
@@ -122,6 +176,19 @@
     set("webhookRetryMax", data.webhookRetryMax ?? 3);
     set("evidenceRetentionDays", data.evidenceRetentionDays ?? 30);
     set("privacyNotice", data.privacyNotice || "");
+    set("faceBlurEnabled", data.faceBlurEnabled === false || data.faceBlurEnabled === 0 ? "0" : "1");
+    set("faceMatchEnabled", data.faceMatchEnabled === true || data.faceMatchEnabled === 1 ? "1" : "0");
+    set(
+      "locationTrackingEnabled",
+      data.locationTrackingEnabled === false || data.locationTrackingEnabled === 0 ? "0" : "1"
+    );
+    const ack = form.elements.namedItem("faceBlurLegalAck");
+    if (ack && "checked" in ack) ack.checked = false;
+    const matchAck = form.elements.namedItem("faceMatchLegalAck");
+    if (matchAck && "checked" in matchAck) matchAck.checked = false;
+    const gpsAck = form.elements.namedItem("locationTrackingLegalAck");
+    if (gpsAck && "checked" in gpsAck) gpsAck.checked = Boolean(data.locationTrackingLegalAck);
+    syncFaceBlurAck();
     const qh = data.quietHours || {};
     set("quietEnabled", qh.enabled ? "1" : "0");
     set("quietStart", qh.start || "22:00");
@@ -224,9 +291,26 @@
         `${w.workStart || "06:00"}–${w.workEnd || "18:00"} (${w.timezone || "Europe/Berlin"})`,
         `Kette nach ${w.escalateAfterMinutes || 15} Min`,
         openEsc.length ? `${openEsc.length} offen` : "keine offenen Escalations",
+        w.faceBlurEnabled === false ? "Gesichter klar" : "Gesichter unscharf",
+        w.faceMatchEnabled ? "Gesichtsabgleich an" : "kein Gesichtsabgleich",
+        w.locationTrackingBlocked ? "GPS gesperrt (Betriebsrat)" : w.locationTrackingEnabled === false ? "GPS aus" : "GPS mit Einwilligung",
         "kein Auto-Notruf",
       ].join(" · ");
     }
+  }
+
+  function syncFaceBlurAck() {
+    const form = $("cwCompanyForm");
+    const sel = form?.elements?.namedItem("faceBlurEnabled");
+    const wrap = $("cwFaceBlurAckWrap");
+    const off = sel && String(sel.value) === "0";
+    if (wrap) wrap.hidden = !off;
+    const matchSel = form?.elements?.namedItem("faceMatchEnabled");
+    const matchWrap = $("cwFaceMatchAckWrap");
+    const matchOn = matchSel && String(matchSel.value) === "1";
+    if (matchWrap) matchWrap.hidden = !matchOn;
+    if (matchSel && !off && matchOn) matchSel.value = "0";
+    if (matchWrap && (!off || !matchOn)) matchWrap.hidden = !(off && matchOn);
   }
 
   function renderPrivacyAndWebhookHelp() {
@@ -236,6 +320,19 @@
     if (banner && text) {
       banner.hidden = !notice;
       text.textContent = notice || "";
+    }
+    const blurOn = state.watch?.faceBlurEnabled !== false;
+    const fb = $("cwFaceBlurBanner");
+    const title = $("cwFaceBlurTitle");
+    const body = $("cwFaceBlurText");
+    if (fb) {
+      fb.classList.toggle("off", !blurOn);
+      if (title) title.textContent = blurOn ? "Gesichtsunschärfe aktiv" : "Gesichtsunschärfe aus";
+      if (body) {
+        body.textContent = blurOn
+          ? "Live-Bilder und Eskalationen zeigen Gesichter unscharf. Nur die Geschäftsführung kann die Unschärfe vorübergehend aufheben."
+          : "Unverpixelte Gesichter sind für diese Firma eingeschaltet. Jede Anzeige und Abschaltung wird auditiert.";
+      }
     }
     const curl = $("cwWebhookCurl");
     if (!curl) return;
@@ -518,6 +615,12 @@
       const clip = mediaSrc(e.clipBase64, "video/mp4");
       if (clip) parts.push(`<video controls src="${clip}"></video>`);
       if (!parts.length) parts.push(`<p class="muted">Kein Snapshot/Clip gespeichert.</p>`);
+      if (e.hasClearSnapshot && !e.facesRevealed) {
+        parts.push(`<p class="muted">Gesichter unscharf — Geschäftsführung kann sie anzeigen.</p>`);
+      }
+      if (e.facesRevealed) {
+        parts.push(`<p class="muted">Gesichter angezeigt — Vorgang auditiert.</p>`);
+      }
       media.innerHTML = parts.join("");
       const policeBits = [e.policeName, e.policeAddress, e.policePhone, e.policeCity, e.policeCountry].filter(Boolean);
       $("cwPolice").textContent = policeBits.join(" · ") || "Kein Stationsvorschlag — Notrufnummer lokal prüfen.";
@@ -617,10 +720,17 @@
         delete payload.siteKey;
         delete payload.siteName;
         await api("/api/integrations/cameras/watch", { method: "PUT", body: JSON.stringify(payload) });
+        setMsg("cwSettingsMsg", "Gespeichert.", true);
         setMsg("cwCompanyMsg", "Gespeichert.", true);
         await refresh();
       } catch (err) {
-        setMsg("cwCompanyMsg", err.message || "Fehler", false);
+        const code = err.data?.error || err.message || "";
+        const msg =
+          code === "face_blur_legal_ack_required"
+            ? "Zum Abschalten der Gesichtsunschärfe muss die Geschäftsführung die rechtliche Bestätigung setzen."
+            : err.data?.message || err.message || "Fehler";
+        setMsg("cwSettingsMsg", msg, false);
+        setMsg("cwCompanyMsg", msg, false);
       }
     });
 
@@ -708,13 +818,81 @@
       }
     });
 
-    $("cwCamSnapshot")?.addEventListener("click", () => {
-      if (!state.selectedCamId) return;
-      window.open(
-        qs(`/api/integrations/cameras/${encodeURIComponent(state.selectedCamId)}/snapshot?format=jpeg`),
-        "_blank",
-      );
+    $("cwOnvifProbe")?.addEventListener("click", async () => {
+      const form = $("cwCamForm");
+      if (!form) return;
+      const fd = new FormData(form);
+      const get = (k) => String(fd.get(k) || "").trim();
+      const host = get("onvifHost");
+      if (!host) {
+        setMsg("cwCamMsg", "ONVIF-Host fehlt.", false);
+        return;
+      }
+      setMsg("cwCamMsg", "ONVIF-Probe…", true);
+      try {
+        const data = await api("/api/integrations/cameras/onvif-probe", {
+          method: "POST",
+          body: JSON.stringify({
+            host,
+            username: get("onvifUser"),
+            password: get("onvifPassword"),
+          }),
+        });
+        if (data.rtspUrl) {
+          const rtsp = form.elements.namedItem("rtspUrl");
+          if (rtsp) rtsp.value = data.rtspUrl;
+          setMsg("cwCamMsg", "RTSP-URL aus ONVIF übernommen. Speichern nicht vergessen.", true);
+        } else {
+          setMsg(
+            "cwCamMsg",
+            data.manufacturer
+              ? `ONVIF erreichbar (${data.manufacturer}), aber keine RTSP-URI.`
+              : "ONVIF erreichbar, keine Stream-URI.",
+            true,
+          );
+        }
+      } catch (err) {
+        setMsg("cwCamMsg", err.message || "ONVIF-Probe fehlgeschlagen", false);
+      }
     });
+
+    $("cwCamSnapshot")?.addEventListener("click", () => {
+      void openCameraSnapshot(false);
+    });
+    $("cwCamReveal")?.addEventListener("click", () => {
+      void openCameraSnapshot(true);
+    });
+    $("cwRevealFaces")?.addEventListener("click", async () => {
+      if (!state.selectedEscId) return;
+      setMsg("cwDetailMsg", "Lade unverpixeltes Bild…", true);
+      try {
+        const data = await api(
+          `/api/integrations/cameras/escalations/${encodeURIComponent(state.selectedEscId)}?media=1&reveal=1`,
+        );
+        const e = data.escalation || {};
+        const media = $("cwMedia");
+        const parts = [];
+        const snap = mediaSrc(e.snapshotBase64, "image/jpeg");
+        if (snap) parts.push(`<img alt="Snapshot" src="${snap}" />`);
+        const clip = mediaSrc(e.clipBase64, "video/mp4");
+        if (clip) parts.push(`<video controls src="${clip}"></video>`);
+        if (!parts.length) parts.push(`<p class="muted">Kein Snapshot/Clip gespeichert.</p>`);
+        if (e.facesRevealed) parts.push(`<p class="muted">Gesichter angezeigt — Vorgang auditiert.</p>`);
+        if (media) media.innerHTML = parts.join("");
+        setMsg("cwDetailMsg", "Gesichter angezeigt (auditiert).", true);
+      } catch (err) {
+        const code = err.data?.error || err.message || "";
+        setMsg(
+          "cwDetailMsg",
+          code === "face_reveal_forbidden"
+            ? "Nur die Geschäftsführung darf Gesichter anzeigen."
+            : err.message || "Fehler",
+          false,
+        );
+      }
+    });
+    $("cwFaceBlurEnabled")?.addEventListener("change", () => syncFaceBlurAck());
+    $("cwFaceMatchEnabled")?.addEventListener("change", () => syncFaceBlurAck());
 
     $("cwAck")?.addEventListener("click", async () => {
       if (!state.selectedEscId) return;

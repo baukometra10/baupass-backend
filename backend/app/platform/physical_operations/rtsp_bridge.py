@@ -61,6 +61,20 @@ def _enrich_face_match(db, company_id: str, payload: dict[str, Any]) -> dict[str
         data.get("image_base64") or data.get("snapshot_base64") or data.get("photo_base64") or ""
     ).strip()
     if worker_id:
+        try:
+            from .camera_watch import get_watch_settings
+
+            settings = get_watch_settings(db, company_id) or {}
+            if bool(settings.get("faceBlurEnabled", True)):
+                data["face_match"] = None
+                data["face_match_skipped"] = "face_blur_enabled"
+                return data
+            if not bool(settings.get("faceMatchEnabled", False)):
+                data["face_match"] = None
+                data["face_match_skipped"] = "face_match_disabled"
+                return data
+        except Exception:
+            pass
         row = db.execute(
             "SELECT id, photo_data FROM workers WHERE id = ? AND company_id = ? AND deleted_at IS NULL",
             (worker_id, company_id),

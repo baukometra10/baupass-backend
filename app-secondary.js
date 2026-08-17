@@ -629,6 +629,14 @@ if (elements.desktopInstallButton) {
 }
 
 document.addEventListener("click", (event) => {
+  const exportBtn = event.target.closest?.("[data-gdpr-export]");
+  if (exportBtn) {
+    const id = exportBtn.getAttribute("data-gdpr-export");
+    if (id && typeof downloadGdprExport === "function") {
+      downloadGdprExport(id);
+    }
+    return;
+  }
   const resolveBtn = event.target.closest?.("[data-gdpr-resolve]");
   if (resolveBtn) {
     const id = resolveBtn.getAttribute("data-gdpr-resolve");

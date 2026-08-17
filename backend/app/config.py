@@ -199,6 +199,24 @@ class ProductionConfig(BaseConfig):
         if database_url and not database_url.startswith("postgres"):
             errors.append("DATABASE_URL must point to PostgreSQL (postgres:// or postgresql://)")
 
+        replica_raw = (
+            os.getenv("BAUPASS_WEB_REPLICAS", "").strip()
+            or os.getenv("SUPPIX_WEB_REPLICAS", "").strip()
+        )
+        replica_count = 1
+        if replica_raw:
+            try:
+                replica_count = int(replica_raw)
+            except ValueError:
+                errors.append("BAUPASS_WEB_REPLICAS must be an integer")
+                replica_count = 1
+        using_sqlite = not bool(database_url) or not database_url.startswith("postgres")
+        if using_sqlite and replica_count > 1:
+            errors.append(
+                "SQLite cannot serve more than one web replica. "
+                "Set BAUPASS_WEB_REPLICAS=1 or cut over to PostgreSQL + Redis first."
+            )
+
         audit_key = platform_env("AUDIT_SIGNING_KEY", "").strip()
         if len(audit_key) < 32:
             errors.append("SUPPIX_AUDIT_SIGNING_KEY must be at least 32 characters")

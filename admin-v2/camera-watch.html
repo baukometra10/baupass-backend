@@ -113,6 +113,9 @@
     .cw-summary { margin: 0 0 0.55rem; font-size: 0.84rem; }
     .cw-msg { margin: 0.5rem 0 0; font-size: 0.78rem; }
     .cw-privacy-banner { margin-top: 0.65rem; padding: 0.65rem; border-color: rgba(148,163,184,.35); }
+    .cw-face-blur-banner { border-color: rgba(52,211,153,.35); }
+    .cw-face-blur-banner.off { border-color: rgba(248,113,113,.45); }
+    .cw-check { display: flex; gap: 0.45rem; align-items: flex-start; font-size: 0.78rem; line-height: 1.4; }
     .cw-privacy-text { margin: 0.35rem 0 0; font-size: 0.78rem; white-space: pre-wrap; }
     .cw-detail-meta { font-size: 0.78rem; }
     .cw-detail-card { margin-top: 0.65rem; padding: 0.65rem; }
@@ -184,6 +187,10 @@
             <button type="button" class="ghost" id="cwAuditExport">Audit-Export</button>
           </div>
           <p class="muted cw-msg" id="cwCompanyMsg"></p>
+          <div id="cwFaceBlurBanner" class="cw-card cw-privacy-banner cw-face-blur-banner">
+            <strong id="cwFaceBlurTitle">Gesichtsunschärfe aktiv</strong>
+            <p class="muted cw-privacy-text" id="cwFaceBlurText">Live-Bilder und Eskalationen zeigen Gesichter unscharf. Nur die Geschäftsführung kann die Unschärfe vorübergehend aufheben.</p>
+          </div>
           <div id="cwPrivacyBanner" class="cw-card cw-privacy-banner" hidden>
             <strong>Datenschutzhinweis</strong>
             <p class="muted cw-privacy-text" id="cwPrivacyText"></p>
@@ -219,6 +226,7 @@
             <div class="cw-actions">
               <button type="button" class="primary" id="cwAck">Bestätigen / Security informiert</button>
               <button type="button" class="ghost" id="cwFalse">Fehlalarm</button>
+              <button type="button" class="ghost" id="cwRevealFaces">Gesichter anzeigen (Geschäftsführung)</button>
               <a class="ghost" id="cwExportZip" href="#">Export ZIP</a>
               <a class="ghost" id="cwExportPdf" href="#">Export PDF</a>
               <a class="ghost" id="cwCamLink" href="#">Kamera-Snapshot</a>
@@ -250,10 +258,15 @@
             <label><span>Latitude</span><input name="latitude" /></label>
             <label><span>Longitude</span><input name="longitude" /></label>
             <label class="full"><span>RTSP-URL</span><input name="rtspUrl" placeholder="rtsp://…" /></label>
+            <label class="full"><span>ONVIF-Host</span><input name="onvifHost" placeholder="192.168.1.20 oder http://ip" /></label>
+            <label><span>ONVIF-User</span><input name="onvifUser" autocomplete="off" /></label>
+            <label><span>ONVIF-Passwort</span><input name="onvifPassword" type="password" autocomplete="off" /></label>
           </form>
           <div class="cw-actions">
             <button type="button" class="primary" id="cwSaveCam">Kamera speichern</button>
-            <button type="button" class="ghost" id="cwCamSnapshot">Live-Snapshot</button>
+            <button type="button" class="ghost" id="cwOnvifProbe">ONVIF prüfen</button>
+            <button type="button" class="ghost" id="cwCamSnapshot">Live-Snapshot (unscharf)</button>
+            <button type="button" class="ghost" id="cwCamReveal">Gesichter anzeigen (Geschäftsführung)</button>
           </div>
           <p class="muted cw-msg" id="cwCamMsg"></p>
         </div>
@@ -299,11 +312,51 @@
           </label>
           <label><span>Ruhe von</span><input name="quietStart" placeholder="22:00" /></label>
           <label><span>Ruhe bis</span><input name="quietEnd" placeholder="06:00" /></label>
+          <label><span>Gesichtsunschärfe</span>
+            <select name="faceBlurEnabled" id="cwFaceBlurEnabled">
+              <option value="1">An (Standard / DSGVO)</option>
+              <option value="0">Aus</option>
+            </select>
+          </label>
+          <label class="full" id="cwFaceBlurAckWrap" hidden>
+            <span>Rechtliche Bestätigung (nur Geschäftsführung)</span>
+            <span class="cw-check">
+              <input type="checkbox" name="faceBlurLegalAck" value="1" />
+              Ich bin Geschäftsführung und bestätige, dass unverpixelte Gesichter für diesen Sicherheitsbetrieb zulässig sind. Die Abschaltung wird auditiert.
+            </span>
+          </label>
+          <label><span>Gesichtsabgleich</span>
+            <select name="faceMatchEnabled" id="cwFaceMatchEnabled">
+              <option value="0">Aus (Standard / DSGVO)</option>
+              <option value="1">An</option>
+            </select>
+          </label>
+          <label class="full" id="cwFaceMatchAckWrap" hidden>
+            <span>Rechtliche Bestätigung Gesichtsabgleich</span>
+            <span class="cw-check">
+              <input type="checkbox" name="faceMatchLegalAck" value="1" />
+              Ich bin Geschäftsführung und bestätige, dass biometrischer Abgleich (inkl. Azure Face, falls konfiguriert) für diese Firma zulässig ist. Erfordert abgeschaltete Unschärfe.
+            </span>
+          </label>
+          <label><span>Live-GPS</span>
+            <select name="locationTrackingEnabled" id="cwGpsEnabled">
+              <option value="1">An</option>
+              <option value="0">Aus</option>
+            </select>
+          </label>
+          <label class="full" id="cwGpsAckWrap">
+            <span>Betriebsrat / Geschäftsführung — Live-GPS</span>
+            <span class="cw-check">
+              <input type="checkbox" name="locationTrackingLegalAck" value="1" />
+              Ich bestätige die rechtliche Grundlage (Beschäftigtendatenschutz / Betriebsrat) für Live-Standort nur während der Schicht. Ohne Haken bleibt GPS gesperrt.
+            </span>
+          </label>
           <label class="full"><span>Datenschutzhinweis</span><input name="privacyNotice" placeholder="Kurzer Hinweis für Admins / Export" /></label>
         </form>
         <div class="cw-actions">
           <button type="button" class="primary" id="cwSaveCompany">Firma speichern</button>
         </div>
+        <p class="muted cw-msg" id="cwSettingsMsg"></p>
 
         <details class="cw-acc" open>
           <summary>Webhook-Wizard (Teams / Slack / Wachdienst)</summary>
@@ -368,6 +421,6 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/workpass-storage.js?v=20260624storage1"></script>
   <script src="/control-pass-theme.js?v=20260705a"></script>
-  <script src="/admin-v2/camera-watch-app.js?v=20260814bridgeTop1"></script>
+  <script src="/admin-v2/camera-watch-app.js?v=20260817close1"></script>
 </body>
 </html>
