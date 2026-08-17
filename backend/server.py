@@ -24,6 +24,7 @@ import sys
 from contextlib import closing, contextmanager
 from functools import wraps
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import importlib
@@ -1967,17 +1968,35 @@ def worker_visit_has_expired(worker, reference_dt=None):
     return access_end <= now_dt
 
 
+def money_round(value) -> float:
+    """Kaufmännisches Runden auf 2 Nachkommastellen (ROUND_HALF_UP)."""
+    try:
+        amount = Decimal(str(value if value is not None else 0))
+    except Exception:
+        amount = Decimal("0")
+    return float(amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def money_vat_total(net_amount, vat_rate):
+    """Return (net, vat, gross) with commercial rounding."""
+    net = Decimal(str(money_round(net_amount)))
+    rate = Decimal(str(vat_rate or 0))
+    vat = (net * rate / Decimal("100")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    total = (net + vat).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return float(net), float(vat), float(total)
+
+
 def calculate_net_amount_by_plan(company_plan, payload_net_amount, worker_count=0):
     # Keep manual values from UI, but provide a predictable fallback for tariff-based billing.
     explicit_net = float(payload_net_amount or 0)
     if explicit_net > 0:
-        return round(explicit_net, 2)
+        return money_round(explicit_net)
     normalized_plan = normalize_company_plan(company_plan)
     base = PLAN_NET_PRICE_EUR[normalized_plan]
     free_included = PLAN_WORKER_FREE_INCLUDED.get(normalized_plan, 0)
     billable_workers = max(0, int(worker_count or 0) - free_included)
     worker_fee = PLAN_WORKER_PRICE_EUR.get(normalized_plan, 0.0) * billable_workers
-    return round(base + worker_fee, 2)
+    return money_round(base + worker_fee)
 
 
 _EMBEDDABLE_UI_PATHS = frozenset(
@@ -8182,10 +8201,11 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
         free_included = PLAN_WORKER_FREE_INCLUDED.get(normalized_plan, 0)
         billable_workers = max(0, active_worker_count - free_included)
         base_price = PLAN_NET_PRICE_EUR[normalized_plan]
-        net_amount = round(base_price + worker_price_per_unit * billable_workers, 2)
         vat_rate = 19.0
-        vat_amount = round(net_amount * (vat_rate / 100), 2)
-        total_amount = round(net_amount + vat_amount, 2)
+        net_amount, vat_amount, total_amount = money_vat_total(
+            base_price + worker_price_per_unit * billable_workers,
+            vat_rate,
+        )
         description = f"Monatsabrechnung {previous_month_start.strftime('%m/%Y')} - {platform_label}"
         invoice_id = f"inv-{secrets.token_hex(6)}"
         line_items = [
@@ -8193,18 +8213,18 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
                 "description": f"Basislizenz {previous_month_start.strftime('%m/%Y')} – {platform_label}",
                 "qty": 1,
                 "unit": "Monat",
-                "unitPrice": base_price,
-                "total": base_price,
+                "unitPrice": money_round(base_price),
+                "total": money_round(base_price),
             }
         ]
         if worker_price_per_unit > 0 and billable_workers > 0:
-            worker_fee_total = round(worker_price_per_unit * billable_workers, 2)
+            worker_fee_total = money_round(worker_price_per_unit * billable_workers)
             free_note = f", {free_included} inkl." if free_included > 0 else ""
             line_items.append({
                 "description": f"Mitarbeiter-Karten ({active_worker_count} aktiv{free_note})",
                 "qty": billable_workers,
                 "unit": "Karte/Monat",
-                "unitPrice": worker_price_per_unit,
+                "unitPrice": money_round(worker_price_per_unit),
                 "total": worker_fee_total,
             })
         items_json = json.dumps(line_items, ensure_ascii=False)
@@ -20680,10 +20700,10 @@ def reporting_summary():
     return jsonify(
         {
             "kpis": {
-                "paidTotal": float(paid_total_row["value"] or 0),
-                "openTotal": float(open_total_row["value"] or 0),
+                "paidTotal": money_round(paid_total_row["value"] or 0),
+                "openTotal": money_round(open_total_row["value"] or 0),
                 "overdueInvoiceCount": int(overdue_row["invoice_count"] or 0),
-                "overdueTotal": float(overdue_row["total_value"] or 0),
+                "overdueTotal": money_round(overdue_row["total_value"] or 0),
                 "lockedCompanies": int(locked_companies_row["value"] or 0),
                 "suspensionsLast30d": int(suspensions_row["value"] or 0),
             },
@@ -23424,11 +23444,12 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         if not customer_number:
             customer_number = "-"
         description  = str(invoice_row["description"]      or "-")
-        net_amount   = float(invoice_row["net_amount"]     or 0)
-        vat_rate     = float(invoice_row["vat_rate"]       or 0)
-        vat_amount   = float(invoice_row["vat_amount"]     or 0)
-        total_amount = float(invoice_row["total_amount"]   or 0)
-        discount_amount = float(invoice_row["discount_amount"] if "discount_amount" in invoice_row.keys() else 0)
+        net_amount   = money_round(invoice_row["net_amount"] or 0)
+        vat_rate     = float(invoice_row["vat_rate"] or 0)
+        vat_amount   = money_round(invoice_row["vat_amount"] or 0)
+        total_amount = money_round(invoice_row["total_amount"] or 0)
+        discount_amount = money_round(invoice_row["discount_amount"] if "discount_amount" in invoice_row.keys() else 0)
+        net_after_discount = money_round(max(0.0, net_amount - discount_amount))
 
         try:
             items_json_raw = str(invoice_row["items_json"] if "items_json" in invoice_row.keys() else "") or ""
@@ -23794,8 +23815,8 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
             i_desc  = str(item.get("description") or "-")
             i_qty   = float(item.get("qty") or 1)
             i_unit  = str(item.get("unit") or "")
-            i_price = float(item.get("unitPrice") or 0)
-            i_total = float(item.get("total") or 0)
+            i_price = money_round(item.get("unitPrice") or 0)
+            i_total = money_round(item.get("total") or (i_qty * i_price))
             qty_str = (f"{i_qty:g} {i_unit}").strip()
             ty = row_y + DATA_ROW_H / 2 - 1.5 * mm
 
@@ -23843,6 +23864,7 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         sum_rows = [("Gesamtbetrag exkl. USt.", _money(net_amount))]
         if discount_amount > 0:
             sum_rows.append(("Rabatt", f"– {_money(discount_amount)}"))
+            sum_rows.append(("Netto nach Rabatt", _money(net_after_discount)))
         sum_rows.append((f"USt. {vat_rate:.0f} %", _money(vat_amount)))
 
         SUM_TOTAL_H = len(sum_rows) * SUM_ROW_H + TOTAL_ROW_H
@@ -25476,7 +25498,7 @@ def send_invoice():
                 return jsonify({"error": "invalid_invoice_item_qty", "message": "Positionsmenge muss zwischen 0 und 1.000.000 liegen."}), 400
             if unit_price < 0 or unit_price > 10_000_000:
                 return jsonify({"error": "invalid_invoice_item_price", "message": "Positionspreis muss zwischen 0 und 10.000.000 liegen."}), 400
-            total_item = round(qty * unit_price, 2)
+            total_item = money_round(qty * unit_price)
             item_description = str(item.get("description") or "").strip()[:200]
             if not item_description and total_item <= 0:
                 continue
@@ -25484,29 +25506,28 @@ def send_invoice():
                 "description": item_description,
                 "qty": qty,
                 "unit": str(item.get("unit") or "Pauschal").strip()[:30],
-                "unitPrice": unit_price,
+                "unitPrice": money_round(unit_price),
                 "total": total_item,
             })
             computed_net += total_item
         if cleaned_items:
             items_json_str = json.dumps(cleaned_items, ensure_ascii=False)
-            net_amount = round(computed_net, 2)
+            net_amount = money_round(computed_net)
         else:
             net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
     else:
         net_amount = calculate_net_amount_by_plan(company["plan"], payload.get("netAmount"))
 
     # Discount / Skonto
-    discount_amount = round(float(payload.get("discountAmount") or 0), 2)
+    discount_amount = money_round(payload.get("discountAmount") or 0)
     if discount_amount < 0 or discount_amount > net_amount:
         discount_amount = 0.0
-    net_after_discount = round(net_amount - discount_amount, 2)
+    net_after_discount = money_round(net_amount - discount_amount)
 
     vat_rate = float(payload.get("vatRate") or 0)
     if vat_rate < 0 or vat_rate > 100:
         return jsonify({"error": "invalid_vat_rate", "message": "MwSt. muss zwischen 0 und 100 liegen."}), 400
-    vat_amount = round(net_after_discount * (vat_rate / 100), 2)
-    total_amount = round(net_after_discount + vat_amount, 2)
+    net_after_discount, vat_amount, total_amount = money_vat_total(net_after_discount, vat_rate)
 
     if not invoice_period or not description or not rendered_html:
         return jsonify({"error": "missing_invoice_fields"}), 400

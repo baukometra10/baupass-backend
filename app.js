@@ -2037,6 +2037,11 @@ const UI_TRANSLATIONS = {
     invoiceQuickFilterOverdue: "Überfällig",
     invoiceQuickFilterError: "Fehler",
     invoiceQuickFilterAll: "Alle",
+    invoiceQuickFilterPaid: "Bezahlt",
+    invoiceAdvancedFiltersBtn: "Weitere Filter",
+    optOpenUnpaid: "Offen (unbezahlt)",
+    invoiceEmptyOpenHint: "Keine offenen Rechnungen. Bezahlte anzeigen.",
+    invoiceResultCount: "{count} Rechnungen · {sum}",
     btnTriggerDunning: "Mahnungs-Durchlauf starten",
     btnStartMonthlyInvoice: "Monatsrechnung jetzt starten",
     btnSimulateCurrentMonth: "Aktuellen Monat simulieren",
@@ -3218,6 +3223,11 @@ const UI_TRANSLATIONS = {
     invoiceQuickFilterOverdue: "Overdue",
     invoiceQuickFilterError: "Error",
     invoiceQuickFilterAll: "All",
+    invoiceQuickFilterPaid: "Paid",
+    invoiceAdvancedFiltersBtn: "More filters",
+    optOpenUnpaid: "Open (unpaid)",
+    invoiceEmptyOpenHint: "No open invoices. Show paid invoices.",
+    invoiceResultCount: "{count} invoices · {sum}",
     btnTriggerDunning: "Start dunning run",
     btnStartMonthlyInvoice: "Start monthly invoice now",
     btnSimulateCurrentMonth: "Simulate current month",
@@ -32836,17 +32846,17 @@ async function buildInvoiceDraft(options = {}) {
   const lineItemsNet = accessLineItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const fallbackNetAmount = getPlanNetPrice(company.plan);
   const netAmount = positionsNetAmount > 0
-    ? Math.round(positionsNetAmount * 100) / 100
+    ? roundMoney(positionsNetAmount)
     : requestedNetAmount > 0
-    ? requestedNetAmount
-    : (lineItemsNet > 0 ? Math.round(lineItemsNet * 100) / 100 : fallbackNetAmount);
+    ? roundMoney(requestedNetAmount)
+    : (lineItemsNet > 0 ? roundMoney(lineItemsNet) : roundMoney(fallbackNetAmount));
 
   // Discount / Skonto
   const discountToggle = document.querySelector("#invoiceDiscountToggle");
   const discountAmount = (discountToggle?.checked)
-    ? Math.round((parseFloat(document.querySelector("#invoiceDiscountAmount")?.value || "0") || 0) * 100) / 100
+    ? roundMoney(parseFloat(document.querySelector("#invoiceDiscountAmount")?.value || "0") || 0)
     : 0;
-  const netAfterDiscount = Math.max(0, Math.round((netAmount - discountAmount) * 100) / 100);
+  const netAfterDiscount = Math.max(0, roundMoney(netAmount - discountAmount));
 
   const vatRate = Number(document.querySelector("#invoiceVatRate").value || "0");
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
@@ -32855,8 +32865,8 @@ async function buildInvoiceDraft(options = {}) {
     }
     return null;
   }
-  const vatAmount = Math.round(netAfterDiscount * (vatRate / 100) * 100) / 100;
-  const totalAmount = Math.round((netAfterDiscount + vatAmount) * 100) / 100;
+  const vatAmount = roundMoney(netAfterDiscount * (vatRate / 100));
+  const totalAmount = roundMoney(netAfterDiscount + vatAmount);
 
   return {
     company,
@@ -34490,6 +34500,64 @@ function renderInvoiceAttemptTimelineHtml(invoiceId) {
   `;
 }
 
+function roundMoney(value) {
+  const cents = Math.round((Number(value) || 0) * 100);
+  return cents / 100;
+}
+
+function invoiceLocalTodayIso() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function isInvoicePaid(inv) {
+  const status = String(inv?.status || "").toLowerCase();
+  return status === "bezahlt" || Boolean(inv?.paid_at);
+}
+
+function isInvoiceOverdue(inv) {
+  if (isInvoicePaid(inv)) return false;
+  const due = String(inv?.due_date || "").slice(0, 10);
+  if (due) return due < invoiceLocalTodayIso();
+  return String(inv?.status || "").toLowerCase() === "overdue";
+}
+
+function isInvoiceFailed(inv) {
+  return !isInvoicePaid(inv) && String(inv?.status || "").toLowerCase() === "send_failed";
+}
+
+function isInvoiceOpen(inv) {
+  if (isInvoicePaid(inv) || isInvoiceOverdue(inv)) return false;
+  const status = String(inv?.status || "").toLowerCase();
+  return ["draft", "sent", "send_failed", ""].includes(status);
+}
+
+function invoiceMatchesStatusFilter(inv, status) {
+  const key = String(status || "").trim().toLowerCase();
+  if (!key) return true;
+  if (key === "open") return isInvoiceOpen(inv);
+  if (key === "overdue") return isInvoiceOverdue(inv);
+  if (key === "send_failed") return isInvoiceFailed(inv);
+  if (key === "bezahlt") return isInvoicePaid(inv);
+  return String(inv?.status || "").toLowerCase() === key;
+}
+
+function setInvoiceStatusFilter(status, options = {}) {
+  const value = String(status || "");
+  const select = document.querySelector("#invoiceFilterStatus");
+  if (select) select.value = value;
+  document.querySelectorAll(".quick-filter-btn").forEach((btn) => {
+    btn.classList.toggle("active", String(btn.dataset.status || "") === value);
+  });
+  persistInvoiceFiltersFromUi();
+  if (!options.skipRender) {
+    renderInvoiceManagementList();
+  }
+}
+
 function renderInvoiceManagementList() {
   const container = document.querySelector("#invoiceManagementList");
   const kpiContainer = document.querySelector("#invoiceStatusKpiGrid");
@@ -34517,53 +34585,55 @@ function renderInvoiceManagementList() {
     };
 
     allInvoices.forEach((inv) => {
-      const amount = Number(inv.total_amount || 0);
-      const status = String(inv.status || "").toLowerCase();
-      if (status === "bezahlt") {
+      const amount = roundMoney(inv.total_amount);
+      if (isInvoicePaid(inv)) {
         totals.paidCount += 1;
-        totals.paidAmount += amount;
+        totals.paidAmount = roundMoney(totals.paidAmount + amount);
         return;
       }
-      if (status === "overdue") {
+      if (isInvoiceOverdue(inv)) {
         totals.overdueCount += 1;
-        totals.overdueAmount += amount;
-      }
-      if (status === "send_failed") {
-        totals.failedCount += 1;
-        totals.failedAmount += amount;
-      }
-      if (["draft", "sent", "overdue", "send_failed"].includes(status)) {
+        totals.overdueAmount = roundMoney(totals.overdueAmount + amount);
+      } else if (isInvoiceOpen(inv)) {
         totals.openCount += 1;
-        totals.openAmount += amount;
+        totals.openAmount = roundMoney(totals.openAmount + amount);
+      }
+      if (isInvoiceFailed(inv)) {
+        totals.failedCount += 1;
+        totals.failedAmount = roundMoney(totals.failedAmount + amount);
       }
     });
 
-    kpiContainer.innerHTML = `
-      <article class="summary-block invoice-kpi-card invoice-kpi-open">
-        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiOpen"))}</p>
-        <strong>${totals.openCount}</strong>
-        <p class="meta-text">${formatCurrency(totals.openAmount)}</p>
-      </article>
-      <article class="summary-block invoice-kpi-card invoice-kpi-overdue">
-        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiOverdue"))}</p>
-        <strong>${totals.overdueCount}</strong>
-        <p class="meta-text">${formatCurrency(totals.overdueAmount)}</p>
-      </article>
-      <article class="summary-block invoice-kpi-card invoice-kpi-paid">
-        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiPaid"))}</p>
-        <strong>${totals.paidCount}</strong>
-        <p class="meta-text">${formatCurrency(totals.paidAmount)}</p>
-      </article>
-      <article class="summary-block invoice-kpi-card invoice-kpi-failed">
-        <p class="eyebrow">${escapeHtml(runtimeText("invoiceKpiFailed"))}</p>
-        <strong>${totals.failedCount}</strong>
-        <p class="meta-text">${formatCurrency(totals.failedAmount)}</p>
-      </article>
-    `;
+    const activeStatus = String(filters.status || "");
+    const kpiCards = [
+      { key: "open", label: runtimeText("invoiceKpiOpen"), count: totals.openCount, amount: totals.openAmount, cls: "invoice-kpi-open" },
+      { key: "overdue", label: runtimeText("invoiceKpiOverdue"), count: totals.overdueCount, amount: totals.overdueAmount, cls: "invoice-kpi-overdue" },
+      { key: "bezahlt", label: runtimeText("invoiceKpiPaid"), count: totals.paidCount, amount: totals.paidAmount, cls: "invoice-kpi-paid" },
+      { key: "send_failed", label: runtimeText("invoiceKpiFailed"), count: totals.failedCount, amount: totals.failedAmount, cls: "invoice-kpi-failed" },
+    ];
+    kpiContainer.innerHTML = kpiCards.map((card) => `
+      <button type="button" class="summary-block invoice-kpi-card ${card.cls}${activeStatus === card.key ? " is-active" : ""}" data-invoice-kpi-filter="${card.key}">
+        <p class="eyebrow">${escapeHtml(card.label)}</p>
+        <strong>${card.count}</strong>
+        <p class="meta-text">${formatCurrency(card.amount)}</p>
+      </button>
+    `).join("");
+    kpiContainer.querySelectorAll("[data-invoice-kpi-filter]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const next = String(btn.getAttribute("data-invoice-kpi-filter") || "");
+        setInvoiceStatusFilter(activeStatus === next ? "" : next);
+      });
+    });
   }
   
   if (!invoices.length) {
-    container.innerHTML = `<div class="ms-invoices-empty">${escapeHtml(runtimeText("invoiceListEmpty"))}</div>`;
+    const paidCount = allInvoices.filter(isInvoicePaid).length;
+    const showPaidHint = String(filters.status || "") === "open" && paidCount > 0;
+    container.innerHTML = `<div class="ms-invoices-empty">
+      <div>${escapeHtml(runtimeText("invoiceListEmpty"))}</div>
+      ${showPaidHint ? `<div class="ms-invoices-empty-cta"><button type="button" class="ghost-button" id="invoiceEmptyShowPaidBtn">${escapeHtml(uiT("invoiceEmptyOpenHint"))}</button></div>` : ""}
+    </div>`;
+    document.querySelector("#invoiceEmptyShowPaidBtn")?.addEventListener("click", () => setInvoiceStatusFilter("bezahlt"));
     renderInvoiceRetryQueue(retryQueueContainer, allInvoices);
     renderInvoiceApprovalQueue();
     renderInvoiceDeadLetters();
@@ -34571,18 +34641,27 @@ function renderInvoiceManagementList() {
     return;
   }
 
+  const visibleSum = roundMoney(invoices.reduce((sum, inv) => sum + roundMoney(inv.total_amount), 0));
+  const resultLabel = (uiT("invoiceResultCount") || "{count} Rechnungen · {sum}")
+    .replace("{count}", String(invoices.length))
+    .replace("{sum}", formatCurrency(visibleSum));
+
   const bodyRows = invoices
     .map((inv) => {
+      const statusKey = isInvoicePaid(inv)
+        ? "bezahlt"
+        : isInvoiceOverdue(inv)
+        ? "overdue"
+        : String(inv.status || "draft").toLowerCase();
       const statusLabel = {
         draft: uiT("optDraft"),
         sent: uiT("optSent"),
         overdue: uiT("optOverdue"),
         bezahlt: uiT("optPaid"),
         send_failed: uiT("optFailed"),
-      }[inv.status] || inv.status;
+      }[statusKey] || inv.status;
 
-      const statusKey = String(inv.status || "draft").toLowerCase();
-      const isPaid = inv.status === "bezahlt" || Boolean(inv.paid_at);
+      const isPaid = isInvoicePaid(inv);
       const canPayOnline =
         !isPaid &&
         state.billingOverview?.stripe?.configured &&
@@ -34644,7 +34723,7 @@ function renderInvoiceManagementList() {
         <td>${escapeHtml(inv.company_name || runtimeText("invoiceFallbackCompany"))}</td>
         <td>${inv.invoice_date ? formatTimestamp(inv.invoice_date) : "—"}</td>
         <td>${inv.due_date ? formatTimestamp(inv.due_date) : "—"}</td>
-        <td class="col-amount">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} €</td>
+        <td class="col-amount">${formatCurrency(roundMoney(inv.total_amount))}</td>
         <td><span class="ms-invoice-pill ms-invoice-pill-${escapeHtml(statusKey)}">${escapeHtml(statusLabel)}</span></td>
         <td class="col-actions">${actions}</td>
       </tr>${historyRow}`;
@@ -34652,6 +34731,7 @@ function renderInvoiceManagementList() {
     .join("");
 
   container.innerHTML = `
+    <div class="ms-invoices-resultbar"><strong>${escapeHtml(resultLabel)}</strong></div>
     <div class="ms-invoices-table-wrap">
       <table class="ms-invoices-table">
         <thead>
@@ -34667,6 +34747,13 @@ function renderInvoiceManagementList() {
           </tr>
         </thead>
         <tbody>${bodyRows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="5">${escapeHtml(uiT("invoiceTableAmount") || "Betrag")}</td>
+            <td class="col-amount">${formatCurrency(visibleSum)}</td>
+            <td colspan="2"></td>
+          </tr>
+        </tfoot>
       </table>
     </div>`;
 
@@ -34691,6 +34778,7 @@ function renderInvoiceManagementList() {
           renderInvoiceManagementList();
         }, 2200);
         showToast(runtimeText("invoiceMarkedPaid"), "success");
+        setInvoiceStatusFilter("bezahlt", { skipRender: true });
         await loadAndRenderInvoices();
         await loadAllData();
         refreshAll();
@@ -39038,26 +39126,25 @@ if (invoiceClearFiltersButton) {
 const invoiceFilterStatus = document.querySelector("#invoiceFilterStatus");
 if (invoiceFilterStatus) {
   invoiceFilterStatus.addEventListener("change", () => {
-    persistInvoiceFiltersFromUi();
-    renderInvoiceManagementList();
+    setInvoiceStatusFilter(invoiceFilterStatus.value, { skipRender: false });
   });
 }
 
 // Quick filter buttons
 document.querySelectorAll(".quick-filter-btn").forEach(btn => {
   btn.addEventListener("click", () => {
-    const status = btn.dataset.status;
-    if (invoiceFilterStatus) {
-      invoiceFilterStatus.value = status;
-      invoiceFilterStatus.dispatchEvent(new Event("change"));
-    }
-    // Update active state
-    document.querySelectorAll(".quick-filter-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    persistInvoiceFiltersFromUi();
-    renderInvoiceManagementList();
+    setInvoiceStatusFilter(btn.dataset.status || "");
   });
 });
+
+const invoiceAdvancedToggleBtn = document.querySelector("#invoiceAdvancedToggleBtn");
+if (invoiceAdvancedToggleBtn) {
+  invoiceAdvancedToggleBtn.addEventListener("click", () => {
+    const panel = document.querySelector("#invoiceAdvancedFilters");
+    if (!panel) return;
+    panel.classList.toggle("hidden");
+  });
+}
 
 function normalizeInvoiceAmountInput(rawValue) {
   const text = String(rawValue || "").trim();
@@ -39113,7 +39200,7 @@ function filterInvoicesForManagement(sourceInvoices, filters) {
     invoices = invoices.filter((inv) => Number(inv?.total_amount || 0) <= amountMax);
   }
   if (f.status) {
-    invoices = invoices.filter((inv) => String(inv?.status || "") === f.status);
+    invoices = invoices.filter((inv) => invoiceMatchesStatusFilter(inv, f.status));
   }
   return invoices;
 }
@@ -39152,6 +39239,10 @@ function restoreInvoiceFiltersFromStorage() {
     setValue("#invoiceFilterDueTo", parsed.dueTo);
     setValue("#invoiceFilterAmountMin", parsed.amountMinRaw);
     setValue("#invoiceFilterAmountMax", parsed.amountMaxRaw);
+    const restoredStatus = String(parsed.status || "");
+    document.querySelectorAll(".quick-filter-btn").forEach((btn) => {
+      btn.classList.toggle("active", String(btn.dataset.status || "") === restoredStatus);
+    });
   } catch {
     // ignore parse/storage errors
   }

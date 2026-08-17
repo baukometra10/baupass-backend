@@ -117,7 +117,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
   <link rel="stylesheet" href="./styles.css?v=20260814brand3" />
-    <link rel="stylesheet" href="./invoices-hub.css?v=20260603inv1" />
+    <link rel="stylesheet" href="./invoices-hub.css?v=20260817inv2" />
     <link rel="stylesheet" href="./platform-health.css?v=20260621contrast1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
     <link rel="stylesheet" href="./e2e-security.css?v=20260810e2e3" />
@@ -1235,23 +1235,38 @@
               <div>
                 <p class="eyebrow" data-ui-i18n="invoiceMgmtTitle">Rechnungs-Management</p>
                 <h3 data-ui-i18n="invListH3">Rechnungen und Zahlungsstatus</h3>
-                <p class="ms-invoices-hub-desc" data-ui-i18n="invoiceMgmtCopy">Zeige offene und bezahlte Rechnungen an. Markiere Rechnungen als bezahlt um Firmensperrungen automatisch aufzuheben. Alle Aktivitäten werden im Audit-Log protokolliert.</p>
+                <p class="ms-invoices-hub-desc" data-ui-i18n="invoiceMgmtCopy">Offene, überfällige und bezahlte Rechnungen. Klick auf eine Kachel filtert die Liste. Bezahlt-Markierung hebt Firmensperren auf.</p>
               </div>
             </header>
+            <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid ms-invoices-kpi-row"></div>
             <div class="ms-invoices-command">
-            <div class="button-row invoice-toolbar">
+            <div class="ms-invoices-search-row">
               <input id="invoiceFilterNumber" class="invoice-filter-input" type="text" placeholder="Nach Rechnungsnummer suchen..." data-ui-i18n="invoiceFilterNumberPlaceholder" data-ui-i18n-attr="placeholder" />
-              <button type="button" class="ghost-button" id="invoiceSearchButton" data-ui-i18n="invoiceSearchBtn">Suchen</button>
               <input id="invoiceFilterCompany" class="invoice-filter-input" type="text" placeholder="Nach Firma filtern..." data-ui-i18n="filterByCompanyPlaceholder" data-ui-i18n-attr="placeholder" />
+              <button type="button" class="ghost-button" id="invoiceSearchButton" data-ui-i18n="invoiceSearchBtn">Suchen</button>
+              <button type="button" class="ghost-button invoice-toolbar-refresh" id="invoiceRefreshButton" data-ui-i18n="btnRefreshList">Aktualisieren</button>
+              <button type="button" class="ghost-button" id="invoiceAdvancedToggleBtn" data-ui-i18n="invoiceAdvancedFiltersBtn">Weitere Filter</button>
+            </div>
+
+            <div class="button-row invoice-quick-filters">
+              <button type="button" class="quick-filter-btn active" id="invoiceQuickFilterAll" data-status="" data-ui-i18n="invoiceQuickFilterAll">Alle</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOpen" data-status="open" data-ui-i18n="invoiceQuickFilterOpen">Offen</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue" data-ui-i18n="invoiceQuickFilterOverdue">Überfällig</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterPaid" data-status="bezahlt" data-ui-i18n="invoiceQuickFilterPaid">Bezahlt</button>
+              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed" data-ui-i18n="invoiceQuickFilterError">Fehler</button>
+            </div>
+
+            <div id="invoiceAdvancedFilters" class="ms-invoices-advanced hidden">
+            <div class="button-row invoice-toolbar">
               <select id="invoiceFilterStatus" class="invoice-filter-select">
                 <option value="" data-ui-i18n="optAllStatus">Alle Status</option>
+                <option value="open" data-ui-i18n="optOpenUnpaid">Offen (unbezahlt)</option>
                 <option value="draft" data-ui-i18n="optDraft">Entwurf</option>
                 <option value="sent" data-ui-i18n="optSent">Versendet</option>
                 <option value="overdue" data-ui-i18n="optOverdue">Überfällig</option>
                 <option value="bezahlt" data-ui-i18n="optPaid">Bezahlt</option>
                 <option value="send_failed" data-ui-i18n="optFailed">Fehler</option>
               </select>
-              <button type="button" class="ghost-button invoice-toolbar-refresh" id="invoiceRefreshButton" data-ui-i18n="btnRefreshList">Aktualisieren</button>
               <button type="button" class="ghost-button" id="invoiceClearFiltersButton" data-ui-i18n="invoiceClearFiltersBtn">Filter zurücksetzen</button>
               <button type="button" class="ghost-button" id="invoiceExportFilteredCsvBtn" data-ui-i18n="invoiceExportFilteredCsvBtn">Gefilterte CSV</button>
               <button type="button" class="ghost-button" id="invoiceExportCsvBtn" data-ui-i18n="invoiceExportCsvBtn" title="Alle Rechnungen als CSV herunterladen">⬇ CSV</button>
@@ -1263,12 +1278,9 @@
               <input id="invoiceFilterAmountMin" class="invoice-filter-input" type="text" inputmode="decimal" placeholder="Mindestbetrag" data-ui-i18n="invoiceFilterAmountMinPlaceholder" data-ui-i18n-attr="placeholder" />
               <input id="invoiceFilterAmountMax" class="invoice-filter-input" type="text" inputmode="decimal" placeholder="Höchstbetrag" data-ui-i18n="invoiceFilterAmountMaxPlaceholder" data-ui-i18n-attr="placeholder" />
             </div>
+            </div>
 
-            <div class="button-row invoice-quick-filters">
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOpen" data-status="open" data-ui-i18n="invoiceQuickFilterOpen">Offen</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterOverdue" data-status="overdue" data-ui-i18n="invoiceQuickFilterOverdue">Überfällig</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterError" data-status="send_failed" data-ui-i18n="invoiceQuickFilterError">Fehler</button>
-              <button type="button" class="quick-filter-btn" id="invoiceQuickFilterAll" data-status="" data-ui-i18n="invoiceQuickFilterAll">Alle</button>
+            <div class="button-row invoice-ops-actions">
               <button type="button" class="ghost-button" id="triggerDunningBtn" data-superadmin-only hidden data-ui-i18n="btnTriggerDunning">Mahnungs-Durchlauf starten</button>
               <button type="button" class="ghost-button" id="triggerMonthlyInvoiceBtn" data-superadmin-only hidden data-ui-i18n="btnStartMonthlyInvoice">Monatsrechnung jetzt starten</button>
               <button type="button" class="ghost-button" id="simulateCurrentMonthBtn" data-superadmin-only hidden data-ui-i18n="btnSimulateCurrentMonth">Aktuellen Monat simulieren</button>
@@ -1281,7 +1293,6 @@
             </div>
 
             </div>
-            <div id="invoiceStatusKpiGrid" class="list invoice-kpi-grid ms-invoices-kpi-row"></div>
             <div id="monthlyInvoiceStatusGrid" class="list invoice-kpi-grid hidden"></div>
 
             <div id="invoiceManagementList" class="ms-invoices-table-host"></div>
