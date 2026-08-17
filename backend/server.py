@@ -27080,14 +27080,14 @@ def normalize_upload_mimetype(mimetype, filename):
     ext = Path(str(filename or "")).suffix.lower()
     return _UPLOAD_MIMETYPE_BY_EXTENSION.get(ext, mime)
 
-DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
+DOCS_UPLOAD_DIR = Path(__file__).resolve().parent / "uploads" / "documents"
 
 # Nutze Railway-Volume /data auch für Uploads, wenn verfügbar
 _railway_data_dir = Path("/data")
 if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
     DOCS_UPLOAD_DIR = _railway_data_dir / "uploads" / "documents"
     # Bestehende Uploads migrieren (einmalig), falls lokales Verzeichnis Dateien hat
-    _old_docs_dir = BASE_DIR / "backend" / "uploads" / "documents"
+    _old_docs_dir = Path(__file__).resolve().parent / "uploads" / "documents"
     if _old_docs_dir.exists() and not DOCS_UPLOAD_DIR.exists():
         try:
             import shutil as _shutil
@@ -27098,13 +27098,13 @@ if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
 try:
     DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
-    DOCS_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "documents"
+    DOCS_UPLOAD_DIR = Path(__file__).resolve().parent / "uploads" / "documents"
     DOCS_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-CHAT_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "chat"
+CHAT_UPLOAD_DIR = Path(__file__).resolve().parent / "uploads" / "chat"
 if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
     CHAT_UPLOAD_DIR = _railway_data_dir / "uploads" / "chat"
-    _old_chat_dir = BASE_DIR / "backend" / "uploads" / "chat"
+    _old_chat_dir = Path(__file__).resolve().parent / "uploads" / "chat"
     if _old_chat_dir.exists():
         try:
             import shutil as _shutil
@@ -27125,7 +27125,7 @@ if _railway_data_dir.is_dir() and os.access(_railway_data_dir, os.W_OK):
 try:
     CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 except OSError:
-    CHAT_UPLOAD_DIR = BASE_DIR / "backend" / "uploads" / "chat"
+    CHAT_UPLOAD_DIR = Path(__file__).resolve().parent / "uploads" / "chat"
     CHAT_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 

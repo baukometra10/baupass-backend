@@ -207,6 +207,10 @@ def test_general_docs_share_free_without_unlock(client_and_db, monkeypatch):
 
 
 def test_contract_docs_still_require_unlock(client_and_db, monkeypatch):
+    """OTP contracts lock is retired — company-admin may share contract docs without unlock.
+
+    Turnstile/office remain blocked via role checks (covered elsewhere).
+    """
     client, _ = client_and_db
     headers = _superadmin_headers(client)
     cid, _creds = _create_company_with_gate(client, headers, "DocsContractLockCo")
@@ -222,32 +226,19 @@ def test_contract_docs_still_require_unlock(client_and_db, monkeypatch):
             "contentHtml": "<p>Vertrag</p>",
         },
     )
-    # Creating a contract-linked doc may itself require unlock once lock is set;
-    # create first, then lock, then block update/share.
     assert created.status_code == 201, created.get_json()
     doc_id = created.get_json()["document"]["id"]
 
+    # Legacy lock APIs may still succeed for setup, but must not gate admin share.
     _setup_owner_lock(client, headers, cid, monkeypatch)
 
-    blocked = client.post(
+    shared = client.post(
         f"/api/v2/docs/{doc_id}/share?company_id={cid}",
         headers=headers,
         json={"company_id": cid, "ttlHours": 72},
     )
-    assert blocked.status_code == 403
-    body = blocked.get_json() or {}
-    assert body.get("stepUpRequired") is True
-    assert body.get("error") in {"contracts_locked", "owner_setup_required"}
-
-    _unlock_again(client, headers, cid)
-
-    ok = client.post(
-        f"/api/v2/docs/{doc_id}/share?company_id={cid}",
-        headers=headers,
-        json={"company_id": cid, "ttlHours": 72},
-    )
-    assert ok.status_code == 200, ok.get_json()
-    assert ok.get_json().get("token")
+    assert shared.status_code == 200, shared.get_json()
+    assert shared.get_json().get("token")
 
 
 def test_ai_operator_blocks_turnstile_docs_contracts(client_and_db, monkeypatch):

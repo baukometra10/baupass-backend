@@ -1207,27 +1207,40 @@ class ChatService:
 
     @staticmethod
     def resolve_storage_path(stored: str) -> Path | None:
-        from backend.server import BASE_DIR, CHAT_UPLOAD_DIR
+        from backend.server import BASE_DIR, CHAT_UPLOAD_DIR, DOCS_UPLOAD_DIR
 
         raw = str(stored or "").strip()
         if not raw:
             return None
+        normalized = raw.replace("\\", "/")
         candidates: list[Path] = [Path(raw)]
         base = Path(BASE_DIR)
-        path = Path(raw)
-        if not path.is_absolute():
+        backend_pkg = Path(__file__).resolve().parents[3]  # .../backend/app/domains/chat → .../backend
+        if not Path(raw).is_absolute():
             candidates.append(base / raw)
-        normalized = raw.replace("\\", "/")
-        chat_idx = normalized.find("/chat/")
-        if chat_idx >= 0:
-            chat_tail = normalized[chat_idx + len("/chat/") :]
-            if chat_tail:
-                candidates.append(CHAT_UPLOAD_DIR / chat_tail)
-                candidates.append(base / "backend" / "uploads" / "chat" / chat_tail)
+            candidates.append(backend_pkg / raw)
+            if normalized.startswith("backend/"):
+                tail = normalized[len("backend/") :]
+                candidates.append(base / tail)
+                candidates.append(backend_pkg / tail)
+            if normalized.startswith("uploads/"):
+                candidates.append(backend_pkg / normalized)
+                candidates.append(base / "backend" / normalized)
+        for marker, root in (("/chat/", CHAT_UPLOAD_DIR), ("/documents/", DOCS_UPLOAD_DIR)):
+            idx = normalized.find(marker)
+            if idx >= 0:
+                tail = normalized[idx + len(marker) :]
+                if tail:
+                    candidates.append(Path(root) / tail)
+        seen: set[str] = set()
         for candidate in candidates:
+            key = str(candidate)
+            if key in seen:
+                continue
+            seen.add(key)
             try:
                 if candidate.is_file():
-                    return candidate
+                    return candidate.resolve()
             except OSError:
                 continue
         return None
