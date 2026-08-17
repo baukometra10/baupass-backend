@@ -42,6 +42,11 @@ Thumbs.db
 *.swp
 *.swo
 
+# Local one-off scripts and customer artifacts — never bake into the image
+deploy/_tmp_*
+admin-v2/i18n-reports
+backend_ci_failures.txt
+
 # Docs not needed at runtime (optional trim)
 docs
 agent-transcripts
