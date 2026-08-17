@@ -8259,7 +8259,7 @@ def run_monthly_invoice_cycle(db, reference_date=None, force=False):
                     platform_label,
                     operator_label,
                     total_amount,
-                    settings_row,
+                    settings,
                 ),
                 created_by_user_id,
                 now_iso(),
