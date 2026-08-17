@@ -6118,16 +6118,17 @@ def _generate_reminder_pdf_bytes(invoice_row, company_row, global_settings, stag
 
     s = global_settings
     operator_name = str((s["operator_name"] if "operator_name" in s.keys() else None) or (s["platform_name"] if "platform_name" in s.keys() else None) or "").strip()
-    operator_street = str((s["invoice_operator_street"] if "invoice_operator_street" in s.keys() else None) or "").strip()
-    operator_zip_city = str((s["invoice_operator_zip_city"] if "invoice_operator_zip_city" in s.keys() else None) or "").strip()
-    operator_phone = str((s["invoice_operator_phone"] if "invoice_operator_phone" in s.keys() else None) or "").strip()
-    operator_email_addr = str((s["invoice_operator_email"] if "invoice_operator_email" in s.keys() else None) or "").strip()
-    operator_website = str((s["invoice_operator_website"] if "invoice_operator_website" in s.keys() else None) or "").strip()
-    iban = str((s["invoice_iban"] if "invoice_iban" in s.keys() else None) or "").strip()
-    bic = str((s["invoice_bic"] if "invoice_bic" in s.keys() else None) or "").strip()
-    bank_name = str((s["invoice_bank_name"] if "invoice_bank_name" in s.keys() else None) or "").strip()
-    tax_id = str((s["invoice_tax_id"] if "invoice_tax_id" in s.keys() else None) or "").strip()
-    vat_id = str((s["invoice_vat_id"] if "invoice_vat_id" in s.keys() else None) or "").strip()
+    op_fields = _resolve_invoice_pdf_operator_fields(s)
+    operator_street = op_fields["street"]
+    operator_zip_city = op_fields["zip_city"]
+    operator_phone = op_fields["phone"]
+    operator_email_addr = op_fields["email"]
+    operator_website = op_fields["website"]
+    iban = op_fields["iban"]
+    bic = op_fields["bic"]
+    bank_name = op_fields["bank"]
+    tax_id = op_fields["tax_id"]
+    vat_id = op_fields["vat_id"]
     primary_color = str((s["invoice_primary_color"] if "invoice_primary_color" in s.keys() else None) or DEFAULT_BRAND_PRIMARY).strip()
 
     def _hex_rgb(h):
@@ -6395,16 +6396,17 @@ def send_payment_reminder_email(invoice_row, company_row, company_id, stage, day
     primary_color = str(global_settings["invoice_primary_color"] or DEFAULT_BRAND_PRIMARY).strip()
     accent_color = str(global_settings.get("invoice_accent_color") or DEFAULT_BRAND_ACCENT).strip() or DEFAULT_BRAND_ACCENT
     operator_name = str(global_settings["operator_name"] or platform_name).strip()
-    operator_phone = str(global_settings.get("invoice_operator_phone") or "").strip()
-    operator_email_addr = str(global_settings.get("invoice_operator_email") or "").strip()
-    operator_website = str(global_settings.get("invoice_operator_website") or "").strip()
-    operator_street = str(global_settings.get("invoice_operator_street") or "").strip()
-    operator_zip_city = str(global_settings.get("invoice_operator_zip_city") or "").strip()
-    iban = str(global_settings.get("invoice_iban") or "").strip()
-    bic = str(global_settings.get("invoice_bic") or "").strip()
-    bank_name = str(global_settings.get("invoice_bank_name") or "").strip()
-    tax_id = str(global_settings.get("invoice_tax_id") or "").strip()
-    vat_id = str(global_settings.get("invoice_vat_id") or "").strip()
+    op_fields = _resolve_invoice_pdf_operator_fields(global_settings)
+    operator_phone = op_fields["phone"]
+    operator_email_addr = op_fields["email"]
+    operator_website = op_fields["website"]
+    operator_street = op_fields["street"]
+    operator_zip_city = op_fields["zip_city"]
+    iban = op_fields["iban"]
+    bic = op_fields["bic"]
+    bank_name = op_fields["bank"]
+    tax_id = op_fields["tax_id"]
+    vat_id = op_fields["vat_id"]
 
     stage_label = {1: "Zahlungserinnerung", 2: "2. Mahnung", 3: "Letzte Mahnung – Sperrung droht"}.get(stage, "Zahlungserinnerung")
     due_label = invoice_row["due_date"] or "-"
@@ -7957,24 +7959,20 @@ def _build_monthly_invoice_html(
     amount_safe = html.escape(f"{amount_val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", "."))
     today_safe = html.escape(datetime.now().strftime("%d.%m.%Y"))
 
-    def _setting(key, fallback=""):
-        if not settings_row:
-            return fallback
-        try:
-            return str(settings_row[key] or "").strip()
-        except (KeyError, IndexError, TypeError):
-            return fallback
-
-    street = html.escape(_setting("invoice_operator_street"))
-    zip_city = html.escape(_setting("invoice_operator_zip_city"))
-    phone = html.escape(_setting("invoice_operator_phone"))
-    email = html.escape(_setting("invoice_operator_email"))
-    website = html.escape(_setting("invoice_operator_website"))
-    iban = html.escape(_setting("invoice_iban"))
-    bic = html.escape(_setting("invoice_bic"))
-    bank_name = html.escape(_setting("invoice_bank_name"))
-    tax_id = html.escape(_setting("invoice_tax_id"))
-    vat_id = html.escape(_setting("invoice_vat_id"))
+    op = _resolve_invoice_pdf_operator_fields(settings_row) if settings_row else {
+        "street": "", "zip_city": "", "phone": "", "email": "", "website": "",
+        "iban": "", "bic": "", "bank": "", "tax_id": "", "vat_id": "",
+    }
+    street = html.escape(op.get("street") or "")
+    zip_city = html.escape(op.get("zip_city") or "")
+    phone = html.escape(op.get("phone") or "")
+    email = html.escape(op.get("email") or "")
+    website = html.escape(op.get("website") or "")
+    iban = html.escape(op.get("iban") or "")
+    bic = html.escape(op.get("bic") or "")
+    bank_name = html.escape(op.get("bank") or "")
+    tax_id = html.escape(op.get("tax_id") or "")
+    vat_id = html.escape(op.get("vat_id") or "")
     footer_lines = []
     if street or zip_city:
         footer_lines.append(f"{street}{', ' if street and zip_city else ''}{zip_city}")
@@ -7990,6 +7988,8 @@ def _build_monthly_invoice_html(
     tax_line = " · ".join(bit for bit in tax_bits if bit)
     if tax_line:
         footer_lines.append(tax_line)
+    if not footer_lines:
+        footer_lines.append("Adresse, Kontakt und Bankverbindung bitte unter Einstellungen → Rechnung hinterlegen.")
     footer_html = "".join(f"<div>{line}</div>" for line in footer_lines)
     return f"""<!DOCTYPE html>
 <html lang="de">
@@ -11174,6 +11174,88 @@ def resend_test():
         "resendKeySource": resend_key_source,
         "resendEnv": env_presence,
     })
+
+
+_INVOICE_IDENTITY_SETTING_KEYS = (
+    "invoice_operator_street",
+    "invoice_operator_zip_city",
+    "invoice_operator_phone",
+    "invoice_operator_website",
+    "invoice_operator_email",
+    "invoice_iban",
+    "invoice_bic",
+    "invoice_bank_name",
+    "invoice_tax_id",
+    "invoice_vat_id",
+)
+
+
+def _persist_invoice_identity_settings(db, values: dict, *, skip_empty: bool = True) -> bool:
+    """Persist operator/bank fields for invoice PDFs. Returns True if any column changed."""
+    if not isinstance(values, dict) or not values:
+        return False
+    sets = []
+    params = []
+    for key in _INVOICE_IDENTITY_SETTING_KEYS:
+        if key not in values:
+            continue
+        raw = values.get(key)
+        if key == "invoice_operator_email":
+            try:
+                val = sanitize_optional_email(raw or "", field_error="invalid_invoice_operator_email")
+            except ValueError:
+                continue
+        else:
+            val = str(raw or "").strip()
+        if skip_empty and not val:
+            continue
+        sets.append(f"{key} = ?")
+        params.append(val)
+    if not sets:
+        return False
+    db.execute(f"UPDATE settings SET {', '.join(sets)} WHERE id = 1", tuple(params))
+    return True
+
+
+@require_auth
+@require_roles("superadmin")
+def update_invoice_identity_settings():
+    """Save Absender/Bank fields once; reused on every invoice PDF. Empty values clear fields."""
+    payload = request.get_json(silent=True) or {}
+    db = get_db()
+    mapping = {
+        "invoiceOperatorStreet": "invoice_operator_street",
+        "invoiceOperatorZipCity": "invoice_operator_zip_city",
+        "invoiceOperatorPhone": "invoice_operator_phone",
+        "invoiceOperatorWebsite": "invoice_operator_website",
+        "invoiceOperatorEmail": "invoice_operator_email",
+        "invoiceIban": "invoice_iban",
+        "invoiceBic": "invoice_bic",
+        "invoiceBankName": "invoice_bank_name",
+        "invoiceTaxId": "invoice_tax_id",
+        "invoiceVatId": "invoice_vat_id",
+    }
+    values = {}
+    for src, dst in mapping.items():
+        if src in payload:
+            values[dst] = payload.get(src)
+    if "invoiceOperatorEmail" in payload:
+        try:
+            values["invoice_operator_email"] = sanitize_optional_email(
+                payload.get("invoiceOperatorEmail", ""),
+                field_error="invalid_invoice_operator_email",
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    changed = _persist_invoice_identity_settings(db, values, skip_empty=False)
+    if changed:
+        db.commit()
+        log_audit(
+            "settings.invoice_identity_updated",
+            "Rechnungs-Absender/Bankdaten gespeichert",
+            actor=g.current_user,
+        )
+    return get_settings()
 
 
 @require_auth
@@ -23123,6 +23205,93 @@ def get_device_event_dead_letter(event_uid):
     return jsonify({"deadLetter": result})
 
 
+def _parse_impressum_contact_bits(impressum_text: str) -> dict:
+    """Best-effort extract street/zip/phone/email from free-text Impressum."""
+    text = str(impressum_text or "").strip()
+    out = {"street": "", "zip_city": "", "phone": "", "email": ""}
+    if not text:
+        return out
+    email_m = re.search(r"([A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,})", text, re.I)
+    if email_m:
+        out["email"] = email_m.group(1).strip()
+    phone_m = re.search(
+        r"(?:Tel(?:efon)?|Phone|Mobil|Handy)\.?\s*:?\s*([\d\s+\-\/()]{6,})",
+        text,
+        re.I,
+    )
+    if phone_m:
+        out["phone"] = re.sub(r"\s+", " ", phone_m.group(1)).strip(" :-")
+    # Prefer single-line matches so we never spill across Impressum paragraphs.
+    for line in (ln.strip() for ln in text.splitlines() if ln.strip()):
+        if not out["zip_city"]:
+            zip_m = re.fullmatch(r"(\d{5})\s+([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß.\- ]{1,40})", line)
+            if zip_m:
+                out["zip_city"] = f"{zip_m.group(1)} {zip_m.group(2).strip()}"
+                continue
+        if not out["street"]:
+            street_m = re.fullmatch(
+                r"([A-Za-zÄÖÜäöüß0-9.\- ]+(?:straße|strasse|str\.|weg|platz|allee)\s*\d+[a-zA-Z]?)",
+                line,
+                re.I,
+            )
+            if street_m:
+                out["street"] = street_m.group(1).strip()
+    return out
+
+
+def _resolve_invoice_pdf_operator_fields(settings_row) -> dict:
+    """Resolve operator/bank fields for invoice PDF footer with safe fallbacks."""
+    def _get(*keys):
+        for key in keys:
+            try:
+                val = str(settings_row[key] or "").strip()
+            except Exception:
+                val = ""
+            if val:
+                return val
+        return ""
+
+    try:
+        from backend.app.core.platform_env import platform_env
+    except Exception:
+        def platform_env(suffix, default=""):
+            return (os.getenv(f"BAUPASS_{suffix}") or os.getenv(f"SUPPIX_{suffix}") or default).strip()
+
+    street = _get("invoice_operator_street") or platform_env("INVOICE_OPERATOR_STREET")
+    zip_city = _get("invoice_operator_zip_city") or platform_env("INVOICE_OPERATOR_ZIP_CITY")
+    phone = _get("invoice_operator_phone") or platform_env("INVOICE_OPERATOR_PHONE")
+    website = (
+        _get("invoice_operator_website")
+        or platform_env("INVOICE_OPERATOR_WEBSITE")
+        or (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    )
+    email = (
+        _get("invoice_operator_email", "smtp_sender_email", "resend_from_email", "brevo_from_email")
+        or platform_env("INVOICE_OPERATOR_EMAIL")
+        or platform_env("FOUNDER_EMAIL")
+    )
+    impressum = _get("impressum_text")
+    if impressum and (not street or not zip_city or not phone or not email):
+        parsed = _parse_impressum_contact_bits(impressum)
+        street = street or parsed.get("street") or ""
+        zip_city = zip_city or parsed.get("zip_city") or ""
+        phone = phone or parsed.get("phone") or ""
+        email = email or parsed.get("email") or ""
+
+    return {
+        "street": street,
+        "zip_city": zip_city,
+        "phone": phone,
+        "website": website,
+        "email": email,
+        "iban": _get("invoice_iban") or platform_env("INVOICE_IBAN"),
+        "bic": _get("invoice_bic") or platform_env("INVOICE_BIC"),
+        "bank": _get("invoice_bank_name") or platform_env("INVOICE_BANK_NAME"),
+        "tax_id": _get("invoice_tax_id") or platform_env("INVOICE_TAX_ID"),
+        "vat_id": _get("invoice_vat_id") or platform_env("INVOICE_VAT_ID"),
+    }
+
+
 def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False):
     smtp_host = (settings_row["smtp_host"] or "").strip()
     smtp_sender = (settings_row["smtp_sender_email"] or "").strip()
@@ -23269,22 +23438,17 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         if not pdf_items:
             pdf_items = [{"description": description, "qty": 1, "unit": "Pauschal", "unitPrice": net_amount, "total": net_amount}]
 
-        def _sr(key, fallback=""):
-            try:
-                return str(settings_row[key] or "").strip()
-            except (IndexError, KeyError):
-                return fallback
-
-        op_iban     = _sr("invoice_iban")
-        op_bic      = _sr("invoice_bic")
-        op_bank     = _sr("invoice_bank_name")
-        op_tax_id   = _sr("invoice_tax_id")
-        op_vat_id   = _sr("invoice_vat_id")
-        op_street   = _sr("invoice_operator_street")
-        op_zip_city = _sr("invoice_operator_zip_city")
-        op_phone    = _sr("invoice_operator_phone")
-        op_website  = _sr("invoice_operator_website")
-        op_email    = _sr("invoice_operator_email")
+        op_fields = _resolve_invoice_pdf_operator_fields(settings_row)
+        op_iban = op_fields["iban"]
+        op_bic = op_fields["bic"]
+        op_bank = op_fields["bank"]
+        op_tax_id = op_fields["tax_id"]
+        op_vat_id = op_fields["vat_id"]
+        op_street = op_fields["street"]
+        op_zip_city = op_fields["zip_city"]
+        op_phone = op_fields["phone"]
+        op_website = op_fields["website"]
+        op_email = op_fields["email"]
 
         def _money(v):
             return f"{v:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -23354,7 +23518,26 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         # ════════════════════════════════════════════════════════════
         # FOOTER – 3-spaltig, Trennlinie, immer am Seitenende
         # ════════════════════════════════════════════════════════════
-        FOOTER_H = 22 * mm
+        addr_lines = [ln for ln in (op_street, op_zip_city) if ln]
+        contact_lines = [
+            ln for ln in (
+                f"Telefon: {op_phone}" if op_phone else "",
+                f"E-Mail: {op_email}" if op_email else "",
+                op_website,
+            ) if ln
+        ]
+        bank_lines = [
+            ln for ln in (
+                f"St.-Nr.: {op_tax_id}" if op_tax_id else "",
+                f"USt-ID: {op_vat_id}" if op_vat_id else "",
+                f"Bank: {op_bank}" if op_bank else "",
+                f"IBAN: {op_iban}" if op_iban else "",
+                f"BIC: {op_bic}" if op_bic else "",
+            ) if ln
+        ]
+        # Grow footer so contact/bank lines are never clipped under headings.
+        footer_rows = max(1, len(addr_lines), len(contact_lines), len(bank_lines))
+        FOOTER_H = max(24 * mm, min(38 * mm, (7 + footer_rows * 4.2) * mm))
         FOOTER_Y = 0
 
         pdf.setStrokeColor(c_rule)
@@ -23370,10 +23553,13 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         fy -= 4 * mm
         pdf.setFont("Helvetica", 7)
         pdf.setFillColor(c_mid)
-        for ln in [op_street, op_zip_city]:
-            if ln:
-                pdf.drawString(M_L, fy, ln)
+        if addr_lines:
+            for ln in addr_lines:
+                pdf.drawString(M_L, fy, ln[:48])
                 fy -= 3.8 * mm
+        else:
+            pdf.drawString(M_L, fy, "Adresse in Einstellungen hinterlegen")
+            fy -= 3.8 * mm
 
         # Spalte 2: Tel/Email
         col2_x = M_L + col_w
@@ -23384,10 +23570,13 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         fy2 -= 4 * mm
         pdf.setFont("Helvetica", 7)
         pdf.setFillColor(c_mid)
-        for ln in [f"Telefon: {op_phone}" if op_phone else "", f"E-Mail: {op_email}" if op_email else "", op_website]:
-            if ln:
-                pdf.drawString(col2_x, fy2, ln)
+        if contact_lines:
+            for ln in contact_lines:
+                pdf.drawString(col2_x, fy2, ln[:48])
                 fy2 -= 3.8 * mm
+        else:
+            pdf.drawString(col2_x, fy2, "Kontakt in Einstellungen hinterlegen")
+            fy2 -= 3.8 * mm
 
         # Spalte 3: Steuer/IBAN
         col3_x = M_L + 2 * col_w
@@ -23398,14 +23587,13 @@ def send_invoice_email(invoice_row, company_row, settings_row, *, pdf_only=False
         fy3 -= 4 * mm
         pdf.setFont("Helvetica", 7)
         pdf.setFillColor(c_mid)
-        for ln in [f"St.-Nr.: {op_tax_id}" if op_tax_id else "",
-                   f"USt-ID: {op_vat_id}" if op_vat_id else "",
-                   f"Bank: {op_bank}" if op_bank else "",
-                   f"IBAN: {op_iban}" if op_iban else "",
-                   f"BIC: {op_bic}" if op_bic else ""]:
-            if ln:
-                pdf.drawString(col3_x, fy3, ln)
+        if bank_lines:
+            for ln in bank_lines:
+                pdf.drawString(col3_x, fy3, ln[:48])
                 fy3 -= 3.8 * mm
+        else:
+            pdf.drawString(col3_x, fy3, "IBAN/Steuer in Einstellungen hinterlegen")
+            fy3 -= 3.8 * mm
 
         # ════════════════════════════════════════════════════════════
         # HEADER – Logo oben rechts + Firmenname/-slogan
@@ -25265,6 +25453,10 @@ def send_invoice():
                 )
             except ValueError as exc:
                 return jsonify({"error": str(exc)}), 400
+
+    # Persist filled Absender/Bank fields so every later PDF reuses them (editable via settings).
+    if settings_override and _persist_invoice_identity_settings(db, settings_override, skip_empty=True):
+        db.commit()
 
     # Multi-position support
     items_raw = payload.get("items") or []
@@ -31427,6 +31619,12 @@ def _ensure_critical_api_routes() -> None:
     _patch_api_route("/api/ops/guidance", operations_guidance, ("GET",), "core_ops_guidance")
     _patch_api_route("/api/settings", get_settings, ("GET",), "core_settings_get")
     _patch_api_route("/api/settings", update_settings, ("PUT",), "core_settings_put")
+    _patch_api_route(
+        "/api/settings/invoice-identity",
+        update_invoice_identity_settings,
+        ("PUT",),
+        "core_settings_invoice_identity_put",
+    )
     _patch_api_route("/api/subcompanies", list_subcompanies, ("GET",), "core_subcompanies_list")
     _patch_api_route("/api/subcompanies", create_subcompany, ("POST",), "core_subcompanies_create")
     _patch_api_route("/api/geocode/reverse", reverse_geocode_coordinates, ("GET",), "core_geocode_reverse")

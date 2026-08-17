@@ -475,6 +475,13 @@ const settingsForm = document.querySelector("#settingsForm");
 if (settingsForm) {
   settingsForm.addEventListener("submit", handleSettingsSubmit);
 
+  const saveInvoiceIdentityBtn = document.getElementById("saveInvoiceIdentityBtn");
+  if (saveInvoiceIdentityBtn) {
+    saveInvoiceIdentityBtn.addEventListener("click", () => {
+      saveInvoiceIdentitySettings().catch(() => {});
+    });
+  }
+
   const fillDatenschutzBtn = document.getElementById("fillDatenschutzTemplateBtn");
   if (fillDatenschutzBtn) {
     fillDatenschutzBtn.addEventListener("click", () => {

@@ -1762,6 +1762,9 @@
               <p class="helper-text full-width" data-ui-i18n="invoiceLogoHint">Das Rechnungslogo wird auch als System-Icon und Mitarbeiter-App-Icon verwendet.</p>
 
               <!-- ── Rechnungs-Absenderadresse ── -->
+              <p class="helper-text full-width" data-ui-i18n="invoiceIdentityPersistHint">
+                Einmal eintragen und speichern – gilt für alle Rechnungen und PDFs. Später jederzeit änderbar.
+              </p>
               <label class="full-width">
                 <span data-ui-i18n="invoiceOperatorStreetLabel">Straße &amp; Hausnummer</span>
                 <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="Musterstraße 12" data-ui-i18n-placeholder="invoiceOperatorStreet" />
@@ -1837,6 +1840,10 @@
                 <span data-ui-i18n="invoiceVatIdLabel">USt-IdNr.</span>
                 <input id="invoiceVatId" type="text" maxlength="14" placeholder="DE123456789" data-ui-i18n-placeholder="invoiceVatId" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
+              <div class="full-width" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 8px;">
+                <button type="button" id="saveInvoiceIdentityBtn" class="primary-button" data-ui-i18n="btnSaveInvoiceIdentity">Absender &amp; Bank speichern</button>
+                <span class="helper-text" data-ui-i18n="invoiceIdentitySaveHint">Nur diese Rechnungsdaten – ohne den Rest der Einstellungen.</span>
+              </div>
               <label class="full-width">
                 <span data-ui-i18n-html="invoiceEmailSubjectLabel">Rechnungs-E-Mail Betreff <small style="font-weight:400">(leer = Standard: "Rechnung von … Nr. …")</small></span>
                 <input id="invoiceEmailSubject" type="text" placeholder="Ihre Rechnung Nr. {invoiceNumber} von {platformName}" data-ui-i18n-placeholder="invoiceEmailSubject" />

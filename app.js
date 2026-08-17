@@ -1863,6 +1863,11 @@ const UI_TRANSLATIONS = {
     formSectionSmtpH4: "SMTP Versand",
     supportPhoneLabel: "Admin-Notfallnummer fuer Sicherheitsbildschirm",
     invoiceOperatorStreetLabel: "Strasse & Hausnummer",
+    invoiceIdentityPersistHint: "Einmal eintragen und speichern – gilt für alle Rechnungen und PDFs. Später jederzeit änderbar.",
+    invoiceIdentitySaveHint: "Nur diese Rechnungsdaten – ohne den Rest der Einstellungen.",
+    btnSaveInvoiceIdentity: "Absender & Bank speichern",
+    toastInvoiceIdentitySaved: "Absender & Bank gespeichert",
+    alertInvoiceIdentitySaveFailed: "Absender/Bank speichern fehlgeschlagen: {error}",
     invoiceOperatorZipCityLabel: "PLZ & Ort",
     invoiceOperatorPhoneLabel: "Telefon",
     invoiceOperatorWebsiteLabel: "Website",
@@ -3040,6 +3045,11 @@ const UI_TRANSLATIONS = {
     formSectionSmtpH4: "SMTP Sending",
     supportPhoneLabel: "Admin emergency number for security screen",
     invoiceOperatorStreetLabel: "Street & house number",
+    invoiceIdentityPersistHint: "Enter and save once – used on all invoices and PDFs. You can change it anytime.",
+    invoiceIdentitySaveHint: "Only these invoice fields – not the rest of settings.",
+    btnSaveInvoiceIdentity: "Save sender & bank",
+    toastInvoiceIdentitySaved: "Sender & bank saved",
+    alertInvoiceIdentitySaveFailed: "Failed to save sender/bank: {error}",
     invoiceOperatorZipCityLabel: "ZIP & city",
     invoiceOperatorPhoneLabel: "Phone",
     invoiceOperatorWebsiteLabel: "Website",
@@ -28593,7 +28603,76 @@ function isValidEmailValue(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+function hydrateInvoiceOperatorFieldsFromSettings() {
+  const settings = state.settings || {};
+  const pairs = [
+    ["#invoiceOperatorStreet", "invoiceOperatorStreet"],
+    ["#invoiceOperatorZipCity", "invoiceOperatorZipCity"],
+    ["#invoiceOperatorPhone", "invoiceOperatorPhone"],
+    ["#invoiceOperatorWebsite", "invoiceOperatorWebsite"],
+    ["#invoiceOperatorEmail", "invoiceOperatorEmail"],
+    ["#invoiceIban", "invoiceIban"],
+    ["#invoiceBic", "invoiceBic"],
+    ["#invoiceBankName", "invoiceBankName"],
+    ["#invoiceTaxId", "invoiceTaxId"],
+    ["#invoiceVatId", "invoiceVatId"],
+  ];
+  for (const [selector, key] of pairs) {
+    const el = document.querySelector(selector);
+    if (!el) continue;
+    if (String(el.value || "").trim()) continue;
+    const saved = String(settings[key] || "").trim();
+    if (saved) el.value = saved;
+  }
+}
+
+function collectInvoiceIdentityPayload() {
+  hydrateInvoiceOperatorFieldsFromSettings();
+  return {
+    invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || "").trim(),
+    invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
+    invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || "").trim(),
+    invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || "").trim(),
+    invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || "").trim(),
+    invoiceIban: (document.querySelector("#invoiceIban")?.value || "").trim(),
+    invoiceBic: (document.querySelector("#invoiceBic")?.value || "").trim(),
+    invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
+    invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || "").trim(),
+    invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
+  };
+}
+
+async function saveInvoiceIdentitySettings(options = {}) {
+  const { silent = false } = options;
+  if (!userCanManageSystem()) {
+    if (!silent) showToast(runtimeText("accessDenied") || "Nicht erlaubt", "error");
+    return null;
+  }
+  const body = collectInvoiceIdentityPayload();
+  try {
+    const updated = await apiRequest(API_BASE + "/api/settings/invoice-identity", {
+      method: "PUT",
+      body,
+    });
+    state.settings = { ...(state.settings || {}), ...(updated || {}), ...body };
+    document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
+    if (!silent) showToast(uiT("toastInvoiceIdentitySaved") || "Absender & Bank gespeichert", "success");
+    return updated;
+  } catch (error) {
+    if (!silent) {
+      showToast(
+        (uiT("alertInvoiceIdentitySaveFailed") || "Speichern fehlgeschlagen: {error}").replace(
+          "{error}",
+          error.message || ""
+        )
+      );
+    }
+    throw error;
+  }
+}
+
 function autoFillInvoiceBusinessFields(company) {
+  hydrateInvoiceOperatorFieldsFromSettings();
   const recipientInput = elements.invoiceRecipientEmail;
   if (recipientInput && !String(recipientInput.value || "").trim()) {
     const suggestedRecipient = getCompanyBillingEmail(company) || getCompanyDocumentEmail(company);
@@ -28657,21 +28736,24 @@ function markInvoiceFieldInvalid(selector, message) {
 }
 
 function validateInvoiceBusinessFieldsForSend(company) {
+  hydrateInvoiceOperatorFieldsFromSettings();
   clearInvoiceFieldValidationState();
   const requiredFields = [
-    { selector: "#invoiceOperatorStreet", label: runtimeText("invoiceLabelStreetHouseNumber") },
-    { selector: "#invoiceOperatorZipCity", label: runtimeText("invoiceLabelZipCity") },
-    { selector: "#invoiceOperatorEmail", label: uiT("labelBillingEmail") || runtimeText("invoiceValidationEmail") },
-    { selector: "#invoiceIban", label: "IBAN" },
-    { selector: "#invoiceBankName", label: runtimeText("invoiceLabelBankName") },
-    { selector: "#invoiceTaxId", label: runtimeText("invoiceLabelTaxId") },
-    { selector: "#invoiceVatId", label: runtimeText("invoiceLabelVatId") },
+    { selector: "#invoiceOperatorStreet", label: runtimeText("invoiceLabelStreetHouseNumber"), key: "invoiceOperatorStreet" },
+    { selector: "#invoiceOperatorZipCity", label: runtimeText("invoiceLabelZipCity"), key: "invoiceOperatorZipCity" },
+    { selector: "#invoiceOperatorEmail", label: uiT("labelBillingEmail") || runtimeText("invoiceValidationEmail"), key: "invoiceOperatorEmail" },
+    { selector: "#invoiceIban", label: "IBAN", key: "invoiceIban" },
+    { selector: "#invoiceBankName", label: runtimeText("invoiceLabelBankName"), key: "invoiceBankName" },
+    { selector: "#invoiceTaxId", label: runtimeText("invoiceLabelTaxId"), key: "invoiceTaxId" },
+    { selector: "#invoiceVatId", label: runtimeText("invoiceLabelVatId"), key: "invoiceVatId" },
   ];
 
   const missing = [];
   let firstInvalidField = null;
   for (const field of requiredFields) {
-    const value = String(document.querySelector(field.selector)?.value || "").trim();
+    const value = String(
+      document.querySelector(field.selector)?.value || state.settings?.[field.key] || ""
+    ).trim();
     if (!value) {
       missing.push(field.label);
       if (!firstInvalidField) {
@@ -32614,21 +32696,12 @@ async function handleInvoiceSend() {
   }
 
   const html = renderInvoiceHtml(invoice);
-  const invoiceSettingsOverrides = {
+  const invoiceSettingsOverrides = collectInvoiceIdentityPayload();
+  Object.assign(invoiceSettingsOverrides, {
     invoiceLogoData: elements.invoiceLogoData?.value || state.settings.invoiceLogoData || "",
     invoicePrimaryColor: document.querySelector("#invoicePrimaryColor")?.value || state.settings.invoicePrimaryColor || "",
     invoiceAccentColor: document.querySelector("#invoiceAccentColor")?.value || state.settings.invoiceAccentColor || "",
-    invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || state.settings.invoiceOperatorStreet || "").trim(),
-    invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || state.settings.invoiceOperatorZipCity || "").trim(),
-    invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || state.settings.invoiceOperatorPhone || "").trim(),
-    invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || state.settings.invoiceOperatorWebsite || "").trim(),
-    invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || state.settings.invoiceOperatorEmail || "").trim(),
-    invoiceIban: (document.querySelector("#invoiceIban")?.value || state.settings.invoiceIban || "").trim(),
-    invoiceBic: (document.querySelector("#invoiceBic")?.value || state.settings.invoiceBic || "").trim(),
-    invoiceBankName: (document.querySelector("#invoiceBankName")?.value || state.settings.invoiceBankName || "").trim(),
-    invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || state.settings.invoiceTaxId || "").trim(),
-    invoiceVatId: (document.querySelector("#invoiceVatId")?.value || state.settings.invoiceVatId || "").trim(),
-  };
+  });
   try {
     const payload = await apiRequest(API_BASE + "/api/invoices/send", {
       method: "POST",
@@ -32649,6 +32722,7 @@ async function handleInvoiceSend() {
       }
     });
 
+    Object.assign(state.settings || (state.settings = {}), collectInvoiceIdentityPayload());
     await loadAllData();
     refreshAll();
     if (payload.sent) {
