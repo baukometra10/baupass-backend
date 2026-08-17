@@ -1149,6 +1149,16 @@ def test_invoice_bulk_retry_requires_second_superadmin_approval(client_and_db):
     approval_id = approval_payload.get("approvalId")
     assert approval_id
 
+    duplicate_response = client.post(
+        "/api/invoices/retry-send-bulk",
+        json={"invoiceIds": ["inv-approval-1"]},
+        headers=requester_headers,
+    )
+    assert duplicate_response.status_code == 202
+    duplicate_payload = duplicate_response.get_json()
+    assert duplicate_payload.get("alreadyPending") is True
+    assert duplicate_payload.get("approvalId") == approval_id
+
     self_approve_response = client.post(
         f"/api/invoices/approvals/{approval_id}/decision",
         json={"decision": "approve"},

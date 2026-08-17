@@ -1451,6 +1451,7 @@ const UI_TRANSLATIONS = {
     alertInvoiceRetrySent: "Rechnung wurde erfolgreich erneut versendet.",
     alertInvoiceRetryFailed: "Erneuter Versand fehlgeschlagen: {error}",
     alertDeadLetterResolveApprovalRequested: "Freigabe angefordert ({id}). Ein zweiter Superadmin muss bestaetigen.",
+    alertApprovalAlreadyPending: "Freigabe liegt bereits vor ({id}). Ein zweiter Superadmin muss bestaetigen.",
     alertDeadLetterResolveFailed: "Dead-Letter-Fall konnte nicht erledigt werden: {error}",
     alertGenericError: "Fehler: {error}",
     alertCollectionsStatusChangeFailed: "Statuswechsel fehlgeschlagen: {error}",
@@ -2711,6 +2712,7 @@ const UI_TRANSLATIONS = {
     alertInvoiceRetrySent: "Invoice was successfully resent.",
     alertInvoiceRetryFailed: "Resend failed: {error}",
     alertDeadLetterResolveApprovalRequested: "Approval requested ({id}). A second superadmin must confirm.",
+    alertApprovalAlreadyPending: "Approval is already pending ({id}). A second superadmin must confirm.",
     alertDeadLetterResolveFailed: "Dead-letter case could not be resolved: {error}",
     alertGenericError: "Error: {error}",
     alertCollectionsStatusChangeFailed: "Status change failed: {error}",
@@ -34019,6 +34021,12 @@ async function loadAndRenderInvoices(options = {}) {
   }
 }
 
+function toastInvoiceApprovalRequested(payload) {
+  const id = String(payload?.approvalId || "-");
+  const key = payload?.alreadyPending ? "alertApprovalAlreadyPending" : "alertDeadLetterResolveApprovalRequested";
+  showToast(uiT(key).replace("{id}", id), "info", 3600);
+}
+
 function renderInvoiceApprovalQueue() {
   const container = document.querySelector("#invoiceApprovalList");
   if (!container) {
@@ -34247,7 +34255,7 @@ function renderInvoiceDeadLetters() {
           body: {}
         });
         if (payload?.approvalRequested) {
-          showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
+          toastInvoiceApprovalRequested(payload);
         }
         await loadAndRenderInvoices();
         refreshAll();
@@ -39163,6 +39171,7 @@ async function clearInvoiceFiltersAndReload() {
 if (invoiceFilterNumber) {
   invoiceFilterNumber.addEventListener("input", () => {
     persistInvoiceFiltersFromUi();
+    renderInvoiceManagementList();
   });
 
   invoiceFilterNumber.addEventListener("keydown", async (event) => {
@@ -39476,7 +39485,7 @@ if (invoiceRetryBulkSendBtn) {
         body: { invoiceIds: selectedIds }
       });
       if (payload?.approvalRequested) {
-        showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
+        toastInvoiceApprovalRequested(payload);
       } else {
         const summary = payload?.summary || {};
         showToast(uiT("alertBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0), "success", 3600);
@@ -39511,7 +39520,7 @@ if (invoiceRetryCriticalSendBtn) {
         body: { invoiceIds: criticalIds }
       });
       if (payload?.approvalRequested) {
-        showToast(uiT("alertDeadLetterResolveApprovalRequested").replace("{id}", payload.approvalId), "info", 3600);
+        toastInvoiceApprovalRequested(payload);
       } else {
         const summary = payload?.summary || {};
         showToast(uiT("alertCriticalBulkRetryDone").replace("{sent}", summary.sent || 0).replace("{failed}", summary.failed || 0).replace("{skipped}", summary.skipped || 0), "success", 3600);

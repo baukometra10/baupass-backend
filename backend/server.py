@@ -24323,6 +24323,39 @@ def create_operation_approval(db, action_type, payload, actor, target_type=None,
     return approval_id
 
 
+def _invoice_approval_payload_key(action_type, payload):
+    payload = payload or {}
+    cleaned_action = str(action_type or "").strip().lower()
+    if cleaned_action == "invoice.retry_send_bulk":
+        return ("invoice.retry_send_bulk", tuple(sorted(sanitize_invoice_id_list(payload.get("invoiceIds") or []))))
+    if cleaned_action == "invoice.dead_letter_resolve":
+        return ("invoice.dead_letter_resolve", clean_id_input(payload.get("invoiceId")))
+    return (cleaned_action, json.dumps(payload, sort_keys=True, ensure_ascii=True))
+
+
+def find_pending_invoice_approval(db, action_type, payload):
+    mark_expired_operation_approvals(db)
+    wanted = _invoice_approval_payload_key(action_type, payload)
+    if not wanted[1]:
+        return None
+    rows = db.execute(
+        """
+        SELECT * FROM operation_approvals
+        WHERE LOWER(action_type) = ? AND status = 'pending'
+        ORDER BY requested_at DESC
+        """,
+        (str(action_type or "").strip().lower(),),
+    ).fetchall()
+    for row in rows:
+        try:
+            existing_payload = json.loads(row["payload_json"] or "{}")
+        except Exception:
+            continue
+        if _invoice_approval_payload_key(row["action_type"], existing_payload) == wanted:
+            return row
+    return None
+
+
 def mark_expired_operation_approvals(db):
     now_value = now_iso()
     db.execute(
@@ -25648,6 +25681,17 @@ def resolve_invoice_dead_letter(invoice_id):
     if not open_dead_letter:
         return jsonify({"error": "dead_letter_not_found"}), 404
 
+    existing = find_pending_invoice_approval(db, "invoice.dead_letter_resolve", {"invoiceId": invoice_id})
+    if existing:
+        db.commit()
+        return jsonify({
+            "ok": True,
+            "approvalRequested": True,
+            "alreadyPending": True,
+            "approvalId": existing["id"],
+            "invoiceId": invoice_id,
+        }), 202
+
     approval_id = create_operation_approval(
         db,
         "invoice.dead_letter_resolve",
@@ -25669,6 +25713,17 @@ def retry_send_invoices_bulk():
         return jsonify({"error": "missing_invoice_ids"}), 400
 
     db = get_db()
+    existing = find_pending_invoice_approval(db, "invoice.retry_send_bulk", {"invoiceIds": cleaned_ids})
+    if existing:
+        db.commit()
+        return jsonify({
+            "ok": True,
+            "approvalRequested": True,
+            "alreadyPending": True,
+            "approvalId": existing["id"],
+            "requested": len(cleaned_ids),
+        }), 202
+
     approval_id = create_operation_approval(
         db,
         "invoice.retry_send_bulk",
@@ -25684,18 +25739,30 @@ def retry_send_invoices_bulk():
 @require_roles("superadmin")
 def list_pending_invoice_approvals_endpoint():
     db = get_db()
-    limit = min(max(int(request.args.get("limit", "50")), 1), 200)
+    try:
+        limit = min(max(int(request.args.get("limit", "50") or "50"), 1), 200)
+    except (TypeError, ValueError):
+        limit = 50
     action_type = (request.args.get("actionType") or "").strip().lower()
-    max_age_minutes = max(0, int(request.args.get("maxAgeMinutes", "0")))
+    try:
+        max_age_minutes = max(0, int(request.args.get("maxAgeMinutes", "0") or "0"))
+    except (TypeError, ValueError):
+        max_age_minutes = 0
     if action_type:
         if action_type not in INVOICE_APPROVAL_ACTION_TYPES:
+            mark_expired_operation_approvals(db)
+            db.commit()
             return jsonify([])
-        return jsonify(list_pending_operation_approvals(
+        rows = list_pending_operation_approvals(
             db, limit=limit, action_type=action_type, max_age_minutes=max_age_minutes
-        ))
-    return jsonify(list_pending_operation_approvals(
+        )
+        db.commit()
+        return jsonify(rows)
+    rows = list_pending_operation_approvals(
         db, limit=limit, max_age_minutes=max_age_minutes, action_prefix="invoice."
-    ))
+    )
+    db.commit()
+    return jsonify(rows)
 
 
 @require_auth
