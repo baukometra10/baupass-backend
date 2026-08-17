@@ -1438,8 +1438,15 @@ const UI_TRANSLATIONS = {
     alertApprovalRejectReasonRequired: "Ablehnung ohne Begruendung ist nicht erlaubt.",
     alertApprovalConfirmed: "Freigabe bestaetigt und Aktion ausgefuehrt.",
     alertApprovalRejected: "Freigabe wurde abgelehnt.",
+    alertApprovalWithdrawn: "Freigabe wurde zurueckgezogen.",
+    alertApprovalSelfApproveBlocked: "Du kannst deine eigene Anfrage nicht freigeben. Ein zweiter Superadmin muss bestaetigen.",
     alertApprovalUpdated: "Freigabe aktualisiert.",
     alertApprovalActionFailed: "Freigabe-Aktion fehlgeschlagen: {error}",
+    invoiceApprovalWithdrawBtn: "Zurueckziehen",
+    invoiceApprovalWaitingSecondAdmin: "Wartet auf einen zweiten Superadmin. Freigeben ist nur durch ein anderes Konto moeglich.",
+    invoiceApprovalDecisionApprove: "freigeben",
+    invoiceApprovalDecisionReject: "ablehnen",
+    invoiceApprovalDecisionWithdraw: "zurueckziehen",
     alertInvoiceRetrySentDeadLetter: "Rechnung wurde erfolgreich erneut versendet und aus Dead-Letter entfernt.",
     alertInvoiceRetrySent: "Rechnung wurde erfolgreich erneut versendet.",
     alertInvoiceRetryFailed: "Erneuter Versand fehlgeschlagen: {error}",
@@ -1931,6 +1938,7 @@ const UI_TRANSLATIONS = {
     confirmApiKeyRotate: "API-Key f\u00fcr dieses Drehkreuz jetzt neu erzeugen? Der bisherige Key verliert sofort seine G\u00fcltigkeit.",
     confirmSystemRepair: "System-Reparatur ausf\u00fchren? Abgelaufene Sitzungen und Login-Sperren werden bereinigt.",
     confirmApprovalDecision: "Freigabe {id} wirklich {decision}?",
+    confirmApprovalWithdraw: "Freigabe {id} wirklich zurueckziehen?",
     confirmDeadLetterRetry: "Dead-Letter-Rechnung jetzt erneut senden?",
     confirmDeadLetterResolve: "Dead-Letter-Fall als erledigt markieren?",
     confirmInvoicePaid: "Diese Rechnung als bezahlt markieren? Firmensperrung wird ggf. aufgehoben.",
@@ -2690,8 +2698,15 @@ const UI_TRANSLATIONS = {
     alertApprovalRejectReasonRequired: "Rejection without a reason is not allowed.",
     alertApprovalConfirmed: "Approval confirmed and action executed.",
     alertApprovalRejected: "Approval was rejected.",
+    alertApprovalWithdrawn: "Approval was withdrawn.",
+    alertApprovalSelfApproveBlocked: "You cannot approve your own request. A second superadmin must confirm.",
     alertApprovalUpdated: "Approval updated.",
     alertApprovalActionFailed: "Approval action failed: {error}",
+    invoiceApprovalWithdrawBtn: "Withdraw",
+    invoiceApprovalWaitingSecondAdmin: "Waiting for a second superadmin. Only another account can approve.",
+    invoiceApprovalDecisionApprove: "approve",
+    invoiceApprovalDecisionReject: "reject",
+    invoiceApprovalDecisionWithdraw: "withdraw",
     alertInvoiceRetrySentDeadLetter: "Invoice was successfully resent and removed from dead-letter queue.",
     alertInvoiceRetrySent: "Invoice was successfully resent.",
     alertInvoiceRetryFailed: "Resend failed: {error}",
@@ -3120,6 +3135,7 @@ const UI_TRANSLATIONS = {
     confirmApiKeyRotate: "Regenerate the API key for this turnstile now? The existing key will immediately lose its validity.",
     confirmSystemRepair: "Run system repair? Expired sessions and login lockouts will be cleaned up.",
     confirmApprovalDecision: "Really {decision} approval {id}?",
+    confirmApprovalWithdraw: "Really withdraw approval {id}?",
     confirmDeadLetterRetry: "Resend dead-letter invoice now?",
     confirmDeadLetterResolve: "Mark dead-letter case as resolved?",
     confirmInvoicePaid: "Mark this invoice as paid? Any company lock will be lifted.",
@@ -10491,6 +10507,8 @@ function getRuntimeUiTexts() {
     invoiceApprovalExpiryInMinutes: "Expires in: {count} min",
     invoiceApprovalInvoiceCount: "{count} invoice(s)",
     invoiceApprovalSingleInvoice: "Invoice {id}",
+    invoiceApprovalWithdrawBtn: "Withdraw",
+    invoiceApprovalWaitingSecondAdmin: "Waiting for a second superadmin. Only another account can approve.",
     statsExpiringCritical: "Expiring documents (critical)",
     statsLockedWorkers: "Locked workers",
     systemAlertCriticalInvoices: "{count} critical invoice delivery failures (score >= 70) require attention.",
@@ -11385,6 +11403,8 @@ function getRuntimeUiTexts() {
       invoiceApprovalExpiryInMinutes: "Ablauf in: {count} min",
       invoiceApprovalInvoiceCount: "{count} Rechnung(en)",
       invoiceApprovalSingleInvoice: "Rechnung {id}",
+      invoiceApprovalWithdrawBtn: "Zurueckziehen",
+      invoiceApprovalWaitingSecondAdmin: "Wartet auf einen zweiten Superadmin. Freigeben ist nur durch ein anderes Konto moeglich.",
       statsExpiringCritical: "Ablaufende Dokumente (kritisch)",
       statsLockedWorkers: "Gesperrte Mitarbeiter",
       systemAlertCriticalInvoices: "{count} kritische Rechnungs-Fehlversaende (Score >= 70) erfordern Aufmerksamkeit.",
@@ -34009,9 +34029,15 @@ function renderInvoiceApprovalQueue() {
   const maxAgeMinutesValue = Number(document.querySelector("#invoiceApprovalMaxAgeMinutes")?.value || 0);
   const maxAgeMinutes = Number.isFinite(maxAgeMinutesValue) ? Math.max(0, Math.floor(maxAgeMinutesValue)) : 0;
   const nowMs = Date.now();
+  const currentUserId = String(getCurrentUser()?.id || "");
+  const invoiceApprovalActions = new Set(["invoice.retry_send_bulk", "invoice.dead_letter_resolve"]);
 
   const rows = (Array.isArray(state.invoiceApprovalRequests) ? state.invoiceApprovalRequests : []).filter((item) => {
-    if (filterAction !== "all" && String(item?.action_type || "") !== filterAction) {
+    const actionType = String(item?.action_type || "");
+    if (!invoiceApprovalActions.has(actionType)) {
+      return false;
+    }
+    if (filterAction !== "all" && actionType !== filterAction) {
       return false;
     }
     if (maxAgeMinutes <= 0) {
@@ -34056,6 +34082,20 @@ function renderInvoiceApprovalQueue() {
     const payloadHint = invoiceCount
       ? runtimeTextTemplate("invoiceApprovalInvoiceCount", { count: invoiceCount })
       : (payload.invoiceId ? runtimeTextTemplate("invoiceApprovalSingleInvoice", { id: payload.invoiceId }) : "-");
+    const isOwnRequest = currentUserId && String(item.requested_by_user_id || "") === currentUserId;
+    const waitingHint = runtimeText("invoiceApprovalWaitingSecondAdmin") || uiT("invoiceApprovalWaitingSecondAdmin");
+    const approveLabel = runtimeText("approvalApproveBtn") || uiT("invoiceApprovalDecisionApprove");
+    const rejectLabel = runtimeText("approvalRejectBtn") || uiT("invoiceApprovalDecisionReject");
+    const withdrawLabel = runtimeText("invoiceApprovalWithdrawBtn") || uiT("invoiceApprovalWithdrawBtn");
+    const actionsHtml = isOwnRequest
+      ? `<p class="helper-text helper-text-warning">${escapeHtml(waitingHint)}</p>
+          <div class="button-row invoice-management-actions">
+            <button type="button" class="ghost-button" data-approval-decision="withdraw" data-approval-id="${escapeHtml(item.id || "")}">${escapeHtml(withdrawLabel)}</button>
+          </div>`
+      : `<div class="button-row invoice-management-actions">
+            <button type="button" class="ghost-button" data-approval-decision="approve" data-approval-id="${escapeHtml(item.id || "")}">${escapeHtml(approveLabel)}</button>
+            <button type="button" class="ghost-button" data-approval-decision="reject" data-approval-id="${escapeHtml(item.id || "")}">${escapeHtml(rejectLabel)}</button>
+          </div>`;
     return `
       <article class="card-item invoice-approval-item${urgencyClass}">
         <div class="retry-queue-head">
@@ -34069,10 +34109,7 @@ function renderInvoiceApprovalQueue() {
         <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalTimestampLabel"))}: ${formatTimestamp(item.requested_at || "")}</p>
         <p class="helper-text">${expiryLabel}</p>
         <p class="helper-text">${escapeHtml(runtimeText("invoiceApprovalScopeLabel"))}: ${escapeHtml(payloadHint)}</p>
-        <div class="button-row invoice-management-actions">
-          <button type="button" class="ghost-button" data-approval-decision="approve" data-approval-id="${escapeHtml(item.id || "")}">Freigeben</button>
-          <button type="button" class="ghost-button" data-approval-decision="reject" data-approval-id="${escapeHtml(item.id || "")}">Ablehnen</button>
-        </div>
+        ${actionsHtml}
       </article>
     `;
   }).join("");
@@ -34089,13 +34126,22 @@ function renderInvoiceApprovalQueue() {
       return;
     }
 
-    const decisionText = decision === "approve" ? "freigeben" : "ablehnen";
-    if (!(await showConfirmDialog(uiT("confirmApprovalDecision").replace("{id}", approvalId).replace("{decision}", decisionText)))) {
+    const isWithdraw = decision === "withdraw";
+    const apiDecision = isWithdraw ? "reject" : decision;
+    const decisionText = apiDecision === "approve"
+      ? uiT("invoiceApprovalDecisionApprove")
+      : uiT("invoiceApprovalDecisionReject");
+    const confirmMessage = isWithdraw
+      ? uiT("confirmApprovalWithdraw").replace("{id}", approvalId)
+      : uiT("confirmApprovalDecision").replace("{id}", approvalId).replace("{decision}", decisionText);
+    if (!(await showConfirmDialog(confirmMessage))) {
       return;
     }
 
     let note = "";
-    if (decision === "reject") {
+    if (isWithdraw) {
+      note = "withdrawn_by_requester";
+    } else if (apiDecision === "reject") {
       note = String(window.prompt(uiT("promptRejectionReason"), "") || "").trim();
       if (!note) {
         showToast(uiT("alertApprovalRejectReasonRequired"), "error");
@@ -34106,10 +34152,12 @@ function renderInvoiceApprovalQueue() {
     try {
       const payload = await apiRequest(`${API_BASE}/api/invoices/approvals/${approvalId}/decision`, {
         method: "POST",
-        body: { decision, note },
+        body: { decision: apiDecision, note },
       });
       if (payload?.status === "approved") {
         showToast(uiT("alertApprovalConfirmed"), "success");
+      } else if (payload?.status === "withdrawn") {
+        showToast(uiT("alertApprovalWithdrawn"), "info");
       } else if (payload?.status === "rejected") {
         showToast(uiT("alertApprovalRejected"), "info");
       } else {
@@ -34120,7 +34168,11 @@ function renderInvoiceApprovalQueue() {
       await loadAllData();
       refreshAll();
     } catch (error) {
-      showToast(uiT("alertApprovalActionFailed").replace("{error}", error.message), "error", 3600);
+      const code = String(error?.code || error?.message || "");
+      const mapped = code === "approver_must_be_different_user"
+        ? uiT("alertApprovalSelfApproveBlocked")
+        : (error.message || code);
+      showToast(uiT("alertApprovalActionFailed").replace("{error}", mapped), "error", 3600);
     }
   };
 }
@@ -34407,7 +34459,13 @@ function renderMonthlyInvoiceStatus() {
     return;
   }
 
-  const status = state.monthlyInvoiceStatus || {};
+  const status = state.monthlyInvoiceStatus;
+  if (!status || typeof status !== "object") {
+    container.classList.add("hidden");
+    container.innerHTML = "";
+    return;
+  }
+  container.classList.remove("hidden");
   const autoLabel = status.autoEnabled ? runtimeText("monthlyInvoiceAutoOn") : runtimeText("monthlyInvoiceAutoOff");
   const cycleLabel = status.currentCycleAlreadyRan ? runtimeText("monthlyInvoiceCycleDone") : runtimeText("monthlyInvoiceCyclePending");
   const scheduleMeta = runtimeTextTemplate("monthlyInvoiceScheduleMeta", {
@@ -34971,7 +35029,7 @@ function renderInvoiceManagementList() {
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewAmountLabel"))}</p>
-                  <p style="margin: 0; font-size: 16px; font-weight: bold; color: #a855f7;">${inv.total_amount ? inv.total_amount.toFixed(2) : "0.00"} EUR</p>
+                  <p style="margin: 0; font-size: 16px; font-weight: bold; color: #a855f7;">${escapeHtml(formatCurrency(inv.total_amount))}</p>
                 </div>
                 <div>
                   <p style="margin: 0 0 4px 0; font-weight: bold;">${escapeHtml(runtimeText("invoicePreviewDateLabel"))}</p>

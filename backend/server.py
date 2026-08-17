@@ -628,6 +628,10 @@ INVOICE_SMTP_CIRCUIT_OPEN_SECONDS = max(120, int(os.getenv("BAUPASS_INVOICE_SMTP
 INVOICE_SMTP_STUCK_MINUTES = max(5, int(os.getenv("BAUPASS_INVOICE_SMTP_STUCK_MINUTES", "20")))
 SMTP_CONNECT_TIMEOUT_SECONDS = max(5, int(os.getenv("BAUPASS_SMTP_TIMEOUT_SECONDS", "8")))
 OPERATION_APPROVAL_EXPIRY_MINUTES = max(5, int(os.getenv("BAUPASS_OPERATION_APPROVAL_EXPIRY_MINUTES", "30")))
+INVOICE_APPROVAL_ACTION_TYPES = frozenset({
+    "invoice.retry_send_bulk",
+    "invoice.dead_letter_resolve",
+})
 _worker_rate_limit_audit_dedup_raw = str(
     os.getenv("BAUPASS_WORKER_RATE_LIMIT_AUDIT_DEDUP_SECONDS", "180")
 ).strip()
@@ -24334,15 +24338,19 @@ def mark_expired_operation_approvals(db):
     )
 
 
-def list_pending_operation_approvals(db, limit=50, action_type="", max_age_minutes=0):
+def list_pending_operation_approvals(db, limit=50, action_type="", max_age_minutes=0, action_prefix=""):
     mark_expired_operation_approvals(db)
 
     conditions = ["operation_approvals.status = 'pending'"]
     params = []
     cleaned_action = str(action_type or "").strip().lower()
+    cleaned_prefix = str(action_prefix or "").strip().lower()
     if cleaned_action:
         conditions.append("LOWER(operation_approvals.action_type) = ?")
         params.append(cleaned_action)
+    elif cleaned_prefix:
+        conditions.append("LOWER(operation_approvals.action_type) LIKE ?")
+        params.append(f"{cleaned_prefix}%")
 
     max_age = max(0, int(max_age_minutes or 0))
     if max_age > 0:
@@ -25679,7 +25687,15 @@ def list_pending_invoice_approvals_endpoint():
     limit = min(max(int(request.args.get("limit", "50")), 1), 200)
     action_type = (request.args.get("actionType") or "").strip().lower()
     max_age_minutes = max(0, int(request.args.get("maxAgeMinutes", "0")))
-    return jsonify(list_pending_operation_approvals(db, limit=limit, action_type=action_type, max_age_minutes=max_age_minutes))
+    if action_type:
+        if action_type not in INVOICE_APPROVAL_ACTION_TYPES:
+            return jsonify([])
+        return jsonify(list_pending_operation_approvals(
+            db, limit=limit, action_type=action_type, max_age_minutes=max_age_minutes
+        ))
+    return jsonify(list_pending_operation_approvals(
+        db, limit=limit, max_age_minutes=max_age_minutes, action_prefix="invoice."
+    ))
 
 
 @require_auth
@@ -25698,6 +25714,10 @@ def decide_invoice_approval(approval_id):
         (approval_id,),
     ).fetchone()
     if not approval:
+        return jsonify({"error": "approval_not_found"}), 404
+
+    action_type = str(approval["action_type"] or "").strip().lower()
+    if action_type not in INVOICE_APPROVAL_ACTION_TYPES:
         return jsonify({"error": "approval_not_found"}), 404
 
     status_value = str(approval["status"] or "").strip().lower()
@@ -25719,10 +25739,13 @@ def decide_invoice_approval(approval_id):
         db.commit()
         return jsonify({"error": "approval_expired"}), 410
 
-    if approval["requested_by_user_id"] == g.current_user["id"]:
+    is_requester = approval["requested_by_user_id"] == g.current_user["id"]
+    if is_requester and decision == "approve":
         return jsonify({"error": "approver_must_be_different_user"}), 403
 
     note = str(decision_payload.get("note") or "").strip()[:400]
+    if is_requester and decision == "reject" and not note:
+        note = "withdrawn_by_requester"
     if decision == "reject":
         if not note:
             return jsonify({"error": "decision_note_required"}), 400
@@ -25736,13 +25759,17 @@ def decide_invoice_approval(approval_id):
         )
         db.commit()
         log_audit(
-            "approval.rejected",
-            f"Freigabe {approval_id} wurde abgelehnt",
+            "approval.withdrawn" if is_requester else "approval.rejected",
+            f"Freigabe {approval_id} wurde vom Antragsteller zurückgezogen" if is_requester else f"Freigabe {approval_id} wurde abgelehnt",
             target_type="approval",
             target_id=approval_id,
             actor=g.current_user,
         )
-        return jsonify({"ok": True, "approvalId": approval_id, "status": "rejected"})
+        return jsonify({
+            "ok": True,
+            "approvalId": approval_id,
+            "status": "withdrawn" if is_requester else "rejected",
+        })
 
     try:
         execution_result = execute_approved_operation(db, approval, actor=g.current_user)

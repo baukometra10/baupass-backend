@@ -1274,6 +1274,114 @@ def test_invoice_approval_reject_requires_note_and_expired_approval_cannot_be_de
     assert approve_expired.get_json().get("error") == "approval_expired"
 
 
+def test_invoice_approvals_exclude_photo_override_and_requester_can_withdraw(client_and_db):
+    client, db_path = client_and_db
+    requester_headers = _auth_headers(client)
+
+    with closing(sqlite3.connect(db_path)) as db:
+        admin_user = db.execute("SELECT id FROM users WHERE role = 'superadmin' ORDER BY id LIMIT 1").fetchone()
+        assert admin_user is not None
+        now = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        future = (datetime.now(timezone.utc) + timedelta(minutes=20)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        db.execute(
+            """
+            INSERT INTO operation_approvals (
+                id, action_type, payload_json, status, requested_by_user_id,
+                requested_at, expires_at, decided_by_user_id, decided_at, decision_note, execution_result_json
+            ) VALUES (?, ?, ?, 'pending', ?, ?, ?, NULL, NULL, '', '')
+            """,
+            (
+                "apr-photo-leak",
+                "worker.photo_override",
+                "{}",
+                admin_user[0],
+                now,
+                future,
+            ),
+        )
+        db.execute(
+            """
+            INSERT INTO invoices (
+                id, invoice_number, company_id, recipient_email, invoice_date, invoice_period, description,
+                net_amount, vat_rate, vat_amount, total_amount, status, error_message, sent_at,
+                rendered_html, created_by_user_id, created_at, due_date, reminder_stage,
+                last_reminder_sent_at, last_reminder_error, send_attempt_count, last_send_attempt_at, next_retry_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "inv-approval-withdraw",
+                "RE-APPROVAL-W",
+                "cmp-default",
+                "billing@example.com",
+                "2026-04-19",
+                "2026-04",
+                "Freigabe-Withdraw-Test",
+                100.0,
+                19.0,
+                19.0,
+                119.0,
+                "send_failed",
+                "SMTP timeout",
+                None,
+                "<html></html>",
+                admin_user[0],
+                now,
+                "2026-05-03",
+                0,
+                None,
+                "",
+                2,
+                now,
+                now,
+            ),
+        )
+        db.commit()
+
+    pending_photo_query = client.get(
+        "/api/invoices/approvals/pending?actionType=worker.photo_override",
+        headers=requester_headers,
+    )
+    assert pending_photo_query.status_code == 200
+    assert pending_photo_query.get_json() == []
+
+    photo_via_invoice = client.post(
+        "/api/invoices/approvals/apr-photo-leak/decision",
+        json={"decision": "approve"},
+        headers=requester_headers,
+    )
+    assert photo_via_invoice.status_code == 404
+    assert photo_via_invoice.get_json().get("error") == "approval_not_found"
+
+    approval_response = client.post(
+        "/api/invoices/retry-send-bulk",
+        json={"invoiceIds": ["inv-approval-withdraw"]},
+        headers=requester_headers,
+    )
+    assert approval_response.status_code == 202
+    approval_id = approval_response.get_json().get("approvalId")
+    assert approval_id
+
+    pending = client.get("/api/invoices/approvals/pending", headers=requester_headers)
+    assert pending.status_code == 200
+    pending_rows = pending.get_json() or []
+    assert all(str(row.get("action_type") or "").startswith("invoice.") for row in pending_rows)
+    assert all(str(row.get("id")) != "apr-photo-leak" for row in pending_rows)
+    assert any(str(row.get("id")) == approval_id for row in pending_rows)
+
+    withdraw_response = client.post(
+        f"/api/invoices/approvals/{approval_id}/decision",
+        json={"decision": "reject"},
+        headers=requester_headers,
+    )
+    assert withdraw_response.status_code == 200
+    withdraw_payload = withdraw_response.get_json()
+    assert withdraw_payload.get("status") == "withdrawn"
+
+    pending_after = client.get("/api/invoices/approvals/pending", headers=requester_headers)
+    assert pending_after.status_code == 200
+    assert all(str(row.get("id")) != approval_id for row in (pending_after.get_json() or []))
+
+
 def test_gate_tap_returns_contactless_feedback_for_checkin_and_checkout(client_and_db):
     client, db_path = client_and_db
     api_key = _issue_turnstile_api_key(db_path)
