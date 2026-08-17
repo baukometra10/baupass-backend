@@ -190,6 +190,7 @@ def _insert_gate_worker(db_path, *, worker_id, card_id, badge_id):
 
 def test_gate_checkin_outside_work_hours_denied_and_notifies(client_and_db, monkeypatch):
     client, db_path = client_and_db
+    monkeypatch.setenv("BAUPASS_RELAX_ATTENDANCE_CLOCK", "0")
     monkeypatch.setattr(server, "worker_document_access_block", lambda *a, **k: None)
     monkeypatch.setattr(server, "worker_identity_access_block", lambda *a, **k: None)
     notify_calls = []
@@ -252,6 +253,7 @@ def test_gate_checkin_outside_work_hours_denied_and_notifies(client_and_db, monk
 
 def test_gate_checkout_outside_work_hours_still_allowed(client_and_db, monkeypatch):
     client, db_path = client_and_db
+    monkeypatch.setenv("BAUPASS_RELAX_ATTENDANCE_CLOCK", "0")
     monkeypatch.setattr(server, "worker_document_access_block", lambda *a, **k: None)
     monkeypatch.setattr(server, "worker_identity_access_block", lambda *a, **k: None)
     api_key = _issue_turnstile_api_key(db_path)

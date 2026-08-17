@@ -482,7 +482,7 @@ def test_inbox_missed_voice_call_ack(client_and_db):
     still = [it for it in items2 if call_id in str(it.get("id") or "")]
     assert not still, "acked voice call should leave chat inbox"
 
-    brief2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}", headers=headers)
+    brief2 = client.get(f"/api/ops-os/daily-brief?company_id={cid}&refresh=1", headers=headers)
     chat2 = (brief2.get_json() or {}).get("chat") or {}
     assert int(chat2.get("totalOpen") or 0) == 0
 

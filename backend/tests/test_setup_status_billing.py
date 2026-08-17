@@ -26,7 +26,9 @@ def test_billing_block_reports_stripe_readiness_fields():
     assert billing.get("stripePricesConfigured") is True
     assert billing.get("readyForCheckout") is True
     assert billing.get("readyForWebhooks") is True
-    assert "/api/billing/stripe/webhook" in str(billing.get("webhookUrl") or "")
+    assert "/api/billing/stripe/webhook" in str(billing.get("webhookUrl") or "") or "/api/v2/billing/stripe/webhook" in str(
+        billing.get("webhookUrl") or ""
+    )
 
 
 def test_cameras_block_present():

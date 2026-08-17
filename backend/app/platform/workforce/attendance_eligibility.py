@@ -468,12 +468,14 @@ def worker_may_auto_attend_today(
 
     # No deployment plan in use — fall back to standard workday (Mo–Fr) + company work hours.
     # Use company-local calendar day (not server UTC weekday).
-    # Unit/CI: do not couple gate/scan smoke tests to wall-clock weekend/hours.
-    testing = (os.getenv("BAUPASS_ENV") or os.getenv("FLASK_ENV") or "").strip().lower() in {
-        "testing",
-        "test",
+    # Opt-in clock relaxation for gate/scan smoke fixtures (see conftest).
+    relax_clock = (os.getenv("BAUPASS_RELAX_ATTENDANCE_CLOCK") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
     }
-    if testing:
+    if relax_clock:
         work_start, work_end = _effective_work_times(db, worker_id)
         return {
             "ok": True,

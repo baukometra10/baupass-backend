@@ -18,6 +18,9 @@ os.environ.setdefault("BAUPASS_SKIP_IMAP_POLL", "1")
 os.environ.setdefault("BAUPASS_E2E_CHAT_REQUIRED", "1")
 os.environ.setdefault("BAUPASS_E2E_ATTACHMENTS_REQUIRED", "1")
 os.environ.setdefault("BAUPASS_E2E_SENSITIVE_REQUIRED", "1")
+# Gate/scan fixtures should not fail on weekend/off-hours wall clock.
+# Attendance eligibility unit tests turn this off explicitly.
+os.environ.setdefault("BAUPASS_RELAX_ATTENDANCE_CLOCK", "1")
 
 from backend import server  # noqa: E402
 from backend.app.runtime_bootstrap import apply_sqlite_migrations  # noqa: E402

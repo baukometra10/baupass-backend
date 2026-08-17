@@ -50,7 +50,7 @@ def test_record_job_run_resets_failures_on_success():
 
 
 def test_scheduled_job_pending_true_for_queued_status():
-    from backend.app.tasks import __init__ as tasks_mod
+    import backend.app.tasks as tasks_mod
 
     job = MagicMock()
     job.get_status.return_value = "queued"
@@ -63,7 +63,7 @@ def test_scheduled_job_pending_true_for_queued_status():
 
 
 def test_enqueue_in_deduped_skips_when_pending():
-    from backend.app.tasks import __init__ as tasks_mod
+    import backend.app.tasks as tasks_mod
 
     with patch.object(tasks_mod, "scheduled_job_pending", return_value=True):
         with patch.object(tasks_mod, "enqueue_in") as enqueue_in:
@@ -85,15 +85,15 @@ def test_collect_background_jobs_health_marks_degraded_without_worker():
         return_value={"daily_jobs": "rq", "dunning": "thread"},
     ):
         with patch(
-            "backend.app.tasks.job_health.get_worker_heartbeat_stats",
+            "backend.app.tasks.get_worker_heartbeat_stats",
             return_value={"active": 0, "status": "ok"},
         ):
             with patch(
                 "backend.app.tasks.job_health.get_job_status",
                 return_value={"status": "unknown"},
             ):
-                with patch("backend.app.tasks.job_health.task_queues_ready", return_value=True):
-                    with patch("backend.app.tasks.job_health.get_queue_stats", return_value={}):
+                with patch("backend.app.tasks.task_queues_ready", return_value=True):
+                    with patch("backend.app.tasks.get_queue_stats", return_value={}):
                         health = collect_background_jobs_health()
 
     assert health["anyRqMode"] is True

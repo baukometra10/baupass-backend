@@ -14,6 +14,7 @@ def db_conn(tmp_path, monkeypatch):
 
     db_path = tmp_path / "attendance.db"
     monkeypatch.setenv("BAUPASS_DB_PATH", str(db_path))
+    monkeypatch.setenv("BAUPASS_RELAX_ATTENDANCE_CLOCK", "0")
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.executescript(

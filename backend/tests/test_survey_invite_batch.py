@@ -18,9 +18,23 @@ class SurveyInviteBatchTest(unittest.TestCase):
                 id INTEGER PRIMARY KEY,
                 smtp_host TEXT,
                 smtp_sender_email TEXT,
-                smtp_sender_name TEXT
+                smtp_sender_name TEXT,
+                smtp_password TEXT,
+                imap_host TEXT,
+                imap_username TEXT,
+                imap_password TEXT
             );
-            INSERT INTO settings (id, smtp_host, smtp_sender_email) VALUES (1, 'smtp.test', 'noreply@test.local');
+            INSERT INTO settings (id, smtp_host, smtp_sender_email, smtp_password)
+            VALUES (1, 'smtp.test', 'noreply@test.local', 'secret');
+            CREATE TABLE companies (
+                id TEXT PRIMARY KEY,
+                name TEXT,
+                billing_email TEXT,
+                document_email TEXT,
+                survey_prompt_enabled INTEGER NOT NULL DEFAULT 0,
+                deleted_at TEXT
+            );
+            INSERT INTO companies VALUES ('cmp-a', 'Co A', 'billing@firma.local', '', 1, NULL);
             CREATE TABLE users (
                 id TEXT PRIMARY KEY,
                 username TEXT,
@@ -71,6 +85,7 @@ class SurveyInviteBatchTest(unittest.TestCase):
     def test_no_recipients_when_no_email_users(self, mail_ready):
         mail_ready.return_value = {"configured": True, "providers": ["smtp"]}
         self.db.execute("UPDATE users SET email = ''")
+        self.db.execute("UPDATE companies SET billing_email = '', document_email = ''")
         self.db.commit()
 
         result = send_survey_invites_batch(self.db, company_id="cmp-a", send_all=True)

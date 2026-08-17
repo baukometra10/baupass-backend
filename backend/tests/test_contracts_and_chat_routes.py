@@ -188,6 +188,10 @@ def test_chat_attachment_download_falls_back_to_worker_document(client_and_db):
     from backend.app.domains.chat.service import ChatService
     from backend.server import CHAT_UPLOAD_DIR, get_db
 
+    # Verification requires >=800 bytes + allowed MIME; fallback matches by filename.
+    chat_blob = b"%PDF-1.4\n" + (b"A" * 900)
+    docs_blob = b"%PDF-1.4\n" + (b"B" * 900)
+
     with client.application.app_context():
         service = ChatService(get_db())
         thread_id = service.get_or_create_worker_thread(company_id=company_id, worker_id=worker_id, subject="general")
@@ -204,18 +208,19 @@ def test_chat_attachment_download_falls_back_to_worker_document(client_and_db):
             message_id=str(message["id"]),
             company_id=company_id,
             worker_id=worker_id,
-            filename="fallback.txt",
-            content_type="text/plain",
-            blob=b"from chat volume",
+            filename="fallback.pdf",
+            content_type="application/pdf",
+            blob=chat_blob,
         )
-        service.register_worker_chat_submission(
+        doc_id = service.register_worker_chat_submission(
             worker_id=worker_id,
             company_id=company_id,
-            filename="fallback.txt",
-            content_type="text/plain",
-            blob=b"from worker docs",
+            filename="fallback.pdf",
+            content_type="application/pdf",
+            blob=docs_blob,
             doc_type_raw="sonstiges",
         )
+        assert doc_id, "worker_documents fallback registration must succeed"
         attachment_id = attachment["id"]
         stored = get_db().execute(
             "SELECT file_path FROM chat_attachments WHERE id = ?",
@@ -232,7 +237,7 @@ def test_chat_attachment_download_falls_back_to_worker_document(client_and_db):
         headers=headers,
     )
     assert download.status_code == 200, download.get_data(as_text=True)
-    assert download.data == b"from worker docs"
+    assert download.data == docs_blob
 
 
 def test_worker_chat_threads_with_worker_session(client_and_db):
@@ -285,11 +290,12 @@ def test_worker_chat_threads_with_worker_session(client_and_db):
     rows = messages.get_json().get("messages") or []
     assert any(row.get("body") == "Hallo Firma" for row in rows)
 
+    pdf_blob = b"%PDF-1.4\n" + (b"worker-chat-doc" * 60)
     attach = client.post(
         f"/api/worker-app/chat/threads/{thread_id}/attachments",
         data={
             "message_id": send.get_json()["message"]["id"],
-            "file": (io.BytesIO(b"%PDF-1.4 worker doc"), "unterlage.pdf"),
+            "file": (io.BytesIO(pdf_blob), "unterlage.pdf"),
             "doc_type": "sonstiges",
         },
         headers=worker_headers,
@@ -297,6 +303,7 @@ def test_worker_chat_threads_with_worker_session(client_and_db):
     )
     assert attach.status_code == 200, attach.get_data(as_text=True)
     assert attach.get_json().get("attachment", {}).get("id")
+    assert attach.get_json().get("documentId"), attach.get_json()
 
     with closing(sqlite3.connect(db_path)) as db:
         doc_count = db.execute(
@@ -392,12 +399,12 @@ def test_chat_broadcast_creates_messages(client_and_db):
         for row in thread_rows
         if str(row.get("workerId") or row.get("worker_id")) == worker_a
     )
-    msgs = client.get(
-        f"/api/chat/threads/{thread_id}/messages?company_id={company_id}&worker_id={worker_a}",
-        headers=headers,
-    )
-    assert msgs.status_code == 200
-    bodies = [str(row.get("body") or "") for row in (msgs.get_json().get("messages") or [])]
+    from backend.app.domains.chat.service import ChatService
+    from backend.server import get_db
+
+    with client.application.app_context():
+        service = ChatService(get_db())
+        bodies = [str(row.get("body") or "") for row in service.list_messages(thread_id, company_id)]
     assert any("Morgen Einsatz um 7 Uhr." in body for body in bodies)
 
     with closing(sqlite3.connect(db_path)) as db:

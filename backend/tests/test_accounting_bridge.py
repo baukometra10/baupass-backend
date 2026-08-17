@@ -1437,7 +1437,7 @@ def test_webhook_payslip_released_inbox_pending_approval(tmp_path, monkeypatch):
 
 
 def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
-    """Lohn sends delivery (not statements[]) — must still ingest + generate PDF."""
+    """Lohn delivery without PDF bytes still ingests; platform does not invent a stub PDF."""
     from backend.app.platform.accounting import messages_inbox
 
     db = _db()
@@ -1476,8 +1476,7 @@ def test_webhook_payslip_released_from_lohn_delivery(tmp_path, monkeypatch):
     ).fetchone()
     assert row is not None
     assert row["worker_id"] in ("w1", "") or row["status"] in ("pending", "unmatched")
-    assert row["file_path"]
-    assert Path(row["file_path"]).read_bytes()[:4] == b"%PDF"
+    assert row["file_path"] == ""
 
 
 def test_session_handoff_url_uses_lohn_html():

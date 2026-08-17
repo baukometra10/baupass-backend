@@ -24,9 +24,14 @@ class SurveyEmailResolutionTest(unittest.TestCase):
                 id INTEGER PRIMARY KEY,
                 smtp_host TEXT,
                 smtp_sender_email TEXT,
-                smtp_sender_name TEXT
+                smtp_sender_name TEXT,
+                smtp_password TEXT,
+                imap_host TEXT,
+                imap_username TEXT,
+                imap_password TEXT
             );
-            INSERT INTO settings (id, smtp_host, smtp_sender_email) VALUES (1, 'smtp.test', 'noreply@test.local');
+            INSERT INTO settings (id, smtp_host, smtp_sender_email, smtp_password)
+            VALUES (1, 'smtp.test', 'noreply@test.local', 'secret');
             CREATE TABLE companies (
                 id TEXT PRIMARY KEY,
                 name TEXT,
@@ -108,7 +113,8 @@ class SurveyEmailResolutionTest(unittest.TestCase):
         self.assertEqual(result.get("sent"), 1)
         send_one.assert_called_once()
         user_arg = send_one.call_args.args[1]
-        self.assertEqual(user_arg.get("email"), "")
+        # Batch copies the resolved billing address onto the user payload for send.
+        self.assertEqual(user_arg.get("email"), "billing@firma.local")
 
     def test_survey_pending_when_prompt_enabled_skips_usage_gate(self):
         pending = survey_pending_for_user(

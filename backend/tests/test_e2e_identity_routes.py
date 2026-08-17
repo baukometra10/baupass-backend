@@ -119,20 +119,20 @@ def test_worker_e2e_identity_register_and_fetch(client_and_db):
 def test_admin_e2e_identity_register(client_and_db):
     client, _db_path = client_and_db
     admin_headers = _superadmin_headers(client)
-    _create_company(client, admin_headers, "E2ECo3")
+    company_id = _create_company(client, admin_headers, "E2ECo3")
     pub = _fake_spki_b64()
 
     put = client.put(
         "/api/e2e/identity/admin/me",
         headers=admin_headers,
-        json={"publicKeySpkiB64": pub},
+        json={"publicKeySpkiB64": pub, "companyId": company_id},
     )
     assert put.status_code == 200
 
     listed = client.get(
-        "/api/e2e/identity/admin/public-keys?worker_id=wrk-e2e-1",
+        f"/api/e2e/identity/admin/public-keys?company_id={company_id}",
         headers=admin_headers,
     )
-    assert listed.status_code == 200
+    assert listed.status_code == 200, listed.get_json()
     keys = listed.get_json().get("publicKeys") or []
     assert any(k.get("publicKeySpkiB64") == pub for k in keys)
