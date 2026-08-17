@@ -11282,23 +11282,57 @@ def update_invoice_identity_settings():
     return get_settings()
 
 
+def _settings_keep_text(payload, current_row, payload_key, column, default=""):
+    if payload_key not in payload:
+        if current_row is not None and column in current_row.keys():
+            return str(current_row[column] or default)
+        return default
+    return str(payload.get(payload_key) or "").strip()
+
+
+def _settings_keep_bool_int(payload, current_row, payload_key, column, default=0):
+    if payload_key not in payload:
+        if current_row is not None and column in current_row.keys():
+            return 1 if int(current_row[column] or 0) else 0
+        return 1 if default else 0
+    return 1 if payload.get(payload_key) else 0
+
+
+def _settings_keep_int(payload, current_row, payload_key, column, default, *, min_value=None, max_value=None):
+    if payload_key not in payload:
+        if current_row is not None and column in current_row.keys():
+            value = int(current_row[column] if current_row[column] is not None else default)
+        else:
+            value = int(default)
+    else:
+        value = int(payload.get(payload_key) if payload.get(payload_key) not in (None, "") else default)
+    if min_value is not None:
+        value = max(min_value, value)
+    if max_value is not None:
+        value = min(max_value, value)
+    return value
+
+
 @require_auth
 @require_roles("superadmin")
 def update_settings():
     payload = request.get_json(silent=True) or {}
     db = get_db()
 
-    current_row = db.execute(
-        "SELECT smtp_password, imap_password FROM settings WHERE id = 1"
-    ).fetchone()
+    current_row = db.execute("SELECT * FROM settings WHERE id = 1").fetchone()
     current_smtp_password = str(current_row["smtp_password"] or "") if current_row else ""
     current_imap_password = str(current_row["imap_password"] or "") if current_row else ""
     payload_smtp_password = str(payload.get("smtpPassword") or "")
     try:
-        invoice_operator_email = sanitize_optional_email(
-            payload.get("invoiceOperatorEmail", ""),
-            field_error="invalid_invoice_operator_email",
-        )
+        if "invoiceOperatorEmail" in payload:
+            invoice_operator_email = sanitize_optional_email(
+                payload.get("invoiceOperatorEmail", ""),
+                field_error="invalid_invoice_operator_email",
+            )
+        else:
+            invoice_operator_email = _settings_keep_text(
+                payload, current_row, "invoiceOperatorEmail", "invoice_operator_email"
+            )
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     db.execute(
@@ -11320,51 +11354,57 @@ def update_settings():
         WHERE id = 1
         """,
         (
-            payload.get("platformName", DEFAULT_PLATFORM_NAME),
-            payload.get("operatorName", DEFAULT_OPERATOR_NAME),
-            payload.get("turnstileEndpoint", ""),
-            payload.get("rentalModel", "tageskarte"),
-            1 if payload.get("monthlyInvoiceAutoEnabled", True) else 0,
-            min(max(int(payload.get("monthlyInvoiceRunDay") or 1), 1), 28),
-            min(max(int(payload.get("monthlyInvoiceDueDays") or 14), 1), 90),
-            payload.get("invoiceLogoData", ""),
-            payload.get("invoicePrimaryColor", DEFAULT_BRAND_PRIMARY),
-            payload.get("invoiceAccentColor", DEFAULT_BRAND_ACCENT),
-            payload.get("invoiceIban", ""),
-            payload.get("invoiceBic", ""),
-            payload.get("invoiceBankName", ""),
-            payload.get("invoiceTaxId", ""),
-            payload.get("invoiceVatId", ""),
-            payload.get("invoiceOperatorStreet", ""),
-            payload.get("invoiceOperatorZipCity", ""),
-            payload.get("invoiceOperatorPhone", ""),
-            payload.get("invoiceOperatorWebsite", ""),
+            _settings_keep_text(payload, current_row, "platformName", "platform_name", DEFAULT_PLATFORM_NAME) or DEFAULT_PLATFORM_NAME,
+            _settings_keep_text(payload, current_row, "operatorName", "operator_name", DEFAULT_OPERATOR_NAME) or DEFAULT_OPERATOR_NAME,
+            _settings_keep_text(payload, current_row, "turnstileEndpoint", "turnstile_endpoint"),
+            _settings_keep_text(payload, current_row, "rentalModel", "rental_model", "tageskarte") or "tageskarte",
+            _settings_keep_bool_int(payload, current_row, "monthlyInvoiceAutoEnabled", "monthly_invoice_auto_enabled", 1),
+            _settings_keep_int(payload, current_row, "monthlyInvoiceRunDay", "monthly_invoice_run_day", 1, min_value=1, max_value=28),
+            _settings_keep_int(payload, current_row, "monthlyInvoiceDueDays", "monthly_invoice_due_days", 14, min_value=1, max_value=90),
+            _settings_keep_text(payload, current_row, "invoiceLogoData", "invoice_logo_data"),
+            _settings_keep_text(payload, current_row, "invoicePrimaryColor", "invoice_primary_color", DEFAULT_BRAND_PRIMARY) or DEFAULT_BRAND_PRIMARY,
+            _settings_keep_text(payload, current_row, "invoiceAccentColor", "invoice_accent_color", DEFAULT_BRAND_ACCENT) or DEFAULT_BRAND_ACCENT,
+            _settings_keep_text(payload, current_row, "invoiceIban", "invoice_iban"),
+            _settings_keep_text(payload, current_row, "invoiceBic", "invoice_bic"),
+            _settings_keep_text(payload, current_row, "invoiceBankName", "invoice_bank_name"),
+            _settings_keep_text(payload, current_row, "invoiceTaxId", "invoice_tax_id"),
+            _settings_keep_text(payload, current_row, "invoiceVatId", "invoice_vat_id"),
+            _settings_keep_text(payload, current_row, "invoiceOperatorStreet", "invoice_operator_street"),
+            _settings_keep_text(payload, current_row, "invoiceOperatorZipCity", "invoice_operator_zip_city"),
+            _settings_keep_text(payload, current_row, "invoiceOperatorPhone", "invoice_operator_phone"),
+            _settings_keep_text(payload, current_row, "invoiceOperatorWebsite", "invoice_operator_website"),
             invoice_operator_email,
-            payload.get("invoiceEmailSubject", ""),
-            payload.get("invoiceEmailIntro", ""),
-            str(payload.get("invoiceEmailBodyTemplate") or "")[:5000],
-            int(payload.get("dunningStage1Days") or 7),
-            int(payload.get("dunningStage2Days") or 3),
-            payload.get("smtpHost", ""),
-            int(payload.get("smtpPort", 587) or 587),
-            payload.get("smtpUsername", ""),
+            _settings_keep_text(payload, current_row, "invoiceEmailSubject", "invoice_email_subject"),
+            _settings_keep_text(payload, current_row, "invoiceEmailIntro", "invoice_email_intro"),
+            _settings_keep_text(payload, current_row, "invoiceEmailBodyTemplate", "invoice_email_body_template")[:5000],
+            _settings_keep_int(payload, current_row, "dunningStage1Days", "dunning_stage1_days", 7, min_value=1),
+            _settings_keep_int(payload, current_row, "dunningStage2Days", "dunning_stage2_days", 3, min_value=1),
+            _settings_keep_text(payload, current_row, "smtpHost", "smtp_host"),
+            _settings_keep_int(payload, current_row, "smtpPort", "smtp_port", 587, min_value=1, max_value=65535),
+            _settings_keep_text(payload, current_row, "smtpUsername", "smtp_username"),
             payload_smtp_password if payload_smtp_password.strip() else current_smtp_password,
-            payload.get("smtpSenderEmail", ""),
-            payload.get("smtpSenderName", DEFAULT_PLATFORM_NAME),
-            1 if payload.get("smtpUseTls", True) else 0,
-            payload.get("adminIpWhitelist", ""),
-            1 if payload.get("enforceAdminIpWhitelist", False) else 0,
-            1 if payload.get("enforceTenantDomain", False) else 0,
-            1 if payload.get("workerAppEnabled", True) else 0,
-            1 if payload.get("workerPassLockEnabled", False) else 0,
-            max(0, int(payload.get("workerExpiryWarnDays") or 7)),
-            str(payload.get("workStartTime") or "")[:5],
-            str(payload.get("workEndTime") or "")[:5],
+            _settings_keep_text(payload, current_row, "smtpSenderEmail", "smtp_sender_email"),
+            _settings_keep_text(payload, current_row, "smtpSenderName", "smtp_sender_name", DEFAULT_PLATFORM_NAME) or DEFAULT_PLATFORM_NAME,
+            _settings_keep_bool_int(payload, current_row, "smtpUseTls", "smtp_use_tls", 1),
+            _settings_keep_text(payload, current_row, "adminIpWhitelist", "admin_ip_whitelist"),
+            _settings_keep_bool_int(payload, current_row, "enforceAdminIpWhitelist", "enforce_admin_ip_whitelist", 0),
+            _settings_keep_bool_int(payload, current_row, "enforceTenantDomain", "enforce_tenant_domain", 0),
+            _settings_keep_bool_int(payload, current_row, "workerAppEnabled", "worker_app_enabled", 1),
+            _settings_keep_bool_int(payload, current_row, "workerPassLockEnabled", "worker_pass_lock_enabled", 0),
+            _settings_keep_int(payload, current_row, "workerExpiryWarnDays", "worker_expiry_warn_days", 7, min_value=0),
+            _settings_keep_text(payload, current_row, "workStartTime", "work_start_time")[:5],
+            _settings_keep_text(payload, current_row, "workEndTime", "work_end_time")[:5],
         ),
     )
     # Impressum / Datenschutz
-    impressum_text = str(payload.get("impressumText") or "")[:20000]
-    datenschutz_text = str(payload.get("datenschutzText") or "")[:20000]
+    if "impressumText" in payload:
+        impressum_text = str(payload.get("impressumText") or "")[:20000]
+    else:
+        impressum_text = str(current_row["impressum_text"] or "")[:20000] if current_row and "impressum_text" in current_row.keys() else ""
+    if "datenschutzText" in payload:
+        datenschutz_text = str(payload.get("datenschutzText") or "")[:20000]
+    else:
+        datenschutz_text = str(current_row["datenschutz_text"] or "")[:20000] if current_row and "datenschutz_text" in current_row.keys() else ""
     db.execute("UPDATE settings SET impressum_text = ?, datenschutz_text = ? WHERE id = 1", (impressum_text, datenschutz_text))
     # Resend-Konfiguration (API-Key direkt in DB speichern, umgeht Railway-Env-Probleme)
     # Leeres Feld = bestehenden Key behalten (wie SMTP-Passwort-Logik)
@@ -11393,23 +11433,27 @@ def update_settings():
     elif brevo_from_email_payload:
         db.execute("UPDATE settings SET brevo_from_email = ? WHERE id = 1", (brevo_from_email_payload,))
         _resend_key_cache["brevo_from_email"] = brevo_from_email_payload
-    # IMAP-Felder separat aktualisieren (immer optional)
-    payload_imap_password = str(payload.get("imapPassword") or "")
-    _raw_imap_host = clean_text_input(payload.get("imapHost", ""), max_len=255)
-    _smtp_only_hosts_set = {"smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
-                            "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com"}
-    if _raw_imap_host.lower() in _smtp_only_hosts_set:
-        _raw_imap_host = _infer_imap_host(payload.get("imapUsername") or payload.get("smtpUsername"), _raw_imap_host) or _raw_imap_host
-    imap_fields = {
-        "imap_host": _raw_imap_host,
-        "imap_port": int(payload.get("imapPort") or 993),
-        "imap_username": clean_text_input(payload.get("imapUsername", ""), max_len=255),
-        "imap_password": payload_imap_password if payload_imap_password.strip() else current_imap_password,
-        "imap_folder": clean_text_input(payload.get("imapFolder", "INBOX"), max_len=100) or "INBOX",
-        "imap_use_ssl": 1 if payload.get("imapUseSsl", True) else 0,
-    }
-    for col, val in imap_fields.items():
-        db.execute(f"UPDATE settings SET {col} = ? WHERE id = 1", (val,))
+    # IMAP-Felder nur anfassen, wenn sie im Payload stehen (SMTP-Test darf sie nicht leeren).
+    imap_keys_present = any(
+        key in payload for key in ("imapHost", "imapPort", "imapUsername", "imapPassword", "imapFolder", "imapUseSsl")
+    )
+    if imap_keys_present:
+        payload_imap_password = str(payload.get("imapPassword") or "")
+        _raw_imap_host = clean_text_input(payload.get("imapHost", ""), max_len=255)
+        _smtp_only_hosts_set = {"smtp-mail.outlook.com", "smtp.office365.com", "smtp.live.com",
+                                "smtp.gmail.com", "smtp.mail.yahoo.com", "smtp.zoho.com"}
+        if _raw_imap_host.lower() in _smtp_only_hosts_set:
+            _raw_imap_host = _infer_imap_host(payload.get("imapUsername") or payload.get("smtpUsername"), _raw_imap_host) or _raw_imap_host
+        imap_fields = {
+            "imap_host": _raw_imap_host if "imapHost" in payload else (str(current_row["imap_host"] or "") if current_row and "imap_host" in current_row.keys() else ""),
+            "imap_port": int(payload.get("imapPort") or 993) if "imapPort" in payload else (int(current_row["imap_port"] or 993) if current_row and "imap_port" in current_row.keys() else 993),
+            "imap_username": clean_text_input(payload.get("imapUsername", ""), max_len=255) if "imapUsername" in payload else (str(current_row["imap_username"] or "") if current_row and "imap_username" in current_row.keys() else ""),
+            "imap_password": payload_imap_password if payload_imap_password.strip() else current_imap_password,
+            "imap_folder": (clean_text_input(payload.get("imapFolder", "INBOX"), max_len=100) or "INBOX") if "imapFolder" in payload else (str(current_row["imap_folder"] or "INBOX") if current_row and "imap_folder" in current_row.keys() else "INBOX"),
+            "imap_use_ssl": (1 if payload.get("imapUseSsl", True) else 0) if "imapUseSsl" in payload else (int(current_row["imap_use_ssl"] or 1) if current_row and "imap_use_ssl" in current_row.keys() else 1),
+        }
+        for col, val in imap_fields.items():
+            db.execute(f"UPDATE settings SET {col} = ? WHERE id = 1", (val,))
     db.commit()
     log_audit("settings.updated", "Systemeinstellungen wurden aktualisiert", actor=g.current_user)
     return get_settings()

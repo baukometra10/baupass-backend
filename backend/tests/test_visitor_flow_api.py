@@ -1392,6 +1392,54 @@ def test_invoice_approvals_exclude_photo_override_and_requester_can_withdraw(cli
     assert all(str(row.get("id")) != approval_id for row in (pending_after.get_json() or []))
 
 
+def test_partial_settings_put_keeps_invoice_bank_and_address(client_and_db):
+    client, _db_path = client_and_db
+    headers = _auth_headers(client)
+
+    identity = client.put(
+        "/api/settings/invoice-identity",
+        json={
+            "invoiceOperatorStreet": "Musterstrasse 12",
+            "invoiceOperatorZipCity": "80333 Muenchen",
+            "invoiceIban": "DE89370400440532013000",
+            "invoiceBic": "COBADEFFXXX",
+            "invoiceBankName": "Commerzbank",
+        },
+        headers=headers,
+    )
+    assert identity.status_code == 200
+    identity_payload = identity.get_json() or {}
+    assert identity_payload.get("invoiceOperatorStreet") == "Musterstrasse 12"
+    assert identity_payload.get("invoiceIban") == "DE89370400440532013000"
+
+    smtp_only = client.put(
+        "/api/settings",
+        json={
+            "platformName": "WorkPass",
+            "smtpHost": "smtp.example.com",
+            "smtpPort": 587,
+            "smtpSenderEmail": "noreply@example.com",
+            "smtpSenderName": "WorkPass",
+            "smtpUseTls": True,
+        },
+        headers=headers,
+    )
+    assert smtp_only.status_code == 200
+    kept = smtp_only.get_json() or {}
+    assert kept.get("invoiceOperatorStreet") == "Musterstrasse 12"
+    assert kept.get("invoiceOperatorZipCity") == "80333 Muenchen"
+    assert kept.get("invoiceIban") == "DE89370400440532013000"
+    assert kept.get("invoiceBic") == "COBADEFFXXX"
+    assert kept.get("invoiceBankName") == "Commerzbank"
+    assert kept.get("smtpHost") == "smtp.example.com"
+
+    after_reload = client.get("/api/settings", headers=headers)
+    assert after_reload.status_code == 200
+    reloaded = after_reload.get_json() or {}
+    assert reloaded.get("invoiceOperatorStreet") == "Musterstrasse 12"
+    assert reloaded.get("invoiceIban") == "DE89370400440532013000"
+
+
 def test_gate_tap_returns_contactless_feedback_for_checkin_and_checkout(client_and_db):
     client, db_path = client_and_db
     api_key = _issue_turnstile_api_key(db_path)

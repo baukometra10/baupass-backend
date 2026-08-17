@@ -32115,6 +32115,8 @@ async function handleSettingsSubmit(event) {
 }
 
 function getCurrentSmtpSettingsFromForm() {
+  const identity = collectInvoiceIdentityPayload();
+  const stored = state.settings || {};
   const settings = {
     platformName: document.querySelector("#platformName")?.value.trim() || "",
     operatorName: document.querySelector("#operatorName")?.value.trim() || "",
@@ -32127,6 +32129,16 @@ function getCurrentSmtpSettingsFromForm() {
     smtpSenderName: document.querySelector("#smtpSenderName")?.value.trim() || "",
     smtpUseTls: document.querySelector("#smtpUseTls")?.value === "1",
     brevoFromEmail: document.querySelector("#brevoFromEmail")?.value.trim() || "",
+    invoiceOperatorStreet: identity.invoiceOperatorStreet || stored.invoiceOperatorStreet || "",
+    invoiceOperatorZipCity: identity.invoiceOperatorZipCity || stored.invoiceOperatorZipCity || "",
+    invoiceOperatorPhone: identity.invoiceOperatorPhone || stored.invoiceOperatorPhone || "",
+    invoiceOperatorWebsite: identity.invoiceOperatorWebsite || stored.invoiceOperatorWebsite || "",
+    invoiceOperatorEmail: identity.invoiceOperatorEmail || stored.invoiceOperatorEmail || "",
+    invoiceIban: identity.invoiceIban || stored.invoiceIban || "",
+    invoiceBic: identity.invoiceBic || stored.invoiceBic || "",
+    invoiceBankName: identity.invoiceBankName || stored.invoiceBankName || "",
+    invoiceTaxId: identity.invoiceTaxId || stored.invoiceTaxId || "",
+    invoiceVatId: identity.invoiceVatId || stored.invoiceVatId || "",
   };
   const brevoApiKey = (document.querySelector("#brevoApiKey")?.value || "").trim();
   if (brevoApiKey) {
