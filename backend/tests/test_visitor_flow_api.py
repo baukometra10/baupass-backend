@@ -1440,6 +1440,77 @@ def test_partial_settings_put_keeps_invoice_bank_and_address(client_and_db):
     assert reloaded.get("invoiceIban") == "DE89370400440532013000"
 
 
+def test_empty_identity_payload_does_not_wipe_saved_bank_and_address(client_and_db):
+    client, _db_path = client_and_db
+    headers = _auth_headers(client)
+
+    saved = client.put(
+        "/api/settings/invoice-identity",
+        json={
+            "invoiceOperatorStreet": "Leopoldstrasse 1",
+            "invoiceOperatorZipCity": "80802 Muenchen",
+            "invoiceOperatorPhone": "+49 89 123456",
+            "invoiceOperatorEmail": "rechnung@example.com",
+            "invoiceIban": "DE89370400440532013000",
+            "invoiceBic": "COBADEFFXXX",
+            "invoiceBankName": "Commerzbank",
+            "invoiceTaxId": "143/123/12345",
+            "invoiceVatId": "DE123456789",
+        },
+        headers=headers,
+    )
+    assert saved.status_code == 200
+
+    empty_identity = client.put(
+        "/api/settings/invoice-identity",
+        json={
+            "invoiceOperatorStreet": "",
+            "invoiceOperatorZipCity": "",
+            "invoiceOperatorPhone": "",
+            "invoiceOperatorEmail": "",
+            "invoiceIban": "",
+            "invoiceBic": "",
+            "invoiceBankName": "",
+            "invoiceTaxId": "",
+            "invoiceVatId": "",
+        },
+        headers=headers,
+    )
+    assert empty_identity.status_code == 200
+    kept_identity = empty_identity.get_json() or {}
+    assert kept_identity.get("invoiceOperatorStreet") == "Leopoldstrasse 1"
+    assert kept_identity.get("invoiceIban") == "DE89370400440532013000"
+    assert kept_identity.get("invoiceBankName") == "Commerzbank"
+
+    empty_settings = client.put(
+        "/api/settings",
+        json={
+            "platformName": "WorkPass",
+            "invoiceOperatorStreet": "",
+            "invoiceOperatorZipCity": "",
+            "invoiceIban": "",
+            "invoiceBic": "",
+            "invoiceBankName": "",
+            "invoiceTaxId": "",
+            "invoiceVatId": "",
+        },
+        headers=headers,
+    )
+    assert empty_settings.status_code == 200
+    kept_settings = empty_settings.get_json() or {}
+    assert kept_settings.get("invoiceOperatorStreet") == "Leopoldstrasse 1"
+    assert kept_settings.get("invoiceIban") == "DE89370400440532013000"
+    assert kept_settings.get("invoiceBankName") == "Commerzbank"
+
+    after_reload = client.get("/api/settings", headers=headers)
+    assert after_reload.status_code == 200
+    reloaded = after_reload.get_json() or {}
+    assert reloaded.get("invoiceOperatorStreet") == "Leopoldstrasse 1"
+    assert reloaded.get("invoiceOperatorPhone") == "+49 89 123456"
+    assert reloaded.get("invoiceIban") == "DE89370400440532013000"
+    assert reloaded.get("invoiceVatId") == "DE123456789"
+
+
 def test_gate_tap_returns_contactless_feedback_for_checkin_and_checkout(client_and_db):
     client, db_path = client_and_db
     api_key = _issue_turnstile_api_key(db_path)

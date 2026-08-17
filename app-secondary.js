@@ -522,7 +522,8 @@ if (settingsForm) {
     for (const sel of SETTINGS_REQUIRED_FIELDS) {
       const el = settingsForm.querySelector(sel);
       if (!el) continue;
-      const filled = String(el.value || "").trim().length > 0;
+      const filled = String(el.value || "").trim().length > 0
+        && !(typeof isInvoiceIdentityPlaceholderValue === "function" && isInvoiceIdentityPlaceholderValue(el, el.value));
       el.classList.toggle("invoice-field-valid", filled);
       el.classList.toggle("invoice-field-invalid", !filled);
     }

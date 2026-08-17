@@ -22,12 +22,14 @@ def _register_core_settings_routes() -> None:
         smtp_diagnose,
         smtp_test,
         test_imap_connection,
+        update_invoice_identity_settings,
         update_settings,
     )
 
     rules = (
         ("/settings", get_settings, ("GET",)),
         ("/settings", update_settings, ("PUT",)),
+        ("/settings/invoice-identity", update_invoice_identity_settings, ("PUT",)),
         ("/settings/admin-ip-status", admin_ip_status, ("GET",)),
         ("/settings/smtp-test", smtp_test, ("POST",)),
         ("/settings/smtp-diagnose", smtp_diagnose, ("POST",)),

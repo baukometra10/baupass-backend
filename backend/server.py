@@ -10870,6 +10870,24 @@ def update_me_email():
     return jsonify({"ok": True, "email": email})
 
 
+def _settings_row_text(row, column, default=""):
+    """Read a settings column by name. Indexing is more reliable than `in row.keys()`."""
+    if row is None:
+        return default
+    try:
+        return str(row[column] or default)
+    except (KeyError, IndexError, TypeError):
+        pass
+    try:
+        target = str(column).lower()
+        for key in row.keys():
+            if str(key).lower() == target:
+                return str(row[key] or default)
+    except Exception:
+        pass
+    return default
+
+
 @require_auth
 def get_settings():
     row = get_db().execute("SELECT * FROM settings WHERE id = 1").fetchone()
@@ -10883,16 +10901,16 @@ def get_settings():
             "invoiceLogoData": row["invoice_logo_data"],
             "invoicePrimaryColor": row["invoice_primary_color"],
             "invoiceAccentColor": row["invoice_accent_color"],
-            "invoiceIban": row["invoice_iban"] if "invoice_iban" in row.keys() else "",
-            "invoiceBic": row["invoice_bic"] if "invoice_bic" in row.keys() else "",
-            "invoiceBankName": row["invoice_bank_name"] if "invoice_bank_name" in row.keys() else "",
-            "invoiceTaxId": row["invoice_tax_id"] if "invoice_tax_id" in row.keys() else "",
-            "invoiceVatId": row["invoice_vat_id"] if "invoice_vat_id" in row.keys() else "",
-            "invoiceOperatorStreet": row["invoice_operator_street"] if "invoice_operator_street" in row.keys() else "",
-            "invoiceOperatorZipCity": row["invoice_operator_zip_city"] if "invoice_operator_zip_city" in row.keys() else "",
-            "invoiceOperatorPhone": row["invoice_operator_phone"] if "invoice_operator_phone" in row.keys() else "",
-            "invoiceOperatorWebsite": row["invoice_operator_website"] if "invoice_operator_website" in row.keys() else "",
-            "invoiceOperatorEmail": row["invoice_operator_email"] if "invoice_operator_email" in row.keys() else "",
+            "invoiceIban": _settings_row_text(row, "invoice_iban"),
+            "invoiceBic": _settings_row_text(row, "invoice_bic"),
+            "invoiceBankName": _settings_row_text(row, "invoice_bank_name"),
+            "invoiceTaxId": _settings_row_text(row, "invoice_tax_id"),
+            "invoiceVatId": _settings_row_text(row, "invoice_vat_id"),
+            "invoiceOperatorStreet": _settings_row_text(row, "invoice_operator_street"),
+            "invoiceOperatorZipCity": _settings_row_text(row, "invoice_operator_zip_city"),
+            "invoiceOperatorPhone": _settings_row_text(row, "invoice_operator_phone"),
+            "invoiceOperatorWebsite": _settings_row_text(row, "invoice_operator_website"),
+            "invoiceOperatorEmail": _settings_row_text(row, "invoice_operator_email"),
             "invoiceEmailSubject": row["invoice_email_subject"] if "invoice_email_subject" in row.keys() else "",
             "invoiceEmailIntro": row["invoice_email_intro"] if "invoice_email_intro" in row.keys() else "",
             "invoiceEmailBodyTemplate": row["invoice_email_body_template"] if "invoice_email_body_template" in row.keys() else "",
@@ -11271,7 +11289,8 @@ def update_invoice_identity_settings():
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-    changed = _persist_invoice_identity_settings(db, values, skip_empty=False)
+    # Empty strings must not wipe stored Absender/Bank values (placeholder-looking form).
+    changed = _persist_invoice_identity_settings(db, values, skip_empty=True)
     if changed:
         db.commit()
         log_audit(
@@ -11284,10 +11303,18 @@ def update_invoice_identity_settings():
 
 def _settings_keep_text(payload, current_row, payload_key, column, default=""):
     if payload_key not in payload:
-        if current_row is not None and column in current_row.keys():
-            return str(current_row[column] or default)
-        return default
+        return _settings_row_text(current_row, column, default)
     return str(payload.get(payload_key) or "").strip()
+
+
+def _settings_keep_identity_text(payload, current_row, payload_key, column):
+    """Keep stored invoice identity when the client sends an empty/placeholder value."""
+    if payload_key not in payload:
+        return _settings_row_text(current_row, column)
+    incoming = str(payload.get(payload_key) or "").strip()
+    if not incoming:
+        return _settings_row_text(current_row, column)
+    return incoming
 
 
 def _settings_keep_bool_int(payload, current_row, payload_key, column, default=0):
@@ -11324,15 +11351,14 @@ def update_settings():
     current_imap_password = str(current_row["imap_password"] or "") if current_row else ""
     payload_smtp_password = str(payload.get("smtpPassword") or "")
     try:
-        if "invoiceOperatorEmail" in payload:
+        incoming_operator_email = str(payload.get("invoiceOperatorEmail") or "").strip() if "invoiceOperatorEmail" in payload else ""
+        if incoming_operator_email:
             invoice_operator_email = sanitize_optional_email(
-                payload.get("invoiceOperatorEmail", ""),
+                incoming_operator_email,
                 field_error="invalid_invoice_operator_email",
             )
         else:
-            invoice_operator_email = _settings_keep_text(
-                payload, current_row, "invoiceOperatorEmail", "invoice_operator_email"
-            )
+            invoice_operator_email = _settings_row_text(current_row, "invoice_operator_email")
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     db.execute(
@@ -11364,15 +11390,15 @@ def update_settings():
             _settings_keep_text(payload, current_row, "invoiceLogoData", "invoice_logo_data"),
             _settings_keep_text(payload, current_row, "invoicePrimaryColor", "invoice_primary_color", DEFAULT_BRAND_PRIMARY) or DEFAULT_BRAND_PRIMARY,
             _settings_keep_text(payload, current_row, "invoiceAccentColor", "invoice_accent_color", DEFAULT_BRAND_ACCENT) or DEFAULT_BRAND_ACCENT,
-            _settings_keep_text(payload, current_row, "invoiceIban", "invoice_iban"),
-            _settings_keep_text(payload, current_row, "invoiceBic", "invoice_bic"),
-            _settings_keep_text(payload, current_row, "invoiceBankName", "invoice_bank_name"),
-            _settings_keep_text(payload, current_row, "invoiceTaxId", "invoice_tax_id"),
-            _settings_keep_text(payload, current_row, "invoiceVatId", "invoice_vat_id"),
-            _settings_keep_text(payload, current_row, "invoiceOperatorStreet", "invoice_operator_street"),
-            _settings_keep_text(payload, current_row, "invoiceOperatorZipCity", "invoice_operator_zip_city"),
-            _settings_keep_text(payload, current_row, "invoiceOperatorPhone", "invoice_operator_phone"),
-            _settings_keep_text(payload, current_row, "invoiceOperatorWebsite", "invoice_operator_website"),
+            _settings_keep_identity_text(payload, current_row, "invoiceIban", "invoice_iban"),
+            _settings_keep_identity_text(payload, current_row, "invoiceBic", "invoice_bic"),
+            _settings_keep_identity_text(payload, current_row, "invoiceBankName", "invoice_bank_name"),
+            _settings_keep_identity_text(payload, current_row, "invoiceTaxId", "invoice_tax_id"),
+            _settings_keep_identity_text(payload, current_row, "invoiceVatId", "invoice_vat_id"),
+            _settings_keep_identity_text(payload, current_row, "invoiceOperatorStreet", "invoice_operator_street"),
+            _settings_keep_identity_text(payload, current_row, "invoiceOperatorZipCity", "invoice_operator_zip_city"),
+            _settings_keep_identity_text(payload, current_row, "invoiceOperatorPhone", "invoice_operator_phone"),
+            _settings_keep_identity_text(payload, current_row, "invoiceOperatorWebsite", "invoice_operator_website"),
             invoice_operator_email,
             _settings_keep_text(payload, current_row, "invoiceEmailSubject", "invoice_email_subject"),
             _settings_keep_text(payload, current_row, "invoiceEmailIntro", "invoice_email_intro"),

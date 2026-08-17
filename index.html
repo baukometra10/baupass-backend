@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="SUPPIX" />
   <meta name="application-name" content="SUPPIX" />
   <link rel="preload" href="./app.js?v=20260814brand3" as="script" />
-  <link rel="preload" href="./styles.css?v=20260814brand3" as="style" />
+  <link rel="preload" href="./styles.css?v=20260817ident1" as="style" />
     <script>
       (function enforceLatestBuild() {
           const buildTag = "20260814brand3";
@@ -116,7 +116,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./embed-shell.css?v=20260603hub1" />
-  <link rel="stylesheet" href="./styles.css?v=20260814brand3" />
+  <link rel="stylesheet" href="./styles.css?v=20260817ident1" />
     <link rel="stylesheet" href="./invoices-hub.css?v=20260817inv3" />
     <link rel="stylesheet" href="./platform-health.css?v=20260621contrast1" />
     <link rel="stylesheet" href="./platform-unified.css?v=20260601sidebar1" />
@@ -1719,7 +1719,7 @@
                 </div>
               </div>
 
-            <form id="settingsForm" class="form-grid compact-grid superadmin-settings-form">
+            <form id="settingsForm" class="form-grid compact-grid superadmin-settings-form" novalidate>
 
               <!-- ── Plattform ── -->
               <div class="form-section">
@@ -1779,23 +1779,23 @@
               </p>
               <label class="full-width">
                 <span data-ui-i18n="invoiceOperatorStreetLabel">Straße &amp; Hausnummer</span>
-                <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="Musterstraße 12" data-ui-i18n-placeholder="invoiceOperatorStreet" />
+                <input id="invoiceOperatorStreet" type="text" maxlength="120" placeholder="z. B. Musterstraße 12" data-ui-i18n-placeholder="invoiceOperatorStreet" autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceOperatorZipCityLabel">PLZ &amp; Ort</span>
-                <input id="invoiceOperatorZipCity" type="text" maxlength="80" placeholder="12345 Musterstadt" data-ui-i18n-placeholder="invoiceOperatorZipCity" />
+                <input id="invoiceOperatorZipCity" type="text" maxlength="80" placeholder="z. B. 12345 Musterstadt" data-ui-i18n-placeholder="invoiceOperatorZipCity" autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceOperatorPhoneLabel">Telefon</span>
-                <input id="invoiceOperatorPhone" type="text" maxlength="40" placeholder="+49 123 456789" data-ui-i18n-placeholder="invoiceOperatorPhone" />
+                <input id="invoiceOperatorPhone" type="text" maxlength="40" placeholder="z. B. +49 123 456789" data-ui-i18n-placeholder="invoiceOperatorPhone" autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceOperatorWebsiteLabel">Website</span>
-                <input id="invoiceOperatorWebsite" type="text" maxlength="120" placeholder="www.meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorWebsite" />
+                <input id="invoiceOperatorWebsite" type="text" maxlength="120" placeholder="z. B. www.meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorWebsite" autocomplete="off" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceOperatorEmailPdfLabel">Rechnungs-E-Mail (Kontakt auf PDF)</span>
-                <input id="invoiceOperatorEmail" type="email" maxlength="120" placeholder="rechnung@meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorEmail" />
+                <input id="invoiceOperatorEmail" type="text" inputmode="email" maxlength="120" placeholder="z. B. rechnung@meinefirma.de" data-ui-i18n-placeholder="invoiceOperatorEmail" autocomplete="off" />
               </label>
 
               <!-- ── Bankverbindung ── -->
@@ -1808,11 +1808,11 @@
               </div>
               <label class="full-width">
                 <span data-ui-i18n="invoiceIbanLabel">IBAN</span>
-                <input id="invoiceIban" type="text" maxlength="42" placeholder="DE12 3456 7890 1234 5678 90" data-ui-i18n-placeholder="invoiceIban" autocomplete="off" spellcheck="false" inputmode="text" />
+                <input id="invoiceIban" type="text" maxlength="42" placeholder="z. B. DE12 3456 7890 1234 5678 90" data-ui-i18n-placeholder="invoiceIban" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceBicLabel">BIC / SWIFT</span>
-                <input id="invoiceBic" type="text" maxlength="11" placeholder="COBADEFFXXX" data-ui-i18n-placeholder="invoiceBic" autocomplete="off" spellcheck="false" inputmode="text" />
+                <input id="invoiceBic" type="text" maxlength="11" placeholder="z. B. COBADEFFXXX" data-ui-i18n-placeholder="invoiceBic" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceBankNameLabel">🏦 Bankname</span>
@@ -1846,11 +1846,11 @@
               </label>
               <label>
                 <span data-ui-i18n="invoiceTaxNumberLabel">Steuernummer</span>
-                <input id="invoiceTaxId" type="text" maxlength="18" placeholder="123/456/78901" data-ui-i18n-placeholder="invoiceTaxId" autocomplete="off" spellcheck="false" inputmode="numeric" />
+                <input id="invoiceTaxId" type="text" maxlength="18" placeholder="z. B. 123/456/78901" data-ui-i18n-placeholder="invoiceTaxId" autocomplete="off" spellcheck="false" inputmode="numeric" />
               </label>
               <label>
                 <span data-ui-i18n="invoiceVatIdLabel">USt-IdNr.</span>
-                <input id="invoiceVatId" type="text" maxlength="14" placeholder="DE123456789" data-ui-i18n-placeholder="invoiceVatId" autocomplete="off" spellcheck="false" inputmode="text" />
+                <input id="invoiceVatId" type="text" maxlength="14" placeholder="z. B. DE123456789" data-ui-i18n-placeholder="invoiceVatId" autocomplete="off" spellcheck="false" inputmode="text" />
               </label>
               <div class="full-width" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 8px;">
                 <button type="button" id="saveInvoiceIdentityBtn" class="primary-button" data-ui-i18n="btnSaveInvoiceIdentity">Absender &amp; Bank speichern</button>

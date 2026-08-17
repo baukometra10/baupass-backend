@@ -6689,6 +6689,13 @@ body.theme-black .worker-doc-upload-form button[type="submit"] {
   margin-top: 4px;
 }
 
+.superadmin-settings-form input::placeholder,
+.superadmin-settings-form textarea::placeholder {
+  color: #64748b;
+  opacity: 0.7;
+  font-style: italic;
+}
+
 .superadmin-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));

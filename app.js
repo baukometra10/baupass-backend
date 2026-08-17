@@ -1876,6 +1876,7 @@ const UI_TRANSLATIONS = {
     btnSaveInvoiceIdentity: "Absender & Bank speichern",
     toastInvoiceIdentitySaved: "Absender & Bank gespeichert",
     alertInvoiceIdentitySaveFailed: "Absender/Bank speichern fehlgeschlagen: {error}",
+    alertInvoiceIdentityEmpty: "Bitte echte Absender- und Bankdaten eintragen – die grauen Beispiele werden nicht gespeichert.",
     invoiceOperatorZipCityLabel: "PLZ & Ort",
     invoiceOperatorPhoneLabel: "Telefon",
     invoiceOperatorWebsiteLabel: "Website",
@@ -3074,6 +3075,7 @@ const UI_TRANSLATIONS = {
     btnSaveInvoiceIdentity: "Save sender & bank",
     toastInvoiceIdentitySaved: "Sender & bank saved",
     alertInvoiceIdentitySaveFailed: "Failed to save sender/bank: {error}",
+    alertInvoiceIdentityEmpty: "Please enter real sender and bank details – the grey examples are not saved.",
     invoiceOperatorZipCityLabel: "ZIP & city",
     invoiceOperatorPhoneLabel: "Phone",
     invoiceOperatorWebsiteLabel: "Website",
@@ -5146,6 +5148,12 @@ const UI_TRANSLATIONS = {
     companyCustomerNumberLabel: "رقم العميل",
     supportPhoneLabel: "رقم طوارئ المسؤول لشاشة الأمان",
     invoiceOperatorStreetLabel: "الشارع ورقم المنزل",
+    invoiceIdentityPersistHint: "أدخلها مرة واحدة واحفظها — تُستخدم في كل الفواتير وملفات PDF. يمكن تغييرها لاحقاً.",
+    invoiceIdentitySaveHint: "هذه بيانات الفاتورة فقط — دون بقية الإعدادات.",
+    btnSaveInvoiceIdentity: "حفظ المرسل والبنك",
+    toastInvoiceIdentitySaved: "تم حفظ المرسل والبنك",
+    alertInvoiceIdentitySaveFailed: "فشل حفظ المرسل/البنك: {error}",
+    alertInvoiceIdentityEmpty: "أدخل بيانات حقيقية للمرسل والبنك — الأمثلة الرمادية لا تُحفظ.",
     invoiceOperatorZipCityLabel: "الرمز البريدي والمدينة",
     invoiceOperatorPhoneLabel: "الهاتف",
     invoiceOperatorWebsiteLabel: "الموقع الإلكتروني",
@@ -8780,74 +8788,74 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "np. 10023",
   },
   invoiceOperatorStreet: {
-    de: "Musterstraße 12",
-    en: "Sample Street 12",
-    tr: "Ornek Sokak 12",
-    ar: "شارع المثال 12",
-    fr: "Rue Exemple 12",
-    es: "Calle Ejemplo 12",
-    it: "Via Esempio 12",
-    pl: "ul. Przykladowa 12",
+    de: "z. B. Musterstraße 12",
+    en: "e.g. Sample Street 12",
+    tr: "örn. Ornek Sokak 12",
+    ar: "مثال: شارع المثال 12",
+    fr: "ex. Rue Exemple 12",
+    es: "ej. Calle Ejemplo 12",
+    it: "es. Via Esempio 12",
+    pl: "np. ul. Przykladowa 12",
   },
   invoiceOperatorZipCity: {
-    de: "12345 Musterstadt",
-    en: "12345 Sample City",
-    tr: "34000 Istanbul",
-    ar: "12345 المدينة النموذجية",
-    fr: "75000 Paris",
-    es: "28001 Madrid",
-    it: "20100 Milano",
-    pl: "00-001 Warszawa",
+    de: "z. B. 12345 Musterstadt",
+    en: "e.g. 12345 Sample City",
+    tr: "örn. 34000 Istanbul",
+    ar: "مثال: 12345 المدينة النموذجية",
+    fr: "ex. 75000 Paris",
+    es: "ej. 28001 Madrid",
+    it: "es. 20100 Milano",
+    pl: "np. 00-001 Warszawa",
   },
   invoiceOperatorPhone: {
-    de: "+49 123 456789",
-    en: "+49 123 456789",
-    tr: "+49 123 456789",
-    ar: "+49 123 456789",
-    fr: "+49 123 456789",
-    es: "+49 123 456789",
-    it: "+49 123 456789",
-    pl: "+49 123 456789",
+    de: "z. B. +49 123 456789",
+    en: "e.g. +49 123 456789",
+    tr: "örn. +49 123 456789",
+    ar: "مثال: +49 123 456789",
+    fr: "ex. +49 123 456789",
+    es: "ej. +49 123 456789",
+    it: "es. +49 123 456789",
+    pl: "np. +49 123 456789",
   },
   invoiceOperatorWebsite: {
-    de: "www.meinefirma.de",
-    en: "www.mycompany.com",
-    tr: "www.firmam.com",
-    ar: "www.yourcompany.com",
-    fr: "www.monentreprise.fr",
-    es: "www.miempresa.com",
-    it: "www.miaazienda.com",
-    pl: "www.mojafirma.pl",
+    de: "z. B. www.meinefirma.de",
+    en: "e.g. www.mycompany.com",
+    tr: "örn. www.firmam.com",
+    ar: "مثال: www.yourcompany.com",
+    fr: "ex. www.monentreprise.fr",
+    es: "ej. www.miempresa.com",
+    it: "es. www.miaazienda.com",
+    pl: "np. www.mojafirma.pl",
   },
   invoiceOperatorEmail: {
-    de: "rechnung@meinefirma.de",
-    en: "billing@mycompany.com",
-    tr: "fatura@firmam.com",
-    ar: "billing@yourcompany.com",
-    fr: "facturation@monentreprise.fr",
-    es: "factura@miempresa.com",
-    it: "fattura@miaazienda.com",
-    pl: "faktura@mojafirma.pl",
+    de: "z. B. rechnung@meinefirma.de",
+    en: "e.g. billing@mycompany.com",
+    tr: "örn. fatura@firmam.com",
+    ar: "مثال: billing@yourcompany.com",
+    fr: "ex. facturation@monentreprise.fr",
+    es: "ej. factura@miempresa.com",
+    it: "es. fattura@miaazienda.com",
+    pl: "np. faktura@mojafirma.pl",
   },
   invoiceIban: {
-    de: "DE12 3456 7890 1234 5678 90",
-    en: "DE12 3456 7890 1234 5678 90",
-    tr: "DE12 3456 7890 1234 5678 90",
-    ar: "DE12 3456 7890 1234 5678 90",
-    fr: "DE12 3456 7890 1234 5678 90",
-    es: "DE12 3456 7890 1234 5678 90",
-    it: "DE12 3456 7890 1234 5678 90",
-    pl: "DE12 3456 7890 1234 5678 90",
+    de: "z. B. DE12 3456 7890 1234 5678 90",
+    en: "e.g. DE12 3456 7890 1234 5678 90",
+    tr: "örn. DE12 3456 7890 1234 5678 90",
+    ar: "مثال: DE12 3456 7890 1234 5678 90",
+    fr: "ex. DE12 3456 7890 1234 5678 90",
+    es: "ej. DE12 3456 7890 1234 5678 90",
+    it: "es. DE12 3456 7890 1234 5678 90",
+    pl: "np. DE12 3456 7890 1234 5678 90",
   },
   invoiceBic: {
-    de: "COBADEFFXXX",
-    en: "COBADEFFXXX",
-    tr: "COBADEFFXXX",
-    ar: "COBADEFFXXX",
-    fr: "COBADEFFXXX",
-    es: "COBADEFFXXX",
-    it: "COBADEFFXXX",
-    pl: "COBADEFFXXX",
+    de: "z. B. COBADEFFXXX",
+    en: "e.g. COBADEFFXXX",
+    tr: "örn. COBADEFFXXX",
+    ar: "مثال: COBADEFFXXX",
+    fr: "ex. COBADEFFXXX",
+    es: "ej. COBADEFFXXX",
+    it: "es. COBADEFFXXX",
+    pl: "np. COBADEFFXXX",
   },
   invoiceBankName: {
     de: "Bankname eingeben oder waehlen...",
@@ -8860,24 +8868,24 @@ const UI_PLACEHOLDER_TEXTS = {
     pl: "Wpisz lub wybierz nazwę banku...",
   },
   invoiceTaxId: {
-    de: "123/456/78901",
-    en: "123/456/78901",
-    tr: "123/456/78901",
-    ar: "123/456/78901",
-    fr: "123/456/78901",
-    es: "123/456/78901",
-    it: "123/456/78901",
-    pl: "123/456/78901",
+    de: "z. B. 123/456/78901",
+    en: "e.g. 123/456/78901",
+    tr: "örn. 123/456/78901",
+    ar: "مثال: 123/456/78901",
+    fr: "ex. 123/456/78901",
+    es: "ej. 123/456/78901",
+    it: "es. 123/456/78901",
+    pl: "np. 123/456/78901",
   },
   invoiceVatId: {
-    de: "DE123456789",
-    en: "DE123456789",
-    tr: "DE123456789",
-    ar: "DE123456789",
-    fr: "DE123456789",
-    es: "DE123456789",
-    it: "DE123456789",
-    pl: "DE123456789",
+    de: "z. B. DE123456789",
+    en: "e.g. DE123456789",
+    tr: "örn. DE123456789",
+    ar: "مثال: DE123456789",
+    fr: "ex. DE123456789",
+    es: "ej. DE123456789",
+    it: "es. DE123456789",
+    pl: "np. DE123456789",
   },
   invoiceEmailSubject: {
     de: "Ihre Rechnung Nr. {invoiceNumber} von {platformName}",
@@ -9163,7 +9171,8 @@ function applyUiTranslations() {
     const key = el.getAttribute("data-ui-i18n-placeholder");
     if (!key) return;
     const value = uiT(key);
-    if (value) el.placeholder = value;
+    if (!value || value === key) return;
+    el.placeholder = value;
   });
 
   const inputLocale = getUiLocale(lang);
@@ -28639,24 +28648,58 @@ function isValidEmailValue(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+const INVOICE_IDENTITY_FIELD_IDS = [
+  "invoiceOperatorStreet",
+  "invoiceOperatorZipCity",
+  "invoiceOperatorPhone",
+  "invoiceOperatorWebsite",
+  "invoiceOperatorEmail",
+  "invoiceIban",
+  "invoiceBic",
+  "invoiceBankName",
+  "invoiceTaxId",
+  "invoiceVatId",
+];
+
+function isInvoiceIdentityPlaceholderValue(el, raw) {
+  const text = String(raw || "").trim();
+  if (!text) return true;
+  const placeholder = String(el?.placeholder || "").trim();
+  const canned = typeof getUiPlaceholderText === "function" ? String(getUiPlaceholderText(el?.id) || "").trim() : "";
+  const candidates = [placeholder, canned].filter(Boolean);
+  if (candidates.includes(text)) return true;
+  const stripped = text.replace(/^z\.\s*B\.\s*/i, "").replace(/^e\.g\.\s*/i, "").trim();
+  return candidates.some((candidate) => {
+    const plain = String(candidate).replace(/^z\.\s*B\.\s*/i, "").replace(/^e\.g\.\s*/i, "").trim();
+    return plain && (text === plain || stripped === plain);
+  });
+}
+
+function readInvoiceIdentityField(selector) {
+  const el = document.querySelector(selector);
+  if (!el) return "";
+  const raw = String(el.value || "").trim();
+  if (isInvoiceIdentityPlaceholderValue(el, raw)) return "";
+  return raw;
+}
+
+function applyInvoiceIdentityFieldsToForm(source = {}) {
+  for (const key of INVOICE_IDENTITY_FIELD_IDS) {
+    const el = document.querySelector(`#${key}`);
+    if (!el) continue;
+    const saved = String(source[key] || "").trim();
+    el.value = saved;
+  }
+  document.querySelector("#settingsForm")?.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
 function hydrateInvoiceOperatorFieldsFromSettings() {
   const settings = state.settings || {};
-  const pairs = [
-    ["#invoiceOperatorStreet", "invoiceOperatorStreet"],
-    ["#invoiceOperatorZipCity", "invoiceOperatorZipCity"],
-    ["#invoiceOperatorPhone", "invoiceOperatorPhone"],
-    ["#invoiceOperatorWebsite", "invoiceOperatorWebsite"],
-    ["#invoiceOperatorEmail", "invoiceOperatorEmail"],
-    ["#invoiceIban", "invoiceIban"],
-    ["#invoiceBic", "invoiceBic"],
-    ["#invoiceBankName", "invoiceBankName"],
-    ["#invoiceTaxId", "invoiceTaxId"],
-    ["#invoiceVatId", "invoiceVatId"],
-  ];
-  for (const [selector, key] of pairs) {
-    const el = document.querySelector(selector);
+  for (const key of INVOICE_IDENTITY_FIELD_IDS) {
+    const el = document.querySelector(`#${key}`);
     if (!el) continue;
-    if (String(el.value || "").trim()) continue;
+    const current = String(el.value || "").trim();
+    if (current && !isInvoiceIdentityPlaceholderValue(el, current)) continue;
     const saved = String(settings[key] || "").trim();
     if (saved) el.value = saved;
   }
@@ -28665,16 +28708,16 @@ function hydrateInvoiceOperatorFieldsFromSettings() {
 function collectInvoiceIdentityPayload() {
   hydrateInvoiceOperatorFieldsFromSettings();
   return {
-    invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || "").trim(),
-    invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
-    invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || "").trim(),
-    invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || "").trim(),
-    invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || "").trim(),
-    invoiceIban: (document.querySelector("#invoiceIban")?.value || "").trim(),
-    invoiceBic: (document.querySelector("#invoiceBic")?.value || "").trim(),
-    invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
-    invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || "").trim(),
-    invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
+    invoiceOperatorStreet: readInvoiceIdentityField("#invoiceOperatorStreet"),
+    invoiceOperatorZipCity: readInvoiceIdentityField("#invoiceOperatorZipCity"),
+    invoiceOperatorPhone: readInvoiceIdentityField("#invoiceOperatorPhone"),
+    invoiceOperatorWebsite: readInvoiceIdentityField("#invoiceOperatorWebsite"),
+    invoiceOperatorEmail: readInvoiceIdentityField("#invoiceOperatorEmail"),
+    invoiceIban: readInvoiceIdentityField("#invoiceIban"),
+    invoiceBic: readInvoiceIdentityField("#invoiceBic"),
+    invoiceBankName: readInvoiceIdentityField("#invoiceBankName"),
+    invoiceTaxId: readInvoiceIdentityField("#invoiceTaxId"),
+    invoiceVatId: readInvoiceIdentityField("#invoiceVatId"),
   };
 }
 
@@ -28685,12 +28728,23 @@ async function saveInvoiceIdentitySettings(options = {}) {
     return null;
   }
   const body = collectInvoiceIdentityPayload();
+  if (!Object.values(body).some(Boolean)) {
+    if (!silent) {
+      showToast(
+        uiT("alertInvoiceIdentityEmpty") || "Bitte echte Absender- und Bankdaten eintragen – die grauen Beispiele werden nicht gespeichert.",
+        "error"
+      );
+    }
+    return null;
+  }
   try {
     const updated = await apiRequest(API_BASE + "/api/settings/invoice-identity", {
       method: "PUT",
       body,
     });
-    state.settings = { ...(state.settings || {}), ...(updated || {}), ...body };
+    const filled = Object.fromEntries(Object.entries(body).filter(([, value]) => String(value || "").trim()));
+    state.settings = { ...(state.settings || {}), ...filled, ...(updated || {}) };
+    applyInvoiceIdentityFieldsToForm(state.settings);
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
     if (!silent) showToast(uiT("toastInvoiceIdentitySaved") || "Absender & Bank gespeichert", "success");
     return updated;
@@ -29008,14 +29062,12 @@ function renderAdminSettingsForm() {
   if (impressumText) impressumText.value = state.settings.impressumText || "";
   if (datenschutzText) datenschutzText.value = state.settings.datenschutzText || "";
   // Invoice bank/address/tax fields
-  const invoiceFields = ["invoiceOperatorStreet", "invoiceOperatorZipCity", "invoiceOperatorPhone",
-    "invoiceOperatorWebsite", "invoiceOperatorEmail", "invoiceIban", "invoiceBic", "invoiceBankName", "invoiceTaxId", "invoiceVatId",
-    "invoiceEmailSubject", "invoiceEmailIntro", "invoiceEmailBodyTemplate"];
-  for (const fid of invoiceFields) {
+  applyInvoiceIdentityFieldsToForm(state.settings || {});
+  const extraInvoiceFields = ["invoiceEmailSubject", "invoiceEmailIntro", "invoiceEmailBodyTemplate"];
+  for (const fid of extraInvoiceFields) {
     const el = document.querySelector(`#${fid}`);
     if (el) {
       el.value = state.settings[fid] || "";
-      el.dispatchEvent(new Event("input", { bubbles: true }));
     }
   }
   // Dunning-Intervalle
@@ -29034,7 +29086,7 @@ function renderAdminSettingsForm() {
   if (_ibanEl) {
     const _n = normalizeIban(_ibanEl.value);
     if (!_n) {
-      markInvoiceFieldValid("#invoiceIban"); // leer = kein Fehler
+      _ibanEl.classList.remove("invoice-field-valid");
     } else if (isValidIban(_n)) {
       markInvoiceFieldValid("#invoiceIban");
     } else {
@@ -29044,8 +29096,13 @@ function renderAdminSettingsForm() {
   const _bicEl = document.querySelector("#invoiceBic");
   if (_bicEl) {
     const _b = String(_bicEl.value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    if (!_b || isValidBic(_b)) markInvoiceFieldValid("#invoiceBic");
-    else markInvoiceFieldInvalid("#invoiceBic", runtimeText("invoiceValidationBic"));
+    if (!_b) {
+      _bicEl.classList.remove("invoice-field-valid");
+    } else if (isValidBic(_b)) {
+      markInvoiceFieldValid("#invoiceBic");
+    } else {
+      markInvoiceFieldInvalid("#invoiceBic", runtimeText("invoiceValidationBic"));
+    }
   }
 }
 
@@ -32057,16 +32114,6 @@ async function handleSettingsSubmit(event) {
       impressumText: (document.querySelector("#impressumText")?.value || ""),
       datenschutzText: (document.querySelector("#datenschutzText")?.value || ""),
       brevoFromEmail: (document.querySelector("#brevoFromEmail")?.value || "").trim(),
-      invoiceOperatorStreet: (document.querySelector("#invoiceOperatorStreet")?.value || "").trim(),
-      invoiceOperatorZipCity: (document.querySelector("#invoiceOperatorZipCity")?.value || "").trim(),
-      invoiceOperatorPhone: (document.querySelector("#invoiceOperatorPhone")?.value || "").trim(),
-      invoiceOperatorWebsite: (document.querySelector("#invoiceOperatorWebsite")?.value || "").trim(),
-      invoiceOperatorEmail: (document.querySelector("#invoiceOperatorEmail")?.value || "").trim(),
-      invoiceIban: (document.querySelector("#invoiceIban")?.value || "").trim(),
-      invoiceBic: (document.querySelector("#invoiceBic")?.value || "").trim(),
-      invoiceBankName: (document.querySelector("#invoiceBankName")?.value || "").trim(),
-      invoiceTaxId: (document.querySelector("#invoiceTaxId")?.value || "").trim(),
-      invoiceVatId: (document.querySelector("#invoiceVatId")?.value || "").trim(),
       invoiceEmailSubject: (document.querySelector("#invoiceEmailSubject")?.value || "").trim(),
       invoiceEmailIntro: (document.querySelector("#invoiceEmailIntro")?.value || "").trim(),
       invoiceEmailBodyTemplate: (document.querySelector("#invoiceEmailBodyTemplate")?.value || "").trim(),
@@ -32089,6 +32136,12 @@ async function handleSettingsSubmit(event) {
       settingsBody.brevoApiKey = brevoApiKeyValue;
     }
 
+    const identity = collectInvoiceIdentityPayload();
+    for (const key of INVOICE_IDENTITY_FIELD_IDS) {
+      const next = String(identity[key] || "").trim();
+      if (next) settingsBody[key] = next;
+    }
+
     const updated = await apiRequest(API_BASE + "/api/settings", {
       method: "PUT",
       body: settingsBody
@@ -32105,7 +32158,8 @@ async function handleSettingsSubmit(event) {
       // ignore storage failures (private mode / quota)
     }
 
-    state.settings = updated;
+    state.settings = { ...(state.settings || {}), ...(updated || {}) };
+    applyInvoiceIdentityFieldsToForm(state.settings);
     document.dispatchEvent(new CustomEvent("baupass:settingsLoaded"));
     refreshAll();
     showToast(uiT("toastSaved") || "Gespeichert", "success");
